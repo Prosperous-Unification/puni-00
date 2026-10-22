@@ -495,6 +495,25 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Runtime authority**:
+The receiver-owned owner label and generation for conditional writes in one organization,
+project and person's scope, separate from a coordinator's local owner epoch.
+_Avoid_: Credential, local lease
+
+**Runtime basis**:
+The versioned digest of one coherent local project's ledger identity, project revision and
+complete work-item revision set, used as a conditional write precondition.
+_Avoid_: Global snapshot, authorization snapshot
+
+**Runtime receipt**:
+The permanent, payload-bound acceptance of one runtime command, separate from undo history.
+_Avoid_: Journal entry, current grant
+
+**Receiver ledger**:
+The WBS installation's retained identity and counts of runtime authorities, execution
+bindings and accepted commands, distinct from Twilight's consumption ledger.
+_Avoid_: Run ledger, run store
+
 **Delegated claim**:
 A claim that names a subtree claim as its parent and is written by the same account: how a
 superagent lets its subagents claim leaves inside its subtree. Released with its parent.

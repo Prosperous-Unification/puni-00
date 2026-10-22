@@ -1117,3 +1117,530 @@ Independent review of gated binding6f09b11fc..executor ebb7126be approves code-l
 Minor triage remains explicit: expected vendor SDK diagnostics may be captured/asserted in a separate improvement, without global suppression; UI sanitization tests do not certify production stderr sanitization. Three inherited unused directives and conflicting color settings remain separate maintenance. Historical Python orchestration was a real instruction violation; retain the actual Bun/Nx production evidence, failed/surviving proof limits and later Bun-only waves instead of relabeling history or repeating valid tests solely to rename a runner. Output is not pristine.
 
 At this record, exact executor-HEAD canonical host gate, full-repository aggregate checks and CI are required and pending. Historical storage/binding gates certify their own SHAs only. This review cannot close parentS0.03/S0.08/S7a, authorize live providers, establish physical quiescence or replace durable preparation/claim/turn-intent integration.
+
+## Receiver plan adoption
+
+Adopted the scoped-only receiver contract, compact rb1 basis, immutable claim/attempt
+binding, permanent acceptance ledger and unused-only rollback in an isolated branch based
+on `79f4dcdd97ba2111170558b71965899212171859`. This is planning evidence, not receiver
+implementation acceptance. Runtime auth/credential/provider/activation ownership stays
+with the existing owners. Parent integration checkboxes remain open.
+
+Fresh workspace checks: `bun install --frozen-lockfile` passed (1493 packages, 772ms).
+`bun test ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts ./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts --timeout=30000`
+passed 108 tests, 5504 assertions in 4.31s. Logs are `/tmp/puni-agentic-receiver-install.log`
+and `/tmp/puni-agentic-receiver-baseline.log`. These are existing baseline tests, not proof
+of the proposed receiver. No receiver implementation, R5 mutation runs or migrations have
+run. Focused implementation and exact-SHA gate evidence will be recorded as performed.
+
+Adoption validation: installed `openspec validate twilight-agentic-workflows --json` reports one valid change, zero errors and ten long-requirement warnings (three more than the seven-warning storage baseline); `/tmp/puni-agentic-receiver-adoption-openspec.json`. Formatting and `git diff --check` passed. Strict warning-free validation was not run or claimed.
+
+## Receiver Task 1 candidate: coherent local observations
+
+Implemented the canonical local revision descriptor and real Digest composition, plus an
+admitted observation over complete local rows and steps. Project/person/credential identity
+is copied before queueing; permissions and the admin person-binding exemption use a freshly
+resolved membership role inside the transaction. The existing read-only SQLite project
+permission decision supplies that role; ordinary command behavior is preserved. No runtime
+route, ledger, grant, receipt or mutation API is exposed by this slice.
+
+The initial real integration test placement in core violated Nx dependency boundaries.
+Moved it to `apps/wbs/be-01/src/controller/runtime-state.db.test.ts`, using core exports and
+the backend's actual digest adapter. No lint exception was added. Two fixture arity errors
+were corrected. Direct lint runs without a project graph were not treated as full lint proof.
+
+Validation at the candidate source:
+
+- The full focused/regression batch passed 94 tests and 361 assertions across the descriptor,
+  observation, existing SQLite fanout, mounted organization commands and module boundaries.
+  This was before relocating the observation test. Its final location then passed all 17
+  integration tests and 55 assertions in 3.97s. Relocation also replaced test-only Drizzle
+  imports with the adapter's supported SQL-string boundary; production behavior did not change.
+- Uncached domain/contracts typecheck and lint, and SQLite typecheck, passed in the first Nx
+  run, which failed other checks due to the placement/type issues above (wrapper exit130).
+  After correction, core/backend typecheck and lint plus dependencies passed six tasks in
+  1m5s; the separate SQLite lint passed in34.9s. Nx called that repaired task flaky based on
+  the earlier failure; the fresh run exited0. Ambient color-variable warning remains visible.
+- Formatting of all13 source/test/export files and `git diff --check` passed. No new migration,
+  build, live runtime route, deployment or exact-SHA receiver gate is claimed.
+
+R5:21 distinct injected production faults each exited1, followed immediately by a restored
+exit0 run (42 targeted invocations). They cover descriptor fields/validation, sparse rows,
+current role/person/pin checks, source capability binding, request snapshots and admitted
+capture. The actual SQLite UoW bypass exposed a staged row and premature observation while a
+real writer remained open; it was restored byte-for-byte with no final UoW diff. Named-fault
+and expected-refusal proofs are distinguished from success-versus-refusal proofs: F09/F10
+still threw incidental TypeErrors without diagnostics; F11/F12/F17/F18 changed typed refusals
+into throws. These do not claim unauthorized successful reads. The first malformed-role
+injection was blocked by SQLite's CHECK and was not counted; the successful corruption probe
+explicitly disabled that constraint before testing the actual trusted-role reader.
+
+Exact commands, failed setup attempts, per-fault patches/logs, restorations and limits are in
+`.superpowers/sdd/receiver-tasks/task-1-report.md` and `task-1-evidence/` in the receiver
+worktree. The fault logs retain their original pre-relocation test path; final-location
+regressions passed without rerunning the historical fault matrix. Independent Task1 review
+approved spec compliance and quality at `23ae1d8093bcc96a9f3e40fc7255283ddbc2ca82`,
+with no Critical or Important findings. The color-environment warning and historical Nx
+notice are deferred tooling minors. Review inspected F01/F16 directly without rerunning
+the matrix. Parent integration and exact-SHA receiver gate remain pending.
+
+### 2026-10-22 — receiver Task2 persistence candidate
+
+Implemented the required runtime store in SQLite and memory: four permanent
+ledger/authority/binding/receipt tables, exact scoped identities, row/count
+atomicity, immutable retained history and an additive migration with guarded down.
+The generic source remains lazy before explicit migration. Every runtime operation
+currently audits owned schema and all retained rows/payloads; cost grows with retained
+history. Canonical request bytes remain opaque at this layer; Task3 owns digest,
+receipt correspondence, current authorization and actual application acceptance.
+
+Fresh checks in the isolated receiver worktree:
+
+- Focused real-source/parser/WorkingPlan/inventory suite: 106 tests,432 assertions,
+  six files,9.81s, all passed.
+- SQLite conformance:82 tests,6992 assertions,37.06s; memory conformance:82 tests,
+  5436 assertions,2.86s. Both certify the new runtime family without exclusions.
+- Uncached core/contracts/SQLite/memory/conformance typecheck and lint passed in
+  their final covering runs. Final conformance unit/typecheck/lint also passed.
+  Initial failures exposed WorkingPlan catalog propagation, closed family/case
+  registries, a duplicate test registration and ordinary lint/type errors; these
+  were corrected and their failed logs retained.
+- Forward migration lint was invoked explicitly on
+  `20261022120000_add_runtime_commands/migration.sql` and exited0. Its SHA-256
+  `ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d`
+  matches the repository's pinned inspection identity. Formatting/diff checks
+  passed. OpenSpec validates one change with zero errors and ten existing
+  long-requirement warnings.
+
+R5 evidence contains64 distinct mutations and64 failing targeted trials:36 in the
+first summary,27 in the extra summary, and one WorkingPlan lifetime fault. The first
+63 were restored after each trial and followed by aggregate restored GREEN runs;
+they are not63 immediate red/green pairs. The lifetime fault has an immediate
+restored GREEN. Actual SQLite UoW rollback-to-COMMIT and memory staged-state aliasing
+leaked earlier writes after a real late duplicate receipt failure. Removing the
+primitive savepoint left a binding after a counter-trigger failure. Removing the
+history audit produced false absence, and removing the down guard let the actual
+rollback helper drop retained history. Named diagnostic and schema/constraint
+proofs are distinct from successful unauthorized business operations.
+
+Full commands, failures, historical mutation runners and per-fault outputs live in
+`.superpowers/sdd/receiver-tasks/task-2-report.md` and `task-2-evidence/`. Historical
+runner spellings predate formatting/lint cleanup; final restored suites passed,
+without claiming the entire matrix was rerun afterward. Task1's matrix was not
+rerun. This candidate has no runtime routes, application acceptance, full backend
+suite, build, live deployment or exact-SHA receiver host gate. Independent Task2
+review and parent acceptance remain pending.
+
+### Receiver Task2 independent review — fixes required
+
+Candidate `360dc8bb928419132cf64ba52d101bdab936f4ef` received a task-scoped
+independent review. Two Important findings are open: SQLite binding insertion
+accepted a non-string scope into permanent history, and memory audits checked
+values/counts without checking scoped lookup keys, receipt ledger identity or
+attempt uniqueness. Focused reviewer probes reproduced both. The original
+implementer is correcting them with real regressions and watched R5 faults;
+Task2 remains unchecked until scoped re-review.
+
+The raw store's existing terminal-atomicity contract does not promise standalone
+read isolation. Task3 application operations must continue to use the admitted
+transaction. The new runtime family is certified without exclusions; the memory
+provider's complete report still has six existing exclusions and absent
+`livePlans`/`projectRanks` families. No broader certification is claimed.
+
+#### Task2 fix round 1
+
+SQLite binding insertion now parses and persists the validated scope. Memory
+inspection validates canonical scoped keys, exact retained lookup identities,
+receipt installation identity and scoped store/attempt uniqueness. Shared scope
+negatives first failed on SQLite; 22 count-preserving memory corruption cases
+first failed before the audit fix. Both groups pass after correction.
+
+Fresh covering checks: 102 focused tests/654 assertions; SQLite conformance
+84 tests/7111 assertions; memory conformance84 tests/5555 assertions; all six
+SQLite/memory/conformance lint and typecheck targets; format and diff checks pass.
+The runtime family has no exclusions on either provider. Memory's six existing
+exclusions and two absent families remain outside this certification.
+
+Twelve distinct new guard-removal/dependency-break trials each made the targeted
+production negative fail by allowing the invalid operation. Source was restored
+per trial, then the complete focused suite passed once; these are not twelve
+immediate RED/GREEN pairs. The original64 trials remain historical, not rerun.
+Root inspected all twelve mutation-summary entries and representative exact scope,
+attempt-uniqueness and acceptance-key failure output. No full receiver gate,
+broad backend/application/HTTP suite or live deployment was run in this fix round.
+The corrected candidate still requires scoped independent re-review.
+
+Scoped re-review of `360dc8bb9..070035ede` found I1/I2/M1 addressed with no new
+Critical/Important findings. Task2 is accepted at
+`070035ede8f4d665f98d0fcac97f71ead92bfc21`; only its checklist is checked.
+Canonical-request semantic/digest correspondence, current-authorized application
+replay and accepted-operation lifecycle fixtures remain Task3 work. Parent
+receiver/bridge completion and final integration gates remain open.
+
+### Receiver Task3 — authority and authorized reconciliation candidate
+
+Added real admitted authority acquisition, pinned state and receipt lookup, plus
+strict canonical authority/claim/write envelopes. Current project/person/credential
+authorization precedes reconciliation; acquisition additionally preserves the
+existing `insufficient_scope` refusal for a credential without write scope.
+Authority CAS and accepted receipt commit together. Exact historical replay does
+not reacquire a current grant. State reports actual live claims beside immutable
+bindings, including legitimate ordinary claim movement.
+
+Fresh covering command (all paths prefixed `./`):
+
+```sh
+env -u NO_COLOR bun test ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-ledger.db.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts ./libs/wbs/domain/domain/src/runtime-basis.test.ts ./libs/wbs/application/core/src/ports/runtime-command-records.test.ts ./libs/wbs/adapters/store-memory/src/runtime-command.test.ts ./libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts ./apps/wbs/be-01/src/controller/claim-identity.controller.db.test.ts --timeout=30000
+env -u NO_COLOR NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-be-01 --skip-nx-cache
+```
+
+Results: 230 tests/1122 assertions across10 files passed in33.85s; all12 scoped
+lint/typecheck tasks passed uncached in1m40s. Source formatting and diff checks
+passed. Root OpenSpec validation passed one change with zero errors and10 existing
+warnings. The initial bootstrap RED was missing-module/export loader failure,
+not behavioral RED for every test. The write-scope case separately failed before
+its guard. Intermediate type/lint/fixture failures remain in the report.
+
+R5:21 distinct production guard faults produced47 failed test outcomes, each
+followed by byte-for-byte source restoration and a targeted GREEN. This is not47
+unique tests or exhaustive mutation coverage. Faults cover current authorization,
+all three ledger pins, exact payload replay, actual SQLite CAS, digest/canonical
+bytes/receipt correspondence, person inventory, synchronous request detachment,
+strict input fields, safe generation, batch/session bounds, finite measurement
+and semantic parsing. Wrong-pin acquisition and noncanonical replay proofs expose
+incorrect refusal classification rather than unauthorized mutation. Initial digest
+mutants survived because the fixture had dropped an immutable trigger: schema
+audit masked the intended check. Those runs are excluded. Corrected fixtures
+restore exact trigger SQL before public reads; counted digest/receipt mutants let
+corrupted operations resolve. Named diagnostics additionally identify each layer.
+
+A real late receipt INSERT trigger observes staged CAS/counts, then aborts;
+authority, acceptance and counters roll back. Actual accepted authority prevents
+migration down even after all ordinary claims are removed. Unused down/up changes
+the ledger and rejects old pins. These do not prove future guarded runtime release.
+Literal claim/write receipts test retained correspondence only; actual accepted
+claim/write paths remain Tasks4/5. Existing Task1 proofs are historical, with their
+regression tests rerun; no whole old fault-matrix recertification is claimed.
+
+Full commands, failed/masked trials and21-pair manifest remain in
+`.superpowers/sdd/receiver-tasks/task-3-report.md` and `task-3-evidence/`.
+Independent Task3 review is pending. No runtime HTTP route, full receiver build,
+exact-SHA receiver host gate or live deployment is claimed. No new migration or
+secret was added; separate migration/secrets scans were not run for this slice.
+
+Task3 independent review approved spec compliance and task quality at
+`2a92c978c5a96b91a32069a951278f20ae00a183`, with no Critical/Important findings.
+One Minor is deferred to final review: the reference-order test also changes the
+command count, so it does not isolate reference ordering. Production code preserves
+that order; no behavior defect was found. Only Task3 is checked. The subsequent
+commit hooks additionally passed plaintext-secrets, format and lint; migration
+hooks had no applicable files, and external Tool Wiki activation remains absent
+(`certified:false`). Broader receiver/HTTP/build/host-gate obligations remain open.
+
+### Receiver Task4 — exact conditional claim candidate
+
+`claimRuntime` uses the existing command transaction, admission, apply/journal and
+committed fanout path. Current authorization and ledger pin precede retained
+acceptance lookup; exact replay precedes ordinary effectful admission. New claims
+require current authority and basis, an unused runtime attempt and one exact
+post-apply claim. Ordinary alreadyHeld claims cannot be adopted. Binding, final
+basis and accepted receipt commit with the actual business writes. Runtime callers
+must inject the real Digest; ordinary-only runner composition remains supported.
+
+Fresh covering commands:
+
+```sh
+bun test ./apps/wbs/be-01/src/controller/runtime-claim.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts ./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts ./apps/wbs/be-01/src/service/plan-commands.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-be-01 --skip-nx-cache
+```
+
+Observed after lint amendments: 212 tests/928 assertions across nine files passed
+in18.60s; all10 scoped lint/typecheck tasks passed uncached in1m14s. Changed source
+formatting and diff checks passed. Root OpenSpec validation passed one change,
+zero errors and10 existing warnings. Earlier setup/type/lint failures are retained
+in the report. Initial behavioral RED was10 failures at absent claimRuntime after
+fixture setup correction; later coverage additions are not separate TDD claims.
+
+R5:24 distinct fault trials failed their targeted assertions; exact source bytes
+were restored after each, followed by aggregate GREEN. These are not24 immediate
+RED/GREEN pairs. The corrected manifest classifies13 behavior/identity/persistence,
+five borrowed-claim dependency breaks, two typed-outcome backstops, two diagnostic
+and two ordering trials. P4-06 reaches the intact attempt UNIQUE constraint;
+P4-07 instead reaches the later unmanaged application refusal. Neither proves
+unsafe acceptance. Fresh-role fallback proves erroneous refusal of an authorized
+admin. Missing-capability/legacy diagnostics and parser/replay ordering are not
+misrepresented as unsafe mutation proofs. The first eight trials historically
+used Python orchestration contrary to the Bun-only convention; the remaining16
+used Bun. Actual commands are preserved, not relabeled.
+
+The real late receipt INSERT trigger confirms staged claim/progress/binding/count
+and journal writes before aborting, then observes complete transactional rollback
+and no delivered fanout. Both ordinary capture points execute on success; this
+fixture's equivalent downstream scheduling facts emit no new elsewhere event.
+A post-commit announcement failure followed by actual source close/reopen proves
+lookup and exact replay recover the accepted claim without opening a new mutation
+graph. Queued caller mutation tests cover detached nested request/identity inputs.
+
+Full report, corrected manifest, fault outputs and final commands remain under
+`.superpowers/sdd/receiver-tasks/task-4-report.md` and `task-4-evidence/`.
+Independent review remains pending. Guarded release and release→new-attempt
+integration remain Task5; mounted routes/read scope/Digest composition remain
+Task6. No full receiver build, exact-SHA host gate or live deployment is claimed.
+
+Independent Task4 review approved spec compliance and task quality at
+`1f1fd61778aebfc25b65c37c260b5038a5e51012`, with no Critical/Important findings.
+The review confirmed ordinary settlement, current-role/credential detachment and
+delegated-parent/session consistency with existing claim semantics. The historical
+Python orchestration deviation remains recorded; no repeated trial is claimed.
+Only Task4 is accepted. Its explicitly cross-referenced guarded-release/new-attempt
+scenario remains in Task5; HTTP composition and final receiver gates remain open.
+Unchanged storage guarantees rely on accepted Task2 evidence, not an independent
+rerun of its complete fault matrix. No coordinator quiescence is established.
+
+### Receiver Task5 — exact claimed write candidate
+
+`writeRuntime` applies the restricted batch through the existing transaction,
+ordinary admission, apply/journal and committed fanout path. Shared claim/write
+preflight keeps current authorization, ledger pin and canonical accepted replay
+before ordinary effects. Fresh writes require the exact live claim, immutable
+runtime binding, current owner/generation and current complete basis. Release is
+one exact person/step and last. Ordinary normalizers compile the detached request;
+canonical identity retains the original payload, including omitted ref names.
+Unknown usage omits measurement and preserves the existing value; explicit zero
+is a valid measurement. No executor quiescence is inferred.
+
+Fresh covering commands:
+
+```sh
+env -u NO_COLOR bun test ./apps/wbs/be-01/src/controller/runtime-write.db.test.ts ./apps/wbs/be-01/src/controller/runtime-claim.db.test.ts ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/external-ref.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts ./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts --timeout=30000
+env -u NO_COLOR NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-be-01 --skip-nx-cache
+```
+
+Observed: 256 tests/1125 assertions across12 files passed in54.59s; all12 scoped
+lint/typecheck tasks passed uncached in2m14s. After the final exactly restored
+faults and comment-only evidence corrections, the affected write/canonical suites
+passed71 tests/288 assertions in9.36s. Source formatting and diff checks passed.
+The covering/static run preceded only those restored trials and comments; it is
+not described as a later run. Initial corrected feature RED was30 failures at
+missing writeRuntime. Fixture, type and lint iterations remain in the report;
+subsequent coverage additions are not claimed as initially failing TDD cases.
+
+R5:48 numbered fault trials produced watched failures, with exact source bytes
+restored after each and aggregate GREEN afterward, not48 immediate RED/GREEN
+pairs or48 independent guards. All orchestration used Bun. Trials cover live and
+immutable identities, target/step/release breadth/order, pin, owner, generation,
+basis, payload equality, final basis, receipt INSERT, detachment, current scopes
+and role propagation, strict parsing and canonical ref order. Their actual
+outcomes matter: release-person and the initial wrong-step cases reached ordinary
+not_claimed_by; normalization bypass reached typed unknown_system; missing-digest,
+legacy and wrong-action omissions exposed incidental TypeErrors. Removing replay's
+early return alone also only produced TypeError. The additional valid-before-return
+admission fault reached the actual forbidden fanout capture. These diagnostic,
+classification and ordering trials are not unsafe-acceptance claims.
+
+The stronger live-guard fault used A's retained valid binding, a fresh grant/basis
+and actual replacement B: the stale release deleted B. The independent wrong-step
+fault used another genuinely held step and accepted its release. With guards
+restored, A guarded release then B's new attempt receives a new claim ID; stale A
+cannot touch B, and both bindings remain immutable. A competing holder between
+release and retry receives ordinary eligibility/holder semantics without automatic
+reclamation. The original role-propagation trial survived because measurement did
+not consume that role; it is excluded. The strengthened exact-release case exposed
+an erroneous person_not_bound refusal for a freshly authorized admin. One ambiguous
+mutation anchor was rejected before editing; corrected trials then ran.
+
+A real late receipt INSERT trigger verifies staged progress, measure, refs,
+release, journal and binding before aborting; complete persisted snapshots and
+fanout observations roll back. Postcommit announcement loss followed by actual
+source close/reopen allows lookup and exact replay without new capture or mutation.
+The inherited Task3 reference-order Minor now compares equal command counts and
+has an independent sorting-fault negative; independent review remains required.
+
+Full commands, failures, precise classifications and restoration records remain
+in `.superpowers/sdd/receiver-tasks/task-5-report.md` and `task-5-evidence/`, with
+`manifest-authoritative.json` superseding early broad labels. Root OpenSpec validation passed one change, zero errors and10 existing warnings.
+Task5 independent review is pending at this candidate. Mounted routes,
+shared client, boot readiness, full receiver build and exact-SHA host gate remain
+Task6/final integration. No live deployment, durable coordinator integration or
+physical worker quiescence is claimed. No new migration or secret was added;
+separate migration/secrets scans were not run by the worker.
+
+Independent Task5 review approved spec compliance and quality at
+`e9ab79a08bd9b91e0a70f841d2fc8effbf670ef3`, with no Critical, Important or Minor
+findings. It confirmed shared claim behavior, normalization without canonical
+alias mutation, exact live/bound write identity, complete rollback and retained
+replay. The inherited Task3 reference-order Minor is resolved by equal-command
+coverage and its independent sorting-fault proof. All48 referenced logs and the
+restoration mechanism were reviewed with their stated outcome classifications.
+Unchanged storage/migration guarantees retain accepted Tasks1–4 evidence; this
+review does not recertify their entire fault matrices. Only Task5 is accepted;
+mounted HTTP/client/readiness and final receiver gates remain open. Commit hooks
+also passed plaintext-secrets, formatting and lint; migration hooks were not
+applicable, and external Tool Wiki activation remains absent (`certified:false`).
+
+### Receiver Task6 — mounted HTTP/client and readiness candidate
+
+All four final routes use the shared declarations, existing identity/organization
+policies and admitted current authorization. The mounted runner receives the real
+Digest. Complete wire validation precedes personId/context projection; mutations
+and lookup require explicit pins. Command refusal translation validates against
+its existing declaration before preserving correlated status/detail. The client
+uses the existing shape-derived transport and response classifier.
+
+Boot now awaits configured migration/StepBlockage/backfill/local identity and
+actual runtime ledger inspection before retention/listener startup, using explicit
+DI promise dependencies. Optimizer/proof workers follow successful listening;
+owned resources retain reverse disposal and partial-acquisition cleanup. Explicit
+local startup migrations may complete before a later occupied-port failure.
+Deployed startup does not implicitly migrate or repair runtime state.
+
+Fresh covering command:
+
+```sh
+bun test ./apps/wbs/be-01/src/boot.db.test.ts ./apps/wbs/be-01/src/domain-proof.boot.db.test.ts ./apps/wbs/be-01/src/runtime-command.boot.db.test.ts ./apps/wbs/be-01/src/controller/runtime-command.controller.db.test.ts ./apps/wbs/be-01/src/app.routes.test.ts ./apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts ./apps/wbs/be-01/src/controller/claim-identity.controller.db.test.ts ./libs/wbs/domain/contracts/src/http/runtime-command-shapes.test.ts ./libs/wbs/domain/contracts/src/http/runtime-command-client.test.ts ./libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts --timeout=10000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-contracts,wbs-core,wbs-be-01,wbs-store-sqlite,wbs-store-memory --skip-nx-cache
+```
+
+Observed124 tests/1956 assertions across10 files pass in20.71s; all12 scoped
+lint/typecheck tasks pass in1m43s. Final focused35 tests/161 assertions pass.
+After mechanical test-helper naming cleanup, affected backend21 tests/121
+assertions pass in6.61s and its three static targets pass in56.7s. These runs
+overlap; their counts are not additive. Edited-file formatting and diff checks
+pass. Actual OpenAPI emission confirms the four exact method/path/operationId
+pairs and required pins. OpenSpec passes one change with zero errors and10
+long-requirement warnings; historical seven-warning shorthand was corrected.
+
+The mounted tests use real SQLite/authority/claim/write paths. They commit then
+lose only the transport reply, close/reopen the source, lookup the full acceptance
+and exactly replay with unchanged journal/state/basis. Delayed old-generation
+dispatch refuses after takeover; absence before fencing stays inconclusive.
+Unused down/up and fully reconstructed valid tables change the pin before old
+receipt absence/replay. Current auth before replay, foreign/absent project
+indistinguishability, legacy refusal, strict input and existing holder/resource
+semantics remain covered. Client cancellation, malformed replies and unexpected
+status remain transport failures rather than inferred nonacceptance. Boot tests
+hold real inspection, observe no early listener/timer/optimizer/proof worker,
+then validate healthy startup, missing/corrupt ledger failure, pending migration,
+occupied-port ownership and cleanup after actual socket acquisition.
+
+R5 evidence contains17 numbered fault families plus repeated/strengthened trials.
+Each mutation restores exact bytes in finally; the byte-observation pass records
+restored=true throughout, followed by aggregate GREEN. This is not17 unique new
+guards or immediate RED/GREEN pairs. Actual failures include early listener/timer
+startup, unknown wire-key acceptance, malformed successful client receipts,
+old-ledger acquisition acceptance, old-pin state/absence misclassification and
+duplicate-query acceptance/classification. Missing wire pin instead reaches the
+strict application parser (500 instead of boundary400); removed identity reaches
+the missing-principal backstop (500 instead of401). Refusal/parser guards and the
+unexpected-status guard prove named diagnostics while mounted/client backstops
+still reject. Removing Digest proves the actual mounted composition requirement.
+These are not represented as unsafe acceptance cases.
+
+Initial auth mutation failed fixture setup; a reworked real-ledger/authority
+fixture then reached the intended anonymous assertion. The first status fault
+survived through a later classifier; the strengthened test observes its actual
+unexpected_status→invalid_response change. The first retention fault hit listener
+ordering first; reordered observations directly expose retention.start. All
+historical logs remain retained and excluded from stronger claims. Initial TDD
+and fixture/static iterations are preserved, including corrected migration-marker
+fixture and genuine mounted404-before-implementation RED.
+
+Full commands, trial classifications and restoration records remain under
+`.superpowers/sdd/receiver-tasks/task-6-report.md` and `task-6-evidence/`.
+Independent Task6 review, full receiver review/build, CI and exact-SHA host gate
+remain pending. These checks do not prove Dash durable intent/pin/grant storage,
+credential retrieval, executor quiescence, session ordering or CTT settlement;
+parent5/6a.5–7 are not wholly complete. No live deployment or model call occurred.
+
+Task6 independent review found Important I1: the response shape accepted empty,
+gapped and duplicate-index write applied arrays. Its earlier incomplete-write
+negative also omitted claim, masking this defect. Review therefore did not accept
+Task6. A Minor about expected error/startup output in inherited regression tests
+is retained for whole-branch review; it does not invalidate their passing assertions.
+
+Fix1 requires1–200 applied entries and contiguous indexes on both command and
+lookup success responses. A local SchemaShape refinement delegates structural
+validation and forwards its issues before checking validated write indexes.
+It preserves the original successful value/type. JSON/OpenAPI records the bounds
+and order description; dependent ordering executes through Standard Schema.
+Generic JSON-Schema-only consumers must additionally enforce that invariant.
+
+The isolated complete-envelope batch first produced4 pass/12 fail, then16 pass
+with all invalid sequences rejected. Four watched faults each failed and restored
+exact bytes: minimum/maximum omissions accepted empty/201-entry responses;
+order omission accepted eight invalid sequences across both routes; removing
+structural issue forwarding caused TypeError instead of modeled validation
+failure. This last case is forwarding/backstop evidence, not unsafe acceptance.
+Aggregate restored GREEN is not four immediate fault/restoration/pass pairs.
+
+Fix1 covering command:
+
+```sh
+bun test ./libs/wbs/domain/contracts/src/http/runtime-command-shapes.test.ts ./libs/wbs/domain/contracts/src/http/runtime-command-client.test.ts ./apps/wbs/be-01/src/controller/runtime-command.controller.db.test.ts ./libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts --timeout=10000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-contracts,wbs-core,wbs-be-01 --skip-nx-cache
+```
+
+Observed67 tests/231 assertions across4 files pass. The combined static command
+historically exited1: seven targets passed, contracts typecheck found test-control
+literal widening. Adding satisfies RuntimeReceipt changed test typing only;
+final contracts32 tests/64 assertions and both contracts static targets passed
+(the latter24.2s). Thus each scoped component passes, without claiming the first
+combined command exited0. Actual OpenAPI emission confirms bounds/order metadata
+on both success schemas; formatting/diff checks pass. Exact output and four-fault
+byte manifest remain in task-6-evidence/fix1-* and the appended task report.
+Scoped independent re-review is pending. No full124 regression repetition,
+receiver full gate, live call or coordinator recovery claim was made by this fix.
+
+Scoped Task6 fix1 re-review approved I1 at
+`32fa75d8082b498041dbfc937427af3c44540efc`, with no new Critical/Important
+breakage. It checked both awaited Standard Schema boundaries, complete-envelope
+negatives/controls, all four fault logs/restoration records and actual OpenAPI
+metadata. All six receiver slices are now individually accepted. The expected
+regression-log Minor remains for whole-branch triage; full receiver review,
+remaining downstream build/CI and exact-SHA host gate are still pending.
+Commit hooks also passed plaintext-secrets/format/lint in6.14s; no migration
+files applied to this fix and external Tool Wiki activation remains unavailable.
+
+### Receiver whole-branch review (d85a8dd2d)
+
+Final review found Important I1: startup inspected the public runtime store outside the admitted SQLite snapshot. Its separate marker/history SELECTs can misclassify a valid concurrent commit as corruption. A focused production-repository statement-interleaving probe rejected the mixed observation and accepted the intact final ledger; this was not a second-connection or live deployment proof. Minor M1 identified omitted runtime module memberships/consumer metadata. Both await the single final fix wave. Prior scope/memory/reference-order/receipt-sequence findings were confirmed resolved; inherited expected error output and historical Python proof orchestration remain disclosed. Draft PR #649 is stacked on #629. Whole-branch CI, build and exact-SHA host gate remain pending.
+
+### Receiver final fix wave: coherent startup audit
+
+At d85a8dd2d, the new actual two-connection disk-backed boot test first failed with retained-history-count mismatch after a valid atomic authority/count commit between marker and history reads. Startup now uses source.uow.run, the borrowed runtime store and a noncommitting decision. The test observes actual SQLITE_BUSY on the competing connection, successful readiness with consistent zero history, and a valid authority/count commit after the audit. This is two connections in one process with a deterministic statement hook; no multiprocess/live blue-green or full concurrent HTTP claim is made. Existing schema/hash/count/record validation and lazy source construction remain unchanged. Startup briefly takes existing BEGIN IMMEDIATE admission and retains its normal contention policy. Module metadata now lists six runtime files and the actual routes consumer.
+
+Final command bun test ./apps/wbs/be-01/src/boot.db.test.ts ./apps/wbs/be-01/src/domain-proof.boot.db.test.ts ./apps/wbs/be-01/src/runtime-command.boot.db.test.ts --timeout=10000: 51 pass,0 fail,166 assertions,3files17.88s. NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-be-01 --skip-nx-cache: all3module/typecheck/linttasksPASS50.8s. Four-file Prettier, diff whitespace and actual module memberships/consumer checks pass; root verified all four final byte hashes. Logs retain inherited startup/expected verifier/invalid-gateway/occupied-port diagnostics; no pristine-output claim.
+
+Four individual boot-only faults all exit1 and restore exact bytes: replacing the UoW with standalone inspection recreates the healthy-ledger false refusal; inspection omission lets listening win; removal of retention readiness starts its actual timer; removal of server await acquires listener early. Final covering GREEN follows restoration. Historical first GREEN5pass1fail exposed Drizzle wrapped SQLiteError and was corrected; first covering50pass1fail exposed an inherited pre-boot held-gate fixture. That single queued-write shutdown test now acquires its hold after readiness through the actual proof-worker seam and invokes the real worker unchanged; pending-stop/close-order/proof assertions remain. Initial backend static failed test callback narrowing/void-expression lint; precise test-only corrections pass final static. Fault hashes precede observed comment additions; final-state hashes cover the final files. Full report/evidence retained in the receiver workspace. Scoped final re-review and exact-SHA aggregate gate remain pending.
+
+Receiver final scoped re-review at0a7cab754: I1 startup snapshot and M1 module navigation ADDRESSED, no new Critical/Important/Minor or out-of-scope observations. Reviewer inspected the exact one-wave fix, retained two-connection/four-fault/restoration outputs and final covering/static records without rerunning suites. Existing UoW admission and the real queued-write shutdown fixture remain intact. Whole-branch source review is accepted with these corrections; CI and the exact-SHA full host gate remain required before integration or completion. No live deployment or full durable coordinator acceptance is implied.
+
+### First receiver aggregate gate: required integration failures
+
+Canonical h4 gate at e6aa12bd60eb6652c3cda0ac1f04e4241432f2af printed the exact SHA, installed locked dependencies unchanged and validated267OpenSpec entries. Its workspace stage exposed2memory catalog failures,1closed-feature-module audit failure and79legacy SQLite migration fixture failures. Summary lines repeat; these are82observed failed tests, not164. The full gate is not accepted and remaining workspace output is still being collected. Raw runtime repository capability/DTO provenance leaks into feature code, STORE_BINDINGS omits runtimeCommands, and independent rollback fixtures omit the new migration. Inspected unused runtime rollback itself succeeded; guards are not to be weakened. Bounded remediation is tracked in receiver-gate-tasks.md, followed by independent review and fresh aggregate exact-SHA validation. No merge/deployment has occurred.
+
+The same ongoing workspace phase later completed the backend target with3224pass,3skip,5fail,64039assertions across217files in1270.03s. Four failures are exact latest/rollback/full-ledger expectations omitting runtime_commands; the fifth is the existing test-tier recognizer missing openSpaceDatabase, which the three real migrated runtime controller SQLite suites call. The bounded plan names only the two migration fixtures and recognizer as additional paths. All four browser CI shards plus k3s rehearsal passed; workspace/Twilight CI and final host status remain pending. Fresh expanded-plan OpenSpec validates1change with0failures and10existing long-requirement warnings.
+
+The first exact-e6aa host gate completed exit1 after46m50s in workspace:174tasks succeeded and6targets failed (memory,core,SQLite,tool-devsync,backend,MCP),90actual failed tests after excluding repeated summaries. Later Twilight/source-lint/Docker phases did not run. Final inventory exposed two additional declaration gaps: memory module index omits the runtime source/test members; independent generated MCP operation pin and README84-tool count omit four actually derived runtime operations (88total). The same bounded repair names only these three declaration files, preserves exact complete catalog/index checks and changes no MCP auth/consent/credentials/derivation. A new exact-SHA full gate is required after scoped review.
+
+### Receiver gate reconciliation candidate
+
+The bounded repair gives runtime helpers a real private-store, fixed-scope RuntimeCommands resource and moves portable DTO declarations out of repository-owned modules with compatible adapter re-exports. Business authorization/canonical/receipt guards and SQL remain unchanged. Exact memory catalog coverage now exercises actual runtime shapes, and32legacySQLite plus2backend migration fixtures retain independent complete names/schema/ledger/row/hash/refusal checks. The tier recognizer names the actual migrated SQLite opener. Explicit memory source/test memberships and independent full88MCP operation/count declarations include the four receiver operations. Root verified all49final source hashes and selected inventory.
+
+Actual module-audit/memory/representative rollback/tier/MCP/index REDs preceded fixes. Observed restored negatives include public raw-store exposure rejected by the unchanged production AST audit, bypassed runtime detachment producing real reread mutation in both paths, and opener removal reproducing all three actual misfilings. Core/memory complete test targets passed. Full SQLite run was1872pass1existingSkip1fail14998assert133files746.44s: only repository-status stability failed while authorized backend files became dirty. With tracked edits/HEAD held, the unchanged affected performance case passed1test612assert, unchanged=true; no full-suite-pass claim. Backend run56pass1fail then corrected sole resource case1pass13assert; tier2pass; MCP41pass415assert; indexchecker1pass through approved disposableindex, realindex/HEAD unchanged. All five scoped project typechecks plus dependencies pass; initial three sort-only lint errors corrected and affected targets rerun pass, remaining targets already pass; final backend/static/declarationformat checks pass.
+
+Original untracked-candidate index diagnosis was masked; prepared alternate index containing exactly two new source paths and this new plan reached the actual missing-memory-membership failure, then passed after explicit memberships. Original h4gate completeexit1 remains evidence, not acceptance. Existing skip/colorwarnings and early Python orchestration deviation are retained honestly; subsequent orchestration Bun-only. CI Twilight52m35s also failed11pilot cases on the same memory missing member; root will run that newly exposed group on the committed candidate before fresh canonical gating. Independent bounded task review, CI and fresh exact-SHA full gate remain required. No merge/deploy or durable coordinator completion is claimed.
+
+Root focused pilot group at committedf2a60 (bun test ./apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --test-name-pattern "reviewed radical-modularity pilot through production CLI" --timeout=240000) completed exit1:12pass7fail5filtered378assert19tests270.46s. All7failures now report plan-commands external-consumer mismatch. The memory index repair works; the earlier README addition of actual runtime-command.routes.ts lacks its corresponding exact consumer in docs/wiki-policy/modules.json. Root verified actual imports and the bootstrap map has no plan-commands entry. This required validation blocker remains open and is queued for one exact mapping declaration fix plus scoped review, without changing rules, authority or source revision.
+
+Receiver gate-review fix1 adds only the exact runtime-command.routes.ts consumer in the existing plan-commands mapping. All previous entries/order and source revision/predecessor/authority fields remain; bootstrap has no corresponding module and is untouched. Production validate-record module-mapping reports valid, single-file format/diff pass. Root verified finalJSONhash27f0082a and exact4-line insertion. Newly failing pilot group plus ordinary indexchecker will run once on committed fix before scoped re-review; no passing covering result is prewritten.
+
+Original e6aa CI is now completeFAIL: workspace1h3m18s,Twilight52m35s,aggregateFAIL; browser4shards+k3s rehearsalPASS. Workspace full artifact lists the same six host-failing targets plus tool-deploy:test. Its only deploy failure is actual first-start observation success child killed by test10000ms deadline, exitCode null (827pass1fail); adjacent refusal children complete around5.2–5.3s. This is retained timeout evidence, not a proven flaky classification. Root will diagnose that exact unchanged test separately before deciding any source correction; no deploy safety guard or timeout has been changed.
+
+Receiver gate fix1 independent scoped re-review atc0109b9e2: I1exactconsumer mapping ADDRESSED, no new fix breakage or out-of-scope findings. Root actual19pilot tests405assertPASS189.01s and ordinary committed-indexchecker1test2assertPASS5.17s close the previously masked pilot/index issues. Full actual outputs are retained. This records the scoped review only; plan checklists remain open pending required full validation. The first gate/CI failures remain recorded. A NEW exact-SHA canonical full gate plus CI are required before completion/integration; no fullgate/CI/deploy success is claimed.
+
+## Local agentic packet composition
+
+An isolated integration branch starts at reviewed executor3ae7fb5e1 (binding6f09/storage79 included) and combines reviewed receiver5ba6ccbdf. Only CONTEXT and this verification appendix conflict; the accepted receiver Attempt wording/link and all executor terms are retained, and both complete evidence appendices are preserved. No source conflict or new feature behavior is manually resolved. Fresh frozen install succeeds; all267 OpenSpec items pass. Actual combined executor suites plus production module-boundary audit pass103tests406assertions/5files37.73s. This is focused composition evidence, not a full merged-tree gate.
+
+At this record receiver5ba GitHub CI is fully successful, including workspace1h9m14s/Twilight59m16s/browser shards/k3s/fleet; its canonical h4 full gate remains active. Executor3ae exact h2 gate is in the canonical queue behind another host gate, with CI running. Current main75585eebd is not yet in this local composition and must be integrated before final acceptance. Published packet heads and user main checkout remain unchanged; no main merge or deployment is performed.

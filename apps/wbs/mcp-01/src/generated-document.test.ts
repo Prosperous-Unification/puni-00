@@ -73,6 +73,8 @@ test('pins every generated MCP operation name independently of the registry', ()
       .map((tool) => tool.name)
       .sort(),
   ).toEqual([
+    'acquireRuntimeAuthority',
+    'applyRuntimeCommands',
     'deleteApiOrganizationDomainsById',
     'deleteApiOrganizationInvitationsById',
     'deleteApiOrganizationMembersByUserId',
@@ -120,6 +122,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiTimezones',
     'getApiWork-item-types',
     'getPlansBy-solutionBySlug',
+    'lookupRuntimeReceipt',
     'patchApiOrganization',
     'patchApiOrganizationMembersByUserId',
     'patchApiOrganizationSso-connectionsById',
@@ -159,6 +162,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiSpacesByIdProjects',
     'postApiSpacesByIdProjectsByProjectIdMove',
     'putApiOrganizationSession-policy',
+    'readRuntimeState',
   ]);
 });
 

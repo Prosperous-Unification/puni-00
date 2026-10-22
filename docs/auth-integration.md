@@ -193,8 +193,8 @@ check the emitted group values before chasing a write bug.
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in
 `/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The Okta
-trial expired on 2026-09-22, so its backup ([historical Okta mapping](#historical-okta-mapping))
-is due for deletion.
+trial expired on 2026-09-22 and its backup was deleted on 2026-10-22; only the
+[historical Okta mapping](#historical-okta-mapping) remains.
 
 Prod's swap reads its provider settings from `/home/puni1/wbs/oidc.env` (mode
 600), with the same five-key allowlist. No prod tenant or client is configured
@@ -405,8 +405,8 @@ and secret, and no `AUTH_METHODS`. Do not use the org authorization server if it
 custom audience and the `wbs_groups` claim (in both ID and access tokens) that WBS requires.
 Group values keep the environment prefix: `prod:wbs:*` in production, `dev:wbs:*` in development.
 
-The archived dev values live only in `/home/puni1/wbs-dev/oidc-dev.env.okta.bak` on the
-deployment host (mode 600). Never copy them into the repository, logs, tests, or issue text.
+The archived dev values were deleted from the deployment host on 2026-10-22 after the
+trial expired; no copy exists in the repository, logs, tests or issue text.
 
 ## Local bypass
 

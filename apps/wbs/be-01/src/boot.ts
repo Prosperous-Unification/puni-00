@@ -286,12 +286,13 @@ type BuiltApp = ReturnType<typeof buildApp>;
  * reach — the same shape of gap as the `runRetention` that had no caller at all.
  *
  * **It owns what it acquires.** The bag below opens the source, composes the
- * services, starts retention, mounts the listener and starts configured proof scheduling, in that order,
+ * services, awaits startup preparation and runtime ledger inspection, starts retention,
+ * mounts the listener and starts configured proof scheduling, in that order,
  * and releases them in the reverse of it. A step that fails takes the whole
  * startup down with it and gives back every resource the earlier steps took;
  * that is why this is `async` — `source.close()` and `retention.stop()` are
  * promises, and a synchronous boot could not wait for them before rethrowing.
- * It rejects with `DiBagStartupError`, whose `cause` is the original failure.
+ * It rejects with `DiBagServiceReadinessError`, whose `cause` is the original failure.
  */
 export async function bootBe01(
   opts: BootOptions,
@@ -355,16 +356,74 @@ export async function bootBe01(
           }),
         { factoryReturnKind: 'sync-value' },
       ),
+      readiness: DiBag.createProvider(
+        async ({
+          source,
+          services: _services,
+        }: {
+          source: OwnedSource;
+          services: BeServices;
+        }): Promise<void> => {
+          const db = source.db;
+          if (opts.migrateOnStartup !== true) {
+            opts.logger.info('be-01 preparing (schema managed by the deploy pipeline)');
+          } else {
+            opts.logger.info('be-01 preparing (migrating)');
+            runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+            // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
+            readStepBlockageActivation(db);
+            // The swap's post-`stop-blue` step, here because a process that
+            // migrates itself has no older colour left to wait for.
+            const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
+            opts.logger.info({ coded: coded.length }, 'step codes backfilled');
+          }
+          if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
+          if (opts.localIdentity !== undefined) {
+            // The one write in the tree whose author is the row it writes:
+            // the fixed local-mode account brings itself into existence, so
+            // it is its own `created_by`. `Date.now()` rather than an
+            // injected clock because boot is not a service and has none —
+            // the rule the stamp exists for is that the *repository* reads
+            // no clock, and this is the caller.
+            //
+            // OPEN: preparation completes before requests can enter a batch.
+            new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
+              at: Date.now(),
+              by: opts.localIdentity.id,
+            });
+          }
+          // Proof: P-final-02 omitted inspection; the held-inspection boot test
+          // observed listening first. Missing/corrupt ledger tests also reject here.
+          // Proof: P-final-01 replaced the UoW with standalone inspection; the
+          // second-connection boot regression falsely refused a healthy ledger's counts.
+          await source.uow.run(async (scope) => {
+            await scope.stores.runtimeCommands.inspectLedger();
+            return { commit: false, value: undefined };
+          });
+          state.migrationsApplied = true;
+          if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
+        },
+        { factoryReturnKind: 'native-promise' },
+      ),
       // Registered rather than started beside `listen`: a timer nobody stops
       // outlives the file it sweeps, so what starts it is now what the bag can
       // stop, and it stops before the source closes because it depends on it.
       retention: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          ({ services }: { services: BeServices }): BeServices['retention'] => {
+          async ({
+            services,
+            readiness,
+          }: {
+            services: BeServices;
+            readiness: Promise<void>;
+          }): Promise<BeServices['retention']> => {
+            // Proof: P6-02 removed this await; the held-inspection test
+            // observed retention.start once while inspection remained held.
+            await readiness;
             services.retention.start();
             return services.retention;
           },
-          { factoryReturnKind: 'sync-value' },
+          { factoryReturnKind: 'native-promise' },
         ),
         // Proof: on 2026-09-20, dropping this disposal made the refused-release
         // test report `Expected: false`, `Received: true` for timer activity.
@@ -379,23 +438,25 @@ export async function bootBe01(
       // has always shut down in.
       server: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (
+          async (
             {
               source,
               services,
-              retention: _retention,
+              retention,
             }: {
               source: OwnedSource;
               services: BeServices;
-              // Read for its edge, not its value: it is what puts the timer's
-              // disposer after the listener's. Drop it and the timer is never
-              // started at all.
+              // Await startup and keep the timer's disposer after the listener's.
+              // Dropping this edge also prevents timer acquisition.
               // Proof: on 2026-09-20, dropping this edge made the timer test
               // report `Expected: true`, `Received: false` (0 pass, 1 fail).
-              retention: BeServices['retention'];
+              retention: Promise<BeServices['retention']>;
             },
             factoryCtx,
-          ): BuiltApp => {
+          ): Promise<BuiltApp> => {
+            // Proof: P6-03 removed this await; the held-inspection test
+            // observed one listener before inspection settled.
+            await retention;
             const db = source.db;
             // Proof: removing this resolver binding made the activated
             // `immediate configured sweep` fail instead of recording DNS absence.
@@ -493,53 +554,12 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async (disposerCtx) => {
               if (disposerCtx.reason !== 'service-disposed') await app.stop();
             });
-            // Elysia runs this callback inline, before `listen` returns, so the
-            // schema step and the identity write happen exactly where they did —
-            // and a throw in either still leaves this factory, which is now what
-            // releases the socket above.
+            // Readiness and retention have settled before acquiring a socket.
             const startListener =
               dependencies.startListener ??
               ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
             startListener(app, opts.port, () => {
-              if (opts.migrateOnStartup !== true) {
-                opts.logger.info(
-                  { port: opts.port },
-                  'be-01 listening (schema managed by the deploy pipeline)',
-                );
-              } else {
-                opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
-                runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
-                // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
-                readStepBlockageActivation(db);
-                // The swap's post-`stop-blue` step, here because a process that
-                // migrates itself has no older colour left to wait for.
-                const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
-                opts.logger.info({ coded: coded.length }, 'step codes backfilled');
-              }
-              if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
-              if (opts.localIdentity !== undefined) {
-                // The one write in the tree whose author is the row it writes:
-                // the fixed local-mode account brings itself into existence, so
-                // it is its own `created_by`. `Date.now()` rather than an
-                // injected clock because boot is not a service and has none —
-                // the rule the stamp exists for is that the *repository* reads
-                // no clock, and this is the caller.
-                //
-                // **This has to finish before the first write, and it does.**
-                // Every audit column's `created_by` references `users(id)` with
-                // foreign keys on, so a write attributed to this identity before
-                // its row exists is a `FOREIGN KEY constraint failed` rather
-                // than a quiet null. `/health` answers 503 `migrating` until the
-                // flag below, and both things that send the first request wait
-                // for a 200 first: Playwright's `webServer` does, and so does
-                // the deploy poller before it routes traffic to green. `OPEN`:
-                // this runs before the first request is served, so there is no
-                // batch for this write to land inside and no turn to wait for.
-                new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
-                  at: Date.now(),
-                  by: opts.localIdentity.id,
-                });
-              }
+              opts.logger.info({ port: opts.port }, 'be-01 listening');
             });
             services.optimizer?.start();
             factoryCtx.pushDisposer(async () => {
@@ -586,11 +606,9 @@ export async function bootBe01(
                 },
               );
             }
-            state.migrationsApplied = true;
-            if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
             return app;
           },
-          { factoryReturnKind: 'sync-value', factoryReceivesContext: true },
+          { factoryReturnKind: 'native-promise', factoryReceivesContext: true },
         ),
         // A block body, not `(app) => app.stop()`: Elysia's `stop()` resolves to
         // the application, and a disposer must resolve to nothing.
@@ -608,7 +626,7 @@ export async function bootBe01(
     .ensureServicesReady(['server']);
 
   const services = bag.resolve('services');
-  const app = bag.resolve('server');
+  const app = await bag.resolve('server');
 
   return {
     backgroundFailure: backgroundFailure.source,

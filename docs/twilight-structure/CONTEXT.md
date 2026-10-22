@@ -263,7 +263,8 @@ _Avoid_: Workflow config, pipeline, step mapping
 **Attempt**:
 One admitted try of one activity on one exact claimed step, with its own state, agent run
 and usage; continuation or reattachment retains that attempt and claim. A retry is a new
-attempt of the same logical operation with a new exact claim.
+attempt of the same logical operation with a new exact claim
+([retry protocol](../../openspec/changes/twilight-agentic-workflows/receiver-design.md#shared-semantic-records)).
 _Avoid_: Job, execution, session, try
 
 **Activity preparation**:

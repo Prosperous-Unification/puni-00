@@ -134,3 +134,9 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
 
 - [ ] 8.5 Record separate compatibility and type-DAG milestones in the operator runbook.
       New-work cutover has an explicit fallback to manual; full type-DAG completion requires S7b/W12.
+
+## Receiver implementation packet
+
+Follow [receiver-tasks.md](receiver-tasks.md) for the six S0.05–S0.07 slices.
+Completing receiver HTTP/client behavior alone does not complete parent 5 or 6a.5–7:
+Dash durable pin/grant mapping, executor ordering and coordinator integration remain required.

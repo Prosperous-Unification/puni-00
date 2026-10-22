@@ -473,6 +473,11 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get runtimeCommands() {
+      // Proof: P49 omitted the lifetime check; the closed runtime-catalog getter returned its borrowed store.
+      assertOpen();
+      return scope.stores.runtimeCommands;
+    },
     get livePlans() {
       assertOpen();
       return scope.stores.livePlans;

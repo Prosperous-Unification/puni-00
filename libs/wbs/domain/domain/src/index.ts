@@ -164,6 +164,7 @@ export * from './claim';
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
 export * from './resource';
+export * from './runtime-basis';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

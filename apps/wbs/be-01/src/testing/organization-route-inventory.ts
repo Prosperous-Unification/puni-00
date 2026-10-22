@@ -1,6 +1,30 @@
 /** Independently enumerated production surface; control routes retain their existing authority contracts. */
 export const ORGANIZATION_ROUTE_INVENTORY = [
   {
+    operationId: 'readRuntimeState',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-state',
+    kind: 'read',
+  },
+  {
+    operationId: 'lookupRuntimeReceipt',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-commands/:commandId',
+    kind: 'read',
+  },
+  {
+    operationId: 'acquireRuntimeAuthority',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-authority',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'applyRuntimeCommands',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-commands',
+    kind: 'mutation',
+  },
+  {
     operationId: 'getApiOrganizationActive',
     method: 'GET',
     path: '/api/organization/active',

@@ -280,3 +280,10 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 | ACP attempts report no usage                             | modelled           | `Usage.unknown`, shown, never defaulted                           |
 | Concurrent or surviving owners                           | S7a recovery proof | fence ownership, inspect workers/effects; unresolved blocks retry |
 | Unified CTT deferral/summary not implemented             | issue #2           | complete S2 before coordinator admission                          |
+
+## Conditional WBS runtime receiver
+
+[Receiver design](receiver-design.md) specifies S0.05–S0.07 coherent reads, receiver-owned
+generations, exact claim bindings and permanent accepted-command receipts.
+[Receiver tasks](receiver-tasks.md) sequence implementation and R5 proofs. Dash durable
+pins/grant mappings and executor/coordinator integration remain separate prerequisites.

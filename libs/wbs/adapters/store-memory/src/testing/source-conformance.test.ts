@@ -43,6 +43,10 @@ import {
   subtreeSeedRecords,
   TARGETED_ORDER_WORK_ITEM_IDS,
 } from '@wbs/conformance';
+import {
+  runtimeCommandConformance,
+  runtimeRecordConformance,
+} from '@wbs/conformance/runtime-command-conformance';
 import type {
   CommandJournalStore,
   JournalEntry,
@@ -889,6 +893,7 @@ const openers: ExistingStoreOpeners = {
   attempts: (caseId) => openMemoryCase('attempts', caseId),
   blockages: (caseId) => openMemoryCase('blockages', caseId),
   stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
+  runtimeCommands: (caseId) => openMemoryCase('runtimeCommands', caseId),
   claims: (caseId) => openMemoryCase('claims', caseId),
   demands: (caseId) => openMemoryCase('demands', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
@@ -1034,6 +1039,7 @@ const declaration: SourceDeclaration = {
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    runtimeCommands: { kind: 'offered', gaps: [], open: openers.runtimeCommands },
     claims: { kind: 'offered', gaps: [], open: openers.claims },
     demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
@@ -4335,6 +4341,7 @@ async function proveFault(
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        runtimeCommands: (caseId) => takeFixture('runtimeCommands', caseId),
         claims: (caseId) => takeFixture('claims', caseId),
         demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
@@ -8183,4 +8190,13 @@ describe('memory existing source conformance', () => {
       { attempts: 1, closeCalls: 1, state: expectedTask61CollateralState() },
     ]);
   });
+});
+
+describe('permanent runtime storage conformance', () => {
+  const open = () => {
+    const { source } = openMemorySourceFixture();
+    return Promise.resolve({ source, close: () => source.close() });
+  };
+  runtimeCommandConformance(open);
+  runtimeRecordConformance(open);
 });

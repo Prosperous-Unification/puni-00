@@ -8,7 +8,7 @@ rules govern MCP and browser calls. After it, a session is bound at consent to
 one organization and each be-01 call carries a single-use signed delegation for
 that binding; see [Organizations](#organizations).
 
-## Writing is two tools
+## Writing plans
 
 Since `plan-commands` every plan edit is one tool, `postApiProjectsByIdCommands`:
 an ordered list of typed commands (create, patch, move, estimate, dependency,
@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-84 tools in all:
+88 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
@@ -27,6 +27,8 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   claims in a project);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
   project's capacities and demands);
+- the four conditional runtime tools for coherent state, authority acquisition, exact claim/write
+  and accepted-receipt lookup;
 - the two person-load reads, the project rank read and move;
 - the organization's capacity-mode read and switch (the switch refuses every delegated caller and
   so answers an MCP client with 403);
@@ -48,6 +50,11 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   its projects, and read its projects' roll-ups and the work in progress across it;
 - one call that retries a failed or corrupt optimized variant; Retry is a project lifecycle action
   with no plan-command equivalent.
+
+`readRuntimeState` returns coherent runtime facts, current authority and the revision basis.
+`acquireRuntimeAuthority` pins the ledger and compare-and-swaps the generation;
+`applyRuntimeCommands` accepts one exact claim or a restricted claimed write, guarded by that
+authority and basis. `lookupRuntimeReceipt` reconciles a command through its immutable receipt.
 
 `postApiOrganizationSharedPeopleRestoreApprovals` is discoverable but refuses every delegated
 caller with `403 insufficient_scope`. A personally authenticated super-admin can use its HTTP

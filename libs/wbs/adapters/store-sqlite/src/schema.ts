@@ -3774,3 +3774,116 @@ export const stepParallel = sqliteTable(
     ),
   ],
 );
+
+/** Permanent receiver installation witness; only its explicit migration creates the singleton. */
+export const runtimeLedger = sqliteTable(
+  'runtime_ledger',
+  {
+    id: integer('id').primaryKey().notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    ledgerId: text('ledger_id').notNull(),
+    authorityCount: integer('authority_count').notNull(),
+    bindingCount: integer('binding_count').notNull(),
+    receiptCount: integer('receipt_count').notNull(),
+  },
+  (table) => [
+    check('runtime_ledger_singleton', sql`${table.id} = 1`),
+    check('runtime_ledger_version', sql`${table.schemaVersion} = 1`),
+    check('runtime_ledger_identity', sql`length(${table.ledgerId}) > 0`),
+    check(
+      'runtime_authority_count',
+      sql`typeof(${table.authorityCount}) = 'integer' AND ${table.authorityCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'runtime_binding_count',
+      sql`typeof(${table.bindingCount}) = 'integer' AND ${table.bindingCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'runtime_receipt_count',
+      sql`typeof(${table.receiptCount}) = 'integer' AND ${table.receiptCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** Retains scope strings without foreign keys so ordinary deletion cannot erase receiver history. */
+function runtimeScopeColumns() {
+  return {
+    organizationId: text('organization_id').notNull(),
+    projectId: text('project_id').notNull(),
+    personId: text('person_id').notNull(),
+  };
+}
+
+/** One monotonic owner grant for each retained organization/project/person scope. */
+export const runtimeAuthority = sqliteTable(
+  'runtime_authority',
+  {
+    ...runtimeScopeColumns(),
+    ownerId: text('owner_id').notNull(),
+    generation: integer('generation').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId, table.personId] }),
+    check(
+      'runtime_authority_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check('runtime_authority_owner', sql`length(${table.ownerId}) > 0`),
+    check(
+      'runtime_authority_generation',
+      sql`typeof(${table.generation}) = 'integer' AND ${table.generation} BETWEEN 1 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** Exact immutable execution identity, independent of live claims and business attempt numbers. */
+export const runtimeClaimBinding = sqliteTable(
+  'runtime_claim_binding',
+  {
+    ...runtimeScopeColumns(),
+    claimId: text('claim_id').notNull(),
+    storeId: text('store_id').notNull(),
+    attemptId: text('attempt_id').notNull(),
+    binding: text('binding').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId, table.personId, table.claimId] }),
+    unique('runtime_scope_attempt').on(
+      table.organizationId,
+      table.projectId,
+      table.personId,
+      table.storeId,
+      table.attemptId,
+    ),
+    check(
+      'runtime_binding_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check(
+      'runtime_binding_identity',
+      sql`length(${table.claimId}) > 0 AND length(${table.storeId}) > 0 AND length(${table.attemptId}) > 0`,
+    ),
+    check('runtime_binding_json', sql`json_valid(${table.binding})`),
+  ],
+);
+
+/** Accepted envelopes and exact successful replies share one permanent scoped command namespace. */
+export const runtimeCommandReceipt = sqliteTable(
+  'runtime_command_receipt',
+  {
+    ...runtimeScopeColumns(),
+    commandId: text('command_id').notNull(),
+    accepted: text('accepted').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.projectId, table.personId, table.commandId],
+    }),
+    check(
+      'runtime_receipt_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check('runtime_receipt_identity', sql`length(${table.commandId}) > 0`),
+    check('runtime_receipt_json', sql`json_valid(${table.accepted})`),
+  ],
+);

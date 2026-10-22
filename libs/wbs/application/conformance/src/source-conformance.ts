@@ -2,6 +2,11 @@ import type { Stores, TransactionalStores } from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseId, CaseRegistration } from './case-manifest';
+import {
+  RUNTIME_CLAIM,
+  RUNTIME_SCOPE,
+  runtimeAcceptanceFixture,
+} from './runtime-command-conformance';
 import type { CaseFixture, SourceDeclaration } from './source-declaration';
 import { actualRegistrations } from './stores/actuals';
 import { calendarMarkerRegistrations } from './stores/calendar-markers';
@@ -56,6 +61,7 @@ export interface ExistingStoreOpeners {
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
+  readonly runtimeCommands: OpenCase<'runtimeCommands'>;
   readonly claims: OpenCase<'claims'>;
   readonly demands: OpenCase<'demands'>;
   readonly blockages: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['blockages']>>;
@@ -196,6 +202,31 @@ export function existingStoreRegistrations(
         expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
         await port.remove(parallel.workItemId, parallel.stepId, seed.stamps[1]);
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      },
+    ),
+    storeCase(
+      'runtimeCommands',
+      'runtimeCommands.write:permanent-history',
+      openers.runtimeCommands,
+      async ({ port }) => {
+        const initial = await port.inspectLedger();
+        expect(await port.compareAuthority(RUNTIME_SCOPE, null, 'owner')).toEqual({
+          ownerId: 'owner',
+          generation: 1,
+        });
+        await port.insertBinding(RUNTIME_SCOPE, RUNTIME_CLAIM);
+        const accepted = runtimeAcceptanceFixture(initial.ledgerId);
+        await port.insertAcceptance(accepted);
+        expect(await port.readAttemptBinding(RUNTIME_SCOPE, 'store', 'attempt')).toEqual(
+          RUNTIME_CLAIM,
+        );
+        expect(await port.readAcceptance(RUNTIME_SCOPE, 'command')).toEqual(accepted);
+        expect(await port.inspectLedger()).toEqual({
+          ...initial,
+          authorityCount: 1,
+          bindingCount: 1,
+          receiptCount: 1,
+        });
       },
     ),
     storeCase(
