@@ -15,6 +15,7 @@ import { bootBe01, type BootOptions, type RunningBe } from './boot';
 import { openDatabase } from './repository/db';
 import { runMigrations } from './repository/migrate';
 import { startDomainProofWorker } from './runtime/domain-proof-worker';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const directories: string[] = [];
@@ -43,6 +44,7 @@ function options(dbPath: string): BootOptions {
     internalAuthSecret: 's'.repeat(32),
     browserSessionAuthority: 'disabled',
     organizationDnsResolvers: ['127.0.0.1'],
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     optimizer: {
       solverVersion: '0.4.0',
       budgetMs: 60_000,

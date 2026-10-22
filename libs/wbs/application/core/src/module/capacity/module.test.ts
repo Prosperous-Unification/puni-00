@@ -48,6 +48,7 @@ const hostRequirements = () => {
     resourceCapacityStore: DiBag.createProvider(() => source.stores.resourceCapacity, {
       factoryReturnKind: 'sync-value',
     }),
+    organizationLimits: DiBag.createProvider(() => null, { factoryReturnKind: 'sync-value' }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),

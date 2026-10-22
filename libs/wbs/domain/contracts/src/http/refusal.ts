@@ -218,7 +218,45 @@ export type CommandRefusalCode =
    * `deleteWorkItem` promoting the parent while claims sit on more than one
    * deleted row, or on that parent as well; names the holders.
    */
-  | 'children_claimed';
+  | 'children_claimed'
+  /**
+   * `patchPerson` making an agent, or an add of an agent, past the
+   * organization's cap (`wbs-organization-limits` L9); names the numbers.
+   */
+  | 'agent_person_limit'
+  /**
+   * `claimWorkItem` adding one more bound claim than the organization's cap
+   * allows (`wbs-organization-limits` L9), checked after every other claim
+   * refusal; names the cap and the bound claims held.
+   */
+  | 'claim_limit'
+  /**
+   * `setResourceCapacity` raising a project's units of a resource past the
+   * organization's cap on the sum over its projects (`wbs-organization-limits`
+   * L2, L9); names the resource, cap, the other projects' units and the asked.
+   */
+  | 'capacity_limit';
+
+/** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */
+export interface CapacityLimitRefusalDetail {
+  resourceId: string;
+  cap: number;
+  declared: number;
+  asked: number;
+}
+
+/** What a refused claim names: the organization's cap on bound claims and how many it holds. */
+export interface ClaimLimitRefusalDetail {
+  cap: number;
+  current: number;
+}
+
+/** What an organization limit refusal names: the cap, what was held and what the write would add. */
+export interface LimitRefusalDetail {
+  cap: number;
+  current: number;
+  added: number;
+}
 
 /** One claim a claim refusal names: the claim, its person by id and name, and its run. */
 export interface ClaimRefusalHolder {
@@ -386,7 +424,13 @@ export type CommandRefusalDetail = {
                                   free: number;
                                   holders: OccupancyRefusalHolder[];
                                 }
-                              : Record<never, never>);
+                              : C extends 'agent_person_limit'
+                                ? LimitRefusalDetail
+                                : C extends 'claim_limit'
+                                  ? ClaimLimitRefusalDetail
+                                  : C extends 'capacity_limit'
+                                    ? CapacityLimitRefusalDetail
+                                    : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -551,6 +595,8 @@ type SharedCommandCode =
   | 'already_claimed'
   | 'unknown_team'
   | 'unknown_person'
+  | 'agent_person_limit'
+  | 'capacity_limit'
   | 'person_not_bound';
 
 /**
@@ -582,6 +628,10 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     /** Bare from the by-person read; with its command context from a batch. */
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
+    /** Without a command position from the plan import; with one from a batch. */
+    agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
+    /** Without a command position from the plan import; with one from a batch. */
+    capacity_limit: CapacityLimitRefusalDetail | CommandRefusalDetail['capacity_limit'];
     /** Naming the person from a machine credential create; with its command context from a batch. */
     person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
     /** Also a trusted issuer that unrevoked machine credentials name (`wbs-machine-credentials` A16). */

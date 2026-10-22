@@ -127,6 +127,22 @@ _Avoid_: API key, SCIM password
 An organization's limits on how long one sign-in may keep acting in it, and how long before the person must sign in again interactively.
 _Avoid_: token lifetime, idle timeout
 
+**Organization limits**:
+The three caps one organization holds on what its swarm may grow: agent persons, bound claims and stated capacity units per resource. Always a number; a tenant without its own row holds the default limits.
+_Avoid_: quota (the per-request body and plan-size refusal), plan, tier, allowance, resource capacity
+
+**Default limits**:
+The organization limits every organization without its own row holds, configured once per deployment by the operator.
+_Avoid_: free plan, global limits, fallback
+
+**Limit usage**:
+The current count one cap is compared against, read with the cap so a surface can say "7 of 8"; it may exceed the cap after a lowering.
+_Avoid_: consumption, utilization, remaining
+
+**Bound claim**:
+One person under one run holding at least one claim on one work item: the unit the claim cap counts, so a whole-leaf claim of four steps is one and a subtree claim is one.
+_Avoid_: claim row, active claim, slot
+
 ### Spaces
 
 **Space**:

@@ -1,5 +1,6 @@
 import type { Source, TransactionalStores } from '@wbs/core';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
+import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
@@ -23,6 +24,7 @@ import {
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { OrganizationLimitGaugeRepository } from './organization-limits';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
@@ -52,6 +54,14 @@ export interface OpenSqliteSourceOptions {
   readonly onCapturedFanout?: (captured: CapturedFanout) => void;
   /** Test diagnostic of a borrowed UoW entry; never substitutes its transaction. */
   readonly onBorrowedUnitOfWork?: () => void;
+  /**
+   * The deployment default organization limits (`wbs-organization-limits`
+   * L7). Given, the catalogs a unit of work admits carry the limits gauge,
+   * and only they: a count read outside a write turn decides nothing (L10).
+   * Absent, an acquisition under scoped access throws rather than admitting
+   * uncapped. be-01's boot and its organization harness give them.
+   */
+  readonly organizationDefaultLimits?: OrganizationLimitValues;
 }
 
 /** Opens SQLite persistence without changing its schema. */
@@ -84,8 +94,13 @@ function openSqliteSourceWithSeams(
     options.openConnection ?? ((dbPath: string) => openDatabaseConnection(dbPath, options.logger));
   const process = connect(options.dbPath);
   const coordinator = new WriteCoordinator();
+  const defaults = options.organizationDefaultLimits;
+  const limits =
+    defaults === undefined
+      ? {}
+      : { organizationLimits: new OrganizationLimitGaugeRepository(process.db, defaults) };
   const stores = buildStores(process.db, coordinator, lateWrite);
-  const admitted = buildStores(process.db, OPEN, lateWrite);
+  const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
   let closed = false;
 
   return {
@@ -117,7 +132,7 @@ function openSqliteSourceWithSeams(
                 lifetime,
               });
               return {
-                stores: buildStores(process.db, OPEN, lateWrite, commandPlans),
+                stores: { ...buildStores(process.db, OPEN, lateWrite, commandPlans), ...limits },
                 fanoutCapture:
                   // Proof: omitting this borrowed capture made a cold mounted shared
                   // command fail 500 before the expected recipient row.

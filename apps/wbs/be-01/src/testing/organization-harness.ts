@@ -53,6 +53,8 @@ import {
   MachineCredentialRepository,
   OnboardingRepository,
   openSqliteSource,
+  OrganizationLimitGaugeRepository,
+  OrganizationLimitsRepository,
   OrganizationRepository,
   ProjectRankRepository,
   ProvisioningTokenRepository,
@@ -119,6 +121,7 @@ import { sqliteDependencyContext } from './dependency-graph-fixture';
 import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
@@ -456,6 +459,10 @@ export class OrganizationHarness {
         clock: testClock,
         directory: directoryStore,
         broadcast: recordingBroadcaster(),
+        organizationLimits: new OrganizationLimitGaugeRepository(
+          db,
+          TEST_ORGANIZATION_DEFAULT_LIMITS,
+        ),
       }),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -557,6 +564,7 @@ export class OrganizationHarness {
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
+      organizationLimits: new OrganizationLimitsRepository(db, TEST_ORGANIZATION_DEFAULT_LIMITS),
       pendingMemberships: new ScimUserRepository(db, gate),
       enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       provisioning: {
@@ -689,6 +697,7 @@ export class OrganizationHarness {
     migrate(path);
     const source = openSqliteSource({
       dbPath: path,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       openReadOnlyConnection,
       onFanoutCapture,
       onCapturedFanout,

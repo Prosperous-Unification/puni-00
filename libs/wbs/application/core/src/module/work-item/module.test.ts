@@ -81,6 +81,7 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     claimStore: DiBag.createProvider(() => stores.claims, { factoryReturnKind: 'sync-value' }),
+    organizationLimits: DiBag.createProvider(() => null, { factoryReturnKind: 'sync-value' }),
     demandStore: DiBag.createProvider(() => stores.demands, { factoryReturnKind: 'sync-value' }),
     resourceCapacityStore: DiBag.createProvider(() => stores.resourceCapacity, {
       factoryReturnKind: 'sync-value',

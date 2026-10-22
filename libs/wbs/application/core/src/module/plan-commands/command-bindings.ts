@@ -182,6 +182,14 @@ export class CommandContext {
             holders: outcome.holders.map((holder) => ({ ...holder })),
           },
         });
+      case 'claim_limit':
+        // Proof: with both numbers replaced by 0 here, `refuses the forty-first
+        // bound claim` and five more cases of claim-limit.controller.db.test.ts
+        // named cap 0, current 0 (7 pass, 6 fail); watched 2026-10-22.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { cap: outcome.cap, current: outcome.current },
+        });
       case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':
@@ -233,6 +241,27 @@ export class CommandContext {
     }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
+    }
+    if (outcome.reason === 'agent_person_limit') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { cap: outcome.cap, current: outcome.current, added: outcome.added },
+      });
+    }
+    if (outcome.reason === 'capacity_limit') {
+      // Proof: with `declared` replaced by 0 here, `refuses a statement past
+      // the cap, naming the four numbers and writing nothing`
+      // (capacity-limit.controller.db.test.ts) and three more named declared 0
+      // (8 pass, 4 fail); watched 2026-10-22.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: {
+          resourceId: outcome.resourceId,
+          cap: outcome.cap,
+          declared: outcome.declared,
+          asked: outcome.asked,
+        },
+      });
     }
     if (outcome.reason === 'in_use') {
       // Proof: with the counts dropped here, `refuses removing a demanded resource,
@@ -694,6 +723,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           context.required(command.resourceId, command.resourceRef),
           command.units,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };

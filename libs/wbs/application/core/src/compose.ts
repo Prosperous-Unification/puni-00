@@ -141,6 +141,12 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       capacity: stores.capacity,
       resourceCapacity: stores.resourceCapacity,
+      // Proof: with this spread removed, every activated statement case of
+      // capacity-limit.controller.db.test.ts threw the capacity service's
+      // composition error (2 pass, 10 fail); watched 2026-10-22.
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
       broadcast,
       admission,
     }).capacity,
@@ -167,7 +173,14 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       dependencyContext: shared.dependencyContext,
       beforeRemove: shared.beforeStepRemoval,
     }).steps,
-    directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
+    directory: installDirectory({
+      clock,
+      directory: stores.directory,
+      broadcast,
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
+    }).directory,
     workItems: installWorkItem({
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,
@@ -180,6 +193,9 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       progress: stores.progress,
       blockages: stores.blockages,
       claims: stores.claims,
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
       demands: stores.demands,
       resourceCapacity: stores.resourceCapacity,
       attempts: stores.attempts,

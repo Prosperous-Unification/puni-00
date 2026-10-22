@@ -41,6 +41,11 @@ const ACCESS = {
   kind: 'scoped',
   scope: { organizationId: 'org-a', userId: ACTOR, role: 'member' },
 } as const;
+const ORGANIZATION_LIMITS = {
+  maxAgentPersons: 50,
+  maxConcurrentClaims: 200,
+  maxCapacityUnitsPerResource: 10_000,
+} as const;
 const opened: { sqlite: SqliteSource; directory: string }[] = [];
 
 afterEach(async () => {
@@ -149,6 +154,7 @@ async function harness(authoring: unknown = { state: 'active' }) {
   const statements: string[] = [];
   const sqlite = openSqliteSource({
     dbPath: path,
+    organizationDefaultLimits: ORGANIZATION_LIMITS,
     logger: {
       logQuery: (statement) => {
         statements.push(statement);
@@ -976,6 +982,17 @@ describe('scoped import transaction lifetime and effects', () => {
       expect((await failureOf(resource.isSolutionSlugHeld('absent', ACCESS))).message).toContain(
         'closed',
       );
+      expect(
+        (await failureOf(resource.refuseCapacityWithin(ACCESS, 'import-1', 'resource-1', 1)))
+          .message,
+      ).toContain('closed');
+      expect(
+        (
+          await failureOf(
+            resource.refuseCapacityWithin({ kind: 'legacy' }, 'import-1', 'resource-1', 1),
+          )
+        ).message,
+      ).toContain('closed');
       expect(contexts).toHaveLength(1);
       for (const context of contexts)
         expect(() => {

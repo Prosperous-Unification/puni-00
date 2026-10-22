@@ -40,7 +40,12 @@ const STORE_BINDINGS = [
 
 it('refuses scoped saved-plan writes without a transactional membership source', async () => {
   const source = openMemorySource();
-  const scoped = { organizationId: 'org-a', actorId: 'writer', operation: 'rename' as const };
+  const scoped = {
+    organizationId: 'org-a',
+    actorId: 'writer',
+    role: 'admin' as const,
+    operation: 'rename' as const,
+  };
   expect(() => source.history.savedPlans.renameTo('missing', 'No', scoped)).toThrow(
     'cannot classify scoped writes',
   );

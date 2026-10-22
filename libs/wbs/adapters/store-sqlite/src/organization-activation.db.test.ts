@@ -211,9 +211,12 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261022213000_add_optimization_boundary_certificates',
       '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -256,7 +259,7 @@ describe('organization activation marker schema', () => {
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
     expect(readAppliedMigrations().at(-1)).toBe(
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022213000_add_optimization_boundary_certificates',
     );
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });

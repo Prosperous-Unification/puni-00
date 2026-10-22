@@ -24,6 +24,9 @@ export function installDirectory(requirements: DirectoryRequirements): Directory
         factoryReturnKind: 'sync-value',
       }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      organizationLimits: DiBag.createProvider(() => requirements.organizationLimits ?? null, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
