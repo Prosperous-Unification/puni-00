@@ -5031,3 +5031,18 @@ This packet preserves the prepared-only ownership contract. It does not activate
 external authoring, establish complete participant exclusion or complete B3; parent
 10.1/10.2 remain open. Independent review and isolated host acceptance are recorded
 only after they actually run.
+
+## Detached Kubernetes dependency-evidence prerequisite — 2026-10-23
+
+The [dedicated codec verification record](verify-k8s-dependency-evidence.md)
+documents 78 production-boundary tests, 131 assertions, watched malformed and
+sparse-array faults, isolated typecheck/lint/format and independent Astra review.
+After integration, the same focused suite passed **78/78**, 131 assertions
+(`/tmp/puni-integrated-k8s-evidence-tests.log`). The previously integrated
+controller lifecycle suite passed **1,140/1,140**, 3,000 assertions
+(`/tmp/puni-integrated-controller-target-test.log`), and OpenSpec validated
+**271/271** after that controller integration
+(`/tmp/puni-openspec-after-controller.json`). These are bounded prerequisites:
+no release caller, durable evidence write, complete participant exclusion,
+activation, candidate exposure or host gate is proven by this codec. Parent
+10.1/10.2 remain open.

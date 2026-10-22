@@ -598,3 +598,36 @@ UID/resourceVersion deletion preconditions.
 
 - **WHEN** the Lease UID changes despite a repeated holder or resourceVersion
 - **THEN** marker changes, renewals, parking, takeover and cleanup refuse to adopt or delete that replacement
+
+### Requirement: Detached Kubernetes dependency evidence preserves exact claims
+
+A versioned evidence codec SHALL preserve the exact independently bound source,
+candidate and retained binary invocations, participant claims, activation receipt
+and exposure progress as closed canonical bytes with a matching SHA256 and decoded
+projection. Decoding SHALL reject missing, extra, sparse or inconsistent fields.
+An internally consistent participant claim SHALL NOT certify participant exclusion.
+
+#### Scenario: Equal-image invocations have different identities
+
+- **WHEN** candidate and retained binaries share a digest but their observation,
+  Job or Pod identity is missing or reused
+- **THEN** evidence decoding refuses rather than attributing one invocation to both
+
+#### Scenario: Sparse or changed persisted evidence
+
+- **WHEN** an evidence list has a missing array index, or its bytes, hash, binding
+  or decoded projection disagree
+- **THEN** decoding refuses before any recovery classification
+
+### Requirement: Detached evidence never grants automatic recovery
+
+The evidence classifier SHALL route missing or uncertain evidence and any durable
+activation or exposure intent or confirmation to attended recovery. Only explicit
+unstarted activation and exposure states MAY request independent dormant admission;
+that request SHALL NOT authorize rollback, schema reversal or old-writer restart.
+
+#### Scenario: Intent survives an interrupted release
+
+- **WHEN** a valid envelope records durable activation or exposure intent without
+  confirmation
+- **THEN** classification requires attended recovery and grants no rollback
