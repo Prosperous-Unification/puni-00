@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-87 tools in all:
+88 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - bounded project discovery, project-qualified dependency endpoint lookup and address resolution;
