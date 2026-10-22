@@ -261,8 +261,10 @@ so a startable step names the activity to run. Not the step graph, which is WBS'
 _Avoid_: Workflow config, pipeline, step mapping
 
 **Attempt**:
-One admitted try of one activity on one claimed step, with its own state, agent run and
-usage; a retry is a new attempt on the same claim.
+One admitted try of one activity on one exact claimed step, with its own state, agent run
+and usage; continuation or reattachment retains that attempt and claim. A retry is a new
+attempt of the same logical operation with a new exact claim
+([retry protocol](../../openspec/changes/twilight-agentic-workflows/receiver-design.md#shared-semantic-records)).
 _Avoid_: Job, execution, session, try
 
 **Run store**:

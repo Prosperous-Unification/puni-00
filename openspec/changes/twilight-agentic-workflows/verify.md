@@ -756,3 +756,20 @@ Local logs: `/tmp/puni-agentic-adr-green.log` (failed unstaged/sandbox run),
 The corrected committed SHA still requires a complete new host gate; parent6a.1–6a.2
 and Task5's final acceptance checkbox remain unchecked. No live bridge, coordinator,
 second durable provider or deployment acceptance follows from these checks.
+
+## Receiver plan adoption
+
+Adopted the scoped-only receiver contract, compact rb1 basis, immutable claim/attempt
+binding, permanent acceptance ledger and unused-only rollback in an isolated branch based
+on `79f4dcdd97ba2111170558b71965899212171859`. This is planning evidence, not receiver
+implementation acceptance. Runtime auth/credential/provider/activation ownership stays
+with the existing owners. Parent integration checkboxes remain open.
+
+Fresh workspace checks: `bun install --frozen-lockfile` passed (1493 packages, 772ms).
+`bun test ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts ./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts --timeout=30000`
+passed 108 tests, 5504 assertions in 4.31s. Logs are `/tmp/puni-agentic-receiver-install.log`
+and `/tmp/puni-agentic-receiver-baseline.log`. These are existing baseline tests, not proof
+of the proposed receiver. No receiver implementation, R5 mutation runs or migrations have
+run. Focused implementation and exact-SHA gate evidence will be recorded as performed.
+
+Adoption validation: installed `openspec validate twilight-agentic-workflows --json` reports one valid change, zero errors and ten long-requirement warnings (three more than the seven-warning storage baseline); `/tmp/puni-agentic-receiver-adoption-openspec.json`. Formatting and `git diff --check` passed. Strict warning-free validation was not run or claimed.
