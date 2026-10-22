@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+56 |     await pending;
+57 |   } catch (failure) {
+58 |     if (failure instanceof Error) return failure;
+59 |     throw failure;
+60 |   }
+61 |   throw new Error('expected refusal');
+                 ^
+error: expected refusal
+      at failureOf (/tmp/puni-export-v11/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:61:13)
+      at async <anonymous> (/tmp/puni-export-v11/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:81:17)
+(fail) connected export refuses instead of returning an incomplete document [188.62ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.17s]
