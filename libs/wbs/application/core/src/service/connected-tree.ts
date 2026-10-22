@@ -1,18 +1,19 @@
 import {
   deriveNumbers,
   type ElsewhereHolder,
-  formatStepNodeId,
-  formatStepReference,
   indexTree,
   type RelationshipType,
-  type ScopedDependencyEndpoint,
   sliceKey,
 } from '@wbs/domain';
 
-import type { EndpointEvidence } from '../ports/dependency-context';
 import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { ElsewhereHolderLabel } from '../ports/shared-people-values';
 import type { LivePlanRead } from '../ports/shared-people-values';
+import {
+  type ConnectedTreeEndpoint,
+  createConnectedEndpointProjector,
+} from './connected-endpoints';
+export type { ConnectedTreeEndpoint } from './connected-endpoints';
 import type { ConnectedOptimizationSelection } from './connected-optimization';
 import {
   type ConnectedOptimizationView,
@@ -24,17 +25,6 @@ import type { ConnectedReadiness } from './connected-readiness';
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 type ConnectedMetadata =
   ConnectedRead['metadataByProject'] extends ReadonlyMap<string, infer M> ? M : never;
-
-/**
- * Node references name individual leaf steps; descendant-step references name
- * the parent address and retain scope/step identity as a selector. Uncoded nodes
- * retain stable navigation identities without a printable step reference.
- */
-export interface ConnectedTreeEndpoint extends EndpointEvidence {
-  readonly qualifiedReference: string | null;
-  readonly stepReference: string | null;
-  readonly stepNodeId: string | null;
-}
 
 /** Authored incident links include outgoing constraints without leaking unrelated component edges. */
 export interface ConnectedTreeDependency {
@@ -183,63 +173,7 @@ export function projectConnectedTree(
     ),
   };
   const numbersByProject = new Map<string, ReadonlyMap<string, string>>();
-  const projectEndpoint = (endpoint: ScopedDependencyEndpoint): ConnectedTreeEndpoint => {
-    const own = requireEvidence(
-      metadataByProject.get(endpoint.projectId),
-      `metadata ${endpoint.projectId}`,
-    );
-    const row = requireEvidence(
-      own.workItems.find((candidate) => candidate.id === endpoint.workItemId),
-      `endpoint row ${endpoint.workItemId}`,
-    );
-    let numbers = numbersByProject.get(endpoint.projectId);
-    if (numbers === undefined) {
-      numbers = deriveNumbers(own.workItems);
-      numbersByProject.set(endpoint.projectId, numbers);
-    }
-    const workItemNumber = requireEvidence(numbers.get(row.id), `endpoint number ${row.id}`);
-    // Proof: undefined abbreviation and row-name injections were accepted before these refusals; both `refuses absent endpoint ... evidence` cases failed.
-    const abbreviation = requireLabel(
-      own.project.abbreviation,
-      `endpoint abbreviation ${endpoint.projectId}`,
-    );
-    const name = requireLabel(row.name, `endpoint row name ${row.id}`);
-    const steps = [...own.steps].sort((left, right) => left.position - right.position);
-    const step =
-      endpoint.scope === 'whole'
-        ? null
-        : requireEvidence(
-            steps.find((candidate) => candidate.id === endpoint.stepId),
-            `endpoint step ${endpoint.projectId}.${endpoint.stepId}`,
-          );
-    if (step !== null) {
-      // Proof: undefined step-name and step-code injections were accepted as endpoint evidence before these refusals; both named absence cases failed.
-      requireLabel(step.name, `endpoint step name ${step.id}`);
-      requireEvidence(step.code, `endpoint step code ${step.id}`);
-    }
-    const stepReference =
-      // Proof: replacing workItemNumber with '010' failed the remote own-number assertion in `projects incoming and outgoing incident labels`.
-      // Proof: restoring non-whole single-step formatting failed `labels a descendant-step selector` on its null step reference and parent address.
-      endpoint.scope !== 'node' || step?.code == null
-        ? null
-        : formatStepReference(workItemNumber, step.code, steps.indexOf(step) + 1, steps.length);
-    const reference = endpoint.scope === 'node' ? stepReference : workItemNumber;
-    return {
-      endpoint: { ...endpoint },
-      isLeaf: !own.workItems.some((candidate) => candidate.parentId === row.id),
-      revision: row.revision,
-      name,
-      projectAbbreviation: abbreviation,
-      workItemNumber,
-      step:
-        step === null
-          ? null
-          : { id: step.id, name: step.name, code: step.code, position: step.position },
-      stepReference,
-      qualifiedReference: reference === null ? null : `${abbreviation}.${reference}`,
-      stepNodeId: endpoint.scope === 'node' ? formatStepNodeId(endpoint) : null,
-    };
-  };
+  const projectEndpoint = createConnectedEndpointProjector(metadataByProject, numbersByProject);
   const holders = projectPersonHolders(captured, projectId, numbersByProject);
   return {
     kind: 'connected',

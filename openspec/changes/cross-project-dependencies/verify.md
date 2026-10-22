@@ -3301,3 +3301,73 @@ returned zero without running a target, so is not counted. Final logs are
 `/tmp/puni-b4-{mounted,writer,lint,typecheck,openspec}-final.log`. Existing Vite
 native-config advisory warnings remain. Normal lefthook hooks were installed
 before committing; hooks were not bypassed.
+
+### Saved history Slice B1 — endpoint extraction and schedule2 builder (2026-10-22)
+
+Base: `a010b25a5`. Isolated clone: `/tmp/puni-converter-b`. This is a bounded
+subpacket of Slice B, not completion of task 8.3. The production compose refusal,
+`captureSharedPlan` callback, and active local/shared input8/schedule1 writers remain
+unchanged.
+
+Implemented:
+
+- `createConnectedEndpointProjector` extracts the tree's captured endpoint labeling
+  without invoking tree presentation or optimization views. The tree uses the same
+  helper and shares its existing numbering cache with foreign-person labels.
+- `buildConnectedScheduleBody` composes the ordinary calendar timing builder with
+  required captured connection evidence, schedule2, and the single
+  `CONNECTED_SCHEDULE_ALGORITHM_ID = connected-selection-v1:<SCHEDULE_ALGORITHM_ID>`.
+  Historical component and target validators run before the body is returned.
+- `serializeSavedConnectedScheduleBody` emits deterministic canonical bytes for the
+  eventual shared save/current preparation path. Returned bodies are detached/frozen.
+
+Fresh verification:
+
+```sh
+bun test libs/wbs/application/core/src/service/connected-endpoints.test.ts libs/wbs/application/core/src/service/connected-tree.test.ts libs/wbs/application/core/src/module/plan-document/connected-document.test.ts libs/wbs/domain/domain/src/saved-plan/versioned-schedule.test.ts libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts
+```
+
+198 pass, 0 fail, 698 assertions across ten files. Output:
+`/tmp/puni-b1-final-tests.log` (local scratch evidence). New endpoint tests cover
+captured string codes and diagnostic row absence; existing tree/export tests cover
+null codes, all selector scopes, incoming/outgoing labels, unavailable placement,
+readiness and exact selected placement. The new builder tests use the existing
+historical codec fixture with its synthetic calendar ordinals corrected in the
+fixture adapter; they do not establish capture or writer lifecycle coverage.
+
+Watched faults, restored individually before the green run:
+
+| Injected fault                                     | Observed failing production primitive test                                                                               |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Remove builder `validateSavedConnectedHistory`     | `refuses mismatched cross-body placement state`                                                                          |
+| Remove builder `validateSavedConnectedTarget`      | `refuses target membership omissions before writer admission`; `refuses an anchor that would reinterpret captured dates` |
+| Remove extracted undefined evidence refusal        | `refuses missing captured endpoint rows without live lookup` changes to an uncontextualized TypeError                    |
+| Remove extracted null label refusal                | All three tree `refuses null endpoint ... evidence` cases fail                                                           |
+| Replace canonical serializer with `JSON.stringify` | `serializes deterministic independent bytes after caller maps change`                                                    |
+
+These are provisional primitive/tree-path proofs. None is claimed as a mounted
+connected-save proof; Slice D must exercise required metadata/lookup failures in
+actual save/current conversion and prove zero save effects.
+
+`NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-core,wbs-domain --parallel=1`
+ran core module typechecks and core typecheck successfully, but initially found a
+readonly-array mismatch in the new domain test adapter. After explicitly copying
+the capacity predecessor array, `NX_DAEMON=false bunx nx run wbs-domain:typecheck`
+passed. The broader lint run passed `wbs-core:lint` and returned a nonzero
+`wbs-domain:lint` without diagnostics; targeted ESLint exposed unsafe JSON member
+access in the new serializer test. Replacing it with the historical reader fixed
+the diagnostic. `NX_DAEMON=false bunx nx run wbs-domain:lint` then passed (41.5s),
+and the final `wbs-domain:typecheck` rerun passed (4.6s). Prettier and
+`git diff --check` passed. Nx used its documented in-process fallback because
+plugin-worker sockets were denied in this sandbox; no check was skipped for it.
+`./node_modules/.bin/openspec validate --all --json` passed all 268 items (250
+changes, 18 specs), with existing requirement-length warnings.
+
+Remaining B2 work: the detached `module/saved-plans/connected-history.ts` converter,
+real migrated SQLite installed-live-store fixture, conversion of every explicit
+observation/state/decision, restored public identities versus encoded decision
+identities, range representability handling, required captured metadata guards,
+and the full producer-state matrix. No new live read, scheduling, cache selection,
+hashing, quota or writer integration is added by B1. Mounted D, immutable lifecycle
+E, HTTP/UI summaries, CI secrets/migration checks and a canonical host gate are
+unverified here. Task 8.3 remains unchecked.

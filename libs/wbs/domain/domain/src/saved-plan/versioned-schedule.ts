@@ -1,10 +1,14 @@
 import { type } from 'arktype';
 
+import { buildScheduleBody } from '../saved-plan-schedule-body';
+import { type Schedule, SCHEDULE_ALGORITHM_ID } from '../schedule';
+import type { IsoDate } from '../workday';
 import {
   readSavedCanonicalStage,
   readSavedConnectedScheduleEvidence,
   type SavedConnectedScheduleEvidence,
   type SavedPlacement,
+  validateSavedConnectedHistory,
 } from './connected-schedule';
 import { type SavedConnectedDependencyHistory } from './dependency-history';
 import {
@@ -18,6 +22,33 @@ import {
 
 /** Connected schedule2 adds captured selection evidence; schedule1's writer remains unchanged. */
 export const CONNECTED_SCHEDULE_BODY_VERSION = 2 as const;
+
+/** The component selection procedure owns this identity, independently of any target objective. */
+export const CONNECTED_SCHEDULE_ALGORITHM_ID = `connected-selection-v1:${SCHEDULE_ALGORITHM_ID}`;
+
+/**
+ * Prepare an immutable schedule2 body from the already selected target and detached component evidence.
+ * Calendar projection uses the ordinary timing builder; historical validators check both bodies
+ * before this value may reach hashing or writer admission. No scheduling or IO occurs here.
+ * @throws for inconsistent target membership, calendar, placement or selection evidence.
+ */
+export function buildConnectedScheduleBody(
+  planned: Schedule,
+  startDate: IsoDate | null,
+  history: SavedConnectedDependencyHistory,
+  connection: SavedConnectedScheduleEvidence,
+): SavedConnectedScheduleBody {
+  const body = readSavedConnectedScheduleBody({
+    ...buildScheduleBody(planned, startDate, CONNECTED_SCHEDULE_ALGORITHM_ID),
+    version: CONNECTED_SCHEDULE_BODY_VERSION,
+    connection,
+  });
+  // Proof: removing this call admits mismatched placement state in builder tests; mounted save proof remains pending.
+  validateSavedConnectedHistory(history, body.connection);
+  // Proof: removing this call admits missing target slices and a changed anchor in builder tests; mounted save proof remains pending.
+  validateSavedConnectedTarget(history, body, startDate);
+  return body;
+}
 
 const timingFields = {
   '[string]': 'unknown',
@@ -64,6 +95,11 @@ const connectedBody = type({
 export type SavedConnectedScheduleBody = Historical<typeof connectedBody.infer> & {
   readonly connection: SavedConnectedScheduleEvidence;
 };
+
+/** Canonical schedule2 bytes shared by the eventual save hash and current-side comparison. */
+export function serializeSavedConnectedScheduleBody(body: SavedConnectedScheduleBody): string {
+  return serializeHistory(body);
+}
 
 /** Frozen connected body reader validates shape and captured evidence without running any engine. */
 export function readSavedConnectedScheduleBody(raw: unknown): SavedConnectedScheduleBody {
