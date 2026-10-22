@@ -31,7 +31,7 @@ export async function prepareRuntimeWrite(
     live.runId !== claim.execution.sessionId
   )
     return { ok: false, reason: 'runtime_claim_mismatch' };
-  const binding = await admitted.commands.readBinding(admitted.scope, claim.claimId);
+  const binding = await admitted.commands.readBinding(claim.claimId);
   // Proof: P5-07 removed binding admission; an absent-binding production request accepted.
   if (binding === null || !matchesRuntimeClaim(binding, claim))
     return { ok: false, reason: 'runtime_claim_mismatch' };

@@ -16,10 +16,8 @@ import type { Claim } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
-import type {
-  RuntimeCommandStore,
-  StoredRuntimeAcceptance,
-} from '../../ports/runtime-command-store';
+import type { StoredRuntimeAcceptance } from '../../ports/runtime-command-values';
+import type { RuntimeCommands } from './runtime-commands.resource';
 import {
   canonicalRuntimeRequest,
   parseCanonicalRuntimeRequest,
@@ -42,7 +40,7 @@ export interface RuntimeAdmissionIdentity {
 export interface RuntimeAdmission {
   readonly scope: RuntimeScope;
   readonly actorId: string;
-  readonly commands: RuntimeCommandStore;
+  readonly commands: RuntimeCommands;
   readonly access: ResourceAccess;
   readonly credential: CredentialPair | null;
   observe(): Promise<RuntimeObservation>;
@@ -112,7 +110,7 @@ export class RuntimeReceiver {
         ...request,
         kind: 'authority',
       });
-      const retained = await admitted.commands.readAcceptance(admitted.scope, request.commandId);
+      const retained = await admitted.commands.readAcceptance(request.commandId);
       if (retained !== null) {
         await verifyRuntimeAcceptance(retained, ledger.ledgerId, this.digest);
         // Proof: P3-05 removed byte comparison; changed-owner retry received the old acceptance.
@@ -133,7 +131,6 @@ export class RuntimeReceiver {
       await admitted.commands.assertAbsentHistory();
       // Proof: P3-06 removed the borrowed SQLite CAS guard; both racing initializations accepted.
       const authority = await admitted.commands.compareAuthority(
-        admitted.scope,
         request.expectedGeneration,
         request.ownerId,
       );
@@ -151,7 +148,6 @@ export class RuntimeReceiver {
       };
       await admitted.commands.insertAcceptance({
         schemaVersion: 1,
-        scope: admitted.scope,
         commandId: request.commandId,
         canonicalRequest,
         requestDigest,
@@ -173,7 +169,7 @@ export class RuntimeReceiver {
       // Proof: P3-03 removed this pin check; wrong-ledger lookup returned historical success.
       if (ledger.ledgerId !== request.expectedLedgerId)
         return { commit: false, value: { ok: false, reason: 'runtime_ledger_mismatch' } };
-      const retained = await admitted.commands.readAcceptance(admitted.scope, request.commandId);
+      const retained = await admitted.commands.readAcceptance(request.commandId);
       if (retained === null) {
         await admitted.commands.assertAbsentHistory();
         return { commit: false, value: { ok: false, reason: 'runtime_receipt_not_found' } };
@@ -195,7 +191,7 @@ export class RuntimeReceiver {
       // Proof: P3-04 removed this pin check; wrong-ledger state returned local facts.
       if (request.expectedLedgerId !== undefined && ledger.ledgerId !== request.expectedLedgerId)
         return { commit: false, value: { ok: false, reason: 'runtime_ledger_mismatch' } };
-      const authority = await admitted.commands.readAuthority(admitted.scope);
+      const authority = await admitted.commands.readAuthority();
       if (authority === null) await admitted.commands.assertAbsentHistory();
       const observation = await admitted.observe();
       const basis = await digestRuntimeBasis(
@@ -212,7 +208,7 @@ export class RuntimeReceiver {
       for (const claim of await admitted.listClaims()) {
         // Proof: P3-11 omitted the person filter; the inventory included another person's claim.
         if (claim.personId !== admitted.scope.personId) continue;
-        const binding = await admitted.commands.readBinding(admitted.scope, claim.id);
+        const binding = await admitted.commands.readBinding(claim.id);
         if (binding === null) claims.push({ kind: 'ordinary', claim });
         else {
           claims.push({ kind: 'runtime', claim, binding });

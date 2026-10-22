@@ -61,6 +61,8 @@ This compresses the complete revision vector, not all business bytes. Project re
 
 ## Application and HTTP surface
 
+The closed Plan commands feature receives a scope-bound RuntimeCommands resource, whose borrowed repository capability is private; only composition and resource implementation retain raw stores. Portable ledger/accepted-record values are separate from repository capability declarations. Resource calls use the already admitted organization/project/person scope and preserve existing feature authorization/canonical/receipt checks.
+
 Application methods accept `RuntimeContext` plus the requests below. Context authentication/access is never reconstructed from request fields. `readRuntimeState`, `acquireRuntimeAuthority`, `claimRuntime`, `writeRuntime` and `lookupRuntimeReceipt` are proposed application names; `claimRuntime/writeRuntime` extend the existing runner's execution path rather than wrapping a second public UoW around it.
 
 | Final route (relative to `/api/projects/:id`) | Request                                                                                     | Success                                                                                     |

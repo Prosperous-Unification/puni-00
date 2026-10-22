@@ -20,7 +20,6 @@ export async function prepareRuntimeClaim(
   if ('ok' in prepared) return prepared;
   const action = request.action;
   const bound = await admitted.commands.readAttemptBinding(
-    admitted.scope,
     action.execution.storeId,
     action.execution.attemptId,
   );
@@ -45,7 +44,7 @@ export async function prepareRuntimeClaim(
       const live = claims.at(0);
       if (live === undefined || claims.length !== 1)
         throw new Error('applied runtime claim target is missing or ambiguous');
-      const binding = await admitted.commands.readBinding(admitted.scope, live.id);
+      const binding = await admitted.commands.readBinding(live.id);
       // Proof: P4-07 omission changed the same-person/session attempt-B test to runtime_claim_unmanaged; the later guard remains a backstop.
       if (binding !== null) return { ok: false, reason: 'runtime_claim_mismatch' };
       // Proof: P4-05 omission made `never adopts an unbound ordinary alreadyHeld claim` accept and persist a binding.
@@ -58,7 +57,7 @@ export async function prepareRuntimeClaim(
         execution: action.execution,
       };
       // Proof: P4-22 omitted this insert; `binds precisely one step/session` read null for the retained binding.
-      await admitted.commands.insertBinding(admitted.scope, claim);
+      await admitted.commands.insertBinding(claim);
       // Proof: P4-21 echoed expectedBasis; `binds precisely one step/session` disagreed with the real post-claim observation.
       const basisAfter = await readRuntimeBasis(admitted, prepared.ledgerId, digest);
       return retainRuntimeReceipt(admitted, request, digest, prepared, {

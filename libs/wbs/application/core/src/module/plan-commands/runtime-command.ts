@@ -50,7 +50,7 @@ export async function prepareRuntimeCommand(
   if (ledger.ledgerId !== request.expectedLedgerId)
     return { ok: false, reason: 'runtime_ledger_mismatch' };
   const canonicalRequest = canonicalRuntimeRequest(admitted.scope, request);
-  const retained = await admitted.commands.readAcceptance(admitted.scope, request.commandId);
+  const retained = await admitted.commands.readAcceptance(request.commandId);
   if (retained !== null) {
     await verifyRuntimeAcceptance(retained, ledger.ledgerId, digest);
     // Proof: P4-08/P5-26 omitted byte equality; altered claim/write retries received historical success.
@@ -64,7 +64,7 @@ export async function prepareRuntimeCommand(
       : { ok: true, value: { ...receipt, acceptance: receipt.acceptance } };
   }
   await admitted.commands.assertAbsentHistory();
-  const authority = await admitted.commands.readAuthority(admitted.scope);
+  const authority = await admitted.commands.readAuthority();
   // Proof: P4-02/03 and P5-23/24 omitted owner/generation comparisons separately; isolated stale production requests accepted.
   if (
     authority?.ownerId !== request.authority.ownerId ||
@@ -100,7 +100,6 @@ export async function retainRuntimeReceipt<
   // Proof: P4-23/P5-28 omitted the actual INSERT; staged claim/write receipt-fault tests resolved instead of rolling back.
   await admitted.commands.insertAcceptance({
     schemaVersion: 1,
-    scope: admitted.scope,
     commandId: request.commandId,
     canonicalRequest: prepared.canonicalRequest,
     requestDigest,

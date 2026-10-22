@@ -209,3 +209,7 @@ NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t type
 The project target names/options above were read from actual project.json files. Commands are proposed and were not run. Do not use `openspec --strict` as an expected-green command: the current change had seven known long-requirement warnings; adoption must record current output without blanket cleanup. Keep aggregate contract/unit target discovery separate from these anchored focused file commands; existing target internals are not changed in this packet.
 
 A reviewer may accept a slice's real internal contract without exposing unfinished HTTP behavior. Reject any change that returns fabricated ledger state, bypasses current auth on duplicate, treats a local epoch as a receiver grant, heals missing trusted schema, or claims fake backend/host conformance as production recovery proof. ADRs 0058 and 0059 record the adopted decisions. Task2 allocates the migration timestamp after inspecting current migration names.
+
+## Aggregate gate reconciliation
+
+The first exact-SHA full gate exposed existing closed-module and complete catalog/rollback fixture requirements that the slice checks did not cover. [Receiver gate reconciliation](receiver-gate-tasks.md) restores those requirements; its required checks and a fresh full gate remain open. Prior individual review acceptance does not imply aggregate completion.

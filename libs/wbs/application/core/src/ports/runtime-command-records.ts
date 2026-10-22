@@ -1,12 +1,7 @@
+import type { RuntimeAuthority, RuntimeClaim, RuntimeScope } from '@wbs/contracts';
 import { type } from 'arktype';
 
-import type {
-  RuntimeAuthority,
-  RuntimeClaim,
-  RuntimeLedger,
-  RuntimeScope,
-  StoredRuntimeAcceptance,
-} from './runtime-command-store';
+import type { RuntimeLedger, StoredRuntimeAcceptance } from './runtime-command-values';
 
 const identity = type('string > 0');
 // Proof: P13 removed safe-integer narrowing; unsafe counters and generations passed trusted parsing.

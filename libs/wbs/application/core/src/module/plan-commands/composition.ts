@@ -33,6 +33,7 @@ import {
   RuntimeReceiver,
   type RuntimeTransaction,
 } from './runtime-authority';
+import { RuntimeCommands } from './runtime-commands.resource';
 import {
   type RuntimeContext,
   type RuntimeObservation,
@@ -341,7 +342,11 @@ async function authorizeRuntimeScope(
   return {
     scope: { organizationId, projectId, personId },
     actorId,
-    commands: scope.stores.runtimeCommands,
+    commands: new RuntimeCommands(scope.stores.runtimeCommands, {
+      organizationId,
+      projectId,
+      personId,
+    }),
     access,
     credential,
     listClaims: () => scope.stores.claims.listByProject(projectId),
