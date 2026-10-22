@@ -13,6 +13,7 @@ import type { EndpointEvidence } from '../ports/dependency-context';
 import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { ElsewhereHolderLabel } from '../ports/shared-people-values';
 import type { LivePlanRead } from '../ports/shared-people-values';
+import type { ConnectedOptimizationSelection } from './connected-optimization';
 import { selectConnectedProject } from './connected-plan-projection';
 import type { ConnectedReadiness } from './connected-readiness';
 
@@ -51,6 +52,8 @@ export interface ConnectedTreeProjection {
   readonly metadata: ConnectedMetadata;
   readonly readiness: ConnectedReadiness;
   readonly placement: ReturnType<typeof selectConnectedProject>;
+  /** Exact target boundary and objective comparisons; final dates still come only from placement. */
+  readonly optimization: ConnectedOptimizationSelection | null;
   readonly dependencies: readonly ConnectedTreeDependency[];
   /** Checked display holders by target slice; numerical placement remains unchanged. */
   readonly foreignPersonHolders: ReadonlyMap<string, ElsewhereHolder>;
@@ -239,6 +242,12 @@ export function projectConnectedTree(
     metadata,
     readiness: targetReadiness,
     placement,
+    optimization:
+      projection.placement.kind === 'scheduled'
+        ? (projection.placement.stages.find(
+            (selection) => selection.stage.projectId === projectId,
+          ) ?? null)
+        : null,
     dependencies: projection.capture.relationships
       // Proof: replacing the incident predicate with true exposed unrelated bc to A and failed `projects incoming and outgoing incident labels`.
       .filter(

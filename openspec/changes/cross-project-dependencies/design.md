@@ -657,3 +657,22 @@ the whole first-install recovery helper against its now-existing maintenance
 container. Existing durable-stop catch behavior retains current bytes and evidence.
 Historical stores without authority refuse; this packet has no bootstrap adapter,
 semantic participant proof, activation mutation or Kubernetes admission.
+
+### Private connected derivation and capture slice (2026-10-22)
+
+The actual component derivation feeds its encoded common-axis resolved input and
+one combined Fast placement to the bounded rank/ID selector before restoring
+public capacity identities or projecting project offsets. The detached projection
+retains the Fast baseline, each immutable pre-selection stage, its objective states
+and publication decisions, and the final coherent composite. The internal tree
+projection carries its target selection alongside dates from that composite.
+
+`createLivePlanStore` accepts a private connected reader configuration for owned
+and borrowed fixtures. `services.ts` and source installation still omit it.
+`optimizationCapture` and `optimizationCaptureWithin` expose the detached
+local/connected input union and captured enablement without admitting solver work;
+missing calendars and empty target stages are modeled outcomes. Legacy
+`optimizationInput` methods temporarily remain for the existing local coordinator.
+Slice 2 replaces those callers with the capture union and removes the temporary
+dual API. Connected inputs are never reconstructed from final dates or passed
+through the legacy local coordinator. This slice does not complete tasks 7.3/7.4.

@@ -13,8 +13,10 @@ import {
   type Slice,
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { workdayOrdinalOf } from '@wbs/domain/workday';
 
-import type { CapturedScheduler } from '../ports/scheduler';
+import type { CapturedScheduler, ConnectedOptimizedCapturedAdapter } from '../ports/scheduler';
+import { selectConnectedOptimizations } from './connected-optimization';
 import { resolveConnectedCalendar, translateConnectedCalendar } from './connected-plan-calendar';
 import {
   type ConnectedIdentities,
@@ -41,14 +43,16 @@ function buildLocalGraph(
 }
 
 /**
- * Derive one real Fast placement from detached component evidence. No admission,
- * cache access or IO occurs here. Authored graph validation precedes modeled
- * engine/calendar refusal; only known cycle/calendar failures are recovered.
+ * Derive a component from combined Fast and bounded captured selection. Cache
+ * reads are synchronous and non-admitting under the caller's snapshot lifetime.
+ * Authored graph validation precedes modeled engine/calendar refusal; only known
+ * cycle/calendar failures are recovered.
  */
 export function deriveConnectedPlan(
   capture: ConnectedPlanCapture,
   scheduler: Pick<CapturedScheduler, 'supports'>,
   scheduleFast: (input: ResolvedScheduleInput) => Schedule,
+  optimizer: ConnectedOptimizedCapturedAdapter | null = null,
 ): ConnectedPlanProjection {
   const members = [...capture.projects].sort(
     (a, b) =>
@@ -124,10 +128,11 @@ export function deriveConnectedPlan(
   const required = members.filter(
     (member) =>
       member.reads.project.optimizationEnabled &&
-      member.reads.project.scheduleEngine === 'optimized',
+      member.reads.project.scheduleEngine === 'optimized' &&
+      getProjectParts(member.projectId).input.slices.length > 0,
   );
   // Proof: disabling this branch failed `inspects the nontarget required optimized member before calendar refusal` (dependency_calendar_missing).
-  if (required.length > 0)
+  if (optimizer === null && required.length > 0)
     return projection({
       kind: 'engine_unavailable',
       engine: 'optimized',
@@ -221,33 +226,55 @@ export function deriveConnectedPlan(
       for (const [id, offset] of translated.deadlines) deadlines.set(id, offset);
     }
   }
-  // The encoded resolved input here is the later connected optimization seam.
-  // Stage selection must happen before identities and own-axis offsets are restored;
-  // output schedules cannot reconstruct charged inputs or the reduced graph.
+  const input: ResolvedScheduleInput = {
+    rows: members.flatMap((member) => [...getProjectParts(member.projectId).input.rows]),
+    slices,
+    graph: scheduling.graph,
+    notBefore,
+    deadlines,
+    poolSizes,
+    resourceCapacities,
+    elsewhere: new Map(),
+    order: {
+      kind: 'connected',
+      projectIdByWorkItem: scheduling.projectIdByWorkItem,
+      rankByProject: new Map(members.map((member) => [member.projectId, member.rank])),
+    },
+  };
   try {
-    const combined = restoreConnectedSchedule(
-      scheduleFast({
-        rows: members.flatMap((member) => [...getProjectParts(member.projectId).input.rows]),
-        slices,
-        graph: scheduling.graph,
-        notBefore,
-        deadlines,
-        poolSizes,
-        resourceCapacities,
-        elsewhere: new Map(),
-        order: {
-          kind: 'connected',
-          projectIdByWorkItem: scheduling.projectIdByWorkItem,
-          rankByProject: new Map(members.map((member) => [member.projectId, member.rank])),
-        },
-      }),
-      identities,
+    // Proof: skipping selection failed `selects actual mixed-engine stages...` on the selected start and later boundary.
+    const selected = selectConnectedOptimizations(
+      {
+        mode: capture.mode,
+        originOrdinal: calendar.originOrdinal,
+        input,
+        relationships: capture.relationships,
+        projects: members.map((member) => ({
+          projectId: member.projectId,
+          rank: member.rank,
+          anchorOrdinal:
+            member.reads.project.startDate === null
+              ? null
+              : workdayOrdinalOf(member.reads.project.startDate),
+          engine: member.reads.project.scheduleEngine,
+          objective: member.reads.project.scheduleObjective,
+          enabled: member.reads.project.optimizationEnabled,
+        })),
+      },
+      scheduleFast(input),
+      optimizer,
     );
+    if (selected.kind === 'engine_unavailable')
+      return projection({ ...selected, reason: 'connected_optimization_not_supported' });
+    const combined = restoreConnectedSchedule(selected.placement, identities);
     return projection({
       kind: 'scheduled',
       engine: 'fast',
       originOrdinal: calendar.originOrdinal,
       combined,
+      baseline: restoreConnectedSchedule(selected.baseline, identities),
+      stages: selected.stages,
+      idleProjects: selected.idleProjects,
       identities,
       byProject: new Map(
         members.map((member) => [

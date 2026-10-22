@@ -2000,3 +2000,70 @@ SHA. Task 10.1/10.2 remain open: complete semantic participant fencing, activati
 receipt mutation/transport, Kubernetes preservation and downgrade policy are not
 implemented or proved by this prerequisite. The writer scanner still permits
 readonly readers and cannot establish gateway/MCP/browser exclusion.
+
+## Private connected derivation/capture slice (2026-10-22)
+
+Base: `9015c1fbe561bf64a87da6c9eb3cdca7f3d614fc`; isolated clone
+`/tmp/puni-optimizer-capture`. This is only slice 1 of the optimizer activation
+plan. Tasks 7.3/7.4 remain open. Production installation, coordinator admission,
+child outcomes, queue/restart/Retry and frontend DTO/presentation are unchanged.
+The deliberately temporary detached `optimizationCapture` API and removal path
+are recorded in design.md.
+
+The initial derivation regression failed with `engine_unavailable` instead of
+`scheduled` before the selector was connected. Restored production paths select
+mixed engines coherently, retain an earlier immutable boundary while later stages
+see earlier choices, preserve a Fast baseline and stage comparisons, order rank
+and ID ties, observe enabled Fast members, skip disabled cache reads and empty
+questions, and preserve repeat-read stage identity. SQLite production constructors
+cover owned/borrowed observations in isolated/shared modes, detached foreground and
+background capture, calendar refusal, held target idle, retained projections and
+aggregate reads. Capture compares generation/cache/queue/slot/event state before
+and after reading. Existing lifetime tests verify retained callbacks refuse after
+expiry while the owner's database remains usable.
+
+Watched faults were injected separately, restored, and rerun green:
+
+| Fault                                                           | Observed production-path failure                                                         |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Project final composite from baseline                           | `selects actual mixed-engine stages...`: A start 3 instead of 0.                         |
+| Build later stages from baseline                                | Same real derivation test: later A boundary 3 instead of 0.                              |
+| Replace owned observation transaction with no-op methods        | `owned isolated real selection excludes a rival publication...`: failed instead of idle. |
+| Replace borrowed DB with a fresh connection to the same DB file | Corresponding borrowed test: failed instead of idle.                                     |
+| Omit private connected reader binding                           | Both `private connected capture` modes: unavailable instead of scheduled.                |
+| Insert a generation during captured reader callback             | Both `connected selections` modes: total_changes 1 instead of 0.                         |
+
+The same publication tests pass for both isolated and shared modes and observe the
+rival outcome on the next observation. The transaction fault replaces all three
+transaction methods so a later missing-COMMIT error cannot substitute for the
+intended coherence assertion. The generation fault runs against the writable
+borrowed production helper, so a read-only connection error cannot substitute
+for the write-count assertion. Adjacent production `Proof:` comments identify
+these checks. Evidence is retained under `evidence/task-7-slice1-capture-proofs/`.
+
+Final focused command (241 tests, 0 failures, 807 assertions):
+
+```sh
+bun test libs/wbs/application/core/src/service/connected-optimization.test.ts libs/wbs/application/core/src/service/connected-plan.test.ts libs/wbs/application/core/src/service/connected-tree.test.ts libs/wbs/adapters/store-sqlite/src/captured-scheduler.db.test.ts libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts libs/wbs/adapters/store-sqlite/src/connected-optimization-reader.test.ts libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+bun test libs/wbs/application/core/src/module-boundaries.test.ts
+bun test apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-store-sqlite,wbs-be-01 --output-style=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-store-sqlite --output-style=static
+./node_modules/.bin/openspec validate --all --json
+```
+
+The separate module-boundary audit passes 15 tests / 20 assertions; mounted
+lifecycle/admission passes 121 tests / 1741 assertions. All three configured
+project typechecks and their module prerequisites pass. Configured core and SQLite
+lint pass; the final lint run executes core and reuses SQLite's preceding clean
+result. Initial core lint failures were import sorting and then sorting the new
+barrel export; a direct complete ESLint run identified the latter after Nx's
+failed task report omitted the diagnostic. Both are corrected. A fresh core
+configured typecheck reruns after the last test parameterization.
+
+OpenSpec all reports 268 passed / 0 failed, with existing advisory warnings.
+Dependencies are linked from the source workspace, not freshly installed frozen.
+Commit hooks are installed and run without bypass. Full host gate/CI, full build,
+solver Python tests, frontend tests/browser, external authoring, deployment,
+coordinator terminal publication/Retry/queue/restart and production connected
+installation remain unverified or out of scope. No claim here completes 7.3/7.4.

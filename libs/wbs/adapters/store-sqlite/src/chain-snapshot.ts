@@ -23,7 +23,7 @@ import { eq } from 'drizzle-orm';
 import { CalendarMarkerRepository } from './calendar-marker';
 import type { CaptureReadSeam } from './capture-read-seam';
 import type { CapturedOptimizationReaderOptions } from './captured-optimization-reader';
-import { capturedSchedulerIn } from './captured-scheduler';
+import { capturedSchedulerIn, type ConnectedCaptureOptions } from './captured-scheduler';
 import { captureConnectedPlanIn, discoverConnectedTopologyIn } from './connected-plan-capture';
 import {
   type Connection,
@@ -69,6 +69,14 @@ export interface ChainSnapshotOptions {
   /** The reading service's injected clock, for the session policy at admission. */
   readonly now: () => number;
 }
+
+/** Private derivation options; only explicit fixtures opt in before coordinator integration. */
+type LiveCaptureOptions = Pick<
+  ChainSnapshotOptions,
+  'schedulerOf' | 'optimization' | 'captureRead'
+> & {
+  readonly connected?: ConnectedCaptureOptions;
+};
 
 /**
  * Owns one snapshot through current authorization, rank, assignments, required plan capture,
@@ -241,7 +249,7 @@ export async function readChainSnapshotIn(
   access: ChainAccess,
   readable: readonly Project[],
   projectId: string,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
   captureRead?: CaptureReadSeam,
 ): Promise<ChainSnapshot> {
@@ -323,7 +331,7 @@ function requireOwnership(owner: { organizationId: string } | undefined): string
 
 /** Binds both reader lifetimes to one scheduling configuration without exposing connections to core. */
 export function createLivePlanStore(
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'> &
+  options: LiveCaptureOptions &
     (
       | { readonly kind: 'owned'; readonly openConnection: () => Connection }
       | { readonly kind: 'borrowed'; readonly db: Drizzle; readonly lifetime: ReadSnapshotLifetime }
@@ -337,6 +345,7 @@ export function createLivePlanStore(
     if (options.kind === 'borrowed') {
       // Proof: a fresh connection also made borrowed shared aggregate miss its staged edge (connected became shared).
       // Proof: replacing this borrowed db with a fresh snapshot fails mounted staged arrangement/preflight.
+      // Proof: fresh borrowed connection observed failed instead of idle in `borrowed isolated real selection excludes a rival publication`.
       // Proof: omitted entry check issued 22 SQL reads through expired source readers.
       options.lifetime.assertOpen();
       const observed = await read(options.db, options.lifetime);
@@ -348,6 +357,7 @@ export function createLivePlanStore(
     try {
       const transaction = drizzleReadTransaction(connection.db);
       // Proof: removing the transaction made shared aggregate capture see Next remote in the first old observation.
+      // Proof: no-op transaction methods observed failed instead of idle in `owned isolated real selection excludes a rival publication`.
       // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
       transaction.begin();
       try {
@@ -441,7 +451,7 @@ async function readLiveAggregateIn(
   db: Drizzle,
   actorId: string,
   access: ResourceAccess,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<LivePlanAggregate> {
   if (access.kind === 'legacy') {
@@ -550,7 +560,7 @@ async function readLivePlanIn(
   db: Drizzle,
   projectId: string,
   admitted: ResourceAccess,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<LivePlanRead> {
   if (admitted.kind === 'legacy') {
@@ -578,7 +588,7 @@ async function readConnectedLivePlanIn(
   db: Drizzle,
   access: Extract<ChainAccess, { kind: 'scoped' }>,
   projectId: string,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<Extract<LivePlanRead, { kind: 'connected' }>> {
   const projects = new ProjectRepository(db, OPEN);
@@ -590,11 +600,17 @@ async function readConnectedLivePlanIn(
     options.captureRead,
   );
   lifetime.assertOpen();
-  const { scheduler } = capturedSchedulerIn(db, options, lifetime);
-  const projection = deriveConnectedPlan(capture, scheduler, (input) => {
-    lifetime.assertOpen();
-    return scheduler.readResolvedFast(input);
-  });
+  // Proof: omitting this binding failed both `private connected capture` modes (unavailable instead of scheduled).
+  const { scheduler, connected } = capturedSchedulerIn(db, options, lifetime, options.connected);
+  const projection = deriveConnectedPlan(
+    capture,
+    scheduler,
+    (input) => {
+      lifetime.assertOpen();
+      return scheduler.readResolvedFast(input);
+    },
+    connected ?? null,
+  );
   const metadataByProject = new Map<
     string,
     Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }
@@ -620,7 +636,7 @@ async function readLiveProjectIn(
   db: Drizzle,
   projectId: string,
   admitted: ChainAccess | undefined,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  options: LiveCaptureOptions,
   lifetime: ReadSnapshotLifetime,
 ): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>> {
   const projects = new ProjectRepository(db, OPEN);

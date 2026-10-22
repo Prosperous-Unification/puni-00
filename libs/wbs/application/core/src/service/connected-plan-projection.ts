@@ -1,6 +1,7 @@
 import type { ConnectedGraph, Schedule, Scheduled, ScheduledSlice } from '@wbs/domain';
 import type { ConnectedEngineUnavailable, DependencyCalendarMissing } from '@wbs/domain';
 
+import type { ConnectedOptimizationSelection } from './connected-optimization';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 
 export type { DependencyCalendarMissing } from '@wbs/domain';
@@ -20,6 +21,9 @@ export type ConnectedPlacement =
       readonly engine: 'fast';
       readonly originOrdinal: number | null;
       readonly combined: Schedule;
+      readonly baseline: Schedule;
+      readonly stages: readonly ConnectedOptimizationSelection[];
+      readonly idleProjects: readonly string[];
       readonly byProject: ReadonlyMap<string, Schedule>;
       readonly identities: ConnectedIdentities;
     };

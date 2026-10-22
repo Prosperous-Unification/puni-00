@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-plan.test.ts:
+716 |     );
+717 |   const projection = deriveSelected();
+718 |   expect(projection.placement.kind).toBe('scheduled');
+719 |   if (projection.placement.kind !== 'scheduled') throw Error('expected scheduled');
+720 |   expect(seen).toEqual(['A', 'B']);
+721 |   expect(start(projection.placement.combined, 'a')).toBe(0);
+                                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 3
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/application/core/src/service/connected-plan.test.ts:721:53)
+(fail) selects actual mixed-engine stages before projection and keeps earlier boundaries detached [7.84ms]
+
+ 0 pass
+ 28 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [159.00ms]

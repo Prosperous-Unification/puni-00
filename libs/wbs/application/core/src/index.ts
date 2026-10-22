@@ -89,6 +89,7 @@ export * from './ports/join-request';
 export * from './ports/machine-credentials';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
+export * from './ports/optimization-input';
 export * from './ports/organization-access';
 export * from './ports/organization-audit';
 export * from './ports/project-event';

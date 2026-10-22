@@ -1,0 +1,27 @@
+{
+  "note": "Summary extracted from the complete openspec validate --all --json output; full local output: /tmp/optimizer-final-openspec.log",
+  "version": "1.0",
+  "summary": {
+    "totals": {
+      "items": 268,
+      "passed": 268,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 250,
+        "passed": 250,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "root": {
+    "path": "/tmp/puni-optimizer-capture",
+    "source": "nearest"
+  }
+}

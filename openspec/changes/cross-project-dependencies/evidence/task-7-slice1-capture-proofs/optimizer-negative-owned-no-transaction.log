@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+725 |           throw Error('expected selection');
+726 |         const target = held.projection.placement.stages.find(
+727 |           (selection) => selection.stage.projectId === 'a1',
+728 |         );
+729 |         expect(published).toBe(true);
+730 |         expect(target?.optimization?.variants.time.state).toBe('idle');
+                                                                ^
+error: expect(received).toBe(expected)
+
+Expected: "idle"
+Received: "failed"
+
+      at <anonymous> (/tmp/puni-optimizer-capture/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:730:59)
+(fail) owned isolated real selection excludes a rival publication until next observation [182.53ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.52s]

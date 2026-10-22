@@ -9,13 +9,15 @@ import { createLocalDependencyContext } from '@wbs/core/service/dependency-conte
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
-import { sliceKey } from '@wbs/domain';
+import { canonicalConnectedStageInput, sliceKey } from '@wbs/domain';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { createLivePlanStore } from './chain-snapshot';
+import { captureConnectedQuestion } from './connected-question-identity';
 import { openConnection, openDatabase, openReadOnlyConnection } from './db';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
+import { optimizedScheduleCache } from './schema';
 import { openSqliteSource } from './source';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
@@ -586,3 +588,175 @@ test.each(['calendar', 'optimized'] as const)(
     expect(snapshotSolverState()).toEqual(before);
   },
 );
+
+for (const mode of ['isolated', 'shared'] as const) {
+  test(`${mode} private connected capture returns detached stage without admission`, async () => {
+    if (mode === 'shared') write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+    write("UPDATE project SET start_date='2026-10-05',estimate_rounding='exact'");
+    write("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
+    for (const id of ['a1', 'a2'])
+      write(
+        `INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('${id}','${id}-s',1,1,1)`,
+      );
+    const source = openSqliteSource({ dbPath: path });
+    const observer = openDatabase(path);
+    const solverState = () =>
+      [
+        'optimization_generation',
+        'optimized_schedule_cache',
+        'solver_slot',
+        'solver_queue',
+        'event_log',
+      ].map((table) => observer.query(`SELECT * FROM ${table}`).all());
+    const before = solverState();
+    const plans = createLivePlanStore({
+      kind: 'owned',
+      openConnection: () => openReadOnlyConnection(path),
+      schedulerOf: () => fastScheduler,
+      connected: { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 },
+    });
+    const graph = servicesOver(
+      { ...source.stores, livePlans: plans },
+      {
+        dependencyContext: createLocalDependencyContext(source.stores),
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast: recordingBroadcaster(),
+        scheduler: fastScheduler,
+      },
+    );
+    try {
+      const captured = await graph.workItems.optimizationCaptureWithin('a1', access);
+      expect(captured.kind).toBe('scheduled');
+      if (captured.kind !== 'scheduled' || captured.input.kind !== 'connected')
+        throw Error('expected connected stage');
+      expect(captured.enabled).toBe(true);
+      expect(captured.input.stage.starts.get(sliceKey('a2', 'a2-s'))).toBe(0);
+      expect(captured.input.stage.starts.get(sliceKey('a1', 'a1-s'))).toBe(1);
+      expect(canonicalConnectedStageInput(captured.input.stage)).toBeTruthy();
+      const background = await graph.workItems.optimizationCapture('a1');
+      expect(background).toEqual(captured);
+      const retained = await plans.read('a1', access);
+      if (retained.kind !== 'connected') throw Error('expected connected');
+      const projected = projectConnectedTree(retained, 'a1');
+      expect(projected.optimization?.stage).toEqual(captured.input.stage);
+      expect(projected.optimization?.optimization?.variants.time.state).toBe('idle');
+      await plans.readAggregate('ada', access);
+      expect(solverState()).toEqual(before);
+      write("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
+      expect(captured.enabled).toBe(true);
+      const next = await graph.workItems.optimizationCapture('a1');
+      expect(next.kind === 'scheduled' && next.enabled).toBe(false);
+      expect(canonicalConnectedStageInput(captured.input.stage)).toBeTruthy();
+      write("UPDATE project SET start_date=NULL WHERE id='a1'");
+      expect((await graph.workItems.optimizationCapture('a1')).kind).toBe(
+        'dependency_calendar_missing',
+      );
+      write("UPDATE work_item SET hold='on_hold' WHERE id='a1'");
+      expect(await graph.workItems.optimizationCapture('a1')).toEqual({
+        kind: 'idle',
+        enabled: false,
+      });
+    } finally {
+      observer.close();
+      await source.close();
+    }
+  });
+}
+
+for (const mode of ['isolated', 'shared'] as const) {
+  for (const ownership of ['owned', 'borrowed'] as const) {
+    test(`${ownership} ${mode} real selection excludes a rival publication until next observation`, async () => {
+      if (mode === 'shared') write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+      write("UPDATE project SET start_date='2026-10-05',estimate_rounding='exact'");
+      write(
+        "UPDATE project SET schedule_engine='optimized',optimization_enabled=1,schedule_objective='time' WHERE id='a1'",
+      );
+      for (const id of ['a1', 'a2'])
+        write(
+          `INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('${id}','${id}-s',1,1,1)`,
+        );
+      const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
+      const setup = {
+        kind: 'owned' as const,
+        openConnection: () => openReadOnlyConnection(path),
+        schedulerOf: () => fastScheduler,
+        connected: installed,
+      };
+      const initial = await createLivePlanStore(setup).read('a1', access);
+      if (initial.kind !== 'connected' || initial.projection.placement.kind !== 'scheduled')
+        throw Error('expected stage');
+      const stage = initial.projection.placement.stages.find(
+        (selection) => selection.stage.projectId === 'a1',
+      )?.stage;
+      if (stage === undefined) throw Error('expected a1 stage');
+      const question = captureConnectedQuestion(stage, 'time', installed);
+      let published = false;
+      const captureRead = {
+        afterFirstRead: () => {
+          if (!published) {
+            published = true;
+            const publisher = openConnection(path);
+            try {
+              publisher.db
+                .insert(optimizedScheduleCache)
+                .values({
+                  ...question,
+                  generation: 1,
+                  status: 'failed',
+                  failureReason: 'timeout',
+                  createdAt: 12,
+                })
+                .run();
+            } finally {
+              publisher.close();
+            }
+          }
+          return Promise.resolve();
+        },
+      };
+      const owner = openConnection(path);
+      const lifetime = createReadSnapshotLifetime();
+      try {
+        if (ownership === 'borrowed') owner.db.run(sql.raw('BEGIN'));
+        const store = createLivePlanStore(
+          ownership === 'owned'
+            ? { ...setup, captureRead }
+            : {
+                kind: 'borrowed',
+                db: owner.db,
+                lifetime,
+                schedulerOf: () => fastScheduler,
+                connected: installed,
+                captureRead,
+              },
+        );
+        const held = await store.read('a1', access);
+        if (held.kind !== 'connected' || held.projection.placement.kind !== 'scheduled')
+          throw Error('expected selection');
+        const target = held.projection.placement.stages.find(
+          (selection) => selection.stage.projectId === 'a1',
+        );
+        expect(published).toBe(true);
+        expect(target?.optimization?.variants.time.state).toBe('idle');
+        const detached = canonicalConnectedStageInput(stage);
+        lifetime.expire();
+        if (ownership === 'borrowed') {
+          owner.db.run(sql.raw('COMMIT'));
+          expect((await failureOf(store.read('a1', access))).message).toContain('closed');
+        }
+        const next = await createLivePlanStore(setup).read('a1', access);
+        if (next.kind !== 'connected' || next.projection.placement.kind !== 'scheduled')
+          throw Error('expected next');
+        expect(
+          next.projection.placement.stages.find((selection) => selection.stage.projectId === 'a1')
+            ?.optimization?.variants.time.state,
+        ).toBe('failed');
+        expect(canonicalConnectedStageInput(stage)).toBe(detached);
+      } finally {
+        lifetime.expire();
+        owner.close();
+      }
+    });
+  }
+}

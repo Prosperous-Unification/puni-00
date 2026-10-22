@@ -1,5 +1,5 @@
 import type { CapturedWorkItem, IsoDate, PlanInputReads, Schedule } from '@wbs/domain';
-import { sliceKey } from '@wbs/domain';
+import { canonicalConnectedStageInput, sliceKey } from '@wbs/domain';
 import { scheduleResolved } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -645,4 +645,164 @@ describe('connected detached Fast placement', () => {
       }),
     ).toThrow('missing reverse identity same');
   });
+});
+
+it.each(['A', 'B'])(
+  'selects actual mixed-engine stages before projection and keeps earlier boundaries detached: %s',
+  (selectedProject) => {
+    const a = reads('A');
+    const b = reads('B');
+    const held = {
+      ...capture(
+        {
+          ...a,
+          project: {
+            ...a.project,
+            optimizationEnabled: true,
+            scheduleEngine: selectedProject === 'A' ? 'optimized' : 'fast',
+            scheduleObjective: 'time' as const,
+          },
+        },
+        {
+          ...b,
+          project: {
+            ...b.project,
+            optimizationEnabled: true,
+            scheduleEngine: selectedProject === 'B' ? 'optimized' : 'fast',
+            scheduleObjective: 'time' as const,
+          },
+        },
+      ),
+      relationships: [],
+    };
+    const seen: string[] = [];
+    const deriveSelected = () =>
+      deriveConnectedPlan(
+        held,
+        { supports: () => false },
+        (input) =>
+          scheduleResolved(
+            input,
+            new Map([
+              [sliceKey('a', 'build'), 3],
+              [sliceKey('b', 'build'), 4],
+            ]),
+          ),
+        {
+          readConnectedCaptured: ({ stage }) => {
+            seen.push(stage.projectId);
+            const question = {
+              projectId: stage.projectId,
+              inputHash: stage.projectId,
+              questionHash: stage.projectId,
+              objective: 'time' as const,
+              contractVersion: 'test',
+              budgetMs: 100,
+              quantum: 48,
+              wireVersion: 5,
+              stageBytes: canonicalConnectedStageInput(stage),
+            };
+            return {
+              inputHash: stage.projectId,
+              generation: 1,
+              contractVersion: 'test',
+              budgetMs: 100,
+              quantum: 48,
+              wireVersion: 5,
+              variants: { pri: { state: 'idle' }, time: { state: 'ready', proof: 'proven' } },
+              candidates: {
+                pri: null,
+                time: {
+                  question,
+                  starts: new Map([[sliceKey(stage.projectId.toLowerCase(), 'build'), 0]]),
+                },
+              },
+            };
+          },
+        },
+      );
+    const projection = deriveSelected();
+    expect(projection.placement.kind).toBe('scheduled');
+    if (projection.placement.kind !== 'scheduled') throw Error('expected scheduled');
+    expect(seen).toEqual(['A', 'B']);
+    expect(start(projection.placement.combined, 'a')).toBe(selectedProject === 'A' ? 0 : 3);
+    expect(start(projection.placement.combined, 'b')).toBe(selectedProject === 'B' ? 0 : 4);
+    expect(start(projection.placement.baseline, 'a')).toBe(3);
+    expect(projection.placement.stages[0]?.stage.starts.get(sliceKey('b', 'build'))).toBe(4);
+    expect(projection.placement.stages[1]?.stage.starts.get(sliceKey('a', 'build'))).toBe(
+      selectedProject === 'A' ? 0 : 3,
+    );
+    expect(projection.placement.stages[1]?.optimization?.variants.time.state).toBe('ready');
+    const again = deriveSelected();
+    if (again.placement.kind !== 'scheduled') throw Error('expected scheduled');
+    expect(
+      again.placement.stages.map((selection) => canonicalConnectedStageInput(selection.stage)),
+    ).toEqual(
+      projection.placement.stages.map((selection) => canonicalConnectedStageInput(selection.stage)),
+    );
+  },
+);
+
+it('ranks real stages by ID ties, observes enabled Fast, skips disabled and empty members', () => {
+  const a = reads('A');
+  const b = reads('B');
+  const c = reads('C');
+  const d = reads('D');
+  const held: ConnectedPlanCapture = {
+    ...capture(),
+    relationships: [],
+    projects: [
+      {
+        projectId: 'D',
+        abbreviation: 'D',
+        rank: 0,
+        reads: {
+          ...d,
+          estimates: [],
+          steps: [],
+          workItems: [],
+          project: { ...d.project, optimizationEnabled: true, scheduleEngine: 'optimized' },
+        },
+      },
+      { projectId: 'C', abbreviation: 'C', rank: 0, reads: c },
+      {
+        projectId: 'B',
+        abbreviation: 'B',
+        rank: 0,
+        reads: { ...b, project: { ...b.project, optimizationEnabled: true } },
+      },
+      {
+        projectId: 'A',
+        abbreviation: 'A',
+        rank: 0,
+        reads: { ...a, project: { ...a.project, optimizationEnabled: true } },
+      },
+    ],
+  };
+  const seen: string[] = [];
+  const projection = deriveConnectedPlan(held, { supports: () => false }, scheduleResolved, {
+    readConnectedCaptured: ({ stage }) => {
+      seen.push(stage.projectId);
+      return {
+        inputHash: 'idle',
+        generation: null,
+        contractVersion: 'test',
+        budgetMs: 100,
+        quantum: 48,
+        wireVersion: 5,
+        variants: { pri: { state: 'idle' }, time: { state: 'pending' } },
+        candidates: { pri: null, time: null },
+      };
+    },
+  });
+  if (projection.placement.kind !== 'scheduled') throw Error('expected scheduled');
+  expect(seen).toEqual(['A', 'B']);
+  expect(projection.placement.stages.map((selection) => selection.stage.projectId)).toEqual([
+    'A',
+    'B',
+    'C',
+  ]);
+  expect(projection.placement.idleProjects).toEqual(['D']);
+  expect(projection.placement.stages[0]?.optimization?.variants.time.state).toBe('pending');
+  expect(projection.placement.stages[2]?.optimization).toBeNull();
 });

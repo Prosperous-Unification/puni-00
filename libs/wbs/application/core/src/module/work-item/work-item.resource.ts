@@ -115,6 +115,7 @@ import {
   permitsExternalDependencies,
 } from '../../ports/external-dependency-authoring';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
+import type { OptimizationCapture } from '../../ports/optimization-input';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -1553,6 +1554,44 @@ export class WorkItemService {
   ): Promise<ScheduleInput | null> {
     if (!(await this.admits(projectId, access))) return null;
     return this.scheduleInput(projectId);
+  }
+
+  /** Private detached observation for the connected coordinator integration; never admits work. */
+  async optimizationCaptureWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<OptimizationCapture | AccessRefused> {
+    const captured = await this.opts.livePlans?.read(projectId, access);
+    if (captured?.kind === 'access_refused') return captured;
+    if (captured?.kind === 'not_found') return captured;
+    if (captured?.kind === 'connected') return captureConnectedOptimization(captured, projectId);
+    if (captured?.kind === 'shared') return captureSharedOptimization(captured);
+    const input = await this.scheduleInputWithin(projectId, access);
+    if (input === null) return { kind: 'not_found' };
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error('optimizer project disappeared during input capture');
+    return {
+      kind: 'scheduled',
+      input: { kind: 'local', input },
+      enabled: project.optimizationEnabled,
+    };
+  }
+
+  /** Private project-owned detached observation; no returned value borrows the snapshot. */
+  async optimizationCapture(projectId: string): Promise<OptimizationCapture> {
+    const captured = await this.opts.livePlans?.readProject(projectId);
+    if (captured?.kind === 'not_found') return captured;
+    if (captured?.kind === 'connected') return captureConnectedOptimization(captured, projectId);
+    if (captured?.kind === 'shared') return captureSharedOptimization(captured);
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { kind: 'not_found' };
+    const input = await this.scheduleInput(projectId);
+    if (input === null) throw new Error('optimizer project disappeared during input capture');
+    return {
+      kind: 'scheduled',
+      input: { kind: 'local', input },
+      enabled: project.optimizationEnabled,
+    };
   }
 
   /** Human-scoped Retry input; the shared chain and settings leave one closed authorized read. */
@@ -9788,4 +9827,41 @@ function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
           ? [command.deletionState.parentId]
           : [],
   );
+}
+
+/** Select the target's existing immutable stage rather than rebuilding from final dates. */
+function captureConnectedOptimization(
+  captured: Extract<LivePlanRead, { kind: 'connected' }>,
+  projectId: string,
+): OptimizationCapture {
+  const member = captured.projection.capture.projects.find(
+    (project) => project.projectId === projectId,
+  );
+  // Invariant diagnostic: live capture already checks target membership before derivation.
+  if (member === undefined) throw new Error(`uncaptured optimization project ${projectId}`);
+  const placement = captured.projection.placement;
+  if (placement.kind === 'dependency_calendar_missing') return placement;
+  if (placement.kind === 'engine_unavailable')
+    return { kind: 'unavailable', reason: 'engine_unavailable' };
+  if (placement.kind === 'unavailable') return placement;
+  const enabled = member.reads.project.optimizationEnabled;
+  if (placement.idleProjects.includes(projectId)) return { kind: 'idle', enabled };
+  const selection = placement.stages.find((stage) => stage.stage.projectId === projectId);
+  // Invariant diagnostic: the selector partitions captured members into stages and idle projects.
+  if (selection === undefined) throw new Error(`missing optimization stage ${projectId}`);
+  return { kind: 'scheduled', input: { kind: 'connected', stage: selection.stage }, enabled };
+}
+
+/** Shared local inputs and enablement come from the same observation. */
+function captureSharedOptimization(
+  captured: Extract<LivePlanRead, { kind: 'shared' }>,
+): OptimizationCapture {
+  if (captured.chain.kind === 'engine_unavailable')
+    return { kind: 'unavailable', reason: 'engine_unavailable' };
+  if (captured.chain.kind === 'unavailable') return captured.chain;
+  return {
+    kind: 'scheduled',
+    input: { kind: 'local', input: captured.chain.input },
+    enabled: captured.project.optimizationEnabled,
+  };
 }

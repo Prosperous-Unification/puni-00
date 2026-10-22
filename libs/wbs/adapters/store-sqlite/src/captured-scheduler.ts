@@ -9,6 +9,13 @@ import { connectedCapturedOptimizationReaderOf } from './connected-captured-opti
 import type { Drizzle } from './db';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 
+/** Installed private connected reader configuration; production composition does not supply it yet. */
+export interface ConnectedCaptureOptions {
+  readonly solverVersion: string;
+  readonly budgetMs: number;
+  readonly now: () => number;
+}
+
 /**
  * Borrow one observation for scheduling and exact connected cache questions.
  * The caller owns transaction settlement and capability expiry. Connected reads
@@ -20,11 +27,7 @@ export function capturedSchedulerIn(
   db: Drizzle,
   options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
   lifetime: ReadSnapshotLifetime,
-  connected?: {
-    readonly solverVersion: string;
-    readonly budgetMs: number;
-    readonly now: () => number;
-  },
+  connected?: ConnectedCaptureOptions,
 ): {
   readonly scheduler: CapturedScheduler;
   readonly connected: ConnectedOptimizedCapturedAdapter | undefined;
@@ -45,7 +48,7 @@ export function capturedSchedulerIn(
         },
   );
   // Proof: `without the private explicit opt-in` exposed capability when a default reader was forced.
-  // Proof: `connected selections` saw ready inside held snapshots with a fresh connection, and write count 1 after injected admission.
+  // Proof: `connected selections` saw ready inside held snapshots with a fresh connection, and write count 1 after injected generation admission (rewatched 2026-10-22).
   const reader =
     connected === undefined ? undefined : connectedCapturedOptimizationReaderOf(db, connected);
   return {
