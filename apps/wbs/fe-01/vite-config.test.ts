@@ -259,6 +259,8 @@ describe('the app and the run resolve the same modules', () => {
     const domain = '../../../libs/wbs/domain/domain/src';
     const expected = {
       '@': resolve(APP_ROOT, 'src'),
+      '@wbs/domain/typed-dependency': resolve(APP_ROOT, domain, 'typed-dependency.ts'),
+      '@wbs/domain/project-address': resolve(APP_ROOT, domain, 'project-address.ts'),
       '@wbs/domain/step-node': resolve(APP_ROOT, domain, 'step-node.ts'),
       '@wbs/domain/step-reference': resolve(APP_ROOT, domain, 'step-reference.ts'),
       '@wbs/domain/workday': resolve(APP_ROOT, domain, 'workday.ts'),
