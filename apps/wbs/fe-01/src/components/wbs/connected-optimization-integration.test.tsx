@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { clientFromShapes, getWorkItems } from '@wbs/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -14,6 +14,7 @@ import {
   createFractionalConnectedOptimizationTree,
   createUnavailableConnectedOptimizationTree,
 } from '../../../../../../libs/wbs/application/core/src/testing/connected-optimization-view.fixture';
+import type { SubscriptionHandlers } from './wbs-table';
 
 publishApplicationRuntimeForEachTest();
 afterEach(() => {
@@ -240,5 +241,203 @@ it.each(['ready', 'floor'] as const)(
         state === 'ready' ? '4' : '6',
       ),
     );
+  },
+);
+
+function serveActions(read: () => unknown) {
+  const requests: { method: string; path: string; body: unknown }[] = [];
+  vi.stubGlobal('fetch', (path: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    requests.push({
+      method,
+      path,
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
+    });
+    if (method === 'GET' && /^\/api\/projects\/[ABC]\/work-items$/.test(path))
+      return Promise.resolve(
+        new Response(JSON.stringify(read()), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    if (method === 'POST' && /^\/api\/projects\/[ABC]\/optimization\/retry$/.test(path))
+      return Promise.resolve(
+        new Response(JSON.stringify({ state: 'retrying', generation: 1, inputHash: 'accepted' }), {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    if (method === 'PATCH' && /^\/api\/projects\/[ABC]$/.test(path))
+      return Promise.resolve(new Response('injected unexpected settings write', { status: 500 }));
+    throw new Error(`unexpected connected request ${method} ${path}`);
+  });
+  const http = httpProjectApi('token');
+  const api = fakeProjectApi();
+  api.tree = (projectId) => http.tree(projectId);
+  api.retryOptimization = (projectId, objective, inputHash) =>
+    http.retryOptimization(projectId, objective, inputHash);
+  api.setOptimizationSettings = (projectId, patch) =>
+    http.setOptimizationSettings(projectId, patch);
+  let changed: SubscriptionHandlers['onChange'] = () => {
+    throw new Error('missing mounted subscription');
+  };
+  const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    changed = handlers.onChange;
+    return { seen: () => undefined, unsubscribe: () => undefined };
+  };
+  return {
+    api,
+    requests,
+    subscribe,
+    refresh: () => {
+      act(() => {
+        changed('project_settings_changed');
+      });
+    },
+  };
+}
+
+function refuseTerminal(): void {
+  const cue = screen.getByRole('button', { name: /is the active schedule/ });
+  fireEvent.click(cue);
+  const time = screen.getByRole('menuitem', { name: /^Time/ });
+  expect(time).toHaveAttribute('aria-disabled', 'true');
+  expect(time).not.toHaveTextContent(/days|earlier|same order/);
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /^✓ Fast/ }), { key: 'ArrowDown' });
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Pri/ }), { key: 'ArrowDown' });
+  expect(time).toHaveFocus();
+  fireEvent.keyDown(time, { key: 'Enter' });
+  fireEvent.keyDown(time, { key: ' ' });
+  fireEvent.click(time);
+  expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+  fireEvent.keyDown(time, { key: 'Escape' });
+  fireEvent.click(cue);
+  expect(screen.getByRole('menuitem', { name: /^Time/ })).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Time/ }), { key: 'Escape' });
+}
+
+it.each([1024, 390])(
+  'suppresses terminal HTTP actions across reopen/refetch/remount at width %s',
+  async (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    let current = createFractionalConnectedOptimizationTree();
+    const transport = serveActions(() => current);
+    const draw = () =>
+      render(
+        <WbsTableOverClient
+          projectId="B"
+          projectServices={projectServicesOf(transport.api)}
+          subscribe={transport.subscribe}
+        />,
+      );
+    const mounted = draw();
+    await screen.findByDisplayValue('b');
+    refuseTerminal();
+    current = createFractionalConnectedOptimizationTree('idle', 'refetched');
+    transport.refresh();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /is the active schedule/ }).getAttribute('data-fact'),
+      ).toContain('Question hash refetched-time');
+    });
+    refuseTerminal();
+    const readsBeforeRemount = transport.requests.filter(
+      (request) => request.method === 'GET',
+    ).length;
+    mounted.unmount();
+    draw();
+    await screen.findByDisplayValue('b');
+    await waitFor(() => {
+      expect(
+        transport.requests.filter((request) => request.method === 'GET').length,
+      ).toBeGreaterThan(readsBeforeRemount);
+    });
+    refuseTerminal();
+    expect(transport.requests.filter((request) => request.method !== 'GET')).toEqual([]);
+    if (width === 390)
+      expect(document.querySelector('[data-card-span]')).toHaveTextContent('5 Oct → 6 Oct');
+    else expect(document.querySelector('[data-start]')).toHaveTextContent('5 Oct');
+    expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Fast');
+  },
+);
+
+it.each([1024, 390])(
+  'retries only failed Pri with the refetched connected hash at width %s',
+  async (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    let current = createFractionalConnectedOptimizationTree('failed');
+    const transport = serveActions(() => current);
+    render(
+      <WbsTableOverClient
+        projectId="B"
+        projectServices={projectServicesOf(transport.api)}
+        subscribe={transport.subscribe}
+      />,
+    );
+    await screen.findByDisplayValue('b');
+    current = createFractionalConnectedOptimizationTree('failed', 'current-connected');
+    transport.refresh();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /is the active schedule/ }).getAttribute('data-fact'),
+      ).toContain('Question hash current-connected-time');
+    });
+    fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+    expect(screen.getByRole('menuitem', { name: /^Time/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.queryByRole('menuitem', { name: 'Retry Time' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Pri' }));
+    await waitFor(() => {
+      expect(transport.requests.filter((request) => request.method !== 'GET')).toEqual([
+        {
+          method: 'POST',
+          path: '/api/projects/B/optimization/retry',
+          body: { objective: 'pri', inputHash: 'current-connected' },
+        },
+      ]);
+    });
+    expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Fast');
+  },
+);
+
+it('announces the pending sibling while retaining terminal scope and real dates', async () => {
+  const transport = serveActions(() => createFractionalConnectedOptimizationTree('pending'));
+  render(<WbsTableOverClient projectId="B" projectServices={projectServicesOf(transport.api)} />);
+  await screen.findByDisplayValue('b');
+  expect(screen.getByRole('status')).toHaveTextContent('Priority-first: Optimizing');
+  expect(document.querySelector('[data-cue-dot]')).toHaveAttribute('data-cue-dot', 'solving');
+  expect(
+    screen.getByRole('button', { name: /is the active schedule/ }).getAttribute('data-fact'),
+  ).toContain('rounded bounds');
+  expect(document.querySelector('[data-finish]')).toHaveTextContent('6 Oct');
+  expect(transport.requests.filter((request) => request.method !== 'GET')).toEqual([]);
+});
+
+it.each([1024, 390])(
+  'retains selected ready Time beside terminal Pri at width %s',
+  async (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    const transport = serveActions(() => createConnectedOptimizationTree('ready-sibling'));
+    render(<WbsTableOverClient projectId="A" projectServices={projectServicesOf(transport.api)} />);
+    await screen.findAllByDisplayValue('a');
+    const cue = screen.getByRole('button', {
+      name: /selected Finish-first schedule remains displayed/,
+    });
+    expect(cue).not.toHaveAccessibleName(/Fast is retained/);
+    expect(cue.getAttribute('data-fact')).toContain('start 8, finish 9');
+    expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
+    fireEvent.click(cue);
+    expect(screen.getByRole('menuitem', { name: /^Pri/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: /^✓ Time/ })).toHaveTextContent(
+      'captured fixed positions',
+    );
+    expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+    expect(transport.requests.filter((request) => request.method !== 'GET')).toEqual([]);
+    if (width === 390)
+      expect(document.querySelector('[data-card-span]')).toHaveTextContent('5 Oct → 5 Oct');
+    else expect(document.querySelector('[data-start]')).toHaveTextContent('5 Oct');
   },
 );

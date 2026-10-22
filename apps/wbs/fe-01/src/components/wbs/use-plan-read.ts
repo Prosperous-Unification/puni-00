@@ -178,6 +178,8 @@ export interface ChartRead {
 /** Everything the chart is drawn from, off one delivered plan read. */
 export function chartReadOf(read: PlanRead, generation: number): ChartRead {
   return {
+    // Proof: substituting [] removed the fractional B=0.2→1.2 bar; the
+    // producer-mounted fractional dates/bars/cards case failed (2026-10-22).
     slices: read.slices,
     steps: read.steps,
     people: read.assignedPeople,

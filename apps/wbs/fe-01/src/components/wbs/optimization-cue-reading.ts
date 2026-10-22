@@ -178,7 +178,8 @@ function variantRow(optimization: PlanOptimizationView, objective: ScheduleObjec
             comparisonWords(finish - optimization.finishDays.fast, sameOrder),
           ),
     stateWords,
-    // Proof: replacing the non-ready refusal with null failed both terminal selection cases (2026-10-22).
+    // Proof: admitting boundary-infeasible as ready failed both producer-mounted
+    // terminal keyboard/click HTTP action cases (2026-10-22).
     refusedBecause:
       optimization.displayed === objective
         ? `${OBJECTIVE_SENTENCE[objective]} is already the active schedule`
@@ -241,7 +242,8 @@ export function cueReading(optimization: PlanOptimizationView, stale = false): C
     scopeWords: scopeWords(optimization, stale),
     activeLabel: active === 'fast' ? FAST_LABEL : OBJECTIVE_LABEL[active],
     rows,
-    // Proof: adding boundary-infeasible here failed both terminal Retry absence cases (2026-10-22).
+    // Proof: adding boundary-infeasible here failed both producer-mounted
+    // terminal Retry absence/zero-HTTP cases (2026-10-22).
     retryable: OBJECTIVES.filter((objective) => {
       const state = optimization.variants[objective].state;
       return state === 'failed' || state === 'corrupt';

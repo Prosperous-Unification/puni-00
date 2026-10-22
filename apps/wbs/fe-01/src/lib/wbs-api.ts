@@ -2835,6 +2835,8 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         throw new Error('connected_optimization_project_mismatch');
       const plan: PlanRead = {
         ...read,
+        // Proof: dropping scope here lost the selected-ready retention sentence
+        // in both producer-mounted table/card cases (2026-10-22).
         ...(optimization === undefined ? {} : { optimization }),
         typedDependencies: dependencyViewsOf(tree, projectId),
         steps: tree.steps.map(stepViewOf),

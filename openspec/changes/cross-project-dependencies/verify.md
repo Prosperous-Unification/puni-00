@@ -4000,3 +4000,117 @@ command directly also exits 0 (`/tmp/b3-presentation-lint-direct.log`). The
 earlier failed configured runs read the pre-fix callback and remain failed
 observations. Final OpenSpec validation passes **268/268**. These bounded
 checks do not stand in for the unrun canonical host gate or full frontend suite.
+
+## B3 producer-mounted HTTP action proof follow-up (2026-10-22)
+
+Independent review held the preceding presentation-enabling commit because its
+mounted services still used fake action methods and both ready/floor producer
+variants were ready. This follow-up retains the same isolated clone and adds
+seven producer-mounted cases. `serveActions` delegates `tree`,
+`retryOptimization` and `setOptimizationSettings` to `httpProjectApi`; its
+fetch boundary records method, path and decoded body before replying. Other
+unrelated methods keep the existing fake API. No production behavior branch
+changes in this follow-up; protected production branches gain watched proofs.
+
+The real fractional producer accepts an explicit controlled fixture identity
+for two successive authoritative reads; its preparation/classification still
+creates the terminal certificate. At desktop and phone widths, terminal Time
+is unavailable by click, Enter and Space after arrow navigation. Reopening,
+refetching a new captured question and remounting with a newly observed GET
+leave **zero non-GET requests**, hence neither Retry POST nor settings PATCH.
+Real B dates remain 5/6 October. With failed Pri, only Retry Pri is present and
+one real HTTP POST sends `{objective:'pri',inputHash:'current-connected'}` to
+`/api/projects/B/optimization/retry` after the updated question is rendered.
+There is no Time Retry or settings PATCH.
+
+A new mixed producer controlled-outcome state retains ready selected Time
+while Pri carries its own terminal question, not Time's question. Both table
+and phone retain Time's name, scoped comparison, 5 October placement, and
+captured C start 8/finish 9. They explicitly reject the accessible claim that
+Fast is retained. The initial phone oracle expected a 6 October finish; the
+actual selected first slice finishes exactly on the day boundary, so its
+inclusive calendar span is 5 October → 5 October. Corrected that test oracle;
+this was not a production regression proof. Pending Pri beside terminal Time
+announces `Optimizing`, keeps its solving dot, evidence and actual dates.
+
+TDD observations: before adding fixture hash control and the mixed sibling
+outcome, **6 failed / 17 passed** (`/tmp/b3-actions-red.log`): refetch facts kept
+the old identity, and the unsupported sibling fixture could not decode. The
+pending and initial terminal action assertions already passed against the
+production behavior. The following independent runtime faults prove those
+safety assertions can break; each edit was restored before the next:
+
+| Fault injected into production                                                      | Matching mounted test filter  | Observed failure                                                     |
+| ----------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
+| Add `boundary-infeasible` to `cueReading.retryable`                                 | `suppresses terminal HTTP`    | 2 failures: forbidden Retry Time appears                             |
+| Permit terminal state in `variantRow` ready selection arm                           | `suppresses terminal HTTP`    | 2 failures: terminal menu item loses `aria-disabled=true`            |
+| Drop scope in `httpProjectApi.tree` after decoding                                  | `retains selected ready Time` | 2 failures: selected/scoped retention accessible sentence disappears |
+| Substitute empty slices in `chartReadOf`                                            | `mounts fractional Fast`      | 1 failure: no bar with start 0.2/finish 1.2                          |
+| Read fixed starts from final `placement.combined` in `projectConnectedOptimization` | `retains selected ready Time` | 2 failures: captured C start 8 becomes final 6                       |
+
+Every fault ran the production producer/decoder/mounted integration suite with:
+
+```sh
+# apps/wbs/fe-01, filter from the table above:
+TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx -t '<filter>' --no-file-parallelism --maxWorkers=1
+```
+
+Logs in the same table order: `/tmp/b3-actions-fault-{retry,selection,scope,positions,captured}.log`.
+Each exited 1 with runtime assertion failures, not a typechecking or alternate
+boundary refusal. Adjacent `Proof:` comments name these mounted failures at
+selection, Retry, HTTP scope forwarding, chart slice forwarding and core
+captured-position projection. The core and frontend state/identity contracts
+remain unchanged.
+
+Final bounded check commands (all Nx commands set `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`):
+
+```sh
+# apps/wbs/fe-01:
+TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx src/components/wbs/optimization-cue-reading.test.ts src/components/wbs/optimization-cue.test.tsx src/components/wbs/optimization-integration.test.tsx src/components/wbs/optimization-retry-reconciliation.test.tsx src/lib/wbs-api.test.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
+# repo root:
+bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts
+bunx nx run wbs-fe-01:typecheck --outputStyle=stream
+bunx nx run wbs-fe-01:lint --outputStyle=stream
+bunx nx run wbs-core:typecheck --outputStyle=stream
+bunx nx run wbs-core:lint --outputStyle=stream
+./node_modules/.bin/openspec validate --all --json
+```
+
+This closes the bounded B3 presentation enabling action-proof gap; it does not
+prove real backend Retry admission or terminal 409 authority. The existing
+internal-service reconciliation suite is included as a regression, while B4's
+full producer/HTTP 409, replaced-runtime and stale proofs remain distinct.
+Full frontend aggregate, Auckland tier, browser HintLayer/focus/phone geometry,
+canonical clean host gate, required CI, installed connected solver runtime,
+production connected reads, external authoring and activation remain unrun and
+unproven for this packet. Dependencies still use the clone-local symlink to the
+workspace installation. Parent 7.3/7.4/9.2 and full Slice B stay unchecked.
+
+Restored checks: selected UTC **224/224** in six files
+(`/tmp/b3-actions-selected.log`); final producer integration **23/23**, including
+the new remount GET assertion (`/tmp/b3-actions-integration-final.log`); core
+view **33/33** with **320** assertions (`/tmp/b3-actions-core-tests.log`).
+Frontend typecheck passed both module/app tasks uncached; core typecheck passed
+both module/app tasks uncached; core lint passed uncached. Logs:
+`/tmp/b3-actions-{fe-typecheck,core-typecheck,core-lint}.log`. OpenSpec passed
+**268/268** (`/tmp/b3-actions-openspec.log`), and changed-path Prettier plus
+`git diff --check` passed.
+
+The first full frontend lint run failed without forwarding source diagnostics.
+Focused changed-file ESLint identified one import-sort error in the new test;
+its focused autofix passed (`/tmp/b3-actions-import-fix.log`). The failed run
+remains a failed observation. A full frontend lint retry was deferred while the
+parent's large normal hook occupied the memory-constrained shared host; no
+already-running checks were stopped and no check budget was increased.
+
+After the shared host's heavy hook completed, final configured frontend lint
+passed uncached in **1m31s** (`/tmp/b3-actions-fe-lint-final.log`). Final OpenSpec
+validation remained **268/268** (`/tmp/b3-actions-openspec-final.log`); all eight
+changed paths passed Prettier and `git diff --check`. The follow-up commit uses
+the clone's already installed normal pre-commit, prepare-commit-msg and
+commit-msg hooks, with no bypass. Independent re-review remains with the parent.
+
+The first normal pre-commit rejected a late fixture JSDoc `@param` tag because
+it documented only the second parameter. Replaced the isolated tag with prose
+on the symbol; no signature or behavior changed. This is a failed hook
+observation, not a bypass. The normal hook is rerun for the final commit.

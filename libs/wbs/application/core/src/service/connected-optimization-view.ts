@@ -145,8 +145,9 @@ export function projectConnectedOptimization(
         workItemName: requireCaptured(row.name, `row name ${row.id}`),
         stepId: slice.stepId,
         stepName: step === null ? null : requireCaptured(step.name, `step name ${step.id}`),
-        // Proof: reading final combined starts here changed captured C=8 to6
-        // in A's earlier scope; the mixed-engine tree assertion failed.
+        // Proof: reading final combined starts here changed captured C=8 to C=6
+        // in A's earlier scope; both producer-mounted selected-ready table/card
+        // cases lost their captured start 8 evidence (2026-10-22).
         start: requireCaptured(stage.starts.get(key), `start ${key}`),
         finish: requireCaptured(stage.finishes.get(key), `finish ${key}`),
       },

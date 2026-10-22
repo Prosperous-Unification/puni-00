@@ -15,11 +15,12 @@ type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const key = (id: string) => sliceKey(id, 'build');
 /**
  * Mixed engines and distinct anchors with controlled captured optimizer outcomes.
+ * `ready-sibling` supplies terminal Pri evidence beside selected ready Time.
  * Terminal outcomes here are synthetic identity fixtures; use
  * {@link createFractionalConnectedOptimizationTree} for real quantized infeasibility.
  */
 export function createConnectedOptimizationRead(
-  state: 'ready' | 'boundary-infeasible' | 'pending' | 'floor' = 'ready',
+  state: 'ready' | 'ready-sibling' | 'boundary-infeasible' | 'pending' | 'floor' = 'ready',
 ): ConnectedRead {
   const projects = ['A', 'B', 'C'].map((projectId, rank) => {
     const reads = connectedReads(
@@ -91,7 +92,7 @@ export function createConnectedOptimizationRead(
         stageBytes: canonicalConnectedStageInput(stage),
       };
       const candidate =
-        state === 'ready' || state === 'floor'
+        state === 'ready' || state === 'ready-sibling' || state === 'floor'
           ? {
               question,
               starts:
@@ -126,11 +127,20 @@ export function createConnectedOptimizationRead(
         wireVersion: 5,
         variants: {
           pri:
-            state === 'ready' || state === 'floor'
-              ? { state: 'ready', proof: state === 'floor' ? 'quantisation-floor' : 'proven' }
-              : { state: 'idle' },
+            state === 'ready-sibling'
+              ? {
+                  state: 'boundary-infeasible',
+                  certificate: {
+                    kind: 'boundary-infeasible',
+                    question: { ...question, objective: 'pri' },
+                    evidence: 'contradictory-bounds',
+                  },
+                }
+              : state === 'ready' || state === 'floor'
+                ? { state: 'ready', proof: state === 'floor' ? 'quantisation-floor' : 'proven' }
+                : { state: 'idle' },
           time:
-            state === 'ready' || state === 'floor'
+            state === 'ready' || state === 'ready-sibling' || state === 'floor'
               ? { state: 'ready', proof: state === 'floor' ? 'quantisation-floor' : 'proven' }
               : state === 'pending'
                 ? { state }
@@ -141,7 +151,7 @@ export function createConnectedOptimizationRead(
         },
         candidates: {
           pri:
-            candidate === null
+            candidate === null || state === 'ready-sibling'
               ? null
               : { ...candidate, question: { ...question, objective: 'pri' } },
           time: candidate,
@@ -219,9 +229,12 @@ function buildConnectedRead(
  * A real FS chain whose middle stage fits in real days but has no integer start
  * at quantum 48. The terminal certificate comes from solver preparation and
  * classification; no child process or invented infeasibility certificate is used.
+ *
+ * The supplied hash controls fixture identity for successive authoritative reads.
  */
 export function createFractionalConnectedOptimizationTree(
   sibling: 'idle' | 'pending' | 'failed' = 'idle',
+  inputHash = 'fractional',
 ) {
   const projects = ['A', 'B', 'C'].map((projectId, rank) => {
     const reads = connectedReads(projectId);
@@ -272,7 +285,7 @@ export function createFractionalConnectedOptimizationTree(
     readConnectedCaptured: ({ stage }) => {
       const prepared = buildConnectedSolverRequest(
         stage,
-        { inputHash: 'fractional', questionHash: 'fractional-time' },
+        { inputHash, questionHash: `${inputHash}-time` },
         { solverVersion: '0.4.0', budgetMs: 100 },
         'time',
       );

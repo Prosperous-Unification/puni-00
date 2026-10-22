@@ -289,3 +289,18 @@ HTTP calls, failed-sibling current-hash Retry, mounted pending announcement,
 B4 reconciliation and production activation remain open. Parent 7.3/7.4/9.2
 and full B3 completion stay unchecked. Commands, watched faults and limits:
 `verify.md`.
+
+Task 9.2 B3 action-proof follow-up (2026-10-22): the producer-mounted fixture
+now delegates tree, Retry and optimization settings to the real HTTP client,
+with method/path/body transport observations. Both desktop table and phone
+cards exercise unavailable terminal Time by mouse, Enter and Space; reopen,
+authoritative refetch and a fresh remount retain dates and emit no Retry POST
+or settings PATCH. Terminal Time with failed Pri offers only Retry Pri and
+sends the refetched connected input hash. A real producer controlled-outcome
+case retains selected ready Time beside terminal Pri; pending Pri still
+announces optimizing beside terminal Time. Independent watched mounted faults
+cover terminal Retry, terminal selection, dropped forwarded scope, missing
+schedule slices and captured C replaced with final C. Adjacent proofs and
+commands are in `verify.md`. B4 HTTP 409/replaced-runtime/stale reconciliation,
+browser geometry, production admission and activation remain open; parent
+7.3/7.4/9.2 and full Slice B remain unchecked.
