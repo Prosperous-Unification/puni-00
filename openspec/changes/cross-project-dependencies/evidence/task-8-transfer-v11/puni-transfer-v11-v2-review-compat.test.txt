@@ -1,0 +1,22 @@
+import { expect, test } from 'bun:test';
+import { planDocumentFixture } from '/tmp/puni-transfer-v11/libs/wbs/application/core/src/testing/plan-document-fixture';
+import { classifyPlanDocument } from '/tmp/puni-transfer-v11/libs/wbs/application/core/src/module/plan-document/plan-document.resource';
+
+for (let version = 1; version <= 10; version++) {
+  test(`review: v${version} preserves local conversion and refuses stable external identity on either side`, async () => {
+    const plan = planDocumentFixture();
+    plan.document.version = version;
+    if (version === 1) for (const step of plan.steps) Reflect.deleteProperty(step, 'allowancePercent');
+    for (const row of plan.workItems) Reflect.set(row, 'attempts', {});
+    plan.typedDependencies = [{ id: 'local', type: 'FS', predecessor: { scope: 'whole', workItem: 'row-1' }, successor: { scope: 'whole', workItem: 'row-1' } }];
+    const classified = await classifyPlanDocument(plan);
+    expect(classified.ok).toBe(true);
+    if (!classified.ok) throw new Error(classified.path);
+    expect(classified.value.typedDependencies).toHaveLength(version < 4 ? 0 : 1);
+    for (const side of ['predecessor', 'successor']) {
+      const disguised = structuredClone(plan);
+      Reflect.set(disguised.typedDependencies[0], side, {kind:'external', scope:'whole',projectId:'remote',workItemId:'remote-row',display:{projectName:'Remote',abbreviation:'REMOTE',workItemName:'Foreign',address:'REMOTE.1'}});
+      expect(await classifyPlanDocument(disguised)).toMatchObject({ok:false,code:'invalid_typed_dependency',path:'typedDependencies[0]'});
+    }
+  });
+}

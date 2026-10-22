@@ -1,4 +1,8 @@
-import type { PlanDocumentImport } from '@wbs/contracts';
+import type {
+  DocumentExternalMapping,
+  DocumentV11TypedDependency,
+  PlanDocumentImport,
+} from '@wbs/contracts';
 import type {
   AllowancePercent,
   AttemptOutcome,
@@ -153,6 +157,13 @@ export interface PreparedImport {
   workItems: PreparedWorkItem[];
   dependencies: PreparedDependency[];
   typedDependencies: TypedDependency[];
+  externalDependencies: {
+    path: string;
+    predecessor: Extract<DocumentV11TypedDependency['predecessor'], { kind: 'external' }>;
+    destination: DocumentExternalMapping['destination'];
+    successor: TypedDependency['successor'];
+    type: TypedDependency['type'];
+  }[];
   stepByFileId: ReadonlyMap<string, PreparedStep>;
   teamByFileId: ReadonlyMap<string, PreparedTeam>;
   personByFileId: ReadonlyMap<string, PreparedPerson>;

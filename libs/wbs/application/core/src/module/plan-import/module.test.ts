@@ -75,6 +75,68 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Plan import module', () => {
+  it('keeps an external v11 import dormant before directory or project writes', async () => {
+    const source = openMemorySource();
+    const held = requirements();
+    const { imports } = installPlanImport({ ...held, uow: source.uow });
+    const document = planDocumentFixture();
+    document.document.version = 11;
+    document.typedDependencies = [
+      {
+        id: 'cross',
+        type: 'FS',
+        predecessor: {
+          kind: 'external',
+          scope: 'whole',
+          projectId: 'other-project',
+          workItemId: 'stable-row',
+          display: {
+            projectName: 'Other',
+            abbreviation: 'OTHER',
+            workItemName: 'Prerequisite',
+            address: 'OTHER.1',
+          },
+        },
+        successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+      },
+    ];
+    expect(await imports.import(document, 'importer', LEGACY_ACCESS)).toMatchObject({
+      ok: false,
+      code: 'external_dependencies_inactive',
+      path: 'typedDependencies[0]',
+    });
+    expect(await source.stores.projects.list()).toEqual([]);
+  });
+
+  it('refuses duplicate stable external declarations before dormancy', async () => {
+    const { imports } = installPlanImport(requirements());
+    const document = planDocumentFixture();
+    document.document.version = 11;
+    const relationship = {
+      id: 'cross',
+      type: 'FS' as const,
+      predecessor: {
+        kind: 'external' as const,
+        scope: 'whole' as const,
+        projectId: 'other-project',
+        workItemId: 'stable-row',
+        display: {
+          projectName: 'Other',
+          abbreviation: 'OTHER',
+          workItemName: 'Prerequisite',
+          address: 'OTHER.1',
+        },
+      },
+      successor: { kind: 'internal' as const, scope: 'whole' as const, workItem: 'row-1' },
+    };
+    document.typedDependencies = [relationship, { ...relationship, id: 'cross-again' }];
+    expect(await imports.import(document, 'importer', LEGACY_ACCESS)).toMatchObject({
+      ok: false,
+      code: 'invalid_typed_dependency',
+      path: 'typedDependencies[1]',
+      detail: 'duplicate',
+    });
+  });
   it('refuses a document whose deadline sits before the project start, without an admitted batch', async () => {
     const { imports } = installPlanImport(requirements());
     const document = planDocumentFixture();

@@ -379,7 +379,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 11);
+  Reflect.set(future.document, 'version', 12);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -388,6 +388,163 @@ test('unknown version precedes version-specific validation', async () => {
     code: 'unsupported_version',
     path: 'document.version',
   });
+});
+
+test('v11 classifies a stable external predecessor and refuses its v10 disguise', async () => {
+  const document = structuredClone(await exportDocument());
+  Reflect.set(document.document, 'version', 11);
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'whole',
+        projectId: 'other-project',
+        workItemId: 'stable-row',
+        display: {
+          projectName: 'Other',
+          abbreviation: 'OTHER',
+          workItemName: 'Prerequisite',
+          address: 'OTHER.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: true,
+    value: {
+      typedDependencies: [
+        { predecessor: { projectId: 'other-project', workItemId: 'stable-row' } },
+      ],
+    },
+  });
+  Reflect.set(document.document, 'version', 10);
+  Reflect.set(document.typedDependencies[0]?.predecessor ?? {}, 'workItem', 'row-1');
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies[0]',
+  });
+});
+
+test('v11 mapping binds only the declared stable source tuple', async () => {
+  const document = structuredClone(await exportDocument());
+  Reflect.set(document.document, 'version', 11);
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'whole',
+        projectId: 'other-project',
+        workItemId: 'stable-row',
+        display: {
+          projectName: 'Other',
+          abbreviation: 'OTHER',
+          workItemName: 'Prerequisite',
+          address: 'OTHER.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  Reflect.set(document, 'externalMappings', [
+    {
+      source: { scope: 'whole', projectId: 'other-project', workItemId: 'stable-row' },
+      destination: {
+        scope: 'whole',
+        projectId: 'destination-project',
+        workItemId: 'destination-row',
+      },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: true,
+    value: { externalMappings: [{ destination: { workItemId: 'destination-row' } }] },
+  });
+  Reflect.set(document, 'externalMappings', [
+    {
+      source: { scope: 'whole', projectId: 'other-project', workItemId: 'different-row' },
+      destination: {
+        scope: 'whole',
+        projectId: 'destination-project',
+        workItemId: 'destination-row',
+      },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'externalMappings[0].source',
+  });
+  const source = { scope: 'whole', projectId: 'other-project', workItemId: 'stable-row' };
+  const destination = {
+    scope: 'whole',
+    projectId: 'destination-project',
+    workItemId: 'destination-row',
+  };
+  Reflect.set(document, 'externalMappings', [
+    { source, destination: { ...destination, scope: 'node', stepId: 'destination-step' } },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'externalMappings[0].destination.scope',
+  });
+  Reflect.set(document, 'externalMappings', [
+    { source, destination },
+    { source, destination },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'externalMappings[1].source',
+  });
+});
+
+test('v11 internal endpoint cannot carry a contradictory external identity', async () => {
+  const document = structuredClone(await exportDocument());
+  Reflect.set(document.document, 'version', 11);
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'mixed',
+      type: 'FS',
+      predecessor: {
+        kind: 'internal',
+        scope: 'whole',
+        workItem: 'row-1',
+        projectId: 'foreign-project',
+        workItemId: 'foreign-row',
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+  });
+});
+
+test('v1–3 retain their historical treatment of file-local typed fields', async () => {
+  for (const version of [1, 2, 3]) {
+    const document = structuredClone(await exportDocument());
+    Reflect.set(document.document, 'version', version);
+    if (version === 1)
+      for (const step of document.steps) Reflect.deleteProperty(step, 'allowancePercent');
+    Reflect.set(document, 'typedDependencies', [
+      {
+        id: 'historical',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItem: 'row-1' },
+        successor: { scope: 'whole', workItem: 'row-1' },
+      },
+    ]);
+    const classified = await classifyPlanDocument(document);
+    expect(classified).toMatchObject({ ok: true, value: { typedDependencies: [] } });
+  }
 });
 
 test('refuses a version-4 document without its typed dependency list', async () => {

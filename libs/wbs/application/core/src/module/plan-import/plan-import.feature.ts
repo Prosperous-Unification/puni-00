@@ -3,6 +3,10 @@ import { attemptOf, canWriteInOrganization } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
+import {
+  INACTIVE_EXTERNAL_DEPENDENCIES,
+  permitsExternalDependencies,
+} from '../../ports/external-dependency-authoring';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
@@ -39,7 +43,11 @@ export interface ImportAdmission {
 /** A typed store refusal encountered after preparation and admission. */
 export interface ImportSourceRefusal {
   ok: false;
-  code: 'source_refused' | 'abbreviation_taken' | 'abbreviation_exhausted';
+  code:
+    | 'source_refused'
+    | 'abbreviation_taken'
+    | 'abbreviation_exhausted'
+    | 'external_dependencies_inactive';
   path: string;
   detail: string | null;
 }
@@ -183,6 +191,23 @@ export class ImportService {
       { ok: false, code: 'forbidden', path: '', detail: null },
       collector,
       async ({ writes, services: graph }) => {
+        // Proof: forcing this condition false made the mounted v11 SQLite import answer 201 and create a project instead of refusing 409 (2026-10-22).
+        if (
+          preparation.value.externalDependencies.length > 0 &&
+          !permitsExternalDependencies(INACTIVE_EXTERNAL_DEPENDENCIES)
+        ) {
+          const first = preparation.value.externalDependencies.at(0);
+          if (first === undefined) throw new Error('prepared external dependency disappeared');
+          return {
+            commit: false,
+            value: {
+              ok: false,
+              code: 'external_dependencies_inactive',
+              path: first.path,
+              detail: null,
+            },
+          };
+        }
         const directory = graph.directory;
         const [services, teams, people, tags, types, systems, resources] = await Promise.all([
           directory.listWithin('services', access),

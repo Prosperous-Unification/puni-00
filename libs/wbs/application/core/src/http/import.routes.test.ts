@@ -101,3 +101,34 @@ test.each([
     detail: outcome.detail,
   });
 });
+
+test('maps dormant v11 external import to conflict with its declaration path', async () => {
+  const [endpoint] = importRoutes(
+    {
+      import: () =>
+        Promise.resolve({
+          ok: false as const,
+          code: 'external_dependencies_inactive' as const,
+          path: 'typedDependencies[0]',
+          detail: null,
+        }),
+    },
+    legacyOrganizationAccess,
+  );
+  const response = await endpoint.handle({
+    params: {},
+    query: undefined,
+    body: planDocumentFixture(),
+    principal: { id: 'actor', username: 'actor', scopes: ['write'] },
+    request: {
+      url: new URL('https://app.test/api/projects/import'),
+      method: 'POST',
+      headers: new Headers(),
+    },
+  });
+  expect(response).toEqual({
+    ok: false,
+    status: 409,
+    body: { error: 'external_dependencies_inactive', detail: 'typedDependencies[0]' },
+  });
+});

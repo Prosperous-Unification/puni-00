@@ -72,6 +72,12 @@ export const importProject = defineEndpointShape({
         }),
       ),
     },
+    {
+      status: 409,
+      schema: responseSchema(
+        type({ error: "'external_dependencies_inactive'", detail: 'string | null' }),
+      ),
+    },
   ],
   document: {
     summary: 'Import an archival plan as a new project.',

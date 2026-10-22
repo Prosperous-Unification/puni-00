@@ -155,6 +155,73 @@ function sqliteState(): Record<string, unknown[]> {
   );
 }
 
+it('mounted v11 external import refuses before any SQLite write', async () => {
+  const document = planDocumentFixture();
+  document.document.version = 11;
+  Reflect.set(document.workItems[0] ?? {}, 'attempts', {});
+  document.typedDependencies = [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'whole',
+        projectId: 'source-project',
+        workItemId: 'stable-row',
+        display: {
+          projectName: 'Source',
+          abbreviation: 'SRC',
+          workItemName: 'Prerequisite',
+          address: 'SRC.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ];
+  const before = sqliteState();
+  const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+  expect(answer).toMatchObject({
+    status: 409,
+    body: { error: 'external_dependencies_inactive', detail: 'typedDependencies[0]' },
+  });
+  expect(sqliteState()).toEqual(before);
+});
+
+for (const version of [1, 2, 3] as const) {
+  it(`mounted v${String(version)} refuses a disguised external prerequisite without writes or events`, async () => {
+    const document = planDocumentFixture();
+    document.document.version = version;
+    if (version === 1)
+      for (const step of document.steps) Reflect.deleteProperty(step, 'allowancePercent');
+    document.typedDependencies = [
+      {
+        id: 'cross',
+        type: 'FS',
+        predecessor: {
+          kind: 'external',
+          scope: 'whole',
+          projectId: 'source-project',
+          workItemId: 'stable-row',
+          display: {
+            projectName: 'Source',
+            abbreviation: 'SRC',
+            workItemName: 'Prerequisite',
+            address: 'SRC.1',
+          },
+        },
+        successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+      },
+    ];
+    const before = sqliteState();
+    const answer = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(answer).toMatchObject({
+      status: 400,
+      body: { error: 'invalid_typed_dependency', path: 'typedDependencies[0]' },
+    });
+    expect(sqliteState()).toEqual(before);
+  });
+}
+
 describe('the JSON export', () => {
   it("exports only the organization's own directory, under its local names", async () => {
     const project = await assignedProject();

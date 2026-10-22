@@ -16,6 +16,8 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
  * classifier converts earlier versions explicitly.
  */
 export const PLAN_DOCUMENT_VERSION = 10;
+/** Reserved transfer version; v10 remains the writer until connected capture supplies its evidence. */
+export const PLAN_DOCUMENT_EXTERNAL_VERSION = 11;
 
 const planHeader = type({
   format: "'wbs-plan'",
@@ -98,6 +100,61 @@ export const documentTypedDependency = type({
 });
 export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
 export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
+export const documentV10TypedDependencyRequest = documentTypedDependencyRequest;
+
+const internalEndpoint = type({ kind: "'internal'", scope: "'whole'", workItem: 'string' })
+  .or({ kind: "'internal'", scope: "'node'", workItem: 'string', step: 'string' })
+  .or({ kind: "'internal'", scope: "'descendant-step'", workItem: 'string', step: 'string' });
+
+const externalDisplay = type({
+  projectName: 'string',
+  abbreviation: 'string',
+  workItemName: 'string',
+  address: 'string',
+  'stepName?': 'string',
+});
+
+const externalEndpoint = type({
+  kind: "'external'",
+  scope: "'whole'",
+  projectId: 'string',
+  workItemId: 'string',
+  display: externalDisplay,
+}).or({
+  kind: "'external'",
+  scope: "'node' | 'descendant-step'",
+  projectId: 'string',
+  workItemId: 'string',
+  stepId: 'string',
+  display: externalDisplay,
+});
+
+/** Authored v11 links belong to the imported successor; labels never bind identity. */
+export const documentV11TypedDependency = type({
+  id: 'string',
+  predecessor: internalEndpoint.or(externalEndpoint),
+  successor: internalEndpoint,
+  type: "'FS' | 'SS' | 'FF'",
+});
+export const documentV11TypedDependencyRequest = requestSchema(documentV11TypedDependency);
+export type DocumentV11TypedDependency = (typeof documentV11TypedDependency)['infer'];
+
+export const documentExternalIdentity = type({
+  scope: "'whole'",
+  projectId: 'string',
+  workItemId: 'string',
+}).or({
+  scope: "'node' | 'descendant-step'",
+  projectId: 'string',
+  workItemId: 'string',
+  stepId: 'string',
+});
+export const documentExternalMapping = type({
+  source: documentExternalIdentity,
+  destination: documentExternalIdentity,
+});
+export const documentExternalMappingRequest = requestSchema(documentExternalMapping);
+export type DocumentExternalMapping = (typeof documentExternalMapping)['infer'];
 
 /** Version 4's converter accepts only the relationship type that release wrote. */
 export const documentV4TypedDependencyRequest = requestSchema(
@@ -256,6 +313,8 @@ const writablePlanDocument = type({
     'code?': 'unknown',
   }).array(),
   'typedDependencies?': 'unknown',
+  /** Import-only instructions; never part of an authored export. */
+  'externalMappings?': 'unknown',
   'stepBlockages?': 'unknown',
 });
 
@@ -282,6 +341,7 @@ export type PlanDocumentImport = Omit<
   | 'directory'
   | 'resourceCapacities'
   | 'demands'
+  | 'externalMappings'
 > & {
   /** The file's directory, its resources as version 10 states them and none before. */
   directory: Omit<PlanDocumentRequest['directory'], 'resources'> & {
@@ -291,7 +351,8 @@ export type PlanDocumentImport = Omit<
   demands: DocumentDemand[];
   /** The zone as version 7 names it, `UTC` for an earlier version. */
   settings: Omit<PlanDocumentRequest['settings'], 'timezone'> & { timezone: string };
-  typedDependencies: DocumentTypedDependency[];
+  typedDependencies: (DocumentTypedDependency | DocumentV11TypedDependency)[];
+  externalMappings: DocumentExternalMapping[];
   stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
   /**
    * Readiness and hold as the file states them from version 6, null before;

@@ -811,3 +811,28 @@ exact browser cases passed 3/3. A missing Timezone hint made the scoped
 selector fail while General's hint remained; removing General made both the
 ordered list and phone count assertions fail. Production sources were restored
 after each probe. Full CI for these corrections remains pending.
+
+## Task 8.1 — dormant transfer v11 parser/preparation checkpoint
+
+The [first independent review](evidence/task-8-transfer-v11/puni-transfer-v11-review.md)
+rejected a v1–v3 disguise path: those historical converters discarded a
+relabeled external prerequisite, imported the project and returned 201. The
+[corrected Astra review](evidence/task-8-transfer-v11/puni-transfer-v11-v2-review.md)
+approved the bounded patch after 350 fresh tests, three project lint targets and
+core/contracts typechecks passed. Its historical screen now runs before every
+legacy converter. The [watched fault](evidence/task-8-transfer-v11/puni-transfer-v123-guard-fault.log)
+returns 201 for each v1–v3 case when that screen is disabled; restored mounted
+cases return 400 with all logical SQLite tables unchanged. Independent v1–v10
+[compatibility probes](evidence/task-8-transfer-v11/puni-transfer-v11-v2-review-compat.test.txt)
+and [results](evidence/task-8-transfer-v11/puni-transfer-v11-v2-review-compat.log)
+cover local legacy conversion and both external endpoint disguises.
+
+The 14 integrated source files match the reviewed isolated patch byte-for-byte.
+Integrated mounted organization, import module and contract-shape tests passed
+50/50 (184 assertions); contracts/core/backend TypeScript build passed with
+write access to generated artifacts. The first sandboxed build emitted TS5033
+write-denied diagnostics and is not counted. The writer still emits v10 and
+v11 external import returns a typed dormant 409 before writes. Connected export,
+positive external import, current authority/graph admission, fanout and
+Navigator v11 support remain open; task 8.1 is unchecked. Final CI and host gate
+are pending.

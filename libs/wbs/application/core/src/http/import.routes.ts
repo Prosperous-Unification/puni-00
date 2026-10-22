@@ -12,6 +12,12 @@ type ImportRefusalReply = Extract<ImportReply, { ok: false }>;
 
 function refusal(outcome: Extract<ImportOutcome, { ok: false }>): ImportRefusalReply {
   if (outcome.code === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+  if (outcome.code === 'external_dependencies_inactive')
+    return {
+      ok: false,
+      status: 409,
+      body: { error: 'external_dependencies_inactive', detail: outcome.path },
+    };
   if (
     outcome.code === 'engine_unavailable' ||
     outcome.code === 'source_refused' ||

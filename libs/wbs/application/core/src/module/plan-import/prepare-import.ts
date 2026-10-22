@@ -634,6 +634,7 @@ export function prepareImport(
     })),
   );
   const typedDependencies: TypedDependency[] = [];
+  const externalDependencies: PreparedImport['externalDependencies'] = [];
   const relationshipKeys = new Set<string>();
   const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
   const stepBlockages: PlanDocumentImport['stepBlockages'] = [];
@@ -661,10 +662,75 @@ export function prepareImport(
   );
   for (const [at, relationship] of document.typedDependencies.entries()) {
     const prefix = `typedDependencies[${String(at)}]`;
-    const endpointOf = (endpoint: typeof relationship.predecessor) =>
+    const endpointOf = (
+      endpoint: typeof relationship.predecessor | typeof relationship.successor,
+    ) =>
       endpoint.scope === 'whole'
-        ? { scope: 'whole' as const, workItemId: endpoint.workItem }
-        : { scope: endpoint.scope, workItemId: endpoint.workItem, stepId: endpoint.step };
+        ? {
+            scope: 'whole' as const,
+            workItemId: 'workItem' in endpoint ? endpoint.workItem : endpoint.workItemId,
+          }
+        : {
+            scope: endpoint.scope,
+            workItemId: 'workItem' in endpoint ? endpoint.workItem : endpoint.workItemId,
+            stepId: 'step' in endpoint ? endpoint.step : endpoint.stepId,
+          };
+    if ('kind' in relationship.predecessor && relationship.predecessor.kind === 'external') {
+      const successor = endpointOf(relationship.successor);
+      const defect = findTypedEndpointDefect(successor, {
+        isLeaf: (workItemId) => leafByFileId.get(workItemId),
+        hasStep: (stepId) => steps.byId.has(stepId),
+      });
+      if (defect !== null)
+        return refuses(
+          'invalid_typed_dependency',
+          `${prefix}.successor.${defect === 'unknown_step' ? 'step' : 'workItem'}`,
+          defect,
+        );
+      const predecessor = relationship.predecessor;
+      const key = JSON.stringify([
+        predecessor.projectId,
+        predecessor.workItemId,
+        predecessor.scope,
+        'stepId' in predecessor ? predecessor.stepId : null,
+        successor,
+        relationship.type,
+      ]);
+      // Proof: forcing this duplicate guard false made the module's duplicate external declaration test receive external_dependencies_inactive instead of invalid_typed_dependency (2026-10-22).
+      if (relationshipKeys.has(key))
+        return refuses('invalid_typed_dependency', prefix, 'duplicate');
+      relationshipKeys.add(key);
+      const mapping = document.externalMappings.find(
+        ({ source }) =>
+          source.projectId === predecessor.projectId &&
+          source.workItemId === predecessor.workItemId &&
+          source.scope === predecessor.scope &&
+          ('stepId' in source ? source.stepId : null) ===
+            ('stepId' in predecessor ? predecessor.stepId : null),
+      );
+      const destination =
+        mapping?.destination ??
+        (predecessor.scope === 'whole'
+          ? {
+              scope: 'whole' as const,
+              projectId: predecessor.projectId,
+              workItemId: predecessor.workItemId,
+            }
+          : {
+              scope: predecessor.scope,
+              projectId: predecessor.projectId,
+              workItemId: predecessor.workItemId,
+              stepId: predecessor.stepId,
+            });
+      externalDependencies.push({
+        path: prefix,
+        predecessor,
+        destination,
+        successor,
+        type: relationship.type,
+      });
+      continue;
+    }
     const typed: TypedDependency = {
       id: relationship.id,
       predecessor: endpointOf(relationship.predecessor),
@@ -769,6 +835,7 @@ export function prepareImport(
       workItems: preparedRows,
       dependencies,
       typedDependencies,
+      externalDependencies,
       stepByFileId,
       teamByFileId,
       personByFileId,
