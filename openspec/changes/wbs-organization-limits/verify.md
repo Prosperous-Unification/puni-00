@@ -85,6 +85,12 @@ bundle-then-keys order; the dev runbook names the three lines; `sumStatedCapacit
 the resource's organization as `readCapacityUsage` does; the member/viewer controller case is
 renamed to what it asserts.
 
+Gate fix (2026-10-22): the workspace gate of run 39724668881 failed two cases of
+`swap-maintenance.db.test.ts`. Its spawned `bootBe01` script lacked `organizationDefaultLimits`,
+and be-01 died as "undefined is not an object". The fixture now passes the defaults, and the
+repository names absent defaults. `env -u CLAUDECODE bunx nx run tool-remote-scripts:test
+--skip-nx-cache` (whole project): 789 pass, 2 skip, 0 fail, 43 files.
+
 For Dany:
 
 - The staging and prod overlays (and `configure.sh`) carry 50 / 200 / 10,000, which pins a plan
@@ -122,6 +128,7 @@ case is the one tested.
 | dev deploy refuses a be-01 `.env` lacking a key          | `assertBeEnv` call removed from `sync`                                            | `refuses a be-01 environment missing a required key before fetch or reset` reached `git fetch` (8 pass, 1 fail)                                                                          | watched |
 | devsync's be-01 key list matches `BeConfig`              | `…MAX_CONCURRENT_CLAIMS` removed from `BE_REQUIRED_ENV`                           | `names the keys be-01 refuses to boot without, less those compose supplies` (8 pass, 1 fail)                                                                                             | watched |
 | `sumStatedCapacity` requires the resource's organization | resource organization predicate dropped                                           | `never sums a resource the organization does not own` (12 pass, 1 fail)                                                                                                                  | watched |
+| absent deployment defaults are named                     | the `limits === undefined` check removed                                          | `refuses absent deployment defaults, naming them` failed on the TypeError text (13 pass, 1 fail)                                                                                         | watched |
 | agent cap inside the transaction                         | count read before the transaction, gate bypassed                                  | (slice 2)                                                                                                                                                                                | pending |
 | agent cap only on `agent`                                | kind predicate dropped                                                            | (slice 2)                                                                                                                                                                                | pending |
 | import counts the total                                  | per-person check instead of the total                                             | (slice 2)                                                                                                                                                                                | pending |
