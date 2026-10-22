@@ -2459,3 +2459,70 @@ arms. The terminal-as-local and missing-public-scope R5 faults remain unverified
 Frontend Slice B, installed C/D/E, solver execution, browser checks, full
 CI/build/secrets/migration checks and canonical host gate were not run by this
 prerequisite. No release or activation claim follows.
+
+### Saved history Slice 2 — dormant versioned readers (2026-10-22)
+
+Input9 and connected schedule2 are reserved independently of plan-document v11.
+The current `canonicalisePlanInput` writer, default normalizer and local/shared
+schedule writer remain v8/v1 with their original bytes. `canonicalisePlanInputV9`
+is an explicit future-capture fold requiring converted context.
+`readSavedPlanInput` upgrades frozen local inputs to9 in memory and validates new
+input shape plus captured history; it never edits the source. The historical
+normalizer's existing default remains8 so the active legacy comparison does not
+mix normalized9 stored input with a still-v8 current side.
+
+`verifySavedPlanBodies` validates new input/schedule shapes and their connected
+identity/evidence relationship after the caller's hash/link checks. Its new
+`SavedPlanBodyInvalid` has stable body/path/code fields. This helper is **not yet
+called by SavedPlanResource**; runtime/HTTP corruption unions, connected save,
+current and comparison integration belong to the later slices. No claim is made
+that current direct resource reads reject malformed v9/v2 bodies. The v9/v2
+version whitelist alone is not semantic read validation.
+
+Frozen fixtures were emitted by the actual historical v1–v8 builder revisions
+listed in `saved-plan/fixtures/manifest.json`; each committed compact byte string
+has a pinned SHA-256. The v8 writer still emits exactly the frozen bytes. The
+legacy schedule1 fixture also preserves a retired algorithm identity. These are
+historical-builder test fixtures, not production captures.
+
+The initial reader tests failed **2 passed / 11 failed**, and the integrity helper
+failed **0 passed / 4 failed** before implementation. Additional test-first gaps
+in direct-fact validation and history collection order each failed before their
+fix. Watched faults were restored after every run:
+
+| Injected reader fault                                       | Observed failure                                                |
+| ----------------------------------------------------------- | --------------------------------------------------------------- |
+| Remove v8→v9 local upgrade                                  | Frozen legacy reader tests fail                                 |
+| Remove v9 whitelist entry                                   | Complete connected integrity helper test fails                  |
+| Default missing v9 context to local                         | Required-context and typed malformed-body tests fail            |
+| Canonicalize legacy input before checking external claims   | Explicit scoped-claim refusal test incorrectly accepts the body |
+| Omit direct blockage/parallel validation                    | New-body unknown-owner/duplicate refusal test fails             |
+| Allow a legacy schedule beside unavailable connected input9 | Unavailable-context schedule pairing test fails                 |
+| Retain caller history insertion order                       | Unordered-history canonical bytes test fails                    |
+
+These are **reader/helper-level mutation observations only**, retained under
+`evidence/task-8-slice2-readers/`. They are provisional R5 evidence until a mounted
+save/read integration observes each fault through the production resource path;
+no new `Proof:` claim is attached. Task8.3 stays unchecked.
+
+Final focused command:
+
+```sh
+bun test libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts apps/wbs/be-01/src/service/saved-plan-read.db.test.ts apps/wbs/be-01/src/service/saved-plan-schedule-body.db.test.ts
+```
+
+Observed: **184 passed / 0 failed / 578 assertions**, including real legacy local
+save/read and v1 schedule-body regressions. Exact output is retained in
+`restored-tests.log.txt`. No SQL migration or stored-body backfill is needed.
+Full canonical host gate, live deployment, public activation, connected runtime
+capture and production-path R5 proofs are intentionally unverified in this slice.
+
+Scoped verification uses `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` because the
+sandbox denies daemon/plugin sockets. Fresh uncached domain lint and typecheck
+passed after correcting test-only unsafe JSON expectations. OpenSpec validation
+(`./node_modules/.bin/openspec validate --all --json`) passed **268 / 268**.
+
+Fresh uncached core lint, full typecheck and its module-typecheck prerequisite
+also passed. Commands and output are retained in `domain-nx.log.txt` and
+`slice2-core-final-nx.log.txt`; log trailing whitespace is normalized. Normal
+lefthook installation is active and no hooks are bypassed.

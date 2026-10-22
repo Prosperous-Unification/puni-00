@@ -1,4 +1,10 @@
-import type { PlanInputNormaliseFailure } from '@wbs/domain';
+import {
+  type PlanInputNormaliseFailure,
+  readSavedConnectedScheduleBody,
+  readSavedPlanInput,
+  SavedHistoryError,
+  validateSavedConnectedHistory,
+} from '@wbs/domain';
 
 import type { Digest } from '../../ports/runtime';
 
@@ -169,8 +175,8 @@ export function verifyScheduleLink(
  * forward only").
  */
 // Proof: omitting schema8 refused the real save/read module regression (regression-first.txt), 2026-10-17.
-export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
-export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1];
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1, 2];
 
 /**
  * A stored body written under a schema version this build does not know.
@@ -214,4 +220,58 @@ export function assertKnownBodyVersion(
 ): void {
   if (supported.includes(version)) return;
   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+}
+
+/** Shape refusal reserved for the new reader; runtime and HTTP unions adopt it during Slice 4. */
+export interface SavedPlanBodyInvalid {
+  readonly reason: 'body_invalid';
+  readonly savedPlanId: string;
+  readonly body: SavedPlanBodyKind;
+  readonly path: string;
+  readonly code: string;
+}
+
+/**
+ * Semantic validation after hash/link checks. Legacy bodies retain their historical readers.
+ * This helper is deliberately unwired until immutable resource reads adopt the new formats.
+ */
+export function verifySavedPlanBodies(
+  savedPlanId: string,
+  projectId: string,
+  input: { readonly version: number; readonly bytes: string },
+  schedule: { readonly version: number; readonly bytes: string } | null,
+): SavedPlanIntegrityRefusal | SavedPlanBodyInvalid | null {
+  assertKnownBodyVersion(savedPlanId, 'input', input.version, SUPPORTED_INPUT_BODY_VERSIONS);
+  if (schedule !== null)
+    assertKnownBodyVersion(
+      savedPlanId,
+      'schedule',
+      schedule.version,
+      SUPPORTED_SCHEDULE_BODY_VERSIONS,
+    );
+  if (input.version < 9 && (schedule === null || schedule.version === 1)) return null;
+  let body: SavedPlanBodyKind = 'input';
+  try {
+    const parsed = readSavedPlanInput(JSON.parse(input.bytes), input.version);
+    if (parsed.project.id !== projectId) throw new SavedHistoryError('target', '$.project.id');
+    body = 'schedule';
+    if (
+      parsed.dependencyHistory.kind === 'connected' &&
+      schedule !== null &&
+      schedule.version !== 2
+    )
+      throw new SavedHistoryError('connected_schedule_version', '$.version');
+    const connection =
+      schedule?.version === 2
+        ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes)).connection
+        : null;
+    validateSavedConnectedHistory(parsed.dependencyHistory, connection);
+    return null;
+  } catch (cause) {
+    if (cause instanceof SavedHistoryError)
+      return { reason: 'body_invalid', savedPlanId, body, path: cause.path, code: cause.code };
+    if (cause instanceof SyntaxError)
+      return { reason: 'body_invalid', savedPlanId, body, path: '$', code: 'json' };
+    throw cause;
+  }
 }

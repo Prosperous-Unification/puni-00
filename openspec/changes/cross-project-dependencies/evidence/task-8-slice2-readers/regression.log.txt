@@ -1,0 +1,155 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/saved-plan-read.db.test.ts:
+(pass) reading a saved plan back > returns the stored bytes without calling the scheduler [160.24ms]
+(pass) reading a saved plan back > still returns those bytes when the live plan has moved underneath them [113.82ms]
+(pass) reading a saved plan back > refuses a body whose stored bytes no longer hash to the header [95.47ms]
+(pass) reading a saved plan back > refuses the schedule side by itself, naming that body and not the input [99.58ms]
+(pass) reading a saved plan back > refuses a header whose body row is gone [108.07ms]
+(pass) reading a saved plan back > reports a plan that was never saved as absent, not as corrupt [112.53ms]
+(pass) reading a saved plan back > refuses a schedule whose stored input hash is not this record's (5.2) [176.91ms]
+(pass) reading a saved plan back > reads a saved plan with plan_event truncated entirely (5.3) [113.12ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > reports pending and borrows no dates from the live scheduler [107.84ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > reports infeasible and borrows no dates from the live scheduler [96.47ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > reports unavailable and borrows no dates from the live scheduler [95.89ms]
+(pass) reading a saved plan back > a saved plan with no schedule (5.4) > is still a plan: the input body reads back whole [111.72ms]
+(pass) reading a saved plan back > throws, naming the version, when a stored body is at one this reader does not know (5.5) [103.69ms]
+(pass) reading a saved plan back > checks the schedule body's version too, not just the input's [115.55ms]
+(pass) reading a saved plan back > watched negative: restating one hash over the damage does not launder the record [113.34ms]
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [2.78ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.52ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.77ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.50ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.60ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.43ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.46ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.45ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.11ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [0.71ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [3.79ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.18ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [5.03ms]
+
+libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts:
+(pass) normalising a stored plan input forward — 7.4 > is the identity at the reader’s own version [0.05ms]
+(pass) normalising a stored plan input forward — 7.4 > leaves the stored bytes untouched, by hash [0.07ms]
+(pass) normalising a stored plan input forward — 7.4 > a normalised body still compares clean against the same plan [0.81ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses a body from the future rather than reading it [0.10ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses a version that is not a version [0.10ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses an older body when no step is registered for it [0.03ms]
+(pass) normalising a stored plan input forward — 7.4 > runs the registered steps in order, once each [0.05ms]
+(pass) normalising a stored plan input forward — 7.4 > catches a step that mutates the body it was given [0.06ms]
+(pass) the version-1 to version-2 upgrade — step allowances > reads a version-1 body’s steps at 0% allowance [0.11ms]
+(pass) the version-1 to version-2 upgrade — step allowances > refuses a version-1 body whose steps are not a list [0.02ms]
+(pass) the version-1 to version-2 upgrade — step allowances > writes version 2 with each step’s allowance [0.03ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > rejects malformed version-2 steps instead of inventing captured identities [0.03ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > compares an upgraded version-2 body with the equivalent version-3 body without changing stored bytes [0.18ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > reads a version-2 body with no typed relationships [0.06ms]
+(pass) the version-3 to version-4 upgrade — readiness and holds > reads a version-3 body with nothing said about readiness or holds, and compares clean [0.13ms]
+(pass) the version-3 to version-4 upgrade — readiness and holds > refuses a version-3 body whose work items are not a list of objects [0.03ms]
+(pass) the version-4 to version-5 upgrade — the project timezone > reads a version-4 body as UTC and compares clean, leaving the stored bytes alone [0.12ms]
+(pass) the version-4 to version-5 upgrade — the project timezone > refuses a version-4 body that holds no project object [0.02ms]
+(pass) upgrades version-5 steps to historical workdays without changing the source body [0.15ms]
+
+libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts:
+(pass) canonicalisePlanInput > serializes identically whatever order the rows arrived in [0.22ms]
+(pass) canonicalisePlanInput > stamps the schema version the body carries [0.07ms]
+(pass) canonicalisePlanInput > captures typed endpoints by value in relationship id order [0.07ms]
+(pass) canonicalisePlanInput > captures coded and uncoded step identities [0.05ms]
+(pass) canonicalisePlanInput > keeps no key the closed field list does not name [0.17ms]
+(pass) canonicalisePlanInput > stores every work-item type a row states, not one of them [0.09ms]
+(pass) canonicalisePlanInput > orders external refs by system then url, and keeps the shown position [0.09ms]
+(pass) canonicalisePlanInput > keeps one measure per step, not one per item and metric [0.05ms]
+(pass) canonicalisePlanInput > keeps who does which step, not merely who is on the item [0.04ms]
+(pass) canonicalisePlanInput > the byte comparison is what catches a dropped sort [0.09ms]
+(pass) canonicalisePlanInput round trip > canonicalise, serialize, parse, canonicalise again — identical bytes [18.14ms]
+(pass) captures a minute unit in the canonical body rather than restating it as workdays [0.15ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [0.96ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.17ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.13ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.65ms]
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.37ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.12ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.05ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.21ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.02ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture [0.02ms]
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.08ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts [0.01ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+(pass) saved direct step blockage > captures sorted direct facts and changes saved bytes [0.81ms]
+(pass) saved direct step blockage > retains direct facts on done nodes without deriving proxy facts [0.14ms]
+(pass) saved direct step blockage > upgrades schema6 without mutating stored facts or bytes [0.17ms]
+(pass) saved direct step blockage > compares additions, removals and time changes by owner and step [0.97ms]
+(pass) saved direct step blockage > refuses missing current facts on capture [0.11ms]
+(pass) saved direct step blockage > refuses missing current facts on stored read [0.05ms]
+(pass) saved direct step blockage > refuses malformed current facts on capture
+(pass) saved direct step blockage > refuses malformed current facts on stored read
+(pass) saved direct step blockage > refuses null fact current facts on capture [0.17ms]
+(pass) saved direct step blockage > refuses null fact current facts on stored read [0.02ms]
+(pass) saved direct step blockage > refuses duplicate current facts on capture [0.01ms]
+(pass) saved direct step blockage > refuses duplicate current facts on stored read
+(pass) saved direct step blockage > refuses unknown owner current facts on capture [0.02ms]
+(pass) saved direct step blockage > refuses unknown owner current facts on stored read
+(pass) saved direct step blockage > refuses parent owner current facts on capture
+(pass) saved direct step blockage > refuses parent owner current facts on stored read
+(pass) saved direct step blockage > refuses unknown step current facts on capture
+(pass) saved direct step blockage > refuses unknown step current facts on stored read
+(pass) saved direct step blockage > refuses fractional time current facts on capture
+(pass) saved direct step blockage > refuses fractional time current facts on stored read
+(pass) saved direct step blockage > refuses unsafe time current facts on capture [0.02ms]
+(pass) saved direct step blockage > refuses unsafe time current facts on stored read
+(pass) saved direct step blockage > refuses missing time current facts on capture [0.02ms]
+(pass) saved direct step blockage > refuses missing time current facts on stored read
+(pass) refuses malformed owner list while checking stored direct facts [0.08ms]
+(pass) refuses malformed step list while checking stored direct facts [0.02ms]
+(pass) refuses malformed owner row while checking stored direct facts [0.02ms]
+(pass) refuses malformed step row while checking stored direct facts [0.01ms]
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts:
+(pass) verifyBody > accepts bytes whose recomputed digest is the stored one [0.27ms]
+(pass) verifyBody > names the plan and the body when the digest disagrees [0.17ms]
+(pass) verifyBody > reports an absent body as absent rather than as a hash fault [0.08ms]
+(pass) verifyBody > refuses an empty body against a real digest instead of treating it as absent [0.08ms]
+(pass) verifyBody > hashes over utf8 bytes, so a multi-byte character is not two code units [0.26ms]
+(pass) assertKnownBodyVersion > accepts a body at an older version the reader still knows [0.06ms]
+(pass) assertKnownBodyVersion > throws naming the plan, the body and the version it does not know [0.15ms]
+(pass) assertKnownBodyVersion > never defaults an unknown version to the newest it knows (R5) [0.05ms]
+(pass) assertKnownBodyVersion > knows the version this build writes, on both sides [0.03ms]
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [32.97ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.31ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [3.65ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [2.24ms]
+
+ 133 pass
+ 0 fail
+ 491 expect() calls
+Ran 133 tests across 8 files. [5.33s]

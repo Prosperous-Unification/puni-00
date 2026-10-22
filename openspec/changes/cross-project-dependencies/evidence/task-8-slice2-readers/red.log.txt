@@ -1,0 +1,131 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [0.32ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.06ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.04ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.03ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.03ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.04ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.03ms]
+4 | export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+5 |   readonly schemaVersion: 9;
+6 |   readonly dependencyHistory: SavedDependencyHistory;
+7 | };
+8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+9 |   throw new Error('versioned reader not implemented');
+                                                        ^
+error: versioned reader not implemented
+      at readSavedPlanInput (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:9:53)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:23:21)
+(fail) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.03ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.61ms]
+ 7 | };
+ 8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+ 9 |   throw new Error('versioned reader not implemented');
+10 | }
+11 | export function canonicalisePlanInputV9(_rows: PlanInputRows, _history: SavedDependencyHistory): CanonicalPlanInputV9 {
+12 |   throw new Error('versioned builder not implemented');
+                                                          ^
+error: versioned builder not implemented
+      at canonicalisePlanInputV9 (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:12:54)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:37:19)
+(fail) versioned saved input readers > requires explicit dependency history on input9 [0.07ms]
+ 7 | };
+ 8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+ 9 |   throw new Error('versioned reader not implemented');
+10 | }
+11 | export function canonicalisePlanInputV9(_rows: PlanInputRows, _history: SavedDependencyHistory): CanonicalPlanInputV9 {
+12 |   throw new Error('versioned builder not implemented');
+                                                          ^
+error: versioned builder not implemented
+      at canonicalisePlanInputV9 (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:12:54)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:44:19)
+(fail) versioned saved input readers > refuses header/body version mismatch and malformed new fields [0.03ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.08ms]
+ 7 | };
+ 8 | export function readSavedPlanInput(_body: unknown, _version: number): CanonicalPlanInputV9 {
+ 9 |   throw new Error('versioned reader not implemented');
+10 | }
+11 | export function canonicalisePlanInputV9(_rows: PlanInputRows, _history: SavedDependencyHistory): CanonicalPlanInputV9 {
+12 |   throw new Error('versioned builder not implemented');
+                                                          ^
+error: versioned builder not implemented
+      at canonicalisePlanInputV9 (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.ts:12:54)
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:62:19)
+(fail) versioned saved input readers > folds converted connected context without live capabilities [0.50ms]
+
+ 2 pass
+ 11 fail
+ 4 expect() calls
+Ran 13 tests across 1 file. [31.00ms]
