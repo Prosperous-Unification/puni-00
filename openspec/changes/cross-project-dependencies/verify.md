@@ -99,7 +99,7 @@ claim these observations in advance.
 | HTTP/MCP boundary 3.2                           | Remove shared endpoint/version shape validation                                                                              | Mounted HTTP/MCP malformed scope/type/ID cases                                                                                            | NOT RUN                                                                                               |
 | Relationship integrity 4.1                      | Remove each endpoint/project/step/organization/duplicate check                                                               | Unified repository and migration DB cases                                                                                                 | Observed/restored migration, store and review faults; [evidence](evidence/task-4-storage.md)          |
 | Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN                                                                                               |
-| Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | Foundation observed; structural integration NOT RUN; [graph evidence](evidence/task-4-graph.md)       |
+| Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | Closed; see Task 4.3 reconciliation below                                                             |
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                               |
 | Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | NOT RUN                                                                                               |
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | NOT RUN                                                                                               |
@@ -4655,3 +4655,22 @@ The integrated Slice D head passed 36/36 connected writer/controller tests
 change-aware CI addition. Astra independently approved Slice D after 118/118
 focused and legacy tests and backend spec typecheck. Production connected
 optimizer installation and immutable-history lifecycle acceptance remain open.
+
+### Task 4.3 graph closure reconciliation (2026-10-22)
+
+The earlier matrix entry saying structural integration was not run was a dated
+foundation finding and is superseded for task 4.3. The reviewed
+[graph closure](evidence/task-4-graph-closure.md) covers actual task-node cycles,
+all remote expansion pairs, positive A→B→A interleaving, structural moves,
+step/reach/estimate changes, one-owner staged batch rollback and independently
+watched guard faults. The [incident hand-down packet](evidence/task-4-incident-handdown.md)
+and approved [P2 correction rereview](evidence/task-4-incident-handdown-review.md)
+prove restored endpoint and resulting-graph findings reach their final consumers.
+
+A fresh Astra read-only audit at `3cfe686f2` ran domain/reader 32/32
+(113 assertions), nine real SQLite graph scenarios 9/9 (210 assertions),
+and mounted first-child/remote-cycle-undo/final hand-down findings 5/5
+(82 assertions): **46 pass, 0 fail, 405 assertions**. The auditor inspected
+retained fault evidence but did not reinject mutations or run full CI/host gates.
+Task 4.3 is closed as its bounded graph contract; 3.2, 4.2, full 4.4,
+production authoring activation and delivery gates remain open.
