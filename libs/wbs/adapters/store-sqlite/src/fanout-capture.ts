@@ -12,6 +12,7 @@ import type {
 } from '@wbs/core/ports/fanout-capture-store';
 import { roleMaySwitchCapacityMode } from '@wbs/core/service/capacity-mode.resource';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
+import type { DependencyFanout } from '@wbs/core/service/shared-people-fanout';
 import {
   canEditProjectInOrganization,
   canWriteInOrganization,
@@ -27,8 +28,15 @@ import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import { readConnectedPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
-import { organization, organizationMembership, project, projectOrganization } from './schema';
+import {
+  externalDependency,
+  organization,
+  organizationMembership,
+  project,
+  projectOrganization,
+} from './schema';
 import { readCapacityMode } from './shared-people-mode';
 
 /** Resolves a trusted maintenance target on its borrowed writer before any lifecycle mutation. */
@@ -287,6 +295,7 @@ export async function readFanoutObservationIn(
   if (readOrganizationActivation(db) === 'pre_activation')
     return {
       observation: { mode: 'legacy', organizationId: null, projects: [] },
+      dependency: null,
       localFacts: new Map(),
     };
   const mode = readCapacityMode(db, organizationId);
@@ -294,6 +303,7 @@ export async function readFanoutObservationIn(
   if (mode === 'isolated')
     return {
       observation: { mode, organizationId, projects: [] },
+      dependency: await readDependencyFanoutIn(db, organizationId, options, lifetime),
       localFacts: new Map(),
     };
   const ranks = await new ProjectRankRepository(db, OPEN).orderIn(organizationId);
@@ -368,5 +378,90 @@ export async function readFanoutObservationIn(
     }),
   );
   lifetime.assertOpen();
-  return { observation: { mode, organizationId, projects: captured }, localFacts };
+  return {
+    observation: { mode, organizationId, projects: captured },
+    dependency: null,
+    localFacts,
+  };
+}
+
+/** Captures isolated-mode dependency invalidation without scheduling or opening another connection. */
+async function readDependencyFanoutIn(
+  db: Drizzle,
+  organizationId: string,
+  options: Pick<ChainSnapshotOptions, 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
+): Promise<DependencyFanout> {
+  lifetime.assertOpen();
+  const edges = db
+    .select()
+    .from(externalDependency)
+    // Proof: removing this scope filter made the mounted foreign-edge fixture return 500 at the scoped endpoint refusal, instead of 200; no disclosure was observed.
+    .where(eq(externalDependency.organizationId, organizationId))
+    .all();
+  const connections = edges.map((edge) => ({
+    key: JSON.stringify([
+      edge.id,
+      edge.predecessorProjectId,
+      edge.predecessorWorkItemId,
+      edge.predecessorScope,
+      edge.predecessorStepId,
+      edge.successorProjectId,
+      edge.successorWorkItemId,
+      edge.successorScope,
+      edge.successorStepId,
+      edge.type,
+    ]),
+    predecessorProjectId: edge.predecessorProjectId,
+    successorProjectId: edge.successorProjectId,
+  }));
+  const ownership = db
+    .select({ projectId: projectOrganization.resourceId })
+    .from(projectOrganization)
+    .where(eq(projectOrganization.organizationId, organizationId))
+    .all();
+  // Proof: retaining only incident IDs lost both event rows in `invalidates surviving projects disconnected by relationship removal`.
+  const projects = new Map(ownership.map(({ projectId }) => [projectId, 'not_incident']));
+  for (const projectId of new Set(
+    connections.flatMap((edge) => [edge.predecessorProjectId, edge.successorProjectId]),
+  )) {
+    const header = await new ProjectRepository(db, OPEN).findInOrganization(
+      projectId,
+      organizationId,
+    );
+    lifetime.assertOpen();
+    const captured = await readConnectedPlanInputIn(
+      db,
+      projectId,
+      { kind: 'scoped', scope: { organizationId } },
+      lifetime,
+      options.captureRead,
+    );
+    lifetime.assertOpen();
+    // Proof: removing this refusal changed the missing-endpoint negative from the named invariant to a property-access TypeError; the unreadable seam separately throws unchanged.
+    if (captured === null || header === null)
+      throw new Error('dependency fan-out endpoint is unreadable');
+    projects.set(
+      projectId,
+      JSON.stringify([
+        scheduleInputHash(scheduleInputOfCaptured(captured)),
+        captured.project.name,
+        // Proof: omitting abbreviation made the mounted abbreviation-only PATCH retain one event instead of two.
+        header.abbreviation,
+        captured.project.startDate,
+        captured.project.optimizationEnabled,
+        captured.project.scheduleEngine,
+        captured.project.scheduleObjective,
+        // Proof: substituting [] lost the real borrowed-writer remote-completion event in `records remote completion without shared people`.
+        captured.progress,
+        captured.actuals,
+        captured.stepBlockages,
+        captured.stepParallels,
+        captured.measures,
+        captured.workItems.map((row) => [row.id, row.name, row.position, row.frozenNumber]),
+        captured.steps.map((step) => [step.id, step.name]),
+      ]),
+    );
+  }
+  return { organizationId, projects, connections };
 }

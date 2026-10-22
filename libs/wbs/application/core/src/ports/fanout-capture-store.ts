@@ -1,4 +1,4 @@
-import type { FanoutObservation } from '../service/shared-people-fanout';
+import type { DependencyFanout, FanoutObservation } from '../service/shared-people-fanout';
 import type { NamedCatalog } from './directory-store';
 import type { ResourceAccess } from './organization-access';
 
@@ -87,6 +87,8 @@ export type LifecycleOwnership =
 /** Detached before/after values read on the owning command transaction. */
 export interface CapturedFanout {
   readonly observation: FanoutObservation;
+  /** Isolated component capture; legacy/shared currently use their existing observation arm. */
+  readonly dependency: DependencyFanout | null;
   readonly localFacts: ReadonlyMap<string, string>;
 }
 

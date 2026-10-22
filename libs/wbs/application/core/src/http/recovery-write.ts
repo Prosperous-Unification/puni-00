@@ -117,7 +117,8 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
             // scoped removal commit two step recovery records, expected one.
             captureState.before = await capture.capture(currentAccess.scope.organizationId);
             if (
-              captureState.before.observation.mode === 'shared' &&
+              (captureState.before.observation.mode === 'shared' ||
+                captureState.before.dependency !== null) &&
               boundary.committedFanout === undefined
             )
               throw new Error('scoped step fan-out delivery is missing');
@@ -151,7 +152,10 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           const capture = scope.fanoutCapture;
           if (capture === undefined) throw new Error('scoped step fan-out capture disappeared');
           const after = await capture.capture(captureState.organizationId);
-          if (captureState.before.observation.mode === 'shared') {
+          if (
+            captureState.before.observation.mode === 'shared' ||
+            captureState.before.dependency !== null
+          ) {
             const delivery = boundary.committedFanout;
             if (delivery === undefined) throw new Error('scoped step fan-out delivery is missing');
             committed = await recordCommittedFanout(

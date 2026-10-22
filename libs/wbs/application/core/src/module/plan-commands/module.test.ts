@@ -14,6 +14,7 @@ import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanCommands } from './check';
+import { createPlanCommandRunner } from './composition';
 import { PLAN_COMMANDS_LABEL } from './contract';
 import { planCommandsModule } from './module';
 
@@ -112,46 +113,64 @@ const completeHost = () =>
 
 describe('the Plan commands module', () => {
   /** Proof: provider omission made this scoped shared command throw missing delivery. */
-  it('passes the committed fan-out capability through its installed command graph', async () => {
-    const { source, requirements } = await seeded();
-    const capture = {
-      capture: () =>
-        Promise.resolve({
-          observation: { mode: 'shared' as const, organizationId: 'org-a', projects: [] },
-          localFacts: new Map<string, string>(),
-        }),
-      authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
-      authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
-    };
-    const uow: typeof source.uow = {
-      run: (act) =>
-        source.uow.run((scope) =>
-          act({
-            ...scope,
-            stores: {
-              ...scope.stores,
-              projects: new Proxy(scope.stores.projects, {
-                get: (projects, key, receiver): unknown => {
-                  if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
-                  if (key === 'findCrossReferences') return () => Promise.resolve([]);
-                  return Reflect.get(projects, key, receiver) as unknown;
-                },
-              }),
-            },
-            fanoutCapture: capture,
+  it.each(['shared', 'isolated'] as const)(
+    'passes committed fan-out and refuses missing delivery for %s capture',
+    async (mode) => {
+      const { source, requirements } = await seeded();
+      const capture = {
+        capture: () =>
+          Promise.resolve({
+            observation: { mode, organizationId: 'org-a', projects: [] },
+            dependency:
+              mode === 'isolated'
+                ? { organizationId: 'org-a', projects: new Map<string, string>(), connections: [] }
+                : null,
+            localFacts: new Map<string, string>(),
           }),
-        ),
-    };
-    const { commands } = installPlanCommands({ ...requirements, uow });
-    expect(
-      (
-        await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
+        authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
+        authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
+      };
+      const uow: typeof source.uow = {
+        run: (act) =>
+          source.uow.run((scope) =>
+            act({
+              ...scope,
+              stores: {
+                ...scope.stores,
+                projects: new Proxy(scope.stores.projects, {
+                  get: (projects, key, receiver): unknown => {
+                    if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
+                    if (key === 'findCrossReferences') return () => Promise.resolve([]);
+                    return Reflect.get(projects, key, receiver) as unknown;
+                  },
+                }),
+              },
+              fanoutCapture: capture,
+            }),
+          ),
+      };
+      const { commands } = installPlanCommands({ ...requirements, uow });
+      expect(
+        (
+          await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
+            kind: 'scoped',
+            scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+          })
+        ).ok,
+      ).toBe(true);
+      const missingDelivery = createPlanCommandRunner({
+        ...requirements,
+        uow,
+        committedFanout: undefined,
+      });
+      expect(
+        missingDelivery.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
           kind: 'scoped',
           scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
-        })
-      ).ok,
-    ).toBe(true);
-  });
+        }),
+      ).rejects.toThrow('committed fan-out delivery is missing');
+    },
+  );
 
   it('drains a committed batch into the broadcaster installPlanCommands wires', async () => {
     const { announcements, requirements } = await seeded();

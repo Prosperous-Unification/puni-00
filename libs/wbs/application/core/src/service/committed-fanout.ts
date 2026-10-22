@@ -2,7 +2,7 @@ import type { CommittedProjectEvent } from '../ports/committed-fanout';
 import type { EventLogStore } from '../ports/event-log-store';
 import type { CapturedFanout } from '../ports/fanout-capture-store';
 import { type ProjectEvent, subscriptionFor } from '../ports/project-event';
-import { compareSharedPeopleFanout } from './shared-people-fanout';
+import { compareDependencyFanout, compareSharedPeopleFanout } from './shared-people-fanout';
 
 export type { CommittedFanoutDelivery, CommittedProjectEvent } from '../ports/committed-fanout';
 
@@ -34,7 +34,17 @@ export async function recordCommittedFanout(
   const events: CommittedProjectEvent[] = [];
   // Proof: injecting a recipient when comparison returned none made the
   // mounted idempotent membership-add test record a forbidden event row.
-  for (const { projectId, causeProjectId } of recipients) {
+  const pairs = new Map(
+    [
+      ...recipients,
+      ...compareDependencyFanout(before.dependency, after.dependency, addressedCauses),
+    ].map((pair) => [`${pair.projectId}\0${pair.causeProjectId}`, pair]),
+  );
+  for (const { projectId, causeProjectId } of [...pairs.values()].sort(
+    (left, right) =>
+      left.projectId.localeCompare(right.projectId) ||
+      left.causeProjectId.localeCompare(right.causeProjectId),
+  )) {
     const event: ProjectEvent = { type: 'elsewhere_changed', projectId, causeProjectId };
     const recorded = await eventLog.recordEvent(subscriptionFor(projectId), event, now());
     events.push({ projectId, event, recorded });

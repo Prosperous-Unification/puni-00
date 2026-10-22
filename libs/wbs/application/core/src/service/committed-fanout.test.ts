@@ -53,6 +53,7 @@ it('treats both changed connection endpoints as direct causes without adding tra
   ];
   const captured = (projects: FanoutProject[], bFact: string): CapturedFanout => ({
     observation: { mode: 'shared', organizationId: 'org-a', projects },
+    dependency: null,
     localFacts: new Map([
       ['A', 'same'],
       ['B', bFact],
@@ -121,6 +122,7 @@ it('uses an addressed retirement cause when selected display changes at equal lo
   };
   const before: CapturedFanout = {
     observation: { mode: 'shared', organizationId: 'org-a', projects: [ready, downstream] },
+    dependency: null,
     localFacts: new Map([
       ['A', 'same'],
       ['B', 'same'],
@@ -128,6 +130,7 @@ it('uses an addressed retirement cause when selected display changes at equal lo
   };
   const after: CapturedFanout = {
     observation: { mode: 'shared', organizationId: 'org-a', projects: [afterUpstream, downstream] },
+    dependency: null,
     localFacts: new Map([
       ['A', 'same'],
       ['B', 'same'],
@@ -151,5 +154,171 @@ it('uses an addressed retirement cause when selected display changes at equal lo
   );
   expect(committed.map(({ projectId, event }) => [projectId, event])).toEqual([
     ['B', { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+  ]);
+});
+
+function dependencyCapture(
+  facts: readonly (readonly [string, string])[],
+  connections: readonly (readonly [string, string])[],
+): CapturedFanout {
+  return {
+    observation: { mode: 'isolated', organizationId: 'org-a', projects: [] },
+    localFacts: new Map(),
+    dependency: {
+      organizationId: 'org-a',
+      projects: new Map(facts),
+      connections: connections.map(([predecessorProjectId, successorProjectId]) => ({
+        key: `${predecessorProjectId}-${successorProjectId}`,
+        predecessorProjectId,
+        successorProjectId,
+      })),
+    },
+  };
+}
+
+it('invalidates a transitive dependency component without shared people or bookings', async () => {
+  const before = dependencyCapture(
+    [
+      ['A', 'open'],
+      ['B', 'same'],
+      ['C', 'same'],
+    ],
+    [
+      ['A', 'B'],
+      ['B', 'C'],
+    ],
+  );
+  const after = dependencyCapture(
+    [
+      ['A', 'complete'],
+      ['B', 'same'],
+      ['C', 'same'],
+    ],
+    [
+      ['A', 'B'],
+      ['B', 'C'],
+    ],
+  );
+  const committed = await recordCommittedFanout(
+    openMemorySource().stores.eventLog,
+    before,
+    after,
+    () => 1,
+  );
+  expect(committed.map(({ event }) => event)).toEqual([
+    { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'A' },
+  ]);
+});
+
+it('refreshes surviving old and new components after topology changes', async () => {
+  const facts = [
+    ['A', 'same'],
+    ['B', 'same'],
+    ['C', 'same'],
+    ['D', 'same'],
+  ] as const;
+  const before = dependencyCapture(facts, [
+    ['A', 'B'],
+    ['C', 'D'],
+  ]);
+  const after = dependencyCapture(facts, [
+    ['A', 'C'],
+    ['C', 'D'],
+  ]);
+  const committed = await recordCommittedFanout(
+    openMemorySource().stores.eventLog,
+    before,
+    after,
+    () => 1,
+  );
+  expect(
+    committed.map(({ projectId, event }) => [
+      projectId,
+      event.type === 'elsewhere_changed' ? event.causeProjectId : null,
+    ]),
+  ).toEqual([
+    ['A', 'B'],
+    ['A', 'C'],
+    ['B', 'A'],
+    ['C', 'A'],
+    ['D', 'A'],
+    ['D', 'C'],
+  ]);
+});
+
+it('refreshes dependency recipients when authored relationship semantics change', async () => {
+  const before = dependencyCapture(
+    [
+      ['A', 'same'],
+      ['B', 'same'],
+    ],
+    [['A', 'B']],
+  );
+  if (before.dependency === null) throw new Error('missing dependency fixture');
+  const after: CapturedFanout = {
+    ...before,
+    dependency: {
+      ...before.dependency,
+      connections: before.dependency.connections.map((edge) => ({
+        ...edge,
+        key: 'changed-FS-to-SS',
+      })),
+    },
+  };
+  const committed = await recordCommittedFanout(
+    openMemorySource().stores.eventLog,
+    before,
+    after,
+    () => 1,
+  );
+  expect(committed.map(({ event }) => event)).toEqual([
+    { type: 'elsewhere_changed', projectId: 'A', causeProjectId: 'B' },
+    { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+  ]);
+});
+
+it('refuses mismatched dependency capture organizations before recording events', () => {
+  const before = dependencyCapture(
+    [
+      ['A', 'before'],
+      ['B', 'same'],
+    ],
+    [['A', 'B']],
+  );
+  if (before.dependency === null) throw new Error('missing dependency fixture');
+  const after: CapturedFanout = {
+    ...before,
+    dependency: { ...before.dependency, organizationId: 'org-b' },
+  };
+  expect(
+    recordCommittedFanout(openMemorySource().stores.eventLog, before, after, () => 1),
+  ).rejects.toThrow('dependency capture organizations are inconsistent');
+});
+
+it('does not invent a dependency path by mixing old and new topology edges', async () => {
+  const facts = [
+    ['A', 'same'],
+    ['B', 'same'],
+    ['C', 'same'],
+  ] as const;
+  const before = dependencyCapture(facts, [['A', 'B']]);
+  const after = dependencyCapture(facts, [['B', 'C']]);
+  const committed = await recordCommittedFanout(
+    openMemorySource().stores.eventLog,
+    before,
+    after,
+    () => 1,
+  );
+  expect(
+    committed.map(({ projectId, event }) => [
+      projectId,
+      event.type === 'elsewhere_changed' ? event.causeProjectId : null,
+    ]),
+  ).toEqual([
+    ['A', 'B'],
+    ['B', 'A'],
+    ['B', 'C'],
+    ['C', 'B'],
   ]);
 });

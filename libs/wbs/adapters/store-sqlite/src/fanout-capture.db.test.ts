@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople } from '@wbs/core';
+import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
 import { displaySchedule } from '@wbs/core/service/shared-people';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
 import { scheduleResolved } from '@wbs/domain';
@@ -13,7 +14,9 @@ import { afterEach, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { openConnection, openDatabase } from './db';
+import { DrizzleEventLogStore } from './event-log';
 import { readFanoutObservationIn } from './fanout-capture';
+import { OPEN } from './gate';
 import { allocateGeneration } from './optimization-generation';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
@@ -269,5 +272,174 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     expect(throughScope.observation.projects[1]?.projectId).toBe('a2');
   } finally {
     await source.close();
+  }
+});
+
+it('records remote completion without shared people and rolls dependency events back with the writer', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  const connection = openConnection(path);
+  try {
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    for (const projectId of ['a1', 'a2']) {
+      connection.db.run(
+        sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${projectId}, ${projectId}, 10, ${projectId})`,
+      );
+      connection.db.run(
+        sql`INSERT INTO step (id, project_id, name, position) VALUES (${`${projectId}-step`}, ${projectId}, 'Build', 10)`,
+      );
+      connection.db.run(
+        sql`INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (${projectId}, ${`${projectId}-step`}, 1, 1, 1)`,
+      );
+    }
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1', 'whole', 'a2', 'whole', 'FS')",
+      ),
+    );
+    const options = {
+      schedulerOf: () => {
+        throw new Error('isolated fanout cannot schedule');
+      },
+    };
+    connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+    const before = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('a1', 'a1-step', 'done', 1)",
+      ),
+    );
+    const after = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
+    const committed = await recordCommittedFanout(
+      new DrizzleEventLogStore(connection.db, OPEN),
+      before,
+      after,
+      () => 1,
+    );
+    expect(committed.map(({ event }) => event)).toEqual([
+      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+    ]);
+    expect(
+      connection.db.all(sql`SELECT * FROM event_log WHERE subscription = 'project:a2'`),
+    ).toHaveLength(1);
+    connection.db.run(sql.raw('ROLLBACK'));
+    expect(connection.db.all(sql`SELECT * FROM step_progress`)).toHaveLength(0);
+    expect(connection.db.all(sql`SELECT * FROM event_log`)).toHaveLength(0);
+    expect(connection.db.all(sql`SELECT * FROM event_sequencer`)).toHaveLength(0);
+  } finally {
+    connection.close();
+  }
+});
+
+it('refuses missing and unreadable dependency endpoint evidence', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-corrupt-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  const connection = openConnection(path);
+  try {
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    connection.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'absent', 'a2', 'absent-row', 'whole', 'a2-row', 'whole', 'FS')",
+      ),
+    );
+    const schedulerOf = () => {
+      throw new Error('dependency invalidation cannot schedule');
+    };
+    expect(
+      readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        { schedulerOf },
+        createReadSnapshotLifetime(),
+      ),
+    ).rejects.toThrow('dependency fan-out endpoint is unreadable');
+    connection.db.run(
+      sql.raw("UPDATE external_dependency SET predecessor_project_id = 'a1' WHERE id = 'edge'"),
+    );
+    expect(
+      readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        {
+          schedulerOf,
+          captureRead: {
+            afterFirstRead: () => {
+              throw new Error('injected endpoint read failure');
+            },
+          },
+        },
+        createReadSnapshotLifetime(),
+      ),
+    ).rejects.toThrow('injected endpoint read failure');
+  } finally {
+    connection.close();
+  }
+});
+
+it('invalidates surviving projects disconnected by relationship removal', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-topology-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  const connection = openConnection(path);
+  try {
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    for (const projectId of ['a1', 'a2'])
+      connection.db.run(
+        sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${projectId}, ${projectId}, 10, ${projectId})`,
+      );
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1', 'whole', 'a2', 'whole', 'FS')",
+      ),
+    );
+    const options = {
+      schedulerOf: () => {
+        throw new Error('isolated invalidation cannot schedule');
+      },
+    };
+    const before = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
+    connection.db.run(sql.raw("DELETE FROM external_dependency WHERE id = 'edge'"));
+    const after = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
+    const committed = await recordCommittedFanout(
+      new DrizzleEventLogStore(connection.db, OPEN),
+      before,
+      after,
+      () => 1,
+    );
+    expect(committed.map(({ event }) => event)).toEqual([
+      { type: 'elsewhere_changed', projectId: 'a1', causeProjectId: 'a2' },
+      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+    ]);
+  } finally {
+    connection.close();
   }
 });

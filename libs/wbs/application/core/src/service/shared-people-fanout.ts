@@ -195,3 +195,65 @@ function reachableFrom(
   reachable.delete(causeProjectId);
   return [...reachable];
 }
+
+/** Detached incident topology and semantic/label facts, captured on the owning writer. */
+export interface DependencyFanout {
+  readonly organizationId: string;
+  /** Every owned project survives topology detachment; `not_incident` explicitly means no external endpoint facts apply. */
+  readonly projects: ReadonlyMap<string, string>;
+  readonly connections: readonly {
+    /** Stable relationship identity plus authored endpoints/scopes/type, excluding audit stamps. */
+    readonly key: string;
+    readonly predecessorProjectId: string;
+    readonly successorProjectId: string;
+  }[];
+}
+
+/** Invalidates surviving members of each old/new component independently. */
+export function compareDependencyFanout(
+  before: DependencyFanout | null,
+  after: DependencyFanout | null,
+  addressedCauses: readonly string[],
+): readonly FanoutPair[] {
+  // Proof: without this check, `refuses mismatched dependency capture organizations before recording events` resolved instead of refusing.
+  if (before !== null && after !== null && before.organizationId !== after.organizationId)
+    throw new Error('dependency capture organizations are inconsistent');
+  const causes = new Set(addressedCauses);
+  const ids = new Set([...(before?.projects.keys() ?? []), ...(after?.projects.keys() ?? [])]);
+  for (const projectId of ids)
+    if (before?.projects.get(projectId) !== after?.projects.get(projectId)) causes.add(projectId);
+  const keyOf = (edge: DependencyFanout['connections'][number]) => edge.key;
+  const oldEdges = new Map(before?.connections.map((edge) => [keyOf(edge), edge]));
+  const newEdges = new Map(after?.connections.map((edge) => [keyOf(edge), edge]));
+  for (const [key, edge] of [...oldEdges, ...newEdges])
+    if (oldEdges.has(key) !== newEdges.has(key)) {
+      causes.add(edge.predecessorProjectId);
+      causes.add(edge.successorProjectId);
+    }
+  const recipients = new Map<string, FanoutPair>();
+  for (const causeProjectId of causes)
+    for (const graph of [before, after]) {
+      if (!graph?.projects.has(causeProjectId)) continue;
+      const reachable = new Set([causeProjectId]);
+      const pending = [causeProjectId];
+      // Proof: replacing this frontier with [causeProjectId] lost the transitive tail in the mounted rename event assertion.
+      for (const current of pending)
+        // Proof: traversing the union of old/new edges invented A/C recipient pairs in `does not invent a dependency path by mixing old and new topology edges`.
+        for (const edge of graph.connections) {
+          const neighbor =
+            edge.predecessorProjectId === current
+              ? edge.successorProjectId
+              : edge.successorProjectId === current
+                ? edge.predecessorProjectId
+                : null;
+          if (neighbor !== null && !reachable.has(neighbor)) {
+            reachable.add(neighbor);
+            pending.push(neighbor);
+          }
+        }
+      for (const projectId of reachable)
+        if (projectId !== causeProjectId && after?.projects.has(projectId))
+          recipients.set(`${projectId}\0${causeProjectId}`, { projectId, causeProjectId });
+    }
+  return [...recipients.values()];
+}

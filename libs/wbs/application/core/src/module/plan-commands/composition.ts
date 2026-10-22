@@ -38,7 +38,7 @@ export interface PlanCommandsSource {
   publicServices: PlanCommandServices;
   uow: UnitOfWork;
   announcements: Broadcaster;
-  /** Required whenever the installed source can capture a shared organization. */
+  /** Required whenever the installed source captures shared bookings or dependency components. */
   committedFanout?: CommittedFanoutDelivery;
 }
 
@@ -93,8 +93,10 @@ export function commandTransaction(
                 return null;
               }
               captureState.before = await capture.capture(captureState.organizationId);
+              // Proof: disabling dependency eligibility made the isolated module missing-delivery negative resolve successfully instead of refusing.
               if (
-                captureState.before.observation.mode === 'shared' &&
+                (captureState.before.observation.mode === 'shared' ||
+                  captureState.before.dependency !== null) &&
                 committedFanout === undefined
               )
                 throw new Error('committed fan-out delivery is missing');
@@ -138,7 +140,10 @@ export function commandTransaction(
               const capture = rawScope.fanoutCapture;
               if (capture === undefined) throw new Error('shared fan-out capture disappeared');
               const after = await capture.capture(captureState.organizationId);
-              if (captureState.before.observation.mode === 'shared') {
+              if (
+                captureState.before.observation.mode === 'shared' ||
+                captureState.before.dependency !== null
+              ) {
                 if (committedFanout === undefined)
                   throw new Error('committed fan-out delivery is missing');
                 // Proof: deferring this record until after the UoW returned let
@@ -222,7 +227,8 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
           captureState.organizationId = access.scope.organizationId;
           captureState.before = await capture.capture(access.scope.organizationId);
           if (
-            captureState.before.observation.mode === 'shared' &&
+            (captureState.before.observation.mode === 'shared' ||
+              captureState.before.dependency !== null) &&
             source.committedFanout === undefined
           )
             throw new Error('admitted fan-out delivery is missing');
@@ -243,7 +249,8 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
           captureState.organizationId = access.scope.organizationId;
           captureState.before = await capture.capture(access.scope.organizationId);
           if (
-            captureState.before.observation.mode === 'shared' &&
+            (captureState.before.observation.mode === 'shared' ||
+              captureState.before.dependency !== null) &&
             source.committedFanout === undefined
           )
             throw new Error('bare step fan-out delivery is missing');
@@ -281,7 +288,10 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
             const capture = scope.fanoutCapture;
             if (capture === undefined) throw new Error('admitted fan-out capture disappeared');
             const after = await capture.capture(captureState.organizationId);
-            if (captureState.before.observation.mode === 'shared') {
+            if (
+              captureState.before.observation.mode === 'shared' ||
+              captureState.before.dependency !== null
+            ) {
               const delivery = source.committedFanout;
               if (delivery === undefined) throw new Error('admitted fan-out delivery is missing');
               committed = await recordCommittedFanout(
@@ -300,6 +310,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
       if (committed.length > 0) {
         if (source.committedFanout === undefined)
           throw new Error('admitted fan-out delivery is missing');
+        // Proof: moving this delivery into the admitted writer made the mounted observer see Upstream instead of Committed name and zero successful deliveries.
         await source.committedFanout.deliverCommitted(committed);
       }
       return value;
