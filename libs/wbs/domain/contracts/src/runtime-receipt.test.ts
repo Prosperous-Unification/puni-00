@@ -125,7 +125,7 @@ describe('public runtime receipt correspondence', () => {
       expect(
         matchesRuntimeReceipt(scope, acquisition, digest, {
           ...authorityReceipt,
-          [field]: 'other',
+          [field]: field === 'requestDigest' ? 'c'.repeat(64) : 'other',
         }),
       ).toBe(false);
     },

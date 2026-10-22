@@ -1898,3 +1898,43 @@ Deferred review Minors are the evidence-driver metadata/payload filename collisi
 inherited color warning noise, and existing agentic/main OpenSpec warnings and main
 archive prerequisites. Carry all three into final review. Review report retained at
 `/tmp/puni-agentic-limits-task1-review.md`; no source fix or extra suite was needed.
+
+### Whole-branch review and final fixture correction
+
+Independent whole-branch review approved the bounded foundation's code/spec at
+`d5ce3ec26ac6f695a6d61bfb1e3d33dea7ceab78`, with no Critical or Important finding.
+It read the complete88commit/233path/1,986,218byte package and reconciled raw source,
+SQL, freeze and fault identities. All remaining parent coordinator/activation and
+combined exact-SHA canonical gate/applicable CI acceptance stay open.
+
+One final narrow fix wave changes only the receipt metadata requestDigest negative
+to a different valid64hex digest (c repeated64, existing digest b repeated64).
+Ledger/command mismatch fixtures stay unchanged. The complete receipt file passed
+38tests/60assertions; removing only the production digest equality made its selected
+negative fail with expectedfalse/receivedtrue; exact restoration passed the selected
+case and full38/60 again. Uncached contracts typecheck/lint, changed-test format and
+diff checks passed. One color-environment warning remains. Production original and
+restored SHA256 is `258fa2def1b50c012bfd9152d5600d21e5c1b7a62caf546afcbd5c84bb482426`;
+mutant `124bf3ff02b431f982cd0ac3499d2f28c79896b8312c846ca3c3461364723c01`;
+final test `82fb11b5f6f5c0c184f6a77f1597f6fe4e3904b8e24be80301c416af5f03a0e4`.
+This fresh proof covers the valid-input predicate case, not HTTP authentication.
+
+The fix driver's added raw-index freeze check actually failed: raw hash changed from
+76688d749b910531a8f84641abc1b7ca86c9888979a6f675e1b2cda11457fb41 to
+c3e25bd2c28553dddfed148dd89061dfa7463a081ab4f9effe394fba97cf3b32. It remains a
+failed check. Original raw bytes were not retained, so causal attribution is unknown;
+mtime falling within diff-check is not proof of cause. No reset/rewrite concealed it.
+Independent root audit matched all11,760current file hashes/modes/lengths to the
+post-proof manifest, found exactly the permitted test change from baseline, verified
+the exact one-comparison fault/restoration and all50original-source/174SQL identities,
+and compared all11,760staged mode/blob/path entries exactly with HEAD. These establish
+semantic source/index identity separately; **no raw-byte freeze pass is claimed**.
+The earlier complete-SQLite invocation's own successful freeze and failed test result
+retain their original scope. No broad suite was rerun in this test-only wave.
+
+Report and independent audit remain in the plan evidence workspace as
+final-fix-report.md and final-fix-root-audit.json. Historical evidence filename
+collisions have recovered/audited payloads; new metadata uses distinct filenames.
+Expected SDK stderr, inherited lint/color/OpenSpec warnings, existing memory skip,
+initial review extraction deviation and historical proof-diagnostic limits remain
+disclosed. Scoped fix re-review and final published combined gate/CI are pending.
