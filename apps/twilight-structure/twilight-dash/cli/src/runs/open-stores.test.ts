@@ -9,6 +9,7 @@ import ts from 'typescript';
 
 import { openStores, type SqliteConfiguration } from './open-stores';
 import { organizationId, ownerId } from './record-codecs';
+import { acceptRuntimeReceipt } from './runtime-history';
 import { bootstrapSqliteStores } from './sqlite/open-stores';
 import {
   createCompletion,
@@ -17,6 +18,12 @@ import {
   FixtureClock,
   unwrapReply,
 } from './testing/fixtures';
+import {
+  authorityReceipt,
+  authorityRequest,
+  runtimePin,
+  runtimeScope,
+} from './testing/runtime-history-contract';
 import { prepareWait } from './testing/signals-contract';
 
 const directories: string[] = [];
@@ -149,7 +156,35 @@ test('production close is idempotent and every public operation refuses closed d
   };
   const receiptGuard = await setup.currentGuard();
   unwrapReply(await stores.runs.reconcileReceipt(receiptGuard, receipt));
+  unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
+  const runtimeGuard = { ownership, scope: runtimeScope, expectedRevision: 0 };
+  const runtimeIntent = unwrapReply(
+    await stores.runs.stageRuntimeRequest(runtimeGuard, authorityRequest()),
+  );
+  const receiptArtifact = await stores.artifacts.retainArtifact(
+    new TextEncoder().encode(JSON.stringify(authorityReceipt(runtimeIntent))),
+    'application/json',
+  );
+  if (receiptArtifact.kind !== 'retained') throw new Error('fixture runtime receipt refused');
+  const acceptanceGuard = { ...runtimeGuard, expectedRevision: 1 };
+  unwrapReply(
+    await acceptRuntimeReceipt(
+      stores.runs,
+      stores.artifacts,
+      acceptanceGuard,
+      runtimeIntent,
+      receiptArtifact.reference,
+    ),
+  );
   const operations = {
+    pinRuntimeScope: () => stores.runs.pinRuntimeScope(ownership, runtimePin),
+    readRuntimeScope: () => stores.runs.readRuntimeScope(runtimeScope),
+    stageRuntimeRequest: () => stores.runs.stageRuntimeRequest(runtimeGuard, authorityRequest()),
+    recordRuntimeAcceptance: () =>
+      stores.runs.recordRuntimeAcceptance(acceptanceGuard, {
+        intent: runtimeIntent,
+        evidence: receiptArtifact.reference,
+      }),
     acquireOwnership: () => stores.runs.acquireOwnership(ownerId('owner'), ownership.epoch),
     renewOwnership: () => stores.runs.renewOwnership(ownership),
     retainManifest: () => stores.runs.retainManifest(ownership, createManifest()),
@@ -232,9 +267,23 @@ test('portable ports and core records exclude adapter dependencies structurally'
     '@shared/validation',
     '@twilight-burokrat/contracts',
   ]);
-  const violations = ['run-store.ts', 'artifact-store.ts', 'records.ts', 'record-codecs.ts']
+  // Proof: F66 injecting './sqlite/run-store' into actual runtime-records.ts named that forbidden dependency here; exact restoration passed.
+  const violations = [
+    'run-store.ts',
+    'artifact-store.ts',
+    'records.ts',
+    'record-codecs.ts',
+    'runtime-records.ts',
+  ]
     .flatMap((path) => portableImports(path).map((dependency) => ({ path, dependency })))
-    .filter(({ dependency }) => !allowed.has(dependency));
+    .filter(
+      ({ path, dependency }) =>
+        !(
+          allowed.has(dependency) ||
+          (path === 'run-store.ts' && dependency === './runtime-records') ||
+          (path === 'runtime-records.ts' && dependency === '@wbs/contracts')
+        ),
+    );
   // Proof: eight real port-source injections (provider/path/schema imports, export, import type, dynamic/computed import and require) each named the forbidden dependency here.
   expect(violations).toEqual([]);
 });

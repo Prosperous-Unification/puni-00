@@ -145,5 +145,18 @@ export default ({
       // and agents/*.ts widening admitted the unlisted turn driver after 81. Config remained valid.
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
+    {
+      files: [
+        // Proof: F44 widened the allowed source paths to peers; 'Dash runtime history' failed and exact restoration passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-history.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
+      ],
+      // Proof: F35 removed exact public WBS admission; 'Dash runtime history' failed and exact restoration passed.
+      // Proof: F36 widened the WBS alias exception; 'Dash runtime history' failed and exact restoration passed.
+      // Proof: F43 allowed a relative WBS shortcut; 'Dash runtime history' failed and exact restoration passed.
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };

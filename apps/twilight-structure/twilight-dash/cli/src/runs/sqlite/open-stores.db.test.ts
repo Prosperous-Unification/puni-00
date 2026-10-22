@@ -17,7 +17,7 @@ import { afterEach, expect, test } from 'bun:test';
 import { decodeAdmission, organizationId, ownerId } from '../record-codecs';
 import { createManifest, createRun, FixtureClock, unwrapReply } from '../testing/fixtures';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
-import { DOWN, MIGRATION } from './schema';
+import { DOWN, MIGRATION, MIGRATIONS } from './schema';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -242,11 +242,16 @@ test('migration down pair removes exactly the provider schema', async () => {
         .all();
     const before = tables();
     expect(before.length).toBeGreaterThan(0);
+    database.run('BEGIN IMMEDIATE');
+    for (const statement of MIGRATIONS[1].down.split('--> statement-breakpoint'))
+      if (statement.trim().length > 0) database.run(statement.trim());
     database.run(DOWN);
+    database.run('COMMIT');
     expect(database.query("SELECT name FROM sqlite_master WHERE name LIKE 'run_%'").all()).toEqual(
       [],
     );
     database.run(MIGRATION);
+    database.run(MIGRATIONS[1].forward);
     expect(tables()).toEqual(before);
   } finally {
     database.close();

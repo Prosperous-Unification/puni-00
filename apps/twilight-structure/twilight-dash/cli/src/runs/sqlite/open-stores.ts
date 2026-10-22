@@ -19,10 +19,12 @@ import { assertInteger, organizationId, storeId } from '../record-codecs';
 import type { OrganizationId, OwnershipStatus } from '../records';
 import { createSqliteRunStore, isBusy, RunStoreContentionError } from './run-store';
 import {
+  assertCompatibleFormat,
   configureDatabase,
   DOWN_HASH,
-  MIGRATION,
+  FORMAT_HASH,
   MIGRATION_HASH,
+  MIGRATIONS,
   readMeta,
   SCHEMA_VERSION,
   validateDatabase,
@@ -104,6 +106,17 @@ async function connect(options: SqliteOptions) {
   for (let attempt = 1; ; attempt += 1) {
     let database: Database | undefined;
     try {
+      const inspection = new Database(options.path, {
+        readonly: true,
+        create: false,
+        strict: true,
+      });
+      try {
+        // Proof: F24b removed pre-configuration compatibility inspection and changed original bytes; 'genuine format1' failed and exact restoration passed.
+        assertCompatibleFormat(inspection);
+      } finally {
+        inspection.close();
+      }
       database = new Database(options.path, { create: false, strict: true });
       configureDatabase(database);
       database.run('BEGIN');
@@ -174,7 +187,9 @@ export async function bootstrapSqliteStores(input: SqliteOptions) {
         owner: null,
       };
       database.run('BEGIN IMMEDIATE');
-      database.run(MIGRATION);
+      for (const migration of MIGRATIONS)
+        // Proof: F34c restored whole-script forward SQL and published after an intermediate CHECK failure; 'intermediate required migration' failed and exact restoration passed.
+        for (const statement of migration.forwardStatements) database.run(statement);
       database
         .query(
           'INSERT INTO run_meta(singleton,schema_version,migration_hash,down_hash,ownership,capacity,lease_milliseconds,last_observed_at) VALUES (1,?,?,?,?,?,?,?)',
@@ -188,6 +203,11 @@ export async function bootstrapSqliteStores(input: SqliteOptions) {
           options.leaseMilliseconds,
           observedAt,
         );
+      database
+        .query(
+          'INSERT INTO run_format(singleton,bundle_hash,scope_count,intent_count,acceptance_count) VALUES (1,?,0,0,0)',
+        )
+        .run(FORMAT_HASH);
       database.run('COMMIT');
       database.run('PRAGMA wal_checkpoint(TRUNCATE)');
     } finally {

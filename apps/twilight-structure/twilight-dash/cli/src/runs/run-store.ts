@@ -17,6 +17,15 @@ import type {
   RunId,
   RunSnapshot,
 } from './records';
+import type {
+  RuntimeAcceptance,
+  RuntimeAcceptanceInput,
+  RuntimeGuard,
+  RuntimeIntent,
+  RuntimePin,
+  RuntimeScope,
+  RuntimeScopeSnapshot,
+} from './runtime-records';
 
 export type StoreRefusal =
   | 'owner_busy'
@@ -44,6 +53,20 @@ export interface AttemptGuard extends RunGuard {
 }
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
+  /** Pins one complete receiver scope insert-or-identical under current live local ownership. */
+  pinRuntimeScope(ownership: Ownership, pin: RuntimePin): Promise<StoreReply<RuntimePin>>;
+  /** Ownership-free local integrity inspection. Caller must verify all independent receipt artifacts before trusting acceptance content. */
+  readRuntimeScope(scope: RuntimeScope): Promise<RuntimeScopeSnapshot>;
+  /** Retains authority-acquisition bytes before future dispatch; conveys no permission to dispatch. */
+  stageRuntimeRequest(
+    guard: RuntimeGuard,
+    canonicalRequest: string,
+  ): Promise<StoreReply<RuntimeIntent>>;
+  /** Trusted persistence: caller already verified exact complete receipt artifact bytes and correspondence. No authentication or current receiver authority is inferred. */
+  recordRuntimeAcceptance(
+    guard: RuntimeGuard,
+    input: RuntimeAcceptanceInput,
+  ): Promise<StoreReply<RuntimeAcceptance>>;
   /** Allocates the next epoch only after the persisted lease expires. */
   acquireOwnership(ownerId: OwnerId, expectedEpoch: Epoch): Promise<StoreReply<Ownership>>;
   /** Refreshes exact current authority using the store clock, never a supplied expiry. */

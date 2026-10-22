@@ -1,9 +1,8 @@
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-
 import { Database } from 'bun:sqlite';
 
+import { DOWN_HASH, MIGRATION_HASH, MIGRATIONS, SCHEMA_VERSION } from './format';
 import { validateAttempt } from './read-executions';
+import { readRuntimeCatalog } from './read-runtime';
 import {
   decodeAttemptRow,
   decodeCompletionRow,
@@ -11,18 +10,15 @@ import {
   decodeMeta,
   decodeRunRow,
 } from './row-codecs';
-
-export const SCHEMA_VERSION = 1;
-export const MIGRATION = readFileSync(
-  new URL('./migrations/0001-run-store/migration.sql', import.meta.url),
-  'utf8',
-);
-export const DOWN = readFileSync(
-  new URL('./migrations/0001-run-store/down.sql', import.meta.url),
-  'utf8',
-);
-export const MIGRATION_HASH = createHash('sha256').update(MIGRATION).digest('hex');
-export const DOWN_HASH = createHash('sha256').update(DOWN).digest('hex');
+export {
+  DOWN,
+  DOWN_HASH,
+  FORMAT_HASH,
+  MIGRATION,
+  MIGRATION_HASH,
+  MIGRATIONS,
+  SCHEMA_VERSION,
+} from './format';
 
 interface SchemaEntry {
   readonly type: 'table' | 'index';
@@ -44,7 +40,9 @@ function readSchema(database: Database): readonly SchemaEntry[] {
 function readRequiredSchema(): readonly SchemaEntry[] {
   const reference = new Database(':memory:', { strict: true });
   try {
-    reference.run(MIGRATION);
+    for (const migration of MIGRATIONS)
+      // Proof: F53c restored whole-script reference SQL and accepted an intermediate CHECK failure; 'physical reference refuses an intermediate' failed and exact restoration passed.
+      for (const statement of migration.forwardStatements) reference.run(statement);
     return readSchema(reference);
   } finally {
     reference.close();
@@ -93,6 +91,7 @@ export function readMeta(database: Database) {
 /** Validates the published store, including every portable record and relational invariant. No migration runs here. */
 export function validateDatabase(database: Database): void {
   // Proof: removing this dispatch accepted the same ten altered empty stores before row validation could detect them.
+  // Proof: F23 bypassed physical schema validation for an empty runtime table; 'empty run_runtime_scope declaration' failed and exact restoration passed.
   validatePhysicalSchema(database);
   const meta = readMeta(database);
   // Proof: independently bypassing version, migration hash and down hash checks accepted each corresponding persisted alteration.
@@ -102,6 +101,8 @@ export function validateDatabase(database: Database): void {
     meta.down_hash !== DOWN_HASH
   )
     throw new Error('incompatible sqlite schema version or migration hash');
+  // Proof: F63 omitted runtime audit on reopen; 'trusted runtime scope ledger' failed and exact restoration passed.
+  readRuntimeCatalog(database, meta.ownership);
   // Proof: bypassing this diagnostic accepted an injected non-ok SQLite integrity response through the real open path.
   if (database.query<{ quick_check: string }, []>('PRAGMA quick_check').get()?.quick_check !== 'ok')
     throw new Error('corrupt sqlite database');
@@ -149,4 +150,15 @@ export function readCapacity(database: Database, limit: number) {
   )
     throw new Error('corrupt sqlite capacity reservations');
   return { limit, reserved: reservations.count };
+}
+
+/** Inspects compatibility before any mode-changing connection configuration. Older formats remain byte-for-byte untouched. */
+export function assertCompatibleFormat(database: Database): void {
+  const meta = readMeta(database);
+  if (
+    meta.schema_version !== SCHEMA_VERSION ||
+    meta.migration_hash !== MIGRATION_HASH ||
+    meta.down_hash !== DOWN_HASH
+  )
+    throw new Error('incompatible sqlite schema version or migration hash');
 }

@@ -12,6 +12,12 @@ import { type AttemptChange, planExecution, replayExecution } from '../plan-exec
 import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, replayReceipt } from '../plan-receipt';
+import {
+  inspectRuntimeScope,
+  planRuntimeAcceptance,
+  planRuntimePin,
+  planRuntimeStage,
+} from '../plan-runtime';
 import { planConsumption, planDecision, replayConsumption, replayDecision } from '../plan-signals';
 import { addInteger, decisionId, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
@@ -28,8 +34,15 @@ import {
 } from '../record-codecs';
 import type { Ownership, OwnershipStatus, Run } from '../records';
 import type { RunStore, StoreReply } from '../run-store';
+import {
+  decodeRuntimeAcceptanceInput,
+  decodeRuntimeGuard,
+  decodeRuntimePin,
+  decodeRuntimeScope,
+} from '../runtime-codecs';
 import { createSqliteArtifactStore } from './artifact-store';
 import { findExecution, validateAttempt } from './read-executions';
+import { readRuntimeCatalog } from './read-runtime';
 import {
   decodeConsumptionRow,
   decodeDecisionRow,
@@ -40,6 +53,7 @@ import {
 } from './read-signals';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
+import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
 import { readCapacity, readMeta } from './schema';
 
 export interface TransactionOptions {
@@ -96,6 +110,7 @@ export function createSqliteRunStore(
     await previous;
     try {
       // Proof: bypassing this fence let acquireOwnership resolve after close with the real connection deliberately retained.
+      // Proof: F67 removing this shared fence failed the retained-connection lifecycle test at pinRuntimeScope's missing closed rejection; exact restoration passed.
       if (closed) throw new Error('run store is closed');
       for (let attempt = 1; attempt <= options.maxBusyAttempts; attempt += 1) {
         try {
@@ -105,6 +120,7 @@ export function createSqliteRunStore(
           // Proof: injecting atomic consumption bypass failed `consumption insert abort preserves whole prior state across reopen` at its explicit assertion.
           // Proof: injecting atomic receipt bypass failed `receipt insert abort preserves whole prior state across reopen` at its explicit assertion.
           // Proof: bypassing only the read transaction exposed revision 0 with one attempt and one reservation after a real competing-process admission.
+          // Proof: F45 omitted write BEGIN and COMMIT around a real abort; 'runtime transaction abort' failed and exact restoration passed.
           database.run(write ? 'BEGIN IMMEDIATE' : 'BEGIN');
           const value = operation();
           database.run('COMMIT');
@@ -201,6 +217,66 @@ export function createSqliteRunStore(
         .run(change.attempt.attemptId);
   }
   const runs: RunStore = {
+    async pinRuntimeScope(requested, input) {
+      const ownership = decodeOwnership(structuredClone(requested));
+      const snapshot = structuredClone(input);
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: F46 bypassed the SQLite pin owner gate; 'current owner fencing precedes corrupt retained' failed and exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const pin = decodeRuntimePin(snapshot);
+        const catalog = readRuntimeCatalog(database, meta.ownership);
+        const reply = planRuntimePin(catalog, pin, meta.ownership.organizationId);
+        if (reply.kind === 'applied') insertRuntimePin(database, pin, catalog.scopes.length);
+        return finish(reply, authority.observedAt);
+      });
+    },
+    async readRuntimeScope(input) {
+      const scope = decodeRuntimeScope(input);
+      return await transact(false, () => {
+        const meta = readMeta(database);
+        return inspectRuntimeScope(
+          readRuntimeCatalog(database, meta.ownership),
+          scope,
+          meta.ownership,
+        );
+      });
+    },
+    async stageRuntimeRequest(inputGuard, canonicalRequest) {
+      const snapshot = structuredClone(inputGuard);
+      const ownership = decodeOwnership(snapshot.ownership);
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: F31 bypassed the SQLite staging owner gate; 'current owner fencing precedes corrupt retained' failed and exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const guard = decodeRuntimeGuard(snapshot);
+        const catalog = readRuntimeCatalog(database, meta.ownership);
+        const reply = planRuntimeStage(catalog, guard, canonicalRequest, meta.ownership);
+        if (reply.kind === 'applied')
+          insertRuntimeIntent(database, guard.scope, reply.value, catalog.intents.length);
+        return finish(reply, authority.observedAt);
+      });
+    },
+    async recordRuntimeAcceptance(inputGuard, input) {
+      const snapshotGuard = structuredClone(inputGuard);
+      const snapshotInput = structuredClone(input);
+      const ownership = decodeOwnership(snapshotGuard.ownership);
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: F47 bypassed the SQLite acceptance owner gate; 'current owner fencing precedes corrupt retained' failed and exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const guard = decodeRuntimeGuard(snapshotGuard);
+        const accepted = decodeRuntimeAcceptanceInput(snapshotInput);
+        const catalog = readRuntimeCatalog(database, meta.ownership);
+        const reply = planRuntimeAcceptance(catalog, guard, accepted, meta.ownership);
+        if (reply.kind === 'applied')
+          insertRuntimeAcceptance(database, guard.scope, reply.value, catalog.acceptances.length);
+        return finish(reply, authority.observedAt);
+      });
+    },
     acquireOwnership(identity, expectedEpoch) {
       return transact(true, () => {
         const meta = readMeta(database);

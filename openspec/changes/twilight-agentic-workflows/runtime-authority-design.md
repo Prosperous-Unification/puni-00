@@ -158,6 +158,10 @@ Starting at revision0, every next event is consecutive, one intent is pending at
 and acceptance names that pending intent. Validate complete keys, scope/ledger, canonical
 bytes/digest, generation progression, links and final revision before returning trusted
 history. Missing events, conflicting duplicates, orphan rows or unexplained gaps throw.
+For intents staged in the current local epoch, localOwner.ownerId must also equal the
+owner label retained in the same admitted OwnershipStatus. Expiry alone retains that
+label; takeover advances the epoch. Historical owner labels have no independent
+ownership ledger, and coherent metadata/history forgery is outside this guarantee.
 Reads and mutations audit runtime marker counts and owned row identities before absence.
 The audit is proportional to retained history; no unbounded-scale benchmark is claimed.
 
@@ -181,7 +185,10 @@ lookupRuntimeReceipt.responses[0].schema. Reuse matchesRuntimeReceipt against th
 independently computed canonical digest. Only then invoke trusted persistence with
 that same snapshot. Malformed/mismatched trusted evidence throws; do not map corruption
 to absence or manufacture authentication. Media type is application/json. No new
-public WBS decoder or duplicate wire-schema tree is introduced.
+public WBS decoder or duplicate wire-schema tree is introduced. The existing response
+schema deliberately ignores added wire fields; verified artifacts preserve that
+forward-readable compatibility. Known-field shape, version, discriminants and complete
+correspondence still validate, while local persistence records remain strict.
 
 Verified history reads validate every accepted artifact and its link to the retained
 intent. Raw readRuntimeScope validates local persistence only and documents that it
@@ -198,8 +205,14 @@ never creates/upgrades/reset state. An old format1 store rejects incompatible be
 mode-changing setup, and its bytes/schema/records remain unchanged. External retained
 branch stores were not inventoried; an upgrade API is not invented here.
 
-Keep the existing first migration/down exports and hashes unchanged. Add a named
-ordered migration registry and FORMAT_HASH: SHA256 of UTF-8 JSON.stringify of
+Keep the existing first migration/down exports and hashes unchanged. The registry
+exposes ordered, complete, trimmed forwardStatements, consumed fail-fast by both
+bootstrap and physical reference construction. The pinned0001 contains simple DDL
+and is narrowly split on semicolons; new0002 uses explicit statement breakpoints.
+A future compound migration needs an explicit representation update and new proofs;
+this is no general SQL parser. Required intermediate SQL failure rejects bootstrap
+without publishing its target and removes staging. Add a named ordered migration
+registry and FORMAT_HASH: SHA256 of UTF-8 JSON.stringify of
 ['run-store-format',2,[[name,forwardHash,downHash],...]] in registry order. Validate
 run_meta schema_version2 and its original0001 hashes, plus a required run_format
 singleton containing bundle_hash and scope_count/intent_count/acceptance_count.
@@ -214,7 +227,14 @@ its existing transaction, not a serialized store-wide snapshot. Physical schema 
 derived from the entire ordered bundle, including empty declarations. New down refuses
 any runtime pin/history or nonzero retained counters; an unused reverse removes only
 new tables and restores schema_version1, preserving the original declarations/records.
-No incremental migration/rollback CLI or power-loss claim is supplied.
+The supported raw down caller first validates the complete installed format, then
+executes trimmed complete breakpoint statements in order inside an explicit caller
+transaction, stops at the first error and rolls back/rethrows. The down script checks
+the required schema2 run_meta singleton before any DROP. Its SQL guards establish
+runtime-use/count consistency, not independent cryptographic authentication of the
+full format. Bun1.4.2 whole-script run/exec can continue after an intermediate CHECK
+error; that invocation is outside this supported down contract. No incremental
+migration/rollback CLI, new public rollback API or power-loss claim is supplied.
 
 Both providers use shared pure planners and the same complete semantic conformance.
 SQLite additionally proves concurrent staging/acceptance, real abort rollback and

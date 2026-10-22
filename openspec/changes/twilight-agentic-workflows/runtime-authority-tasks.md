@@ -46,6 +46,7 @@
 - `apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/open-stores.ts`: complete schema2 bootstrap, old-format read-only compatibility inspection before mode changes, coherent current-format validation and existing failure classes/contention.
 - `apps/twilight-structure/twilight-dash/eslint.product.mjs`: @wbs/contracts only at the four exact design consumers.
 - `tools/tool-devsync/src/eslint-boundaries.test.ts`: effective positive/negative/parser/source-consumption cases for those exact consumers; no peer exception.
+- `tools/tool-devsync/src/workspace-projects.test.ts`: only the exact twilight-dash/wbs-contracts ALLOWED_DASH_EDGES fixture and truthful adjacent real-graph evidence; source-file restrictions remain independently pinned by effective ESLint tests.
 
 **Create tests:**
 
@@ -54,7 +55,7 @@
 - `apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-history.db.test.ts`: SQLite suite plus trusted row/catalog/empty-schema/down/old-format integrity.
 - `apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-races.db.test.ts`: actual separate-process staging/acceptance/commit boundaries.
 
-**Additionally permitted existing fixtures only:** `runs/sqlite/open-stores.db.test.ts`,
+**Additionally permitted existing fixtures only:** `runs/open-stores.test.ts` (all four runtime operations in the complete close fixture, and exact path-specific portable type dependency audit), `runs/sqlite/open-stores.db.test.ts`,
 `runs/sqlite/run-store.db.test.ts`, and `runs/testing/fixtures.ts` under the same CLI source.
 Correct only precise format-version/physical-catalog expectations or shared fixture
 construction made stale by schema2. Do not weaken invariants, assertions or timeouts.
@@ -83,21 +84,30 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       Different evidence, local provenance, canonical bytes or cross-scope identity
       refuses without history mutation. Missing links/gaps/reordered events, wrong
       keys/digests/generation progression and marker-count loss throw before absence.
+      Compare current-epoch intent labels with the same admitted OwnershipStatus;
+      prove real read/reopen corruption refusal while retaining valid receiver/local
+      label differences, expiry and takeover. Older labels have no independent ledger.
 - [ ] 1.3 Build schema2 from unchanged0001 plus additive0002. Pin complete ordered
       name/forward/down bundle with FORMAT_HASH and required run_format counts. Derive
       full physical schema, including empty new tables. Build a genuine format1 fixture
       from original0001 and first hashes; open must reject before mode changes and leave
       complete bytes/schema/records unchanged. Current format absent/unreadable/malformed,
       changed first/bundle hash and altered empty declarations retain precise failures.
+      Both bootstrap and physical reference consume trimmed complete forwardStatements
+      fail-fast; intermediate SQL failure leaves no published target or staging.
       Unused new down restores exact original schema/records; any pin/history/counter or
-      partial loss refuses. Real transaction abort and separate-process before/after
+      partial loss refuses under a prevalidated full-format, explicit-transaction,
+      fail-fast trimmed-statement caller. Required schema2 run_meta is checked before
+      DROP. Whole-script Bun execution is not this contract. Real transaction abort and separate-process before/after
       COMMIT/reopen must prove atomic row/revision/count changes. No power-loss claim.
 - [ ] 1.4 Implement verified artifact acceptance/read. Snapshot guard/intent/ref before
       awaits, use actual ArtifactStore bytes, strict UTF-8/JSON and complete shared schema,
       then complete shared correspondence with independent SHA256. Reject absence,
-      unreadability/corruption, malformed/unknown/dependent-order wire bodies and valid
+      unreadability/corruption, malformed known fields/dependent-order wire bodies and valid
       wrong scope/ledger/command/digest/authority/kind without local acceptance. Verify
-      every historical evidence link on reads. No async validation inside SQLite or new
+      every historical evidence link on reads. Preserve the public response schema
+      ignoring added wire fields with a positive real-artifact compatibility case;
+      local retained records remain strict. No async validation inside SQLite or new
       authentication/current-authority inference. Keep raw port preconditions explicit.
 - [ ] 1.5 From restored green, observe isolated faults for each genuinely changed
       safety check/dependency: new owner gate, identity/duplicate comparison, pending
@@ -119,7 +129,7 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       self-review and explicitly release source hold. Root owns commits/reviews and
       later cohesive publication/gate/CI; no local acceptance box implies S0/S7a done.
 
-**Exact validation commands:** From the worktree root, use `bun test apps/twilight-structure/twilight-dash/cli/src/runs` for the final complete RunStore suite. Run the new migration pair through `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0002-runtime-authority/migration.sql apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0002-runtime-authority/down.sql`. Inspect actual Nx project targets before selecting relevant uncached typecheck/lint commands; preserve full graph payload and separate invocation metadata.
+**Exact validation commands:** Run `bun test` with cwd `apps/twilight-structure/twilight-dash/cli/src/runs` for the complete source RunStore suite and preserve the explicit source-file inventory. The original root bare-path pattern also collected compiled `dist` tests after required typecheck; retain its failed invocation separately. A corrected final run is authorized only after the named fixture and discovery failures are repaired. Do not move or delete build outputs to hide them. Run the new migration pair through `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0002-runtime-authority/migration.sql apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0002-runtime-authority/down.sql`. Inspect actual Nx project targets before selecting relevant uncached typecheck/lint commands; preserve full graph payload and separate invocation metadata.
 
 **Report:** `.superpowers/sdd/runtime-authority-tasks/task-1-report.md`, evidence
 `task-1-evidence/` with distinct `.meta.json` invocation metadata. No worker commits,

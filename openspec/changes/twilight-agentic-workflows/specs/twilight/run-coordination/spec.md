@@ -163,6 +163,12 @@ RunStore SHALL retain an immutable receiver pin and exact canonical authority in
 - **THEN** the acceptance remains inspectable history and does not establish the replacement owner's grant
 - **AND** only an accepted acquisition staged in the current local epoch may establish that epoch's historical mapping
 
+#### Scenario: A current-epoch intent has a different local owner label
+
+- **WHEN** a retained current-epoch intent owner label differs from the owner retained in the admitted OwnershipStatus
+- **THEN** inspection and mutation throw before returning history
+- **AND** different local and receiver owner labels remain valid
+
 #### Scenario: An unresolved authority command is followed by another
 
 - **WHEN** a different authority command is staged while one remains unresolved in the scope
@@ -184,9 +190,16 @@ SQLite RunStore SHALL preserve the original migration identities and bootstrap t
 - **THEN** compatibility inspection rejects it before mode-changing configuration
 - **AND** its bytes, declarations and retained records remain unchanged
 
+#### Scenario: An intermediate bootstrap statement fails
+
+- **WHEN** an ordered complete forward statement fails during bootstrap
+- **THEN** bootstrap stops, throws and leaves neither a published store nor staging
+- **AND** physical reference construction follows the same fail-fast statement contract
+
 #### Scenario: Runtime history reaches the new down script
 
-- **WHEN** a pin, intent, acceptance or inconsistent retained count exists
+- **GIVEN** the complete installed format was validated and the caller executes trimmed complete statements in order within an explicit transaction, rolling back and throwing on the first error
+- **WHEN** a pin, intent, acceptance, invalid required schema2 metadata or inconsistent retained count exists
 - **THEN** the new down script refuses before deleting runtime history
 - **AND** only an unused consistent reverse restores the original schema and records
 
@@ -198,6 +211,12 @@ Application acceptance and history reads SHALL read actual artifact bytes, valid
 
 - **WHEN** a retained artifact has valid wire shape but differs in scope, ledger, command, digest or request-derived acceptance
 - **THEN** verified acceptance and history inspection throw without recording a local acceptance
+
+#### Scenario: A compatible receipt adds wire fields
+
+- **WHEN** a retained receipt adds fields ignored by the existing public response schema and all known fields and correspondence validate
+- **THEN** verified acceptance and history reads preserve that response compatibility
+- **AND** strict local persistence records do not gain unknown fields
 
 #### Scenario: Caller input changes during artifact verification
 

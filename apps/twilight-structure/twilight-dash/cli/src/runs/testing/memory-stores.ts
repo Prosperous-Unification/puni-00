@@ -25,6 +25,15 @@ import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
 import {
+  auditRuntimeCatalog,
+  inspectRuntimeScope,
+  planRuntimeAcceptance,
+  planRuntimePin,
+  planRuntimeStage,
+  type RuntimeCatalog,
+  type RuntimeScopeRecord,
+} from '../plan-runtime';
+import {
   planConsumption,
   planDecision,
   type RecordedConsumption,
@@ -62,6 +71,14 @@ import type {
   Run,
 } from '../records';
 import type { RunStore, StoreReply } from '../run-store';
+import {
+  decodeRuntimeAcceptanceInput,
+  decodeRuntimeGuard,
+  decodeRuntimePin,
+  decodeRuntimeScope,
+  runtimeScopeKey,
+} from '../runtime-codecs';
+import type { RuntimeAcceptance, RuntimeIntent } from '../runtime-records';
 
 export interface MemoryOptions {
   readonly organizationId: OwnershipStatus['organizationId'];
@@ -95,6 +112,32 @@ export function createMemoryStores(options: MemoryOptions): {
   };
   let isClosed = false;
   let reserved = 0;
+  const runtimeScopes = new Map<string, RuntimeScopeRecord>();
+  const runtimeIntents = new Map<string, RuntimeIntent>();
+  const runtimeAcceptances = new Map<string, RuntimeAcceptance>();
+  const runtimeCounts = { scopes: 0, intents: 0, acceptances: 0 };
+  function readRuntimeCatalog(): RuntimeCatalog {
+    if (
+      // Proof: F50 ignored a dropped memory pin with a retained count; 'memory count audit' failed and exact restoration passed.
+      runtimeScopes.size !== runtimeCounts.scopes ||
+      runtimeIntents.size !== runtimeCounts.intents ||
+      runtimeAcceptances.size !== runtimeCounts.acceptances
+    )
+      throw new Error('corrupt memory runtime counts');
+    const catalog = structuredClone({
+      scopes: [...runtimeScopes.values()],
+      intents: [...runtimeIntents.values()],
+      acceptances: [...runtimeAcceptances.values()],
+    });
+    auditRuntimeCatalog(catalog, status);
+    return catalog;
+  }
+  function advanceRuntime(scope: Parameters<typeof runtimeScopeKey>[0], revision: number): void {
+    const key = runtimeScopeKey(scope);
+    const retained = runtimeScopes.get(key);
+    if (retained === undefined) throw new Error('runtime scope is not pinned');
+    runtimeScopes.set(key, { ...retained, revision });
+  }
   const decisions = new Map<string, Decision>();
   const consumptions = new Map<string, RecordedConsumption>();
   const receipts = new Map<string, RecordedReceipt>();
@@ -164,6 +207,63 @@ export function createMemoryStores(options: MemoryOptions): {
     return decodeAttempt(structuredClone(attempt));
   }
   const port: RunStore = {
+    async pinRuntimeScope(requested, input) {
+      const ownership = decodeOwnership(structuredClone(requested));
+      const snapshot = structuredClone(input);
+      const observedAt = observeClock();
+      // Proof: F48 bypassed the memory pin owner gate; 'owner fencing precedes corrupt or absent' failed and exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const pin = decodeRuntimePin(snapshot);
+      const reply = planRuntimePin(readRuntimeCatalog(), pin, organization);
+      if (reply.kind === 'applied') {
+        runtimeScopes.set(runtimeScopeKey(pin.scope), structuredClone({ pin, revision: 0 }));
+        runtimeCounts.scopes = addInteger(runtimeCounts.scopes, 1);
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async readRuntimeScope(input) {
+      assertOpen();
+      return await Promise.resolve(
+        structuredClone(
+          inspectRuntimeScope(readRuntimeCatalog(), decodeRuntimeScope(input), status),
+        ),
+      );
+    },
+    async stageRuntimeRequest(inputGuard, canonicalRequest) {
+      const snapshot = structuredClone(inputGuard);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(snapshot.ownership);
+      // Proof: F32 bypassed the memory staging owner gate; 'owner fencing precedes corrupt or absent' failed and exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const guard = decodeRuntimeGuard(snapshot);
+      const reply = planRuntimeStage(readRuntimeCatalog(), guard, canonicalRequest, status);
+      if (reply.kind === 'applied') {
+        runtimeIntents.set(reply.value.commandId, structuredClone(reply.value));
+        runtimeCounts.intents = addInteger(runtimeCounts.intents, 1);
+        advanceRuntime(guard.scope, reply.value.stagedRevision);
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async recordRuntimeAcceptance(inputGuard, input) {
+      const snapshotGuard = structuredClone(inputGuard);
+      const snapshotInput = structuredClone(input);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(snapshotGuard.ownership);
+      // Proof: F49 bypassed the memory acceptance owner gate; 'owner fencing precedes corrupt or absent' failed and exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const guard = decodeRuntimeGuard(snapshotGuard);
+      const accepted = decodeRuntimeAcceptanceInput(snapshotInput);
+      const reply = planRuntimeAcceptance(readRuntimeCatalog(), guard, accepted, status);
+      if (reply.kind === 'applied') {
+        runtimeAcceptances.set(reply.value.commandId, structuredClone(reply.value));
+        runtimeCounts.acceptances = addInteger(runtimeCounts.acceptances, 1);
+        advanceRuntime(guard.scope, reply.value.acceptedRevision);
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
     async acquireOwnership(identity, expectedEpoch) {
       const observedAt = observeClock();
       return await Promise.resolve(

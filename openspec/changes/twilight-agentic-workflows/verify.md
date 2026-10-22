@@ -1956,3 +1956,73 @@ The primary registry0.8.0 tarball (218212 bytes,244 entries) matched its publish
 SHA512 integrity, but its root and sync/async declarations lack the new surface.
 The package was inspected, not executed. No CTT source, dependency or publication
 changed; a suitable package remains a future coordinator-admission prerequisite.
+
+## Durable runtime authority implementation candidate, 2026-10-22
+
+Task1 retains exact authority intents and receipt artifacts inside the existing
+RunStore, with shared memory/SQLite rules and immutable local provenance. Schema2
+bootstraps unchanged0001 plus additive0002; current format, complete physical schema
+and runtime counts/history are audited before absence. There is no sender dispatch,
+claim/write composition, executor launch, coordinator, credentials or activation.
+Parent5.6 and final cohesive acceptance remain open pending independent review.
+
+The existing public response schema deliberately ignores added wire fields. Actual
+artifact verification preserves that compatibility while enforcing known fields and
+complete correspondence; local retained records remain strict. Current-epoch local
+owner labels are checked against the same admitted OwnershipStatus, independently
+of receiver labels. Historical owner labels have no independent owner ledger.
+
+Bun1.4.2 whole-script Database.run continued after an intermediate CHECK and later
+DROP; a failing statement ending in semicolon plus newline also returned normally.
+Bootstrap/reference now consume ordered complete trimmed forwardStatements. The new
+down's supported caller first validates the complete installed format and uses an
+explicit transaction with trimmed breakpoint execution, first-error rollback/rethrow.
+Its SQL guard checks runtime-use/count/meta consistency, not independent full-format
+authentication. No rollback API/CLI, old-format upgrade or power-loss proof is claimed.
+See the [observed SQL incident](../../../docs/findings/checks-that-cannot-fail.md#bun-sqlite-whole-script-errors-can-be-masked).
+
+The prescribed root bare-path Bun invocation failed510pass/22fail/20errors/1421
+expect calls across40files in63.74s: two existing exact lifecycle/import fixtures
+needed the four new methods and pure type dependency;20generated dist modules were
+also collected by Bun's substring pattern and could not resolve aliases. Both the
+failed logs and unchanged first freeze are retained. Root authorized only the exact
+fixtures and one corrected full source run; no dist output was moved or deleted.
+
+The corrected command was bun test with cwd CLI src/runs:512pass/0fail,1422Bun
+expect calls,20source files,64.75s (64.803s wrapper), no skips. All four policy files
+passed56tests/361Bun expects. Dash/tool-devsync uncached lint/typecheck, exact changed
+formatting/diff and new migration-pair lint passed. Tool lint has3existing unused
+eslint-disable warnings; color-environment warnings remain. Normal scoped OpenSpec
+passed1change with10inherited warnings; strict/all validation is not claimed here.
+Race-focused6tests/44Bun expects passed before the full run; node:assert counts are
+not included in Bun's expect total. No broad package/backend/host/browser repeat ran.
+
+R5 retained73trial windows:68observed named production-path failures and5masked/setup
+trials with no proof claim. F34c/F53c supersede malformed/masked SQL variants;F24b
+observes actual format1 byte change;F58 observes unchecked generation acceptance;F66
+injects an adapter dependency into the new portable type;F67 removes the real closed
+fence and exposes pinRuntimeScope's missing rejection. The earlier F18 ambiguous
+anchor preflight stopped before mutation. Artifact-read dependency and never-pinned
+diagnostic faults retain their narrower strengths. Existing reused guards were not
+blanket recertified. All failed drivers, raw outputs and exact restoration identities
+remain in the task evidence rather than being counted as successful negatives.
+
+Root audited11776tracked/new source paths against the completed final snapshot with
+no mismatches,312invocation log sizes,73exact original/restored fault hashes and both
+complete-suite freezes. HEAD, full status, semantic staged identities and raw index
+bytes were unchanged in those windows. All212protected file hashes/modes/sizes match;
+all210previous SQL and both old portable files remain untouched. The only added SQL
+is the0002pair. The root audit's initial symlink-directory read error was corrected
+by hashing symlink target spelling; no evidence pass was claimed from that failed
+audit attempt. Ignored task report/evidence remain available for independent review.
+
+At immutable parentPR660 head3fdc85cdcffa41e57936764c8de62a2557cf166b, the canonical
+h2 wrapper printed that SHA and completed exit0: workspace180tasks/49projects plus9
+dependencies50m9s, Twilight10tasks48m45s, both source lints and solver-image smoke
+3tests/15assertions3m5s. Raw log SHA256
+f175802c72a273071a285ca2e9ae44716c25518e9bc684e847f766edaea1032a.
+Tool-wiki inactive/certifiedfalse, legacy builder/pip warnings and startup curl56
+remain recorded. Both browser2 CI attempts at that parent cancelled25m; pixels stays
+red. Its host pass does not certify this uncommitted authority candidate or repair
+CI. Separate reviewed budget correction and final cohesive exact-SHA gate/CI remain
+required. WBS MCP authentication is unavailable; no remote status update asserted.

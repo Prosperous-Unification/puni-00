@@ -74,11 +74,14 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 // product-local effective ESLint tests pin @tools/fleet-plan to cli.ts and its tests,
 // @tools/test-scratch to tests and @twilight-burokrat/judge to cli.ts, `authority/` and tests,
 // and refuse a sibling alias and a relative path into Burokrat.
+// Proof: omitting the WBS pair reported `twilight-dash -> wbs-contracts` in the real graph oracle.
+// Effective ESLint tests separately pin its public alias to the four runtime history consumers.
 const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-clock-reads'],
   ['twilight-dash', 'tool-test-scratch'],
   ['twilight-dash', 'twilight-burokrat'],
+  ['twilight-dash', 'wbs-contracts'],
 ] as const;
 
 // Both suite apps' `no-ambient-clock.test.ts` apply the shared clock-read detector. Proof:
