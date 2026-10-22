@@ -269,11 +269,13 @@ export const patchProject = defineEndpointShape({
   document: { summary: 'Update the addressed project’s settings.' },
 });
 
+// Proof: omitting boundary-infeasible made the generated client refuse its typed 409 as invalid_response (2026-10-22).
 const retryRefusal = responseSchema(
   type({ code: "'stale-input-hash'", currentInputHash: 'string' })
     .or({
       code: "'not-retryable'",
-      state: "'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'idle'",
+      state:
+        "'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'boundary-infeasible' | 'idle'",
     })
     .or({ code: "'already-running'" })
     // Proof: removing this variant made the typed client classify its modeled

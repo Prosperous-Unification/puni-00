@@ -1884,3 +1884,25 @@ it('preserves exact captured remote coordinates and labels through the HTTP tree
     },
   ]);
 });
+
+it('keeps the typed boundary Retry refusal through the generated client', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(
+      response(
+        409,
+        JSON.stringify({
+          code: 'not-retryable',
+          state: 'boundary-infeasible',
+        }),
+      ),
+    ),
+  );
+  await expect(httpProjectApi('token').retryOptimization('p1', 'pri', 'q1')).rejects.toMatchObject({
+    problem: {
+      kind: 'refusal',
+      operation: 'postApiProjectsByIdOptimizationRetry',
+      refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+    },
+  });
+});

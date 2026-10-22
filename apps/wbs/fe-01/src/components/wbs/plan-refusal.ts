@@ -667,6 +667,18 @@ export const failureText = (thrown: unknown, fallback: string): string =>
       ? thrown.message
       : fallback;
 
+/** A Retry refusal reconciles the displayed question through a fresh tree, never its response state. */
+export function isOptimizationRetryRefusal(thrown: unknown): boolean {
+  if (!(thrown instanceof WbsRequestError)) return false;
+  const problem = thrown.problem;
+  return (
+    problem.kind === 'refusal' &&
+    problem.operation === 'postApiProjectsByIdOptimizationRetry' &&
+    'code' in problem.refusal &&
+    problem.refusal.code === 'not-retryable'
+  );
+}
+
 /** Whether a validated client-boundary failure leaves the write's commit outcome unknown. */
 export const isAmbiguousWriteFailure = (thrown: unknown): boolean =>
   thrown instanceof WbsRequestError && thrown.problem.kind === 'failure';
@@ -833,8 +845,21 @@ export const PLAN_REFUSALS: RefusalWords = {
  * @param thrown Whatever the request rejected with; anything that is not an
  * `Error` reads as an unknown code rather than being guessed at.
  */
-export const refusalSentence = (thrown: unknown): string =>
-  sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+export const refusalSentence = (thrown: unknown): string => {
+  if (thrown instanceof WbsRequestError) {
+    const problem = thrown.problem;
+    if (
+      problem.kind === 'refusal' &&
+      problem.operation === 'postApiProjectsByIdOptimizationRetry' &&
+      'code' in problem.refusal &&
+      problem.refusal.code === 'not-retryable' &&
+      problem.refusal.state === 'boundary-infeasible'
+    ) {
+      return 'This captured optimization question cannot fit its fixed external boundaries. The displayed valid schedule is retained.';
+    }
+  }
+  return sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+};
 
 /**
  * be-01's word for "the row you named is not there", which is the one refusal

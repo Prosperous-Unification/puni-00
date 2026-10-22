@@ -678,7 +678,15 @@ export type OptimizerRetryRefusal =
   | { code: 'stale-input-hash'; currentInputHash: string }
   | {
       code: 'not-retryable';
-      state: 'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'idle';
+      state:
+        | 'ready'
+        | 'pending'
+        | 'retrying'
+        | 'failed'
+        | 'corrupt'
+        | 'plan-infeasible'
+        | 'boundary-infeasible'
+        | 'idle';
     }
   | { code: 'already-running' }
   | {

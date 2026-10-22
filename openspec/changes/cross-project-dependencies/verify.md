@@ -1672,3 +1672,87 @@ full h2/h4 host gate; CI/secrets/migration full gate; activation, Kubernetes int
 production deployment and independent implementation review. These are not claims
 of this prerequisite. Ordinary/shared admission tests execute production functions
 with controlled Docker adapters, not a real image daemon or installed host.
+
+## 2026-10-22 — bounded typed Retry refusal reconciliation consumer
+
+Base `a0a281d99882a01e6552e06ac51509833ddb5214`, isolated clone
+`/tmp/puni-certificate-ui`. This packet adds `boundary-infeasible` to the
+existing shared Retry 409 schema/type and preserves that envelope through the
+generated HTTP client. The writer classifies validated not-retryable Retry
+refusals as an obligation to reread only the tree, unioned with already
+completed resources. Refused writes are still refused, never marked committed.
+The response never writes a terminal state into the cue. Boundary refusal copy
+names the captured question and retained valid schedule.
+
+Task 9.2 remains unchecked. There is no certificate summary tree DTO or terminal
+cue arm in this packet, and no backend producer, connected optimization wiring,
+queue/admission/slot-release/restart proof, or full-question Retry request.
+Production connected `engine_unavailable` behavior is untouched. Fixtures test
+the consumer contract; they do not claim a live terminal outcome. Exact Q1
+boundary-terminal tree/return-to-Q1 presentation, summary field correspondence,
+Q48 evidence, retained Fast geometry and remote-dependency/readiness inspection
+remain for the certificate DTO/cue packet.
+
+TDD observations:
+
+- Before the schema arm was added, generated-client `keeps the typed boundary
+Retry refusal through the generated client` failed: `invalid_response`
+  failure instead of the expected typed refusal.
+- Before recovery was added, `rereads only the tree after a typed terminal Retry
+refusal and preserves completed resources` failed: `[directory]` instead of
+  `[directory, tree]`.
+
+Watched independent faults, restored after each:
+
+| Fault                                                | Command/test                                                                        | Observed failure                                                             |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Replace typed Retry recovery predicate with false    | Configured Vitest DOM `optimization-retry-reconciliation.test.tsx -t 'Q1 terminal'` | All three Q2 failed/corrupt/ready cases fail: tree read count 1 instead of 2 |
+| Remove writer owner guard before refusal publication | Configured Vitest node `plan-writer.test.ts -t 'retired writer'`                    | Refusal array has a terminal sentence instead of `[]`                        |
+
+The mounted same-project runtime replacement case passes and checks no replacement
+refresh/toast. Removing the writer guard alone leaves that mounted test green:
+runtime isolation supplies an independent boundary. It is **not** claimed as a
+watched mounted proof of the writer guard. A mounted guard-specific negative
+remains open; the adjacent guard Proof records only the observed unit failure.
+
+Mounted Q1→Q2 cases hold the reconciliation read, check old unavailable state
+while it is pending, then open the real menu. Fresh Q2 failed/corrupt still offers
+Retry (and sends Q2's input hash), while Q2 ready removes it. The displayed Fast
+label remains authoritative. Q2 changes contract/budget alongside its input hash;
+this does not prove exact-question comparison when inputHash alone is unchanged.
+
+Validation:
+
+- Frozen Bun install passed (`BUN_TMPDIR=/tmp`, task-local install cache).
+- Focused configured Vitest DOM run of `optimization-retry-reconciliation`,
+  `optimization-integration`, `wbs-api`, and `plan-writer`: 110 passed.
+- Shared `project-shapes.test.ts`: 4 passed, 39 assertions.
+- Auckland configured Vitest suite: 5 passed across 4 files.
+- `openspec validate --all --json`: exit 0, no failed checks.
+- OpenAPI emitted using the production CLI to `/tmp/certificate-openapi.json`.
+- Required configured Nx frontend target attempted twice; its node dependency
+  exits nonzero in this sandbox. Direct configured node suite: 990 passed,
+  5 failed in four subprocess suites (`spawnSync bun/sh EPERM`, plus missing
+  timeout-child output). Scoped unsandboxed rerun of those exact four suites
+  (`playwright-config`, `vitest-budget`, `node-tier`, `short-date`) passed:
+  33 tests across 4 files. This establishes the sandbox limitation without
+  claiming the original full target passed.
+
+Final lint/type/UTC full-suite results are recorded below before commit.
+Host SHA gate, full build, browser gate and deployment are not run by this
+isolated frontend packet; integration owner must gate the reviewed candidate.
+
+Final checks: frontend Nx lint and contracts Nx lint passed. Contracts and frontend
+Nx typecheck targets passed before the mounted fixture was added; the final
+frontend `tsc --build --force` passed after correcting the corrupt fixture to
+carry its required `message`. The restored focused set passed 110 tests; the
+final strengthened Q2-hash race fixture rerun passed all 4 tests. Changed-file
+Prettier check and `git diff --check` passed. A supplementary strict validation
+of this change exits 1 solely on the existing (>500-character) requirement
+`Read-only dependency observations are explicit`; no spec text was modified.
+The required non-strict all-change validation remains exit 0.
+
+The extra direct configured full UTC DOM run was stopped on the integration
+owner's request after a final poll still showed no completion output (only runner
+startup). It is **incomplete**, not passing; its exact process group was inspected
+and terminated without touching another lane. Normal commit hooks passed.

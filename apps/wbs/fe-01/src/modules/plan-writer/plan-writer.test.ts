@@ -410,3 +410,48 @@ it('reports a retained external prerequisite without retry or reread', async () 
     { sentence: 'That change could not be completed (referenced_by_external_dependency).' },
   ]);
 });
+
+it('rereads only the tree after a typed terminal Retry refusal and preserves completed resources', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['directory'], () => Promise.resolve());
+    await write.perform(['tree'], () =>
+      Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdOptimizationRetry',
+          refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+        }),
+      ),
+    );
+  });
+  expect(outcome).toBe('refused');
+  expect(recorded.rereads).toEqual([['directory', 'tree']]);
+  expect(recorded.refusals).toEqual([
+    {
+      sentence:
+        'This captured optimization question cannot fit its fixed external boundaries. The displayed valid schedule is retained.',
+    },
+  ]);
+});
+
+it('a retired writer does not publish or reread a typed terminal Retry refusal', async () => {
+  const recorded = recordingHost();
+  let owner = fakeFeedOwner();
+  const writer = createPlanWriter({ ...recorded.host, readRefreshOwner: () => owner });
+  await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      owner = fakeFeedOwner();
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdOptimizationRetry',
+          refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+        }),
+      );
+    });
+  });
+  expect(recorded.refusals).toEqual([]);
+  expect(recorded.rereads).toEqual([]);
+});
