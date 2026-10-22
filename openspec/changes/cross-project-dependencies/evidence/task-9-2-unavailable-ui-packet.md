@@ -77,3 +77,47 @@ The broader five-suite Vitest command passed 551/551 tests in 185.66 seconds
 ```sh
 TZ=UTC bunx vitest run src/components/wbs/plan-dependencies.test.tsx src/components/wbs/gantt-panel.test.tsx src/components/wbs/plan-export.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/plan-mermaid.test.ts --no-file-parallelism --maxWorkers=1
 ```
+
+## Review corrections — export reasons and inspection wording
+
+Astra's bounded review found that the production CSV/Markdown header writer still
+classified every non-cycle refusal as calendar overflow, despite the widened
+export type. It also found that the new shared refusal sentences promised
+inspection of external dependencies/readiness before frontend delivery existed.
+The corrections use the captured structured reason in both export formats,
+preserve legacy cycle/range wording, and remove the inspection promise. Only the
+editable table says “The plan remains editable”, next to the tested local editor.
+The shared chart/export explanation makes no inspection or editability promise.
+
+Six new production export cases cover CSV and Markdown for missing-calendar
+project labels and both unavailable-engine reasons. Each also checks that
+unscheduled dates remain suppressed. Two mounted table cases assert the limited
+editability wording and reject the unsupported inspection promise.
+
+Before changes, the selection failed all eight new assertions
+(`/tmp/persisted-ui-review-fix-red2.log`). After changes, all six export cases and
+the four existing structured table/chart cases passed (10 tests;
+`/tmp/persisted-ui-review-fix-green.log`). Independent fault injections then
+proved each correction:
+
+- Forced the export reason branch back to its old calendar-range catch-all,
+  leaving the wording correction intact: all six new CSV/Markdown tests failed
+  (`/tmp/persisted-ui-export-negative.log`, exit 1).
+- Restored only the unsupported shared inspection promise, with the export
+  correction restored: both mounted table cases failed the negative wording
+  assertion (`/tmp/persisted-ui-promise-negative.log`, exit 1).
+
+Both mutations were restored. Adjacent `Proof:` comments name those observations.
+Task 9.2 remains unchecked; this correction adds no external relationship view,
+readiness delivery, terminal certificate or Retry behavior.
+
+Final restored verification used the configured Vitest runner with
+`--no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000`:
+full `plan-export.test.ts` passed 73/73 (`/tmp/persisted-ui-review-fix-export-final.log`),
+and the table/Gantt selection `-t 'explains
+(dependency_calendar_missing|engine_unavailable)'` passed 4/4 with 396 explicitly
+skipped (`/tmp/persisted-ui-review-fix-views-final.log`).
+`bunx tsc --build --force apps/wbs/fe-01/tsconfig.json --pretty false` and scoped
+ESLint on the five changed frontend files exited 0 with no output. Scoped
+Prettier and `git diff --check` passed. No broader five-suite rerun, full frontend
+Nx target, browser tests, build or host gate was run for this correction.

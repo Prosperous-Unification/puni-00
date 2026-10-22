@@ -2564,7 +2564,7 @@ export function WbsTable({
           className="border-destructive/40 bg-destructive/10 mb-3 rounded-md border px-3 py-2 text-sm"
           role="alert"
         >
-          {scheduleUnavailableWords(scheduleError)}
+          {scheduleUnavailableWords(scheduleError)} The plan remains editable.
         </p>
       )}
       {scheduleError === 'cycle' && (

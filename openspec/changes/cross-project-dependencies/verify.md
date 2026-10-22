@@ -1020,3 +1020,10 @@ and passed afterward; frontend TypeScript passed. The packet records scoped
 lint/format status and the broader five-suite regression passing 551/551 tests.
 Persisted external endpoint projection/navigation and terminal boundary certificate
 UI remain open; task 9.2 stays unchecked.
+
+The bounded UI packet's Astra review corrections also cover CSV/Markdown
+structured refusal explanations and remove the unproven external inspection
+promise. Six new export tests and two mounted wording assertions failed before
+implementation; independent export catch-all and inspection-promise mutations
+then failed six and two tests respectively. The packet evidence records the
+restored checks; task 9.2 remains open.

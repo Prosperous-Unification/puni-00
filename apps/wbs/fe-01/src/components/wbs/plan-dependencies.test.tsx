@@ -2198,6 +2198,8 @@ describe('dependencies in the table — cross-review findings', () => {
       );
       expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
       expect(screen.getByRole('alert')).toHaveTextContent(refusal.words);
+      expect(screen.getByRole('alert')).toHaveTextContent('The plan remains editable.');
+      expect(screen.getByRole('alert')).not.toHaveTextContent('readiness remain inspectable');
       expect(screen.getByLabelText('Add a dependency to 010')).toBeInTheDocument();
     });
   }
