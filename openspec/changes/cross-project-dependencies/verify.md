@@ -1158,3 +1158,25 @@ fixtures; production mounted external copy remains a 409. Whole-project copy
 still depends on task 8.1; task 8.2 remains unchecked. Host gate and mounted MCP
 copy equivalence are unverified in this packet. The evidence records the
 separately reproduced pre-existing command-fixture failure and follow-up repair.
+
+Independent Astra High [review](evidence/task-8-subtree-copy-review.md) approved
+`da939aa99` and the separate baseline fixture repair `ecf760d08`, with no
+actionable findings. Root integrated them at `5739c6275` and reran the eight
+copy, history, lifecycle, admission and command suites named in that review:
+**260 passed, 0 failed, 2,898 assertions**. `git diff --check HEAD~3..HEAD`
+and `git status --short` were clean after the merge. The normal merge commit
+hooks passed format, lint, secrets and nesting; Tool Wiki reported inactive
+and uncertified, which is not a release certification.
+
+At the same feature head, `openspec validate --all --json` passed **268/268**.
+The configured `wbs-solver-py:test` target initially failed import because the
+local interpreter lacked pinned `ortools` and `jsonschema`. The repository's
+`wbs-solver-py:setup-local-solver` target then provisioned and proved the pinned
+Python 3.14.7 / solver 0.4.0 environment with a feasible golden request; with
+that interpreter on `PATH`, the configured Python test target passed **276/276**.
+The frontend `wbs-fe-01:test` target reached 992 passed and one `spawnSync bun
+ETIMEDOUT` in the browser-port probe under parallel worker load; the focused
+18-case probe passed when isolated. A serial invocation of the configured UTC
+Vitest unit suite then passed **993/993 across 79 files**. This diagnoses the
+local parallel timeout but does not establish the second timezone/browser tier
+or the exact-SHA host gate.
