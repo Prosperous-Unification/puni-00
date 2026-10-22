@@ -973,3 +973,26 @@ filter failed three intended cases. After integration, undo and connected
 command admission suites passed 206/206 (1,858 assertions). The prior CI run
 also has frontend fixture/typecheck and devsync inventory failures, handled in
 separate packets; its twilight gate and a refreshed full CI run remain pending.
+
+## Workspace CI — frontend fixture and devsync inventory correction
+
+The prior pushed head's workspace job also failed on stale fake-project API
+step-code expectations and on unregistered connected support services and the
+frontend dependency-lookup module. The [independent Astra review](evidence/task-ci-frontend-devsync-review.md)
+approved the bounded correction: exact response assertions remain strict and
+all new service and module policy entries match production callers. Fresh
+focused runs passed 13 frontend tests and 34 inventory/module tests. The
+implementer's full devsync run passed 894 of 895 tests; its remaining poller
+clone-alternates failure passed in an independent-clone rerun, so full-suite
+convergence remains unverified.
+
+The reviewer also found two tracked admission evidence logs containing literal
+NUL bytes in printed node keys. Commits `af41d9799` and `8ebeb81de` replace
+four NUL bytes in each log with visible `\\0` escapes, preserving the observed
+key separator in reviewable text. With the required external TypeScript runtime
+set to `/home/df/wd/puni/puni-00/node_modules`, the production Tool Wiki pilot
+`pins exact pre-index tuples and passes observe lint from external trust`
+passed 1/1 with 60 assertions on the committed receipts. The same pilot had
+first failed on each binary log in turn, then refused a missing trusted runtime
+when run without that required environment variable. Full CI and the exact-SHA
+h2puni gate remain pending.
