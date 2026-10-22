@@ -14,6 +14,7 @@ import { runMigrations } from '../repository/migrate';
 import type { DnsTransport } from '../runtime/authoritative-dns/resolver';
 import type { EmailDeliveryConfig } from '../runtime/email-delivery-config';
 import { TEST_JWT_KEY } from './auth-fixture';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -66,6 +67,7 @@ export class BootedBrowserProcess {
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: BOOTED_INTERNAL_SECRET,
         browserSessionAuthority,
+        organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
         emailDelivery,
         delegationKeys,
         oidc,

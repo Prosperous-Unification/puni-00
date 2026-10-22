@@ -88,6 +88,8 @@ export * from './without-held-subtrees';
 export * from './in-progress-now';
 export * from './organization-access';
 export * from './project-address';
+// The three per-organization caps, their bound and the one limit decision (wbs-organization-limits).
+export * from './organization-limits';
 export * from './project-ownership';
 export * from './project-roll-up';
 export * from './public-email-domain';

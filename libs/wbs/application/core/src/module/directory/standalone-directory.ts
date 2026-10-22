@@ -20,6 +20,11 @@ const STANDALONE_RESOURCE_WRITE = 'resource writes run only inside a command bat
  * A public invocation binds explicit caller access once. Each raw store
  * mutation owns its own observation and UoW; compound service calls retain
  * their existing separate commits. Borrowed command stores stay raw.
+ *
+ * It carries no organization limit gauge (`wbs-organization-limits` L10): a
+ * count read here would not share the person write's unit of work, so a
+ * scoped agent promotion or agent add through it throws. No production HTTP
+ * route reaches person writes here; they go through a command batch.
  */
 export function standaloneDirectoryService(options: {
   readonly directory: DirectoryStore;

@@ -1,4 +1,9 @@
 import { unreachable } from '@/lib/http';
+import {
+  agentPersonLimitSentence,
+  capacityLimitSentence,
+  claimLimitSentence,
+} from '@/lib/organization-limit-words';
 import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 import {
   wbsFailureCode,
@@ -551,6 +556,12 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_resource':
     case 'exclusive_demand_is_one':
       return refusal.error;
+    // The organization limits (`wbs-organization-limits` L9): worded with the
+    // body's numbers by `limitSentence` before this code is ever read.
+    case 'agent_person_limit':
+    case 'claim_limit':
+    case 'capacity_limit':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -807,6 +818,22 @@ export const PLAN_REFUSALS: RefusalWords = {
       'That change cannot be made while the affected steps have individual parallelism overrides.',
     destination_claimed:
       'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
+    // The organization's cap on concurrent claims (`wbs-organization-limits`
+    // L9), for the code carried without its body; a refused batch is worded
+    // with the body's numbers by `limitSentence` instead.
+    // Proof: with this entry struck, `words the claim cap rather than naming
+    // its code` (claim-limit-words.test.ts) read the fallback carrying
+    // `claim_limit`; watched 2026-10-22.
+    claim_limit:
+      'Organization limit: your organization already holds as many concurrent claims as it may. Release a claim first. Nothing was changed.',
+    // The organization's cap on stated units per resource (`wbs-organization-limits`
+    // L2, L9), for the code carried without its body; a refused batch is worded
+    // with the body's numbers by `limitSentence` instead.
+    // Proof: with this entry struck, `words the capacity cap rather than naming
+    // its code` (capacity-limit-words.test.ts) read the fallback carrying
+    // `capacity_limit`; watched 2026-10-22.
+    capacity_limit:
+      'Organization limit: your projects together would state more units of that resource than your organization may. Lower another project’s capacity first. Nothing was changed.',
     children_claimed:
       'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:
@@ -860,8 +887,36 @@ export const refusalSentence = (thrown: unknown): string => {
       return 'This captured optimization question cannot fit its fixed external boundaries. The displayed valid schedule is retained.';
     }
   }
-  return sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+  // Proof: dropping the organization limit sentence made five limit-word cases read the code-only fallback.
+  return limitSentence(thrown) ?? sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
 };
+
+/**
+ * The sentence for a batch refused by an organization limit, naming the
+ * refusal body's numbers (`wbs-organization-limits` L14), or null for any
+ * other failure. Read from the body rather than the code, because the code
+ * alone is all {@link failureText} keeps and it carries no number.
+ */
+export function limitSentence(thrown: unknown): string | null {
+  if (!(thrown instanceof WbsRequestError) || thrown.problem.kind !== 'refusal') return null;
+  const problem = thrown.problem;
+  if (
+    problem.operation !== 'postApiProjectsByIdCommands' &&
+    problem.operation !== 'postApiDirectoryCommands'
+  )
+    return null;
+  const refusal = problem.refusal;
+  switch (refusal.error) {
+    case 'agent_person_limit':
+      return agentPersonLimitSentence(refusal);
+    case 'claim_limit':
+      return claimLimitSentence(refusal);
+    case 'capacity_limit':
+      return capacityLimitSentence(refusal);
+    default:
+      return null;
+  }
+}
 
 /**
  * be-01's word for "the row you named is not there", which is the one refusal

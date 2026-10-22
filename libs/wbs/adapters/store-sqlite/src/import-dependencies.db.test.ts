@@ -151,6 +151,9 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
           ...scope.stores,
           typedDependencies: {
             incidents: scope.stores.typedDependencies.incidents,
+            hasDeletingEndpoint: (
+              ...args: Parameters<typeof scope.stores.typedDependencies.hasDeletingEndpoint>
+            ) => scope.stores.typedDependencies.hasDeletingEndpoint(...args),
             listByProject: (projectId: string) =>
               scope.stores.typedDependencies.listByProject(projectId),
             listIncident: (projectIds: readonly string[]) =>

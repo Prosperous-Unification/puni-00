@@ -10,6 +10,7 @@ import type { DirectoryStore } from './directory-store';
 import type { EstimateStore } from './estimate-store';
 import type { EventLogStore } from './event-log-store';
 import type { MeasureStore } from './measure-store';
+import type { OrganizationLimitGauge } from './organization-limits';
 import type { PlanEventStore } from './plan-event-store';
 import type { PriorityBandStore } from './priority-band-store';
 import type { StepProgressStore } from './progress-store';
@@ -38,6 +39,16 @@ export interface PlanTransactionalStores {
    */
   projectRanks?: ProjectRankStore & SharedPeopleStore;
   directory: DirectoryStore;
+  /**
+   * The organization limits a write consults inside its own transaction
+   * (`wbs-organization-limits`). Only the catalogs a unit of work admits
+   * carry it: on SQLite when `openSqliteSource` is given the deployment
+   * defaults, on memory only through `openMemorySourceFixture` given them
+   * (`openMemorySource()` never carries it). Optional for the public catalogs
+   * and for legacy fixture adapters; an acquisition under scoped access
+   * through a graph without it throws rather than admitting uncapped.
+   */
+  organizationLimits?: OrganizationLimitGauge;
   capacity: CapacityStore;
   /** How many units of each resource a project's plan may use (`wbs-resources`). */
   resourceCapacity: ResourceCapacityStore;

@@ -1,4 +1,10 @@
-import { findTypedEndpointDefect, type PriorityBand, type StoredStepBlockage } from '@wbs/domain';
+import {
+  type CapacityLimitCrossed,
+  findTypedEndpointDefect,
+  type PriorityBand,
+  refuseCapacityStatement,
+  type StoredStepBlockage,
+} from '@wbs/domain';
 
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import type { CommandCaller } from '../../ports/command-access';
@@ -204,6 +210,44 @@ export class ImportedPlanResource {
     const written = await this.#stores.resourceCapacity.set(projectId, resourceId, units, stamp);
     if (!written.ok)
       throw new Error(`created project refused its resource capacity: ${written.reason}`);
+  }
+
+  /**
+   * Whether stating `asked` units of `resourceId` in the project being
+   * imported would make the organization's projects state more of it than its
+   * cap allows (`wbs-organization-limits` L9): {@link refuseCapacityStatement}
+   * over the other projects' sum, read in this import's admitted transaction,
+   * as `CapacityService` decides a batch's statement. The import always
+   * creates its project, which states nothing yet, so every existing project
+   * counts, the one an export came from among them. Null under legacy access.
+   *
+   * @throws when this import's stores carry no organization limits under
+   * scoped access.
+   */
+  async refuseCapacityWithin(
+    access: ResourceAccess,
+    projectId: string,
+    resourceId: string,
+    asked: number,
+  ): Promise<CapacityLimitCrossed | null> {
+    // Proof: bypassing the lifetime guard made retained imports after success,
+    // refusal and throw read a closed scope (3 failures, 2026-10-22).
+    const stores = this.#stores;
+    if (access.kind === 'legacy') return null;
+    const gauge = stores.organizationLimits;
+    if (gauge === undefined)
+      throw new Error(
+        'an import stated a capacity under scoped access without organization limits',
+      );
+    const reading = await gauge.readCapacityCap(access.scope.organizationId, resourceId, projectId);
+    this.#authority.assertActive();
+    return refuseCapacityStatement({
+      resourceId,
+      cap: reading.cap,
+      declared: reading.current,
+      held: 0,
+      asked,
+    });
   }
 
   /** @throws when a created row refuses its demand (`wbs-resources`). */

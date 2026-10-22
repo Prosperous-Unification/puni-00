@@ -12,6 +12,7 @@ import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
 import { measureRegistrations } from './stores/measures';
+import { organizationLimitRegistrations } from './stores/organization-limits';
 import { planEventRegistrations } from './stores/plan-events';
 import { type OpenCase, storeCase } from './stores/store-case';
 import { typedDependencyRegistrations } from './stores/typed-dependencies';
@@ -39,6 +40,8 @@ export interface ExistingStoreOpeners {
   readonly livePlans?: OpenCase<'livePlans'>;
   readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
   readonly projectRanks?: OpenCase<'projectRanks'>;
+  /** Absent where a source offers no organization limits gauge. */
+  readonly organizationLimits?: OpenCase<'organizationLimits'>;
   readonly users: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['users']>>;
   readonly capacity: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['capacity']>>;
   readonly resourceCapacity: OpenCase<'resourceCapacity'>;
@@ -144,6 +147,22 @@ export function existingStoreRegistrations(
             },
           ),
         ]),
+    ...(openers.organizationLimits === undefined
+      ? [
+          {
+            family: 'organizationLimits' as const,
+            caseId: 'organizationLimits.readAgentPersonCap:organization-scope' as const,
+          },
+          {
+            family: 'organizationLimits' as const,
+            caseId: 'organizationLimits.readConcurrentClaimCap:bound-triples' as const,
+          },
+          {
+            family: 'organizationLimits' as const,
+            caseId: 'organizationLimits.readCapacityCap:per-resource-except-project' as const,
+          },
+        ]
+      : organizationLimitRegistrations(openers.organizationLimits)),
     ...userRegistrations(openers.users),
     ...capacityRegistrations(openers.capacity),
     ...resourceCapacityRegistrations(openers.resourceCapacity),

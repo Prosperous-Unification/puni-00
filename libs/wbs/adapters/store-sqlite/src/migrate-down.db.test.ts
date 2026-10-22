@@ -689,9 +689,12 @@ describe('readMigrationFolders', () => {
       '20261022110000_widen_organization_audit_machine_credentials',
       '20261022110100_check_machine_credential_id',
       '20261022120000_scope_trusted_issuer_audience',
+      '20261022130000_add_organization_limits',
+      '20261022130100_widen_organization_audit_organization_limits',
       '20261022210000_add_project_abbreviations',
       '20261022211000_add_external_dependencies',
       '20261022212000_add_cross_project_dependency_activation',
+      '20261022213000_add_optimization_boundary_certificates',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -767,7 +770,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261022212000_add_cross_project_dependency_activation');
+      expect(originalNames.at(-1)).toBe('20261022213000_add_optimization_boundary_certificates');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -884,17 +887,23 @@ describe('rollbackTo, against a real database', () => {
         '20261022110000_widen_organization_audit_machine_credentials',
         '20261022110100_check_machine_credential_id',
         '20261022120000_scope_trusted_issuer_audience',
+        '20261022130000_add_organization_limits',
+        '20261022130100_widen_organization_audit_organization_limits',
         '20261022210000_add_project_abbreviations',
         '20261022211000_add_external_dependencies',
         '20261022212000_add_cross_project_dependency_activation',
+        '20261022213000_add_optimization_boundary_certificates',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -1085,9 +1094,12 @@ describe('rollbackTo, against a real database', () => {
         '20261022110000_widen_organization_audit_machine_credentials',
         '20261022110100_check_machine_credential_id',
         '20261022120000_scope_trusted_issuer_audience',
+        '20261022130000_add_organization_limits',
+        '20261022130100_widen_organization_audit_organization_limits',
         '20261022210000_add_project_abbreviations',
         '20261022211000_add_external_dependencies',
         '20261022212000_add_cross_project_dependency_activation',
+        '20261022213000_add_optimization_boundary_certificates',
       ]);
     } finally {
       db.cleanup();
@@ -1159,9 +1171,12 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -1291,9 +1306,12 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -1408,9 +1426,12 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',

@@ -12,6 +12,11 @@ export {
   PINNED_CREDENTIAL,
 } from './stores/directory';
 export * from './stores/history-batch';
+export {
+  LIMITS_FIXTURE,
+  type LimitsSideTables,
+  seedOrganizationLimits,
+} from './stores/organization-limits';
 export { CONFORMANCE_RESOURCES, seedResourceCase } from './stores/resources';
 export * from './stores/saved-plan-capture';
 export * from './stores/subtrees';

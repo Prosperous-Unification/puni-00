@@ -12,6 +12,7 @@ import type { DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
@@ -58,6 +59,7 @@ export const workItemModule = DiBag.createBuilder()
         attemptStore,
         blockageStore,
         claimStore,
+        organizationLimits,
         demandStore,
         resourceCapacityStore,
         directoryStore,
@@ -86,6 +88,8 @@ export const workItemModule = DiBag.createBuilder()
         attemptStore: StepNodeAttemptStore;
         blockageStore: StepBlockageStore;
         claimStore: ClaimStore | undefined;
+        /** Null where the graph's stores carry no organization limits (public graph, legacy fixtures). */
+        organizationLimits: OrganizationLimitGauge | null;
         demandStore: DemandStore;
         resourceCapacityStore: ResourceCapacityStore;
         directoryStore: DirectoryStore;
@@ -114,6 +118,7 @@ export const workItemModule = DiBag.createBuilder()
         attempts: attemptStore,
         blockages: blockageStore,
         ...(claimStore === undefined ? {} : { claims: claimStore }),
+        ...(organizationLimits === null ? {} : { organizationLimits }),
         demands: demandStore,
         resourceCapacity: resourceCapacityStore,
         directory: directoryStore,

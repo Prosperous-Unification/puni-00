@@ -287,6 +287,8 @@ describe('every write fills the audit columns', () => {
       // `users` and `project` date themselves, so their inserts carry the
       // variant that leaves their own `created_at` alone.
       .filter((write) => !write.statement.includes('auditOnCreateBesidesCreatedAt('))
+      // A host operator's row: dated, with no WBS user to name as its author.
+      .filter((write) => !write.statement.includes('auditOnOperatorCreate('))
       .map((write) => `${write.file}: insert into ${write.table}`);
     expect(missing).toEqual([]);
   });

@@ -67,6 +67,7 @@ describe('the closed case manifest', () => {
       'projectRanks',
       'users',
       'directory',
+      'organizationLimits',
       'capacity',
       'resourceCapacity',
       'priorityBands',

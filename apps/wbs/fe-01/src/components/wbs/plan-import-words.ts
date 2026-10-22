@@ -1,4 +1,5 @@
 import { unreachable } from '@/lib/http';
+import { resourceLabel } from '@/lib/organization-limit-words';
 import {
   PlanDocumentSchemaError,
   type PlanImportRefusal,
@@ -115,6 +116,13 @@ function refusalWords(refusal: PlanImportRefusal): string {
       return 'Sign in again, then import the file again.';
     case 'organization_context_changed':
       return 'The organization changed in another tab. Reload, then import again.';
+    case 'agent_person_limit':
+      // The numbers are the refusal's own (`wbs-organization-limits` L14).
+      return `Organization limit: this plan would add ${String(refusal.added)} agent persons to the ${String(refusal.current)} of ${String(refusal.cap)} the organization holds, so nothing was imported.`;
+    case 'capacity_limit':
+      // The numbers are the refusal's own (`wbs-organization-limits` L14).
+      // The import dialog reads no resource directory, so the resource is named by its id.
+      return `Organization limit: this plan would state ${String(refusal.asked)} units of ${resourceLabel(refusal.resourceId, undefined)}, which your other projects already state ${String(refusal.declared)} of, past the cap of ${String(refusal.cap)}, so nothing was imported.`;
     default:
       return unreachable(refusal);
   }

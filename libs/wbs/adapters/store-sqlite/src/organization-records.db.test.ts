@@ -752,6 +752,8 @@ describe('20260927120000_add_organization_records', () => {
       '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -818,6 +820,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'organization_trusted_issuer' &&
           name !== 'machine_credential' &&
           name !== 'machine_credential_secret' &&
+          name !== 'organization_limits' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&
