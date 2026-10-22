@@ -12,6 +12,7 @@ import type { ArtifactStore } from '../artifact-store';
 import { artifactDigest, ownerId } from '../record-codecs';
 import type { ArtifactRef } from '../records';
 import { digestRuntimeRequest } from '../runtime-codecs';
+import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeGuard, RuntimeIntent } from '../runtime-records';
 import { createManifest, createRun, unwrapReply } from './fixtures';
 import type { StoreFixture } from './run-store-contract';
@@ -256,6 +257,59 @@ export function runtimeHistoryContract(
         ),
       ).toEqual({ kind: 'duplicate', value: accepted });
       expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(current);
+    });
+    test('late acceptance across increasing local epochs preserves historical order and maps only the latest epoch', async () => {
+      const stores = await fixture();
+      unwrapReply(await stores.runs.pinRuntimeScope(stores.guard.ownership, runtimePin));
+      let ownership = stores.guard.ownership;
+      for (const [commandId, expectedGeneration, expectedRevision, nextOwner] of [
+        ['epoch-1', null, 0, 'local-B'],
+        ['epoch-2', 1, 2, 'local-C'],
+        ['epoch-3', 2, 4, null],
+      ] as const) {
+        const intent = unwrapReply(
+          await stores.runs.stageRuntimeRequest(
+            { ownership, scope: runtimeScope, expectedRevision },
+            authorityRequest(commandId, expectedGeneration),
+          ),
+        );
+        if (nextOwner !== null) {
+          stores.clock.advance(100);
+          ownership = unwrapReply(
+            await stores.runs.acquireOwnership(ownerId(nextOwner), ownership.epoch),
+          );
+        }
+        const artifact = await stores.artifacts.retainArtifact(
+          new TextEncoder().encode(JSON.stringify(authorityReceipt(intent))),
+          'application/json',
+        );
+        if (artifact.kind !== 'retained') throw new Error('fixture receipt refused');
+        unwrapReply(
+          await acceptRuntimeReceipt(
+            stores.runs,
+            stores.artifacts,
+            { ownership, scope: runtimeScope, expectedRevision: expectedRevision + 1 },
+            intent,
+            artifact.reference,
+          ),
+        );
+        if (nextOwner !== null)
+          expect(await stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({ grant: null });
+      }
+      const history = await stores.runs.readRuntimeScope(runtimeScope);
+      expect(history.kind).toBe('pinned');
+      if (history.kind !== 'pinned') throw new Error('fixture history not pinned');
+      expect(history.intents.map((intent) => intent.localOwner.epoch)).toEqual([1, 2, 3]);
+      expect(history).toMatchObject({
+        revision: 6,
+        ownerEpoch: 3,
+        pendingCommandId: null,
+        grant: {
+          localEpoch: 3,
+          commandId: 'epoch-3',
+          authority: { ownerId: 'receiver-owner', generation: 3 },
+        },
+      });
     });
     test('owner fencing precedes corrupt or absent targets and scope mismatch refuses', async () => {
       const stores = await fixture();

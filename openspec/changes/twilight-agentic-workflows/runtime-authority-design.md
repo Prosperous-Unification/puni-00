@@ -158,12 +158,16 @@ Starting at revision0, every next event is consecutive, one intent is pending at
 and acceptance names that pending intent. Validate complete keys, scope/ledger, canonical
 bytes/digest, generation progression, links and final revision before returning trusted
 history. Missing events, conflicting duplicates, orphan rows or unexplained gaps throw.
+Staged local epochs must be nondecreasing across consecutive intents; ownership and
+new staging cannot move backwards, even when older acceptance arrives later.
 For intents staged in the current local epoch, localOwner.ownerId must also equal the
 owner label retained in the same admitted OwnershipStatus. Expiry alone retains that
 label; takeover advances the epoch. Historical owner labels have no independent
 ownership ledger, and coherent metadata/history forgery is outside this guarantee.
 Reads and mutations audit runtime marker counts and owned row identities before absence.
-The audit is proportional to retained history; no unbounded-scale benchmark is claimed.
+The current audit reconstructs retained history and repeats linear lookups; matching
+can be quadratic, including inside write transactions. No scale threshold or
+unbounded-history performance has been measured.
 
 ## Verified artifact application boundary
 

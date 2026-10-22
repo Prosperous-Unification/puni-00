@@ -2026,3 +2026,41 @@ remain recorded. Both browser2 CI attempts at that parent cancelled25m; pixels s
 red. Its host pass does not certify this uncommitted authority candidate or repair
 CI. Separate reviewed budget correction and final cohesive exact-SHA gate/CI remain
 required. WBS MCP authentication is unavailable; no remote status update asserted.
+
+### Runtime authority task review, fix round1 candidate
+
+Independent task review of e306f7e14 found one Important integrity defect: changing
+only a later staged intent's local epoch from2to1 let read/reopen return an obsolete
+grant. The original512-test pass did not cover that corruption. Ordered replay now
+requires nondecreasing staged local epochs. Three actual SQLite negatives cover
+read, current-owner mutation and reopen without changed schema/rows; a shared valid
+[1,2,3] late-acceptance history verifies both providers and real receipt artifacts.
+
+The review's down-caller composition gap also has a focused private fixture: inside
+one BEGIN IMMEDIATE transaction, validateDatabase precedes trimmed down statements,
+with first-error rollback/rethrow. Otherwise-valid wrong bundle and altered empty
+schema refuse without deletion; unused down restores the prior schema/old records,
+and used history trips the SQL guard and rolls back. Independent raw SQL guard tests
+remain, explicitly distinguished from full caller validation. No operator/public
+rollback API exists or is certified by these fixture tests.
+
+Actual epoch-guard removal produced all3persisted missing rejections; removal of the
+composed caller's real validateDatabase invocation produced both wrong-format missing
+rejections. Both proofs ran0/1/0 with exact restoration and complete immutable fault
+windows. Final two covering history files passed99tests/193Bun expects0fail9.56s;
+uncached Dash lint/typecheck, exact three-file format/diff passed. Original512full
+suite was not repeated or relabeled. SQL was unchanged, so no new migration lint;
+no package/backend/policy/host/browser/CI repeat. Color warning remains. Formatter
+setup ReferenceError and a fixture unsafe-return typing failure were corrected and
+retained as nonsemantic failed trials, not RED/proof claims.
+
+Root matched11776current source identities to the final focused snapshot,23invocation
+log byte counts, both fault/freezes and212protected file identities. The original
+207580-byte report prefix still matches SHA256
+90f538d4e4bb8d35ec9c7379dddde5ebc401e3990ffc66f0fe11f977c87de2fe;
+historical full-suite logs remain unchanged. Exactly three assigned source files
+differ from e306f7e14; no SQL, portable layout, public API, race/lifecycle fixture or
+other-product source changed. Scoped re-review remains pending, with no task
+acceptance or release implied. M2 audit optimization remains deferred; the design
+now describes repeated/quadratic lookup cost truthfully, with no measured scale
+threshold. M3 inherited diagnostic warnings remain disclosed for final review.

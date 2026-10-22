@@ -169,6 +169,12 @@ RunStore SHALL retain an immutable receiver pin and exact canonical authority in
 - **THEN** inspection and mutation throw before returning history
 - **AND** different local and receiver owner labels remain valid
 
+#### Scenario: Retained staged ownership epochs move backwards
+
+- **WHEN** a later staged intent has a lower local epoch than its preceding staged intent
+- **THEN** inspection, current-owner mutation and reopen throw without changing retained history
+- **AND** late acceptance of an older intent remains valid when staged epochs themselves do not regress
+
 #### Scenario: An unresolved authority command is followed by another
 
 - **WHEN** a different authority command is staged while one remains unresolved in the scope

@@ -31,7 +31,7 @@ export interface RuntimeCatalog {
   readonly acceptances: readonly RuntimeAcceptance[];
 }
 
-/** Replays every consecutive event from the immutable pin, rejecting missing links rather than repairing history. The latest local epoch uses the same persisted ownership label even after expiry. Older labels have no independent owner ledger, and coherent metadata/history replacement is outside this audit. */
+/** Replays every consecutive event from the immutable pin, rejecting missing links rather than repairing history. Staged local epochs must never decrease across the ordered history. The latest local epoch uses the same persisted ownership label even after expiry. Older labels have no independent owner ledger, and coherent metadata/history replacement is outside this audit. */
 export function reconstructRuntimeScope(
   retained: RuntimeScopeRecord,
   intents: readonly RuntimeIntent[],
@@ -51,6 +51,7 @@ export function reconstructRuntimeScope(
     })),
   ].sort((left, right) => left.revision - right.revision);
   let revision = 0;
+  let stagedEpoch = 0;
   let pending: RuntimeIntent | null = null;
   let generation: number | null = null;
   let grant: RuntimeGrant | null = null;
@@ -82,6 +83,10 @@ export function reconstructRuntimeScope(
         intent.localOwner.ownerId !== ownership.owner?.ownerId
       )
         throw new Error('corrupt runtime current local owner');
+      // Proof: R1F01 removing this guard admitted persisted [2,1] epochs; read, mutation and reopen missing-rejection tests failed, and exact restoration passed.
+      if (intent.localOwner.epoch < stagedEpoch)
+        throw new Error('corrupt runtime local epoch progression');
+      stagedEpoch = intent.localOwner.epoch;
       // Proof: F13 allowed overlapping pending historical events; 'trusted runtime second pending event' failed and exact restoration passed.
       if (pending !== null) throw new Error('corrupt runtime pending command');
       if (

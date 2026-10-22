@@ -17,7 +17,7 @@ import {
   runtimeScope,
 } from '../testing/runtime-history-contract';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
-import { DOWN_HASH, MIGRATION, MIGRATION_HASH } from './schema';
+import { DOWN_HASH, MIGRATION, MIGRATION_HASH, validateDatabase } from './schema';
 
 export async function createRuntimeDatabaseFixture() {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-history-'));
@@ -455,7 +455,9 @@ for (const fault of [
           .all()
           .map((table) => ({
             name: table.name,
-            rows: database.query(`SELECT * FROM ${table.name} ORDER BY rowid`).all(),
+            rows: database
+              .query<Record<string, unknown>, []>(`SELECT * FROM ${table.name} ORDER BY rowid`)
+              .all(),
           })),
       });
       const before = capture();
@@ -476,7 +478,7 @@ for (const fault of [
     }
   });
 
-/** Explicit complete-statement blocks mirror the existing SQLite migration consumer. This supported consumer stops on the first failed statement and rolls back all preceding changes. */
+/** Isolated raw SQL guard fixture: complete trimmed statements stop and roll back on the first error. This intentionally omits the full-format prevalidation required by a supported caller. */
 function executeRuntimeDown(database: Database): void {
   database.run('BEGIN IMMEDIATE');
   try {
@@ -657,6 +659,203 @@ test('bootstrap retains the complete named forward and down bundle identity', as
     expect(database.query('SELECT bundle_hash FROM run_format').get()).toEqual({
       bundle_hash: expected,
     });
+  } finally {
+    database.close();
+    stores.close();
+  }
+});
+
+for (const surface of ['read', 'mutation', 'reopen'] as const)
+  test(`retained decreasing local epochs refuse ${surface} without changing complete history`, async () => {
+    const stores = await createRuntimeDatabaseFixture();
+    const database = new Database(stores.options.path);
+    try {
+      unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
+      stores.clock.advance(100);
+      const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-B'), 1));
+      unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
+      for (const [commandId, expectedGeneration, expectedRevision] of [
+        ['request-0', null, 0],
+        ['request-1', 1, 2],
+      ] as const) {
+        const intent = unwrapReply(
+          await stores.runs.stageRuntimeRequest(
+            { ownership, scope: runtimeScope, expectedRevision },
+            authorityRequest(commandId, expectedGeneration),
+          ),
+        );
+        const artifact = await stores.artifacts.retainArtifact(
+          new TextEncoder().encode(JSON.stringify(authorityReceipt(intent))),
+          'application/json',
+        );
+        if (artifact.kind !== 'retained') throw new Error('fixture receipt refused');
+        unwrapReply(
+          await acceptRuntimeReceipt(
+            stores.runs,
+            stores.artifacts,
+            { ownership, scope: runtimeScope, expectedRevision: expectedRevision + 1 },
+            intent,
+            artifact.reference,
+          ),
+        );
+      }
+      expect(await stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+        revision: 4,
+        grant: {
+          localEpoch: 2,
+          commandId: 'request-1',
+          authority: { ownerId: 'receiver-owner', generation: 2 },
+        },
+      });
+      database.run(
+        "UPDATE run_runtime_intent SET record=json_set(record,'$.localOwner.epoch',1) WHERE command_id='request-1'",
+      );
+      const before = captureRuntimeDatabase(database);
+      if (surface === 'read')
+        await rejects(
+          stores.runs.readRuntimeScope(runtimeScope),
+          /corrupt runtime local epoch progression/,
+        );
+      if (surface === 'mutation')
+        await rejects(
+          stores.runs.stageRuntimeRequest(
+            { ownership, scope: runtimeScope, expectedRevision: 4 },
+            authorityRequest('request-2', 2),
+          ),
+          /corrupt runtime local epoch progression/,
+        );
+      if (surface === 'reopen') {
+        stores.disconnect();
+        await rejects(
+          async () => {
+            const reopened = await openSqliteStores(stores.options);
+            reopened.close();
+          },
+          (cause: unknown) => {
+            expect(cause).toMatchObject({
+              failure: 'corrupt',
+              cause: { message: 'corrupt runtime local epoch progression' },
+            });
+            return true;
+          },
+        );
+      }
+      expect(captureRuntimeDatabase(database)).toEqual(before);
+    } finally {
+      database.close();
+      stores.close();
+    }
+  });
+
+function captureRuntimeDatabase(database: Database) {
+  return {
+    schema: database
+      .query(
+        'SELECT type,name,tbl_name,sql FROM sqlite_schema UNION ALL SELECT type,name,tbl_name,sql FROM sqlite_temp_schema ORDER BY type,name',
+      )
+      .all(),
+    tables: database
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'run_%' ORDER BY name",
+      )
+      .all()
+      .map((table) => ({
+        name: table.name,
+        rows: database
+          .query<Record<string, unknown>, []>(`SELECT * FROM ${table.name} ORDER BY rowid`)
+          .all(),
+      })),
+  };
+}
+
+/** Private demonstration of complete-format validation and fail-fast down in one write transaction; this is not an operator-facing rollback API. */
+function executeValidatedRuntimeDown(database: Database): void {
+  database.run('BEGIN IMMEDIATE');
+  try {
+    // Proof: R1F02 removing this actual validation call let wrong-bundle and altered-empty-schema callers delete tables; both missing-rejection tests failed, and exact restoration passed.
+    validateDatabase(database);
+    for (const statement of MIGRATIONS[1].down.split('--> statement-breakpoint'))
+      if (statement.trim().length > 0) database.run(statement.trim());
+    database.run('COMMIT');
+  } catch (cause) {
+    database.run('ROLLBACK');
+    throw cause;
+  }
+}
+
+for (const fault of ['wrong bundle', 'altered empty schema'] as const)
+  test(`validated down caller refuses ${fault} before deleting schema or records`, async () => {
+    const stores = await createRuntimeDatabaseFixture();
+    const database = new Database(stores.options.path);
+    try {
+      const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
+      unwrapReply(await stores.runs.retainManifest(ownership, createManifest()));
+      unwrapReply(await stores.runs.createRun(ownership, createRun()));
+      if (fault === 'wrong bundle') database.run("UPDATE run_format SET bundle_hash='changed'");
+      else database.run('ALTER TABLE run_runtime_scope ADD COLUMN ignored TEXT');
+      const before = captureRuntimeDatabase(database);
+      expect(() => {
+        executeValidatedRuntimeDown(database);
+      }).toThrow(
+        fault === 'wrong bundle'
+          ? /incompatible sqlite format bundle hash/
+          : /corrupt sqlite physical schema/,
+      );
+      expect(captureRuntimeDatabase(database)).toEqual(before);
+    } finally {
+      database.close();
+      stores.close();
+    }
+  });
+
+test('validated down caller restores unused format1 declarations and all old records', async () => {
+  const stores = await createRuntimeDatabaseFixture();
+  const database = new Database(stores.options.path);
+  const reference = new Database(':memory:');
+  try {
+    const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
+    unwrapReply(await stores.runs.retainManifest(ownership, createManifest()));
+    unwrapReply(await stores.runs.createRun(ownership, createRun()));
+    for (const statement of MIGRATIONS[0].forwardStatements) reference.run(statement);
+    const before = captureRuntimeDatabase(database);
+    executeValidatedRuntimeDown(database);
+    const after = captureRuntimeDatabase(database);
+    expect(after.schema).toEqual(captureRuntimeDatabase(reference).schema);
+    expect(after.tables).toEqual(
+      before.tables
+        .filter(
+          (table) =>
+            ![
+              'run_format',
+              'run_runtime_scope',
+              'run_runtime_intent',
+              'run_runtime_acceptance',
+            ].includes(table.name),
+        )
+        .map((table) =>
+          table.name === 'run_meta'
+            ? { ...table, rows: table.rows.map((metadata) => ({ ...metadata, schema_version: 1 })) }
+            : table,
+        ),
+    );
+  } finally {
+    reference.close();
+    database.close();
+    stores.close();
+  }
+});
+
+test('validated down caller rolls back its guard when retained runtime use forbids down', async () => {
+  const stores = await createRuntimeDatabaseFixture();
+  const database = new Database(stores.options.path);
+  try {
+    const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
+    unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
+    const before = captureRuntimeDatabase(database);
+    expect(() => {
+      executeValidatedRuntimeDown(database);
+    }).toThrow(/CHECK constraint/);
+    expect(captureRuntimeDatabase(database)).toEqual(before);
   } finally {
     database.close();
     stores.close();
