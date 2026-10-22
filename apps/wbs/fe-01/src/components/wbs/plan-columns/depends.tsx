@@ -10,6 +10,7 @@ import {
   type EndpointOption,
   serializeDependencyEndpoint,
 } from '../dependency-selection';
+import type { DependencyDraftCapture } from '../dependency-token-bindings';
 import { DependsCard, dependsLine } from '../depends-card';
 import { currentDependencyToken, replaceDependencyToken } from '../depends-input';
 import { cellKey } from '../editable-grid';
@@ -77,9 +78,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
         predecessorId: string;
         dependencyId?: string;
         selection?: DependencySelection;
-        draft?: string;
-        canClearDraft?: (current: string) => boolean;
+        draftCapture?: DependencyDraftCapture;
       } | null>(null);
+      // flexRender mounts this cell as a React component; the ref identifies one Customize gesture.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const editorSession = useRef({ editing, generation: 0 });
+      // Proof: removing the gesture key kept a reopened identical target busy with its previous pending write (mounted round2 tests).
+      if (editorSession.current.editing !== editing)
+        editorSession.current = { editing, generation: editorSession.current.generation + 1 };
+      // This cell is rendered as a component by the table library.
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [announcement, setAnnouncement] = useState('');
       // This cell is rendered as a component by the table library.
@@ -124,8 +131,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
         setEditing({
           predecessorId: option.selection.endpoint.workItemId,
           selection: option.selection,
-          draft: picker?.typed ?? '',
-          canClearDraft: search.captureDraft(),
+          draftCapture: search.captureDraft(),
         });
       };
       const choose = (option: EndpointOption) => {
@@ -143,7 +149,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
         );
         setAdding((current) => new Set(current).add(option.key));
         void live.current
-          .pickDependency(row.original.id, option.selection, draft, search.captureDraft(draft))
+          .pickDependency(row.original.id, option.selection, search.captureDraft(draft))
           .then((outcome) => {
             setAdding((current) => {
               const next = new Set(current);
@@ -1011,9 +1017,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
           {editing !== null &&
             (() => {
               if (editing.selection?.kind === 'remote') {
-                const draft = editing.draft ?? '';
                 return (
                   <RemoteDependencyEditor
+                    key={editorSession.current.generation}
                     selection={editing.selection}
                     lookup={live.current.dependencyLookup}
                     ownerProjectId={live.current.projectId}
@@ -1048,16 +1054,17 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         )
                         .then((outcome) => {
                           if (didLand(outcome))
-                            live.current.setDepPicker((current) =>
-                              current?.rowId === row.original.id &&
-                              editing.canClearDraft?.(current.typed) === true
-                                ? {
-                                    ...current,
-                                    typed: currentDependencyToken(draft).prefix,
-                                    highlightId: null,
-                                  }
-                                : current,
-                            );
+                            live.current.setDepPicker((current) => {
+                              if (
+                                current?.rowId !== row.original.id ||
+                                editing.draftCapture === undefined
+                              )
+                                return current;
+                              const consumed = editing.draftCapture.consumeToken(current.typed);
+                              return consumed.kind === 'stale'
+                                ? current
+                                : { ...current, typed: consumed.typed, highlightId: null };
+                            });
                           return outcome;
                         })
                     }
@@ -1114,7 +1121,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 <TypedDependencyEditor
                   projectId={live.current.projectId}
                   // Proof: removing this key made `switching edit targets shows the newly selected relationship scopes` keep Whole instead of Dev; watched 2026-09-28.
-                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
+                  key={`${editing.dependencyId ?? `add:${editing.predecessorId}`}:${String(editorSession.current.generation)}`}
                   predecessor={predecessor}
                   successor={row.original}
                   rows={dependencyRows}
@@ -1147,17 +1154,18 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         ),
                       )
                       .then((outcome) => {
-                        if (didLand(outcome) && editing.draft !== undefined)
-                          live.current.setDepPicker((current) =>
-                            current?.rowId === row.original.id &&
-                            editing.canClearDraft?.(current.typed) === true
-                              ? {
-                                  ...current,
-                                  typed: currentDependencyToken(current.typed).prefix,
-                                  highlightId: null,
-                                }
-                              : current,
-                          );
+                        if (didLand(outcome) && editing.draftCapture !== undefined)
+                          live.current.setDepPicker((current) => {
+                            if (
+                              current?.rowId !== row.original.id ||
+                              editing.draftCapture === undefined
+                            )
+                              return current;
+                            const consumed = editing.draftCapture.consumeToken(current.typed);
+                            return consumed.kind === 'stale'
+                              ? current
+                              : { ...current, typed: consumed.typed, highlightId: null };
+                          });
                         setAnnouncement(
                           didLand(outcome)
                             ? dependency === undefined

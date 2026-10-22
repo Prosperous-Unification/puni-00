@@ -862,3 +862,199 @@ it('an older list completion retains a newly selected identical-text occurrence'
   });
   expect(box.value).toBe('PUNI.080.s1-dev,');
 });
+
+for (const phone of [false, true])
+  for (const selectedProjectId of ['other', 'remote'])
+    it(`round2 an old pending Customize completion cannot close a newer editor on ${phone ? 'phone' : 'desktop'} for ${selectedProjectId}`, async () => {
+      const { box, add, routes } = await mount(phone);
+      const other = { ...project, projectId: selectedProjectId, name: 'Other holder' };
+      vi.mocked(routes.candidates).mockImplementation((projectId) =>
+        Promise.resolve(
+          success({
+            project: projectId === 'remote' ? project : other,
+            addressRevision: 'r1',
+            candidates: [
+              { ...node, projectId },
+              {
+                projectId,
+                workItemId: node.workItemId,
+                number: node.number,
+                name: node.name,
+                endpoint: { scope: 'whole', workItemId: node.workItemId },
+                reference: 'PUNI.080',
+              },
+            ],
+            nextCursor: null,
+          }),
+        ),
+      );
+      let release: (() => void) | undefined;
+      add.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      );
+      const role = phone ? 'button' : 'option';
+      fireEvent.change(box, { target: { value: '999, PUNI' } });
+      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Puni remote' }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
+      );
+      await waitFor(() => {
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: /^Add$/ }).disabled).toBe(
+          false,
+        );
+      });
+      fireEvent.click(screen.getByRole('button', { name: /^Add$/ }));
+      expect(add).toHaveBeenCalledTimes(1);
+      vi.mocked(routes.projects).mockResolvedValue(
+        success({ projects: [other], nextCursor: null }),
+      );
+      fireEvent.change(box, { target: { value: '999, PUNI' } });
+      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Other holder' }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
+      );
+      await waitFor(() => {
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: /^Add$/ }).disabled).toBe(
+          false,
+        );
+      });
+      const relationship = screen.getByLabelText<HTMLSelectElement>('Relationship');
+      fireEvent.change(screen.getByLabelText('Predecessor'), {
+        target: { value: JSON.stringify([selectedProjectId, node.workItemId, 'whole', null]) },
+      });
+      fireEvent.change(relationship, { target: { value: 'SS' } });
+      act(() => {
+        relationship.focus();
+      });
+      if (release === undefined) throw new Error('Old write did not start');
+      await act(async () => {
+        release?.();
+        await Promise.resolve();
+      });
+      expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
+      expect(screen.getByLabelText<HTMLSelectElement>('Relationship').value).toBe('SS');
+      expect(box.value).toBe('999, PUNI.');
+      expect(screen.getByLabelText<HTMLSelectElement>('Predecessor').value).toBe(
+        JSON.stringify([selectedProjectId, node.workItemId, 'whole', null]),
+      );
+      expect(document.activeElement).toBe(relationship);
+      fireEvent.click(screen.getByRole('button', { name: /^Add$/ }));
+      await waitFor(() => {
+        expect(add).toHaveBeenCalledTimes(2);
+      });
+      expect(add.mock.calls[1][1]).toEqual({
+        projectId: selectedProjectId,
+        scope: 'whole',
+        workItemId: node.workItemId,
+      });
+      expect(add.mock.calls[1][3]).toBe('SS');
+    });
+
+for (const phone of [false, true])
+  for (const customize of [false, true])
+    it(`round2 known ${customize ? 'Customize' : 'one-click'} consumption preserves the first identical binding on ${phone ? 'phone' : 'desktop'}`, async () => {
+      const { box, add, routes } = await mount(phone);
+      const role = phone ? 'button' : 'option';
+      const other = { ...project, projectId: 'other', name: 'Other holder' };
+      vi.mocked(routes.candidates).mockImplementation((projectId) =>
+        Promise.resolve(
+          success({
+            project: projectId === 'remote' ? project : other,
+            addressRevision: 'r1',
+            candidates: [{ ...node, projectId }],
+            nextCursor: null,
+          }),
+        ),
+      );
+      vi.mocked(routes.resolve).mockImplementation((projectId) =>
+        Promise.resolve(
+          success({
+            projectId,
+            endpoint: node.endpoint,
+            reference: node.reference,
+            addressRevision: 'r1',
+          }),
+        ),
+      );
+      fireEvent.change(box, { target: { value: 'PUNI' } });
+      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Puni remote' }));
+      vi.mocked(routes.projects).mockResolvedValue(
+        success({ projects: [other], nextCursor: null }),
+      );
+      fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI' } });
+      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Other holder' }));
+      fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI.080.s1-dev' } });
+      if (customize) {
+        fireEvent.click(
+          await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
+        );
+        await waitFor(() => {
+          expect(screen.getByRole<HTMLButtonElement>('button', { name: /^Add$/ }).disabled).toBe(
+            false,
+          );
+        });
+        fireEvent.click(screen.getByRole('button', { name: /^Add$/ }));
+      } else
+        fireEvent.click(await screen.findByRole(role, { name: 'PUNI.080.s1-dev - Remote build' }));
+      await waitFor(() => {
+        expect(box.value).toBe('PUNI.080.s1-dev, ');
+      });
+      expect(add.mock.calls.map((call) => call[1].projectId)).toEqual(['other']);
+      if (phone) {
+        fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev' } });
+        fireEvent.click(await screen.findByRole(role, { name: 'PUNI.080.s1-dev - Remote build' }));
+      } else fireEvent.keyDown(box, { key: 'Enter' });
+      await waitFor(() => {
+        expect(add).toHaveBeenCalledTimes(2);
+      });
+      expect(add.mock.calls.map((call) => call[1].projectId)).toEqual(['other', 'remote']);
+      expect(routes.projects).toHaveBeenCalledTimes(2);
+    });
+
+it('round2 deliberate reselection after ambiguous duplicate deletion restores one pinned occurrence', async () => {
+  const { box, add, routes } = await mount();
+  const other = { ...project, projectId: 'other', name: 'Other holder' };
+  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+    Promise.resolve(
+      success({
+        project: projectId === 'remote' ? project : other,
+        addressRevision: 'r1',
+        candidates: [{ ...node, projectId }],
+        nextCursor: null,
+      }),
+    ),
+  );
+  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+    Promise.resolve(
+      success({
+        projectId,
+        endpoint: node.endpoint,
+        reference: node.reference,
+        addressRevision: 'r1',
+      }),
+    ),
+  );
+  fireEvent.change(box, { target: { value: 'PUNI' } });
+  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+  fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI' } });
+  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other holder' }));
+  fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI.080.s1-dev,' } });
+  fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  expect(
+    await screen.findByText('These were refused: PUNI.080.s1-dev (choose a project).'),
+  ).toBeDefined();
+  expect(add).not.toHaveBeenCalled();
+  fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev' } });
+  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other holder' }));
+  fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  await waitFor(() => {
+    expect(add).toHaveBeenCalledTimes(1);
+  });
+  expect(add.mock.calls[0][1]).toEqual(expect.objectContaining({ projectId: 'other' }));
+});

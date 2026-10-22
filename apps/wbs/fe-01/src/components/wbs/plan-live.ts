@@ -10,7 +10,10 @@ import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
 import type { PickerEntry } from './dep-picker';
 import type { DependencySelection } from './dependency-selection';
-import type { DependencyTokenObservation } from './dependency-token-bindings';
+import type {
+  DependencyDraftCapture,
+  DependencyTokenObservation,
+} from './dependency-token-bindings';
 import { type DropHint } from './drag-drop';
 import { type CellElement } from './editable-grid';
 import type { FocusIntent } from './live-editing';
@@ -50,7 +53,7 @@ export interface PlanLiveValues {
     successorId: string,
     typed: string,
     observations: readonly DependencyTokenObservation[],
-    canClearDraft: (current: string) => boolean,
+    draftCapture: DependencyDraftCapture,
   ) => void;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{
@@ -70,8 +73,7 @@ export interface PlanLiveValues {
   pickDependency: (
     successorId: string,
     selection: DependencySelection,
-    draft: string,
-    canClearDraft: (current: string) => boolean,
+    draftCapture: DependencyDraftCapture,
   ) => Promise<CommitOutcome>;
   moveDepHighlight: (rowId: string, delta: 1 | -1, entryIds: readonly string[]) => void;
   commitEstimate: (

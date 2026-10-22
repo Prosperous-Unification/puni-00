@@ -83,3 +83,18 @@ export function encodeDependencyBindings(bindings: readonly DependencyTokenObser
     ]),
   );
 }
+
+/** A captured gesture can test the whole draft or atomically consume its known active occurrence; stale gestures leave it unchanged. */
+export interface DependencyDraftCapture {
+  matchesDraft: (typed: string) => boolean;
+  consumeToken: (typed: string) => { kind: 'consumed'; typed: string } | { kind: 'stale' };
+}
+
+/** Removes the known active occurrence after successful authoring; earlier identities are unchanged. */
+export function consumeDependencyToken(
+  typed: string,
+  bindings: readonly DependencyTokenObservation[],
+): { typed: string; bindings: DependencyTokenObservation[] } {
+  const { prefix } = currentDependencyToken(typed);
+  return { typed: prefix, bindings: bindings.filter((binding) => binding.end <= prefix.length) };
+}

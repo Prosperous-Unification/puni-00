@@ -1,5 +1,5 @@
 import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type {
   PlanRead,
@@ -316,6 +316,14 @@ export function ScopedDependencyEditor({
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  // Layout cleanup retires this gesture before a pending completion can affect its replacement.
+  const retired = useRef(false);
+  useLayoutEffect(() => {
+    retired.current = false;
+    return () => {
+      retired.current = true;
+    };
+  }, []);
   const backButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => backButton.current?.focus(), []);
@@ -356,6 +364,8 @@ export function ScopedDependencyEditor({
       chosenSuccessor.endpoint,
       relationshipType,
     );
+    // Proof: removing this retired-session fence closed the newer desktop/phone editor and lost its SS choice (mounted round2 tests).
+    if (retired.current) return;
     setBusy(false);
     if (didLand(outcome)) onCancel();
     else setMessage('Dependency refused. Review the selected scopes and try again.');
@@ -443,6 +453,8 @@ export function ScopedDependencyEditor({
               void (async () => {
                 setBusy(true);
                 const outcome = await onRemove();
+                // Proof: bypassing this fence invoked the old cancellation callback after the removal editor was replaced (scoped editor round2 negative).
+                if (retired.current) return;
                 setBusy(false);
                 if (didLand(outcome)) onCancel();
                 else setMessage('Dependency removal refused.');

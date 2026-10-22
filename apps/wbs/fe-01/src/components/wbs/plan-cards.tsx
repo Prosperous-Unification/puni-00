@@ -39,6 +39,7 @@ import {
   type EndpointOption,
   serializeDependencyEndpoint,
 } from './dependency-selection';
+import type { DependencyDraftCapture } from './dependency-token-bindings';
 import { currentDependencyToken, replaceDependencyToken } from './depends-input';
 import { minuteCharge, showDuration } from './duration-words';
 import { type CellElement, cellKey } from './editable-grid';
@@ -238,8 +239,7 @@ export interface PlanCardsProps {
   addDependency: (
     row: TreeRow,
     selection: DependencySelection,
-    draft: string,
-    canClearDraft: (current: string) => boolean,
+    draftCapture: DependencyDraftCapture,
   ) => Promise<CommitOutcome>;
   /**
    * Takes one of those waits off again — the table's chip `✕`, in a sheet.
@@ -2079,8 +2079,7 @@ function CardDependsField({
   addDependency: (
     row: TreeRow,
     selection: DependencySelection,
-    draft: string,
-    canClearDraft: (current: string) => boolean,
+    draftCapture: DependencyDraftCapture,
   ) => Promise<CommitOutcome>;
   dropDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
 }) {
@@ -2089,9 +2088,12 @@ function CardDependsField({
     predecessorId: string;
     dependencyId?: string;
     selection?: DependencySelection;
-    draft?: string;
-    canClearDraft?: (current: string) => boolean;
+    draftCapture?: DependencyDraftCapture;
   } | null>(null);
+  // Proof: removing the gesture key kept a reopened identical target busy with its previous pending write (mounted round2 tests).
+  const editorSession = useRef({ editing, generation: 0 });
+  if (editorSession.current.editing !== editing)
+    editorSession.current = { editing, generation: editorSession.current.generation + 1 };
   const triggerRef = useTriggerAboveSheet(open);
   // What has been typed into the search box, cleared on every open and after
   // every pick. Not a draft of a value — nothing here is held back and sent
@@ -2146,13 +2148,14 @@ function CardDependsField({
     const draft = reference === null ? typed : replaceDependencyToken(typed, reference);
     setTyped(draft);
     setAdding((current) => withId(current, option.key));
-    const canClearDraft = search.captureDraft(draft);
-    void addDependency(row, option.selection, draft, canClearDraft).then((outcome) => {
+    const draftCapture = search.captureDraft(draft);
+    void addDependency(row, option.selection, draftCapture).then((outcome) => {
       setAdding((current) => withoutId(current, option.key));
       if (didLand(outcome))
-        setTyped((current) =>
-          canClearDraft(current) ? currentDependencyToken(draft).prefix : current,
-        );
+        setTyped((current) => {
+          const consumed = draftCapture.consumeToken(current);
+          return consumed.kind === 'stale' ? current : consumed.typed;
+        });
     });
   };
 
@@ -2358,9 +2361,9 @@ function CardDependsField({
           {editing !== null &&
             (() => {
               if (editing.selection?.kind === 'remote') {
-                const draft = editing.draft ?? '';
                 return (
                   <RemoteDependencyEditor
+                    key={editorSession.current.generation}
                     selection={editing.selection}
                     lookup={dependencyLookup}
                     ownerProjectId={projectId}
@@ -2376,11 +2379,11 @@ function CardDependsField({
                         type,
                       ).then((outcome) => {
                         if (didLand(outcome))
-                          setTyped((current) =>
-                            editing.canClearDraft?.(current) === true
-                              ? currentDependencyToken(draft).prefix
-                              : current,
-                          );
+                          setTyped((current) => {
+                            if (editing.draftCapture === undefined) return current;
+                            const consumed = editing.draftCapture.consumeToken(current);
+                            return consumed.kind === 'stale' ? current : consumed.typed;
+                          });
                         return outcome;
                       });
                     }}
@@ -2436,7 +2439,7 @@ function CardDependsField({
                 <TypedDependencyEditor
                   projectId={projectId}
                   // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
-                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
+                  key={`${editing.dependencyId ?? `add:${editing.predecessorId}`}:${String(editorSession.current.generation)}`}
                   predecessor={predecessor}
                   successor={row}
                   rows={dependencyRows}
@@ -2448,12 +2451,12 @@ function CardDependsField({
                       ? addTypedDependency(source, target, type)
                       : saveTypedDependency(dependency.id, source, target, type)
                     ).then((outcome) => {
-                      if (didLand(outcome) && editing.draft !== undefined)
-                        setTyped((current) =>
-                          editing.canClearDraft?.(current) === true
-                            ? currentDependencyToken(current).prefix
-                            : current,
-                        );
+                      if (didLand(outcome) && editing.draftCapture !== undefined)
+                        setTyped((current) => {
+                          if (editing.draftCapture === undefined) return current;
+                          const consumed = editing.draftCapture.consumeToken(current);
+                          return consumed.kind === 'stale' ? current : consumed.typed;
+                        });
                       return outcome;
                     })
                   }
@@ -2509,8 +2512,7 @@ function CardDependsField({
                 setEditing({
                   predecessorId: option.selection.endpoint.workItemId,
                   selection: option.selection,
-                  draft: typed,
-                  canClearDraft: search.captureDraft(),
+                  draftCapture: search.captureDraft(),
                 });
               }}
               isPending={(key) => adding.has(key)}

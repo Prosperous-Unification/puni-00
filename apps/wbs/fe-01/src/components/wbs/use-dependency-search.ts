@@ -15,6 +15,8 @@ import {
   encodeDependencyEndpoint,
 } from './dependency-selection';
 import {
+  consumeDependencyToken,
+  type DependencyDraftCapture,
   type DependencyTokenObservation,
   encodeDependencyBindings,
   retainDependencyBindings,
@@ -33,7 +35,7 @@ interface Observation {
   message: string;
 }
 
-/** Debounced active-token lookup; every render fences late evidence before any option can be clicked. */
+/** Retains per-occurrence project authority through known consumption and debounced active-token lookup; every render fences incompatible evidence. */
 export function useDependencySearch({
   lookup,
   projectId,
@@ -63,6 +65,25 @@ export function useDependencySearch({
     lookup: DependencyLookup;
     bindings: DependencyTokenObservation[];
   }>({ typed, lookup, bindings: [] });
+  const consumption = useRef<{
+    previous: string;
+    typed: string;
+    lookup: DependencyLookup;
+    previousBindings: string;
+    bindings: DependencyTokenObservation[];
+  } | null>(null);
+  const consumed = consumption.current;
+  // Proof: discarding this controlled transition made successful consumption of the second identical token invalidate the first stable project (mounted round2 test).
+  if (
+    consumed !== null &&
+    consumed.lookup === lookup &&
+    consumed.previous === retained.current.typed &&
+    consumed.typed === typed &&
+    consumed.previousBindings === encodeDependencyBindings(retained.current.bindings)
+  ) {
+    retained.current = { typed, lookup, bindings: consumed.bindings };
+    consumption.current = null;
+  }
   // Proof: preserving binding authority across lookup replacement sent a scoped request before deliberate reselection (mounted round1 search test).
   if (retained.current.lookup !== lookup)
     retained.current = {
@@ -73,13 +94,15 @@ export function useDependencySearch({
         requiresReselection: true,
       })),
     };
-  if (retained.current.typed !== typed)
+  if (retained.current.typed !== typed) {
+    consumption.current = null;
     retained.current = {
       typed,
       lookup,
       // Proof: dropping retained occurrences rebound a selected token after a delimiter (mounted round1 test).
       bindings: retainDependencyBindings(retained.current.typed, typed, retained.current.bindings),
     };
+  }
   const activeBinding = retained.current.bindings.find(
     (binding) => binding.start === prefix.length && binding.token === token,
   );
@@ -268,17 +291,40 @@ export function useDependencySearch({
   return {
     observations: retained.current.bindings,
     /** Success may clear only this captured occurrence, including its explicit project selection. */
-    captureDraft(draft = typed) {
+    captureDraft(draft = typed): DependencyDraftCapture {
       // Proof: removing the binding comparison erased newer identical-text selections in Customize and desktop/phone one-click round1 tests.
       const captured = encodeDependencyBindings(
         retainDependencyBindings(typed, draft, retained.current.bindings),
       );
-      return (currentTyped: string) =>
+      const matchesDraft = (currentTyped: string) =>
         currentTyped === draft &&
         retained.current.lookup === lookup &&
         encodeDependencyBindings(
           retainDependencyBindings(retained.current.typed, currentTyped, retained.current.bindings),
         ) === captured;
+      return {
+        matchesDraft,
+        consumeToken(currentTyped) {
+          // Proof: bypassing this capture guard erased newer same-text selections in mounted round2 consumption negatives.
+          if (!matchesDraft(currentTyped)) return { kind: 'stale' };
+          const next = consumeDependencyToken(
+            currentTyped,
+            retainDependencyBindings(
+              retained.current.typed,
+              currentTyped,
+              retained.current.bindings,
+            ),
+          );
+          consumption.current = {
+            previous: retained.current.typed,
+            typed: next.typed,
+            lookup,
+            previousBindings: encodeDependencyBindings(retained.current.bindings),
+            bindings: next.bindings,
+          };
+          return { kind: 'consumed', typed: next.typed };
+        },
+      };
     },
     options: [...local, ...(eligible ? (visible?.options ?? []) : [])],
     state: !eligible ? ('local' as const) : (visible?.state ?? ('loading' as const)),
