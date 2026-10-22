@@ -152,6 +152,7 @@ describe('rolling back the project rank', () => {
     const saved = saveProjectRanks(openDrizzle(path));
     expect(removeSavedProjectRanks(openDrizzle(path), JSON.parse(JSON.stringify(saved)))).toBe(5);
     expect(rollbackTo(path, FOLDER, BEFORE_RANK)).toEqual([
+      '20261022120000_add_organization_limits',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',

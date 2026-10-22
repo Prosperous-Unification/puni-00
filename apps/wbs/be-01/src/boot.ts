@@ -1,6 +1,7 @@
 import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import {
   currentMembershipAccess,
@@ -13,6 +14,7 @@ import {
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
+  OrganizationLimitsRepository,
   OrganizationRepository,
   ProvisioningTokenRepository,
   readOrganizationActivation,
@@ -83,6 +85,13 @@ export interface BootOptions {
    * marker before any binding.
    */
   browserSessionAuthority: 'enabled' | 'disabled';
+  /**
+   * The caps every organization without its own `organization_limits` row
+   * holds (`wbs-organization-limits` L7). Operator configuration, required
+   * with no default: `loadConfig` refuses to boot without the three
+   * `ORGANIZATION_DEFAULT_*` variables.
+   */
+  organizationDefaultLimits: OrganizationLimitValues;
   /** Parsed explicit SMTP authority; absence keeps direct/test boot callers disabled. */
   emailDelivery?: EmailDeliveryConfig;
   delegationKeys?: DelegationKeys;
@@ -430,6 +439,13 @@ export async function bootBe01(
               // acceptance with 503 dns_unavailable instead of 200 (2026-10-16).
               domains,
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
+              // Proof: omitting this binding made `serves the organization
+              // limits with the configured defaults once activated`
+              // (boot.db.test.ts) fail on "boot composed no limits store"; watched 2026-10-22.
+              organizationLimits: new OrganizationLimitsRepository(
+                db,
+                opts.organizationDefaultLimits,
+              ),
               pendingMemberships: new ScimUserRepository(db, services.gate),
               enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
               // Proof: omitting this binding made `serves SCIM provisioning

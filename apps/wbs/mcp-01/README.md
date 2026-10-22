@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-84 tools in all:
+85 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
@@ -40,9 +40,9 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   organization (which, like the onboarding routes, refuse every delegated caller and so answer an
   MCP client with 403);
 - three invitation administration routes, three join-request administration routes, the
-  organization domain-claim routes, the four enterprise SSO connection routes and the two
-  session-policy routes (which refuse every delegated caller and so answer an MCP client with
-  403);
+  organization domain-claim routes, the four enterprise SSO connection routes, the two
+  session-policy routes and the organization limits read (which refuse every delegated caller
+  and so answer an MCP client with 403);
 - six onboarding routes, which refuse every delegated caller and so answer an MCP client with 403;
 - the ten space routes that list, create, read, rename and delete a space, add, remove and move
   its projects, and read its projects' roll-ups and the work in progress across it;

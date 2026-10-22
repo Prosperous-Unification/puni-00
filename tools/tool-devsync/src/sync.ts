@@ -652,6 +652,57 @@ export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
   }
 }
 
+export const BE_ENV = `${SRC}/apps/wbs/be-01/.env`;
+/**
+ * The keys be-01's `BeConfig` (`apps/wbs/be-01/src/config.ts`) requires,
+ * less {@link BE_COMPOSE_SUPPLIED_ENV}. Written out because a tool may not
+ * import an app; `sync.test.ts` derives the required set from the real
+ * `BeConfig` and fails when the two lists disagree.
+ */
+export const BE_REQUIRED_ENV = [
+  'PORT',
+  'INTERNAL_AUTH_SECRET',
+  'LOG_LEVEL',
+  'GW_URL',
+  'DB_PATH',
+  'JWT_SIGNING_KEY_CURRENT',
+  'BROWSER_SESSION_AUTHORITY',
+  'ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS',
+  'ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS',
+  'ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE',
+] as const;
+/** Required be-01 keys `deploy/dev-src/compose.yml` sets in `environment:`, so the `.env` need not. */
+export const BE_COMPOSE_SUPPLIED_ENV = ['AUTH_MODE'] as const;
+
+/**
+ * Refuses a deploy whose gitignored be-01 `.env` lacks a key be-01 refuses
+ * to boot without. Under `bun --watch` such a config throw leaves be-01 dead
+ * while the container stays up, so `restart: unless-stopped` never fires and
+ * the post-deploy probe (mcp-01's) still passes: the refusal has to come
+ * before the reset.
+ *
+ * Proof: with this check's call removed from {@link sync}, `refuses a be-01
+ * environment missing a required key before fetch or reset` in sync.test.ts
+ * reached `git fetch` and failed on its exit 128 (8 pass, 1 fail); watched 2026-10-22.
+ */
+export async function assertBeEnv(path = BE_ENV): Promise<void> {
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
+    throw new Error(`missing ${path}; seed the gitignored be-01 environment before deploying`);
+  }
+  const lines = (await file.text()).split(/\r?\n/);
+  for (const key of BE_REQUIRED_ENV) {
+    const assignments = lines.filter((line) =>
+      new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`).test(line),
+    );
+    if (assignments.length !== 1 || !new RegExp(`^${key}=.+$`).test(assignments[0] ?? '')) {
+      throw new Error(
+        `${path} must contain exactly one non-empty ${key}=... assignment; be-01 refuses to boot without it`,
+      );
+    }
+  }
+}
+
 export interface McpProbeInput {
   exposureExpected: '0' | '1';
   bunPath: string;
@@ -719,11 +770,13 @@ async function fingerprint(
 
 export interface DevSyncOptions extends Partial<DevSyncPaths> {
   mcpEnvPath?: string;
+  beEnvPath?: string;
 }
 
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
+  await assertBeEnv(options.beEnvPath ?? `${paths.sourcePath}/apps/wbs/be-01/.env`);
   const exposureExpected = paths.rehearsal ? '0' : await mcpExposureExpected(paths.statePath);
   const before = await fingerprint(paths.sourcePath);
   const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);

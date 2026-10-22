@@ -3512,6 +3512,41 @@ export const organizationSessionPolicy = sqliteTable(
 export type OrganizationSessionPolicyRow = typeof organizationSessionPolicy.$inferSelect;
 
 /**
+ * An organization's own caps (`wbs-organization-limits` L6); a missing row is
+ * the deployment default, never "no cap". Every cap is an integer from 0 to
+ * 1,000,000 and a row holds all three. Added by
+ * `20261022120000_add_organization_limits`, whose `down.sql` refuses while any
+ * row exists.
+ */
+export const organizationLimits = sqliteTable(
+  'organization_limits',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id),
+    maxAgentPersons: integer('max_agent_persons').notNull(),
+    maxConcurrentClaims: integer('max_concurrent_claims').notNull(),
+    maxCapacityUnitsPerResource: integer('max_capacity_units_per_resource').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    check(
+      'organization_limits_max_agent_persons',
+      sql`typeof(${t.maxAgentPersons}) = 'integer' AND ${t.maxAgentPersons} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'organization_limits_max_concurrent_claims',
+      sql`typeof(${t.maxConcurrentClaims}) = 'integer' AND ${t.maxConcurrentClaims} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'organization_limits_max_capacity_units_per_resource',
+      sql`typeof(${t.maxCapacityUnitsPerResource}) = 'integer' AND ${t.maxCapacityUnitsPerResource} BETWEEN 0 AND 1000000`,
+    ),
+  ],
+);
+
+/**
  * One switch of an organization between isolated and shared people, written
  * with the switch; see `20261011200000_add_shared_people_audit`. `actor_id`
  * references nothing so the record outlives the account.

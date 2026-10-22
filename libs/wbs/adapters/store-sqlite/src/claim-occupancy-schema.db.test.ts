@@ -94,14 +94,22 @@ describe(MIGRATION, () => {
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
     occupy('c1', 'ram', 4);
-    const before = db.query('SELECT * FROM __drizzle_migrations').all();
+    const before = db
+      .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id')
+      .all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
-    expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
+    // The newer, empty organization limits migration reverses first, in its own transaction.
+    expect(
+      db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
+    ).toEqual(before.filter(({ name }) => name !== '20261022120000_add_organization_limits'));
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261022120000_add_organization_limits',
+      MIGRATION,
+    ]);
     expect(db.query("SELECT name FROM sqlite_master WHERE name = 'claim_occupancy'").all()).toEqual(
       [],
     );

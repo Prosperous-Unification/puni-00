@@ -87,6 +87,7 @@ describe('the enterprise SSO migrations', () => {
     );
     const migrated = schema();
     expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([
+      '20261022120000_add_organization_limits',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',

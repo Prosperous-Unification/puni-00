@@ -22,6 +22,9 @@ for (const entrypoint of ['main.ts', 'dev/main.ts']) {
           AUTH_MODE: 'local',
           APP_ORIGIN: 'http://localhost',
           BROWSER_SESSION_AUTHORITY: 'disabled',
+          ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+          ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+          ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
           WBS_SMTP_HOST: 'fixture-secret-host.test',
         },
       });
