@@ -996,3 +996,11 @@ passed 1/1 with 60 assertions on the committed receipts. The same pilot had
 first failed on each binary log in turn, then refused a missing trusted runtime
 when run without that required environment variable. Full CI and the exact-SHA
 h2puni gate remain pending.
+
+### Task 8.4 bounded unavailable connected tree packet — 2026-10-22
+
+The [unavailable tree packet](evidence/task-8-4-unavailable-tree-packet.md) adds
+structured captured reasons to successful connected tree reads, suppresses row
+forecasts, and verifies durable postcommit publication for an edit and eligible
+claim. It records watched production mutations, focused tests and exact excluded
+integration boundaries. Tasks 8.4 and 9.2 remain incomplete.

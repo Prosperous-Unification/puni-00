@@ -1,16 +1,9 @@
 import type { ConnectedGraph, Schedule, Scheduled, ScheduledSlice } from '@wbs/domain';
+import type { ConnectedEngineUnavailable, DependencyCalendarMissing } from '@wbs/domain';
 
 import type { ConnectedPlanCapture } from './connected-plan-values';
 
-/** Projects whose surviving placement cannot be translated to the component calendar. */
-export interface DependencyCalendarMissing {
-  readonly kind: 'dependency_calendar_missing';
-  readonly projects: readonly {
-    readonly projectId: string;
-    readonly abbreviation: string;
-    readonly name: string;
-  }[];
-}
+export type { DependencyCalendarMissing } from '@wbs/domain';
 /** Reverse mapping for encoded capacity/person keys; slice ownership explains foreign blockers. */
 export interface ConnectedIdentities {
   readonly personByKey: ReadonlyMap<string, string>;
@@ -21,12 +14,7 @@ export interface ConnectedIdentities {
 export type ConnectedPlacement =
   | DependencyCalendarMissing
   | { readonly kind: 'unavailable'; readonly reason: 'cycle' | 'calendar_range' }
-  | {
-      readonly kind: 'engine_unavailable';
-      readonly engine: 'optimized';
-      readonly projects: readonly string[];
-      readonly reason: 'adapter_missing' | 'connected_optimization_not_supported';
-    }
+  | ConnectedEngineUnavailable
   | {
       readonly kind: 'scheduled';
       readonly engine: 'fast';

@@ -176,6 +176,7 @@ export * from './occupancy';
 export * from './connected-step-node';
 export * from './execution-eligibility';
 export * from './resource';
+export type * from './schedule-error';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

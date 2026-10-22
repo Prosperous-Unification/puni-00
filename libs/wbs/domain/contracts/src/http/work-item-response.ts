@@ -241,7 +241,26 @@ export const workItemTree = type({
     type: 'string',
   }).array(),
   seq: 'number',
-  scheduleError: "'calendar_range' | 'cycle' | null",
+  // Proof: replacing this union with unknown made the tree boundary test accept
+  // missing/empty projects and malformed required evidence (2026-10-22).
+  scheduleError: type("'calendar_range' | 'cycle' | null")
+    .or(
+      type({
+        kind: "'dependency_calendar_missing'",
+        projects: type({ projectId: 'string', abbreviation: 'string', name: 'string' })
+          .array()
+          .atLeastLength(1)
+          .readonly(),
+      }),
+    )
+    .or(
+      type({
+        kind: "'engine_unavailable'",
+        engine: "'optimized'",
+        projects: type('string').array().atLeastLength(1).readonly(),
+        reason: "'adapter_missing' | 'connected_optimization_not_supported'",
+      }),
+    ),
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
   // Both present exactly when the displayed schedule was placed around bookings
