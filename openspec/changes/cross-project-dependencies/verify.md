@@ -1048,3 +1048,27 @@ assertions); combined backend TypeScript passed. Full task 4.4, full CI and the
 exact-SHA host gate remain pending. Six trailing
 spaces in two retained fault logs were stripped without altering their printed
 fault text; commit-range `git diff --check 0c2264722..cb22c3164` passed.
+
+### Task 9.2 bounded structured-unavailability UI packet — 2026-10-22
+
+The [unavailable UI packet](evidence/task-9-2-unavailable-ui-packet.md) renders
+captured missing-calendar project labels and explicit required-engine refusals
+in the table and Gantt. Four new mounted negatives failed before implementation
+and passed afterward; frontend TypeScript passed. The packet records scoped
+lint/format status and the broader five-suite regression passing 551/551 tests.
+Persisted external endpoint projection/navigation and terminal boundary certificate
+UI remain open; task 9.2 stays unchecked.
+
+The bounded UI packet's Astra review corrections also cover CSV/Markdown
+structured refusal explanations and remove the unproven external inspection
+promise. Six new export tests and two mounted wording assertions failed before
+implementation; independent export catch-all and inspection-promise mutations
+then failed six and two tests respectively. The packet evidence records the
+restored checks; task 9.2 remains open.
+
+The [independent Astra rereview](evidence/task-9-2-unavailable-ui-review.md)
+closed both presentation findings and approved this bounded packet. Fresh
+focused runs passed 11 tests and 10 production export combinations; the broad
+551-case frontend run remains the packet's earlier observation rather than a
+new combined-branch result. Full task 9.2, CI and exact-SHA host gate remain
+pending.

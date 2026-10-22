@@ -57,6 +57,7 @@ import { PlanToolbar } from './plan-toolbar';
 import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
+import { scheduleUnavailableWords } from './schedule-unavailable-words';
 import { statusOffersOf, type StatusRow } from './status-offers';
 import { blockageLabelsOf } from './step-blockage';
 import { stepNodeReadingsOf } from './step-reading';
@@ -2557,6 +2558,15 @@ export function WbsTable({
         are all still here — only the dates are gone — so this says which, rather
         than letting a page of zeroes speak for itself.
       */}
+      {/* Proof: removing this branch left both structured-unavailability table tests without an alert (2026-10-22). */}
+      {scheduleError !== null && typeof scheduleError === 'object' && (
+        <p
+          className="border-destructive/40 bg-destructive/10 mb-3 rounded-md border px-3 py-2 text-sm"
+          role="alert"
+        >
+          {scheduleUnavailableWords(scheduleError)} The plan remains editable.
+        </p>
+      )}
       {scheduleError === 'cycle' && (
         <p
           className="border-destructive/40 bg-destructive/10 mb-3 rounded-md border px-3 py-2 text-sm"

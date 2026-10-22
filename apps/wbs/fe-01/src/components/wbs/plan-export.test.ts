@@ -1287,3 +1287,48 @@ it('exports native minute trios and final charges under explicit minute headers'
   expect(csv[0]).toContain('Agent final (PERT) (min)');
   expect(csv[1][csv[0].indexOf('Agent final (PERT) (min)')]).toBe('40 min');
 });
+
+describe('structured schedule refusal exports', () => {
+  for (const refusal of [
+    {
+      error: {
+        kind: 'dependency_calendar_missing' as const,
+        projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+      },
+      words: 'dependency project has no start date: PUNI · Remote plan',
+    },
+    {
+      error: {
+        kind: 'engine_unavailable' as const,
+        engine: 'optimized' as const,
+        projects: ['remote'],
+        reason: 'adapter_missing' as const,
+      },
+      words: 'required optimized scheduling engine is unavailable',
+    },
+    {
+      error: {
+        kind: 'engine_unavailable' as const,
+        engine: 'optimized' as const,
+        projects: ['remote'],
+        reason: 'connected_optimization_not_supported' as const,
+      },
+      words: 'Connected optimization is unavailable',
+    },
+  ]) {
+    for (const format of ['CSV', 'Markdown'] as const) {
+      it(`exports ${format} with the captured ${refusal.words} reason`, () => {
+        const captured = plan({
+          scheduleError: refusal.error,
+          rows: [row({ id: 'a', number: '010' })],
+        });
+        const text = format === 'CSV' ? planToCsv(captured) : planToMarkdown(captured);
+        expect(text).toContain(refusal.words);
+        expect(text).not.toContain('supported calendar range');
+        const cells = format === 'CSV' ? csvDataRow(text) : markdownRow(text, '010');
+        expect(cells).not.toContain('day 0');
+        expect(cells).toContain('—');
+      });
+    }
+  }
+});
