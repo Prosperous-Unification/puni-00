@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
+import Ajv, { type ValidateFunction } from 'ajv';
+import nxSchema from 'nx/schemas/nx-schema.json';
+import projectSchema from 'nx/schemas/project-schema.json';
 import type { NxJsonConfiguration } from 'nx/src/config/nx-json';
 import type { ProjectGraph } from 'nx/src/config/project-graph';
 import type { InputDefinition } from 'nx/src/config/workspace-json-project-json';
@@ -44,6 +47,130 @@ function isRegularArtifact(change: Change): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validates only configuration used to establish runtime ownership and task dependencies.
+ * The pinned Nx schemas define input/dependency variants, including filtered defaults; other
+ * workspace, project and target properties stay under Nx's own validation policy.
+ */
+const configurationValidator = new Ajv({ strict: false });
+const targetProperties = {
+  inputs: projectSchema.properties.targets.additionalProperties.properties.inputs,
+  dependsOn: projectSchema.properties.targets.additionalProperties.properties.dependsOn,
+};
+const validateProjectConfiguration = configurationValidator.compile({
+  type: 'object',
+  properties: {
+    namedInputs: projectSchema.properties.namedInputs,
+    targets: {
+      type: 'object',
+      additionalProperties: { type: 'object', properties: targetProperties },
+    },
+  },
+  definitions: projectSchema.definitions,
+});
+const defaultProperties = {
+  inputs: nxSchema.definitions.targetDefaultsConfig.properties.inputs,
+  dependsOn: nxSchema.definitions.targetDefaultsConfig.properties.dependsOn,
+};
+const validateRootConfiguration = configurationValidator.compile({
+  type: 'object',
+  properties: {
+    namedInputs: nxSchema.properties.namedInputs,
+    targetDefaults: {
+      type: 'object',
+      additionalProperties: {
+        anyOf: [
+          { type: 'object', properties: defaultProperties },
+          {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                ...defaultProperties,
+                filter: nxSchema.definitions.targetDefaultArrayEntry.properties.filter,
+              },
+            },
+          },
+        ],
+      },
+    },
+  },
+  definitions: nxSchema.definitions,
+});
+
+/**
+ * Nx's package discovery catches malformed patterns and returns an empty workspace set, and
+ * includes the root project only for truthy nx. Validate those inputs before discovery so
+ * malformed declarations cannot erase package-only runtime projects. Nx accepts either an
+ * array of patterns or an object with a packages array; omitted workspaces and nx stay legal.
+ */
+const validatePackageDiscovery = configurationValidator.compile({
+  type: 'object',
+  properties: {
+    workspaces: {
+      anyOf: [
+        { type: 'array', items: { type: 'string' } },
+        {
+          type: 'object',
+          required: ['packages'],
+          properties: { packages: { type: 'array', items: { type: 'string' } } },
+        },
+      ],
+    },
+    nx: { type: 'object' },
+  },
+});
+
+/** Rejects malformed consumed configuration before Nx normalization can hide invalid containers. */
+function validateConfiguration(
+  validate: ValidateFunction,
+  configuration: unknown,
+  location: string,
+): void {
+  // Proof: disabling this refusal failed all 27 malformed-consumed CLI negatives, including raw
+  // root/project/package configuration and null inputs returned by an actual Nx plugin.
+  // Proof: disabling the same refusal also failed all ten malformed-root-package-discovery CLI
+  // negatives, including null/malformed workspaces and null, false or array root nx declarations.
+  if (!validate(configuration)) {
+    throw new Error(
+      `Invalid runtime configuration in ${location}: ${configurationValidator.errorsText(validate.errors)}`,
+    );
+  }
+}
+
+/**
+ * Uses Nx's discovery and package-workspace matching so raw project inputs are checked before
+ * graph merging turns malformed targets or namedInputs into empty objects. JSONC remains legal
+ * for project files, as in Nx's project-json plugin; unrelated package manifests are not consumers.
+ */
+async function validateWorkspaceProjects(repository: string): Promise<void> {
+  const { globWithWorkspaceContext } = await import('nx/src/utils/workspace-context');
+  const { readJsonFile } = await import('nx/src/utils/fileutils');
+  const { buildPackageJsonPatterns, buildPackageJsonWorkspacesMatcher } =
+    await import('nx/src/plugins/package-json/create-nodes');
+  const paths = await globWithWorkspaceContext(repository, ['**/project.json', '**/package.json']);
+  const projectRoots = new Set(paths.filter((path) => path.endsWith('project.json')).map(dirname));
+  const matchesWorkspace = buildPackageJsonWorkspacesMatcher(
+    buildPackageJsonPatterns(repository, (path) =>
+      readJsonFile<Record<string, unknown>>(join(repository, path)),
+    ),
+  );
+  for (const path of paths) {
+    if (path.endsWith('project.json')) {
+      // Proof: chmod 000 on core/project.json made the unreadable-discovered-project CLI case refuse output.
+      validateConfiguration(
+        validateProjectConfiguration,
+        readJsonFile<Record<string, unknown>>(join(repository, path)),
+        path,
+      );
+    } else if (projectRoots.has(dirname(path)) || matchesWorkspace(path)) {
+      const manifest = readJsonFile<Record<string, unknown>>(join(repository, path));
+      if (manifest['nx'] !== undefined)
+        validateConfiguration(validateProjectConfiguration, manifest['nx'], `${path}#nx`);
+    }
+  }
 }
 
 /** Reads trusted workspace configuration without Nx's catch-and-default readers. */
@@ -113,6 +240,9 @@ export async function selectRuntimeProjectsFromGraph(
   nxJson: NxJsonConfiguration,
   packageJson: Record<string, unknown>,
 ): Promise<RuntimeSelection> {
+  for (const [name, project] of Object.entries(graph.nodes)) {
+    validateConfiguration(validateProjectConfiguration, project.data, `project graph ${name}`);
+  }
   const { createTaskGraph } = await import('nx/src/tasks-runner/create-task-graph');
   const { filterAffected } = await import('nx/src/project-graph/affected/affected-project-graph');
   const { WholeFileChange } = await import('nx/src/project-graph/file-utils');
@@ -322,6 +452,9 @@ if (import.meta.main) {
   const selection = selectChanges(repository, base, head);
   const nxJson = readConfiguration(repository, 'nx.json');
   const packageJson = readConfiguration(repository, 'package.json');
+  validateConfiguration(validateRootConfiguration, nxJson, 'nx.json');
+  validateConfiguration(validatePackageDiscovery, packageJson, 'package.json');
+  await validateWorkspaceProjects(repository);
   const { createProjectGraphAsync } = await import('nx/src/project-graph/project-graph');
   const graph = await createProjectGraphAsync({ exitOnError: false });
   process.stdout.write(

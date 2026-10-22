@@ -599,6 +599,276 @@ describe('production runtime selector with actual Nx workspaces', () => {
     15000,
   );
 
+  it.each([
+    ['namedInputs null', { namedInputs: null }],
+    ['namedInputs array', { namedInputs: [] }],
+    ['named input null', { namedInputs: { default: null } }],
+    ['named input entry null', { namedInputs: { default: [null] } }],
+    ['targetDefaults null', { targetDefaults: null }],
+    ['targetDefaults array', { targetDefaults: [] }],
+    ['target default null', { targetDefaults: { test: null } }],
+    ['target inputs null', { targetDefaults: { test: { inputs: null } } }],
+    ['target inputs object', { targetDefaults: { test: { inputs: {} } } }],
+    ['target dependsOn null', { targetDefaults: { test: { dependsOn: null } } }],
+    ['target dependsOn object', { targetDefaults: { test: { dependsOn: {} } } }],
+    ['filtered default null', { targetDefaults: { test: [null] } }],
+    ['filtered default filter null', { targetDefaults: { test: [{ filter: null }] } }],
+    ['filtered default inputs null', { targetDefaults: { test: [{ inputs: null }] } }],
+  ] as const)(
+    'refuses malformed consumed root configuration: %s',
+    (_fault, patch) => {
+      const history = workspace();
+      write(history.root, 'nx.json', JSON.stringify(patch));
+      const execution = invoke(history);
+      expect(execution.exitCode).not.toBe(0);
+      expect(execution.stdout.toString()).toBe('');
+      expect(execution.stderr.toString()).toContain('Invalid runtime configuration in nx.json');
+    },
+    15000,
+  );
+
+  it.each([
+    ['namedInputs null', { namedInputs: null }],
+    ['namedInputs array', { namedInputs: [] }],
+    ['named input null', { namedInputs: { default: null } }],
+    ['targets null', { targets: null }],
+    ['targets array', { targets: [] }],
+    ['target inputs null', { targets: { test: { inputs: null } } }],
+    ['target inputs object', { targets: { test: { inputs: {} } } }],
+    ['target dependsOn null', { targets: { test: { dependsOn: null } } }],
+    ['target dependsOn object', { targets: { test: { dependsOn: {} } } }],
+    ['target dependency missing target', { targets: { test: { dependsOn: [{}] } } }],
+  ] as const)(
+    'refuses malformed consumed project configuration: %s',
+    (_fault, patch) => {
+      const history = workspace();
+      write(history.root, 'modules/core/project.json', JSON.stringify({ name: 'core', ...patch }));
+      const execution = invoke(history);
+      expect(execution.exitCode).not.toBe(0);
+      expect(execution.stdout.toString()).toBe('');
+      expect(execution.stderr.toString()).toContain(
+        'Invalid runtime configuration in modules/core/project.json',
+      );
+    },
+    15000,
+  );
+
+  it.each(['adjacent', 'workspace'])(
+    'refuses malformed consumed %s package Nx configuration before normalization',
+    (source) => {
+      const history = workspace();
+      if (source === 'workspace') {
+        rmSync(join(history.root, 'modules/core/project.json'));
+        write(
+          history.root,
+          'package.json',
+          JSON.stringify({ name: 'workspace', private: true, workspaces: ['modules/*'] }),
+        );
+      }
+      write(
+        history.root,
+        'modules/core/package.json',
+        JSON.stringify({ name: 'core', nx: { targets: null } }),
+      );
+      const execution = invoke(history);
+      expect(execution.exitCode).not.toBe(0);
+      expect(execution.stdout.toString()).toBe('');
+      expect(execution.stderr.toString()).toContain(
+        'Invalid runtime configuration in modules/core/package.json#nx',
+      );
+    },
+    15000,
+  );
+
+  it('preserves filtered target defaults and optional configuration with actual Nx', () => {
+    const history = workspace('runtime.config.json');
+    write(
+      history.root,
+      'nx.json',
+      JSON.stringify({
+        namedInputs: nxJson.namedInputs,
+        targetDefaults: {
+          test: [
+            { inputs: ['default'] },
+            {
+              filter: { projects: ['core'], executor: 'nx:run-commands' },
+              inputs: ['default', '{workspaceRoot}/runtime.config.json'],
+            },
+          ],
+        },
+        customWorkspaceMetadata: { retained: true },
+      }),
+    );
+    write(history.root, 'modules/validator/project.json', JSON.stringify({ name: 'validator' }));
+    const execution = invoke(history);
+    expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+    expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+      'consumer',
+      'core',
+      'middle',
+    ]);
+  }, 15000);
+
+  it('refuses malformed consumed configuration from an actual Nx plugin', () => {
+    const history = workspace('modules/core/source.ts', 'modify', graph(), {
+      'plugin.config.json': '{}',
+      'configuration-plugin.cjs': `module.exports = {
+        name: 'configuration-proof',
+        createNodes: ['plugin.config.json', (paths) => paths.map((path) => [path, { projects: {
+          'modules/plugin': { name: 'plugin', targets: {
+            test: { executor: 'nx:run-commands', inputs: null, options: { command: 'bun --version' } }
+          } }
+        } }])]
+      };`,
+    });
+    write(
+      history.root,
+      'nx.json',
+      JSON.stringify({ namedInputs: nxJson.namedInputs, plugins: ['./configuration-plugin.cjs'] }),
+    );
+    const execution = invoke(history);
+    expect(execution.exitCode).not.toBe(0);
+    expect(execution.stdout.toString()).toBe('');
+    expect(execution.stderr.toString()).toContain(
+      'Invalid runtime configuration in project graph plugin',
+    );
+  }, 15000);
+
+  it('accepts absent optional fields and JSONC while ignoring non-workspace package configuration', () => {
+    const history = workspace();
+    write(history.root, 'nx.json', '{}');
+    write(
+      history.root,
+      'modules/core/project.json',
+      `{
+      // Nx project files permit JSONC.
+      "name": "core", "targets": { "test": { "command": "bun --version" } }
+    }`,
+    );
+    write(
+      history.root,
+      'fixtures/package.json',
+      JSON.stringify({ name: 'unconsumed', nx: { targets: null } }),
+    );
+    const execution = invoke(history);
+    expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+    expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+      'consumer',
+      'core',
+      'middle',
+    ]);
+  }, 15000);
+
+  it('selects a package-workspace Nx project without project.json', () => {
+    const history = workspace('modules/package-module/source.ts', 'modify', graph(), {
+      'package.json': JSON.stringify({
+        name: 'workspace',
+        private: true,
+        workspaces: ['modules/*'],
+      }),
+      'modules/package-module/package.json': JSON.stringify({
+        name: 'package-module',
+        nx: { targets: { test: { command: 'bun --version' } } },
+      }),
+      'modules/package-module/source.ts': 'export const first = 1;',
+    });
+    const execution = invoke(history);
+    expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+    expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual(['package-module']);
+  }, 15000);
+
+  it.each([
+    ['null workspaces', { workspaces: null }],
+    ['string workspaces', { workspaces: 'modules/*' }],
+    ['missing workspace packages', { workspaces: {} }],
+    ['null workspace packages', { workspaces: { packages: null } }],
+    ['string workspace packages', { workspaces: { packages: 'modules/*' } }],
+    ['null workspace pattern', { workspaces: [null] }],
+    ['numeric workspace pattern', { workspaces: { packages: [7] } }],
+    ['null root nx', { workspaces: ['modules/*'], nx: null }],
+    ['false root nx', { workspaces: ['modules/*'], nx: false }],
+    ['array root nx', { workspaces: ['modules/*'], nx: [] }],
+  ] as const)(
+    'refuses malformed root package discovery: %s',
+    (_fault, patch) => {
+      const history = workspace('modules/package-module/source.ts', 'modify', graph(), {
+        'package.json': JSON.stringify({
+          name: 'workspace',
+          private: true,
+          workspaces: ['modules/*'],
+        }),
+        'modules/package-module/package.json': JSON.stringify({
+          name: 'package-module',
+          nx: { targets: { test: { command: 'bun --version' } } },
+        }),
+        'modules/package-module/source.ts': 'export const first = 1;',
+      });
+      write(
+        history.root,
+        'package.json',
+        JSON.stringify({ name: 'workspace', private: true, ...patch }),
+      );
+      git(history.root, 'add', 'package.json');
+      git(history.root, 'commit', '-qm', 'malformed package discovery');
+      history.head = git(history.root, 'rev-parse', 'HEAD');
+      const execution = invoke(history);
+      expect(execution.exitCode).not.toBe(0);
+      expect(execution.stdout.toString()).toBe('');
+      expect(execution.stderr.toString()).toContain(
+        'Invalid runtime configuration in package.json',
+      );
+    },
+    15000,
+  );
+
+  it.each([
+    ['array', ['modules/*', '!modules/excluded']],
+    ['object', { packages: ['./modules/*', '!modules/excluded'], nohoist: ['optional-package'] }],
+  ] as const)(
+    'preserves legal %s root workspace patterns and root Nx membership',
+    (_shape, workspaces) => {
+      const history = workspace('modules/package-module/source.ts', 'modify', graph(), {
+        'package.json': JSON.stringify({
+          name: 'workspace',
+          private: true,
+          workspaces,
+          nx: {
+            targets: {
+              test: {
+                command: 'bun --version',
+                inputs: ['{workspaceRoot}/modules/package-module/**'],
+              },
+            },
+          },
+        }),
+        'modules/package-module/package.json': JSON.stringify({
+          name: 'package-module',
+          nx: { targets: { test: { command: 'bun --version' } } },
+        }),
+        'modules/package-module/source.ts': 'export const first = 1;',
+        'modules/excluded/package.json': JSON.stringify({
+          name: 'excluded',
+          nx: { targets: null },
+        }),
+      });
+      const execution = invoke(history);
+      expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+      expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+        'package-module',
+        'workspace',
+      ]);
+    },
+    15000,
+  );
+
+  it('refuses unreadable discovered project configuration', () => {
+    const history = workspace();
+    chmodSync(join(history.root, 'modules/core/project.json'), 0o000);
+    const execution = invoke(history);
+    expect(execution.exitCode).not.toBe(0);
+    expect(execution.stdout.toString()).toBe('');
+  }, 15000);
+
   it('refuses a broken Nx project configuration and an absent Nx plugin', () => {
     for (const fault of ['malformed project', 'absent plugin']) {
       const history = workspace();
