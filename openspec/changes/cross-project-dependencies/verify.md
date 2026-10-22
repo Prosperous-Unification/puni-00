@@ -613,3 +613,31 @@ integration, and uncached integrated `wbs-core:typecheck` plus its module
 program passed. Full task 3.2 MCP equivalence, task 4.4 incident lifecycle,
 connected runtime and activation remain open. An exact task 4.2/4.3 closure
 audit is pending; no checkbox is marked on this approval alone.
+
+## Tasks 4.2–4.3 — exact closure audit
+
+[Independent task audit](evidence/task-4-command-closure-audit.md) leaves whole
+4.2 and 4.3 unchecked under their existing wording. The admitted transaction
+and graph source are approved; mounted external success, specific owner/shape
+predicate fault observations, actual remote structural-cycle command scenarios
+and a graph-invalid later command after an earlier external batch write still
+need named proofs. This does not revoke the approved dormant command checkpoint
+or claim a defect in its exercised paths. Full 4.4 incident hand-down and 3.2
+MCP equivalence are separate open work.
+
+## Tasks 7.1–7.2 — backend compatibility and Python source slice
+
+[Backend compatibility review and raw output](evidence/task-7-backend-compat.md)
+record the approved 45-file fixture packet, full SQLite 1,953 pass/one skip,
+independent changed-backend 346 pass, exact historical version and rollback
+checks, and combined-feature uncached core/backend typechecks. The four-file
+combined backend focus passed 127 tests/1,259 assertions, including all three
+old-base command failures. The first full backend run before the command packet
+and final scope fixture had four failures and is not relabeled green.
+
+Astra supports task 7.2's bounded Python/source obligations as complete, and
+its checkbox is checked. Task 7.1 remains open until the external-FS second-step
+probe is permanent and each new boundary/version member has an independently
+watched production request/decoder fault. The review's valid six-assertion
+FS probe is preserved. Tasks 7.3/7.4 runtime/persistence, the final combined
+backend/host gate, activation and deploy remain open.

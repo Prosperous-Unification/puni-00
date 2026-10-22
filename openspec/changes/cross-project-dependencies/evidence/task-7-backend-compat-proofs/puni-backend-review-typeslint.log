@@ -1,0 +1,29 @@
+
+ NX   Running targets typecheck, lint for 2 projects and 1 task they depend on:
+
+- wbs-be-01
+- wbs-store-sqlite
+
+
+✔  nx run wbs-be-01:"typecheck:module"
+✔  nx run wbs-store-sqlite:typecheck
+✔  nx run wbs-be-01:typecheck
+✔  nx run wbs-store-sqlite:lint
+✔  nx run wbs-be-01:lint
+
+
+
+ NX   Successfully ran targets typecheck, lint for 2 projects and 1 task they depend on
+
+
+Output of 5 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      3m 33s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     3m 33s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    3m 33s

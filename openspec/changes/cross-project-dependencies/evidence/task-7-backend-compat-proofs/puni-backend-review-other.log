@@ -1,0 +1,1223 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/migration-cli.db.test.ts:
+(pass) migration deploy entrypoints > refuses exact-set down without the original capture digest [286.21ms]
+(pass) migration deploy entrypoints > advertises exact-set capabilities without a database or DB_PATH [45.00ms]
+(pass) migration deploy entrypoints > refuses unexpected capability arguments before any database access [15.82ms]
+(pass) migration deploy entrypoints > backs its advertised exact-set protocol with the real capture and digest-pinned down CLIs [500.73ms]
+(pass) migration deploy entrypoints > restores an older newly introduced migration after a newer shared-people baseline [913.07ms]
+(pass) migration deploy entrypoints > preserves an older migration already captured and repeats exact restoration safely [2377.58ms]
+(pass) migration deploy entrypoints > restores an explicitly empty captured set [903.08ms]
+(pass) migration deploy entrypoints > refuses capture when its database is absent without creating a file [218.36ms]
+(pass) migration deploy entrypoints > refuses a zero-error down script when the ledger still records the addition [972.16ms]
+(pass) migration deploy entrypoints > refuses conflicting exact-set and legacy rollback modes before changing the ledger [699.49ms]
+(pass) migration deploy entrypoints > refuses duplicate capture identity flags before reading the database [233.11ms]
+(pass) migration deploy entrypoints > refuses reordered pending migrations before one down script can commit [416.22ms]
+(pass) migration deploy entrypoints > resumes exact restoration after one down script and ledger deletion committed [1542.34ms]
+(pass) migration deploy entrypoints > refuses a missing capture before reversing either applied addition [463.62ms]
+(pass) migration deploy entrypoints > refuses an unreadable capture in a nonprivileged CLI process [551.89ms]
+(pass) migration deploy entrypoints > refuses malformed JSON before reversing an addition [447.58ms]
+(pass) migration deploy entrypoints > refuses unsupported capture version before reversing an addition [475.28ms]
+(pass) migration deploy entrypoints > refuses duplicate migration identity before reversing an addition [559.54ms]
+(pass) migration deploy entrypoints > refuses a capture belonging to another target before reversing an addition [636.83ms]
+(pass) migration deploy entrypoints > refuses a capture belonging to another attempt before reversing an addition [405.42ms]
+(pass) migration deploy entrypoints > refuses a capture belonging to another candidate before reversing an addition [658.92ms]
+(pass) migration deploy entrypoints > refuses an unexpected applied migration before reversing a candidate [807.15ms]
+(pass) migration deploy entrypoints > refuses a changed pending ledger identity before reversing either candidate [1082.03ms]
+(pass) migration deploy entrypoints > refuses capture when the applied baseline ledger has duplicate names [1123.63ms]
+(pass) migration deploy entrypoints > refuses a duplicate observed baseline ledger name before reversing either candidate [654.60ms]
+(pass) migration deploy entrypoints > refuses a duplicate observed pending ledger name before reversing either candidate [828.83ms]
+(pass) migration deploy entrypoints > refuses a malformed captured migration hash before reversing an addition [689.18ms]
+(pass) migration deploy entrypoints > refuses a missing captured baseline ledger identity before reversing a candidate [1407.80ms]
+(pass) migration deploy entrypoints > refuses a changed captured baseline ledger identity before reversing a candidate [741.15ms]
+(pass) migration deploy entrypoints > refuses changed migration.sql bytes before reversing either candidate [837.23ms]
+(pass) migration deploy entrypoints > refuses changed down.sql bytes before reversing either candidate [1173.26ms]
+(pass) migration deploy entrypoints > refuses missing migration.sql before reversing either candidate [940.22ms]
+(pass) migration deploy entrypoints > refuses missing down.sql before reversing either candidate [966.66ms]
+(pass) migration deploy entrypoints > refuses unreadable migration.sql in a nonprivileged CLI before reversing either candidate [978.47ms]
+(pass) migration deploy entrypoints > refuses unreadable down.sql in a nonprivileged CLI before reversing either candidate [1134.70ms]
+(pass) migration deploy entrypoints > restores a partial forward application and repeats as a verified no-op [1314.95ms]
+(pass) migration deploy entrypoints > rolls back a failed down statement and its ledger deletion, then retries with the same capture [2621.98ms]
+(pass) migration deploy entrypoints > import the SQLite source runners without moving their app paths [1.67ms]
+(pass) migration deploy entrypoints > applies, reports, and reverses the newest migration through the stable CLI paths [2463.20ms]
+(pass) migration deploy entrypoints > refuses to reverse add_claim over a claim after reversing the two binding migrations, each in its own transaction [1629.30ms]
+(pass) migration deploy entrypoints > refuses to reverse add_resources while any resource row exists, then reverses and reapplies [2913.92ms]
+(pass) migration deploy entrypoints > previews organization selection read-only, and fails without a database [2917.52ms]
+(pass) migration deploy entrypoints > codes the steps an older release left uncoded, and codes nothing on a rerun [27600.11ms]
+(pass) migration deploy entrypoints > exits non-zero when the backfill cannot run [12620.35ms]
+(pass) migration deploy entrypoints > saves, removes and restores spaces through the rollback CLI [5062.96ms]
+(pass) migration deploy entrypoints > saves, removes and restores project ranks through the rollback CLI [3477.56ms]
+(pass) migration deploy entrypoints > guards the attempt rollback CLI usage and refuses a database without attempts [1822.53ms]
+(pass) migration deploy entrypoints > guards the estimate unit rollback CLI usage and refuses a database without the unit column [2167.56ms]
+(pass) migration deploy entrypoints > saves, removes and restores minute-unit steps through the rollback CLI [11954.09ms]
+(pass) migration deploy entrypoints > saves, removes and restores attempts through the rollback CLI [2978.46ms]
+(pass) migration deploy entrypoints > saves, removes and restores readiness and holds through the rollback CLI [2572.12ms]
+(pass) migration deploy entrypoints > saves, removes and restores typed rows through the rollback CLI [3295.40ms]
+
+apps/wbs/be-01/src/boot.db.test.ts:
+{"level":"info","time":1792653639893,"service":"be-01","port":0,"msg":"be-01 listening (schema managed by the deploy pipeline)"}
+{"level":"warn","time":1792653640335,"service":"be-01","err":{"occurrence_id":"AE_1KCV6Q9B78QED7Y2GEJPC7DDPP","fingerprint":"fp1_5cd408a45ba279c350c7586c4e04fedb","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/compose.ts:297:27)","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:153:31)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a2","msg":"project event recorded but not pushed"}
+{"level":"warn","time":1792653640521,"service":"be-01","err":{"occurrence_id":"AE_860FZK0CFW6TVTAB2C67FH6TWX","fingerprint":"fp1_f281a2be1cf761022a8491269344cc51","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async publish (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:85:16)","    at async publish (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts:43:22)","    at async announceTree (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8180:31)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a1","msg":"project event recorded but not pushed"}
+{"level":"warn","time":1792653640686,"service":"be-01","err":{"occurrence_id":"AE_2BY9CNGXKW7JANCKCZ0RQ734FB","fingerprint":"fp1_b00faffb00d82044762d0f8b5e11e558","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/compose.ts:297:27)","    at async moveAfter (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/service/standalone-rank.ts:65:53)","    at async move (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/service/project-rank.resource.ts:62:41)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a1","msg":"project event recorded but not pushed"}
+{"level":"warn","time":1792653640698,"service":"be-01","err":{"occurrence_id":"AE_2HRSX9RTYXEZPRE9NK6ACVCGTD","fingerprint":"fp1_b00faffb00d82044762d0f8b5e11e558","as_json":{"code":"ENOTFOUND","path":"http://gw.invalid/internal/push","syscall":"getaddrinfo","hostname":"gw.invalid","errno":4},"stack":["TypeError: getaddrinfo ENOTFOUND gw.invalid","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:83:36)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-cross-solver-backend/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async pushRecorded (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts:101:28)","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/compose.ts:297:27)","    at async moveAfter (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/service/standalone-rank.ts:65:53)","    at async move (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/service/project-rank.resource.ts:62:41)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:a2","msg":"project event recorded but not pushed"}
+(pass) boots committed fan-out into cold scoped commands and rank moves [1443.24ms]
+{"level":"info","time":1792653641330,"service":"be-01","port":0,"msg":"be-01 listening (schema managed by the deploy pipeline)"}
+(pass) bootBe01 > validates configured delegation keys before opening storage and keeps generic issuance inactive [621.18ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > reconciles an abandoned optimizer drain before reporting healthy [381.46ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > hands the installed optimizer runtime into the serving process graph [63.54ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > persists the fixed local identity after migrating an empty development database [50.11ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > refuses the project and directory lists after activation until a session binds an organization [49.57ms]
+{"level":"info","time":1792653642207,"service":"be-01","port":0,"msg":"be-01 listening (schema managed by the deploy pipeline)"}
+(pass) bootBe01 > serves SCIM provisioning from the shared database once activated [317.28ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > codes the steps an older writer left uncoded once it has migrated [268.86ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > starts the retention timer [359.71ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > mounts the composed login throttle instead of constructing another public graph [252.76ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalFailures: [
+  [Object ...]
+],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [
+    [Object ...]
+  ],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+71 |     /** Frozen disposal failures in finalizer invocation order. */
+72 |     failures;
+73 |     /** @param failures - Structured failures whose original errors also populate `AggregateError.errors`. */
+74 |     constructor(failures) {
+75 |         const snapshot = Object.freeze(failures.map(item => Object.freeze({ ...item })));
+76 |         super(snapshot.map(item => item.error), diagnosticMessage('DI_BAG_DISPOSAL_FAILED', `Failed to run ${snapshot.length} disposal callback(s)`));
+             ^
+DiBagDisposalError: DI_BAG_DISPOSAL_FAILED: Failed to run 1 disposal callback(s); see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-disposal-failed
+ failures: [
+  [Object ...]
+],
+  details: {
+  operation: "close",
+  failedCallbacks: 1,
+  failures: [
+    [Object ...]
+  ],
+},
+     code: "DI_BAG_DISPOSAL_FAILED"
+
+      at new DiBagDisposalError (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/errors.js:76:9)
+      at finishClose (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/runtime.js:618:19)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > stops optimizer and retention before closing its opened source [376.28ms]
+256 |   return seen.join(' | ');
+257 | }
+258 | 
+259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
+260 | function heldPort(): { port: number; release: () => Promise<void> } {
+261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
+                         ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at heldPort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:261:20)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:789:18)
+(fail) bootBe01 > releases the source when the port it was given is already taken [363.25ms]
+841 |       });
+842 |     } catch (failure) {
+843 |       caught = failure;
+844 |     }
+845 | 
+846 |     expect(reasons(caught)).toContain('store wiring failed');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "store wiring failed"
+Received: "EPERM: operation not permitted, listen"
+
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:846:29)
+(fail) bootBe01 > closes the source when the service graph cannot be composed [405.58ms]
+256 |   return seen.join(' | ');
+257 | }
+258 | 
+259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
+260 | function heldPort(): { port: number; release: () => Promise<void> } {
+261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
+                         ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at heldPort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:261:20)
+      at freePort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:269:16)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:853:24)
+(fail) bootBe01 > releases the source and the port when a step after the listener fails [1.34ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > releases every other resource when one release is refused [386.46ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalFailures: [
+  [Object ...]
+],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [
+    [Object ...]
+  ],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+71 |     /** Frozen disposal failures in finalizer invocation order. */
+72 |     failures;
+73 |     /** @param failures - Structured failures whose original errors also populate `AggregateError.errors`. */
+74 |     constructor(failures) {
+75 |         const snapshot = Object.freeze(failures.map(item => Object.freeze({ ...item })));
+76 |         super(snapshot.map(item => item.error), diagnosticMessage('DI_BAG_DISPOSAL_FAILED', `Failed to run ${snapshot.length} disposal callback(s)`));
+             ^
+DiBagDisposalError: DI_BAG_DISPOSAL_FAILED: Failed to run 1 disposal callback(s); see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-disposal-failed
+ failures: [
+  [Object ...]
+],
+  details: {
+  operation: "close",
+  failedCallbacks: 1,
+  failures: [
+    [Object ...]
+  ],
+},
+     code: "DI_BAG_DISPOSAL_FAILED"
+
+      at new DiBagDisposalError (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/errors.js:76:9)
+      at finishClose (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/runtime.js:618:19)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > refuses to report a clean stop when a release is refused [267.09ms]
+991 |     expect(repeated).toBe(caught);
+992 |     expect(closes).toBe(1);
+993 |   }, 10_000);
+994 | 
+995 |   it('does not mistake a stalled listener for a closed one', async () => {
+996 |     const stalled = Bun.serve({
+                              ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:996:25)
+(fail) bootBe01 > does not mistake a stalled listener for a closed one [1.29ms]
+256 |   return seen.join(' | ');
+257 | }
+258 | 
+259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
+260 | function heldPort(): { port: number; release: () => Promise<void> } {
+261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
+                         ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at heldPort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:261:20)
+      at freePort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:269:16)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:1018:24)
+(fail) bootBe01 > releases nothing and rejects when the source cannot be opened [1.65ms]
+256 |   return seen.join(' | ');
+257 | }
+258 | 
+259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
+260 | function heldPort(): { port: number; release: () => Promise<void> } {
+261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
+                         ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at heldPort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:261:20)
+      at freePort (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:269:16)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.db.test.ts:1038:24)
+(fail) bootBe01 > stops accepting before it closes the source it opened [359.71ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > stops twice without complaining [266.57ms]
+{"level":"info","time":1792653645580,"service":"be-01","port":0,"msg":"be-01 listening (schema managed by the deploy pipeline)"}
+(pass) bootBe01 > refuses an unmigrated database before becoming ready [34.90ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > serves health on the port it bound [346.90ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > names the commit its checkout is at, not one captured at startup [245.95ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > holds a command batch out while the write coordinator is taken [564.28ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) bootBe01 > answers a resume from the log it opened [377.28ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) OIDC boot wiring > mounts the configured browser login route [194.23ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) OIDC boot wiring > stops accepting an issued password session when the kill switch is false [336.12ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) OIDC boot wiring > accepts an issued password session when the kill switch is true [273.89ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) keeps boot verifier outages as 500 with password login false [202.99ms]
+Elysia isn't running. Call `app.listen` to start the server. Error
+    at stop (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:234:13)
+    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:188:75)
+    at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:552:72)
+    at runDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:137:23)
+    at rollbackDisposers (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:127:35)
+213 |             }
+214 |             if (checkCancellation())
+215 |                 return;
+216 |             settled = true;
+217 |             release();
+218 |             reject(new errors_2.DiBagServiceReadinessError(cause, disposalError instanceof errors_2.DiBagDisposalError ? disposalError.failures : [], disposalError));
+                         ^
+DiBagServiceReadinessError: DI_BAG_SERVICE_READINESS_FAILED: The listed services are not ready: a factory failed; this container is closed; see https://dany-fedorov.github.io/di-bag/agent/errors.html#di-bag-service-readiness-failed
+ disposalError: undefined,
+ disposalFailures: [],
+    details: {
+  operation: "ensureServicesReady",
+  disposalFailures: [],
+},
+       code: "DI_BAG_SERVICE_READINESS_FAILED"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:218:20)
+
+191 |           ...websocket || {}
+192 |         },
+193 |         port: options,
+194 |         fetch: app.fetch
+195 |       };
+196 |       if (app.server = Bun.serve(serve), app.event.start)
+                                 ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/adapter/bun/index.mjs:196:28)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/elysia/dist/index.mjs:163:71)
+      at <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/boot.ts:560:96)
+      at capture (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:261:29)
+      at evaluate (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/provider-execution.js:186:28)
+      at resolveBinding (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:334:35)
+      at acquire (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/acquisition.js:81:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:193:30)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/di-bag/dist/startup.js:195:39)
+(fail) keeps boot verifier outages as 500 with password login true [250.32ms]
+{"level":"info","time":1792653648664,"service":"be-01","port":0,"msg":"be-01 listening (migrating)"}
+(pass) refuses boot after migrations when blockage admission authority is missing [300.75ms]
+
+apps/wbs/be-01/src/person-account-migration.db.test.ts:
+(pass) person account and credential pin migrations > add both nullable columns forward and remove them on an empty rollback [839.54ms]
+(pass) person account and credential pin migrations > refuses rollback while a person is bound, naming the count and the unbind [417.28ms]
+(pass) person account and credential pin migrations > refuses rollback while a credential is pinned, naming the count and the unlink [457.03ms]
+
+apps/wbs/be-01/src/service/optimization-restart.db.test.ts:
+(pass) OptimizationCoordinator restart semantics > releases a queued reservation after not_found capture and pumps the next entry [254.49ms]
+(pass) OptimizationCoordinator restart semantics > releases a queued reservation after engine_unavailable capture and pumps the next entry [270.33ms]
+(pass) OptimizationCoordinator restart semantics > releases a queued reservation after cycle capture and pumps the next entry [344.50ms]
+(pass) OptimizationCoordinator restart semantics > releases a queued reservation after calendar_range capture and pumps the next entry [249.04ms]
+(pass) OptimizationCoordinator restart semantics > releases a queued reservation after disabled capture and pumps the next entry [443.41ms]
+(pass) OptimizationCoordinator restart semantics > releases a queued reservation when input capture throws before launch [244.98ms]
+(pass) OptimizationCoordinator restart semantics > does not adopt or duplicate old children and retries their durable variants after release [347.70ms]
+(pass) OptimizationCoordinator restart semantics > launches a valid durable entry left by the prior coordinator [263.46ms]
+(pass) OptimizationCoordinator restart semantics > discards generation, cancel-epoch, and project-toggle failures without spawning [1043.83ms]
+
+apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts:
+(pass) cross-coordinator cancellation > kills both real children inside one heartbeat and fences their late outcomes [352.04ms]
+(pass) cross-coordinator cancellation > ends the old real children and fences their outcomes during edit overlap [617.76ms]
+
+apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts:
+88 | async function until(check: () => boolean): Promise<void> {
+89 |   for (let turn = 0; turn < 500; turn += 1) {
+90 |     if (check()) return;
+91 |     await Bun.sleep(2);
+92 |   }
+93 |   throw new Error('spawn-handshake condition did not arrive');
+                 ^
+error: spawn-handshake condition did not arrive
+      at until (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts:93:13)
+      at async <anonymous> (/tmp/puni-cross-solver-backend/apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts:186:11)
+(fail) the two-coordinator spawn handshake > aborts delayed launchers after deadline reclamation while replacements alone solve [1532.25ms]
+
+apps/wbs/be-01/src/module/optimization/module.test.ts:
+(pass) the Optimization module > forwards committed envelopes through the installed Retry dependency [4.01ms]
+(pass) the Optimization module > routes enabled reads and Retry decisions through the supplied repository [4.03ms]
+(pass) the Optimization module > reads an idle plan under the identity installOptimization wires [1.93ms]
+(pass) the Optimization module > hashes a Retry through the cache-key port installOptimization wires [2.89ms]
+(pass) the Optimization module > reports a failed edit read to the error sink installOptimization wires [2.85ms]
+(pass) the Optimization module > exposes only the contract exports from its installer [2.04ms]
+(pass) the Optimization module > keeps its private bindings out of a host graph [2.34ms]
+(pass) the Optimization module > labels its private bindings with the module name [5.76ms]
+(pass) the Optimization module > names itself when a host omits a requirement [10.56ms]
+(pass) the Optimization module > refuses coordinator resolution when the repository is omitted [3.14ms]
+
+apps/wbs/be-01/src/module/solver-supervisor/solver-supervisor-spawner.test.ts:
+(pass) solverSupervisorSpawner > sends only the reserved attempt and exposes authenticated terminal evidence [4.64ms]
+
+apps/wbs/be-01/src/module/solver-supervisor/module.test.ts:
+(pass) the Solver supervisor module > hands the reserved attempt to the connector installSolverSupervisor wires [6.38ms]
+(pass) the Solver supervisor module > exposes only the contract exports from its installer [2.00ms]
+(pass) the Solver supervisor module > keeps its private bindings out of a host graph [2.03ms]
+(pass) the Solver supervisor module > labels its private bindings with the module name [2.18ms]
+(pass) the Solver supervisor module > names itself when a host omits a requirement [2.00ms]
+
+27 tests failed:
+(fail) bootBe01 > reconciles an abandoned optimizer drain before reporting healthy [381.46ms]
+(fail) bootBe01 > hands the installed optimizer runtime into the serving process graph [63.54ms]
+(fail) bootBe01 > persists the fixed local identity after migrating an empty development database [50.11ms]
+(fail) bootBe01 > refuses the project and directory lists after activation until a session binds an organization [49.57ms]
+(fail) bootBe01 > codes the steps an older writer left uncoded once it has migrated [268.86ms]
+(fail) bootBe01 > starts the retention timer [359.71ms]
+(fail) bootBe01 > mounts the composed login throttle instead of constructing another public graph [252.76ms]
+(fail) bootBe01 > stops optimizer and retention before closing its opened source [376.28ms]
+(fail) bootBe01 > releases the source when the port it was given is already taken [363.25ms]
+(fail) bootBe01 > closes the source when the service graph cannot be composed [405.58ms]
+(fail) bootBe01 > releases the source and the port when a step after the listener fails [1.34ms]
+(fail) bootBe01 > releases every other resource when one release is refused [386.46ms]
+(fail) bootBe01 > refuses to report a clean stop when a release is refused [267.09ms]
+(fail) bootBe01 > does not mistake a stalled listener for a closed one [1.29ms]
+(fail) bootBe01 > releases nothing and rejects when the source cannot be opened [1.65ms]
+(fail) bootBe01 > stops accepting before it closes the source it opened [359.71ms]
+(fail) bootBe01 > stops twice without complaining [266.57ms]
+(fail) bootBe01 > serves health on the port it bound [346.90ms]
+(fail) bootBe01 > names the commit its checkout is at, not one captured at startup [245.95ms]
+(fail) bootBe01 > holds a command batch out while the write coordinator is taken [564.28ms]
+(fail) bootBe01 > answers a resume from the log it opened [377.28ms]
+(fail) OIDC boot wiring > mounts the configured browser login route [194.23ms]
+(fail) OIDC boot wiring > stops accepting an issued password session when the kill switch is false [336.12ms]
+(fail) OIDC boot wiring > accepts an issued password session when the kill switch is true [273.89ms]
+(fail) keeps boot verifier outages as 500 with password login false [202.99ms]
+(fail) keeps boot verifier outages as 500 with password login true [250.32ms]
+(fail) the two-coordinator spawn handshake > aborts delayed launchers after deadline reclamation while replacements alone solve [1532.25ms]
+
+ 87 pass
+ 27 fail
+ 635 expect() calls
+Ran 114 tests across 9 files. [141.57s]
