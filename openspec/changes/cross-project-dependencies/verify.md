@@ -850,3 +850,18 @@ build passed. An initial sandboxed build failed only with TS5033 write denial an
 is not counted. Runtime adapter/hash/certificate, final publication, durable
 terminal state, Retry and restart remain open; 7.3/7.4 are unchecked. Final CI
 and exact-SHA host gate remain pending.
+
+## Task 8.4a — corrected detached connected tree projector
+
+The first [independent projector review](evidence/task-8.4a-projector-review.md)
+rejected a descendant-step label that implied one concrete step and null required
+labels that produced a `null.010` address. The corrected
+[Astra re-review](evidence/task-8.4a-projector-v2-review.md) approved the pure
+bounded packet. The [source evidence](evidence/task-8.4a-connected-tree.md)
+records the watched reference, label, identity, readiness and incident-filter
+faults. After integration, projector/connected-plan/readiness suites passed 54/54
+(146 assertions) and core source/spec TypeScript builds passed. The full core Nx
+lint attempt in the isolated packet exited 1 without rule diagnostics; named-file
+lint passed. The projector is detached and does no IO or rescheduling. Mounted
+presenter, truthful unavailable DTO, announcement/claim, retained/aggregate paths
+and task 8.4 completion remain open, as does the final CI/host gate.
