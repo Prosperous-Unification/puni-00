@@ -226,8 +226,9 @@ ports/providers; update parent `verify.md` with measured results. Do not edit de
 CLI commands. Keep knowledge about methods on their symbols, using links to the owning
 OpenSpec design only for cross-file rationale.
 
-**Interfaces:** `openStores(configuration: SqliteConfiguration, clock: WallClock)` returns
-`{ runs: RunStore; artifacts: ArtifactStore; ownership: OwnershipStatus; close(): void }`.
+**Interfaces:** Async `openStores(configuration: SqliteConfiguration, clock: WallClock)` returns
+`Promise<{ runs: RunStore; artifacts: ArtifactStore; ownership: OwnershipStatus; close(): void }>`
+by composing the existing asynchronous SQLite opener.
 `SqliteConfiguration` is the exact discriminator/configuration shape in storage-design.md.
 Its decoder rejects unknown providers and missing settings. The production path has no
 memory fallback and cannot bootstrap missing trusted state.

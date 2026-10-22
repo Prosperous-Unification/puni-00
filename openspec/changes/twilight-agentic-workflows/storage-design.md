@@ -412,7 +412,8 @@ paired down SQL for provider tests; no WBS database migration or deploy script c
 
 `runs/open-stores.ts` accepts only `{ provider: 'sqlite'; path; organizationId; capacity;
 leaseMilliseconds; maxBusyAttempts; busyDelayMilliseconds }` plus `WallClock`, and calls
-open, never bootstrap. Memory is not selectable in production configuration. One store is bound to one organization, including
+open, never bootstrap. Its asynchronous `openStores` returns a promise of the provider bundle
+`{ runs, artifacts, ownership, close }`, preserving the existing asynchronous open lifecycle. Memory is not selectable in production configuration. One store is bound to one organization, including
 all of its runs and incoming ownership tokens. Later bridge integration must verify the
 credential's organization capability matches that binding before using the store. This
 configuration invariant does not implement tenant authentication or authorization. The core only
