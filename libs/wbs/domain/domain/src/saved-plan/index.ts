@@ -1,5 +1,8 @@
 export * from './canonical-plan-input';
-export { validateSavedConnectedHistory } from './connected-schedule';
+export {
+  readSavedConnectedScheduleEvidence,
+  validateSavedConnectedHistory,
+} from './connected-schedule';
 export type { SavedConnectedDependencyHistory, SavedDependencyHistory } from './dependency-history';
 export { readSavedDependencyHistory } from './dependency-history';
 export * from './diff-plans';

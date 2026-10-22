@@ -93,6 +93,28 @@ describe('versioned saved input readers', () => {
       expect(() => readSavedPlanInput(contaminated, 8)).toThrow();
   });
 
+  for (const version of [1, 2]) {
+    it(`refuses original v${String(version)} scoped claims before an upgrade can erase them`, () => {
+      const original = JSON.parse(frozen[version - 1].bytes) as Record<string, unknown>;
+      const claim = {
+        id: 'foreign',
+        type: 'FS',
+        predecessor: { scope: 'whole', projectId: 'remote', workItemId: 'remote-row' },
+        successor: { scope: 'whole', workItemId: 'w2' },
+      };
+      for (const contaminated of [
+        { ...original, typedDependencies: [claim] },
+        { ...original, typedDependencies: [{ ...claim, projectId: 'remote' }] },
+        { ...original, dependencyHistory: { kind: 'connected' } },
+        { ...original, externalDependencies: [] },
+      ]) {
+        const bytes = JSON.stringify(contaminated);
+        expect(() => readSavedPlanInput(contaminated, version)).toThrow('legacy_external');
+        expect(JSON.stringify(contaminated)).toBe(bytes);
+      }
+    });
+  }
+
   it('canonicalizes unordered captured history before future writer activation', () => {
     const captured = connectedHistoryFixture();
     const history = readSavedDependencyHistory(captured.history);

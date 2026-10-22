@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [4.44ms]
+(pass) new saved body integrity > refuses missing frozen target slice identity and scheduling fields [12.82ms]
+(pass) new saved body integrity > refuses missing, foreign or mismatched target placement membership [15.70ms]
+(pass) new saved body integrity > refuses altered selected offsets, spans and dates with an intact captured composite [20.93ms]
+(pass) new saved body integrity > validates the captured target anchor rather than using another project calendar [7.61ms]
+(pass) new saved body integrity > refuses a captured stage anchor that contradicts its stored target date [2.38ms]
+(pass) new saved body integrity > accepts a genuinely empty connected component without inventing an anchor or stage [1.98ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.24ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [2.16ms]
+(pass) new saved body integrity > requires absent schedules for unavailable connected context and preserves local schedule1 reads [1.36ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [1.31ms]
+
+ 11 pass
+ 0 fail
+ 51 expect() calls
+Ran 11 tests across 1 file. [383.00ms]

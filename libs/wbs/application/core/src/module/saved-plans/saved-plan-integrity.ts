@@ -4,6 +4,7 @@ import {
   readSavedPlanInput,
   SavedHistoryError,
   validateSavedConnectedHistory,
+  validateSavedConnectedTarget,
 } from '@wbs/domain';
 
 import type { Digest } from '../../ports/runtime';
@@ -261,11 +262,14 @@ export function verifySavedPlanBodies(
       schedule.version !== 2
     )
       throw new SavedHistoryError('connected_schedule_version', '$.version');
-    const connection =
-      schedule?.version === 2
-        ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes)).connection
-        : null;
-    validateSavedConnectedHistory(parsed.dependencyHistory, connection);
+    const connected =
+      schedule?.version === 2 ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes)) : null;
+    validateSavedConnectedHistory(
+      parsed.dependencyHistory,
+      connected === null ? null : connected.connection,
+    );
+    if (connected !== null && parsed.dependencyHistory.kind === 'connected')
+      validateSavedConnectedTarget(parsed.dependencyHistory, connected, parsed.project.startDate);
     return null;
   } catch (cause) {
     if (cause instanceof SavedHistoryError)

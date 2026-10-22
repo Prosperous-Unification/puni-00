@@ -149,15 +149,15 @@ const fields = {
 } as const;
 const input9 = type({ '+': 'reject', schemaVersion: '9', ...fields, dependencyHistory: 'unknown' });
 
-/** Upgrade only the historical local format; explicit external claims must never be discarded. */
-export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<string, unknown> {
-  // Reader-only fault: erasing scoped claims before this upgrade failed the legacy external-claim test; production wiring proof is pending.
+/** Reject claims on the original legacy body before historical upgrades may remove obsolete fields. */
+function assertLegacyLocalClaims(body: object): void {
   requireHistory(
     !('dependencyHistory' in body) && !('externalDependencies' in body),
     'legacy_external',
     '$.dependencyHistory',
   );
-  const dependencies = body['typedDependencies'];
+  const dependencies: unknown = Reflect.get(body, 'typedDependencies');
+  if (dependencies === undefined) return;
   requireHistory(Array.isArray(dependencies), 'shape', '$.typedDependencies');
   for (const dependency of dependencies) {
     requireHistory(
@@ -174,6 +174,12 @@ export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<s
       );
     }
   }
+}
+
+/** Upgrade only the historical local format; explicit external claims must never be discarded. */
+export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<string, unknown> {
+  assertLegacyLocalClaims(body);
+  requireHistory(Array.isArray(body['typedDependencies']), 'shape', '$.typedDependencies');
   return { ...body, schemaVersion: 9, dependencyHistory: { kind: 'local' } };
 }
 
@@ -192,6 +198,7 @@ export function readSavedPlanInput(body: unknown, version: number): CanonicalPla
   );
   let current: unknown = body;
   if (version < 9) {
+    assertLegacyLocalClaims(body);
     // Boundary: legacy normalizer returns its validated v8 field set; this upgrade accepts only that local shape.
     current = upgradeLocalPlanInputV8(
       normalisePlanInputForward(body, version) as unknown as Record<string, unknown>,

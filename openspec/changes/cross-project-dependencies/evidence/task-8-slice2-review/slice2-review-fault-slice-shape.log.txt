@@ -1,0 +1,396 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [3.51ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.50ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.76ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.37ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.38ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.36ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.46ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.85ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.23ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [2.14ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [3.74ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [4.11ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.17ms]
+(pass) versioned saved input readers > refuses original v1 scoped claims before an upgrade can erase them [0.14ms]
+(pass) versioned saved input readers > refuses original v2 scoped claims before an upgrade can erase them [0.05ms]
+(pass) versioned saved input readers > canonicalizes unordered captured history before future writer activation [6.93ms]
+(pass) versioned saved input readers > retains direct-fact ownership and duplicate refusal in new bodies [0.98ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [4.09ms]
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [5.50ms]
+ 96 |       expect(() =>
+ 97 |         readSavedConnectedScheduleBody({
+ 98 |           ...schedule,
+ 99 |           slices: { ...schedule.slices, [designKey]: incomplete },
+100 |         }),
+101 |       ).toThrow('shape');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "shape"
+
+Received function did not throw
+Received value: {
+  version: 2,
+  algorithmId: "connected-selection-v1:retired",
+  workItems: {
+    a: {
+      duration: 5,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 5,
+      latestStart: 0,
+      latestFinish: 5,
+      float: 0,
+      critical: true,
+      startsOn: "2026-10-01",
+      endsOn: "2026-10-07",
+    },
+  },
+  slices: {
+    "a\u0000design": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 1,
+      earliestFinish: 2,
+      latestStart: 1,
+      latestFinish: 2,
+      float: 0,
+      critical: true,
+      stepId: "design",
+      personId: null,
+      boundBy: "projectStart",
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      width: 1,
+      effort: 1,
+      lateBy: null,
+      startsOn: "2026-10-02",
+      endsOn: "2026-10-02",
+    },
+    "a\u0000test": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 4,
+      earliestFinish: 5,
+      latestStart: 4,
+      latestFinish: 5,
+      float: 0,
+      critical: true,
+      workItemId: "a",
+      stepId: "test",
+      personId: null,
+      boundBy: "projectStart",
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      width: 1,
+      effort: 1,
+      lateBy: null,
+      startsOn: "2026-10-07",
+      endsOn: "2026-10-07",
+    },
+  },
+  waitingForPerson: 0,
+  waitingForCapacity: 0,
+  connection: {
+    kind: "connected",
+    targetProjectId: "A",
+    mode: "isolated",
+    originOrdinal: 14808,
+    baseline: {
+      workItems: {
+        a: {
+          duration: 4,
+          estimated: true,
+          earliestStart: 0,
+          earliestFinish: 4,
+          latestStart: 0,
+          latestFinish: 4,
+          float: 0,
+          critical: true,
+        },
+        b: {
+          duration: 2,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 3,
+          latestStart: 1,
+          latestFinish: 3,
+          float: 0,
+          critical: true,
+        },
+      },
+      slices: {
+        "a\u0000design": {
+          duration: 1,
+          estimated: true,
+          earliestStart: 0,
+          earliestFinish: 1,
+          latestStart: 0,
+          latestFinish: 1,
+          float: 0,
+          critical: true,
+          workItemId: "a",
+          stepId: "design",
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          width: 1,
+          effort: 1,
+          lateBy: null,
+        },
+        "a\u0000test": {
+          duration: 1,
+          estimated: true,
+          earliestStart: 3,
+          earliestFinish: 4,
+          latestStart: 3,
+          latestFinish: 4,
+          float: 0,
+          critical: true,
+          workItemId: "a",
+          stepId: "test",
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          width: 1,
+          effort: 1,
+          lateBy: null,
+        },
+        "b\u0000build": {
+          duration: 2,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 3,
+          latestStart: 1,
+          latestFinish: 3,
+          float: 0,
+          critical: true,
+          workItemId: "b",
+          stepId: "build",
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          width: 1,
+          effort: 2,
+          lateBy: null,
+        },
+      },
+      waitingForPerson: 0,
+      waitingForCapacity: 0,
+    },
+    composite: {
+      workItems: {
+        a: {
+          duration: 5,
+          estimated: true,
+          earliestStart: 0,
+          earliestFinish: 5,
+          latestStart: 0,
+          latestFinish: 5,
+          float: 0,
+          critical: true,
+        },
+        b: {
+          duration: 2,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 3,
+          latestStart: 1,
+          latestFinish: 3,
+          float: 0,
+          critical: true,
+        },
+      },
+      slices: {
+        "a\u0000design": {
+          duration: 1,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 2,
+          latestStart: 1,
+          latestFinish: 2,
+          float: 0,
+          critical: true,
+          workItemId: "a",
+          stepId: "design",
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          width: 1,
+          effort: 1,
+          lateBy: null,
+        },
+        "a\u0000test": {
+          duration: 1,
+          estimated: true,
+          earliestStart: 4,
+          earliestFinish: 5,
+          latestStart: 4,
+          latestFinish: 5,
+          float: 0,
+          critical: true,
+          workItemId: "a",
+          stepId: "test",
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          width: 1,
+          effort: 1,
+          lateBy: null,
+        },
+        "b\u0000build": {
+          duration: 2,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 3,
+          latestStart: 1,
+          latestFinish: 3,
+          float: 0,
+          critical: true,
+          workItemId: "b",
+          stepId: "build",
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          width: 1,
+          effort: 2,
+          lateBy: null,
+        },
+      },
+      waitingForPerson: 0,
+      waitingForCapacity: 0,
+    },
+    stages: [
+      {
+        projectId: "A",
+        engine: "optimized",
+        objective: "time",
+        format: "connected-stage-v1",
+        stageBytes: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"isolated\",\"originOrdinal\":14808,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":14808},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":14809}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",0],[\"a\\u0000test\",3],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",3]]}",
+        variants: {
+          pri: {
+            state: "pending",
+          },
+          time: {
+            state: "ready",
+            proof: "proven",
+            candidate: {
+              question: {
+                projectId: "A",
+                inputHash: "input",
+                questionHash: "question",
+                objective: "time",
+                contractVersion: "1",
+                budgetMs: 100,
+                quantum: 1,
+                wireVersion: 1,
+                stageBytes: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"isolated\",\"originOrdinal\":14808,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":14808},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":14809}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",0],[\"a\\u0000test\",3],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",3]]}",
+              },
+              starts: [
+                [ "a\u0000design", 1 ], [ "a\u0000test", 4 ]
+              ],
+            },
+            decision: {
+              scope: {
+                kind: "connected-stage",
+                projectId: "A",
+              },
+              chosen: "optimized",
+              schedule: {
+                workItems: {
+                  a: [Object ...],
+                  b: [Object ...],
+                },
+                slices: {
+                  "a\u0000design": [Object ...],
+                  "a\u0000test": [Object ...],
+                  "b\u0000build": [Object ...],
+                },
+                waitingForPerson: 0,
+                waitingForCapacity: 0,
+              },
+              baseline: {
+                workItems: {
+                  a: [Object ...],
+                  b: [Object ...],
+                },
+                slices: {
+                  "a\u0000design": [Object ...],
+                  "a\u0000test": [Object ...],
+                  "b\u0000build": [Object ...],
+                },
+                waitingForPerson: 0,
+                waitingForCapacity: 0,
+              },
+              values: {
+                makespan: 4,
+                priority: 7,
+                movement: 0,
+              },
+              optimizedValues: {
+                makespan: 4,
+                priority: 7,
+                movement: 0,
+              },
+              baselineValues: {
+                makespan: 4,
+                priority: 7,
+                movement: 0,
+              },
+            },
+          },
+        },
+        selected: "time",
+      }, {
+        projectId: "B",
+        engine: "fast",
+        objective: "pri",
+        format: "connected-stage-v1",
+        stageBytes: "{\"kind\":\"connected-stage\",\"projectId\":\"B\",\"mode\":\"isolated\",\"originOrdinal\":14808,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":14808},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":14809}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"test\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":2,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"test\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"fs\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"ss\"}],\"relationships\":[{\"id\":\"fs\",\"type\":\"FS\",\"predecessor\":[\"A\",\"node\",\"a\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]},{\"id\":\"ss\",\"type\":\"SS\",\"predecessor\":[\"B\",\"node\",\"b\",\"build\"],\"successor\":[\"A\",\"node\",\"a\",\"test\"]},{\"id\":\"ff\",\"type\":\"FF\",\"predecessor\":[\"A\",\"descendant-step\",\"root\",\"design\"],\"successor\":[\"B\",\"node\",\"b\",\"build\"]}],\"notBefore\":[],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000design\",1],[\"a\\u0000test\",4],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000design\",2],[\"a\\u0000test\",5],[\"b\\u0000build\",3]]}",
+        variants: null,
+        selected: null,
+      }
+    ],
+    idleProjects: [],
+  },
+}
+
+      at <anonymous> (/tmp/puni-slice2/libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:101:9)
+(fail) new saved body integrity > refuses missing frozen target slice identity and scheduling fields [1.38ms]
+(pass) new saved body integrity > refuses missing, foreign or mismatched target placement membership [22.15ms]
+(pass) new saved body integrity > refuses altered selected offsets, spans and dates with an intact captured composite [17.46ms]
+(pass) new saved body integrity > validates the captured target anchor rather than using another project calendar [7.76ms]
+(pass) new saved body integrity > refuses a captured stage anchor that contradicts its stored target date [2.16ms]
+(pass) new saved body integrity > accepts a genuinely empty connected component without inventing an anchor or stage [1.27ms]
+(pass) new saved body integrity > refuses impossible target calendar text and invented waiting facts [11.68ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.54ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [3.21ms]
+(pass) new saved body integrity > requires absent schedules for unavailable connected context and preserves local schedule1 reads [1.55ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [2.10ms]
+
+1 tests failed:
+(fail) new saved body integrity > refuses missing frozen target slice identity and scheduling fields [1.38ms]
+
+ 29 pass
+ 1 fail
+ 126 expect() calls
+Ran 30 tests across 2 files. [455.00ms]

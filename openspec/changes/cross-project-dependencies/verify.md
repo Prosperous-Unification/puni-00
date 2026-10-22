@@ -2526,3 +2526,63 @@ Fresh uncached core lint, full typecheck and its module-typecheck prerequisite
 also passed. Commands and output are retained in `domain-nx.log.txt` and
 `slice2-core-final-nx.log.txt`; log trailing whitespace is normalized. Normal
 lefthook installation is active and no hooks are bypassed.
+
+### Saved history Slice 2 — Astra High review corrections (2026-10-22)
+
+The review found two reader gaps: a well-hashed v2 body could omit target slice
+identity or contradict its captured composite, and v1/v2 normalization could
+erase explicit scoped claims before the v8→v9 local guard saw them.
+
+`readSavedPlanInput` now checks the original legacy body before any historical
+upgrade, retaining the v8 guard as well. Frozen v1/v2 scoped claims, owner claims
+and external-history markers refuse without editing the parsed body. These two
+new tests first failed **16 passed / 2 failed**, then passed after the preflight.
+
+The frozen v2 slice reader now requires its complete identity and scheduling
+field set. `verifySavedPlanBodies` invokes `validateSavedConnectedTarget` after
+the existing connected evidence validator. It checks exact target work-item and
+slice key membership using captured ownership, stable slice identity, preserved
+slice facts and spans, the four common-axis offsets translated through the
+target's own captured anchor, calendar text and stage-anchor consistency, and
+target waiting counts. The v2 UTC/weekend/ordinal/snap/day-inclusion arithmetic
+is frozen beside that validator and imports no live scheduler or calendar
+implementation. It validates stored evidence without replacing stored dates.
+
+The new target regression tests first failed **5 passed / 4 failed**; the empty
+component waiting-count test also failed before that predicate was moved ahead
+of the legitimate empty-component return. Valid A and B bodies use distinct
+October 1/2 anchors, including Friday→Monday calendar projection; a genuinely
+empty component keeps a null axis and no invented stage. The original Slice 1
+fixture has abstract ordinals inconsistent with its date labels and remains
+unchanged as structural-only evidence. Core complete-body fixtures explicitly
+use the matching calendar ordinals throughout every stage and question byte.
+
+Eight watched reader/helper faults each failed, then restored green:
+
+| Fault                                                             | Observed failure                                                       |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Remove original-body legacy preflight                             | Frozen v1/v2 explicit scoped claims are incorrectly accepted           |
+| Replace required frozen target slice schema with span-only schema | Missing identity/scheduling-field shape refusal fails                  |
+| Skip target evidence validator                                    | Missing/foreign maps and contradictory selected placement are accepted |
+| Remove four-offset equality                                       | Altered selected offsets are accepted                                  |
+| Remove captured calendar date equality                            | Altered stored dates are accepted                                      |
+| Force every anchor shift to zero                                  | The valid B body with a distinct captured anchor is refused            |
+| Omit stage-anchor consistency                                     | Contradictory packet target anchor is accepted                         |
+| Omit target waiting-count validation                              | Empty-component and ordinary invented waiting facts are accepted       |
+
+Logs are retained in `evidence/task-8-slice2-review/` with trailing whitespace
+normalized. These remain reader/helper-level observations until the resource
+path is wired; no production-path `Proof:` claim is made. The active v8 input
+writer, v1 schedule writer, default v8 normalizer, raw legacy readers and public
+activation state remain unchanged. SavedPlanResource and HTTP wiring remain
+deferred; task8.3 and the canonical host gate remain open.
+
+Follow-up verification passed: the same ten-file scoped saved-plan/codec/legacy
+and database regression command above observed **193 passed / 0 failed / 639
+assertions**. Fresh uncached `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx
+run-many -t typecheck,lint -p wbs-domain wbs-core --parallel=1 --skip-nx-cache
+--output-style=static` passed both libraries and the core module prerequisite.
+OpenSpec `validate --all --json` passed **268 / 268**. Outputs are retained as
+`regression.log.txt`, `nx.log.txt` and `openspec.log.txt` in the review evidence
+directory. The unchanged active-writer golden tests passed; no host gate,
+deployment, public activation or runtime resource wiring is claimed.
