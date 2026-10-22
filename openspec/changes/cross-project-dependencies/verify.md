@@ -945,3 +945,17 @@ passed 1/1. It verifies target durable announcement, HTTP 200 and writer
 release together. Task 8.4 remains open for unavailable DTOs, retained and
 aggregate reads, optimizer admission and full mounted/browser checks; task 6.3
 still has its broader evidence matrix. CI and exact-SHA host gate remain open.
+
+## Task 7.3 — bounded connected optimizer outcome bridge
+
+The [isolated runtime bridge](evidence/connected-optimizer-runtime.md) received
+[independent Astra approval](evidence/connected-optimizer-runtime-review.md)
+for bounded integration. It computes canonical stage/question hashes, pins
+foreign replay, validates exact fractional outcomes and separates terminal
+boundary evidence from local infeasibility. After integration, the new outcome,
+adapter and core selection suites passed 53/53 (150 assertions) and the SQLite
+TypeScript build passed. The review also ran a 558-test wider solver/adapter
+regression set. The bridge is not installed in production: real snapshot-bound
+SQLite capture, durable certificate/result persistence, publication fencing,
+Retry/restart and post-close admission remain open. Tasks 7.3 and 7.4 stay
+unchecked; CI and exact-SHA host gate are pending.
