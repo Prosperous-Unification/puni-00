@@ -88,6 +88,7 @@ describe('organization authority client', () => {
       [401, 'unknown_identity', 'upstream_rejected'],
       [403, 'not_a_member', 'membership_ended'],
       [403, 'binding_changed', 'membership_ended'],
+      [403, 'credential_revoked', 'membership_ended'],
       [403, 'sso_required', 'refused'],
       [403, 'reauthentication_required', 'refused'],
       [403, 'insufficient_scope', 'refused'],
@@ -120,13 +121,27 @@ describe('organization authority client', () => {
       Response.json({
         state: 'activated',
         userId: 'u-ada',
-        memberships: [{ organizationId: 'org-a', name: 'Acme', role: 'member' }],
+        memberships: [
+          {
+            organizationId: 'org-a',
+            name: 'Acme',
+            role: 'member',
+            agents: [{ personId: 'p-claire', name: 'claire' }],
+          },
+        ],
       }),
     );
     expect(await listed.authority.organizationsFor('upstream')).toEqual({
       kind: 'activated',
       userId: 'u-ada',
-      memberships: [{ organizationId: 'org-a', name: 'Acme', role: 'member' }],
+      memberships: [
+        {
+          organizationId: 'org-a',
+          name: 'Acme',
+          role: 'member',
+          agents: [{ personId: 'p-claire', name: 'claire' }],
+        },
+      ],
     });
     expect(listed.calls[0]?.body).toBeUndefined();
     const before = client(() => Response.json({ state: 'pre_activation' }));
@@ -137,6 +152,82 @@ describe('organization authority client', () => {
     expect(await rejection(misconfigured.authority.organizationsFor('upstream'))).toBeInstanceOf(
       OrganizationAuthorityDefect,
     );
+  });
+
+  it('mints a consent credential, reading each modeled refusal and throwing on the rest', async () => {
+    const mint = {
+      organizationId: 'org-a',
+      userId: 'u-ada',
+      personId: 'p-claire',
+      credentialId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+      family: 'family-1',
+      client: 'claude.ai',
+    };
+    const minted = client(
+      () => new Response(JSON.stringify({ credentialId: mint.credentialId }), { status: 201 }),
+    );
+    expect(await minted.authority.mintConsentCredential('upstream', mint)).toEqual({
+      kind: 'minted',
+    });
+    expect(minted.calls).toEqual([
+      {
+        url: 'https://be.test/internal/mcp/credentials',
+        headers: {
+          'x-internal-auth': SECRET,
+          authorization: 'Bearer upstream',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(mint),
+      },
+    ]);
+    for (const [status, body] of [
+      [403, { error: 'person_not_bound', personId: 'p-claire' }],
+      [403, { error: 'not_a_member' }],
+      [403, { error: 'binding_changed' }],
+      [401, { error: 'unknown_identity' }],
+    ] as const) {
+      const { authority } = client(() => Response.json(body, { status }));
+      expect(await authority.mintConsentCredential('upstream', mint)).toEqual({ kind: 'refused' });
+    }
+    for (const [status, body] of [
+      [201, { credentialId: 'another' }],
+      [401, { error: 'unauthorized' }],
+      [403, { error: 'delegation_inactive' }],
+      [500, { error: 'internal' }],
+    ] as const) {
+      const { authority } = client(() => Response.json(body, { status }));
+      expect(await rejection(authority.mintConsentCredential('upstream', mint))).toBeInstanceOf(
+        OrganizationAuthorityDefect,
+      );
+    }
+  });
+
+  it('reports an ended consent family without a user credential', async () => {
+    const ended = { credentialId: 'credential-1', familyId: 'family-1' };
+    for (const outcome of ['revoked', 'already_revoked', 'absent']) {
+      const { authority, calls } = client(() => Response.json({ outcome }));
+      expect(await authority.reportConsentEnded(ended)).toBe('acknowledged');
+      expect(calls[0]?.url).toBe('https://be.test/internal/mcp/credentials/ended');
+      expect(calls[0]?.headers['authorization']).toBeUndefined();
+      expect(calls[0]?.body).toBe(
+        JSON.stringify({ credentialId: 'credential-1', family: 'family-1' }),
+      );
+    }
+    expect(
+      await client(() => new Response('down', { status: 502 })).authority.reportConsentEnded(ended),
+    ).toBe('unavailable');
+    expect(
+      await client(() => {
+        throw new TypeError('fetch failed');
+      }).authority.reportConsentEnded(ended),
+    ).toBe('unavailable');
+    for (const answer of [
+      Response.json({ error: 'unauthorized' }, { status: 401 }),
+      Response.json({ outcome: 'kept' }),
+    ])
+      expect(
+        await rejection(client(() => answer).authority.reportConsentEnded(ended)),
+      ).toBeInstanceOf(OrganizationAuthorityDefect);
   });
 
   it('reads family authority, unavailable on an outage and defective otherwise', async () => {
@@ -162,6 +253,16 @@ describe('organization authority client', () => {
     });
     // No user credential travels with an authority read.
     expect(admitted.calls[0]?.headers['authorization']).toBeUndefined();
+    // A consent family names its credential and itself.
+    const consented = client(() => Response.json({ outcome: 'denied' }));
+    await consented.authority.readRefreshAuthority({
+      ...AUTHORITY,
+      consent: { personId: 'p-claire', credentialId: 'credential-1' },
+    });
+    expect(JSON.parse(consented.calls[0]?.body ?? '{}')).toMatchObject({
+      credentialId: 'credential-1',
+      grant: 'family-1',
+    });
     const echoed = client(() =>
       Response.json({
         outcome: 'admitted',

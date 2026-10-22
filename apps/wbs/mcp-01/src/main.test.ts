@@ -80,8 +80,11 @@ function oauthFixture(): {
   endSession: () => void | Promise<void>;
   refreshSession: () => Promise<string>;
   bearerFor: (sessionId: string | null, upstreamToken: string) => Promise<string>;
+  reportEndedConsents: () => Promise<number>;
 } {
   return {
+    // No consent family exists here, so there is never an end to report.
+    reportEndedConsents: () => Promise.resolve(0),
     verify: () => Promise.resolve({ iss: 'issuer', sub: 'caller' }),
     response: () => Promise.resolve(undefined),
     endSession: () => undefined,
@@ -315,4 +318,41 @@ test.each([
   expect(failureLines).toHaveLength(1);
   expect(failureLines[0]).toContain('refresh-sentinel');
   expect(failureLines[0]).not.toContain('boundary-secret');
+});
+
+test('schedules the consent end report and reports its failure', async () => {
+  const sweeps: (() => Promise<void>)[] = [];
+  const lines: string[] = [];
+  let reports = 0;
+  startMcpApplication({
+    loadConfig: () => CONFIG,
+    readDocument: () => ({ paths: {} }),
+    toolsFromDocument: () => [READ],
+    mcpOAuthFromEnv: () => ({
+      ...oauthFixture(),
+      reportEndedConsents: () => {
+        reports += 1;
+        return reports === 1
+          ? Promise.resolve(2)
+          : Promise.reject(new Error('be-01 answered unmodeled mcp-user:boundary-secret'));
+      },
+    }),
+    startHttpServer: () => ({ port: 3313 }),
+    createLogger: (options) =>
+      createLogger({ ...options, destination: { write: (chunk) => void lines.push(chunk) } }),
+    scheduleConsentEndReports: (sweep) => {
+      sweeps.push(sweep);
+    },
+  });
+  expect(sweeps).toHaveLength(1);
+  const sweep = sweeps.at(0);
+  if (sweep === undefined) throw new Error('no sweep was scheduled');
+  await sweep();
+  expect(reports).toBe(1);
+  expect(lines.filter((line) => line.includes('MCP consent end report failed'))).toEqual([]);
+  await sweep();
+  expect(reports).toBe(2);
+  const failed = lines.filter((line) => line.includes('MCP consent end report failed'));
+  expect(failed).toHaveLength(1);
+  expect(failed[0]).not.toContain('boundary-secret');
 });

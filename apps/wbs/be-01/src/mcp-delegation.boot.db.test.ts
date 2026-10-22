@@ -19,6 +19,7 @@ import {
   BootedBrowserProcess,
 } from './testing/booted-browser-process';
 import { FakeOidcProvider } from './testing/fake-oidc-provider';
+import { addAgentPerson, revokeMachineCredential } from './testing/machine-credential-fixture';
 
 /**
  * MCP organization delegation through `bootBe01`'s own composition
@@ -134,7 +135,9 @@ async function call(
 async function requestDelegation(
   process: BootedBrowserProcess,
   subject: string,
-  body: Partial<Record<'organizationId' | 'userId' | 'client' | 'grant' | 'scope', string>> = {},
+  body: Partial<
+    Record<'organizationId' | 'userId' | 'client' | 'grant' | 'scope' | 'credentialId', string>
+  > = {},
   headers: Record<string, string> = {},
 ): Promise<{ status: number; body: unknown }> {
   return call(
@@ -253,11 +256,27 @@ describe('MCP delegation through the booted composition', () => {
         organizationId: 'org-a',
       }),
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+    // A consent family names its credential and itself, both or neither.
+    expect(
+      await call(be, 'POST', '/internal/mcp/authority', INTERNAL, {
+        issuer: ISSUER,
+        subject: 'auth0|ada',
+        userId: 'u-ada',
+        organizationId: 'org-a',
+        credentialId: CREDENTIAL,
+      }),
+    ).toEqual({ status: 400, body: { error: 'invalid_body' } });
   });
 
   test('refuses every route without the service secret', async () => {
     be = await boot();
-    for (const path of ['organizations', 'delegation', 'authority'])
+    for (const path of [
+      'organizations',
+      'delegation',
+      'authority',
+      'credentials',
+      'credentials/ended',
+    ])
       expect(
         (
           await call(
@@ -292,7 +311,7 @@ describe('MCP delegation through the booted composition', () => {
       body: {
         state: 'activated',
         userId: 'u-ada',
-        memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member' }],
+        memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member', agents: [] }],
       },
     });
     const token = tokenOf(await requestDelegation(be, 'auth0|ada'));
@@ -617,5 +636,339 @@ describe('MCP delegation through the booted composition', () => {
       status: 403,
       body: { error: 'delegation_inactive' },
     });
+  });
+});
+
+const CREDENTIAL = '0f8fad5b-d9cb-469f-a165-70867728950e';
+
+/** mcp-01's consent credential request for `subject`, asking for `personId` in org-a. */
+async function requestMint(
+  process: BootedBrowserProcess,
+  subject: string,
+  body: Partial<
+    Record<'organizationId' | 'userId' | 'personId' | 'credentialId' | 'family' | 'client', string>
+  > = {},
+): Promise<{ status: number; body: unknown }> {
+  return call(
+    process,
+    'POST',
+    '/internal/mcp/credentials',
+    { ...INTERNAL, ...bearer(await upstreamToken(subject)) },
+    {
+      organizationId: 'org-a',
+      userId: `u-${subject.replace('auth0|', '')}`,
+      personId: 'claire',
+      credentialId: CREDENTIAL,
+      family: 'family-claire',
+      client: 'claude.ai',
+      ...body,
+    },
+  );
+}
+
+/** Two activated organizations; ada's agent `claire` and eve's agent `rogue` in A, grace's `gw` in B. */
+async function activateWithAgents(process: BootedBrowserProcess): Promise<void> {
+  await activateTwoOrganizations(process);
+  process.sqlite.run(
+    "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-eve', 'member', 1)",
+  );
+  addAgentPerson(process.sqlite, 'claire', 'org-a', 'u-ada');
+  addAgentPerson(process.sqlite, 'rogue', 'org-a', 'u-eve');
+  addAgentPerson(process.sqlite, 'gw', 'org-b', 'u-grace');
+  process.sqlite.run(
+    "INSERT INTO person (id, name, kind, account_id) VALUES ('ada-human', 'Ada', 'person', 'u-ada')",
+  );
+  process.sqlite.run(
+    "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ada-human', 'org-a', 'ada-human')",
+  );
+}
+
+const consentRows = (process: BootedBrowserProcess) =>
+  process.sqlite
+    .query(
+      "SELECT id, organization_id, person_id, issued_by, mcp_family_id, revoked_at FROM machine_credential WHERE source = 'mcp_consent'",
+    )
+    .all();
+
+const auditActions = (process: BootedBrowserProcess) =>
+  process.sqlite
+    .query(
+      "SELECT action, actor_id, subject_id FROM organization_audit WHERE subject_kind = 'machine_credential' ORDER BY created_at, action",
+    )
+    .all();
+
+describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
+  test("lists only the agents bound to the token's account", async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect(
+      await call(be, 'POST', '/internal/mcp/organizations', {
+        ...INTERNAL,
+        ...bearer(await upstreamToken('auth0|ada')),
+      }),
+    ).toEqual({
+      status: 200,
+      body: {
+        state: 'activated',
+        userId: 'u-ada',
+        memberships: [
+          {
+            organizationId: 'org-a',
+            name: 'org-a',
+            role: 'member',
+            agents: [{ personId: 'claire', name: 'root-claire' }],
+          },
+        ],
+      },
+    });
+  });
+
+  test('mints a consent credential for a bound agent, with its audit row', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect(await requestMint(be, 'auth0|ada')).toEqual({
+      status: 201,
+      body: { credentialId: CREDENTIAL },
+    });
+    expect(consentRows(be)).toEqual([
+      {
+        id: CREDENTIAL,
+        organization_id: 'org-a',
+        person_id: 'claire',
+        issued_by: 'u-ada',
+        mcp_family_id: 'family-claire',
+        revoked_at: null,
+      },
+    ]);
+    expect(auditActions(be)).toEqual([
+      { action: 'machine_credential_created', actor_id: 'u-ada', subject_id: CREDENTIAL },
+    ]);
+    expect(
+      be.sqlite.query('SELECT name FROM machine_credential WHERE id = ?').get(CREDENTIAL),
+    ).toEqual({ name: 'MCP claude.ai 0f8fad5b' });
+  });
+
+  test("refuses a mint for another account's agent, storing nothing", async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    for (const personId of ['rogue', 'gw', 'ada-human', 'nobody'])
+      expect({ personId, answer: await requestMint(be, 'auth0|ada', { personId }) }).toEqual({
+        personId,
+        answer: { status: 403, body: { error: 'person_not_bound', personId } },
+      });
+    // grace's own agent, but in the organization ada asked for and grace is no member of.
+    expect(await requestMint(be, 'auth0|grace', { personId: 'gw' })).toEqual({
+      status: 403,
+      body: { error: 'not_a_member' },
+    });
+    expect(consentRows(be)).toEqual([]);
+    expect(auditActions(be)).toEqual([]);
+  });
+
+  test('refuses a mint for an account the token does not prove', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect(await requestMint(be, 'auth0|eve', { userId: 'u-ada' })).toEqual({
+      status: 403,
+      body: { error: 'binding_changed' },
+    });
+    expect(consentRows(be)).toEqual([]);
+  });
+
+  test('refuses a malformed consent request', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    for (const malformed of [
+      { credentialId: CREDENTIAL.toUpperCase() },
+      { credentialId: 'not-a-uuid' },
+      { client: 'claude ai' },
+      { client: '' },
+      { family: '' },
+      { personId: '' },
+    ])
+      expect({ malformed, answer: await requestMint(be, 'auth0|ada', malformed) }).toEqual({
+        malformed,
+        answer: { status: 400, body: { error: 'invalid_body' } },
+      });
+    expect(consentRows(be)).toEqual([]);
+  });
+
+  test('mints nothing before activation or without a key pair', async () => {
+    be = await boot();
+    be.organization('org-a');
+    be.sqlite.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-ada', 'member', 1)",
+    );
+    addAgentPerson(be.sqlite, 'claire', 'org-a', 'u-ada');
+    expect(await requestMint(be, 'auth0|ada')).toEqual({
+      status: 403,
+      body: { error: 'delegation_inactive' },
+    });
+    await be.close();
+    be = await boot(false);
+    await be.app.handle(new Request(`${BOOTED_ORIGIN}/health`));
+    be.organization('org-a');
+    be.sqlite.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-ada', 'member', 1)",
+    );
+    addAgentPerson(be.sqlite, 'claire', 'org-a', 'u-ada');
+    be.activate();
+    expect(await requestMint(be, 'auth0|ada')).toEqual({
+      status: 403,
+      body: { error: 'delegation_inactive' },
+    });
+    expect(consentRows(be)).toEqual([]);
+  });
+
+  test('issues a delegation pinned to the agent, capped to read and write', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect((await requestMint(be, 'auth0|ada')).status).toBe(201);
+    const issued = await call(
+      be,
+      'POST',
+      '/internal/mcp/delegation',
+      {
+        ...INTERNAL,
+        ...bearer(
+          await upstreamToken('auth0|ada', {
+            groups: ['dev:wbs:read', 'dev:wbs:write', 'dev:wbs:editor'],
+          }),
+        ),
+      },
+      {
+        organizationId: 'org-a',
+        userId: 'u-ada',
+        client: 'client-1',
+        grant: 'family-claire',
+        scope: 'read write editor',
+        credentialId: CREDENTIAL,
+      },
+    );
+    const token = tokenOf(issued);
+    expect(decodeJwt(token)).toMatchObject({
+      sub: 'u-ada',
+      org: 'org-a',
+      grant: 'family-claire',
+      scope: 'read write',
+      credential_id: CREDENTIAL,
+      person_id: 'claire',
+    });
+    expect((await call(be, 'GET', '/api/projects', bearer(token))).status).toBe(200);
+    // Another family naming the credential is refused.
+    expect(
+      await requestDelegation(be, 'auth0|ada', {
+        grant: 'family-other',
+        credentialId: CREDENTIAL,
+      }),
+    ).toEqual({ status: 403, body: { error: 'credential_revoked' } });
+    // So is another account's token naming it.
+    expect(
+      await requestDelegation(be, 'auth0|eve', {
+        grant: 'family-claire',
+        credentialId: CREDENTIAL,
+      }),
+    ).toEqual({ status: 403, body: { error: 'credential_revoked' } });
+  });
+
+  test('refuses the next delegation of a revoked consent credential', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect((await requestMint(be, 'auth0|ada')).status).toBe(201);
+    const consent = { grant: 'family-claire', credentialId: CREDENTIAL };
+    expect((await requestDelegation(be, 'auth0|ada', consent)).status).toBe(200);
+    revokeMachineCredential(be.sqlite, CREDENTIAL, Date.now());
+    expect(await requestDelegation(be, 'auth0|ada', consent)).toEqual({
+      status: 403,
+      body: { error: 'credential_revoked' },
+    });
+  });
+
+  test('refuses a delegation issued before its credential was revoked', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect((await requestMint(be, 'auth0|ada')).status).toBe(201);
+    const consent = { grant: 'family-claire', credentialId: CREDENTIAL };
+    const unused = tokenOf(await requestDelegation(be, 'auth0|ada', consent));
+    revokeMachineCredential(be.sqlite, CREDENTIAL, Date.now());
+    expect(await call(be, 'GET', '/api/projects', bearer(unused))).toEqual({
+      status: 401,
+      body: { error: 'unauthenticated' },
+    });
+    // An unbound person ends it too.
+    be.sqlite.run('UPDATE machine_credential SET revoked_at = NULL WHERE id = ?', [CREDENTIAL]);
+    const another = tokenOf(await requestDelegation(be, 'auth0|ada', consent));
+    be.sqlite.run("UPDATE person SET account_id = 'u-eve' WHERE id = 'claire'");
+    expect((await call(be, 'GET', '/api/projects', bearer(another))).status).toBe(401);
+  });
+
+  test('denies a consent family once its credential is revoked', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect((await requestMint(be, 'auth0|ada')).status).toBe(201);
+    const authority = {
+      issuer: ISSUER,
+      subject: 'auth0|ada',
+      userId: 'u-ada',
+      organizationId: 'org-a',
+      credentialId: CREDENTIAL,
+      grant: 'family-claire',
+    };
+    expect(await call(be, 'POST', '/internal/mcp/authority', INTERNAL, authority)).toMatchObject({
+      status: 200,
+      body: { outcome: 'admitted' },
+    });
+    expect(
+      await call(be, 'POST', '/internal/mcp/authority', INTERNAL, {
+        ...authority,
+        grant: 'family-other',
+      }),
+    ).toEqual({ status: 200, body: { outcome: 'denied' } });
+    revokeMachineCredential(be.sqlite, CREDENTIAL, Date.now());
+    expect(await call(be, 'POST', '/internal/mcp/authority', INTERNAL, authority)).toEqual({
+      status: 200,
+      body: { outcome: 'denied' },
+    });
+  });
+
+  test('revokes a consent credential whose family mcp-01 ended, once', async () => {
+    const booted = await boot();
+    be = booted;
+    await activateWithAgents(booted);
+    expect((await requestMint(booted, 'auth0|ada')).status).toBe(201);
+    const end = (body: Record<string, string>) =>
+      call(booted, 'POST', '/internal/mcp/credentials/ended', INTERNAL, body);
+    expect(await end({ credentialId: CREDENTIAL, family: 'family-claire' })).toEqual({
+      status: 200,
+      body: { outcome: 'revoked' },
+    });
+    expect(await end({ credentialId: CREDENTIAL, family: 'family-claire' })).toEqual({
+      status: 200,
+      body: { outcome: 'already_revoked' },
+    });
+    expect(await end({ credentialId: crypto.randomUUID(), family: 'family-claire' })).toEqual({
+      status: 200,
+      body: { outcome: 'absent' },
+    });
+    const rows = consentRows(booted) as { id: string; revoked_at: unknown }[];
+    expect(rows.map((row) => row.id)).toEqual([CREDENTIAL]);
+    expect(rows.map((row) => typeof row.revoked_at)).toEqual(['number']);
+    expect(auditActions(booted)).toEqual([
+      { action: 'machine_credential_created', actor_id: 'u-ada', subject_id: CREDENTIAL },
+      { action: 'machine_credential_revoked', actor_id: 'mcp-01', subject_id: CREDENTIAL },
+    ]);
+  });
+
+  test('ignores an end report that names another family', async () => {
+    be = await boot();
+    await activateWithAgents(be);
+    expect((await requestMint(be, 'auth0|ada')).status).toBe(201);
+    expect(
+      await call(be, 'POST', '/internal/mcp/credentials/ended', INTERNAL, {
+        credentialId: CREDENTIAL,
+        family: 'family-other',
+      }),
+    ).toEqual({ status: 200, body: { outcome: 'absent' } });
+    expect(consentRows(be)).toMatchObject([{ id: CREDENTIAL, revoked_at: null }]);
   });
 });

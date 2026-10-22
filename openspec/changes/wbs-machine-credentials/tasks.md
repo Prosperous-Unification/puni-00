@@ -131,26 +131,26 @@ See `verify.md`, "Slice 2 record".
 
 ## 3. The MCP consent source (A8, A20)
 
-- [ ] 3.1 mcp-01 store migration `mcp_family_person`: nullable `act_as_person_id` and
+- [x] 3.1 mcp-01 store migration `mcp_family_person`: nullable `act_as_person_id` and
       `credential_id` on family and session, guarded `down.sql` refusing while any family
       names a person — test: `store-migrations.test.ts` forward, back and the refusal;
       negative: drop the guard and the rollback silently strips the person from live
       families; watched.
-- [ ] 3.2 be-01 `POST /internal/mcp/organizations` answers `agents` per membership;
+- [x] 3.2 be-01 `POST /internal/mcp/organizations` answers `agents` per membership;
       `POST /internal/mcp/credentials` mints an `mcp_consent` credential with its audit row
       and refuses `person_not_bound` and `not_a_member`; shapes in `@wbs/contracts` — test:
       `mcp-delegation.boot.db.test.ts` cases: agents listed only for the token's account,
       a mint for a bound agent, a stranger's agent refused, a human person refused;
       negative: drop the `account_id = userId` predicate and the stranger's agent mints;
       watched.
-- [ ] 3.3 mcp-01 consent: the choice page offers "yourself" and each agent, shows for one
+- [x] 3.3 mcp-01 consent: the choice page offers "yourself" and each agent, shows for one
       organization when agents exist, mints through 3.2 before the code, answers
       `access_denied` on refusal and creates no family; the code, family and sessions
       carry person and credential — test: `organization-delegation.test.ts` and
       `oauth.test.ts`: choice rendered, agent chosen, refusal leaves no family, pre-activation
       unchanged; negative: issue the code before the mint and the refused case redirects
       with a code; watched.
-- [ ] 3.4 Delegation carries the person: `POST /internal/mcp/delegation` takes
+- [x] 3.4 Delegation carries the person: `POST /internal/mcp/delegation` takes
       `credentialId`, checks unrevoked, family match, bound, member, issues
       `pinnedPersonId` with scopes narrowed to `read`/`write`; `POST /internal/mcp/authority`
       answers revoked; A13 step 4 admits the delegation; mcp-01 ends the family on revoked
@@ -162,6 +162,38 @@ See `verify.md`, "Slice 2 record".
 - [ ] 3.5 Dev proof (not code): Dany signs in at the dev consent page with Google, chooses
       `claire`, a tool call claims a step as `claire`, the credential is revoked on the
       people page and the next tool call is refused; recorded in verify.md.
+
+Slice 3 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, base `412c62038`):
+
+- 3.1 is `20261022130000_mcp_family_person`. Beyond the two columns it adds
+  `consent_ended_reported_at` on the family and the table `mcp_consent_pending`, both for the
+  end report below. The `down.sql` preflight refuses while a consent family's end is
+  unacknowledged or a consent is pending (not "while any family names a person": a reported,
+  dead family is purged, so a rollback is possible once every end reached be-01). The CHECKs
+  spell "set" as `coalesce(length(x), 0) > 0`: migration lint reads any `NOT NULL` inside an
+  `ADD COLUMN` as a required column.
+- 3.2: `person_not_bound` carries `personId` (the shared refusal code's detail). mcp-01, not
+  be-01, mints the credential id and the family id, so it can record the pending consent first.
+  A malformed id or a client label that is not a host is `400 invalid_body`. The port is
+  `ConsentCredentials` (`ports/machine-credentials.ts`), SQLite only
+  (`consent-credential.ts`).
+- 3.3: the agent buttons post an index into the offered agents, never ids. Choosing yourself
+  keeps posting `organizationId` as before.
+- 3.4: the delegation carries `credential_id` and `person_id`; the verifier rereads the
+  credential at every use (A13 step 4), and a consent principal's `authentication` is a new
+  kind `consent` (pin, credential rules and A23 cap read it). A delegation refusal is
+  `403 credential_revoked`, read by mcp-01 as an ended family. The authority read answers
+  `denied` for a revoked credential and, as for a removed member, mcp-01 then refuses every
+  use and refresh without revoking the family itself.
+- Added beyond 3.1–3.4 (brief deliverables 2 and 3): the mcp-01 → be-01 end report,
+  `POST /internal/mcp/credentials/ended`, swept once a minute from mcp-01's main
+  (`McpOAuthServer.reportEndedConsents`), durable until acknowledged; it covers the epoch CLI
+  (a retired family is an ended family) and codes never exchanged. Decision: a callback with a
+  durable outbox, not an on-read reconciliation (design A20, _End_).
+- A second consent for the same agent mints a second credential (one family each).
+- 3.5 (the dev proof) is not done: nothing ran on dev.
+
+See `verify.md`, "Slice 3 record".
 
 ## 4. Retirement of the operator links (A18, A21)
 

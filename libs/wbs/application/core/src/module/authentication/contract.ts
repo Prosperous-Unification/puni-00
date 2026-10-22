@@ -72,6 +72,12 @@ export interface VerifiedUpstreamSource extends CredentialSource {
   readonly grant: string;
   readonly upstreamIssuer: string;
   readonly upstreamSubject: string;
+  /**
+   * The live `mcp_consent` credential of an MCP consent that acts as an agent
+   * person (`wbs-machine-credentials` A20), already admitted for this family
+   * and account; the delegation is then pinned to that person.
+   */
+  readonly consent?: { readonly credentialId: string; readonly personId: string };
 }
 
 /** Native WBS session, verified without inventing an upstream identity. */

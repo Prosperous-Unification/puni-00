@@ -10,7 +10,36 @@ export interface OrganizationChoice {
   readonly organizationId: string;
   readonly name: string;
   readonly role: 'super_admin' | 'admin' | 'member' | 'viewer';
+  /** The organization's agent persons bound to the signed-in account (A20). */
+  readonly agents: readonly ConsentAgentChoice[];
 }
+
+/** An agent person a consent may act as instead of the signed-in human (A20). */
+export interface ConsentAgentChoice {
+  readonly personId: string;
+  readonly name: string;
+}
+
+/** mcp-01's request that be-01 mint the consent credential before the code is issued. */
+export interface ConsentCredentialRequest {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly personId: string;
+  readonly credentialId: string;
+  readonly family: string;
+  readonly client: string;
+}
+
+/**
+ * be-01's answer to a consent credential request: `minted`, or `refused` when the person is
+ * not the account's agent in that organization, the account is no member or the token now
+ * proves another account, or the token itself was refused. The consent then fails
+ * `access_denied` and no family exists.
+ */
+export type ConsentCredentialOutcome = { readonly kind: 'minted' } | { readonly kind: 'refused' };
+
+/** Whether be-01 acknowledged an ended consent family, or could not be reached now. */
+export type ConsentEndReport = 'acknowledged' | 'unavailable';
 
 /** What a consent binds: nothing before activation, else one of these memberships. */
 export type ConsentOrganizations =
@@ -30,6 +59,8 @@ export interface DelegationRequest {
   readonly client: string;
   readonly grant: string;
   readonly scopes: readonly WbsScope[];
+  /** The family's consent credential when it acts as an agent person (A20). */
+  readonly credentialId?: string;
 }
 
 /**
@@ -37,7 +68,7 @@ export interface DelegationRequest {
  * - `issued`: a single-use bearer for exactly one be-01 call;
  * - `upstream_rejected`: the upstream token no longer verifies, so refresh and retry;
  * - `membership_ended`: the bound user left the organization or no longer owns the
- *   upstream identity, so the session must end;
+ *   upstream identity, or the consent credential was revoked, so the session must end;
  * - `refused`: an organization rule (enforced SSO, session policy, scope) refuses
  *   this call, with be-01's body for the caller to read.
  */
@@ -49,8 +80,17 @@ export type DelegationOutcome =
 /** mcp-01's client for be-01's three MCP delegation routes. */
 export interface OrganizationAuthority {
   organizationsFor(upstreamToken: string): Promise<ConsentOrganizations>;
+  mintConsentCredential(
+    upstreamToken: string,
+    request: ConsentCredentialRequest,
+  ): Promise<ConsentCredentialOutcome>;
   delegationFor(upstreamToken: string, request: DelegationRequest): Promise<DelegationOutcome>;
   readonly readRefreshAuthority: McpRefreshAuthorityReader;
+  /** Tells be-01 a consent family ended so it revokes the credential (A20, _End_). */
+  reportConsentEnded(ended: {
+    readonly credentialId: string;
+    readonly familyId: string;
+  }): Promise<ConsentEndReport>;
 }
 
 const ERROR_BODY = type({ error: 'string' });
@@ -61,8 +101,11 @@ const ORGANIZATIONS = type({ state: "'pre_activation'" }).or({
     organizationId: 'string',
     name: 'string',
     role: "'super_admin' | 'admin' | 'member' | 'viewer'",
+    agents: type({ personId: 'string', name: 'string' }).array(),
   }).array(),
 });
+const MINTED = type({ credentialId: 'string' });
+const ENDED = type({ outcome: "'revoked' | 'already_revoked' | 'absent'" });
 const DELEGATION = type({ token: 'string' });
 const AUTHORITY = type({ outcome: "'denied'" }).or({
   outcome: "'admitted'",
@@ -122,6 +165,29 @@ export function organizationAuthority(
         : { kind: 'activated', userId: listed.userId, memberships: listed.memberships };
     },
 
+    async mintConsentCredential(upstreamToken, request) {
+      const response = await post('credentials', request, upstreamToken);
+      const text = await response.text();
+      if (response.status === 201) {
+        // Proof: 2026-10-22, with this comparison removed `refuses a mint answer naming another
+        // credential` (organization-authority.test.ts) answered minted.
+        if (parsed(MINTED, text, 'credentials').credentialId !== request.credentialId)
+          throw new OrganizationAuthorityDefect(
+            'be-01 /internal/mcp/credentials minted another credential than asked',
+          );
+        return { kind: 'minted' };
+      }
+      const error = errorOf(text);
+      // be-01's verdicts on this user and person only; anything else is a deployment defect.
+      if (response.status === 401 && isUserRefusal(error)) return { kind: 'refused' };
+      if (
+        response.status === 403 &&
+        (error === 'person_not_bound' || error === 'not_a_member' || error === 'binding_changed')
+      )
+        return { kind: 'refused' };
+      throw unmodeled('credentials', response.status, text);
+    },
+
     async delegationFor(upstreamToken, request) {
       const response = await post(
         'delegation',
@@ -131,6 +197,7 @@ export function organizationAuthority(
           client: request.client,
           grant: request.grant,
           scope: request.scopes.join(' '),
+          ...(request.credentialId === undefined ? {} : { credentialId: request.credentialId }),
         },
         upstreamToken,
       );
@@ -146,7 +213,12 @@ export function organizationAuthority(
       // `organization-authority.test.ts` read a Basic-gate challenge as
       // upstream_rejected; watched 2026-10-21.
       if (response.status === 401 && isUserRefusal(error)) return { kind: 'upstream_rejected' };
-      if (response.status === 403 && (error === 'not_a_member' || error === 'binding_changed'))
+      // Proof: 2026-10-22, reading `credential_revoked` as unmodeled made `reads each modeled
+      // delegation refusal and throws on the rest` (organization-authority.test.ts) throw.
+      if (
+        response.status === 403 &&
+        (error === 'not_a_member' || error === 'binding_changed' || error === 'credential_revoked')
+      )
         return { kind: 'membership_ended' };
       if (
         response.status === 403 &&
@@ -169,6 +241,13 @@ export function organizationAuthority(
           subject: authority.subject,
           userId: authority.binding.userId,
           organizationId: authority.binding.organizationId,
+          // A consent family's credential is reread with its membership (A20).
+          // Proof: 2026-10-22, dropping these two fields made `revoking the consent in WBS ends
+          // the session: 401, and refresh is refused` (organization-delegation.boot.test.ts)
+          // refresh (200).
+          ...(authority.consent === undefined
+            ? {}
+            : { credentialId: authority.consent.credentialId, grant: authority.familyId }),
         });
       } catch (cause) {
         // A be-01 that cannot be reached cannot confirm authority: the
@@ -199,6 +278,25 @@ export function organizationAuthority(
         },
         facts: { enforced: read.enforced, policy: read.policy, lifecycle: null },
       };
+    },
+
+    async reportConsentEnded(ended) {
+      let response: Response;
+      try {
+        response = await post('credentials/ended', {
+          credentialId: ended.credentialId,
+          family: ended.familyId,
+        });
+      } catch (cause) {
+        // Unreachable be-01: the report stays durable and the next sweep retries it.
+        if (cause instanceof TypeError) return 'unavailable';
+        throw cause;
+      }
+      const text = await response.text();
+      if (response.status >= 500) return 'unavailable';
+      if (response.status !== 200) throw unmodeled('credentials/ended', response.status, text);
+      parsed(ENDED, text, 'credentials/ended');
+      return 'acknowledged';
     },
   };
 }

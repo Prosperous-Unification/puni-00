@@ -389,6 +389,11 @@ type BareRefusalCode =
   | 'delegation_inactive'
   /** An MCP session's upstream token now resolves to another account than it was bound to. */
   | 'binding_changed'
+  /**
+   * An MCP consent family's credential is revoked, names another family, or its
+   * person is no longer bound to the account (`wbs-machine-credentials` A20).
+   */
+  | 'credential_revoked'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'

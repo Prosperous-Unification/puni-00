@@ -10,6 +10,7 @@ export * from './captured-optimization-reader';
 export * from './chain-snapshot';
 export * from './changes';
 export * from './command-journal';
+export * from './consent-credential';
 export * from './constraint';
 export * from './db';
 export * from './delegation-use';

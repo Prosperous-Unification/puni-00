@@ -237,7 +237,14 @@ is a later cleanup change, once no release reads it.
   another organization or not an agent, and `403 not_a_member` when the account is not a
   current member; mcp-01 then answers the client `access_denied` and creates no family. The
   family and its sessions carry `act_as_person_id` and `credential_id` (additive mcp-01
-  store migration with a guarded `down.sql`); the code carries them in memory.
+  store migration `20261022130000_mcp_family_person` with a guarded `down.sql`); the code
+  carries them in memory. As built (slice 3): mcp-01 chooses the family id and the credential
+  id (a lowercase UUID) and records them in `mcp_consent_pending` before it asks be-01, so a
+  credential minted for a code that is never exchanged is still reported ended; the exchange
+  takes the pending row over in the family's insert and refuses `invalid_grant` once it is gone.
+  The credential's name is `MCP <redirect host> <first block of its id>`: a host, never the
+  client's self-declared name, and unique per consent. A second consent for the same agent
+  mints a second credential, one family each.
 - _Carry._ Every tool call's `POST /internal/mcp/delegation` names `credentialId` beside the
   family; be-01 checks, under the same service secret and upstream token as today, that the
   credential is unrevoked, names that family, that its person is still bound to the token's
@@ -245,16 +252,27 @@ is a later cleanup change, once no release reads it.
   `pinnedPersonId`, scopes narrowed to `read`/`write` ∩ the grant, and `credentialId`. A
   delegation naming a person is what step 4 of A13 admits. The principal's `id` stays the
   human account (the person is bound to it by construction, A12); the pin is what changes.
+  As built: the delegation carries `credential_id` and `person_id` claims, the verifier rereads
+  the credential at every use, and the principal's `authentication` is a fourth kind,
+  `{ kind: 'consent', issuer, subject, credentialId, personId }`: the credential rules read its
+  upstream pair as they read an upstream delegation's (A10), the claim pin reads its person,
+  and A23's role cap treats it as a machine.
   `POST /internal/mcp/authority` answers `revoked` for a revoked or unbound credential, so
   mcp-01 ends the family and refuses refresh, as it does for a removed member today.
 - _End._ Revoking the credential (from the people page, the organization panel, or a
   person's removal cascade) sets `revoked_at` and writes `machine_credential_revoked`; the
   next tool call's delegation request and the next authority reread refuse, and the family
-  cannot refresh. Rotation is by refresh (A11). mcp-01 ending a family on its own (reuse of
-  a consumed refresh token, provider refusal) does not revoke the credential; the credential
-  then lists as live but unusable until revoked, which the panel shows as "family ended" from
-  `last_used_at` only. Recorded as a known gap, not hidden: a family-ended callback from
-  mcp-01 to be-01 is a later slice.
+  cannot refresh. Rotation is by refresh (A11). The other way round (slice 3 closes the gap
+  this paragraph first recorded) is a **durable callback, not an on-read reconciliation**:
+  mcp-01 reports every consent family it ended, by any path (revoke endpoint, refresh reuse,
+  provider refusal, idle or absolute expiry, an epoch advance), and every pending consent
+  whose code expired, to `POST /internal/mcp/credentials/ended`, keeping each end
+  (`consent_ended_reported_at`, the pending row) until be-01 acknowledges it. A sweep in
+  mcp-01's main does it once a minute, because expiry and an epoch advance are no event any
+  process observes. be-01 revokes only the credential naming that family, audited with actor
+  `mcp-01`. Why not on read: be-01 cannot ask mcp-01 anything, and mcp-01 alone knows its
+  families. A family whose credential WBS revoked first is refused on every use (as a removed
+  member's) and reported, as `already_revoked`, once it ends in mcp-01.
 - _Why a credential row and not only a family column._ Revoke, list, last-used and audit
   are then one surface for all four sources, which is what A8 asks ("same table/lifecycle").
   The family stays the secret holder; be-01 holds no refresh token.
@@ -345,5 +363,6 @@ learn another's subjects.
   by the incoming colour. The runbook's swap window names it; the retired CLI cannot make a
   link afterwards. Accepted: the cost of dogfooding the self-serve path is one onboarding
   per fleet, which is what a customer pays.
-- **A family ended by mcp-01 leaves a live-looking credential** (A20, _End_). The gap is
-  visible in the list and closes with a callback slice.
+- **A family ended by mcp-01 revokes its credential up to a minute later** (A20, _End_), and
+  later still while be-01 is unreachable; until then the credential lists as live though no
+  family can use it.

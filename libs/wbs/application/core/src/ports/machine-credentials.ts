@@ -256,3 +256,67 @@ export const INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION: MachineCredentialAdmini
   rotateApiKey: () => Promise.resolve({ kind: 'inactive' }),
   revoke: () => Promise.resolve('inactive'),
 };
+
+/** An agent person a consent may act as: one bound to the signed-in account. */
+export interface ConsentAgent {
+  readonly personId: string;
+  readonly name: string;
+}
+
+/**
+ * A consent credential to mint: its id and the family id are mcp-01's (it
+ * records both durably before asking, so an unexchanged code is reported
+ * ended later), the name is the one the panel lists.
+ */
+export interface ConsentCredentialDraft {
+  readonly id: string;
+  readonly personId: string;
+  readonly familyId: string;
+  readonly name: string;
+}
+
+/** Why a consent credential was not minted (`wbs-machine-credentials` A20). */
+export type ConsentMintRefusal = 'inactive' | 'not_a_member' | 'person_not_bound';
+
+/**
+ * How one ended MCP family's report changed its consent credential: `revoked`
+ * now, already `revoked` before, or `absent` (never minted, or removed with
+ * its person). Every outcome lets mcp-01 forget the report.
+ */
+export type ConsentEndOutcome = 'revoked' | 'already_revoked' | 'absent';
+
+/**
+ * The `mcp_consent` source (`wbs-machine-credentials` A8, A20): what be-01's
+ * internal MCP routes read and write for a consent that acts as an agent
+ * person. Every write is one immediate transaction with its audit row.
+ *
+ * @throws when trusted state is missing, unreadable or malformed, and when
+ * the audit row cannot be written (the act is then rolled back).
+ */
+export interface ConsentCredentials {
+  /**
+   * The agent persons of `organizationId` whose `account_id` is `userId`,
+   * by name; empty when none.
+   */
+  agentsBoundTo(userId: string, organizationId: string): Promise<readonly ConsentAgent[]>;
+  /**
+   * Writes one `mcp_consent` credential issued by `userId` for agent
+   * `draft.personId` of `organizationId`, naming `draft.familyId`, with its
+   * `machine_credential_created` audit row. `inactive` before activation;
+   * `not_a_member` when `userId` is no current member; `person_not_bound`
+   * when the person is not an agent of the organization bound to `userId`,
+   * whatever role `userId` holds (A20: only one's own agents).
+   */
+  mint(
+    organizationId: string,
+    userId: string,
+    draft: ConsentCredentialDraft,
+    act: AuditedAct,
+  ): Promise<'minted' | ConsentMintRefusal>;
+  /**
+   * Revokes the `mcp_consent` credential `credentialId` when it names
+   * `familyId` and is live, with a `machine_credential_revoked` audit row
+   * whose actor is `act.actor` (mcp-01's family end, not a person).
+   */
+  end(credentialId: string, familyId: string, act: AuditedAct): Promise<ConsentEndOutcome>;
+}

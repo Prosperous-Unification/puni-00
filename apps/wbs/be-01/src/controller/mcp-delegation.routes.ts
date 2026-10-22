@@ -1,6 +1,8 @@
 import {
+  endMcpConsentCredential,
   issueMcpDelegation,
   listMcpOrganizations,
+  mintMcpConsentCredential,
   readMcpAuthority,
   type WbsScope,
 } from '@wbs/contracts';
@@ -33,10 +35,11 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
             body: {
               state: 'activated',
               userId: outcome.userId,
-              memberships: outcome.memberships.map(({ organizationId, name, role }) => ({
+              memberships: outcome.memberships.map(({ organizationId, name, role, agents }) => ({
                 organizationId,
                 name,
                 role,
+                agents: agents.map((agent) => ({ personId: agent.personId, name: agent.name })),
               })),
             },
           } as const;
@@ -46,6 +49,43 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
         case 'unknown_identity':
           return { ok: false, status: 401, body: { error: outcome.kind } } as const;
       }
+    }),
+    bind(mintMcpConsentCredential, async ({ request, body }) => {
+      const token = upstreamBearerOf(request.headers);
+      if (token === null)
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
+      const outcome = await authority.mintConsent(token, body);
+      switch (outcome.kind) {
+        case 'minted':
+          return { ok: true, status: 201, body: { credentialId: outcome.credentialId } } as const;
+        case 'invalid_body':
+          return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
+        case 'unauthenticated':
+        case 'unknown_identity':
+          return { ok: false, status: 401, body: { error: outcome.kind } } as const;
+        case 'inactive':
+          return { ok: false, status: 403, body: { error: 'delegation_inactive' } } as const;
+        case 'binding_changed':
+        case 'not_a_member':
+          return { ok: false, status: 403, body: { error: outcome.kind } } as const;
+        case 'person_not_bound':
+          return {
+            ok: false,
+            status: 403,
+            body: { error: 'person_not_bound', personId: body.personId },
+          } as const;
+      }
+    }),
+    bind(endMcpConsentCredential, async ({ body }) => {
+      if (!CREDENTIAL_ID.test(body.credentialId) || body.family === '')
+        return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
+      const outcome = await authority.endConsent(body.credentialId, body.family);
+      // Before activation no consent credential exists to end.
+      return {
+        ok: true,
+        status: 200,
+        body: { outcome: outcome === 'inactive' ? 'absent' : outcome },
+      } as const;
     }),
     bind(issueMcpDelegation, async ({ request, body }) => {
       const token = upstreamBearerOf(request.headers);
@@ -58,7 +98,8 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
       // watched 2026-10-21.
       if (
         [body.organizationId, body.userId, body.client, body.grant].some((field) => field === '') ||
-        scopes.length !== named.length
+        scopes.length !== named.length ||
+        body.credentialId === ''
       )
         return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
       // Proof: taking the organization from an `x-wbs-organization` header
@@ -71,6 +112,7 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
         client: body.client,
         grant: body.grant,
         scopes,
+        ...(body.credentialId === undefined ? {} : { credentialId: body.credentialId }),
       });
       switch (outcome.kind) {
         case 'issued':
@@ -82,6 +124,7 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
           return { ok: false, status: 403, body: { error: 'delegation_inactive' } } as const;
         case 'binding_changed':
         case 'insufficient_scope':
+        case 'credential_revoked':
           return { ok: false, status: 403, body: { error: outcome.kind } } as const;
         case 'refused':
           return organizationRefusal(outcome.refusal);
@@ -91,9 +134,24 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
       // Proof: dropping this check made `refuses a cookie beside the upstream
       // token and a malformed body` in `mcp-delegation.boot.db.test.ts` fail;
       // watched 2026-10-21.
-      if (Object.values(body).some((field) => field === ''))
+      // Proof: with the both-or-neither half removed, `refuses a cookie beside
+      // the upstream token and a malformed body` in
+      // `mcp-delegation.boot.db.test.ts` admitted an authority read naming a
+      // credential without its family; watched 2026-10-22.
+      if (
+        Object.values(body).some((field) => field === '') ||
+        (body.credentialId === undefined) !== (body.grant === undefined)
+      )
         return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
-      const outcome = await authority.authorityOf(body);
+      const outcome = await authority.authorityOf({
+        issuer: body.issuer,
+        subject: body.subject,
+        userId: body.userId,
+        organizationId: body.organizationId,
+        ...(body.credentialId === undefined || body.grant === undefined
+          ? {}
+          : { consent: { credentialId: body.credentialId, grant: body.grant } }),
+      });
       if (outcome.kind === 'denied')
         return { ok: true, status: 200, body: { outcome: 'denied' } } as const;
       return {
@@ -118,6 +176,9 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
     }),
   ] as const;
 }
+
+/** A consent credential id: the lowercase UUID every machine credential id is (A22). */
+const CREDENTIAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * The one upstream token mcp-01 presents. A cookie beside it makes the

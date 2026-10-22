@@ -1,13 +1,17 @@
 import type { AuthenticatedUser, WbsScope } from '@wbs/contracts';
 import type {
+  ConsentAgent,
+  ConsentCredentials,
+  ConsentEndOutcome,
   CredentialRuleFacts,
   OrganizationAccess,
   OrganizationPrincipal,
   RefusedOrganizationAccess,
 } from '@wbs/core';
+import { admitMachineCredential, MACHINE_SCOPES } from '@wbs/domain';
 import { decodeJwt } from 'jose';
 
-import type { MappedUserOf } from './delegation';
+import type { ConsentCredentialOf, MappedUserOf } from './delegation';
 import { DelegationSourceIneligible, signDelegation } from './delegation-issuer';
 import type { OrganizationChoices } from './organization-selection';
 
@@ -27,9 +31,41 @@ export type McpOrganizationsOutcome =
         readonly organizationId: string;
         readonly name: string;
         readonly role: 'super_admin' | 'admin' | 'member' | 'viewer';
+        /** The organization's agent persons bound to this account (A20). */
+        readonly agents: readonly ConsentAgent[];
       }[];
     }
   | { readonly kind: 'unauthenticated' | 'unknown_identity' | 'inactive' };
+
+/** mcp-01's request to mint a consent credential before it issues the code (A20). */
+export interface McpConsentRequest {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly personId: string;
+  readonly credentialId: string;
+  readonly family: string;
+  /** A label for the OAuth client, such as its redirect host; part of the credential's name. */
+  readonly client: string;
+}
+
+export type McpConsentOutcome =
+  | { readonly kind: 'minted'; readonly credentialId: string }
+  | {
+      readonly kind:
+        | 'invalid_body'
+        | 'unauthenticated'
+        | 'unknown_identity'
+        | 'inactive'
+        | 'binding_changed'
+        | 'person_not_bound'
+        | 'not_a_member';
+    };
+
+/** A consent credential id: the lowercase UUID every machine credential id is (A22). */
+const CREDENTIAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The client label a consent credential's name carries: a host, never free text. */
+const CLIENT_LABEL = /^[A-Za-z0-9.:[\]-]{1,64}$/;
 
 /** What mcp-01 asks a delegation for: its session's bound family, read from its own store. */
 export interface McpDelegationRequest {
@@ -38,6 +74,8 @@ export interface McpDelegationRequest {
   readonly client: string;
   readonly grant: string;
   readonly scopes: readonly WbsScope[];
+  /** The family's consent credential when it acts as an agent person (A20). */
+  readonly credentialId?: string;
 }
 
 export type McpDelegationOutcome =
@@ -48,7 +86,8 @@ export type McpDelegationOutcome =
         | 'unknown_identity'
         | 'inactive'
         | 'binding_changed'
-        | 'insufficient_scope';
+        | 'insufficient_scope'
+        | 'credential_revoked';
     }
   | { readonly kind: 'refused'; readonly refusal: RefusedOrganizationAccess };
 
@@ -58,18 +97,23 @@ export interface McpAuthorityRequest {
   readonly subject: string;
   readonly userId: string;
   readonly organizationId: string;
+  /** A consent family's credential and the family itself, both or neither (A20). */
+  readonly consent?: { readonly credentialId: string; readonly grant: string };
 }
 
 export type McpAuthorityOutcome =
   | { readonly kind: 'denied' }
-  | ({ readonly kind: 'admitted' } & McpAuthorityRequest &
+  | ({ readonly kind: 'admitted' } & Omit<McpAuthorityRequest, 'consent'> &
       Pick<CredentialRuleFacts, 'enforced' | 'policy'>);
 
 /** be-01's side of MCP organization delegation; see {@link mcpDelegationAuthority}. */
 export interface McpDelegationAuthority {
   organizationsOf(upstreamToken: string): Promise<McpOrganizationsOutcome>;
+  mintConsent(upstreamToken: string, request: McpConsentRequest): Promise<McpConsentOutcome>;
   issue(upstreamToken: string, request: McpDelegationRequest): Promise<McpDelegationOutcome>;
   authorityOf(request: McpAuthorityRequest): Promise<McpAuthorityOutcome>;
+  /** Revokes the consent credential of a family mcp-01 ended (A20, _End_). */
+  endConsent(credentialId: string, family: string): Promise<ConsentEndOutcome | 'inactive'>;
 }
 
 /**
@@ -88,9 +132,16 @@ export type CredentialFactsOf = (
  */
 export const REFUSE_MCP_DELEGATION: McpDelegationAuthority = {
   organizationsOf: () => Promise.resolve({ kind: 'inactive' }),
+  mintConsent: () => Promise.resolve({ kind: 'inactive' }),
   issue: () => Promise.resolve({ kind: 'inactive' }),
   authorityOf: () => Promise.resolve({ kind: 'denied' }),
+  endConsent: () => Promise.resolve('inactive'),
 };
+
+/** The credential name the panel lists for a consent: client label and the id's first block. */
+export function consentCredentialName(client: string, credentialId: string): string {
+  return `MCP ${client} ${credentialId.slice(0, 8)}`.slice(0, 80);
+}
 
 /**
  * MCP organization delegation (`organization-ownership-and-access` 2.5, 6.4, 6.6).
@@ -119,9 +170,38 @@ export function mcpDelegationAuthority(deps: {
   readonly isMember: (userId: string, organizationId: string) => Promise<boolean>;
   readonly activationState: () => 'pre_activation' | 'activated';
   readonly signingKey: CryptoKey | null;
+  /** The `mcp_consent` source (A20): agents offered, credentials minted and ended. */
+  readonly consents: ConsentCredentials;
+  /** The credential a consent delegation or authority read names, read now. */
+  readonly consentCredentialOf: ConsentCredentialOf;
   readonly now?: () => number;
+  readonly newId?: () => string;
 }): McpDelegationAuthority {
   const now = deps.now ?? Date.now;
+  const newId = deps.newId ?? (() => crypto.randomUUID());
+  /**
+   * The agent person `credentialId` acts as when it is a live consent
+   * credential of family `grant` whose person is still bound to `userId` in
+   * `organizationId`, else null: the one check a consent delegation and a
+   * consent family's authority share.
+   */
+  const liveConsentPerson = async (
+    credentialId: string,
+    grant: string,
+    userId: string,
+    organizationId: string,
+  ): Promise<string | null> => {
+    const admission = admitMachineCredential(
+      { kind: 'mcp_consent', familyId: grant },
+      await deps.consentCredentialOf(credentialId),
+      now(),
+    );
+    return admission.kind === 'admitted' &&
+      admission.actor.accountId === userId &&
+      admission.actor.organizationId === organizationId
+      ? admission.actor.personId
+      : null;
+  };
   return {
     async organizationsOf(upstreamToken) {
       const verified = await verifiedUpstream(deps.authenticate, upstreamToken);
@@ -143,9 +223,59 @@ export function mcpDelegationAuthority(deps: {
         const resolved = await deps.organizations.resolve(
           delegatedPrincipal(verified.principal, membership.organizationId, 'consent', 'consent'),
         );
-        if (resolved.ok) memberships.push(membership);
+        if (resolved.ok)
+          memberships.push({
+            ...membership,
+            agents: await deps.consents.agentsBoundTo(
+              verified.principal.id,
+              membership.organizationId,
+            ),
+          });
       }
       return { kind: 'listed', userId: verified.principal.id, memberships };
+    },
+
+    async mintConsent(upstreamToken, request) {
+      const verified = await verifiedUpstream(deps.authenticate, upstreamToken);
+      if (verified.kind !== 'verified') return verified;
+      // Judged after the token, so an unauthenticated caller learns nothing
+      // about the body. Proof: with the id and client checks removed,
+      // `refuses a malformed consent request` in `mcp-delegation.boot.db.test.ts`
+      // failed as a server error: the upper-case id reached the store's
+      // lowercase-UUID trigger; watched 2026-10-22.
+      if (
+        [request.organizationId, request.userId, request.personId, request.family].some(
+          (field) => field === '' || field.length > 128,
+        ) ||
+        !CREDENTIAL_ID.test(request.credentialId) ||
+        !CLIENT_LABEL.test(request.client)
+      )
+        return { kind: 'invalid_body' };
+      // Without a key nothing minted could ever be used; before activation
+      // the store's own activation read refuses as well.
+      // Proof: with this refusal removed, `mints nothing before activation or
+      // without a key pair` in `mcp-delegation.boot.db.test.ts` minted (201)
+      // without a key pair; watched 2026-10-22.
+      if (deps.activationState() === 'pre_activation' || deps.signingKey === null)
+        return { kind: 'inactive' };
+      // Proof: with this comparison removed, `refuses a mint for an account
+      // the token does not prove` in `mcp-delegation.boot.db.test.ts` minted
+      // grace's agent from ada's token; watched 2026-10-22.
+      if (verified.principal.id !== request.userId) return { kind: 'binding_changed' };
+      const at = now();
+      const minted = await deps.consents.mint(
+        request.organizationId,
+        request.userId,
+        {
+          id: request.credentialId,
+          personId: request.personId,
+          familyId: request.family,
+          name: consentCredentialName(request.client, request.credentialId),
+        },
+        { stamp: { at, by: request.userId }, actor: request.userId, auditId: newId() },
+      );
+      if (minted !== 'minted') return { kind: minted };
+      return { kind: 'minted', credentialId: request.credentialId };
     },
 
     async issue(upstreamToken, request) {
@@ -168,7 +298,32 @@ export function mcpDelegationAuthority(deps: {
       // and refuses none in common` in `mcp-delegation.boot.db.test.ts`: the
       // signer refused the over-ceiling request, and the empty one answered
       // not_a_member instead of insufficient_scope; watched 2026-10-21.
-      const scopes = request.scopes.filter((scope) => principal.scopes.includes(scope));
+      // A consent acting as an agent person (A20): its credential must be
+      // live for this family, account and organization, and the delegation
+      // carries at most a machine's scopes (A12, A23).
+      let consent: { readonly credentialId: string; readonly personId: string } | undefined;
+      if (request.credentialId !== undefined) {
+        const personId = await liveConsentPerson(
+          request.credentialId,
+          request.grant,
+          principal.id,
+          request.organizationId,
+        );
+        // Proof: with this refusal removed, `refuses the next delegation of a
+        // revoked consent credential` in `mcp-delegation.boot.db.test.ts`
+        // issued one; watched 2026-10-22.
+        if (personId === null) return { kind: 'credential_revoked' };
+        consent = { credentialId: request.credentialId, personId };
+      }
+      // Proof: with MACHINE_SCOPES replaced by the token's scopes, `issues a
+      // delegation pinned to the agent, capped to read and write` in
+      // `mcp-delegation.boot.db.test.ts` signed `read write editor`; watched
+      // 2026-10-22.
+      const ceiling: readonly WbsScope[] =
+        consent === undefined ? principal.scopes : MACHINE_SCOPES;
+      const scopes = request.scopes.filter(
+        (scope) => principal.scopes.includes(scope) && ceiling.includes(scope),
+      );
       if (scopes.length === 0) return { kind: 'insufficient_scope' };
       // Proof: replacing this resolution with an admitting one made `refuses a
       // delegation the organization's credential rules refuse` in
@@ -199,6 +354,7 @@ export function mcpDelegationAuthority(deps: {
             grant: request.grant,
             upstreamIssuer: upstream.issuer,
             upstreamSubject: upstream.subject,
+            ...(consent === undefined ? {} : { consent }),
           },
           MCP_DELEGATION_AUDIENCE,
           scopes,
@@ -236,12 +392,38 @@ export function mcpDelegationAuthority(deps: {
       // `mcp-delegation.boot.db.test.ts`
       // answer admitted; watched 2026-10-21.
       if (read === null) return { kind: 'denied' };
+      // Proof: with this read answering admitted, `denies a consent family
+      // once its credential is revoked` in `mcp-delegation.boot.db.test.ts`
+      // answered admitted; watched 2026-10-22.
+      if (
+        request.consent !== undefined &&
+        (await liveConsentPerson(
+          request.consent.credentialId,
+          request.consent.grant,
+          request.userId,
+          request.organizationId,
+        )) === null
+      )
+        return { kind: 'denied' };
       return {
         kind: 'admitted',
-        ...request,
+        issuer: request.issuer,
+        subject: request.subject,
+        userId: request.userId,
+        organizationId: request.organizationId,
         enforced: read.facts.enforced,
         policy: read.facts.policy,
       };
+    },
+
+    async endConsent(credentialId, family) {
+      if (deps.activationState() === 'pre_activation') return 'inactive';
+      const at = now();
+      return deps.consents.end(credentialId, family, {
+        stamp: { at, by: 'mcp-01' },
+        actor: 'mcp-01',
+        auditId: newId(),
+      });
     },
   };
 }

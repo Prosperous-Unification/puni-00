@@ -160,10 +160,13 @@ async function oauthCall(request: Request): Promise<Response> {
   return response;
 }
 
-/** The whole consent for `subject`, choosing `organizationName` if a page asks; returns the MCP access token. */
+/**
+ * The whole consent for `subject`; returns the MCP access token. When a choice page asks, it
+ * picks agent `agent` if given, else "authorize as yourself" in the first organization.
+ */
 async function connect(
   subject: string,
-  options: { readonly lifetimeSeconds?: number; readonly organizationName?: string } = {},
+  options: { readonly lifetimeSeconds?: number; readonly agent?: string } = {},
 ): Promise<{ access: string; refresh: string; clientId: string }> {
   login.subject = subject;
   login.lifetimeSeconds = options.lifetimeSeconds ?? 900;
@@ -187,9 +190,11 @@ async function connect(
   const started = await oauthCall(new Request(authorize));
   const binding = started.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
   const state = new URL(started.headers.get('location') ?? '').searchParams.get('state') ?? '';
-  const callback = await oauthCall(
+  let callback = await oauthCall(
     new Request(`${OAUTH}/callback?code=upstream&state=${state}`, { headers: { cookie: binding } }),
   );
+  if (callback.status === 200) callback = await choose(callback, options.agent);
+  else if (options.agent !== undefined) throw new Error('no choice page offered the agent');
   if (callback.status !== 302)
     throw new Error(`consent did not redirect: ${String(callback.status)}`);
   const code = new URL(callback.headers.get('location') ?? '').searchParams.get('code');
@@ -210,6 +215,66 @@ async function connect(
   );
   const body = (await token.json()) as { access_token: string; refresh_token: string };
   return { access: body.access_token, refresh: body.refresh_token, clientId };
+}
+
+/** Posts the choice of `agent` (or of yourself) on the consent page `page`. */
+async function choose(page: Response, agent: string | undefined): Promise<Response> {
+  const html = await page.text();
+  const cookie = page.headers
+    .getSetCookie()
+    .find((value) => value.startsWith('__Host-wbs_mcp_select='))
+    ?.split(';', 1)[0];
+  if (cookie === undefined) throw new Error('the choice page set no selection cookie');
+  const choice: Record<string, string> =
+    agent === undefined
+      ? { organizationId: /name="organizationId" value="([^"]+)"/.exec(html)?.[1] ?? '' }
+      : {
+          agent:
+            new RegExp(`name="agent" value="(\\d+)">[^<]*<small>as agent ${agent}</small>`).exec(
+              html,
+            )?.[1] ?? '',
+        };
+  return await oauthCall(
+    new Request(`${OAUTH}/organization`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ selection: cookie.split('=')[1] ?? '', ...choice }),
+    }),
+  );
+}
+
+/** One consent credential as the booted be-01 stores it. */
+interface StoredConsent {
+  readonly personId: string;
+  readonly issuedBy: string;
+  readonly revokedAt: number | null;
+}
+
+async function consents(): Promise<StoredConsent[]> {
+  return (await (await fetch(`${beUrl}/__fixture/consents`)).json()) as StoredConsent[];
+}
+
+async function fixture(path: string, body: unknown): Promise<unknown> {
+  const response = await fetch(`${beUrl}/__fixture/${path}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (response.status !== 200) throw new Error(`fixture ${path}: ${await response.text()}`);
+  return await response.json();
+}
+
+async function refreshWith(refresh: string, clientId: string): Promise<Response> {
+  return await oauthCall(
+    new Request(`${OAUTH}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+        client_id: clientId,
+      }),
+    }),
+  );
 }
 
 let rpcId = 0;
@@ -251,7 +316,16 @@ const projectNames = (text: string) =>
   (JSON.parse(text) as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
 
 const sessions: Record<string, string> = {};
-const ids = { launch: '', foreign: '' };
+const ids = { launch: '', foreign: '', leaf: '' };
+const claire = { access: '', refresh: '', clientId: '' };
+
+/** One `claimWorkItem` of the leaf for `personId` through `access`. */
+function claimLeaf(access: string, personId: string) {
+  return tool(access, 'postApiProjectsByIdCommands', {
+    id: ids.launch,
+    commands: [{ kind: 'claimWorkItem', workItemId: ids.leaf, personId }],
+  });
+}
 
 describe('MCP organization delegation against a booted be-01', () => {
   test('before activation an MCP session works exactly as before', async () => {
@@ -336,6 +410,116 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(refreshes).toBe(before + 1);
     expect(listed.isError).toBe(false);
     expect(projectNames(listed.text)).toEqual(['Launch']);
+  });
+
+  test("offers dany's agents at consent, and a consent as claire mints her credential", async () => {
+    await fixture('agent', { id: 'claire', account: 'dany' });
+    await fixture('agent', { id: 'codex', account: 'dany' });
+    await fixture('agent', { id: 'loose', account: null });
+    const connected = await connect('auth0|dany', { agent: 'claire' });
+    Object.assign(claire, connected);
+    expect(await consents()).toEqual([{ personId: 'claire', issuedBy: 'u-dany', revokedAt: null }]);
+    const listed = await tool(claire.access, 'getApiProjects', {});
+    expect(listed.isError).toBe(false);
+    expect(projectNames(listed.text)).toEqual(['Launch']);
+  });
+
+  test("a consent session's tool call claims as its agent, never with the human's reach", async () => {
+    const created = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Claimable' }],
+    });
+    expect(created.isError).toBe(false);
+    ids.leaf = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id ?? '';
+    // Another of dany's persons: the pin refuses it.
+    const asCodex = await claimLeaf(claire.access, 'codex');
+    expect(asCodex.isError).toBe(true);
+    expect(asCodex.text).toContain('credential_not_for_person');
+    // A person bound to nobody: dany is super-admin, but the agent acts as a member (A23).
+    const asLoose = await claimLeaf(claire.access, 'loose');
+    expect(asLoose.isError).toBe(true);
+    expect(asLoose.text).toContain('person_not_bound');
+    const asClaire = await claimLeaf(claire.access, 'claire');
+    expect(asClaire.isError).toBe(false);
+    // One claim row per step of the leaf, every one of them claire's.
+    const claimed = (await (await fetch(`${beUrl}/__fixture/claims`)).json()) as {
+      personId: string;
+    }[];
+    expect(claimed.length).toBeGreaterThan(0);
+    expect(new Set(claimed.map((row) => row.personId))).toEqual(new Set(['claire']));
+    const members = await tool(claire.access, 'getApiOrganizationMembers', {});
+    expect(members.isError).toBe(true);
+    expect(members.text).toContain('insufficient_scope');
+  });
+
+  test('refresh keeps the agent alive as the agent', async () => {
+    const refreshed = await refreshWith(claire.refresh, claire.clientId);
+    expect(refreshed.status).toBe(200);
+    const body = (await refreshed.json()) as { access_token: string; refresh_token: string };
+    claire.access = body.access_token;
+    claire.refresh = body.refresh_token;
+    const asCodex = await claimLeaf(claire.access, 'codex');
+    expect(asCodex.text).toContain('credential_not_for_person');
+  });
+
+  test('authorizing as yourself beside agents stays the human session', async () => {
+    const dany = await connect('auth0|dany');
+    expect(await consents()).toHaveLength(1);
+    // The human's own session is unpinned: dany may claim for any of dany's persons.
+    const created = await tool(dany.access, 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Human' }],
+    });
+    const human = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id;
+    const asCodex = await tool(dany.access, 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'claimWorkItem', workItemId: human, personId: 'codex' }],
+    });
+    expect(asCodex.isError).toBe(false);
+  });
+
+  test('a second consent for the same agent mints a second credential', async () => {
+    const second = await connect('auth0|dany', { agent: 'claire' });
+    sessions['claireSecond'] = second.access;
+    expect(await consents()).toEqual([
+      { personId: 'claire', issuedBy: 'u-dany', revokedAt: null },
+      { personId: 'claire', issuedBy: 'u-dany', revokedAt: null },
+    ]);
+  });
+
+  test('revoking the consent in WBS ends the session: 401, and refresh is refused', async () => {
+    expect(await fixture('revoke-consent', { personId: 'claire' })).toEqual({ revoked: 2 });
+    // Refresh first: it alone must learn the revocation from the authority read.
+    const refreshed = await refreshWith(claire.refresh, claire.clientId);
+    expect(refreshed.status).toBe(400);
+    expect(await refreshed.json()).toEqual({ error: 'invalid_grant' });
+    const next = await tool(claire.access, 'getApiProjects', {});
+    expect(next.status).toBe(401);
+    // The second family learns it on its own next call.
+    expect((await tool(sessions['claireSecond'] ?? '', 'getApiProjects', {})).status).toBe(401);
+    // be-01 refused both families' authority, as for a removed member, so mcp-01 keeps them
+    // unrevoked and refuses each use; their ends are already held by be-01, and the sweep reports
+    // them (as already revoked) once they expire. Nothing is reported now.
+    expect(await oauth.reportEndedConsents()).toBe(0);
+  });
+
+  test('a family mcp-01 ends marks its credential revoked in WBS', async () => {
+    const third = await connect('auth0|dany', { agent: 'claire' });
+    expect((await consents()).at(-1)).toEqual({
+      personId: 'claire',
+      issuedBy: 'u-dany',
+      revokedAt: null,
+    });
+    const revoked = await oauthCall(
+      new Request(`${OAUTH}/revoke`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: third.access }),
+      }),
+    );
+    expect(revoked.status).toBe(200);
+    expect(await oauth.reportEndedConsents()).toBe(1);
+    expect(typeof (await consents()).at(-1)?.revokedAt).toBe('number');
   });
 
   test("a removed member's session is refused on its next call and cannot refresh", async () => {

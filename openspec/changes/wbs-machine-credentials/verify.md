@@ -492,6 +492,96 @@ removed, and the test watched passing again (2026-10-22).
 | migration subject index                              | made non-unique              | `keeps one subject per trusted issuer, and lets two issuers share it`        | stored                                   |
 | `down.sql` guard                                     | inserts 0                    | `refuses rollback while two organizations bind one subject`                  | failed on the bare index, guard unnamed  |
 
+## Slice 3 record (2026-10-22)
+
+Built on `feat/wbs-machine-credentials-3` from `origin/plan/wbs-machine-credentials` at
+`412c62038` (slices 1, 2 and 5 and main with #622 and #624). See tasks.md, "Slice 3 as
+built", for what differs from the task text.
+
+What was built:
+
+- be-01: `POST /internal/mcp/organizations` lists `agents` per membership;
+  `POST /internal/mcp/credentials` mints the `mcp_consent` credential with its audit row
+  (`ConsentCredentials`, `consent-credential.ts`); `/internal/mcp/delegation` takes
+  `credentialId` and signs `credential_id`/`person_id` with scopes capped to `read write`;
+  `/internal/mcp/authority` takes `credentialId` and `grant`; the delegation verifier admits
+  a consent delegation only while its credential is live for that family, organization,
+  person and account; `POST /internal/mcp/credentials/ended` revokes on mcp-01's report.
+- `@wbs/contracts`: `CredentialAuthentication` kind `consent`, `credentialPinOf` reads its
+  person; `@wbs/core`: the credential rules judge its upstream pair, `organizationRoleOf`
+  caps it to `member`.
+- mcp-01: migration `20261022130000_mcp_family_person`; the choice page offers agents (also
+  for one organization); choosing one records the pending consent, mints, then issues the
+  code; family and sessions carry person and credential; `reportEndedConsents` sweeps once a
+  minute from `main.ts`.
+
+Commands and fresh results, `CLAUDECODE` unset:
+
+| Command    | Result |
+| ---------- | ------ |
+| TABLE_ROWS |
+
+Failure proofs, each watched on 2026-10-22 with the fault injected into the production path,
+the named test observed failing, and the code restored (the adjacent `Proof:` comment names
+both):
+
+| Check                                                        | Injected fault                                | Observed failing test                                                                                                                                                |
+| ------------------------------------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agents listed for the token's account only (`agentsBoundTo`) | `account_id = userId` predicate removed       | `lists only the agents bound to the token's account` (ada saw eve's agent)                                                                                           |
+| mint only for the account's own agent (`mint`)               | `account_id = userId` predicate removed       | `refuses a mint for another account's agent, storing nothing`                                                                                                        |
+| end report touches only that family's credential             | `mcp_family_id` predicate removed             | `ignores an end report that names another family`                                                                                                                    |
+| no mint without a key pair                                   | inactive/key refusal removed                  | `mints nothing before activation or without a key pair` (201)                                                                                                        |
+| mint only for the account the token proves                   | `binding_changed` comparison removed          | `refuses a mint for an account the token does not prove`                                                                                                             |
+| no delegation for a revoked consent credential               | `credential_revoked` refusal removed          | `refuses the next delegation of a revoked consent credential`                                                                                                        |
+| consent delegation capped to read and write (issue)          | ceiling = the token's scopes                  | `issues a delegation pinned to the agent, capped to read and write` (signed `read write editor`)                                                                     |
+| consent family denied once revoked (authority)               | credential reread skipped                     | `denies a consent family once its credential is revoked`                                                                                                             |
+| malformed consent request refused at the boundary            | id and client checks removed                  | `refuses a malformed consent request` (server error at the id trigger)                                                                                               |
+| authority names credential and family together               | both-or-neither check removed                 | `refuses a cookie beside the upstream token and a malformed body`                                                                                                    |
+| consent delegation refused on use once revoked (verifier)    | refusal skipped                               | `refuses a delegation issued before its credential was revoked` (200); `admits a consent delegation as its agent, capped to read and write`                          |
+| consent claims both or neither                               | check removed                                 | `refuses a consent delegation that names a person without its credential`                                                                                            |
+| consent principal capped to read and write (verifier)        | `MACHINE_SCOPES` filter removed               | `admits a consent delegation as its agent, capped to read and write`                                                                                                 |
+| consent judged by the human's enforced SSO pair              | `consent` left out of the SSO rule            | `refuses a consent delegation whose human signed in outside the enforced connection, and admits one inside it`                                                       |
+| A23 cap covers a consent                                     | `consent` left out of `organizationRoleOf`    | mcp-01 boot `a consent session's tool call claims as its agent, never with the human's reach` (`loose` answered `credential_not_for_person`, not `person_not_bound`) |
+| claim pin reads a consent's person                           | `consent` left out of `credentialPinOf`       | same boot test (claim as `codex` accepted)                                                                                                                           |
+| verifier wired with the credential reader (boot)             | reader left out of `boot.ts`                  | mcp-01 boot `offers dany's agents at consent, …` and the two after it                                                                                                |
+| mcp-01 sends the credential on every delegation              | `credentialId` dropped in `bearerFor`         | mcp-01 boot claim test (claim as `codex` accepted)                                                                                                                   |
+| mcp-01 sends credential and family on the authority read     | the two fields dropped                        | mcp-01 boot `revoking the consent in WBS ends the session: 401, and refresh is refused` (refresh 200)                                                                |
+| family consent passed to the authority reader                | consent left out of `checkRefreshAuthority`   | mcp-01 boot `offers dany's agents at consent, …` (every consent family refused)                                                                                      |
+| end acknowledged only after be-01 answered                   | `reportConsentEnded` call removed             | mcp-01 boot `a family mcp-01 ends marks its credential revoked in WBS`                                                                                               |
+| agents offered for one organization                          | single membership bound whatever its agents   | `offers the agents of a single organization` (302)                                                                                                                   |
+| agent index a plain decimal                                  | regex removed                                 | `refuses a forged agent choice` (`-1`, `00` minted)                                                                                                                  |
+| no code after a refused mint                                 | refusal skipped                               | `refuses consent as another account's agent and creates no family`                                                                                                   |
+| exchange refuses a consent no longer pending (store)         | `changes !== 1` refusal removed               | `refuses to exchange a consent code whose pending consent was already reported ended`                                                                                |
+| exchange maps it to `invalid_grant`                          | mapping removed                               | `refuses a consent code whose pending consent was already reported ended`                                                                                            |
+| retired-by-epoch families reported                           | epoch comparison removed from `endedConsents` | `reports a consent family retired by the epoch advance, or by another writer`                                                                                        |
+| unexchanged codes reported                                   | pending half removed                          | `reports a consent whose code was never exchanged, once it expires`                                                                                                  |
+| be-01 mint answer names the asked credential                 | comparison weakened                           | `mints a consent credential, reading each modeled refusal and throwing on the rest`                                                                                  |
+| `credential_revoked` ends the family                         | mapping removed                               | `reads each modeled delegation refusal and throws on the rest`                                                                                                       |
+| family CHECK: credential and organization halves             | each half removed                             | `refuses a family that names a person without its credential`; `refuses a person on an unbound family`                                                               |
+| session person equals its family's                           | trigger `WHEN 0`                              | `refuses a session unlike its family's person`; `… acting as its human`                                                                                              |
+| family and session person immutable                          | triggers `WHEN 0`                             | `refuses a changed family person`; `refuses a changed session person`                                                                                                |
+| report column only on a consent family                       | `CHECK (1)`                                   | `refuses a reported end of a family acting as nobody`                                                                                                                |
+| rollback preflight                                           | refusal removed                               | `refuses to roll back while a family names a person`; `… while a consent is pending`                                                                                 |
+| rollback purge of reported families                          | family `DELETE` turned into `SELECT 1`        | `refuses to roll back while a family names a person`                                                                                                                 |
+| sweep scheduled at startup                                   | schedule call removed                         | `schedules the consent end report and reports its failure`                                                                                                           |
+| sweep failure line redacted                                  | redaction built with `[]`                     | same test (`boundary-secret` in the line)                                                                                                                            |
+
+No negative, stated: the consent comparison in `matchesRefreshAuthority` (no reader path
+substitutes a consent; the store trigger keeps it immutable).
+
+Unverified or skipped:
+
+- No live dev consent (task 3.5): no Google sign-in at the dev consent page, no `claire` claim,
+  no revoke on the people page; nothing ran on dev or h2puni.
+- Revocation in the boot tests is the slice 2 fixture's `UPDATE … revoked_at` (as the revoke
+  route writes it), not the `DELETE /api/organization/machine-credentials/:id` route through a
+  browser session; the route's own tests are slice 2's.
+- The sweep's one-minute cadence is a `setInterval` in `main.ts`; the tests drive the sweep by
+  hand.
+- `credential-epoch-cli.ts > refuses without MCP_STORE_PATH or with unknown arguments` fails in
+  this worktree only because `bun run tools/dev/setup.ts` writes `apps/wbs/mcp-01/.env` with
+  `MCP_STORE_PATH`, which Bun loads into the CLI child; with that file moved aside it passes.
+
 ## Gate output
 
 Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all

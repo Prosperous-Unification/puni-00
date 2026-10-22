@@ -513,8 +513,9 @@ export function machinePrincipalOf(actor: MachineActor, username: string): Authe
 
 /**
  * The organization role a principal acts with, from its membership's stored
- * role (`wbs-machine-credentials` A23): a machine credential is a `member` of
- * its organization whatever role the bound account holds — never `admin` or
+ * role (`wbs-machine-credentials` A23): a machine credential, and an MCP
+ * consent delegation acting as an agent person (A20), is a `member` of its
+ * organization whatever role the bound account holds — never `admin` or
  * `super_admin`, so no claim-admin bypass, no person binding, no member or
  * settings administration — and a `viewer` account's machine stays a viewer.
  * Every other principal keeps its stored role. `resolve` applies it to the
@@ -524,12 +525,17 @@ export function machinePrincipalOf(actor: MachineActor, username: string): Authe
  * an admin-bound key`, `refuses an admin-bound key a person bound to another
  * account` and `gives a super-admin-bound key no claim-admin bypass`
  * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22.
+ * Proof: with `consent` left out, `a consent session's tool call claims as
+ * its agent, never with the human's reach` (mcp-01
+ * `organization-delegation.boot.test.ts`) answered the claim for the unbound
+ * `loose` `credential_not_for_person` (the super-admin bypass passed it on)
+ * instead of `person_not_bound`; watched 2026-10-22.
  */
 export function organizationRoleOf(
   role: OrganizationRole,
   authentication: CredentialAuthentication | undefined,
 ): OrganizationRole {
-  if (authentication?.kind !== 'machine') return role;
+  if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent') return role;
   return role === 'viewer' ? 'viewer' : 'member';
 }
 

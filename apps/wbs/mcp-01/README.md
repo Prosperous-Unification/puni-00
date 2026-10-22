@@ -148,6 +148,24 @@ activation reach be-01 unbound and are refused with `no_active_organization`.
 Unset, mcp-01 forwards the upstream token as before. Contract and deployment
 keys: `docs/auth-integration.md`, "MCP organization delegation".
 
+### Consent as an agent person
+
+When the signed-in account has agent persons bound to it in an organization,
+the choice page (shown then even for one organization) also offers each agent
+(`wbs-machine-credentials` A8, A20). Choosing one records a pending consent in
+the store, asks be-01 (`/internal/mcp/credentials`) to mint an `mcp_consent`
+machine credential issued by the human for that agent, and only then issues
+the code; a refusal answers `access_denied` and no family exists. The family
+and its sessions carry the agent person and the credential; every tool call's
+delegation names the credential, so be-01 pins it to the agent with `read` and
+`write` and the agent acts as a `member`. A credential revoked in WBS ends the
+family's use at its next request (401) and refresh (`invalid_grant`). The other
+way round, a minute-long sweep (`McpOAuthServer.reportEndedConsents`, started
+in `src/main.ts`) reports every consent family mcp-01 ended (revoked, expired,
+retired by the epoch) and every code never exchanged to
+`/internal/mcp/credentials/ended`, keeping each end in the store until be-01
+acknowledges it.
+
 ## Durable sessions and key rotation
 
 mcp-01 owns this store because it is the authorization server that creates,

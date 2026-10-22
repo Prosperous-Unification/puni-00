@@ -5,6 +5,9 @@ import { describe, expect, it } from 'bun:test';
 import type { McpConfig } from './config';
 import { McpOAuthServer } from './oauth';
 import type {
+  ConsentCredentialOutcome,
+  ConsentCredentialRequest,
+  ConsentEndReport,
   ConsentOrganizations,
   DelegationOutcome,
   DelegationRequest,
@@ -32,13 +35,35 @@ const VERIFIER = 'v'.repeat(43);
 interface Recorded {
   readonly delegations: { readonly upstreamToken: string; readonly request: DelegationRequest }[];
   readonly authorityReads: unknown[];
+  readonly mints: { readonly upstreamToken: string; readonly request: ConsentCredentialRequest }[];
+  readonly ends: { readonly credentialId: string; readonly familyId: string }[];
 }
 
-function fixture(consent: ConsentOrganizations, delegation?: DelegationOutcome) {
+/** be-01's answers to a consent credential mint and to an end report, and the shared clock. */
+interface ConsentStub {
+  mint: ConsentCredentialOutcome;
+  end: ConsentEndReport;
+  now: number;
+}
+
+function fixture(
+  consent: ConsentOrganizations,
+  delegation?: DelegationOutcome,
+  stub: ConsentStub = { mint: { kind: 'minted' }, end: 'acknowledged', now: Date.now() },
+) {
   let counter = 0;
-  const recorded: Recorded = { delegations: [], authorityReads: [] };
+  const recorded: Recorded = { delegations: [], authorityReads: [], mints: [], ends: [] };
+  const store = new McpSessionStore(':memory:', [randomBytes(32)]);
   const organizations: OrganizationAuthority = {
     organizationsFor: () => Promise.resolve(consent),
+    mintConsentCredential: (upstreamToken, request) => {
+      recorded.mints.push({ upstreamToken, request });
+      return Promise.resolve(stub.mint);
+    },
+    reportConsentEnded: (ended) => {
+      if (stub.end === 'acknowledged') recorded.ends.push(ended);
+      return Promise.resolve(stub.end);
+    },
     delegationFor: (upstreamToken, request) => {
       recorded.delegations.push({ upstreamToken, request });
       return Promise.resolve(delegation ?? { kind: 'issued', token: 'signed-delegation' });
@@ -68,6 +93,8 @@ function fixture(consent: ConsentOrganizations, delegation?: DelegationOutcome) 
     },
     {
       groupPrefix: 'dev',
+      now: () => stub.now,
+      store,
       random: () => `random-${String((counter += 1))}`,
       verifyUpstream: () =>
         Promise.resolve({
@@ -78,7 +105,7 @@ function fixture(consent: ConsentOrganizations, delegation?: DelegationOutcome) 
       organizations,
     },
   );
-  return { oauth, recorded };
+  return { oauth, recorded, store };
 }
 
 async function handled(oauth: McpOAuthServer, request: Request): Promise<Response> {
@@ -149,16 +176,56 @@ async function exchange(oauth: McpOAuthServer, clientId: string, redirect: Respo
 const ACTIVATED_ONE: ConsentOrganizations = {
   kind: 'activated',
   userId: 'u-ada',
-  memberships: [{ organizationId: 'org-a', name: 'Acme', role: 'member' }],
+  memberships: [{ organizationId: 'org-a', name: 'Acme', role: 'member', agents: [] }],
 };
 const ACTIVATED_TWO: ConsentOrganizations = {
   kind: 'activated',
   userId: 'u-ada',
   memberships: [
-    { organizationId: 'org-a', name: 'Acme <Labs>', role: 'member' },
-    { organizationId: 'org-b', name: 'Beta', role: 'admin' },
+    { organizationId: 'org-a', name: 'Acme <Labs>', role: 'member', agents: [] },
+    { organizationId: 'org-b', name: 'Beta', role: 'admin', agents: [] },
   ],
 };
+/** One organization in which ada has one agent person, `claire`. */
+const ACTIVATED_WITH_AGENT: ConsentOrganizations = {
+  kind: 'activated',
+  userId: 'u-ada',
+  memberships: [
+    {
+      organizationId: 'org-a',
+      name: 'Acme',
+      role: 'super_admin',
+      agents: [{ personId: 'p-claire', name: 'claire <bot>' }],
+    },
+  ],
+};
+
+/** The selection cookie and id of a choice page. */
+function selectionOf(page: Response): { cookie: string; id: string } {
+  const cookie = page.headers
+    .getSetCookie()
+    .find((value) => value.startsWith('__Host-wbs_mcp_select='))
+    ?.split(';', 1)[0];
+  if (cookie === undefined) throw new Error('no selection cookie');
+  return { cookie, id: cookie.split('=')[1] ?? '' };
+}
+
+/** Posts one choice of the page `page` answered. */
+function choose(
+  oauth: McpOAuthServer,
+  page: Response,
+  choice: Record<string, string>,
+): Promise<Response> {
+  const selection = selectionOf(page);
+  return handled(
+    oauth,
+    new Request(`${BASE}/organization`, {
+      method: 'POST',
+      headers: { cookie: selection.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ selection: selection.id, ...choice }),
+    }),
+  );
+}
 
 describe('MCP organization binding', () => {
   it('keeps a consent before activation unbound and forwards the upstream token', async () => {
@@ -343,6 +410,201 @@ describe('MCP organization binding', () => {
     expect(refused).toBeInstanceOf(DelegationRefused);
     expect((refused as DelegationRefused).endsSession).toBe(false);
     expect((refused as Error).message).toContain('sso_required');
+  });
+
+  it('offers the agents of a single organization', async () => {
+    const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT);
+    const { callback } = await consent(oauth);
+    expect(callback.status).toBe(200);
+    const page = await callback.text();
+    expect(page).toContain('Choose who this connection acts as');
+    expect(page).toContain('as yourself, super admin');
+    expect(page).toContain('<button name="agent" value="0">');
+    expect(page).toContain('claire &lt;bot&gt;');
+    expect(recorded.mints).toEqual([]);
+  });
+
+  it('authorizes as yourself from the agent page, minting nothing', async () => {
+    const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT);
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { organizationId: 'org-a' });
+    const session = await oauth.callerSessionFor(await exchange(oauth, clientId, chosen));
+    await oauth.bearerFor(session.mcpSessionId, session.upstreamToken, ['read']);
+    expect(recorded.mints).toEqual([]);
+    expect(recorded.delegations[0]?.request).not.toHaveProperty('credentialId');
+  });
+
+  it('acts as the chosen agent: mints before the code, carries person and credential', async () => {
+    const { oauth, recorded, store } = fixture(ACTIVATED_WITH_AGENT);
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    expect(chosen.status).toBe(302);
+    expect(recorded.mints).toHaveLength(1);
+    const mint = recorded.mints.at(0);
+    if (mint === undefined) throw new Error('no mint');
+    expect(mint.upstreamToken).toBe('upstream-token');
+    expect(mint.request).toMatchObject({
+      organizationId: 'org-a',
+      userId: 'u-ada',
+      personId: 'p-claire',
+      client: 'claude.ai',
+    });
+    expect(mint.request.credentialId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    const session = await oauth.callerSessionFor(await exchange(oauth, clientId, chosen));
+    const family = store.familyForSession(session.mcpSessionId ?? '', Date.now());
+    expect(family?.familyId).toBe(mint.request.family);
+    expect(family?.consent).toEqual({
+      personId: 'p-claire',
+      credentialId: mint.request.credentialId,
+    });
+    expect(recorded.authorityReads).toMatchObject([
+      { consent: { personId: 'p-claire', credentialId: mint.request.credentialId } },
+    ]);
+    await oauth.bearerFor(session.mcpSessionId, session.upstreamToken, ['read', 'write']);
+    expect(recorded.delegations[0]?.request).toEqual({
+      organizationId: 'org-a',
+      userId: 'u-ada',
+      client: clientId,
+      grant: mint.request.family,
+      scopes: ['read', 'write'],
+      credentialId: mint.request.credentialId,
+    });
+    // The pending consent became the family: nothing is reported ended.
+    expect(await oauth.reportEndedConsents()).toBe(0);
+  });
+
+  it("refuses consent as another account's agent and creates no family", async () => {
+    const stub: ConsentStub = { mint: { kind: 'refused' }, end: 'acknowledged', now: Date.now() };
+    const { oauth, recorded, store } = fixture(ACTIVATED_WITH_AGENT, undefined, stub);
+    const { callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    const location = new URL(chosen.headers.get('location') ?? 'https://invalid');
+    expect(location.searchParams.get('error')).toBe('access_denied');
+    expect(location.searchParams.get('code')).toBeNull();
+    expect(recorded.mints).toHaveLength(1);
+    expect(store.family(recorded.mints[0]?.request.family ?? '')).toBeNull();
+    // Nothing was minted, so nothing is left to report, even after the code would have expired.
+    stub.now += 600_000;
+    expect(await oauth.reportEndedConsents()).toBe(0);
+  });
+
+  it('refuses a forged agent choice', async () => {
+    const forgeries: Record<string, string>[] = [
+      { agent: '7' },
+      { agent: '-1' },
+      { agent: '00' },
+      { agent: '0', organizationId: 'org-a' },
+      {},
+    ];
+    for (const forged of forgeries) {
+      const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT);
+      const { callback } = await consent(oauth);
+      const posted = await choose(oauth, callback, forged);
+      const location = new URL(posted.headers.get('location') ?? 'https://invalid');
+      expect({ forged, error: location.searchParams.get('error') }).toEqual({
+        forged,
+        error: 'access_denied',
+      });
+      expect(recorded.mints).toEqual([]);
+    }
+  });
+
+  it('reports a consent whose code was never exchanged, once it expires', async () => {
+    const stub: ConsentStub = { mint: { kind: 'minted' }, end: 'acknowledged', now: Date.now() };
+    const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT, undefined, stub);
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    expect(await oauth.reportEndedConsents()).toBe(0);
+    stub.now += 300_000;
+    expect(await oauth.reportEndedConsents()).toBe(1);
+    const mint = recorded.mints.at(0)?.request;
+    expect(recorded.ends).toEqual([{ credentialId: mint?.credentialId, familyId: mint?.family }]);
+    expect(await oauth.reportEndedConsents()).toBe(0);
+    // The code itself is expired as well; it never becomes a family.
+    const code = new URL(chosen.headers.get('location') ?? '').searchParams.get('code') ?? '';
+    const late = await handled(
+      oauth,
+      new Request(`${BASE}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          code,
+          code_verifier: VERIFIER,
+          grant_type: 'authorization_code',
+          redirect_uri: CALLBACK,
+        }),
+      }),
+    );
+    expect(late.status).toBe(400);
+  });
+
+  it('refuses a consent code whose pending consent was already reported ended', async () => {
+    const { oauth, recorded, store } = fixture(ACTIVATED_WITH_AGENT);
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    const mint = recorded.mints.at(0)?.request;
+    if (mint === undefined) throw new Error('no mint');
+    store.acknowledgeConsentEnd({ familyId: mint.family, credentialId: mint.credentialId }, 0);
+    const code = new URL(chosen.headers.get('location') ?? '').searchParams.get('code') ?? '';
+    const exchanged = await handled(
+      oauth,
+      new Request(`${BASE}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          code,
+          code_verifier: VERIFIER,
+          grant_type: 'authorization_code',
+          redirect_uri: CALLBACK,
+        }),
+      }),
+    );
+    expect(exchanged.status).toBe(400);
+    expect(await exchanged.json()).toEqual({ error: 'invalid_grant' });
+    expect(store.family(mint.family)).toBeNull();
+  });
+
+  it('reports a consent family mcp-01 ended, keeping it until be-01 acknowledges', async () => {
+    const stub: ConsentStub = { mint: { kind: 'minted' }, end: 'unavailable', now: Date.now() };
+    const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT, undefined, stub);
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    const access = await exchange(oauth, clientId, chosen);
+    const revoked = await handled(
+      oauth,
+      new Request(`${BASE}/revoke`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: access }),
+      }),
+    );
+    expect(revoked.status).toBe(200);
+    // be-01 unreachable: nothing acknowledged, the end stays durable.
+    expect(await oauth.reportEndedConsents()).toBe(0);
+    stub.end = 'acknowledged';
+    expect(await oauth.reportEndedConsents()).toBe(1);
+    expect(recorded.ends.map((ended) => ended.credentialId)).toEqual([
+      recorded.mints[0]?.request.credentialId,
+    ]);
+    expect(await oauth.reportEndedConsents()).toBe(0);
+  });
+
+  it('ends a consent family whose credential be-01 revoked', async () => {
+    const { oauth, recorded } = fixture(ACTIVATED_WITH_AGENT, { kind: 'membership_ended' });
+    const { clientId, callback } = await consent(oauth);
+    const chosen = await choose(oauth, callback, { agent: '0' });
+    const session = await oauth.callerSessionFor(await exchange(oauth, clientId, chosen));
+    const refused = await oauth
+      .bearerFor(session.mcpSessionId, session.upstreamToken, ['read'])
+      .catch((cause: unknown) => cause);
+    expect(refused).toBeInstanceOf(DelegationRefused);
+    expect((refused as DelegationRefused).endsSession).toBe(true);
+    expect(await oauth.reportEndedConsents()).toBe(1);
+    expect(recorded.ends).toHaveLength(1);
   });
 
   it('refuses to forward for a bound family when no organization authority is installed', async () => {

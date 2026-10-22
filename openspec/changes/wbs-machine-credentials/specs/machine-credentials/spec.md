@@ -94,7 +94,11 @@ every session from it SHALL carry that person and credential. be-01 SHALL refuse
 person_not_bound` when the person is not bound to the signed-in account, is not an agent or
 is of another organization, and `403 not_a_member` when the account is not a current
 member; mcp-01 SHALL then answer the client `access_denied` and create no family. Before
-activation the choice SHALL NOT be offered.
+activation the choice SHALL NOT be offered. mcp-01 SHALL record the consent durably before it
+asks be-01, so a credential minted for a code that is never exchanged is reported ended (see
+"A family mcp-01 ends revokes its consent credential"). A second consent for the same agent
+SHALL mint a second credential, one family each; the credential's name is the client's redirect
+host and the first block of its id.
 
 #### Scenario: Signing in with Google authorizes the agent
 
@@ -113,6 +117,23 @@ activation the choice SHALL NOT be offered.
 - **WHEN** the signed-in account has one membership and no agent bound to it
 - **THEN** the consent binds that organization without a choice page, as today
 
+#### Scenario: One organization with an agent
+
+- **WHEN** the signed-in account has one membership and agent `claire` bound to it
+- **THEN** the choice page offers "as yourself" and `claire`; choosing yourself mints nothing
+  and the family acts as the human exactly as before
+
+#### Scenario: A forged agent choice
+
+- **WHEN** the page is posted with an agent index that was not offered, or with an index beside
+  an organization
+- **THEN** mcp-01 answers `access_denied` and asks be-01 to mint nothing
+
+#### Scenario: A second consent for the same agent
+
+- **WHEN** Dany consents as `claire` twice
+- **THEN** two live `mcp_consent` credentials exist under `claire`, each naming its own family
+
 ### Requirement: A consent family's tool calls act as the agent until the credential is revoked
 
 Every tool call of a family that names a credential SHALL request its delegation from
@@ -123,7 +144,10 @@ as pin and scopes narrowed to `read` and `write` within the grant. `POST
 /internal/mcp/authority` SHALL answer revoked for a revoked or unbound credential, and
 mcp-01 SHALL then end the family and refuse refresh as it does for a removed member. A
 claim through such a delegation SHALL be accepted for the agent and for delegated claims
-under its claims, and refused `credential_not_for_person` for any other person. The
+under its claims, and refused `credential_not_for_person` for any other person. The delegation
+SHALL act in the organization as at most a `member` whatever the human's role (A23). be-01 SHALL
+also refuse a delegation naming a credential on use once that credential is revoked, names
+another family or person, or its person is no longer bound to the account. The
 organization's enforced SSO and session policy SHALL keep judging the human sign-in that
 opened the family.
 
@@ -133,6 +157,12 @@ opened the family.
   `claire`
 - **THEN** the claim is accepted and records `claire`; a batch naming another person is
   refused `credential_not_for_person`
+
+#### Scenario: The agent never gains the human's reach
+
+- **WHEN** a super-admin's consent as `claire` claims for a person bound to no account
+- **THEN** the claim is refused `person_not_bound`, as for a member, and an organization
+  administration route answers `403 insufficient_scope`
 
 #### Scenario: Revoke ends the session
 
@@ -149,6 +179,42 @@ opened the family.
 
 - **WHEN** the family's refresh token is used after the access token expired
 - **THEN** a new session for `claire` is issued and its next tool call still acts as `claire`
+
+### Requirement: A family mcp-01 ends revokes its consent credential
+
+mcp-01 SHALL report to be-01 `POST /internal/mcp/credentials/ended` (service secret only) every
+consent family it ended, by any path (the revoke endpoint, reuse of a consumed refresh token,
+provider refusal, idle or absolute expiry, an advance of the credential epoch), and every
+consent whose code expired unexchanged. It SHALL keep each end in its store until be-01
+acknowledges it, so a report lost to a crash or an unreachable be-01 is sent again; it sweeps
+once a minute, so the end reaches WBS within about a minute. be-01 SHALL revoke only the
+`mcp_consent` credential naming that exact family, with a `machine_credential_revoked` audit
+row whose actor is `mcp-01`, and SHALL answer `revoked`, `already_revoked` or `absent`. A family
+whose credential WBS revoked first is refused on every use and reported as `already_revoked`
+once it ends in mcp-01. The mcp-01 store rollback of this source SHALL refuse while any consent
+family's end is unacknowledged or any consent is pending.
+
+#### Scenario: Revoked at mcp-01
+
+- **WHEN** an MCP client revokes `claire`'s family at mcp-01's revoke endpoint
+- **THEN** within one sweep `claire`'s consent credential is revoked in WBS and listed with
+  `revokedAt`
+
+#### Scenario: Retired by the epoch
+
+- **WHEN** the epoch CLI advances the store while a consent family is live
+- **THEN** the next sweep after mcp-01 restarts reports that family's credential ended
+
+#### Scenario: A code never exchanged
+
+- **WHEN** a consent as `claire` mints a credential and the client never exchanges the code
+- **THEN** once the code has expired the sweep reports the credential ended, and the code can
+  never become a family
+
+#### Scenario: be-01 unreachable
+
+- **WHEN** a sweep cannot reach be-01
+- **THEN** nothing is acknowledged and the next sweep reports the same ends
 
 ### Requirement: One verification path admits every source
 
