@@ -26,8 +26,20 @@ import {
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 type Reader = Pick<SQLiteBunDatabase, 'select' | 'selectDistinct'>;
 
-/** @throws when any of `limits` is outside the bounds an organization may hold. */
-function checkedLimits(limits: OrganizationLimitValues, owner: string): OrganizationLimitValues {
+/**
+ * @throws when `limits` is absent or any of it is outside the bounds an
+ * organization may hold.
+ */
+function checkedLimits(
+  limits: OrganizationLimitValues | undefined,
+  owner: string,
+): OrganizationLimitValues {
+  // An untyped caller (a spawned script calling `bootBe01`) can pass nothing;
+  // without this the boot failed as "undefined is not an object".
+  // Proof: with this check removed, `refuses absent deployment defaults,
+  // naming them` (organization-limits.db.test.ts) failed on the TypeError
+  // text; watched 2026-10-22.
+  if (limits === undefined) throw new Error(`organization limits of ${owner} are missing`);
   if (
     !isOrganizationLimit(limits.maxAgentPersons) ||
     !isOrganizationLimit(limits.maxConcurrentClaims) ||

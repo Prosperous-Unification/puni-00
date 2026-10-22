@@ -85,6 +85,12 @@ bundle-then-keys order; the dev runbook names the three lines; `sumStatedCapacit
 the resource's organization as `readCapacityUsage` does; the member/viewer controller case is
 renamed to what it asserts.
 
+Gate fix (2026-10-22): the workspace gate of run 39724668881 failed two cases of
+`swap-maintenance.db.test.ts`. Its spawned `bootBe01` script lacked `organizationDefaultLimits`,
+and be-01 died as "undefined is not an object". The fixture now passes the defaults, and the
+repository names absent defaults. `env -u CLAUDECODE bunx nx run tool-remote-scripts:test
+--skip-nx-cache` (whole project): 789 pass, 2 skip, 0 fail, 43 files.
+
 For Dany:
 
 - The staging and prod overlays (and `configure.sh`) carry 50 / 200 / 10,000, which pins a plan
@@ -161,6 +167,7 @@ overshoot was observed through a stale count instead (table below).
 | dev deploy refuses a be-01 `.env` lacking a key          | `assertBeEnv` call removed from `sync`                                                        | `refuses a be-01 environment missing a required key before fetch or reset` reached `git fetch` (8 pass, 1 fail)                                                                          | watched |
 | devsync's be-01 key list matches `BeConfig`              | `…MAX_CONCURRENT_CLAIMS` removed from `BE_REQUIRED_ENV`                                       | `names the keys be-01 refuses to boot without, less those compose supplies` (8 pass, 1 fail)                                                                                             | watched |
 | `sumStatedCapacity` requires the resource's organization | resource organization predicate dropped                                                       | `never sums a resource the organization does not own` (12 pass, 1 fail)                                                                                                                  | watched |
+| absent deployment defaults are named                     | the `limits === undefined` check removed                                                      | `refuses absent deployment defaults, naming them` failed on the TypeError text (13 pass, 1 fail)                                                                                         | watched |
 | agent cap inside the transaction                         | gauge answering the count it read first for every later batch (a count read outside the turn) | `lands exactly one, the other refused naming the winner in its count` (`agent-person-limit-race.db.test.ts`): both landed, 9 agents of 8, 0 pass 1 fail                                  | watched |
 | agent cap serialized by the turn                         | `source.uow` built over the open gate (coordinator bypassed)                                  | the same race case: the queued batch failed `BEGIN IMMEDIATE`, "cannot start a transaction within a transaction", 0 pass 1 fail                                                          | watched |
 | admitted catalog carries the gauge                       | bound source's admitted catalog built without the gauge                                       | every activated case of `agent-person-limit.controller.db.test.ts` threw the composition error, 3 pass 9 fail                                                                            | watched |
