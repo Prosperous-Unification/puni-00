@@ -1040,7 +1040,11 @@ new mounted command case, `mounted first-child creation publishes a remote-owned
 pinned node on the new child`, passed 1/1 (10 assertions): HTTP returned 200
 after publication, and the durable external predecessor endpoint named the
 created child. The packet's old-base HTTP 500 reproduction is retained in its
-evidence; it does not reproduce on this combined branch. Independent review,
-full task 4.4, full CI and the exact-SHA host gate remain pending. Six trailing
+evidence; it does not reproduce on this combined branch. The [independent Astra
+review](evidence/task-4-incident-handdown-review.md) approved the bounded packet
+after separate endpoint-conflict and cycle-result branch proofs. The corrected
+packet and combined branch each passed the 41 lifecycle/history tests (658
+assertions); combined backend TypeScript passed. Full task 4.4, full CI and the
+exact-SHA host gate remain pending. Six trailing
 spaces in two retained fault logs were stripped without altering their printed
-fault text; commit-range `git diff --check` is required before integration.
+fault text; commit-range `git diff --check 0c2264722..cb22c3164` passed.
