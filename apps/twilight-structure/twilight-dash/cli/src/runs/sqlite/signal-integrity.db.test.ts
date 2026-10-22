@@ -7,7 +7,12 @@ import { parseOrThrow } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 
-import { CompletionCodec, decodeAdmission, decodeExecutionFact } from '../record-codecs';
+import {
+  CompletionCodec,
+  decodeAdmission,
+  decodeExecutionCommand,
+  decodeExecutionFact,
+} from '../record-codecs';
 import { digestIntent, organizationId } from '../record-codecs';
 import {
   createCompletion,
@@ -389,3 +394,109 @@ test('terminal inspection refuses completion unreadable after reconstruction', a
     rmSync(fixture.directory, { recursive: true });
   }
 });
+
+for (const delivery of ['terminal outbox', 'missing pending outbox'] as const)
+  for (const operation of [
+    'admission',
+    'execution',
+    'completion replay',
+    'execution replay',
+    'receipt',
+  ] as const)
+    test(`${operation} rejects ${delivery} before state dependent rows change`, async () => {
+      const fixture = await createFixture();
+      try {
+        const setup = await prepareReceipt(fixture);
+        if (delivery === 'terminal outbox')
+          unwrapReply(
+            await fixture.runs.reconcileReceipt(await setup.currentGuard(), setup.receipt),
+          );
+        const before = await fixture.runs.readRun(setup.run.runId);
+        const guard = await setup.currentGuard();
+        const row = fixture.database
+          .query<{ record: string }, []>('SELECT record FROM run_execution')
+          .get();
+        if (row === null) throw new Error('missing fixture execution');
+        const recorded = decodeExecutionCommand(JSON.parse(row.record));
+        const admission = decodeAdmission({ ...setup.admission, attemptId: 'retry', ordinal: 2 });
+        const observe = createExecutionCommand({
+          kind: 'recovery_required',
+          reason: 'new observation',
+        });
+        const project = () =>
+          [
+            'run_meta',
+            'run_record',
+            'run_attempt',
+            'run_reservation',
+            'run_execution',
+            'run_completion',
+            'run_outbox',
+            'run_receipt',
+            'run_decision',
+            'run_consumption',
+          ].map((table) => fixture.database.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+        if (delivery === 'terminal outbox')
+          fixture.database
+            .query('INSERT INTO run_outbox(command_id) VALUES (?)')
+            .run(setup.receipt.commandId);
+        else fixture.database.run('DELETE FROM run_outbox');
+        const corrupt = project();
+        const apply = () =>
+          operation === 'admission'
+            ? fixture.runs.admitAttempt(
+                {
+                  ownership: guard.ownership,
+                  runId: guard.runId,
+                  expectedRevision: guard.expectedRevision,
+                },
+                admission,
+              )
+            : operation === 'execution'
+              ? fixture.runs.recordExecution(guard, observe)
+              : operation === 'completion replay'
+                ? fixture.runs.commitOutcome(guard, setup.completion)
+                : operation === 'receipt'
+                  ? fixture.runs.reconcileReceipt(guard, setup.receipt)
+                  : fixture.runs.recordExecution(guard, recorded);
+        await rejects(
+          apply(),
+          delivery === 'terminal outbox' ? /corrupt terminal outbox/ : /corrupt missing outbox/,
+        );
+        expect(project()).toEqual(corrupt);
+        if (delivery === 'terminal outbox') fixture.database.run('DELETE FROM run_outbox');
+        else
+          fixture.database
+            .query('INSERT INTO run_outbox(command_id) VALUES (?)')
+            .run(setup.receipt.commandId);
+        expect(await fixture.runs.readRun(setup.run.runId)).toEqual(before);
+        const restored = apply();
+        await doesNotReject(restored);
+        if (operation === 'admission') {
+          if (delivery === 'terminal outbox') {
+            expect(await restored).toMatchObject({
+              kind: 'applied',
+              value: { attemptId: admission.attemptId, ordinal: 2, holdsCapacity: true },
+            });
+            expect((await fixture.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
+          } else expect(await restored).toEqual({ kind: 'refused', reason: 'attempt_active' });
+        } else if (operation === 'execution')
+          expect(await restored).toEqual({ kind: 'refused', reason: 'state_conflict' });
+        else if (operation === 'receipt' && delivery === 'missing pending outbox') {
+          expect(await restored).toMatchObject({
+            kind: 'applied',
+            value: { state: { kind: 'terminal' } },
+          });
+          expect((await fixture.runs.readRun(setup.run.runId)).pendingIntents).toEqual([]);
+        } else expect(await restored).toMatchObject({ kind: 'duplicate' });
+        if (
+          (operation !== 'admission' || delivery === 'missing pending outbox') &&
+          !(operation === 'receipt' && delivery === 'missing pending outbox')
+        )
+          expect(await fixture.runs.readRun(setup.run.runId)).toEqual(before);
+      } finally {
+        fixture.database.close();
+        fixture.close();
+        rmSync(fixture.directory, { recursive: true });
+      }
+    });

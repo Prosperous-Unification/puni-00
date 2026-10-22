@@ -535,3 +535,43 @@ Independent Task 4 review is pending. Task 5 production selection/import enforce
 aggregate exact-SHA gate, full build/CI acceptance, secrets/migration lint, authenticated
 inbox delivery, real quiescence and guarded live WBS acceptance remain unverified here.
 Parent 6a.1–6a.2 remain unchecked; this is not coordinator or deployment acceptance.
+
+### Storage Task 4 fix round 1
+
+Independent review rejected the candidate: reinserting a confirmed terminal command into
+`run_outbox` made `readRun` throw, but retry admission still applied and reserved capacity.
+Admission, fresh execution, direct completion and execution replay reconstructed history
+without checking independent delivery presence. The fix routes these and the existing
+read/open/receipt paths through one `validateAttempt` operation. It validates against the
+attempt's actual target run after owner fencing. Reconstruction remains private and no
+longer provides an incomplete validation entry point. The obsolete required-command proof
+comment was removed; the reset-to-admitted negative remains its independent evidence.
+
+The focused matrix first failed all eight cases at `Missing expected rejection`, then
+passed; receipt coverage expanded it to ten cases. Each corrupt terminal-extra-outbox or
+pending-missing-outbox case asserts rejection and unchanged physical rows, then restores
+the delivery state and checks the valid applied, duplicate or typed-refusal result. The
+retry positive reserves exactly one slot. Focused history/outcome suites passed 154 tests
+with 306 assertions. Logs: `/tmp/task4-review-fix1-red.log`,
+`/tmp/task4-review-fix1-green-expanded.log`, `/tmp/task4-review-fix1-focused-final.log`.
+
+Eight isolated production routing/dependency faults each failed the intended rejection
+assertion: complete delivery validation, admission, completion, fresh execution, execution
+replay, required-attempt receipt reads, inspection and open. Exact edits, commands and
+failing output live in `/tmp/task4-review-fix1-faults/summary.json` and its named `.patch`/
+`.log` files. All eight mutations were restored, with no weak or discarded attempts. This
+adds eight proof cases/eight mutation invocations; cumulative historical accounting is
+70 cases/110 invocations. Earlier proofs were not rerun or recertified by this fix.
+
+Final checks after restoration:
+
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs --timeout=60000`: 337 pass, zero fail, 1,013 assertions across 14 files, 9.77s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`: exit 0, 2.1s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`: exit 0, 19.8s.
+- `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/runs` and `git diff --check`: exit 0.
+
+Final command output is in `/tmp/task4-review-fix1-final-{tests,typecheck,lint,format}.log`.
+Root inspected those logs and the eight fault metadata entries. Scoped independent
+re-review remains pending; Task 4 is not accepted yet. Task 5, full host gate/build,
+CI acceptance, standalone migration lint, secrets, live workers/WBS and coordinator
+readiness remain outside these checks.

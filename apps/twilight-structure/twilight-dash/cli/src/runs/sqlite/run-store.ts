@@ -29,8 +29,7 @@ import {
 import type { Ownership, OwnershipStatus, Run } from '../records';
 import type { RunStore, StoreReply } from '../run-store';
 import { createSqliteArtifactStore } from './artifact-store';
-import { findExecution, readExecutions } from './read-executions';
-import { readOutcomes } from './read-outcomes';
+import { findExecution, validateAttempt } from './read-executions';
 import {
   decodeConsumptionRow,
   decodeDecisionRow,
@@ -179,8 +178,8 @@ export function createSqliteRunStore(
     const { attempt } = decodeAttemptRow(row);
     const { run } = requireRun(attempt.identity.runId);
     // Proof: injecting replay provenance bypass failed `duplicate consumption validates current target provenance before replay` at its explicit assertion.
-    readExecutions(database, run, attempt);
-    readOutcomes(database, [attempt]);
+    // Proof: bypassing required attempt delivery route failed `receipt rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
+    validateAttempt(database, run, attempt);
     return attempt;
   }
   function readCapacity(limit: number) {
@@ -297,12 +296,15 @@ export function createSqliteRunStore(
           .all(run.runId)
           .map((row) => decodeAttemptRow(row).attempt);
         // Proof: injecting read provenance bypass failed `probe current claim corruption against intact historical execution` at its explicit assertion.
-        for (const attempt of attempts) readExecutions(database, run, attempt);
+        const pendingIntents = attempts.flatMap(
+          // Proof: bypassing inspection delivery route failed `public read rejects terminal outbox present and reopen rejects corruption` at its missing-rejection assertion.
+          (attempt) => validateAttempt(database, run, attempt).pendingIntents,
+        );
         return {
           version: 1,
           run,
           attempts,
-          pendingIntents: readOutcomes(database, attempts),
+          pendingIntents,
           receipts: database
             .query(
               'SELECT r.* FROM run_receipt r JOIN run_attempt a ON a.attempt_id=r.attempt_id WHERE a.run_id=? ORDER BY r.command_id',
@@ -451,7 +453,8 @@ export function createSqliteRunStore(
         const { attempt } = decodeAttemptRow(row);
         // Proof: injecting completion provenance bypass failed `completion rejects current claim corruption against intact historical execution` at its explicit assertion.
         // Proof: reconstructing with the caller's run made `sqlite execution commands > execution command identities distinguish reattachment from original redelivery` fail its doesNotReject assertion for a cross-run guard.
-        readExecutions(database, requireRun(attempt.identity.runId).run, attempt);
+        // Proof: bypassing completion delivery route failed `completion replay rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
+        validateAttempt(database, requireRun(attempt.identity.runId).run, attempt);
         const previous = database
           .query(
             'SELECT * FROM run_completion WHERE command_id=? OR attempt_id=? ORDER BY command_id',
@@ -491,7 +494,12 @@ export function createSqliteRunStore(
         if (row === null) throw new Error('attempt does not exist');
         const { attempt } = decodeAttemptRow(row);
         // Proof: reconstructing with the caller's run made `sqlite execution commands > execution command identities distinguish reattachment from original redelivery` fail its doesNotReject assertion for a cross-run guard.
-        const history = readExecutions(database, requireRun(attempt.identity.runId).run, attempt);
+        // Proof: bypassing execution delivery route failed `execution rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
+        const { executions: history } = validateAttempt(
+          database,
+          requireRun(attempt.identity.runId).run,
+          attempt,
+        );
         // Proof: injecting sqlite fresh wait key bypass failed `sqlite decisions > old consumption preserves its original reply through later waits and owner takeover` at its explicit assertion.
         if (
           command.fact.kind === 'waiting' &&
@@ -537,7 +545,8 @@ export function createSqliteRunStore(
         for (const { attempt } of history) {
           const { run: targetRun } = requireRun(attempt.identity.runId);
           // Proof: injecting admission provenance bypass failed `admission rejects terminal predecessor missing its confirmed receipt provenance` at its explicit assertion.
-          readExecutions(database, targetRun, attempt);
+          // Proof: bypassing admission delivery route failed `admission rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
+          validateAttempt(database, targetRun, attempt);
         }
         const reply = planAdmission(
           {

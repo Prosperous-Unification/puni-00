@@ -9,12 +9,13 @@ import { planDecision } from '../plan-signals';
 import { decodeAttempt, equalRecords } from '../record-codecs';
 import type { HumanWait } from '../records';
 import type { Attempt, Run } from '../records';
+import { readOutcomes } from './read-outcomes';
 import { decodeConsumptionRow, decodeDecisionRow, findDecision, findReceipt } from './read-signals';
 import { decodeCompletionRow } from './row-codecs';
 import { decodeAttemptRow, decodeExecutionRow, decodeRunRow } from './row-codecs';
 
 /** Reconstructs one named attempt from admission through execution, consumed waits, completion and receipt. Each historical reply is checked at its own predecessor; only the final reconstruction is compared to current state. Future attempt transitions must extend this provenance. */
-export function readExecutions(
+function readExecutions(
   database: Database,
   run: Run,
   attempt: Attempt,
@@ -113,6 +114,13 @@ export function readExecutions(
   if (!equalRecords(predecessor, attempt)) throw new Error('corrupt current attempt provenance');
   return executions;
 }
+/** Validates one named attempt's complete history and delivery state in the caller's transaction. Reconstruction checks current state once; independent completion/outbox/receipt checks must also pass before any state-dependent mutation or replay. The supplied run is the attempt's immutable target, never a caller's conflicting guard target. */
+export function validateAttempt(database: Database, run: Run, attempt: Attempt) {
+  const executions = readExecutions(database, run, attempt);
+  // Proof: bypassing complete delivery validation failed `admission rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
+  const pendingIntents = readOutcomes(database, [attempt]);
+  return { executions, pendingIntents };
+}
 /** Looks up a store-wide command only inside the caller's consistent transaction. Live mutations must fence ownership before this historical target lookup. */
 export function findExecution(
   database: Database,
@@ -128,10 +136,10 @@ export function findExecution(
   const { run } = decodeRunRow(
     database.query('SELECT * FROM run_record WHERE run_id=?').get(attempt.identity.runId),
   );
-  const execution = readExecutions(database, run, attempt).find(
+  // Proof: bypassing execution replay delivery route failed `execution replay rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
+  const execution = validateAttempt(database, run, attempt).executions.find(
     (entry) => entry.command.commandId === commandId,
   );
-  // Proof: omitting the indexed command from the history read and removing this rejection failed 'replay rejects an indexed execution whose history read omits its required command'.
   // Proof: injecting required command reset projection bypass failed `required indexed command cannot disappear behind a reset admitted projection` at its explicit assertion.
   if (execution === undefined) throw new Error('corrupt missing execution command');
   return execution;

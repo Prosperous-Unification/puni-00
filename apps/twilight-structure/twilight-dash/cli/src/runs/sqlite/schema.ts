@@ -3,8 +3,7 @@ import { readFileSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
 
-import { readExecutions } from './read-executions';
-import { readOutcomes } from './read-outcomes';
+import { validateAttempt } from './read-executions';
 import {
   decodeAttemptRow,
   decodeCompletionRow,
@@ -120,9 +119,9 @@ export function validateDatabase(database: Database): void {
     const { run } = decodeRunRow(
       database.query('SELECT * FROM run_record WHERE run_id=?').get(attempt.identity.runId),
     );
-    readExecutions(database, run, attempt);
+    // Proof: bypassing open delivery route failed `public read rejects terminal outbox present and reopen rejects corruption` at its missing-rejection assertion.
+    validateAttempt(database, run, attempt);
   }
-  readOutcomes(database, attempts);
   const broken = database
     .query(
       `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') != (r.attempt_id IS NOT NULL)`,
