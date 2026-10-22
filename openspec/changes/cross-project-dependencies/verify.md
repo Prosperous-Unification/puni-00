@@ -636,8 +636,25 @@ old-base command failures. The first full backend run before the command packet
 and final scope fixture had four failures and is not relabeled green.
 
 Astra supports task 7.2's bounded Python/source obligations as complete, and
-its checkbox is checked. Task 7.1 remains open until the external-FS second-step
-probe is permanent and each new boundary/version member has an independently
-watched production request/decoder fault. The review's valid six-assertion
-FS probe is preserved. Tasks 7.3/7.4 runtime/persistence, the final combined
-backend/host gate, activation and deploy remain open.
+its checkbox is checked. The review's valid six-assertion FS probe is preserved.
+The subsequent proof closure below completes 7.1. Tasks 7.3/7.4
+runtime/persistence, the final combined backend/host gate, activation and deploy
+remain open.
+
+## Task 7.1 — wire closure independently approved
+
+[Wire proof closure](evidence/task-7-wire-closure.md) records the permanent
+second-step external FS case, 52 independent request-member omissions, seven
+response-member omissions and an independent 46-entry schema mutation sweep.
+The reviewer observed 20 malformed-fixture admissions, 15 later semantic
+refusals and 11 TypeErrors when the schema rule was removed, and approved the
+bounded 7.1 obligation. Frozen test-only commit `38ca5cc37e83` integrated
+as `30fed3310`; reviewer contracts 520 pass/1,697 assertions, focused three
+pass/70 assertions, uncached typecheck/lint and changed-file format passed.
+The raw artifacts and SHA-256 manifest are adjacent to that report. Task 7.1
+is checked; connected runtime/persistence tasks 7.3/7.4 remain open.
+
+After the fresh main merge, root ran uncached `wbs-mcp-01:test` on the
+combined feature and credential-epoch source: 479 pass, 0 fail, 2,122
+assertions in 20 files. Uncached MCP typecheck also passed. Mounted 3.2
+transport equivalence and the full combined CI/host gate remain open.
