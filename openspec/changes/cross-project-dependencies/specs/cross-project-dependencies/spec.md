@@ -390,6 +390,15 @@ The backend SHALL advertise immutable binary dependency support through a DB-fre
 - **WHEN** the backend capability executable runs without database configuration or migrations
 - **THEN** it reports backend protocol version 1 with empty semantics independent of activation environment values
 
+#### Scenario: Backend capability HTTP observation remains dormant
+
+- **WHEN** an unauthenticated client reads `GET /api/runtime/dependency-capability`
+- **THEN** the typed mounted endpoint returns exactly the immutable backend capability reported by the DB-free executable, with backend protocol version 1 and empty semantics
+- **AND** shared endpoint shapes register its `getDependencyCapability` operation for generated clients and OpenAPI
+- **AND** migration readiness, stored activation and environment configuration cannot grant semantic support or affect the observation
+- **AND** reading capability does not grant authoring: an external batch still refuses and rolls back earlier commands, and ENABLED empty authority still refuses incapable startup
+- **AND** the infrastructure policy admits the read without identity or origin requirements and rejects framed GET bodies with typed `invalid_body` 400
+
 #### Scenario: Enabled empty authority inspection
 
 - **GIVEN** an existing database has ENABLED authority and an exact activation receipt with no live external relationships

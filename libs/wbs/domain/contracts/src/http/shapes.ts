@@ -37,7 +37,7 @@ import {
 } from './domain-shapes';
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
-import { health, metrics } from './infrastructure-shapes';
+import { dependencyCapability, health, metrics } from './infrastructure-shapes';
 import {
   forwardInternal,
   gatewayBrowserProjectAccess,
@@ -155,6 +155,8 @@ import {
 export const httpShapes = [
   health,
   metrics,
+  // Proof: omitting this registration failed the mounted generated-client/OpenAPI capability test.
+  dependencyCapability,
   registerPassword,
   loginPassword,
   readPasswordSession,

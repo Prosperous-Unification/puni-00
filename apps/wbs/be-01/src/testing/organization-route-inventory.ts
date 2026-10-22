@@ -303,6 +303,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     path: '/api/work-item-types',
     kind: 'read',
   },
+  {
+    operationId: 'getDependencyCapability',
+    method: 'GET',
+    path: '/api/runtime/dependency-capability',
+    kind: 'control',
+  },
   { operationId: 'getHealth', method: 'GET', path: '/health', kind: 'control' },
   { operationId: 'getMetrics', method: 'GET', path: '/metrics', kind: 'control' },
   {

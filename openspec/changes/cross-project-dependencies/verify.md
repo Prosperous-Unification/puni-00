@@ -5116,3 +5116,49 @@ restored. Unit cases also assert marked same-holder, lapsed and parked missing
 journals still refuse, while valid marked-journal holder/wait/takeover decisions
 remain. The full k3s rehearsal and exact-head CI have not yet
 passed after this fix.
+
+## Backend capability HTTP transport (2026-10-23)
+
+Bounded task 10.1 prerequisite from `8b91ef66e`: the mounted public infrastructure
+read `GET /api/runtime/dependency-capability` returns the same frozen binary
+constant as the DB-free executable. Its shared `getDependencyCapability` shape
+feeds generated clients and OpenAPI; identity/origin and organization-control
+inventories explicitly classify the route. Migration readiness and storage probes
+are independent of the observation. Production authoring remains INACTIVE; no
+activation writer, receipt grant, store-capability inference or constructor-cached
+permit refresh is wired. Parent 10.1 stays open.
+
+Verification (Bun 1.4.2; isolated `/tmp/puni-backend-capability-http` worktree):
+
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/bun-capability-cache bun install --frozen-lockfile`: success, 1801 installs checked without changes. The first unqualified attempt refused its read-only default temp directory.
+- `bun test apps/wbs/be-01/src/controller/dependency-capability.test.ts`: initial red, missing binding returned 404 and missing registry produced undefined; implemented green, 3 pass. Includes exact CLI equality, explicit empty semantics under activation environment values, frozen constant, readiness/probe independence, generated-client decoding, OpenAPI registration and framed GET 400.
+- `bun test apps/wbs/be-01/src/controller/dependency-capability.test.ts apps/wbs/be-01/src/controller/infrastructure-endpoints.test.ts apps/wbs/be-01/src/dependency-capabilities-cli.test.ts apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts`: 27 pass when local ephemeral listeners are allowed. This includes the existing ENABLED-empty startup refusal control. Sandboxed listeners refuse with EPERM; that run is not a passing receipt.
+- `bun test apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts --test-name-pattern 'mounted external authoring stays dormant'`: 1 pass, 13 assertions. The test reads capability first, then observes external-command refusal and complete SQLite rollback of the earlier successful patch.
+- `bun test apps/wbs/be-01/src/app.routes.test.ts --test-name-pattern 'binds each|pinned identity'`: 2 pass, 558 assertions; mounted binding and explicit public/no-origin policies.
+- `bun test apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts --test-name-pattern 'covers every'`: 1 pass, 226 assertions; organization-control inventory includes the route.
+- `bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts /tmp/backend-capability-openapi.json`: success; separately parsed and checked operation ID, JSON 200 and invalid-body 400 descriptors.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck,lint --projects=wbs-contracts,wbs-be-01`: contracts and backend typechecks (including module) and contracts lint pass; backend lint initially failed on the new test cleanup’s dynamic delete. A direct run exposed the diagnostic; replacing it with `Reflect.deleteProperty` passed changed-file lint. Final `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:lint --verbose --output-style=stream` passes (exit 0); Nx Cloud hostname lookup diagnostics do not affect the local target.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build`: success, including three dependency tasks and generated OpenAPI.
+- `bun test libs/wbs/domain/contracts/src/http/infrastructure-shapes.test.ts libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts libs/wbs/domain/contracts/src/http/client.test.ts`: 61 pass, 238 assertions.
+- `bunx --no-install openspec validate cross-project-dependencies --json`: valid, zero errors; pre-existing long-requirement warnings remain.
+
+Watched R5 negatives (each separately injected, failed at its intended assertion,
+and restored before final checks):
+
+| Fault                                                                    | Observed production-path failure                                                   |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Omit infrastructure route binding                                        | Mounted CLI-equality response: expected 200, received 404.                         |
+| Advertise `cross-project-dependencies-v1` in frozen binary support       | Mounted CLI-equality explicit empty-semantics assertion received the token.        |
+| Omit capability from `httpShapes`                                        | Mounted generated-client/OpenAPI test found no registered operation.               |
+| Replace compose's inactive authoring argument with `{ state: 'active' }` | Mounted SQLite command control, after capability read: expected 409, received 200. |
+
+Adjacent `Proof:` comments identify the injected faults at the binding, frozen
+semantic list, registry member and mounted dormant command control.
+
+Broader checks and limits:
+
+- Configured contracts suite: 603 pass, 1 fail. `project-shapes.test.ts` / `preserves seven operation ids and declares both export representations without undo flags` expects the old two-arm export schema while the current connected schema differs. Exact `8b91ef66e` was archived into `/tmp/puni-capability-baseline` with the same installed dependencies; the named test reproduces the identical failure (0 pass, 1 fail, line 47). No baseline fix is included in this transport slice.
+- Full `app.routes.test.ts`: 3 pass, 3 fail before the new capability file (the combined invocation also passed its 3 new tests). The framed health listener is sandbox-denied; both local/OIDC general reachability tests encounter `postApiProjectsByIdSteps` 500 from the counting unit of work lacking `typedDependencies`. Restoring every changed tracked TypeScript file to exact `8b91ef66e` and running those three named tests reproduced all three failures. The complete route suite is not claimed green.
+- Initial Nx invocation returned zero after socket refusal without executing targets; that output is not evidence. Configured checks use `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` and inspect actual target completion.
+- Changed-file ESLint, Prettier check and `git diff --check` pass.
+- Canonical host gate and full backend suite remain outstanding. Independent Astra review accepted this bounded packet during integration. No deployment, activation, or semantic support grant is part of this slice.

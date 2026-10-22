@@ -178,9 +178,17 @@ function effects() {
     }));
 }
 
-// Proof: replacing compose's inactive authoring with active made this mounted control answer 200 instead of 409 (2026-10-22).
+// Proof: replacing compose's inactive authoring with active made this mounted control answer 200 instead of 409, including after capability observation (2026-10-23).
 test('mounted external authoring stays dormant and rolls back an earlier successful command', async () => {
   const fixture = await open();
+  const capability = await harness.request('/api/runtime/dependency-capability');
+  expect(capability.status).toBe(200);
+  expect(await capability.json()).toEqual({
+    protocol: 'wbs-dependency-runtime',
+    version: 1,
+    role: 'backend',
+    semantics: [],
+  });
   const before = effects();
   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
     commands: [
