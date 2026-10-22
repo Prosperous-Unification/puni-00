@@ -755,6 +755,7 @@ describe('replay Jobs through kubectl', () => {
       'recursiveReadOnly',
       'defaults',
       'status',
+      'empty-logs',
     ] as const) {
       it(`binds reused replay ${task} Job output to its image and command: ${fault}`, async () => {
         const root = scratchSync('wbs-replay-job-');
@@ -774,7 +775,7 @@ describe('replay Jobs through kubectl', () => {
             {},
             command,
           ),
-          status: fault === 'status' ? { failed: 1 } : { succeeded: 1 },
+          status: fault === 'status' || fault === 'empty-logs' ? { failed: 1 } : { succeeded: 1 },
         };
         const pod = (
           observed['spec'] as {
@@ -816,7 +817,7 @@ describe('replay Jobs through kubectl', () => {
         writeFileSync(join(root, 'observed.json'), JSON.stringify(observed));
         writeFileSync(
           kubectl,
-          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"logs"*) echo '[]' ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
+          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"get pods"*) echo 'task-pod Failed task 137 OOMKilled' ;;\n*"logs"*) ${fault === 'empty-logs' ? ':' : "echo '[]'"} ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
         );
         chmodSync(kubectl, 0o755);
         const effects = kubectlEffects({
@@ -839,10 +840,15 @@ describe('replay Jobs through kubectl', () => {
             : effects.observeReplayCapabilities('tx', image);
         if (fault === 'none' || fault === 'defaults')
           expect(await observe()).toEqual(task === 'inventory' ? [] : { image, capabilities: [] });
-        else
-          expect(await rejection(observe())).toContain(
-            fault === 'status' ? 'failed' : 'replay Job',
+        else {
+          const failure = await rejection(observe());
+          expect(failure).toContain(
+            fault === 'status' || fault === 'empty-logs' ? 'failed' : 'replay Job',
           );
+          if (fault === 'status' || fault === 'empty-logs') {
+            expect(failure).toContain('task-pod Failed task 137 OOMKilled');
+          }
+        }
       });
     }
   }

@@ -1280,7 +1280,7 @@ export function kubectlEffects(
     return names.split('\n').filter((line) => line !== '');
   }
 
-  /** Runs one Job to completion (or reuses the same-named Job a crashed run created). */
+  /** Runs or reuses one Job; failure includes logs and pod phase/container exit diagnostics. */
   async function runJob(
     name: string,
     namespace: string,
@@ -1325,7 +1325,28 @@ export function kubectlEffects(
       return observed.outcome !== null;
     });
     const logs = await kubectl(['-n', namespace, 'logs', `job/${name}`, '--all-containers']);
-    if (observed.outcome !== 'complete') throw new Error(`job ${name} failed:\n${logs.trim()}`);
+    if (observed.outcome !== 'complete') {
+      // Proof: an empty-log failed replay Job omitted its injected OOMKilled/137 pod status
+      // in execute-adapter.test.ts until this production failure-path query was added.
+      const pods = await run(
+        [
+          ...base,
+          '-n',
+          namespace,
+          'get',
+          'pods',
+          '-l',
+          `batch.kubernetes.io/job-name=${name}`,
+          '-o',
+          'custom-columns=NAME:.metadata.name,PHASE:.status.phase,REASON:.status.reason,CONTAINER:.status.containerStatuses[*].name,EXIT:.status.containerStatuses[*].state.terminated.exitCode,TERMINATED:.status.containerStatuses[*].state.terminated.reason,WAITING:.status.containerStatuses[*].state.waiting.reason',
+        ],
+        null,
+        callMs,
+      );
+      throw new Error(
+        `job ${name} failed:\n${logs.trim()}\npod status (kubectl exit ${String(pods.exitCode)}):\n${pods.stdout.trim()}\n${pods.stderr.trim()}`,
+      );
+    }
     return logs;
   }
 
