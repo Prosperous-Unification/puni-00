@@ -22,17 +22,19 @@
 ## File ownership and interface convention
 
 `domain/` = `libs/wbs/domain/domain/src/`; `contracts/` = `libs/wbs/domain/contracts/src/`; `core/` = `libs/wbs/application/core/src/`; `sqlite/` and `memory/` = corresponding adapter `src/` directories. Paths in commands are fully expanded.
+Real SQLite/application integration tests live in the backend app, which can compose core and adapters without library-to-app imports or a core/SQLite dependency cycle. Pure descriptor/canonical-envelope tests stay in their owning domain/core library. These application tests do not imply mounted HTTP acceptance; Task6 owns that evidence.
 Shared public semantic values live in `contracts/runtime-command-values.ts`; final endpoint validation lives in `contracts/http/runtime-command-shapes.ts`. Core trusted composition/context and store records stay in core. Use existing module exports and module-index/typecheck conventions where applicable; do not add a generic runtime engine.
 `RuntimeContext` is `{projectId,personId,actor:AuthenticatedUser,access:ResourceAccess}` using existing types. All application methods return a declared success/refusal union and throw trusted faults. Wire status/body mapping uses existing refusal shapes; do not manufacture a second authorization system. Legacy access returns typed HTTP403 `runtime_scope_unavailable`; ordinary legacy APIs retain their behavior.
 
 ### Task 1: A coherent local observation and canonical basis — S0.05
 
-**Files:** Create `domain/runtime-basis.ts`, `domain/runtime-basis.test.ts`, `core/module/plan-commands/runtime-state.ts`, `runtime-state.test.ts`, and the needed values in `contracts/runtime-command-values.ts`; update their existing export/module manifests. Modify admitted composition only to expose coherent local reads, not write/receipt capabilities.
+**Files:** Create `domain/runtime-basis.ts`, `domain/runtime-basis.test.ts`, `core/module/plan-commands/runtime-state.ts`, `apps/wbs/be-01/src/controller/runtime-state.db.test.ts`, and the needed values in `contracts/runtime-command-values.ts`; update their existing export/module manifests. Modify admitted composition only to expose coherent local reads, not write/receipt capabilities. Extend `core/ports/fanout-capture-store.ts` with borrowed `resolveProjectWriteScope(projectId, organizationId, actorId)` returning current `OrganizationScope` or typed not_found/forbidden. Factor the existing pure SQLite project/membership decision in `sqlite/fanout-capture.ts` into that resolver, bind it in `sqlite/source.ts`, and preserve ordinary authorizeProjectUpdate behavior. Add focused SQLite regressions as needed. Existing legacy fixture sources may omit this capability; runtime consumption throws when absent.
 
 **Interfaces:** Produce `RuntimeBasisInput = {ledgerId,organizationId,projectId,projectRevision,workItems:readonly {id,revision}[]}` and `describeRuntimeBasis(input:RuntimeBasisInput):string` in domain; `digestRuntimeBasis(input,digest:Digest):Promise<RuntimeBasis>` in core. Produce `captureRuntimeObservation(context:RuntimeContext):Promise<RuntimeObservation|RuntimeReadRefusal>`: observation contains server-derived scope, project revision, complete local rows `{id,parentId,revision,externalRefs}` and steps `{id,code,position}`. External refs retain `{id,systemId,url,name}`. Its authorization uses current scoped project/person rules. It has **no ledger-authority claim**: the separate descriptor accepts an explicit trusted ledgerId; actual ledger inspection arrives in Task2/3.
 
 - [ ] Write failing pure-byte and real admitted-read tests. Pin the exact `['wbs-runtime-basis',1,ledgerId,org,project,revision,pairs]` bytes; rows are sorted without mutating input. Reordering is stable, changing any covered identity/revision/membership is not. Duplicate IDs, absent values and unsafe/negative counters throw.
 - [ ] Run the focused command below and observe the intended missing implementation failure. Build the descriptor, digest composition and admitted raw observation. Consume borrowed `projects.findInOrganization`, `workItems.listByProject`, `steps.listByProject`; do not call the public tree scheduler/optimizer inside the transaction.
+- [ ] Prove a queued admin demoted to member cannot retain the old person-binding bypass: use the fresh resolved role inside admitted capture, not the incoming access role. Use actual configured SQLite for scoped application authorization; memory fixtures do not have a current membership authority and must not fabricate one.
 - [ ] Prove real claim/progress/ref/topology edits change the captured basis; a blocked transaction cannot expose partly written facts through this read. Use the real source coordinator, not a fake delayed snapshot.
 - [ ] Watch removal of a descriptor field and bypass of admitted capture fail their respective production-path tests, with all unrelated validation valid. Restore guards, add adjacent Proof comments, record evidence, rerun focused checks.
 
@@ -53,8 +55,9 @@ expect(
 ```
 
 ```sh
-bun test ./libs/wbs/domain/domain/src/runtime-basis.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-state.test.ts --timeout=10000
-NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-domain,wbs-contracts,wbs-core --skip-nx-cache
+bun test ./libs/wbs/domain/domain/src/runtime-basis.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts --timeout=10000
+bun test ./libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts ./apps/wbs/be-01/src/controller/command-organization.controller.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-domain,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-be-01 --skip-nx-cache
 ```
 
 **Reviewable exit:** Genuine observation and canonical basis APIs; no runtime HTTP route, fake grant or receipt. Confirm basis coverage and planned field names in design before proceeding.
@@ -89,11 +92,11 @@ NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run wbs-store-me
 
 ### Task 3: Receiver authority and authorized receipt lookup — S0.07
 
-**Files:** Create `core/module/plan-commands/runtime-authority.ts`, `runtime-authority.test.ts`, `runtime-request.ts` and canonical-envelope tests; extend admitted-scope/composition with the narrow borrowed runtime capability. Extend SQLite runtime tests. Update shared semantic request/receipt values in `contracts/runtime-command-values.ts`.
+**Files:** Create `core/module/plan-commands/runtime-authority.ts`, `apps/wbs/be-01/src/controller/runtime-authority.db.test.ts`, `core/module/plan-commands/runtime-request.ts` and canonical-envelope tests; extend admitted-scope/composition with the narrow borrowed runtime capability. Extend SQLite runtime tests. Update shared semantic request/receipt values in `contracts/runtime-command-values.ts`.
 
 **Interfaces:** Consume Task1 observation/digest and Task2 store. Produce `acquireRuntimeAuthority(context, request):Promise<RuntimeReply<AuthorityReceipt>>`, where request is `{schemaVersion:1,commandId,expectedLedgerId,ownerId,expectedGeneration:number|null}`; `lookupRuntimeReceipt(context,{commandId,expectedLedgerId}):Promise<RuntimeReply<RuntimeReceipt>>`; and `readRuntimeState(context,{expectedLedgerId?:string}):Promise<RuntimeReply<RuntimeState>>`. `RuntimeState` is `{schemaVersion:1,ledgerId,scope,basis,facts,authority:{kind:'uninitialized'}|{kind:'held',ownerId,generation},claims}` with explicit ordinary/runtime bindings. `RuntimeReply<T>` is `{ok:true,value:T}` or a closed runtime/existing refusal arm. `canonicalRuntimeRequest(scope,operation):string` emits a strict fixed-key canonical envelope; operations include the final authority/claim/write fields in design, with ordered arrays unchanged. No public transport yet.
 
-- [ ] Write failing application tests using real memory/SQLite sources, actor/person bindings and existing access resolution. Unauthorized current actor fails before replay; legacy context is explicitly refused under the adopted scoped-only contract. Missing capability/trusted ledger throws.
+- [ ] Write failing application tests using real SQLite for scoped application authorization, actor/person bindings and existing access resolution; memory covers storage semantics only unless a genuine scoped authority capability is separately implemented. Unauthorized current actor fails before replay; legacy context is explicitly refused under the adopted scoped-only contract. Missing capability/trusted ledger throws.
 - [ ] Implement ledger comparison, durable exact replay, current receiver CAS and receipt insertion inside one admitted transaction. `ownerId` is not authentication. `null` expected generation is only a valid absent scope after integrity checks. Missing receipt is checked under current authorization and count validation.
 - [ ] Prove racing acquisitions admit one; acquisition response lost then exact retry after later takeover returns historical generation without reacquiring. New ID plus stale generation refuses; same ID changed owner/payload/operation refuses. Takeover preserves existing WBS claims and bindings; these tests cannot establish executor quiescence or justify releasing local execution capacity.
 - [ ] On real SQLite, fail actual receipt INSERT after the generation/count writes, then assert generation, receipt and counters rolled back. Update Task2 down test to first accept through this service; released-all-claims still does not permit rollback.
@@ -110,15 +113,15 @@ expect(state.value.authority).toEqual({ kind: 'held', ownerId: takeover.ownerId,
 ```
 
 ```sh
-bun test ./libs/wbs/application/core/src/module/plan-commands/runtime-authority.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-ledger.db.test.ts --timeout=30000
-NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory --skip-nx-cache
+bun test ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-ledger.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-be-01 --skip-nx-cache
 ```
 
 **Reviewable exit:** Genuine ownership, state and acceptance reconciliation application methods. No WBS runtime mutation yet and no historical receipt treated as a current grant.
 
 ### Task 4: Exact conditional claim acquisition — S0.06
 
-**Files:** Extend `core/module/plan-commands/{plan-commands.feature,admitted-scope.resource,composition}.ts`; create `runtime-claim.test.ts`; extend SQLite `runtime-command.db.test.ts` and semantic request/receipt values. Keep existing `runWithin/runAfterWithin` behavior intact.
+**Files:** Extend `core/module/plan-commands/{plan-commands.feature,admitted-scope.resource,composition}.ts`; create `apps/wbs/be-01/src/controller/runtime-claim.db.test.ts`; extend SQLite `runtime-command.db.test.ts` and semantic request/receipt values. Keep existing `runWithin/runAfterWithin` behavior intact.
 
 **Interfaces:** Produce `claimRuntime(context, request):Promise<RuntimeReply<ClaimReceipt>>`. Request is `{schemaVersion:1,commandId,expectedLedgerId,authority,expectedBasis,action:{kind:'claim',workItemId,stepId,parentClaimId,execution}}`; exact execution is `{storeId,runId,attemptId,sessionId}`. Success acceptance is `{kind:'claim',authority,claim,basisAfter}` in the common receipt envelope. Consume real authority/replay/canonicalization from Task3 and ledger/digest from Tasks1–2. No generic write method returning a temporary unsupported stub.
 
@@ -137,15 +140,15 @@ expect(await readJournalCount()).toBe(journalCountAfterLaterProgress);
 ```
 
 ```sh
-bun test ./libs/wbs/application/core/src/module/plan-commands/runtime-claim.test.ts ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts --timeout=30000
-NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite --skip-nx-cache
+bun test ./apps/wbs/be-01/src/controller/runtime-claim.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-be-01 --skip-nx-cache
 ```
 
 **Reviewable exit:** Real revision-bound, exact-identity claim admission plus durable acceptance; no ordinary release/progress contract silently changed.
 
 ### Task 5: Exact claimed mutation batches — S0.06
 
-**Files:** Extend the same conditional runner; create `core/module/plan-commands/runtime-write.test.ts`; extend SQLite `runtime-command.db.test.ts`, shared restricted command values and canonical-envelope coverage. Avoid unrelated command refactors.
+**Files:** Extend the same conditional runner; create `apps/wbs/be-01/src/controller/runtime-write.db.test.ts`; extend SQLite `runtime-command.db.test.ts`, shared restricted command values and canonical-envelope coverage. Avoid unrelated command refactors.
 
 **Interfaces:** Produce `writeRuntime(context, request):Promise<RuntimeReply<WriteReceipt>>`, request `{schemaVersion:1,commandId,expectedLedgerId,authority,expectedBasis,action:{kind:'write',claim,commands}}`. `commands` is the strict subset described in design: same-step setProgress, token_actual setMeasure, externalRefs-only patch, same-person/step release last. Success acceptance is `{kind:'write',authority,claim,basisAfter,applied:readonly {index,kind}[]}` in the immutable receipt. Consume Tasks1–4; no new engine/credential/pin persistence port.
 
@@ -162,8 +165,8 @@ expect(await claimStore.findById(projectId, replacementClaim.claimId)).toEqual(b
 ```
 
 ```sh
-bun test ./libs/wbs/application/core/src/module/plan-commands/runtime-write.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-claim.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/external-ref.db.test.ts --timeout=30000
-NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory --skip-nx-cache
+bun test ./apps/wbs/be-01/src/controller/runtime-write.db.test.ts ./apps/wbs/be-01/src/controller/runtime-claim.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/external-ref.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-be-01 --skip-nx-cache
 ```
 
 **Reviewable exit:** Complete safe application-side runtime command contract. Ledger and current-auth checks remain before any accepted replay.

@@ -773,3 +773,49 @@ of the proposed receiver. No receiver implementation, R5 mutation runs or migrat
 run. Focused implementation and exact-SHA gate evidence will be recorded as performed.
 
 Adoption validation: installed `openspec validate twilight-agentic-workflows --json` reports one valid change, zero errors and ten long-requirement warnings (three more than the seven-warning storage baseline); `/tmp/puni-agentic-receiver-adoption-openspec.json`. Formatting and `git diff --check` passed. Strict warning-free validation was not run or claimed.
+
+## Receiver Task 1 candidate: coherent local observations
+
+Implemented the canonical local revision descriptor and real Digest composition, plus an
+admitted observation over complete local rows and steps. Project/person/credential identity
+is copied before queueing; permissions and the admin person-binding exemption use a freshly
+resolved membership role inside the transaction. The existing read-only SQLite project
+permission decision supplies that role; ordinary command behavior is preserved. No runtime
+route, ledger, grant, receipt or mutation API is exposed by this slice.
+
+The initial real integration test placement in core violated Nx dependency boundaries.
+Moved it to `apps/wbs/be-01/src/controller/runtime-state.db.test.ts`, using core exports and
+the backend's actual digest adapter. No lint exception was added. Two fixture arity errors
+were corrected. Direct lint runs without a project graph were not treated as full lint proof.
+
+Validation at the candidate source:
+
+- The full focused/regression batch passed 94 tests and 361 assertions across the descriptor,
+  observation, existing SQLite fanout, mounted organization commands and module boundaries.
+  This was before relocating the observation test. Its final location then passed all 17
+  integration tests and 55 assertions in 3.97s. Relocation also replaced test-only Drizzle
+  imports with the adapter's supported SQL-string boundary; production behavior did not change.
+- Uncached domain/contracts typecheck and lint, and SQLite typecheck, passed in the first Nx
+  run, which failed other checks due to the placement/type issues above (wrapper exit130).
+  After correction, core/backend typecheck and lint plus dependencies passed six tasks in
+  1m5s; the separate SQLite lint passed in34.9s. Nx called that repaired task flaky based on
+  the earlier failure; the fresh run exited0. Ambient color-variable warning remains visible.
+- Formatting of all13 source/test/export files and `git diff --check` passed. No new migration,
+  build, live runtime route, deployment or exact-SHA receiver gate is claimed.
+
+R5:21 distinct injected production faults each exited1, followed immediately by a restored
+exit0 run (42 targeted invocations). They cover descriptor fields/validation, sparse rows,
+current role/person/pin checks, source capability binding, request snapshots and admitted
+capture. The actual SQLite UoW bypass exposed a staged row and premature observation while a
+real writer remained open; it was restored byte-for-byte with no final UoW diff. Named-fault
+and expected-refusal proofs are distinguished from success-versus-refusal proofs: F09/F10
+still threw incidental TypeErrors without diagnostics; F11/F12/F17/F18 changed typed refusals
+into throws. These do not claim unauthorized successful reads. The first malformed-role
+injection was blocked by SQLite's CHECK and was not counted; the successful corruption probe
+explicitly disabled that constraint before testing the actual trusted-role reader.
+
+Exact commands, failed setup attempts, per-fault patches/logs, restorations and limits are in
+`.superpowers/sdd/receiver-tasks/task-1-report.md` and `task-1-evidence/` in the receiver
+worktree. The fault logs retain their original pre-relocation test path; final-location
+regressions passed without rerunning the historical fault matrix. Task review and parent
+acceptance remain pending.

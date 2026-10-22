@@ -19,6 +19,7 @@ import {
   readFanoutObservationIn,
   resolveDirectoryWriteIn,
   resolveLifecycleOwnerIn,
+  resolveProjectWriteScopeIn,
 } from './fanout-capture';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
@@ -123,6 +124,8 @@ function openSqliteSourceWithSeams(
               options.onCapturedFanout?.(captured);
               return captured;
             },
+            // Proof: F15 omitted this binding; the real scoped runtime read failed before local facts.
+            resolveProjectWriteScope: resolveProjectWriteScopeIn(process.db),
             authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
             authorizeStepRemoval: authorizeStepFanoutIn(process.db),
             authorizeRankMove: authorizeRankMoveIn(process.db),
