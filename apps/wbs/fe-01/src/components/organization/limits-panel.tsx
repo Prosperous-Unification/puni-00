@@ -252,13 +252,11 @@ export function LimitsReady({ limits }: { limits: OrganizationLimitsRead }): Rea
           label="Agent persons"
           used={limits.usage.agentPersons}
           cap={limits.limits.maxAgentPersons}
-          unit=""
         />
         <LimitRow
           label="Concurrent claims"
           used={limits.usage.concurrentClaims}
           cap={limits.limits.maxConcurrentClaims}
-          unit=""
         />
       </ul>
       <section aria-labelledby="limits-capacity-heading" className="flex flex-col gap-1">
@@ -275,7 +273,8 @@ export function LimitsReady({ limits }: { limits: OrganizationLimitsRead }): Rea
                 label={resource.name}
                 used={resource.units}
                 cap={capacityCap}
-                unit={resource.unitLabel}
+                // A resource may carry an empty label; it then reads as a bare count.
+                unit={resource.unitLabel === '' ? undefined : resource.unitLabel}
               />
             ))}
           </ul>
@@ -304,11 +303,11 @@ function LimitRow({
   label: string;
   used: number;
   cap: number;
-  /** The resource's unit label; empty for a count of persons or claims. */
-  unit: string;
+  /** The resource's unit label; absent for a count of persons or claims. */
+  unit?: string;
 }): React.JSX.Element {
   const standing = standingOf(used, cap);
-  const amount = `${String(used)} of ${String(cap)}${unit === '' ? '' : ` ${unit}`}`;
+  const amount = `${String(used)} of ${String(cap)}${unit === undefined ? '' : ` ${unit}`}`;
   return (
     <li
       className="flex flex-wrap items-baseline justify-between gap-2 py-2"
