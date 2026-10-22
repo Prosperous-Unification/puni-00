@@ -4732,3 +4732,14 @@ leak: the final two-case and lifetime suites passed 13/13 (125 assertions), and
 the old teardown left four deleted SQLite descriptors in the reviewer's probe.
 The seven unchanged baseline fixture failures are tracked separately. Broader
 readiness coverage, activation and task 6.3 remain open.
+
+### Cross-project test fixture prerequisites (2026-10-23)
+
+The [fixture repair receipt](verify-baseline-fixtures-2026-10-23.md) records
+seven unchanged baseline test failures and their fixture-only correction:
+synthetic persisted dependency authority is seeded after organization
+activation, and the borrowed claim case supplies the real organization-limits
+gauge. Astra independently reproduced the parent 24 pass / 7 fail and approved
+the candidate 68 pass / 0 fail (346 assertions), with production guards and
+assertions unchanged. Ten separate activation rollback-ledger failures remain
+open and are not resolved by this packet.
