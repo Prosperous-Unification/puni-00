@@ -3,6 +3,7 @@ import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
+import { connectedTransferFixture } from '../testing/connected-transfer-fixture';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
 
 const stringMatcher: unknown = expect.any(String);
@@ -336,4 +337,34 @@ test('mounted connected JSON preserves sparse refusal and uncoded-step precedenc
     steps: [{ id: target.stepId }],
     command: 'bun run src/backfill-step-codes-cli.ts',
   });
+});
+
+test('mounted transfer fixture authors exactly successor-owned links and archives outgoing component links', async () => {
+  harness = OrganizationHarness.openComposedWith({});
+  const { source, downstream } = await connectedTransferFixture(harness);
+  const before = persistentState();
+  const response = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${source.projectId}/export?format=json`,
+  );
+  expect(response.status).toBe(200);
+  const authored: unknown = Reflect.get(Object(response.body), 'typedDependencies');
+  expect(authored).toHaveLength(6);
+  expect(response.body).toMatchObject({
+    document: { version: 11 },
+    typedDependencies: contains([
+      expect.objectContaining({ id: 'internal-node' }),
+      expect.objectContaining({ id: 'incoming-node-a' }),
+      expect.objectContaining({ id: 'incoming-node-b' }),
+      expect.objectContaining({ id: 'incoming-descendant' }),
+    ]),
+    connected: {
+      relationships: contains([
+        expect.objectContaining({ id: 'outgoing', projectId: downstream.projectId }),
+        expect.objectContaining({ id: 'component-other' }),
+      ]),
+    },
+  });
+  expect(persistentState()).toEqual(before);
 });

@@ -41,6 +41,7 @@ import {
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { createProjectOwner } from '@/runtime/project-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import mountedTransfer from '@/testing/fixtures/connected-transfer.json';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { pageWiring, ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { recordCalls } from '@/testing/record-calls';
@@ -913,6 +914,35 @@ describe('opening an imported project', () => {
     });
     expect(importPlan).not.toHaveBeenCalled();
   });
+
+  itDom(
+    'submits the mounted v11 archival projection and keeps selection on inactive external import',
+    async () => {
+      const api = fakeProjects(TWO);
+      let submitted: PlanDocumentRequest | undefined;
+      api.importPlan = (request) => {
+        submitted = request;
+        return Promise.reject(
+          new PlanImportRefusalError({ error: 'external_dependencies_inactive', detail: null }),
+        );
+      };
+      pageWith(api);
+      await selectProject('p1');
+      await screen.findByLabelText('Import JSON');
+      importFile(mountedTransfer);
+      await waitFor(() => {
+        expect(toastTexts()).toEqual([
+          'This server does not accept dependencies between projects yet, so nothing was imported.',
+        ]);
+      });
+      expect(submitted?.typedDependencies).toEqual(mountedTransfer.typedDependencies);
+      expect(submitted).not.toHaveProperty('connected');
+      expect(submitted).not.toHaveProperty('connectedDependencies');
+      expect(picker()).toHaveValue('Rewire the shed');
+      expect(localStorage.getItem('wbs.project')).toBe('p1');
+      expect(document.querySelector('[data-project-id="p3"]')).toBeNull();
+    },
+  );
 
   itDom('keeps the selected project when the request returns a structured refusal', async () => {
     const api = fakeProjects(TWO);

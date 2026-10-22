@@ -2,6 +2,8 @@ import { importProject, type PlanDocumentRequest, preflightRequest } from '@wbs/
 import { automaticColor } from '@wbs/domain/marker-color';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import mountedTransfer from '@/testing/fixtures/connected-transfer.json';
+
 import { sentenceForRefusal } from './refusal';
 import {
   type DirectoryEffect,
@@ -314,6 +316,32 @@ describe('plan JSON transfer', () => {
     await expect(planDocumentRequestFromJson(JSON.stringify(document))).resolves.not.toHaveProperty(
       'connected',
     );
+  });
+
+  it('projects the actual mounted v11 transfer artifact after generated-client validation', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(mountedTransfer))));
+    const exported = await httpProjectApi('token').exportPlan(mountedTransfer.connected.projectId);
+    expect(exported).toEqual(mountedTransfer);
+    const request = await planDocumentRequestFromJson(JSON.stringify(exported));
+    expect(request.typedDependencies).toEqual(mountedTransfer.typedDependencies);
+    expect(request.steps).toEqual(
+      mountedTransfer.steps.map(({ projectId: _projectId, ...step }) => step),
+    );
+    expect(request).not.toHaveProperty('connected');
+    expect(request).not.toHaveProperty('connectedDependencies');
+    for (const row of request.workItems) {
+      expect(row).not.toHaveProperty('schedule');
+      expect(row).not.toHaveProperty('dates');
+      expect(row).not.toHaveProperty('slices');
+    }
+    const { connected, ...authored } = mountedTransfer;
+    expect(connected.relationships.length).toBeGreaterThan(
+      mountedTransfer.typedDependencies.length,
+    );
+    for (const archival of [authored, { ...authored, connected: { arbitrary: ['history'] } }]) {
+      const projected = await planDocumentRequestFromJson(JSON.stringify(archival));
+      expect(projected).toEqual(request);
+    }
   });
 
   it('imports the archival request and returns its typed summary', async () => {

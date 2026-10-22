@@ -21,11 +21,13 @@ import {
   type PasswordHasher,
   type ProjectRankStore,
 } from '@wbs/core';
+import { servicesOver } from '@wbs/core/compose';
 import type { RecoveryWriteBoundary } from '@wbs/core/http/recovery-write';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createImportService } from '@wbs/core/module/plan-import/composition';
 import type { ImportService } from '@wbs/core/module/plan-import/plan-import.feature';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
@@ -223,6 +225,7 @@ export class OrganizationHarness {
     ) => Promise<AuthenticatedUser>,
     private readonly composedWrites?: RecoveryWriteBoundary,
     private readonly composedImports?: ImportService,
+    private readonly syntheticTransferImporter?: ImportService,
   ) {}
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
@@ -319,6 +322,17 @@ export class OrganizationHarness {
   publicImports(): ImportService {
     if (this.composedImports === undefined) throw new Error('composed imports are absent');
     return this.composedImports;
+  }
+
+  /**
+   * Test-only active import over the same process SQLite writer and current authority.
+   * Synthetic storage authority is seeded by the fixture. This proves transactional
+   * transfer semantics, never runtime activation or mounted external import support.
+   */
+  syntheticImports(): ImportService {
+    if (this.syntheticTransferImporter === undefined)
+      throw new Error('synthetic transfer imports are absent');
+    return this.syntheticTransferImporter;
   }
 
   /** Actual process writer boundary for direct admission integration tests. */
@@ -650,6 +664,7 @@ export class OrganizationHarness {
   static openComposedWith({
     now,
     withOptimizer = false,
+    syntheticTransferImports,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -916,6 +931,26 @@ export class OrganizationHarness {
         committedFanout: services.committedFanout,
       },
       services.imports,
+      syntheticTransferImports === true
+        ? createImportService({
+            commandAccess,
+            clock: services.clock,
+            externalDependencies: { state: 'active' },
+            scheduler: fastScheduler,
+            uow: services.uow,
+            announcements: services.announcements,
+            committedFanout: services.committedFanout,
+            batchServices: (scope, broadcast) =>
+              servicesOver(scope.stores, {
+                clock: services.clock,
+                broadcast,
+                scheduler: fastScheduler,
+                schedulerMode: 'capture',
+                admission: CREATOR_ADMISSION,
+                dependencyContext: createLocalDependencyContext(scope.stores),
+              }),
+          })
+        : undefined,
     );
     harness.federated = provider !== undefined;
     return harness;
@@ -1097,6 +1132,8 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Builds a separate test-only importer; mounted production imports stay inactive. */
+  readonly syntheticTransferImports?: true;
   readonly sessionBinding?: boolean;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;

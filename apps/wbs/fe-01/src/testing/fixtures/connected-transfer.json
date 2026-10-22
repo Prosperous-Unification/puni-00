@@ -1,0 +1,1000 @@
+{
+  "project": {
+    "id": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+    "name": "Source",
+    "ownerId": "b261ea69-12ec-44d1-8af4-0d317aff1c46",
+    "restricted": false,
+    "startDate": "2026-10-19",
+    "revision": 0,
+    "optimizationEnabled": false,
+    "createdAt": 1792685764637,
+    "abbreviation": "SOU",
+    "estimateMethod": "realistic",
+    "depReach": "whole-item",
+    "estimateRounding": "exact",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "solutionRef": null,
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "timezone": "UTC"
+  },
+  "workItems": [
+    {
+      "id": "55eca352-39be-408e-9a25-bfaf344e7abb",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "parentId": null,
+      "position": 5,
+      "name": "Source tail",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": "ready",
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 0,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "010",
+      "estimates": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        },
+        "82136bf2-c139-4e51-b1ce-113fb2963888": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "ready",
+      "charged": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": {
+          "unit": "workdays",
+          "days": 1
+        },
+        "82136bf2-c139-4e51-b1ce-113fb2963888": {
+          "unit": "workdays",
+          "days": 1
+        }
+      },
+      "finalDays": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": 1,
+        "82136bf2-c139-4e51-b1ce-113fb2963888": 1
+      },
+      "finalTotal": 2,
+      "rolledUp": false,
+      "dependsOn": ["723704c1-df95-4c76-bd94-245eba738b2d"],
+      "assignees": {},
+      "doesEveryStep": null,
+      "nodeReadings": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": "unknown",
+        "82136bf2-c139-4e51-b1ce-113fb2963888": "unknown"
+      },
+      "schedule": null,
+      "dates": null
+    },
+    {
+      "id": "4444ea02-3aad-4299-a2db-a8fffac53215",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "parentId": null,
+      "position": 10,
+      "name": "Source parent",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": null,
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 1,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "020",
+      "estimates": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        },
+        "82136bf2-c139-4e51-b1ce-113fb2963888": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "ready",
+      "charged": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": {
+          "unit": "workdays",
+          "days": 1
+        },
+        "82136bf2-c139-4e51-b1ce-113fb2963888": {
+          "unit": "workdays",
+          "days": 1
+        }
+      },
+      "finalDays": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": 1,
+        "82136bf2-c139-4e51-b1ce-113fb2963888": 1
+      },
+      "finalTotal": 2,
+      "rolledUp": true,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "schedule": null,
+      "dates": null
+    },
+    {
+      "id": "723704c1-df95-4c76-bd94-245eba738b2d",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "parentId": "4444ea02-3aad-4299-a2db-a8fffac53215",
+      "position": 10,
+      "name": "Source leaf",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": "ready",
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 1,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "020.1",
+      "estimates": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        },
+        "82136bf2-c139-4e51-b1ce-113fb2963888": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "ready",
+      "charged": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": {
+          "unit": "workdays",
+          "days": 1
+        },
+        "82136bf2-c139-4e51-b1ce-113fb2963888": {
+          "unit": "workdays",
+          "days": 1
+        }
+      },
+      "finalDays": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": 1,
+        "82136bf2-c139-4e51-b1ce-113fb2963888": 1
+      },
+      "finalTotal": 2,
+      "rolledUp": false,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "nodeReadings": {
+        "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677": "unknown",
+        "82136bf2-c139-4e51-b1ce-113fb2963888": "unknown"
+      },
+      "schedule": null,
+      "dates": null
+    }
+  ],
+  "typedDependencies": [
+    {
+      "id": "incoming-descendant",
+      "type": "SS",
+      "predecessor": {
+        "kind": "external",
+        "scope": "descendant-step",
+        "workItemId": "4f02b6aa-05fa-40e7-bc68-8f7b1eaf33bb",
+        "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "display": {
+          "projectName": "Remote",
+          "abbreviation": "REM",
+          "workItemName": "Remote parent",
+          "address": "REM.020",
+          "stepName": "Dev"
+        }
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "descendant-step",
+        "workItem": "4444ea02-3aad-4299-a2db-a8fffac53215",
+        "step": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677"
+      }
+    },
+    {
+      "id": "incoming-finish",
+      "type": "FF",
+      "predecessor": {
+        "kind": "external",
+        "scope": "node",
+        "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+        "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "display": {
+          "projectName": "Remote",
+          "abbreviation": "REM",
+          "workItemName": "Remote leaf",
+          "address": "REM.020.1",
+          "stepName": "Dev"
+        }
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "node",
+        "workItem": "723704c1-df95-4c76-bd94-245eba738b2d",
+        "step": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677"
+      }
+    },
+    {
+      "id": "incoming-node-a",
+      "type": "FS",
+      "predecessor": {
+        "kind": "external",
+        "scope": "node",
+        "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+        "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "display": {
+          "projectName": "Remote",
+          "abbreviation": "REM",
+          "workItemName": "Remote leaf",
+          "address": "REM.020.1",
+          "stepName": "Dev"
+        }
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "whole",
+        "workItem": "723704c1-df95-4c76-bd94-245eba738b2d"
+      }
+    },
+    {
+      "id": "incoming-node-b",
+      "type": "FS",
+      "predecessor": {
+        "kind": "external",
+        "scope": "node",
+        "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+        "stepId": "1be6d026-fba5-4021-a167-9bed9f4c744a",
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "display": {
+          "projectName": "Remote",
+          "abbreviation": "REM",
+          "workItemName": "Remote leaf",
+          "address": "REM.020.1",
+          "stepName": "QA"
+        }
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "whole",
+        "workItem": "723704c1-df95-4c76-bd94-245eba738b2d"
+      }
+    },
+    {
+      "id": "incoming-whole",
+      "type": "FS",
+      "predecessor": {
+        "kind": "external",
+        "scope": "whole",
+        "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "display": {
+          "projectName": "Remote",
+          "abbreviation": "REM",
+          "workItemName": "Remote leaf",
+          "address": "REM.020.1"
+        }
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "whole",
+        "workItem": "4444ea02-3aad-4299-a2db-a8fffac53215"
+      }
+    },
+    {
+      "id": "internal-node",
+      "type": "SS",
+      "predecessor": {
+        "kind": "internal",
+        "scope": "node",
+        "workItem": "723704c1-df95-4c76-bd94-245eba738b2d",
+        "step": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677"
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "whole",
+        "workItem": "55eca352-39be-408e-9a25-bfaf344e7abb"
+      }
+    }
+  ],
+  "seq": 2,
+  "scheduleError": {
+    "kind": "dependency_calendar_missing",
+    "projects": [
+      {
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "abbreviation": "REM",
+        "name": "Remote"
+      }
+    ]
+  },
+  "waitingForPerson": 0,
+  "waitingForCapacity": 0,
+  "slices": [],
+  "steps": [
+    {
+      "id": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "name": "Dev",
+      "position": 10,
+      "code": "dev",
+      "allowancePercent": 0,
+      "estimateUnit": "workdays"
+    },
+    {
+      "id": "82136bf2-c139-4e51-b1ce-113fb2963888",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "name": "QA",
+      "position": 20,
+      "code": "qa",
+      "allowancePercent": 0,
+      "estimateUnit": "workdays"
+    }
+  ],
+  "assignedPeople": [],
+  "teamCapacities": [],
+  "priorityBands": [
+    {
+      "startsAt": 1,
+      "label": "Critical",
+      "defaultValue": 10
+    },
+    {
+      "startsAt": 21,
+      "label": "High",
+      "defaultValue": 30
+    },
+    {
+      "startsAt": 41,
+      "label": "Medium",
+      "defaultValue": 50
+    },
+    {
+      "startsAt": 61,
+      "label": "Low",
+      "defaultValue": 70
+    },
+    {
+      "startsAt": 81,
+      "label": "Lowest",
+      "defaultValue": 90
+    }
+  ],
+  "estimateMethod": "realistic",
+  "pertWeights": {
+    "optimistic": 1,
+    "realistic": 4,
+    "pessimistic": 1
+  },
+  "estimateRounding": "exact",
+  "depReach": "whole-item",
+  "startDate": "2026-10-19",
+  "projectRevision": 0,
+  "connectedDependencies": [
+    {
+      "id": "incoming-descendant",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "type": "SS",
+      "predecessor": {
+        "endpoint": {
+          "scope": "descendant-step",
+          "workItemId": "4f02b6aa-05fa-40e7-bc68-8f7b1eaf33bb",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "isLeaf": false,
+        "revision": 1,
+        "name": "Remote parent",
+        "projectAbbreviation": "REM",
+        "workItemNumber": "020",
+        "step": {
+          "id": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "name": "Dev",
+          "code": "dev",
+          "position": 10
+        },
+        "stepReference": null,
+        "qualifiedReference": "REM.020",
+        "stepNodeId": null
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "descendant-step",
+          "workItemId": "4444ea02-3aad-4299-a2db-a8fffac53215",
+          "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": false,
+        "revision": 1,
+        "name": "Source parent",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020",
+        "step": {
+          "id": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "name": "Dev",
+          "code": "dev",
+          "position": 10
+        },
+        "stepReference": null,
+        "qualifiedReference": "SOU.020",
+        "stepNodeId": null
+      }
+    },
+    {
+      "id": "incoming-finish",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "type": "FF",
+      "predecessor": {
+        "endpoint": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Remote leaf",
+        "projectAbbreviation": "REM",
+        "workItemNumber": "020.1",
+        "step": {
+          "id": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "name": "Dev",
+          "code": "dev",
+          "position": 10
+        },
+        "stepReference": "020.1.s1-dev",
+        "qualifiedReference": "REM.020.1.s1-dev",
+        "stepNodeId": "sn1.85603660-967d-423b-b076-fc8c9df0319d.a794aab5-1e32-41a3-8629-225d2ae6a8e6"
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "node",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Source leaf",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020.1",
+        "step": {
+          "id": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "name": "Dev",
+          "code": "dev",
+          "position": 10
+        },
+        "stepReference": "020.1.s1-dev",
+        "qualifiedReference": "SOU.020.1.s1-dev",
+        "stepNodeId": "sn1.723704c1-df95-4c76-bd94-245eba738b2d.dc78e0aa-478f-4cd8-bf5d-9614b7fe8677"
+      }
+    },
+    {
+      "id": "incoming-node-a",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "type": "FS",
+      "predecessor": {
+        "endpoint": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Remote leaf",
+        "projectAbbreviation": "REM",
+        "workItemNumber": "020.1",
+        "step": {
+          "id": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "name": "Dev",
+          "code": "dev",
+          "position": 10
+        },
+        "stepReference": "020.1.s1-dev",
+        "qualifiedReference": "REM.020.1.s1-dev",
+        "stepNodeId": "sn1.85603660-967d-423b-b076-fc8c9df0319d.a794aab5-1e32-41a3-8629-225d2ae6a8e6"
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Source leaf",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020.1",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "SOU.020.1",
+        "stepNodeId": null
+      }
+    },
+    {
+      "id": "incoming-node-b",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "type": "FS",
+      "predecessor": {
+        "endpoint": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "1be6d026-fba5-4021-a167-9bed9f4c744a",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Remote leaf",
+        "projectAbbreviation": "REM",
+        "workItemNumber": "020.1",
+        "step": {
+          "id": "1be6d026-fba5-4021-a167-9bed9f4c744a",
+          "name": "QA",
+          "code": "qa",
+          "position": 20
+        },
+        "stepReference": "020.1.s2-qa",
+        "qualifiedReference": "REM.020.1.s2-qa",
+        "stepNodeId": "sn1.85603660-967d-423b-b076-fc8c9df0319d.1be6d026-fba5-4021-a167-9bed9f4c744a"
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Source leaf",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020.1",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "SOU.020.1",
+        "stepNodeId": null
+      }
+    },
+    {
+      "id": "incoming-whole",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "type": "FS",
+      "predecessor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Remote leaf",
+        "projectAbbreviation": "REM",
+        "workItemNumber": "020.1",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "REM.020.1",
+        "stepNodeId": null
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "4444ea02-3aad-4299-a2db-a8fffac53215",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": false,
+        "revision": 1,
+        "name": "Source parent",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "SOU.020",
+        "stepNodeId": null
+      }
+    },
+    {
+      "id": "internal-node",
+      "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+      "type": "SS",
+      "predecessor": {
+        "endpoint": {
+          "scope": "node",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Source leaf",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020.1",
+        "step": {
+          "id": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "name": "Dev",
+          "code": "dev",
+          "position": 10
+        },
+        "stepReference": "020.1.s1-dev",
+        "qualifiedReference": "SOU.020.1.s1-dev",
+        "stepNodeId": "sn1.723704c1-df95-4c76-bd94-245eba738b2d.dc78e0aa-478f-4cd8-bf5d-9614b7fe8677"
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "55eca352-39be-408e-9a25-bfaf344e7abb",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": true,
+        "revision": 0,
+        "name": "Source tail",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "010",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "SOU.010",
+        "stepNodeId": null
+      }
+    },
+    {
+      "id": "outgoing",
+      "projectId": "20b6385f-3e53-4a6f-b3d0-6bcc7cc62594",
+      "type": "FS",
+      "predecessor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Source leaf",
+        "projectAbbreviation": "SOU",
+        "workItemNumber": "020.1",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "SOU.020.1",
+        "stepNodeId": null
+      },
+      "successor": {
+        "endpoint": {
+          "scope": "whole",
+          "workItemId": "2c3b4581-d37f-477c-9377-f13bc942b425",
+          "projectId": "20b6385f-3e53-4a6f-b3d0-6bcc7cc62594"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "Downstream leaf",
+        "projectAbbreviation": "DOW",
+        "workItemNumber": "020.1",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "DOW.020.1",
+        "stepNodeId": null
+      }
+    }
+  ],
+  "stepBlockages": [],
+  "stepNodes": [
+    {
+      "id": "sn1.55eca352-39be-408e-9a25-bfaf344e7abb.dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+      "workItemId": "55eca352-39be-408e-9a25-bfaf344e7abb",
+      "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+      "reference": "010.s1-dev"
+    },
+    {
+      "id": "sn1.55eca352-39be-408e-9a25-bfaf344e7abb.82136bf2-c139-4e51-b1ce-113fb2963888",
+      "workItemId": "55eca352-39be-408e-9a25-bfaf344e7abb",
+      "stepId": "82136bf2-c139-4e51-b1ce-113fb2963888",
+      "reference": "010.s2-qa"
+    },
+    {
+      "id": "sn1.723704c1-df95-4c76-bd94-245eba738b2d.dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+      "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+      "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+      "reference": "020.1.s1-dev"
+    },
+    {
+      "id": "sn1.723704c1-df95-4c76-bd94-245eba738b2d.82136bf2-c139-4e51-b1ce-113fb2963888",
+      "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+      "stepId": "82136bf2-c139-4e51-b1ce-113fb2963888",
+      "reference": "020.1.s2-qa"
+    }
+  ],
+  "document": {
+    "format": "wbs-plan",
+    "version": 11,
+    "exportedAt": "2026-10-22T16:16:04.976Z"
+  },
+  "settings": {
+    "name": "Source",
+    "restricted": false,
+    "estimateMethod": "realistic",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "exact",
+    "startDate": "2026-10-19",
+    "solutionRef": null,
+    "optimizationEnabled": false,
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "timezone": "UTC"
+  },
+  "capacity": [],
+  "resourceCapacities": [],
+  "demands": [],
+  "calendarMarkers": [],
+  "directory": {
+    "teams": [],
+    "people": [],
+    "tags": [],
+    "services": [],
+    "types": [],
+    "externalSystems": [],
+    "resources": []
+  },
+  "connected": {
+    "kind": "connected",
+    "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+    "mode": "isolated",
+    "projects": [
+      {
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "name": "Remote",
+        "abbreviation": "REM",
+        "rank": 1,
+        "startDate": null,
+        "timezone": "UTC",
+        "revision": 0,
+        "seq": 2
+      },
+      {
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "name": "Source",
+        "abbreviation": "SOU",
+        "rank": 2,
+        "startDate": "2026-10-19",
+        "timezone": "UTC",
+        "revision": 0,
+        "seq": 2
+      },
+      {
+        "projectId": "20b6385f-3e53-4a6f-b3d0-6bcc7cc62594",
+        "name": "Downstream",
+        "abbreviation": "DOW",
+        "rank": 3,
+        "startDate": "2026-10-19",
+        "timezone": "UTC",
+        "revision": 0,
+        "seq": 2
+      },
+      {
+        "projectId": "09f67844-4c6a-4a42-94bd-8a8f047a6b7c",
+        "name": "Unrelated",
+        "abbreviation": "UNR",
+        "rank": 4,
+        "startDate": "2026-10-19",
+        "timezone": "UTC",
+        "revision": 0,
+        "seq": 2
+      }
+    ],
+    "relationships": [
+      {
+        "id": "component-other",
+        "projectId": "09f67844-4c6a-4a42-94bd-8a8f047a6b7c",
+        "predecessor": {
+          "scope": "whole",
+          "workItemId": "2c3b4581-d37f-477c-9377-f13bc942b425",
+          "projectId": "20b6385f-3e53-4a6f-b3d0-6bcc7cc62594"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "e5f6d234-6401-404f-9cee-55b167e26569",
+          "projectId": "09f67844-4c6a-4a42-94bd-8a8f047a6b7c"
+        },
+        "type": "FS"
+      },
+      {
+        "id": "incoming-descendant",
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "predecessor": {
+          "scope": "descendant-step",
+          "workItemId": "4f02b6aa-05fa-40e7-bc68-8f7b1eaf33bb",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "successor": {
+          "scope": "descendant-step",
+          "workItemId": "4444ea02-3aad-4299-a2db-a8fffac53215",
+          "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "type": "SS"
+      },
+      {
+        "id": "incoming-finish",
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "predecessor": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "successor": {
+          "scope": "node",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "type": "FF"
+      },
+      {
+        "id": "incoming-node-a",
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "predecessor": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "type": "FS"
+      },
+      {
+        "id": "incoming-node-b",
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "predecessor": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "1be6d026-fba5-4021-a167-9bed9f4c744a",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "type": "FS"
+      },
+      {
+        "id": "incoming-whole",
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "predecessor": {
+          "scope": "whole",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "4444ea02-3aad-4299-a2db-a8fffac53215",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "type": "FS"
+      },
+      {
+        "id": "internal-node",
+        "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739",
+        "predecessor": {
+          "scope": "node",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "stepId": "dc78e0aa-478f-4cd8-bf5d-9614b7fe8677",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "55eca352-39be-408e-9a25-bfaf344e7abb",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "type": "SS"
+      },
+      {
+        "id": "outgoing",
+        "projectId": "20b6385f-3e53-4a6f-b3d0-6bcc7cc62594",
+        "predecessor": {
+          "scope": "whole",
+          "workItemId": "723704c1-df95-4c76-bd94-245eba738b2d",
+          "projectId": "ed8bad8e-0f05-4dd5-911e-08e9b4d48739"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "2c3b4581-d37f-477c-9377-f13bc942b425",
+          "projectId": "20b6385f-3e53-4a6f-b3d0-6bcc7cc62594"
+        },
+        "type": "FS"
+      },
+      {
+        "id": "remote-internal",
+        "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+        "predecessor": {
+          "scope": "node",
+          "workItemId": "85603660-967d-423b-b076-fc8c9df0319d",
+          "stepId": "a794aab5-1e32-41a3-8629-225d2ae6a8e6",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "successor": {
+          "scope": "whole",
+          "workItemId": "0a6f00a6-0d78-4601-b853-58797f8c5d76",
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4"
+        },
+        "type": "SS"
+      }
+    ],
+    "placement": {
+      "kind": "dependency_calendar_missing",
+      "projects": [
+        {
+          "projectId": "bb628964-4f73-4a82-85f1-abf2de4d8cd4",
+          "abbreviation": "REM",
+          "name": "Remote"
+        }
+      ]
+    }
+  }
+}

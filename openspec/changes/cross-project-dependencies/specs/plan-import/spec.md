@@ -127,3 +127,41 @@ Export authorization, capture, document facts and cache selection SHALL share on
 - **WHEN** the captured export is serialized
 - **THEN** it contains one coherent old observation and the next export contains the new facts
 - **AND** no export allocates optimizer work or writes durable state
+
+### Requirement: Whole-project archival transfer separates authorship from history
+
+The downloaded version-11 JSON SHALL preserve exactly successor-owned authored typed relationships and legacy links through generated-client validation, Blob download, archival projection and classification. The archival request SHALL discard connected history and derived scheduling evidence, whether history is absent, valid or arbitrary. Historical evidence SHALL confer no current endpoint, graph or write authority.
+
+#### Scenario: Downloaded successor content is imported into fresh identities
+
+- **GIVEN** a mounted v11 export contains internal typed and legacy links, incoming same-organization prerequisites, outgoing links and other component links
+- **WHEN** its JSON is projected, classified and imported through an admitted same-source transactional importer
+- **THEN** new project, row, step and relationship identities are allocated and internal endpoints are remapped
+- **AND** external predecessor UUID tuples and authored scopes/types/multiplicity are preserved
+- **AND** outgoing and unrelated relationships retain their original owners and identities and no undo or saved-plan history is imported
+
+#### Scenario: An outgoing-only v11 artifact uses the ordinary production importer
+
+- **GIVEN** a v11 export contains outgoing component history and internal authored typed and legacy links, with no external authored prerequisite
+- **WHEN** the mounted production importer imports that downloaded artifact
+- **THEN** it creates the internal authored content without cloning outgoing relationships
+- **AND** an incoming external authored artifact still receives the inactive-authoring conflict without effects, even when a separate synthetic test importer exists
+
+#### Scenario: An inactive import keeps the selected frontend project
+
+- **WHEN** the page submits the downloaded v11 archival projection and receives `external_dependencies_inactive`
+- **THEN** it renders the refusal and retains the selected project without navigating to a fabricated imported project or reporting success
+
+#### Scenario: An explicit mapping wins over a still-existing source endpoint
+
+- **GIVEN** both the recorded predecessor UUID and an explicit destination mapping exist
+- **WHEN** the downloaded artifact is imported
+- **THEN** the chosen destination UUID tuple is used
+- **AND** an invalid chosen destination refuses without fallback to the original UUID or matching display address
+
+#### Scenario: Current endpoint or graph facts change after download
+
+- **GIVEN** an artifact was exported before its external endpoint disappeared or its referenced graph became invalid
+- **WHEN** its import enters the admitted writer
+- **THEN** current endpoint and complete resulting graph validation identify the original declaration and refuse the import
+- **AND** project, directory, allocation, relationship, history and durable event effects are rolled back together
