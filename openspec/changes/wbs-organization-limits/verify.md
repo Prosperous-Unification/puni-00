@@ -190,6 +190,14 @@ access without organization limits". This slice's getter fixes it, proven by `pr
 a project batch under the cap and refuses it at the cap` (agent-person-limit.controller.db.test.ts).
 #640 must never be gated or deployed ahead of #642.
 
+fe-01's DOM-free suites must be listed in `apps/wbs/fe-01/vitest.node-suites.json`, or
+`src/test-tiers.test.ts` fails the unit tier in CI; the gate caught
+`claim-limit-words.test.ts` missing and it is now listed. After listing it,
+`wbs-fe-01:test:unit` ran 973 pass, 1 fail twice. The failure was
+`playwright-config.test.ts` › `lets a shifted browser login reach authentication…`,
+`spawnSync bun ETIMEDOUT` on its 20 s probe at a load average of 42. That file alone passed
+18 of 18.
+
 Recorded limits of the concurrency tests (review S3-3): the fast-check model has no undo or
 redo acts and runs only one-command batches; two-batch interleaving is covered by its `race`
 act and by the two-account race cases, and the replays by the controller cases. The memory
