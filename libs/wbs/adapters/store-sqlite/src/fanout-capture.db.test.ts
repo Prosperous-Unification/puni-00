@@ -28,6 +28,7 @@ import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
 import { openSqliteSource } from './source';
+import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
 
 const directories: string[] = [];
@@ -284,6 +285,7 @@ it('records remote completion without shared people and rolls dependency events 
   const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-'));
   directories.push(directory);
   const path = await openSpaceDatabase(directory);
+  seedDependencyAuthority(path);
   const connection = openConnection(path);
   try {
     connection.db.run(
@@ -355,6 +357,7 @@ it.each(['isolated', 'shared'])(
     const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-corrupt-'));
     directories.push(directory);
     const path = await openSpaceDatabase(directory);
+    seedDependencyAuthority(path);
     const connection = openConnection(path);
     try {
       connection.db.run(
@@ -407,6 +410,7 @@ it('invalidates surviving projects disconnected by relationship removal', async 
   const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-topology-'));
   directories.push(directory);
   const path = await openSpaceDatabase(directory);
+  seedDependencyAuthority(path);
   const connection = openConnection(path);
   try {
     connection.db.run(
@@ -503,6 +507,7 @@ it.each(['external', 'alternating', 'disconnected'])(
     const directory = mkdtempSync(join(tmpdir(), 'wbs-shared-connected-fanout-'));
     directories.push(directory);
     const path = await openSpaceDatabase(directory);
+    seedDependencyAuthority(path);
     const connection = openConnection(path);
     try {
       connection.db.run(

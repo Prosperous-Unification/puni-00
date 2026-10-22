@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
       '20261022120000_scope_trusted_issuer_audience',
@@ -796,6 +797,8 @@ describe('20260927120000_add_organization_records', () => {
     expect(tableNames()).toEqual(
       withTables.filter(
         (name) =>
+          name !== 'cross_project_dependency_activation' &&
+          name !== 'cross_project_dependency_activation_receipt' &&
           name !== 'external_dependency' &&
           name !== 'project_abbreviation' &&
           name !== 'project_abbreviation_counter' &&

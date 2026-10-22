@@ -143,6 +143,7 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261022120000_scope_trusted_issuer_audience',

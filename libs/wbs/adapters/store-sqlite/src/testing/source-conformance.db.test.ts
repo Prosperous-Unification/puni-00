@@ -90,6 +90,7 @@ import {
   openSqliteSourceWithCaptureReadSeam,
   type SqliteSource,
 } from '../source';
+import { seedDependencyAuthority } from './dependency-activation';
 import {
   openSqliteSourceWithFault,
   openSqliteSourceWithMissingSavedPlanInput,
@@ -193,6 +194,7 @@ async function seedSqliteSource(
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
     activateTestStepBlockages(dbPath);
+    seedDependencyAuthority(dbPath);
     source = openSource({ dbPath });
     const seed = DETERMINISTIC_SEED;
     for (const [index, ownerId] of seed.ownerIds.entries()) {

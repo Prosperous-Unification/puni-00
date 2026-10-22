@@ -1195,3 +1195,23 @@ optimizer lifecycle, remaining writers and socket/browser acceptance stay open.
 Task 5.2 remains unchecked; full CI and the exact-SHA host gate are pending.
 
 Astra High [review](evidence/shared-connected-fanout/independent-review.md) approved this bounded packet with no P1/P2 findings. The one proof-description mismatch was corrected in `40bc0ab5c`; it now names the actual ordinary-partition assertion observed in the retained fault log.
+
+### Task 10.1 bounded dormant authority storage — 2026-10-22
+
+The [dormant authority packet](evidence/dormant-authority-20261022.md) adds a
+paired additive migration, DISABLED singleton/receipt storage, exact inspector,
+dynamic authoring getter and independent SQL guards for external relationship
+insert/update/delete. The test-only authority seeder is explicit; no production
+activation or startup capability is installed. Its evidence records 59 watched
+production faults. An [Astra review](evidence/dormant-authority-review-20261022.md)
+reproduced a JSON-boolean version bypass in all three SQL guards. The narrow
+follow-up `5e4435a7a` fixed it; independent [rereview](evidence/dormant-authority-rereview-20261022.md)
+approved the correction after real SQL action probes and 157 focused tests.
+
+At integration, three shared fanout fixtures first failed with
+`external_dependencies_inactive` because they inserted synthetic external edges
+without the new test-only authority seeder. After adding that seeder, the
+combined activation/fanout suite passed **97/97 tests, 222 assertions**. This is
+fixture compatibility evidence, not production authoring activation. Startup,
+participant fencing, retained-client downgrade protection, activation receipt
+transport, deploy recovery and task 10.1/10.2 completion remain open.
