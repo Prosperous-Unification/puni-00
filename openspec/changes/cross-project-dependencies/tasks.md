@@ -357,3 +357,19 @@ Production connected optimizer configuration remains absent and explicitly unava
 external authoring remains dormant. Full immutable lifecycle, all failure/evidence
 matrices, production optimizer integration, independent review and canonical host gate
 remain open; task 8.3 is not complete.
+
+Task 4.2 bounded node/alias mounted proof (2026-10-22): synthetic active
+HTTP and direct-service cases now admit a restricted readable remote FS node
+using both step wire forms, a dotted alias for a successor created earlier in
+the same batch, and real Fast tree/history evidence. Dormant, late-command,
+shape and cross-project-step refusals preserve full-table rollback. Four watched
+mutations and exact limits are in [the node authoring report](evidence/node-authoring-2026-10-22/report.md).
+Production authoring and MCP parity remain inactive; task 4.2 stays open.
+
+Task 5.2 bounded semantic rank fanout (2026-10-22): dependency-component
+fingerprints now retain component-relative rank order from the borrowed writer.
+Mounted isolated/shared rank changes notify connected recipients after commit,
+while unrelated moves and physical respacing stay silent; missing rank evidence
+refuses. Rollback, postcommit delivery and seven watched faults are in
+[the rank fanout report](evidence/rank-fanout/verification.md). Writer-coverage
+audit and socket/browser acceptance remain open; task 5.2 stays unchecked.

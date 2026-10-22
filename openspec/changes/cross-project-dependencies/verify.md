@@ -4633,3 +4633,25 @@ prepare-commit-msg and commit-msg passed. Tool-wiki explicitly returned
 inactive/uncertified because its external activation root is not provisioned.
 Migration hooks and doc-caps skipped because no matching files were staged.
 No hooks were bypassed. Receipt: `/tmp/slice-d-commit.log`.
+
+### Reviewed bounded task 4.2 and 5.2 packets (2026-10-22)
+
+The [node authoring report](evidence/node-authoring-2026-10-22/report.md) records
+eight mounted/direct cases, full 129-case controller results, and four distinct
+fault injections. Astra independently ran 8/8 focused and 129/129 full cases
+and approved the test-only packet. The two shape-guard faults yielded 500 in
+place of typed 409; they do not demonstrate an unsafe commit. Production
+authoring, MCP equivalence and the parent 4.2 matrix remain open.
+
+The [rank fanout report](evidence/rank-fanout/verification.md) records 41/41
+focused cases, 264 assertions and seven watched faults. Astra independently
+ran the 41-case matrix, checked the borrowed component-relative rank and
+transaction/delivery boundaries, and approved this bounded production change.
+Complete writer coverage and successor-only socket/browser acceptance remain
+open under 5.2. Neither packet ran the canonical h2puni gate.
+
+The integrated Slice D head passed 36/36 connected writer/controller tests
+(234 assertions), backend spec typecheck, and OpenSpec 270/270 after main's
+change-aware CI addition. Astra independently approved Slice D after 118/118
+focused and legacy tests and backend spec typecheck. Production connected
+optimizer installation and immutable-history lifecycle acceptance remain open.
