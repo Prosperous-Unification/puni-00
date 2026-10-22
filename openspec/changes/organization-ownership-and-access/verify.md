@@ -2323,3 +2323,9 @@ Fresh results after the review fixes (2026-10-22):
 | `bunx openspec validate --all --json`                                                                                                                | 266 items, 266 passed                                                  |
 
 Still not run: dev, prod, `bin/h2puni-gate.sh`, and any workspace-wide target.
+
+### Gate of record for PR #624 (h4claw) — 2026-10-22
+
+- `bin/h2puni-gate.sh 42fb0311c41b0188ae7ef5837e254096b9f5ed39` on h4claw (`~/gate-42fb0311.log`; the head is the review-fixed branch with main d504c9eae merged in): first Nx pass 49 projects + 9 dependents in 45m 22s, twilight pass 2 projects in 50m 27s, `solver-image-smoke` 3m 35s, `GATE_EXIT=0` at 02:02:21 UTC.
+- CI on 42fb0311c: one `gate twilight` run failed `[TEST-AXES-146] real malformed absent and unreadable committed index refuse` (a Burokrat test over throwaway git repositories); the same suite passed on h4claw in the gate above and on main d504c9eae, so the job was rerun as a flake.
+- Not observed live: the epoch CLI on dev (runbook step 2b) runs after this merge; its revocation counts will be recorded then.
