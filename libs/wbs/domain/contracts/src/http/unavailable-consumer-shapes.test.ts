@@ -5,10 +5,10 @@ import { validateSchema } from './schema-shape';
 import { readSpaceRollUps } from './space-shapes';
 
 const rolledUp = {
-  kind: 'rolled_up',
+  kind: 'rolled_up' as const,
   dates: null,
   finalTotal: 2.5,
-  status: 'ready',
+  status: 'ready' as const,
   counts: {
     byStatus: {
       unknown: 0,
@@ -33,20 +33,20 @@ const rolledUp = {
 test('space roll-up boundary preserves exact connected reasons and nullable displayed engine', async () => {
   for (const scheduleError of [
     {
-      kind: 'dependency_calendar_missing',
+      kind: 'dependency_calendar_missing' as const,
       projects: [{ projectId: 'remote', abbreviation: 'REM', name: 'Remote' }],
     },
     {
-      kind: 'engine_unavailable',
-      engine: 'optimized',
+      kind: 'engine_unavailable' as const,
+      engine: 'optimized' as const,
       projects: ['remote'],
-      reason: 'adapter_missing',
+      reason: 'adapter_missing' as const,
     },
     {
-      kind: 'engine_unavailable',
-      engine: 'optimized',
+      kind: 'engine_unavailable' as const,
+      engine: 'optimized' as const,
       projects: ['remote'],
-      reason: 'connected_optimization_not_supported',
+      reason: 'connected_optimization_not_supported' as const,
     },
   ]) {
     const reply = { rollUps: { target: { ...rolledUp, scheduleError } } };
@@ -82,7 +82,9 @@ test('person load boundary admits the coarse missing-calendar reason without arb
     projects: [],
     overlaps: [],
     undated: [],
-    unavailable: [{ projectId: 'target', name: 'Target', reason: 'dependency_calendar_missing' }],
+    unavailable: [
+      { projectId: 'target', name: 'Target', reason: 'dependency_calendar_missing' as const },
+    ],
   };
   expect(await validateSchema(readPersonLoad.responses[0].schema, reply)).toEqual({ value: reply });
   expect(
