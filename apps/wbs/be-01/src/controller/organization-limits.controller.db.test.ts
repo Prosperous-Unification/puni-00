@@ -182,7 +182,7 @@ describe(PATH, () => {
 
   // Proof: with the store's role test answering null, this answered 200 with
   // A's usage to the member (4 pass, 1 fail); watched 2026-10-22.
-  it('refuses a member and a viewer, reading no usage', async () => {
+  it('answers a member and a viewer 403 forbidden with no usage in the body', async () => {
     h.activate();
     seedSevenOfEight();
     for (const username of ['mia', 'vic'])

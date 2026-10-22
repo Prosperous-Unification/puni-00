@@ -108,7 +108,14 @@ hold:
 
 `BROWSER_SESSION_AUTHORITY` has no default: `enabled` commits logout, refresh and replacement through the shared durable browser lifecycle and reads the organization cookie; `disabled` keeps the legacy browser routes (see `bootBe01`). Switch deployed backends to `enabled` before fe-01's production bootstrap moves to server sign-out.
 
-The three `ORGANIZATION_DEFAULT_*` keys have no default either: they are the caps every organization without its own `organization_limits` row holds, each an integer from 0 to 1,000,000 (`wbs-organization-limits` L7). The starting values are agents 50, claims 200, capacity units 10,000; `configure.sh` writes those. A `be-01.env` written before them refuses the swap preflight, and be-01 refuses to boot naming the missing key. `20261022120000_add_organization_limits` is additive; its `down.sql` refuses while any organization holds its own row.
+The three `ORGANIZATION_DEFAULT_*` keys have no default either: they are the caps every organization without its own `organization_limits` row holds, each an integer from 0 to 1,000,000 (`wbs-organization-limits` L7). The starting values are agents 50, claims 200, capacity units 10,000; `configure.sh` writes those. A `be-01.env` written before them refuses the swap preflight, and be-01 refuses to boot naming the missing key.
+
+The order matters in both directions, because the installed swap bundle checks this file against its own lists:
+
+1. **First** install the new bundle: `bunx nx run tool-remote-scripts:install --execute`. The old bundle's allowlist (`assertTierEnvAllowed`) refuses any key it does not know, so adding the three keys before this blocks every be swap.
+2. **Then**, before the first swap to a release carrying `wbs-organization-limits`, add the three lines to `/home/puni1/wbs/be-01.env`. The new bundle's completeness check (`assertTierEnvComplete`) refuses a file without them.
+
+`20261022120000_add_organization_limits` is additive; its `down.sql` refuses while any organization holds its own row.
 
 `AUTH_MODE=local` is refused. The be-01 and gw-01 images set `NODE_ENV=production`, and
 `authModeOf` refuses local mode in production. OIDC is the only mode prod can boot. The swap
