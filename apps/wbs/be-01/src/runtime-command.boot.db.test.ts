@@ -12,6 +12,7 @@ import { bootBe01, type BootOptions, type RunningBe } from './boot';
 import { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openDatabase, refuseToWaitForWriteLock, SQLiteError } from './repository/db';
 import { runMigrations } from './repository/migrate';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 const folder = new URL('../drizzle', import.meta.url).pathname;
 const directories: string[] = [];
@@ -33,6 +34,7 @@ function createOptions(): BootOptions {
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
     browserSessionAuthority: 'disabled',
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     organizationDnsResolvers: ['10.0.0.53'],
     optimizer: {
       solverVersion: '0.3.0',

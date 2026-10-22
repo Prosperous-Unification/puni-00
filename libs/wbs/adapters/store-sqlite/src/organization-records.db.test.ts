@@ -749,6 +749,8 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
@@ -815,6 +817,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'runtime_authority' &&
           name !== 'runtime_claim_binding' &&
           name !== 'runtime_command_receipt' &&
+          name !== 'organization_limits' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&

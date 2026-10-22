@@ -74,6 +74,7 @@ import {
   readOnboarding,
   submitOnboardingJoinRequest,
 } from './onboarding-shapes';
+import { readOrganizationLimits } from './organization-limits-shapes';
 import {
   changeMemberRole,
   listMembers,
@@ -189,6 +190,7 @@ const ordinaryHttpShapes = [
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,
+  readOrganizationLimits,
   listSsoConnections,
   createSsoConnection,
   updateSsoConnection,

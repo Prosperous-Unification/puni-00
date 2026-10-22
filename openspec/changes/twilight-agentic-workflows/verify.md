@@ -1769,3 +1769,115 @@ remain open. The parent change is not ready to archive. All earlier packet accep
 records remain historical; they do not certify this candidate.
 
 Independent Task1 review approved source `eb502c97081f73e5554dd82e7a63f50a241d7065` for spec compliance and task quality, with no Critical/Important findings. Reviewer independently matched all six source hashes, moved body tokens and eight fault/restoration identities, and checked real replay/write consequences. Exactly local slices1.1–1.4 are complete;1.5 and parent5.4 remain open. Whole-packet triage carries three Minor findings: the digest mismatch fixture uses a non-64-hex string; color-environment noise; ten unchanged OpenSpec warnings. Missing original driver-level raw error transcript limits that diagnostic reconstruction, while semantic failures and exact restored green are verified. Exact-head host/CI, latest-main reconciliation and all broader workflow acceptance remain open.
+
+### Runtime consumption of current-main organization limits — local candidate, 2026-10-22
+
+Planning `502dbf7f0f1ecd4ea8bc77f24b4e723c520daa23` extends receipt
+`f978678f7b698cef085788559a1a94c2380231f6`; the source merge consumes main
+`33685ec480bc996b6d1909156167367af7279941`. Forty content conflicts preserve both
+parents' complete migration catalogs, navigation and closed refusal variants. Main
+already supplies the ordinary transaction-bound claim gauge; no second limit or
+runtime policy adaptation was needed. Direct source/reopen/boot fixtures now consume
+main's existing deployment defaults. Current credential pins and authorization remain.
+
+| Dimension    | Bounded evidence / remaining acceptance                                                                                                                                                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completeness | All local slices have evidence, including the authorized final one-file rollback-oracle correction. All five integration task boxes and parent5.5 remain open pending independent review and root acceptance.                                                                         |
+| Correctness  | Real mounted HTTP/SQLite/shared-client cases prove typed cap/current/index/kind refusal with complete unchanged effects, one below-cap acquisition, exact historical replay after cap reduction and current authorization before replay. Final full-suite validation remains pending. |
+| Coherence    | Main owns policy/defaults/gauge. Runtime uses the ordinary transaction, immutable request/receipt protocol and existing shared schema. Every SQL/down identity remains unchanged; no credential, provider, coordinator or implicit store repair is introduced.                        |
+
+The new cap cases pass2tests/17assertions. At cap0/current0 the parsed response is
+409 `{error:'claim_limit',cap:0,current:0,at:0,kind:'claimWorkItem'}`; complete claims,
+occupancy, bindings, receipts, journal, ledger, authority, work/progress, events,
+sequencer and audit observations remain equal. Cap1 commits one claim/binding and
+one additional receipt/journal entry. Lowering cap to0 replays the identical full
+accepted reply without additional effects; changing current membership to viewer
+refuses replay403 before revealing that acceptance.
+
+Fresh R5 dependency proof removed only the actual working-plan organizationLimits
+getter. The selected real mounted cap case failed: expected typed409 became
+shared-client `unexpected_status`500, with production diagnostic `a bound claim was
+added under scoped access without organization limits` (0pass/1fail/1filtered,
+2assertions,2.931s driver). Original green2cases/17assertions and exact restored
+green2cases/17assertions2.942s are retained. This proves dependency consumption and
+loss of a typed refusal, not unsafe acceptance. Original/restored SHA256 both
+`77b9d70ae161bfaff9fadc1098acc46e757a871901389f68869d949717f1e848`;
+mutant `7a2270aa610ee7188b97addf94005c631c75f08806b4909847fc7b210786702a`.
+Root independently verified the exact removal, actual failure/restoration streams
+and unchanged final executable tokens. The final production file adds only its
+truthful adjacent Proof comment.
+
+Actual focused commands include:
+
+```sh
+bun test apps/wbs/be-01/src/controller/runtime-claim-limit.db.test.ts apps/wbs/be-01/src/controller/runtime-state.db.test.ts apps/wbs/be-01/src/controller/runtime-authority.db.test.ts apps/wbs/be-01/src/controller/runtime-claim.db.test.ts apps/wbs/be-01/src/controller/runtime-write.db.test.ts apps/wbs/be-01/src/controller/runtime-command.controller.db.test.ts apps/wbs/be-01/src/controller/runtime-credential-pin.db.test.ts apps/wbs/be-01/src/runtime-command.boot.db.test.ts apps/wbs/be-01/src/controller/claim-limit.controller.db.test.ts --timeout=30000
+bun test libs/wbs/domain/contracts/src/runtime-request.test.ts libs/wbs/domain/contracts/src/runtime-receipt.test.ts libs/wbs/domain/contracts/src/http/runtime-command-client.test.ts libs/wbs/domain/contracts/src/http/runtime-command-shapes.test.ts libs/wbs/domain/contracts/src/http/refusal.test.ts apps/wbs/mcp-01/src/generated-document.test.ts apps/wbs/mcp-01/src/openapi-tools.test.ts --timeout=30000
+bun test tools/tool-devsync/src/module-labels.test.ts tools/tool-devsync/src/eslint-boundaries.test.ts tools/tool-devsync/src/product-constraints.test.ts tools/tool-devsync/src/workspace-projects.test.ts --timeout=60000
+```
+
+| Check                                                                                                                                                                                                                     | Actual outcome                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime + ordinary cap command above                                                                                                                                                                                      | 177pass,0fail,913assertions,nine files,65.78s Bun/65.894s driver.                                                                                                                                                                                                                                                                                                 |
+| Public codec/receipt/HTTP/MCP command above                                                                                                                                                                               | 140pass,0fail,597assertions,seven files,7.01s Bun/7.082s driver.                                                                                                                                                                                                                                                                                                  |
+| Real Nx graph, then module/effective-policy command above                                                                                                                                                                 | Graph exit0,51nodes,3.209s; policy55pass/297assertions,four files,62.19s Bun/62.412s driver.                                                                                                                                                                                                                                                                      |
+| Focused changed migration/rollback/ledger nine-file command, `--timeout=30000`                                                                                                                                            | 231pass,0fail,1153assertions,68.83s Bun/68.889s driver. Complete file list/argv is retained with source evidence.                                                                                                                                                                                                                                                 |
+| Separate uncached `bunx nx run-many -t typecheck` and `-t lint`, projects `wbs-contracts,wbs-domain,wbs-core,wbs-store-memory,wbs-store-sqlite,wbs-be-01,wbs-mcp-01`, `--parallel=2 --skip-nx-cache --outputStyle=static` | Initial backend typecheck failed on new-test ClientReply narrowing; initial contracts lint failed on a duplicate merged person_not_bound union member. Six other projects and module checks passed. Corrected backend/contracts typecheck22.174s and contracts lint18.925s passed; required seven-project outcomes are accounted for, not a blanket initial pass. |
+| Exact changed-file format/diff and all174SQL migration lint                                                                                                                                                               | Pre-freeze49files pass; post-oracle50files pass1.990s, diff0.021s, migration lint0.014s.                                                                                                                                                                                                                                                                          |
+| Normal scoped OpenSpec for both changes                                                                                                                                                                                   | twilight-agentic-workflows valid with10existing warnings,0.832s; main wbs-organization-limits valid with7warnings and2INFO archive-preconditions,0.718s. No archive/strict pass claimed.                                                                                                                                                                          |
+
+The one complete local SQLite invocation was:
+
+```sh
+bunx nx run wbs-store-sqlite:test --skip-nx-cache --outputStyle=static
+```
+
+**Actual exit1:1902pass,1existing skip,1fail,16092assertions,1904tests/138files,
+379.54s Bun/380.429s driver.** Its complete before/after freeze passed:11,760file
+identities/modes, raw index, HEAD, MERGE_HEAD, full191-line status and174SQL bytes
+were unchanged. Index SHA256
+`5057b14234b34a4a95269def0f2b4423132f12c85f3c344b403730cb34cd9c70`.
+The sole failure was the main-added organization-limits migration's empty rollback
+expectation: target audience1200 legitimately reverses limits-audit1301, limits1300
+and preserved runtime1210, but the old literal listed only the first two. Root
+authorized that exact test-only correction after the freeze. The complete affected
+file passed8tests/28assertions in0.677s, followed by uncached SQLite typecheck5.294s,
+file lint3.144s and final formatting/identity checks. No production/SQL/guard changed.
+No second broad suite was run, and **the final local complete-suite result is not
+claimed green**. Final combined exact-SHA host gate/CI must validate the final source.
+
+Root independently compared all frozen11,760entries and current files: only the
+authorized oracle and root-owned scope amendment differed after the complete run.
+All original49owned source hashes remained unchanged; all final50hashes and174SQL
+paths/bytes matched. Final source-manifest SHA256
+`4aa4f1a1e61858a709b5b0ab823845ae50e03307e2a4fddbda9574cabeb87407`;
+full report SHA256 `4aff6c6770d24e044aaa86b6dfb8632f2c1719f5d4ad2f95d6e7e863feae27c9`.
+
+Other retained failures: first runtime fixtures81pass/81fail from missing defaults;
+after restoration161pass/1fail exposed the older latest-runtime assumption. The
+history guard fixture now explicitly verifies reversal of the two newer migrations
+before comparing the complete remaining ledger/schema/runtime history unchanged
+around runtime-down refusal. No multi-migration rollback atomicity is promised.
+The old-identity fixture excludes all six later main additions and retains its
+strict full-ledger/schema/history/serialized-byte refusal proof. Two cap-fixture
+uniqueness failures and a shared-client envelope assertion error preceded green;
+none is labeled semantic policy RED or flakiness. All original/restored sources,
+stdout/stderr, exact commands/exits and timing evidence remain retained.
+
+Evidence naming collisions overwrote two intended payload filenames with execution
+metadata; the actual graph is retained separately and source-state verification was
+repeated under a distinct filename. Original/corrected command logs remain. Root's
+first audit used the wrong metadata key `exit`; inspection showed `exitCode`, and
+the corrected read-only audit passed without source/test changes. Node color noise,
+existing memory stale-undo skip, inherited receipt invalid-format digest fixture,
+and earlier missing raw receiver-driver diagnostic transcript remain disclosed.
+The two main INFO messages concern archive prerequisites (missing registry header
+and absent target resource-directory spec); main artifacts were not silently edited.
+
+Historical integration `ebda8a216c73a38050579bdc46f5da927223b3eb` now has full
+canonical h2 gate PASS and all applicable CI PASS on its pinned755baseline. Receipt
+f978 remains code-reviewed without independent leaf gate/CI acceptance. Neither
+certifies this new composition. New task/whole-branch review, exact combined-head
+host/CI and latest-main drift check remain open. WBS authentication is unavailable;
+status is retained locally without remote writes. No merge/deployment/activation,
+I1/S0/S7a completion, authenticated transport, durable sender or host-ordering claim
+is made. The parent change is not ready to archive.

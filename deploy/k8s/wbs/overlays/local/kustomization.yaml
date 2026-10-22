@@ -15,6 +15,10 @@ configMapGenerator:
       - NODE_ENV=lab
       - AUTH_MODE=local
       - BROWSER_SESSION_AUTHORITY=disabled
+      # Required by be-01 with no default (wbs-organization-limits L7).
+      - ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50
+      - ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200
+      - ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000
       - APP_ORIGIN=http://localhost:8080
   - name: wbs-gateway-config
     namespace: wbs

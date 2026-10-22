@@ -688,7 +688,7 @@ function backendPreparation(
       events.push('read');
       if (path.endsWith('/be-01.env'))
         return Promise.resolve(
-          'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\n',
+          'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\nORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50\nORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200\nORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000\n',
         );
       if (path === oidcPath)
         return Promise.resolve(

@@ -132,6 +132,8 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    '20261022130100_widen_organization_audit_organization_limits',
+    '20261022130000_add_organization_limits',
     '20261022121000_add_runtime_commands',
     '20261022120000_scope_trusted_issuer_audience',
     '20261022110100_check_machine_credential_id',
@@ -274,6 +276,8 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
@@ -381,6 +385,8 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',

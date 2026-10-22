@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 let h: OrganizationHarness;
 let projectId: string;
@@ -301,6 +302,7 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled',
+        organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       },
       {
         openSource: (options) => {
@@ -419,6 +421,8 @@ test('unused rollback and valid reinstall change the pin before replay or absenc
   const old = await readState();
   const folder = new URL('../../drizzle', import.meta.url).pathname;
   expect(rollbackTo(h.databasePath(), folder, '20261020130000_add_claim_occupancy')).toEqual([
+    '20261022130100_widen_organization_audit_organization_limits',
+    '20261022130000_add_organization_limits',
     '20261022121000_add_runtime_commands',
     '20261022120000_scope_trusted_issuer_audience',
     '20261022110100_check_machine_credential_id',

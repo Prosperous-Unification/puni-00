@@ -2,6 +2,7 @@ import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
 import type { DirectoryStore } from '../../ports/directory-store';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { Broadcaster } from '../../ports/project-event';
 import { DIRECTORY_LABEL } from './contract';
 import { DirectoryService, type DirectoryServiceOptions } from './directory.resource';
@@ -26,14 +27,22 @@ export const directoryModule = DiBag.createBuilder()
         directoryStore,
         broadcast,
         clock,
+        organizationLimits,
       }: {
         directoryStore: DirectoryStore;
         broadcast: Broadcaster;
         clock: Clock;
+        /** Null where the graph's stores carry no organization limits (legacy fixtures, memory). */
+        organizationLimits: OrganizationLimitGauge | null;
         // Proof (2026-09-24): handing the resource `{ ...clock, newId: () => 'unsupplied' }`
         // instead of the supplied clock left `names a new team with the clock installDirectory
         // wires` failing (4 pass, 1 fail): the team's id read "unsupplied".
-      }): DirectoryServiceOptions => ({ directory: directoryStore, broadcast, clock }),
+      }): DirectoryServiceOptions => ({
+        directory: directoryStore,
+        broadcast,
+        clock,
+        ...(organizationLimits === null ? {} : { organizationLimits }),
+      }),
       { factoryReturnKind: 'sync-value' },
     ),
   })

@@ -1,5 +1,11 @@
 import { failureText } from '@/components/wbs/plan-refusal';
-import type { DirectoryApi, DirectoryRemoval, DirectoryWrite } from '@/lib/wbs-api';
+import {
+  type DirectoryApi,
+  type DirectoryRefusal,
+  type DirectoryRemoval,
+  type DirectoryWrite,
+  WbsRequestError,
+} from '@/lib/wbs-api';
 
 import type { DirectoryKind, DirectoryResource, DirectorySnapshot } from './contract';
 
@@ -15,6 +21,26 @@ const NOTHING_YET: DirectorySnapshot = {
 
 /** The fields the store contract's stability rule is judged over, by identity. */
 const FIELDS = ['people', 'teams', 'tags', 'services', 'workItemTypes', 'busy', 'problem'] as const;
+
+/**
+ * What a failed directory write is reported as: the agent-person cap with the
+ * refusal body's numbers (`wbs-organization-limits` L14), or be-01's code for
+ * anything else.
+ */
+function refusalOf(thrown: unknown): DirectoryRefusal {
+  // Proof: 2026-10-22, never matching this arm failed `names the organization’s
+  // agent-person cap with the refusal’s own numbers` (directory-page.test.tsx).
+  if (
+    thrown instanceof WbsRequestError &&
+    thrown.problem.kind === 'refusal' &&
+    thrown.problem.operation === 'postApiDirectoryCommands' &&
+    thrown.problem.refusal.error === 'agent_person_limit'
+  ) {
+    const { cap, current, added } = thrown.problem.refusal;
+    return { reason: 'agent_person_limit', limit: { cap, current, added } };
+  }
+  return { reason: 'refused', code: failureText(thrown, 'request_failed') };
+}
 
 /**
  * Builds the directory over one client. Nothing is read until `read` is called.
@@ -150,7 +176,7 @@ export function createDirectory(
         // Proof: removing this catch made `a write that throws becomes a refusal,
         // and still refetches` fail with the thrown `Error: offline`. Watched
         // 2026-09-20.
-        show({ problem: { reason: 'refused', code: failureText(thrown, 'request_failed') } });
+        show({ problem: refusalOf(thrown) });
       }
       try {
         await read();

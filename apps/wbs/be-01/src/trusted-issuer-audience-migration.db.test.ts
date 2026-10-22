@@ -11,6 +11,9 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
+/** The newer organization limits migrations, which reverse first. */
+const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
+const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const SUBJECT = 'repo:acme/wbs:ref:refs/heads/main';
 const roots: string[] = [];
@@ -108,7 +111,7 @@ describe(AUDIENCE_SCOPE, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}`,
+      `rolled back: ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}`,
     );
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);

@@ -21,6 +21,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
@@ -38,7 +39,10 @@ afterEach(async () => {
 async function seeded() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-authority-'));
   const dbPath = await openSpaceDatabase(directory);
-  const sqlite = openSqliteSource({ dbPath });
+  const sqlite = openSqliteSource({
+    dbPath,
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+  });
   const source = sqlite.bindLivePlans({
     schedulerOf: () => {
       throw new Error('runtime authority invoked scheduler');
@@ -901,11 +905,29 @@ describe('accepted runtime lifecycle', () => {
     expect(await source.stores.claims.add(claims, [], stamp, [])).toBe('written');
     await source.stores.claims.remove(claims, [], stamp);
     expect(await source.stores.claims.listByProject('a1')).toEqual([]);
-    const before = sqlite.db.all('SELECT name,hash FROM __drizzle_migrations ORDER BY id');
+    const readInstallation = () => ({
+      migrations: sqlite.db.all('SELECT name,hash FROM __drizzle_migrations ORDER BY id'),
+      schema: sqlite.db.all('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name'),
+      ledger: sqlite.db.all('SELECT * FROM runtime_ledger ORDER BY id'),
+      authority: sqlite.db.all('SELECT * FROM runtime_authority ORDER BY rowid'),
+      bindings: sqlite.db.all('SELECT * FROM runtime_claim_binding ORDER BY rowid'),
+      receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
+    });
+    const installed = readInstallation();
+    expect(installed.migrations.slice(-2)).toMatchObject([
+      { name: '20261022130000_add_organization_limits' },
+      { name: '20261022130100_widen_organization_audit_organization_limits' },
+    ]);
+    expect(rollbackTo(dbPath, migrations, '20261022121000_add_runtime_commands')).toEqual([
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
+    ]);
+    const before = readInstallation();
+    expect(before.migrations).toEqual(installed.migrations.slice(0, -2));
     expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
       'runtime history',
     );
-    expect(sqlite.db.all('SELECT name,hash FROM __drizzle_migrations ORDER BY id')).toEqual(before);
+    expect(readInstallation()).toEqual(before);
     expect(
       await receiver.lookupRuntimeReceipt(context, {
         commandId: 'first',

@@ -138,3 +138,7 @@ and actual main fixture conventions. No new helper framework or fake receiver.
 `task-1-evidence/`. No worker commits, Git/index/HEAD/merge-state mutation, subagents,
 root artifact edits, full host gate or new source task. Return DONE/concerns with a
 compact check summary and explicit source-hold release.
+
+### Task1 scope amendment: main-added empty rollback oracle
+
+Additionally allow `libs/wbs/adapters/store-sqlite/src/organization-limits-migration.db.test.ts` only to restore its complete empty rollback expectation to include `20261022121000_add_runtime_commands` after limits-audit1301 and limits1300, retaining target audience1200 and every other assertion. The one final local complete SQLite run actually failed only this expectation (1902pass,1skip,1fail), with the full11760file/index/HEAD/MERGE_HEAD/status freeze passed. After this literal test-only correction, run that full focused file and relevant static/format; preserve the full-suite failure and do not claim a final local full-suite pass. Root's final published combined exact-SHA host gate/CI supplies fresh full validation before acceptance. No production, SQL, migration identity, guard or timeout edit follows from this amendment.

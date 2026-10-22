@@ -3358,7 +3358,9 @@ export const savedPlanOrganization = sqliteTable(
  * widened the vocabulary for enterprise SSO and made the table append-only
  * through triggers, which this declaration cannot express;
  * `20261022110000_widen_organization_audit_machine_credentials` added the
- * machine-credential and trusted-issuer acts.
+ * machine-credential and trusted-issuer acts, and
+ * `20261022130100_widen_organization_audit_organization_limits` the
+ * operator's limits changes.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3377,11 +3379,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
@@ -3623,6 +3625,41 @@ export const organizationSessionPolicy = sqliteTable(
 );
 
 export type OrganizationSessionPolicyRow = typeof organizationSessionPolicy.$inferSelect;
+
+/**
+ * An organization's own caps (`wbs-organization-limits` L6); a missing row is
+ * the deployment default, never "no cap". Every cap is an integer from 0 to
+ * 1,000,000 and a row holds all three. Added by
+ * `20261022130000_add_organization_limits`, whose `down.sql` refuses while any
+ * row exists.
+ */
+export const organizationLimits = sqliteTable(
+  'organization_limits',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id),
+    maxAgentPersons: integer('max_agent_persons').notNull(),
+    maxConcurrentClaims: integer('max_concurrent_claims').notNull(),
+    maxCapacityUnitsPerResource: integer('max_capacity_units_per_resource').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    check(
+      'organization_limits_max_agent_persons',
+      sql`typeof(${t.maxAgentPersons}) = 'integer' AND ${t.maxAgentPersons} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'organization_limits_max_concurrent_claims',
+      sql`typeof(${t.maxConcurrentClaims}) = 'integer' AND ${t.maxConcurrentClaims} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'organization_limits_max_capacity_units_per_resource',
+      sql`typeof(${t.maxCapacityUnitsPerResource}) = 'integer' AND ${t.maxCapacityUnitsPerResource} BETWEEN 0 AND 1000000`,
+    ),
+  ],
+);
 
 /**
  * One switch of an organization between isolated and shared people, written

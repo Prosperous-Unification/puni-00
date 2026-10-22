@@ -20,6 +20,7 @@ import {
   exportProject as exportProjectShape,
   getWorkItems,
   importProject as importProjectShape,
+  type LimitRefusalDetail,
   listCalendarMarkers as listCalendarMarkersShape,
   listExternalSystems as listExternalSystemsShape,
   listPeople as listPeopleShape,
@@ -62,6 +63,7 @@ import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
 import type { ResourceScope } from './organization-context';
+import { agentPersonLimitSentence } from './organization-limit-words';
 import { type RefusalWords, sentenceForRefusal } from './refusal';
 
 /**
@@ -2184,12 +2186,16 @@ export const STEP_REFUSALS: RefusalWords = {
 /**
  * Why a directory write was refused, as this client has to phrase it.
  *
- * Two arms rather than a bare code, because `taken` is the one refusal that
- * carries a value: the name the directory kept. {@link directoryRefusedWith}
- * makes the other arm out of whatever was thrown.
+ * Arms rather than a bare code, because two refusals carry values: `taken`
+ * the name the directory kept, and `agent_person_limit` the organization's
+ * cap, the agents it holds and how many the write would add
+ * (`wbs-organization-limits` L14). The directory resource's `runWrite` makes
+ * the `refused` arm out of whatever else was thrown.
  */
 export type DirectoryRefusal =
-  { reason: 'taken'; survivingName: string } | { reason: 'refused'; code: string };
+  | { reason: 'taken'; survivingName: string }
+  | { reason: 'agent_person_limit'; limit: LimitRefusalDetail }
+  | { reason: 'refused'; code: string };
 
 /**
  * The leader of be-01's over-the-ceiling refusal code, whose tail is the
@@ -2355,10 +2361,16 @@ const DIRECTORY_REFUSALS: RefusalWords = {
 };
 
 export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
-  if (refusal.reason === 'taken') {
-    return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
+  switch (refusal.reason) {
+    case 'taken':
+      return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
+    case 'agent_person_limit':
+      return agentPersonLimitSentence(refusal.limit);
+    case 'refused':
+      return sentenceForRefusal(DIRECTORY_REFUSALS, refusal.code);
+    default:
+      return unreachable(refusal);
   }
-  return sentenceForRefusal(DIRECTORY_REFUSALS, refusal.code);
 }
 
 /**

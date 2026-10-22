@@ -346,6 +346,8 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261022130100_widen_organization_audit_organization_limits',
+        '20261022130000_add_organization_limits',
         '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
@@ -429,6 +431,7 @@ describe('the optimizer migration', () => {
             name !== 'runtime_authority' &&
             name !== 'runtime_claim_binding' &&
             name !== 'runtime_command_receipt' &&
+            name !== 'organization_limits' &&
             name !== 'shared_people_restore_operation' &&
             name !== 'shared_people_restore_receipt' &&
             name !== 'shared_people_restore_consumption' &&

@@ -24,6 +24,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
@@ -49,6 +50,7 @@ async function seeded(shared = false) {
   let turns = 0;
   const sqlite = openSqliteSource({
     dbPath,
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     onBorrowedUnitOfWork: () => {
       turns++;
     },
@@ -623,7 +625,10 @@ describe('conditional exact runtime claim', () => {
     );
     const before = await source.stores.runtimeCommands.inspectLedger();
     await source.close();
-    const reopened = openSqliteSource({ dbPath });
+    const reopened = openSqliteSource({
+      dbPath,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    });
     const bound = reopened.bindLivePlans({ schedulerOf: () => fastScheduler });
     try {
       const receiver = createRuntimeReceiver(bound.uow, nodeDigest);

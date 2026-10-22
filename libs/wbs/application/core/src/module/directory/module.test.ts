@@ -32,6 +32,7 @@ const hostRequirements = () => {
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),
+    organizationLimits: DiBag.createProvider(() => null, { factoryReturnKind: 'sync-value' }),
   };
 };
 

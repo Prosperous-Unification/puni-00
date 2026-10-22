@@ -133,6 +133,8 @@ describe('shared people audit', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
     ).toEqual([
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',

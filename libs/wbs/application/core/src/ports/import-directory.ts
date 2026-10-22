@@ -1,4 +1,4 @@
-import type { PersonKind, Resource, ResourceKind } from '@wbs/domain';
+import type { LimitCrossed, PersonKind, Resource, ResourceKind } from '@wbs/domain';
 
 import type { DirectoryOutcome } from './directory-outcome';
 import type {
@@ -62,4 +62,11 @@ export interface ImportDirectory {
     access: ResourceAccess,
     kind?: PersonKind,
   ): Promise<DirectoryOutcome<Person>>;
+
+  /**
+   * Whether `added` more agent persons would cross the organization's cap,
+   * read in the admitted transaction: null when they fit or under legacy
+   * access (`wbs-organization-limits` L9).
+   */
+  refuseAgentPersonsWithin(access: ResourceAccess, added: number): Promise<LimitCrossed | null>;
 }

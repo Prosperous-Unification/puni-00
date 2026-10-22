@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
+import { NO_ADMISSION } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
@@ -19,6 +21,7 @@ import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -98,6 +101,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
     },
     {
@@ -217,6 +221,7 @@ async function boot(
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
     browserSessionAuthority: 'disabled' as const,
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     oidc,
     localIdentity,
     commitDir,
@@ -303,6 +308,7 @@ function bootOptions(dbPath: string, port: number) {
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
     browserSessionAuthority: 'disabled' as const,
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
   };
 }
 
@@ -444,6 +450,7 @@ describe('bootBe01', () => {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       optimizer: {
         solverVersion: '0.3.0',
         budgetMs: 60_000,
@@ -480,6 +487,7 @@ describe('bootBe01', () => {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
@@ -518,6 +526,7 @@ describe('bootBe01', () => {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
@@ -549,6 +558,7 @@ describe('bootBe01', () => {
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled' as const,
+        organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
         localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
         migrateOnStartup: true,
         migrationsFolder: FOLDER,
@@ -660,6 +670,131 @@ describe('bootBe01', () => {
     expect(listed?.status).toBe(200);
     expect(await listed?.json()).toMatchObject({ totalResults: 0, Resources: [] });
     expect((await list(`wbs_scim_${'D'.repeat(43)}`))?.status).toBe(401);
+  });
+
+  // The disabled composition binds no organization, so the store is read
+  // directly: what matters is that boot wires it with the defaults it was given.
+  // Proof: omitting the `organizationLimits` binding in `bootBe01` made this
+  // fail on "boot composed no limits store" (0 pass, 1 fail); watched 2026-10-22.
+  it('serves the organization limits with the configured defaults once activated', async () => {
+    const dir = tempDir('wbs-limits-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    const configured = {
+      maxAgentPersons: 7,
+      maxConcurrentClaims: 9,
+      maxCapacityUnitsPerResource: 11,
+    };
+    let composed: Parameters<typeof buildApp>[0] | undefined;
+    running = await bootBe01(
+      { ...bootOptions(dbPath, 0), organizationDefaultLimits: configured },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          composed = options;
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      },
+    );
+    if (composed?.organizationLimits === undefined)
+      throw new Error('boot composed no limits store');
+    expect(await composed.organizationLimits.read('org-a', 'ada')).toEqual({
+      source: 'default',
+      limits: configured,
+      usage: { agentPersons: 0, concurrentClaims: 0, capacityUnits: [] },
+    });
+  });
+
+  // A batch over the booted source's own unit of work, through the scoped
+  // access the disabled composition cannot resolve over HTTP.
+  it('enforces the agent person cap with the configured defaults once activated', async () => {
+    const dir = tempDir('wbs-agent-cap-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      for (const [id, kind] of [
+        ['bot', 'agent'],
+        ['kat', 'person'],
+      ] as const) {
+        seed.run('INSERT INTO person (id, name, kind) VALUES (?, ?, ?)', [id, id, kind]);
+        seed.run(
+          "INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, 'org-a', ?)",
+          [id, id],
+        );
+      }
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let composed: Parameters<typeof buildApp>[0] | undefined;
+    running = await bootBe01(
+      {
+        ...bootOptions(dbPath, 0),
+        organizationDefaultLimits: { ...TEST_ORGANIZATION_DEFAULT_LIMITS, maxAgentPersons: 1 },
+      },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          composed = options;
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      },
+    );
+    const writes = composed?.writes;
+    if (writes === undefined) throw new Error('boot composed no batch writes');
+    const promoted = await writes.uow.run(async (scope) => ({
+      commit: false,
+      value: await writes
+        .batch(scope, recordingBroadcaster(), NO_ADMISSION)
+        .directory.patchPersonWithin(
+          'kat',
+          'ada',
+          { kind: 'agent' },
+          { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+        ),
+    }));
+    expect(promoted).toEqual({
+      ok: false,
+      reason: 'agent_person_limit',
+      cap: 1,
+      current: 1,
+      added: 1,
+    });
   });
 
   it('serves machine credential administration from the shared database once activated', async () => {
@@ -795,6 +930,7 @@ describe('bootBe01', () => {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
     });
@@ -857,6 +993,7 @@ describe('bootBe01', () => {
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled' as const,
+        organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
         optimizer: {
           solverVersion: '0.3.0',
           budgetMs: 60_000,

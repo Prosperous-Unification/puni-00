@@ -25,6 +25,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const access: ResourceAccess = {
@@ -41,7 +42,10 @@ afterEach(async () => {
 async function seeded() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-observation-'));
   const dbPath = await openSpaceDatabase(directory);
-  const sqlite = openSqliteSource({ dbPath });
+  const sqlite = openSqliteSource({
+    dbPath,
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+  });
   const source = sqlite.bindLivePlans({
     schedulerOf: () => {
       throw new Error('runtime read invoked scheduler');

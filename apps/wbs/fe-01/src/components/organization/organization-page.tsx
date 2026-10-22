@@ -11,6 +11,7 @@ import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
+import { LimitsSlot } from './limits-panel';
 import { MachineCredentialsPanel } from './machine-credentials-panel';
 import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
@@ -45,6 +46,11 @@ export function OrganizationPage({
   // the state the panels' refusals would reach, and mounts no panel to ask.
   const reachable = useFeatureReachable('organizations');
   const [loss, setLoss] = useState<AccessLoss | null>(reachable ? null : 'inactive');
+  // One role read for every slot that draws by role, so the page sends
+  // `GET /api/organization/active` once however many slots read it.
+  // Proof: 2026-10-22, each slot calling `useOrganizationRole` itself failed
+  // `reads the caller's role once for every slot that draws by it` (2 requests).
+  const role = useOrganizationRole(setLoss);
   return (
     <>
       <AppHeader nav={nav} account={account} />
@@ -72,9 +78,11 @@ export function OrganizationPage({
               <SsoConnectionsPanel onAccessLost={setLoss} />
               {/* Proof: omitting this panel failed the session-policy composition test (2026-10-13). */}
               <SessionPolicyPanel onAccessLost={setLoss} />
+              {/* Proof: 2026-10-22, omitting this slot failed `composes the limits panel for an admin`. */}
+              <LimitsSlot role={role} onAccessLost={setLoss} />
               {/* Proof: omitted composition failed the mounted provisioning-token composition test (2026-10-15). */}
               <ProvisioningTokensPanel onAccessLost={setLoss} />
-              <MachineCredentialsSlot userId={userId} onAccessLost={setLoss} />
+              <MachineCredentialsSlot role={role} userId={userId} onAccessLost={setLoss} />
               {/*
                * Proof: 2026-10-11, leaving this panel out failed `shows whether
                * the organization shares its people`.
@@ -111,13 +119,14 @@ export function OrganizationPage({
  * cannot be read.
  */
 function MachineCredentialsSlot({
+  role,
   userId,
   onAccessLost,
 }: {
+  role: RoleView;
   userId: string;
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element | null {
-  const role: RoleView = useOrganizationRole(onAccessLost);
   switch (role.kind) {
     case 'legacy':
     case 'withdrawn':
