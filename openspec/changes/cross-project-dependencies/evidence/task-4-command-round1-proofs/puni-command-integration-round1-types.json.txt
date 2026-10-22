@@ -1,0 +1,48 @@
+[
+  {
+    "name": "backend",
+    "command": [
+      "bunx",
+      "tsc",
+      "--build",
+      "--force",
+      "apps/wbs/be-01/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-round1-type-backend.log"
+  },
+  {
+    "name": "core",
+    "command": [
+      "bunx",
+      "tsc",
+      "--build",
+      "--force",
+      "libs/wbs/application/core/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-round1-type-core.log"
+  },
+  {
+    "name": "work-item-module",
+    "command": [
+      "bunx",
+      "tsc",
+      "-p",
+      "libs/wbs/application/core/src/module/work-item/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-round1-type-work-item-module.log"
+  },
+  {
+    "name": "plan-commands-module",
+    "command": [
+      "bunx",
+      "tsc",
+      "-p",
+      "libs/wbs/application/core/src/module/plan-commands/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-round1-type-plan-commands-module.log"
+  }
+]

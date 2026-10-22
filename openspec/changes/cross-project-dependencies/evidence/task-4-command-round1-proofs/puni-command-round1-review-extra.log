@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+Internal error: directory mismatch for directory "/tmp/puni-cross-command-integration/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.
+
+../puni-command-round1-review-extra.test.ts:
+(pass) ROUND1 independent external create-update redo preserves relationship and local identity [2984.52ms]
+(pass) ROUND1 independent external update still refuses a remote edit before restoring its local row [1768.88ms]
+
+ 2 pass
+ 1 filtered out
+ 0 fail
+ 36 expect() calls
+Ran 2 tests across 1 file. [22.08s]

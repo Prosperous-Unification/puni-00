@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1662 |     case 'shape': forward = nestedReplay(nestedReplay(restore), { ...typed, dependency: { ...typed.dependency, successor: { projectId: fixture.owner.projectId, workItemId: prepared.successorId, scope: 'descendant-step', stepId: typed.dependency.successor.scope === 'whole' ? 'absent-step' : typed.dependency.successor.stepId } } }); break;
+1663 |   }
+1664 |   replaceForward(prepared, forward);
+1665 |   const before = effects();
+1666 |   const redone = await semantic(fixture, (service) => service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+1667 |   expect(redone).toMatchObject(defect === 'shape' ? { ok: false, reason: 'stale_undo', detail: 'that relationship would now be refused: not_a_parent.' } : { ok: false, reason: 'not_found' });
+                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "detail": "that relationship would now be refused: not_found.",
++   "entryId": "17821904-6e93-4ae4-8669-d34082469453",
+    "ok": false,
+-   "reason": "not_found",
++   "reason": "stale_undo",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1667:18)
+(fail) ordered restore refuses different-address in nested external replay without partial effects [381.08ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.55s]

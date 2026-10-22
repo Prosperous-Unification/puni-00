@@ -1,0 +1,134 @@
+omit-update: compatibility: valid mounted update redo refused
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+
+
+external-blanket-gate: compatibility: valid semantic redo refused
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "detail": null,
++   "ok": false,
++   "reason": "not_found",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+
+
+forbidden-exemption: acceptance: explicit forbidden reader outcome bypassed
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": null,
+-   "ok": false,
+-   "reason": "forbidden",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "2 changes",
++   },
+  }
+
+- Expected  - 3
++ Received  + 5
+
+
+
+unknown-step-exemption: acceptance: explicit unknown-step reader outcome bypassed
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": null,
+-   "ok": false,
+-   "reason": "not_found",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "2 changes",
++   },
+  }
+
+- Expected  - 3
++ Received  + 5
+
+
+
+exact-restored-address: ordering diagnostic: early not_found changed to application-time stale_undo
+error: expect(received).toMatchObject(expected)
+
+  {
++   "detail": "that relationship would now be refused: not_found.",
++   "entryId": "17821904-6e93-4ae4-8669-d34082469453",
+    "ok": false,
+-   "reason": "not_found",
++   "reason": "stale_undo",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+
+
+selected-direction: ordering diagnostic: wrong direction permitted deferral
+error: expect(received).toMatchObject(expected)
+
+  {
++   "detail": "that relationship would now be refused: not_found.",
++   "entryId": "0e7ebb4a-aee5-4063-9f39-2c6d81f43557",
+    "ok": false,
+-   "reason": "not_found",
++   "reason": "stale_undo",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+
+
+restore-project: pure scanner boundary: foreign restore classified local
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "["owner","restored"]",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+
+
+endpoint-project: pure scanner boundary: remote endpoint classified restored
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "["remote","restored"]",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+
+
+application-order: ordering diagnostic: later restore permitted deferral
+error: expect(received).toMatchObject(expected)
+
+  {
++   "detail": "that relationship would now be refused: not_found.",
++   "entryId": "5586ebca-03ba-4f02-8889-f58ea1c70a38",
+    "ok": false,
+-   "reason": "not_found",
++   "reason": "stale_undo",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+

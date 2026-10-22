@@ -1,0 +1,53 @@
+# Command integration review correction, round 1
+
+Frozen correction against `db2d38ec903a9f87e51f1d6e20c9328ccbdbda4d` in `/tmp/puni-cross-command-integration`. Exactly four source paths changed. Exact paths, byte lengths and SHA256 hashes are in `/tmp/puni-command-integration-round1-manifest.json`; its SHA256 is `1d14a8ef68ae2b1fe697ba95938114b7c91905b0ca96a36952297c4693f3404f`. No Git mutations, WBS changes, source edits elsewhere or original evidence changes were made by this worker. Root owns the correction commit and same-Astra re-review.
+
+## Findings addressed
+
+F1: `restoredTypedAddressesOf` now recognizes typed UPDATE as well as ADD. It follows only the selected replay direction and recursive application order. An endpoint qualifies only when an earlier restore supplies its exact owner-local work-item address.
+
+F2: owner-local `not_found` evidence for such an address can be deferred even when the same journal entry has external metadata. The previous `external === null` restriction no longer disables valid local restoration. The exemption never covers remote endpoints, forbidden or unknown-step outcomes, unrelated references, a later restore, or the other replay direction.
+
+This predicts availability only. Existing restored-row authorization, application-time step and shape checks, exact remote metadata coverage and revisions, current endpoint evidence, replay equality and final graph checks remain in place. The changes do not activate external production authoring.
+
+The four paths comprise the scanner, its pure test, replay preflight in `work-item.resource.ts`, and the real connected-command SQLite controller tests. Fifteen new SQLite tests cover the exact external create/link redo regression; mounted local create/update redo in plain and nested forms; nested external restoration with stable identities and exact revisions; later/different-address/other-direction/ordinary-reference/foreign/mixed restore refusals; missing-step and invalid-shape refusals; explicit forbidden and unknown-step reader deliveries; and a genuinely missing remote row. Negative cases compare all captured effects tables and require no partial effects.
+
+The two reader-delivery tests first perform the real endpoint read, then replace only the owner-local missing-row outcome with the named refusal. These are explicit negative-only port faults, not claims that an impossible production authorization state was reached. Positive paths retain the actual admitted SQLite UoW, authority resolver, context, reader/writer, collector and journal.
+
+## TDD and final verification
+
+Fresh RED evidence: `/tmp/puni-command-integration-round1-red.log` contains both exact regressions (valid redo refused as `not_found` / HTTP409); `/tmp/puni-command-integration-round1-scanner-red.log` contains the missing UPDATE scanner assertion. Initial GREEN evidence is in the corresponding `round1-green.log` and `round1-scanner-green.log`. Later complete evidence supersedes their smaller test counts.
+
+After every injected fault was restored and the final source was formatted:
+
+- Focused command/replay suite: **212 pass, 0 fail, 1804 assertions, eight files**. Log: `/tmp/puni-command-integration-round1-focused-prelint.log`. Despite its filename, it ran after final fault restoration; concurrent lint fixing sorted imports only. Files: compensating, connected-command-admission, typed-dependency-commands, typed-dependency-copy, typed-dependency-graph, typed-dependency-lifecycle, undo, and command-organization tests.
+- Unchanged corrected reviewer probe: `bun test --tsconfig-override=/tmp/puni-cross-command-integration/tsconfig.base.json /tmp/puni-command-review-probe.test.ts -t REVIEW`: **2 pass, 0 fail, 1 filtered, 23 assertions**, exit0. Log: `/tmp/puni-command-integration-round1-review-probe-green.log`. Bun prints the previously observed directory-mismatch diagnostic for the tsconfig, then executes both probes successfully; this is not pristine diagnostic output.
+- Actual backend and core type programs: `bunx tsc --build --force apps/wbs/be-01/tsconfig.json` and `bunx tsc --build --force libs/wbs/application/core/tsconfig.json`, both exit0.
+- Actual work-item and plan-commands module programs: `bunx tsc -p libs/wbs/application/core/src/module/work-item/tsconfig.json` and the corresponding `plan-commands/tsconfig.json`, both exit0. Both include actual module files. Records: `/tmp/puni-command-integration-round1-types.json`, with individual `round1-type-*.log` files.
+- Fresh Nx graph: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/puni-command-integration-round1-nx-graph.json`, exit0; log `/tmp/puni-command-integration-round1-graph.log`.
+- Named ESLint of all four paths, final run without `--fix`: exit0, `/tmp/puni-command-integration-round1-lint-final.log`.
+- Prettier check of all four paths and `git diff --check HEAD`: exit0, `/tmp/puni-command-integration-round1-format-check.log`.
+
+## Watched faults
+
+`/tmp/puni-command-integration-round1-proofs.json` records all nine faults, selected assertions and individual logs. Every fault produced exit1 and a selected assertion failure; source was restored in `finally`. Adjacent `Proof:` comments identify the boundaries and observations. These are seven SQLite observations and two pure scanner observations, with deliberately distinct classifications:
+
+| Fault | Observation and scope |
+| --- | --- |
+| omit-update | SQLite compatibility: valid mounted plain/nested UPDATE redo becomes409. |
+| external-blanket-gate | SQLite compatibility: valid external-entry local restore redo becomes `not_found`. |
+| forbidden-exemption | SQLite acceptance fault: explicitly delivered forbidden is bypassed and redo succeeds. |
+| unknown-step-exemption | SQLite acceptance fault: explicitly delivered unknown-step is bypassed and redo succeeds. |
+| exact-restored-address | SQLite ordering diagnostic: early `not_found` changes to application-time `stale_undo`; still refused. |
+| selected-direction | SQLite ordering diagnostic: scanning the other direction wrongly defers evidence; application still refuses. |
+| restore-project | Pure scanner oracle: foreign restored row is wrongly classified owner-local. Independent SQLite restored-row authority remains. |
+| endpoint-project | Pure scanner oracle: remote endpoint is wrongly classified restored. No unsafe database acceptance is claimed. |
+| application-order | SQLite ordering diagnostic: precollecting later restores changes early `not_found` to application-time `stale_undo`; still refused. |
+
+The original review's 51-fault audit remains unchanged and authoritative. This correction does not reclassify diagnostic, ordering, memory, pure or SQLite observations as blanket unsafe successes.
+
+## Evidence integrity and remaining scope
+
+Original author report `/tmp/puni-command-integration-report.md` remains SHA256 `cc863e57e192c7d4c4ce0aa326539d25a987ca9eecb1490f2a5129420c159b8b`. The immutable corrected probe remains SHA256 `fed075d80c88c21a39312d5aa405934e6ef3a2889f3af3991a43da5b3cfa1f91`; its original failing reviewer log remains SHA256 `94029232c93a270b3f975987fdc2582c83fa5dfa064e6b12c4a8ff1fc56ca289`. Original reports, review, probes and logs were not overwritten.
+
+No performance benchmark, full host gate or redundant broad suite was repeated for this replay-only correction, as directed. The previous independent core530/http252/connected77/classification17 and six-program type evidence was not recounted as new coverage. Full task3.2 generated OpenAPI/MCP and mounted MCP equivalence, production connected live/fanout activation, incident hand-down and project-deletion lifecycle obligations remain outside this correction and retain their prior status. External creation remains dormant. Root must commit these frozen bytes with normal hooks and obtain same-Astra re-review before integration.

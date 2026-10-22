@@ -600,3 +600,16 @@ independent corrected probes fail replay assertions. The 51-fault audit records
 what each failure proves without claiming every one admits an unsafe write.
 Original Sol is correcting ordered owner-local restoration for typed add/update;
 remote authority and metadata remain strict. Source is still unintegrated.
+
+## Tasks 3.2 / 4.2–4.4 — approved command packet integrated, remaining work explicit
+
+[Correction and independent review](evidence/task-4-command-round1.md) preserve the
+original two redo regressions, a four-path correction, independent combined
+external-UPDATE/revision probes and nine watched fault logs with separate
+acceptance/diagnostic classifications. Astra approved the bounded dormant command
+packet. Root cherry-picked original `db2d38ec9` and correction `02c8fdc65`
+as `835e4e35b` and `2f7b7b4b7`; all 113 reviewed source hashes matched the
+integration, and uncached integrated `wbs-core:typecheck` plus its module
+program passed. Full task 3.2 MCP equivalence, task 4.4 incident lifecycle,
+connected runtime and activation remain open. An exact task 4.2/4.3 closure
+audit is pending; no checkbox is marked on this approval alone.
