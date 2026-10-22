@@ -80,6 +80,10 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
       [receipt tasks](runtime-receipt-tasks.md); matching content does not establish
       transport authenticity, current authority or durable sender acceptance.
 
+- [ ] 5.5 Reconcile current main organization limits through
+      [limits integration tasks](limits-integration-tasks.md), preserving separately owned
+      policy/defaults and proving actual conditional claim refusal/replay consumption.
+
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the

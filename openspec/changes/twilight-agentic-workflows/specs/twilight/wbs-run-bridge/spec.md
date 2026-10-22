@@ -146,6 +146,22 @@ return `runtime_command_conflict`. Refused attempts SHALL write no acceptance re
 - **WHEN** the current request lacks project/person/credential permission for an accepted command's scope
 - **THEN** the receiver refuses before revealing or replaying that acceptance
 
+#### Scenario: A fresh runtime claim reaches the organization cap
+
+- **WHEN** an otherwise eligible new conditional runtime claim would exceed the organization's current bound-claim cap
+- **THEN** the ordinary transaction-bound gauge refuses it with `claim_limit`, `cap`, `current` and the command context
+- **AND** no claim, binding, acceptance receipt, mutation journal or ledger count is added
+
+#### Scenario: A runtime claim is below the organization cap
+
+- **WHEN** current authorization and basis permit a new exact runtime claim below the cap
+- **THEN** the same ordinary claim transaction commits exactly one claim, immutable binding and matching receipt
+
+#### Scenario: An exact accepted claim is replayed after a cap reduction
+
+- **WHEN** an accepted exact claim is retried under current authorization after the cap is lowered below existing usage
+- **THEN** the original complete receipt returns without fresh acquisition or any additional claim, binding, journal or ledger mutation
+
 #### Scenario: A receipt insert fails after mutation
 
 - **WHEN** persistence of the acceptance receipt fails after batch changes were attempted

@@ -295,3 +295,5 @@ The bounded [runtime request design](runtime-request-design.md) publishes the ex
 ## Portable runtime receipt correspondence
 
 The bounded [receipt design](runtime-receipt-design.md) shares complete content matching and existing identity predicates for the receiver and future durable sender. Authenticated transport, trusted artifact decoding and sender persistence remain separate.
+
+[Runtime limits integration](limits-integration-design.md) reconciles the existing receiver with current main's separately owned organization limits; no new limit policy or coordinator behavior is proposed.
