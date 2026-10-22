@@ -341,6 +341,86 @@ describe('an API key', () => {
   });
 });
 
+describe('machine restricted-project role ceiling', () => {
+  it.each(['commands', 'undo', 'redo', 'steps', 'calendar-markers', 'optimization/retry'])(
+    'refuses %s recovery without mutations, audit or events',
+    async (route) => {
+      const restricted = await createProject('mem', 'Restricted member project');
+      expect(
+        (await h.call('mem', 'PATCH', `/api/projects/${restricted}`, { restricted: true })).status,
+      ).toBe(200);
+      const { key } = await claireKey();
+      const tables = [
+        'project',
+        'work_item',
+        'step',
+        'calendar_marker',
+        'command_journal',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ];
+      const snapshot = () =>
+        tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+      const before = snapshot();
+      const body =
+        route === 'commands'
+          ? { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Outside cap' }] }
+          : route === 'steps'
+            ? { name: 'Outside cap' }
+            : route === 'calendar-markers'
+              ? { name: 'Outside cap', date: '2026-10-22' }
+              : route === 'optimization/retry'
+                ? { objective: 'pri', inputHash: 'ignored' }
+                : undefined;
+      expect((await as(key, 'POST', `/api/projects/${restricted}/${route}`, body)).status).toBe(
+        403,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('refuses saved-plan recovery save, rename and delete without effects', async () => {
+    const restricted = await createProject('mem', 'Restricted saved project');
+    const saved = await h.call('mem', 'POST', `/api/projects/${restricted}/saved-plans`, {
+      name: 'Original',
+    });
+    expect(saved.status).toBe(201);
+    const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+    expect(
+      (await h.call('mem', 'PATCH', `/api/projects/${restricted}`, { restricted: true })).status,
+    ).toBe(200);
+    const { key } = await claireKey();
+    const snapshot = () =>
+      ['saved_plan', 'saved_plan_body', 'organization_audit', 'event_log', 'event_sequencer'].map(
+        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+      );
+    const before = snapshot();
+    for (const [method, path, body] of [
+      ['POST', `/api/projects/${restricted}/saved-plans`, { name: 'Outside cap' }],
+      ['PATCH', `/api/saved-plans/${savedId}`, { name: 'Outside cap' }],
+      ['DELETE', `/api/saved-plans/${savedId}`, undefined],
+    ] as const) {
+      expect((await as(key, method, path, body)).status).toBe(403);
+      expect(snapshot()).toEqual(before);
+    }
+  });
+
+  it('allows an admin-bound machine to write its own restricted project', async () => {
+    expect(
+      (await h.call('dany', 'PATCH', `/api/projects/${projectA}`, { restricted: true })).status,
+    ).toBe(200);
+    const { key } = await claireKey();
+    expect(
+      (
+        await as(key, 'POST', `/api/projects/${projectA}/commands`, {
+          commands: [{ kind: 'createWorkItem', parentId: null, name: 'Within cap' }],
+        })
+      ).status,
+    ).toBe(200);
+  });
+});
+
 describe('a key pinned to one person', () => {
   const claim = (personId: string, extra: Record<string, unknown> = {}) => ({
     kind: 'claimWorkItem',

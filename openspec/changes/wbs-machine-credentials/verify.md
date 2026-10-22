@@ -763,3 +763,57 @@ Verifier expiry/rotation-window freshness and restricted-project recovery ceilin
 open and are explicitly outside this packet. No full remote host gate, build, full product
 lint, secrets scan or full migration lint was run by this packet; the coordinator must run
 the required host gate on the integrated commit before release/completion claims.
+
+## Restricted-project recovery ceiling repair — 2026-10-22
+
+This restores the existing A23 member ceiling; it introduces no new authority.
+The repository still reads current membership inside the writer transaction and
+intersects it with the authenticated scope role. Command/replay, dependent
+step/marker recovery, project edits, saved-plan save/touch and optimizer Retry
+carry that ceiling; borrowed project/step/import fan-out also retains it.
+
+Fresh focused results on merged baseline `ba129970f` plus this repair:
+
+- `bun test apps/wbs/be-01/src/controller/machine-credential.controller.db.test.ts`:
+  32 pass, including command, undo, redo, step, marker, Retry and saved-plan
+  refusals with unchanged mutation/audit/event state, ordinary writes, restricted
+  creator writes, person pinning and the human account's unpinned session.
+- `bun test apps/wbs/mcp-01/src/organization-delegation.boot.test.ts`: 16 pass,
+  91 assertions, through real MCP OAuth and booted be-01. Consent recovery
+  refusals include saved-plan save/rename/delete and unchanged state.
+- Mounted human command/project/saved-plan organization suites plus
+  `organization-audit.db.test.ts`: 73 pass, including human super-admin
+  recovery and queued membership revocation.
+- SQLite saved-plan organization, fanout capture and optimizer repository
+  suites: 35 pass. The low-level Retry negative refuses before eligibility,
+  audit or slot writes even for a current stored super-admin.
+
+Watched R5 faults, restored afterward:
+
+- Returning the stored role from `capStoredRole` admitted a machine batch and
+  step (200), marker (201), and saved-plan touch (200); undo/redo reached replay
+  handling (409), all where admission requires 403. The complete ordered MCP
+  boot suite's consent recovery negative also failed (admitted tool call).
+- The same fault wrote the low-level capped saved plan and let capped Retry
+  reach `not-retryable` instead of `forbidden`.
+- Removing the borrowed ceilings independently from their production call
+  sites made all four restricted-project/viewer-project/viewer-step/viewer-import
+  fan-out negatives admit. Adjacent `Proof:` comments identify these faults.
+
+The broader command/core selection reports 160 pass and three prerequisite
+failures in resource-command/resource-schedule/assignee-calendar. All three
+reproduce on a fresh unchanged `ba129970f` clone. Typechecking be-01 and the
+SQLite specs remains blocked by the merged baseline's `person-load.feature.ts`
+432 and `space.resource.ts` 405 scheduling error types; no ceiling-related type
+errors remain. Full host gate, build, CI secrets checks and live acceptance were
+not run for this repair packet. Changed-file lint is recorded separately by the
+integration review; the repository's lazy-loaded core boundary rule can report
+existing static imports once an Nx project graph is present.
+
+The [independent Astra review](evidence/restricted-project-role-ceiling-review.md)
+approved this bounded repair without an introduced finding. Its fresh relevant
+runs passed 156 tests; unchanged-base probes reproduced the three prerequisite
+failures, two scheduling type errors and ten static-import lint findings. On
+the combined feature/main branch, all eight mounted machine restricted-project
+role-ceiling cases passed (28 assertions), including ordinary creator success.
+Full CI and the exact-SHA host gate remain pending.

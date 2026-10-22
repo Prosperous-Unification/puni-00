@@ -70,6 +70,7 @@ export async function savePlan(
           scoped: {
             organizationId: input.access.scope.organizationId,
             actorId: input.actor.id,
+            role: input.access.scope.role,
             operation: 'save' as const,
           },
         }

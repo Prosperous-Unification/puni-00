@@ -220,6 +220,7 @@ async function semantic<T extends { readonly ok: boolean }>(
       'org-a',
       fixture.principal.id,
       { commands: ['addTypedDependency'] },
+      resolved.access.scope.role,
     );
     if (admitted === null || admitted === 'forbidden')
       throw new Error('fixture owner admission refused');

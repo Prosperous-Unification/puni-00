@@ -77,6 +77,7 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
             access.scope.organizationId,
             actorId,
             detail,
+            access.scope.role,
           )
         : 'ordinary';
     // Proof: skipping this refusal let a non-creator member add a step to a

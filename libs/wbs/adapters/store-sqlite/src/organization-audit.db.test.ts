@@ -141,7 +141,7 @@ describe('the organization audit', () => {
       { name },
       { at: 2, by: actorId },
       'org-a',
-      { actorId, auditId: crypto.randomUUID() },
+      { actorId, auditId: crypto.randomUUID(), role: 'super_admin' },
     );
   const state = () =>
     raw((db) => ({
@@ -208,7 +208,7 @@ describe('the organization audit', () => {
       { name: 'Taken' },
       { at: 2, by: 'sam' },
       'org-b',
-      { actorId: 'sam', auditId: 'a1' },
+      { actorId: 'sam', auditId: 'a1', role: 'super_admin' },
     );
     expect(answer).toBeNull();
   });
@@ -220,6 +220,7 @@ describe('the organization audit', () => {
         organizationId,
         actorId,
         { commands: ['patchWorkItem'] },
+        'super_admin',
       );
 
     it('records one recovery by a super-admin of a restricted project, keeping its creator', async () => {

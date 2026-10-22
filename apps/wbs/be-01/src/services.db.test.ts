@@ -2165,7 +2165,7 @@ describe('buildServices', () => {
         objective: 'pri',
         inputHash,
         input,
-        scoped: { organizationId: 'org-a', actorId: 'bob' },
+        scoped: { organizationId: 'org-a', actorId: 'bob', role: 'super_admin' as const },
       }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
@@ -3623,7 +3623,7 @@ describe('buildServices', () => {
         objective: 'pri',
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada' },
+        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
       }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
@@ -3705,7 +3705,7 @@ describe('buildServices', () => {
         objective: 'pri',
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada' },
+        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
       }),
     ).toMatchObject({ kind: 'accepted', generation, state: 'retrying' });
     await optimizer.drain();
@@ -3822,7 +3822,7 @@ describe('buildServices', () => {
         objective: 'pri' as const,
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada' },
+        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
       };
       armed = true;
       expect(await rejectedMessage(optimizer.retry(ask))).toContain(
@@ -3953,7 +3953,7 @@ describe('buildServices', () => {
         objective: 'pri' as const,
         inputHash,
         input,
-        scoped: { organizationId: 'org-x', actorId: 'ada' },
+        scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
       };
       expect(await optimizer.retry(ask)).toMatchObject({
         kind: lateState === 'closed' ? 'not-retryable' : 'already-running',
@@ -4072,7 +4072,7 @@ describe('buildServices', () => {
       objective: 'pri',
       inputHash,
       input,
-      scoped: { organizationId: 'org-x', actorId: 'ada' },
+      scoped: { organizationId: 'org-x', actorId: 'ada', role: 'super_admin' as const },
     });
     try {
       await Promise.race([
@@ -4185,7 +4185,7 @@ describe('buildServices', () => {
           objective: 'pri',
           inputHash,
           input,
-          scoped: { organizationId, actorId },
+          scoped: { organizationId, actorId, role: 'super_admin' as const },
         }),
       ).toEqual({ kind: reason });
       expect(lifecycleTables(db)).toEqual(before);

@@ -15,7 +15,12 @@ import { sql } from 'drizzle-orm';
 
 import { openConnection, openDatabase } from './db';
 import { DrizzleEventLogStore } from './event-log';
-import { readFanoutObservationIn } from './fanout-capture';
+import {
+  authorizeImportIn,
+  authorizeProjectFanoutIn,
+  authorizeStepFanoutIn,
+  readFanoutObservationIn,
+} from './fanout-capture';
 import { OPEN } from './gate';
 import { allocateGeneration } from './optimization-generation';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
@@ -443,3 +448,46 @@ it('invalidates surviving projects disconnected by relationship removal', async 
     connection.close();
   }
 });
+
+it.each(['restricted-project', 'viewer-project', 'viewer-step', 'viewer-import'])(
+  'preserves scoped ceilings in borrowed %s authority',
+  async (operation) => {
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-role-cap-'));
+    directories.push(directory);
+    const path = await openSpaceDatabase(directory);
+    const connection = openConnection(path);
+    try {
+      connection.db.run(
+        sql.raw(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
+        ),
+      );
+      connection.db.run(
+        sql.raw(
+          "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
+        ),
+      );
+      connection.db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'a1'"));
+      const member = {
+        kind: 'scoped' as const,
+        scope: { organizationId: 'org-a', userId: 'sam', role: 'member' as const },
+      };
+      const viewer = {
+        kind: 'scoped' as const,
+        scope: { ...member.scope, role: 'viewer' as const },
+      };
+      const lifetime = createReadSnapshotLifetime();
+      const refusal =
+        operation === 'restricted-project'
+          ? await authorizeProjectFanoutIn(connection.db, lifetime)('a1', 'sam', member)
+          : operation === 'viewer-project'
+            ? await authorizeProjectFanoutIn(connection.db, lifetime)('a2', 'sam', viewer)
+            : operation === 'viewer-step'
+              ? await authorizeStepFanoutIn(connection.db, lifetime)('a2', 'sam', viewer)
+              : await authorizeImportIn(connection.db)('sam', viewer);
+      expect(refusal).toEqual({ ok: false, reason: 'forbidden' });
+    } finally {
+      connection.close();
+    }
+  },
+);
