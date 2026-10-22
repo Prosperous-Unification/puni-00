@@ -1495,6 +1495,14 @@ token and expiry. Ending it makes the next request carrying that MCP token fail 
 `invalid_token`; it does not end the provider's browser session.
 _Avoid_: connector session, provider session, access token
 
+**Registered MCP client**:
+A public OAuth client mcp-01 admitted by dynamic client registration: its `client_id`,
+exact redirect URIs, forwarding source and lifetimes, kept in the MCP store so it survives a
+restart. Unproven until its first code exchange. An unknown or expired `client_id` at
+authorization answers `invalid_client` to the browser, whose description asks for a new
+registration; whether a client re-registers on its own is unobserved.
+_Avoid_: connector, app registration, OIDC client
+
 **Reauthentication marker**:
 A signed, short-lived, identity-free browser cookie set after a matched MCP login fails.
 The next authorization consumes it and asks the provider for `prompt=login`, so a refused

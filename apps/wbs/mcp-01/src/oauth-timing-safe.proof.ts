@@ -2,7 +2,7 @@ import type { BrowserOidcClient } from '@wbs/auth';
 import { beforeAll, expect, test } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { InMemoryMcpOAuth } from './oauth';
+import { McpOAuthServer } from './oauth';
 
 interface TimingSafeEqualCall {
   leftBytes: number;
@@ -38,7 +38,7 @@ beforeAll(async () => {
       refresh: () => Promise.resolve({ accessToken: 'refreshed-upstream-token', expiresIn: 300 }),
       revoke: () => Promise.resolve(),
     };
-  const oauth = new InMemoryMcpOAuth(CONFIG, provider, {
+  const oauth = new McpOAuthServer(CONFIG, provider, {
     now: () => 1_700_000_000_000,
     random: () => values.shift() ?? 'exhausted',
     verifyUpstream: () =>
