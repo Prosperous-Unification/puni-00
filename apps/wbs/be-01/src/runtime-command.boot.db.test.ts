@@ -10,7 +10,7 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 import { buildApp } from './app';
 import { bootBe01, type BootOptions, type RunningBe } from './boot';
 import { OptimizationCoordinator } from './module/optimization/optimization.feature';
-import { openDatabase } from './repository/db';
+import { openDatabase, refuseToWaitForWriteLock, SQLiteError } from './repository/db';
 import { runMigrations } from './repository/migrate';
 
 const folder = new URL('../drizzle', import.meta.url).pathname;
@@ -48,6 +48,88 @@ function makeApp(composition: Parameters<typeof buildApp>[0]) {
   app.stop = () => Promise.resolve(app);
   return app;
 }
+test('boot audit excludes a second connection commit between marker and history reads', async () => {
+  const configured = { ...createOptions(), organizationDnsResolvers: undefined };
+  runMigrations(configured.dbPath, folder);
+  const writer = openSqliteSource({ dbPath: configured.dbPath });
+  refuseToWaitForWriteLock(writer.db);
+  const observation: { admission: 'unattempted' | 'committed' | 'busy' } = {
+    admission: 'unattempted',
+  };
+  let listeners = 0;
+  const commitAuthority = () => {
+    writer.db.transaction((transaction) => {
+      transaction.run(
+        "INSERT INTO runtime_authority (organization_id,project_id,person_id,owner_id,generation) VALUES ('org','project','person','owner',1)",
+      );
+      transaction.run('UPDATE runtime_ledger SET authority_count=authority_count+1 WHERE id=1');
+    });
+  };
+  try {
+    expect(await writer.stores.runtimeCommands.inspectLedger()).toMatchObject({
+      authorityCount: 0,
+      bindingCount: 0,
+      receiptCount: 0,
+    });
+    running = await bootBe01(configured, {
+      openSource: (settings) => {
+        const source = openSqliteSource(settings);
+        const read = source.db.all.bind(source.db);
+        source.db.all = <T>(query: Parameters<typeof source.db.all>[0]) => {
+          const rows = read<T>(query);
+          // The real marker SELECT has completed before the other connection attempts its commit.
+          if (
+            observation.admission === 'unattempted' &&
+            typeof query === 'string' &&
+            query.startsWith('SELECT id,schema_version AS schemaVersion')
+          ) {
+            try {
+              commitAuthority();
+              observation.admission = 'committed';
+            } catch (cause) {
+              const refusal =
+                cause instanceof Error && cause.cause instanceof SQLiteError ? cause.cause : cause;
+              if (!(refusal instanceof SQLiteError) || refusal.code !== 'SQLITE_BUSY') throw cause;
+              expect(refusal.message).toContain('database is locked');
+              observation.admission = 'busy';
+            }
+          }
+          return rows;
+        };
+        return source;
+      },
+      makeApp,
+      startListener: (_app, _port, ready) => {
+        listeners += 1;
+        ready();
+      },
+    });
+    expect(listeners).toBe(1);
+    expect(observation.admission).toBe('busy');
+    expect(await writer.stores.runtimeCommands.inspectLedger()).toMatchObject({
+      authorityCount: 0,
+      bindingCount: 0,
+      receiptCount: 0,
+    });
+    expect(writer.db.all('SELECT * FROM runtime_authority')).toEqual([]);
+    commitAuthority();
+    expect(await writer.stores.runtimeCommands.inspectLedger()).toMatchObject({
+      authorityCount: 1,
+      bindingCount: 0,
+      receiptCount: 0,
+    });
+    expect(
+      await writer.stores.runtimeCommands.readAuthority({
+        organizationId: 'org',
+        projectId: 'project',
+        personId: 'person',
+      }),
+    ).toEqual({ ownerId: 'owner', generation: 1 });
+  } finally {
+    await writer.close();
+  }
+});
+
 test('holds listener, retention and proof workers until actual ledger inspection settles', async () => {
   const configured = createOptions();
   runMigrations(configured.dbPath, folder);
@@ -60,14 +142,23 @@ test('holds listener, retention and proof workers until actual ledger inspection
   const booting = bootBe01(configured, {
     openSource: (settings) => {
       const source = openSqliteSource(settings);
-      const inspect = source.stores.runtimeCommands.inspectLedger.bind(
-        source.stores.runtimeCommands,
-      );
-      source.stores.runtimeCommands.inspectLedger = async () => {
-        entered.resolve(undefined);
-        await release.promise;
-        return inspect();
-      };
+      const run = source.uow.run.bind(source.uow);
+      source.uow.run = (act) =>
+        run(async (scope) => {
+          const inspect = scope.stores.runtimeCommands.inspectLedger.bind(
+            scope.stores.runtimeCommands,
+          );
+          scope.stores.runtimeCommands.inspectLedger = async () => {
+            entered.resolve(undefined);
+            await release.promise;
+            return inspect();
+          };
+          try {
+            return await act(scope);
+          } finally {
+            scope.stores.runtimeCommands.inspectLedger = inspect;
+          }
+        });
       return source;
     },
     makeApp,
@@ -172,14 +263,23 @@ test('explicit pending migrations create the ledger before awaited inspection', 
     {
       openSource: (settings) => {
         const source = openSqliteSource(settings);
-        const inspect = source.stores.runtimeCommands.inspectLedger.bind(
-          source.stores.runtimeCommands,
-        );
-        source.stores.runtimeCommands.inspectLedger = async () => {
-          const ledger = await inspect();
-          inspected = true;
-          return ledger;
-        };
+        const run = source.uow.run.bind(source.uow);
+        source.uow.run = (act) =>
+          run(async (scope) => {
+            const inspect = scope.stores.runtimeCommands.inspectLedger.bind(
+              scope.stores.runtimeCommands,
+            );
+            scope.stores.runtimeCommands.inspectLedger = async () => {
+              const ledger = await inspect();
+              inspected = true;
+              return ledger;
+            };
+            try {
+              return await act(scope);
+            } finally {
+              scope.stores.runtimeCommands.inspectLedger = inspect;
+            }
+          });
         return source;
       },
       makeApp,

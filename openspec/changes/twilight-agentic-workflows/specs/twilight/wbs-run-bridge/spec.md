@@ -214,6 +214,12 @@ or return receipt absence. Only explicit installation migrations SHALL create th
 - **WHEN** a required table or marker is missing, or a recreated-empty record table conflicts with retained counts
 - **THEN** runtime boot/read refuses trusted state rather than treating it as new scope or nonacceptance
 
+#### Scenario: A valid concurrent commit overlaps startup inspection
+
+- **WHEN** another server attempts a valid atomic runtime history/count commit during startup ledger inspection
+- **THEN** readiness validates one coherent admitted snapshot before listening or starting background work
+- **AND** it does not classify mixed reads from separate committed states as ledger corruption
+
 #### Scenario: A fully new valid ledger replaces the prior installation
 
 - **WHEN** a caller with an existing pinned identity reaches a different valid receiver ledger

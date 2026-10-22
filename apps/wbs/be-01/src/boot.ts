@@ -392,9 +392,14 @@ export async function bootBe01(
               by: opts.localIdentity.id,
             });
           }
-          // Proof: P6-01 omitted inspection; the held-inspection boot test
-          // observed listening before inspection. Missing/corrupt ledger tests also reject here.
-          await source.stores.runtimeCommands.inspectLedger();
+          // Proof: P-final-02 omitted inspection; the held-inspection boot test
+          // observed listening first. Missing/corrupt ledger tests also reject here.
+          // Proof: P-final-01 replaced the UoW with standalone inspection; the
+          // second-connection boot regression falsely refused a healthy ledger's counts.
+          await source.uow.run(async (scope) => {
+            await scope.stores.runtimeCommands.inspectLedger();
+            return { commit: false, value: undefined };
+          });
           state.migrationsApplied = true;
           if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
         },
