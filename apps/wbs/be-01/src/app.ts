@@ -140,9 +140,12 @@ const INACTIVE_SESSION_POLICIES: SessionPolicies = {
   set: () => Promise.resolve('inactive'),
 };
 
-/** The limits store of a composition that wires none: the read answers as inactive. */
+/** The limits store of a composition that wires none: every call answers as inactive. */
 const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
   read: () => Promise.resolve('inactive'),
+  inspect: () => Promise.resolve('inactive'),
+  set: () => Promise.resolve('inactive'),
+  reset: () => Promise.resolve('inactive'),
 };
 
 export interface AppOptions {

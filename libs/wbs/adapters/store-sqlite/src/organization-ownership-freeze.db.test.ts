@@ -139,6 +139,7 @@ it('rolls back to the bridge and reapplies', () => {
   db.run("DELETE FROM resource WHERE id = 'r1'");
   db.close();
   expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+    '20261022130100_widen_organization_audit_organization_limits',
     '20261022130000_add_organization_limits',
     '20261022120000_scope_trusted_issuer_audience',
     '20261022110100_check_machine_credential_id',

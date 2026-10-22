@@ -60,6 +60,17 @@ export const auditOnUpdate = (stamp: Pick<WriteStamp, 'at'>) => ({
   updatedAt: stamp.at,
 });
 
+/**
+ * {@link auditOnCreate} for a row a host operator writes by CLI, who is no
+ * WBS user: `created_by` references `users`, so it stays empty, and the act's
+ * audit row names the operator instead (`wbs-organization-limits` L13).
+ */
+export const auditOnOperatorCreate = (at: number) => ({
+  createdAt: at,
+  updatedAt: at,
+  createdBy: null,
+});
+
 /** The three columns {@link auditOnCreate} and {@link auditOnUpdate} write. */
 export const AUDIT_COLUMN_NAMES = ['createdBy', 'updatedAt', 'updatedBy'] as const;
 

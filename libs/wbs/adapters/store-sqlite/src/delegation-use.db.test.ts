@@ -224,6 +224,7 @@ it('allows pre-activation rollback once every use has expired', () => {
     connection.close();
   }
   expect(rollbackTo(path, FOLDER, '20260928020000_add_email_verification')).toEqual([
+    '20261022130100_widen_organization_audit_organization_limits',
     '20261022130000_add_organization_limits',
     '20261022120000_scope_trusted_issuer_audience',
     '20261022110100_check_machine_credential_id',

@@ -305,7 +305,9 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261022130000_add_organization_limits');
+    expect(baselineLedger.at(-1)?.name).toBe(
+      '20261022130100_widen_organization_audit_organization_limits',
+    );
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1151,7 +1153,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
-          name !== '20261022130000_add_organization_limits',
+          name !== '20261022130000_add_organization_limits' &&
+          name !== '20261022130100_widen_organization_audit_organization_limits',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1212,7 +1215,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
-          name !== '20261022130000_add_organization_limits',
+          name !== '20261022130000_add_organization_limits' &&
+          name !== '20261022130100_widen_organization_audit_organization_limits',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1248,7 +1252,9 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022130000_add_organization_limits');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
+      '20261022130100_widen_organization_audit_organization_limits',
+    );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

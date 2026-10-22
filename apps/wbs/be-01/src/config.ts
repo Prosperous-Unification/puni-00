@@ -12,6 +12,31 @@ import { type EmailDeliveryConfig, readEmailDelivery } from './runtime/email-del
  */
 const organizationDefaultLimit = type('string.integer.parse').to('0 <= number <= 1000000');
 
+/** The three deployment default limits on their own, for a process that needs no more. */
+const OrganizationDefaultLimitsConfig = type({
+  ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: organizationDefaultLimit,
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: organizationDefaultLimit,
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: organizationDefaultLimit,
+});
+
+/**
+ * The deployment default limits (`wbs-organization-limits` L7) from the same
+ * three variables be-01 boots with, for the operator CLI run beside it.
+ *
+ * @throws naming the variable when any is absent or not a whole number from
+ * 0 to 1,000,000; there is no default in code.
+ */
+export function loadOrganizationDefaultLimits(
+  envSource: Record<string, string | undefined> = process.env,
+): OrganizationLimitValues {
+  const config = defineConfig(OrganizationDefaultLimitsConfig, envSource);
+  return {
+    maxAgentPersons: config.ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS,
+    maxConcurrentClaims: config.ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS,
+    maxCapacityUnitsPerResource: config.ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE,
+  };
+}
+
 export const BeConfig = type({
   PORT: 'string.integer.parse',
   INTERNAL_AUTH_SECRET: 'string>=32',
@@ -104,11 +129,7 @@ export const loadConfig = (
     organizationDnsResolvers: parseResolvers(config.ORGANIZATION_DNS_RESOLVERS),
     // Proof: removing this binding failed the production config disabled-mode assertion.
     emailDelivery: readEmailDelivery(envSource),
-    organizationDefaultLimits: {
-      maxAgentPersons: config.ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS,
-      maxConcurrentClaims: config.ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS,
-      maxCapacityUnitsPerResource: config.ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE,
-    },
+    organizationDefaultLimits: loadOrganizationDefaultLimits(envSource),
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,
     SOLVER_MEMORY_LIMIT_MB: solverMemoryLimitMb,

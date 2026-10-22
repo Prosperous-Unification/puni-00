@@ -20,6 +20,7 @@ const migration = '20261015110000_add_step_node_parallelism';
 const baseline = '20261015100000_add_step_blockage_activation_receipt';
 /** Migrations newer than this one, which every rollback to `baseline` reverses first. */
 const newer = [
+  '20261022130100_widen_organization_audit_organization_limits',
   '20261022130000_add_organization_limits',
   '20261022120000_scope_trusted_issuer_audience',
   '20261022110100_check_machine_credential_id',

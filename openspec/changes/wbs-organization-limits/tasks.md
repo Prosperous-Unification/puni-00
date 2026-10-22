@@ -30,7 +30,7 @@
 added })` answers null under the cap, the refusal at and over it, and a property that
       `current + added <= cap` never refuses and `>` always does. R5 fault: compare with
       `>=`; the "exactly at the cap after the add" case flips; watched.
-- [ ] 1.4 Green: port `OrganizationLimits` in `@wbs/core` (`effectiveLimitsOf`, `usageOf`,
+- [x] 1.4 Green: port `OrganizationLimits` in `@wbs/core` (`effectiveLimitsOf`, `usageOf`,
       `countAgentPersons`, `countBoundClaims`, `sumStatedCapacity(resourceId,
 exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conformance
       suite; `effectiveLimitsOf` answers the row or the injected defaults with `source` —
@@ -43,7 +43,10 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       `readCapacityUsage`, `sumStatedCapacity` (`organization-limits.ts` in store-sqlite), each
       with its negative. Still open here: `set` and `reset` (they need the audit widening of
       slice 5 to be written whole). Slice 3 (2026-10-22) added the memory twin of the gauge
-      (`organization-limits-fixture.ts`) and two conformance cases both sources certify.
+      (`organization-limits-fixture.ts`) and two conformance cases both sources certify. Slice 5
+      (2026-10-22) added `inspect`, `set` and `reset` over SQLite only, tested by
+      `organization-limits-cli.db.test.ts` rather than conformance cases: there is no memory
+      twin of `OrganizationLimits` (only of the gauge), and the CLI is SQLite-only.
 - [x] 1.5 `GET /api/organization/limits` in `@wbs/contracts` and `@wbs/core`
       (`organization-limits.routes.ts` beside `session-policy.routes.ts`), limits and usage
       in one transaction, OpenAPI emit, MCP tool count moves by one — Red:
@@ -158,7 +161,7 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
 
 ## 5. The operator CLI and the audit
 
-- [ ] 5.1 Audit vocabulary widening for `organization_limits_changed` /
+- [x] 5.1 Audit vocabulary widening for `organization_limits_changed` /
       `organization_limits` by the mechanism `main` holds when this slice is built (rebuild as
       `20261012090200`, or the trigger pair if #632 landed), `down.sql` refusing while a row of
       the action exists; `ORGANIZATION_AUDIT_ACTIONS` and the subject kinds — Red:
@@ -167,18 +170,18 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       row. R5 fault: replace the guard with `CHECK (1)` (or drop the trigger) and
       `migration-lint.test.ts` names the destructive statement; watched. Rebase on whatever
       rebuild `wbs-machine-credentials` has merged first (L13).
-- [ ] 5.2 `OrganizationLimits.set` and `reset` write the row and the audit row in one
+- [x] 5.2 `OrganizationLimits.set` and `reset` write the row and the audit row in one
       immediate transaction, actor `operator:<os login>`, flat before and after detail,
       unchanged `set` writes nothing — Red: the conformance cases and the "audit cannot be
       written" case through a failing audit store. R5 fault: write the audit outside the
       transaction and the failing-audit case leaves a row; watched.
-- [ ] 5.3 `organization-limits-cli.ts`: `show`, `set` (defaults for caps not given, row values
+- [x] 5.3 `organization-limits-cli.ts`: `show`, `set` (defaults for caps not given, row values
       when one exists), `reset`; refusals for an unknown organization, an out-of-bound value,
       no cap named, `reset` without a row; usage printed beside each cap; the below-usage
       warning without refusal — Red: `organization-limits-cli.db.test.ts` for each, the
       warning case at 12 agents over 8 exiting 0. R5 fault: let `set` start from zeros instead
       of the defaults and the one-cap `set` writes 0, 40, 0; watched.
-- [ ] 5.4 Operator section in `docs/runbook-organization-activation.md` (how to show, set and
+- [x] 5.4 Operator section in `docs/runbook-organization-activation.md` (how to show, set and
       reset; where the defaults live), and `LLM_README.md` routes to it in one line.
 
 ## 6. The organization page and the refusal copy
