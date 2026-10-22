@@ -110,3 +110,19 @@ project graph present. Backend spec typecheck was rerun after the final test
 additions and passed. `bunx openspec validate cross-project-dependencies --json`
 passed with no issues. Full shared regression retains the separately reproduced
 baseline fixture failure until the follow-up commit.
+
+## Separate baseline fixture repair
+
+The follow-up changes only the observer fixture in `plan-commands.test.ts`.
+A Proxy intercepts its two observed methods and preserves every other property
+without reading the retained store's intentionally throwing `incidents` getter
+during construction. No production getter or command behavior changes.
+
+Baseline reproduction above used the original `351ce5d43` service and failed
+before command execution. After this fixture repair, the exact FF observer test
+passes (1 pass / 0 fail, eight assertions). The adjacent command and working-plan
+suites pass together: `bun test libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts`
+— 73 pass / 0 fail, 292 assertions. Scoped ESLint passes. The original seven-file
+run is retained as historical output; it was not relabeled green without rerunning.
+`bunx tsc --noEmit -p libs/wbs/application/core/src/module/plan-commands/tsconfig.json`
+also passed for the follow-up.
