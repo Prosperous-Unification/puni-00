@@ -295,6 +295,7 @@ export async function requireOwnerEdit(
     fixture.expectedAccess.scope.organizationId,
     fixture.principal.id,
     { commands: ['createWorkItem'] },
+    fixture.expectedAccess.scope.role,
   );
   if (admitted === null || admitted === 'forbidden')
     throw new Error('fixture owner admission refused');
