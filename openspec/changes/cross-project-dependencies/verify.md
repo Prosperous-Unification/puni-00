@@ -1292,3 +1292,16 @@ absence of undo/redo fields in each arm. Production declarations are unchanged.
 
 Task 8.1 remains unchecked; the integration and verification limitations of the
 contract/preparation slice above still apply.
+
+### Task 10.1 bounded pre-service startup refusal — 2026-10-22
+
+The [startup refusal packet](evidence/dormant-startup-20261022.md) moves development
+migration and durable admission ahead of service construction and all active
+startup work. The compiled backend advertises empty semantics and refuses even
+enabled-empty authority. Missing, malformed, unreadable and disabled-with-retained
+relationships refuse while closing the source. Four watched production faults
+exposed actual identity writes or listener/DNS/retention/optimizer startup;
+redundant dependency edges and the scope of their proof are recorded explicitly.
+The six affected boot suites passed 85 tests; backend TypeScript and all 268
+OpenSpec validations passed. Task 10.1 remains unchecked; runtime support,
+participant exclusion, deployment activation and exact-SHA host gate remain open.
