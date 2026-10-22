@@ -376,3 +376,70 @@ test('conversion never schedules replays or admits after capture', () => {
     for (const capability of poisoned) capability.mockRestore();
   }
 });
+
+test('canonicalizes candidate starts regardless of captured map insertion order', () => {
+  const capture = connectedCapture();
+  const configured = {
+    ...capture,
+    relationships: [],
+    projects: capture.projects.map((member) => ({
+      ...member,
+      reads: {
+        ...member.reads,
+        project: { ...member.reads.project, optimizationEnabled: true },
+        workItems: [
+          ...member.reads.workItems,
+          { ...member.reads.workItems[0], id: `${member.projectId.toLowerCase()}2`, position: 10 },
+        ],
+        estimates: [
+          ...member.reads.estimates,
+          { ...member.reads.estimates[0], workItemId: `${member.projectId.toLowerCase()}2` },
+        ],
+      },
+    })),
+  };
+  const captured = live(configured, {
+    readConnectedCaptured: ({ stage }) => ({
+      inputHash: stage.projectId,
+      generation: 7,
+      contractVersion: 'test',
+      budgetMs: 100,
+      quantum: 48,
+      wireVersion: 5,
+      variants: { pri: { state: 'idle' }, time: { state: 'ready', proof: 'proven' } },
+      candidates: {
+        pri: null,
+        time: {
+          question: {
+            projectId: stage.projectId,
+            inputHash: stage.projectId,
+            questionHash: `question-${stage.projectId}`,
+            objective: 'time',
+            contractVersion: 'test',
+            budgetMs: 100,
+            quantum: 48,
+            wireVersion: 5,
+            stageBytes: canonicalConnectedStageInput(stage),
+          },
+          starts: new Map([
+            [sliceKey(stage.projectId.toLowerCase(), 'build'), 0],
+            [sliceKey(`${stage.projectId.toLowerCase()}2`, 'build'), 0],
+          ]),
+        },
+      },
+    }),
+  });
+  const before = captureConnectedHistory(captured, 'B');
+  if (!before.schedule.present || captured.projection.placement.kind !== 'scheduled')
+    throw new Error('scheduled fixture expected');
+  for (const selection of captured.projection.placement.stages) {
+    const candidate = selection.optimization?.candidates.time;
+    if (candidate == null) throw new Error('ready candidate expected');
+    Reflect.set(candidate, 'starts', new Map([...candidate.starts].reverse()));
+  }
+  const after = captureConnectedHistory(captured, 'B');
+  if (!after.schedule.present) throw new Error('scheduled fixture expected');
+  expect(serializeSavedConnectedScheduleBody(after.schedule.body)).toBe(
+    serializeSavedConnectedScheduleBody(before.schedule.body),
+  );
+});

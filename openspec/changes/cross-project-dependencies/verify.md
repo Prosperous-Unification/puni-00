@@ -3678,3 +3678,52 @@ This is a bounded B2 prerequisite, not completion of B2 or task 8.3. Pending: re
 Additional fresh B2 verification: `bun test apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts` returned **95 pass, 0 fail, 523 assertions** (40.33s), including ordinary save/current and mounted historical integrity regressions. After `NX_DAEMON=false bunx nx show project wbs-core --json` populated the isolated graph, scoped eslint returned exit 0 without skipped-rule warnings. Repeated core module and be-01 spec typechecks returned exit 0. `openspec validate cross-project-dependencies --json` returned valid (1 passed/0 failed) with nine existing long-requirement warnings; this is scoped validation, not the all-change gate.
 
 Normal hooks were installed with `bunx lefthook install`. The first commit attempt correctly failed its formatting check after import sorting changed the test file; Prettier corrected that file before retry. The tool-wiki hook reports inactive (external activation root not provisioned), so its exit does not establish certification. No hook was bypassed.
+
+#### B2 review correction — foreign fact consistency and candidate order (2026-10-22)
+
+Astra's Important finding reproduced against the real migrated fixture: metadata
+for foreign a2/b could claim `hold: on_hold` while its captured read and readiness
+retained the original null hold. The converter now checks every captured member's
+historical overlaps before selection/conversion: project name, abbreviation,
+anchor, engine/objective/enabled; row name, parent, position, frozen number and
+hold; and step code, name and position. Identity/ownership checks remain shared
+with the tree projector. Contradictions throw modeled `SavedHistoryError` with
+`metadata_facts` and the precise member/field path. No metadata is repaired or
+substituted, and no IO or scheduling was added.
+
+Fourteen independently corrupted foreign project/row/step facts in the detached
+migrated SQLite fixture initially produced **2 pass/14 fail**. The new guard
+returned **16 pass/0 fail**. Watched removal of its equality refusal again produced
+**2 pass/14 fail**: thirteen malformed captures were accepted, and the dangling
+parent case threw an unmodeled root-reachability error. Restoring the guard
+restored the modeled refusal. The adjacent Proof comment records this distinction.
+
+The Minor finding reproduced with two ready multi-slice candidates: reversing
+both captured start maps while keeping all facts/decisions unchanged produced
+unequal saved schedule bytes (**12 pass/1 fail**). The converter now bytewise-sorts
+a copied candidate start entry array. It retains exact stage order and bytes and
+leaves the caller's map intact. Watched removal of sorting reproduced that one
+failure; restoration returned green. This is deterministic serialization evidence,
+with no new safety branch.
+
+Fresh verification after both faults were restored:
+
+- The same seven-file B2 suite listed above: **144 pass/0 fail, 333 assertions**.
+- `bunx tsc --noEmit -p libs/wbs/application/core/src/module/saved-plans/tsconfig.json --pretty false`: exit 0.
+- `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json --pretty false`: exit 0.
+- Scoped ESLint on the converter and both changed test files: exit 0, no diagnostics or skipped-rule warning.
+- `openspec validate cross-project-dependencies --json`: valid, exit 0, existing requirement-length warnings.
+
+Local scratch logs: `/tmp/puni-b2-review-{facts-fault,order-fault,restored-tests,core-types,be-types,eslint,spec}.log`.
+The ordinary schema constant remains 8, ordinary schedule builder remains v1,
+and compose retains its connected-capture refusal. These changes stay within the
+dormant bounded B2 packet. The remaining B2 producer matrix and mounted D/E
+proofs listed above remain pending. Full Nx/host gates, build, all-change spec
+validation, secrets/migration checks, external activation and deployment were not
+run for this correction. Normal commit-hook outcome follows below.
+
+Normal pre-commit hooks passed format, lint, plaintext-secrets and private-nesting;
+prepare-commit-msg passed agent attribution. Tool-wiki explicitly reported inactive
+and uncertified because its external activation root is not provisioned. Migration
+hooks and doc-caps skipped because no matching files were staged. No hook bypass
+was used. `git diff --check` passed before commit.

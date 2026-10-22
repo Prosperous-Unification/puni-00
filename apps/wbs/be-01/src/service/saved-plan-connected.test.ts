@@ -2,6 +2,7 @@ import { captureConnectedHistory } from '@wbs/core/module/saved-plans/connected-
 import {
   canonicalConnectedStageInput,
   readSavedPlanInput,
+  SavedHistoryError,
   serializeSavedConnectedScheduleBody,
   sliceKey,
 } from '@wbs/domain';
@@ -41,5 +42,38 @@ test.each(['isolated', 'shared'] as const)(
     const bytes = serializeSavedConnectedScheduleBody(prepared.schedule.body);
     Map.prototype.clear.call(captured.metadataByProject);
     expect(serializeSavedConnectedScheduleBody(prepared.schedule.body)).toBe(bytes);
+  },
+);
+
+test.each([
+  ['project', 'name', 'Old project'],
+  ['project', 'abbreviation', 'OLD'],
+  ['project', 'startDate', '2026-09-01'],
+  ['project', 'scheduleEngine', 'optimized'],
+  ['project', 'scheduleObjective', 'time'],
+  ['project', 'optimizationEnabled', true],
+  ['row', 'hold', 'on_hold'],
+  ['row', 'name', 'Old row'],
+  ['row', 'parentId', 'missing'],
+  ['row', 'position', 99],
+  ['row', 'frozenNumber', '999'],
+  ['step', 'name', 'Old step'],
+  ['step', 'code', 'old'],
+  ['step', 'position', 99],
+] as const)(
+  'refuses contradictory foreign %s %s before historical conversion',
+  async (kind, field, value) => {
+    const captured = await captureSavedConnectedFixture('isolated');
+    const foreign = captured.metadataByProject.get('a2');
+    if (foreign === undefined) throw new Error('foreign fixture expected');
+    const facts =
+      kind === 'project'
+        ? foreign.project
+        : kind === 'row'
+          ? foreign.workItems[0]
+          : foreign.steps[0];
+    Reflect.set(facts, field, value);
+    expect(() => captureConnectedHistory(captured, 'a1')).toThrow(SavedHistoryError);
+    expect(() => captureConnectedHistory(captured, 'a1')).toThrow('metadata_facts');
   },
 );

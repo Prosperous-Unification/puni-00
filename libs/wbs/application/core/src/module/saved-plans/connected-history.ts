@@ -11,6 +11,7 @@ import {
   readSavedDependencyHistory,
   type SavedConnectedDependencyHistory,
   type SavedConnectedScheduleBody,
+  SavedHistoryError,
   type SavedOptimizationStage,
   type SavedOptimizationVariant,
   sliceKey,
@@ -40,6 +41,42 @@ function requireCaptured<T>(value: T | undefined | null, name: string): T {
   return value;
 }
 
+/** Historical labels and numbering must describe the same member facts that produced placement/readiness. */
+function validateCapturedFacts(captured: ConnectedRead): void {
+  const requireFact = (metadata: unknown, read: unknown, path: string) => {
+    // Proof: removing this refusal failed all fourteen migrated foreign-fact negatives (thirteen accepted; parent mismatch threw an unmodeled error) in `saved-plan-connected.test.ts` (2026-10-22).
+    if (metadata !== read) throw new SavedHistoryError('metadata_facts', path);
+  };
+  for (const member of captured.projection.capture.projects) {
+    const metadata = requireCaptured(captured.metadataByProject.get(member.projectId), 'metadata');
+    const path = `$.projects.${member.projectId}`;
+    requireFact(metadata.project.abbreviation, member.abbreviation, `${path}.abbreviation`);
+    for (const field of [
+      'name',
+      'startDate',
+      'scheduleEngine',
+      'scheduleObjective',
+      'optimizationEnabled',
+    ] as const) {
+      requireFact(metadata.project[field], member.reads.project[field], `${path}.${field}`);
+    }
+    const rows = new Map(member.reads.workItems.map((row) => [row.id, row]));
+    for (const row of metadata.workItems) {
+      const read = requireCaptured(rows.get(row.id), 'row');
+      for (const field of ['name', 'parentId', 'position', 'frozenNumber', 'hold'] as const) {
+        requireFact(row[field], read[field], `${path}.workItems.${row.id}.${field}`);
+      }
+    }
+    const steps = new Map(member.reads.steps.map((step) => [step.id, step]));
+    for (const step of metadata.steps) {
+      const read = requireCaptured(steps.get(step.id), 'step');
+      for (const field of ['code', 'name', 'position'] as const) {
+        requireFact(step[field], read[field], `${path}.steps.${step.id}.${field}`);
+      }
+    }
+  }
+}
+
 function encodeDecision(decision: ConnectedPublicationDecision) {
   return {
     scope: { ...decision.scope },
@@ -61,7 +98,13 @@ function captureStage(selection: ConnectedOptimizationSelection): SavedOptimizat
     const decision = requireCaptured(selection.decisions[objective], 'ready decision');
     return {
       ...current,
-      candidate: { question: { ...candidate.question }, starts: [...candidate.starts] },
+      candidate: {
+        question: { ...candidate.question },
+        // Proof: removing sorting failed `canonicalizes candidate starts regardless of captured map insertion order` on unequal saved bytes (2026-10-22).
+        starts: [...candidate.starts].sort(([left], [right]) =>
+          left < right ? -1 : left > right ? 1 : 0,
+        ),
+      },
       decision: encodeDecision(decision),
     };
   };
@@ -100,6 +143,7 @@ export function captureConnectedHistory(
   projectId: string,
 ): ConnectedHistoryCapture {
   validateConnectedMetadata(captured);
+  validateCapturedFacts(captured);
   const target = selectConnectedProject(captured.projection, projectId);
   const { capture, authored, placement } = captured.projection;
   const member = requireCaptured(
