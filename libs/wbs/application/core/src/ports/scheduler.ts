@@ -1,5 +1,6 @@
 import type { PlanInfeasibleItem } from '@wbs/contracts/solver/plan-infeasible';
 import type {
+  ConnectedOptimizationStage,
   DependencyEdge,
   DependencyReach,
   Elsewhere,
@@ -148,3 +149,53 @@ export interface CapturedScheduler {
  * PATCH just landed in.
  */
 export type OptimizerAvailability = () => boolean;
+
+/** Mathematical identity of one objective at an immutable fixed-boundary stage. Hashes belong to the adapter. */
+export interface ConnectedOptimizationQuestion {
+  readonly projectId: string;
+  readonly inputHash: string;
+  readonly questionHash: string;
+  readonly objective: SolverObjectiveName;
+  readonly contractVersion: string;
+  readonly budgetMs: number;
+  readonly quantum: number;
+  readonly wireVersion: number;
+  readonly stageBytes: string;
+}
+
+/** Terminal evidence certifies only this conservative fixed-boundary integer question. */
+export interface BoundaryInfeasibleCertificate {
+  readonly kind: 'boundary-infeasible';
+  readonly question: ConnectedOptimizationQuestion;
+  readonly evidence: 'contradictory-bounds' | 'initial-model-infeasible';
+}
+
+export type ConnectedVariantState =
+  | OptimizationVariantState
+  | { readonly state: 'boundary-infeasible'; readonly certificate: BoundaryInfeasibleCertificate };
+
+/** Only local real starts are supplied; core independently replays the entire fixed component. */
+export interface ConnectedOptimizedCandidate {
+  readonly question: ConnectedOptimizationQuestion;
+  readonly starts: ReadonlyMap<string, number>;
+}
+
+export interface ConnectedOptimizedRead {
+  readonly inputHash: string;
+  readonly generation: number | null;
+  readonly contractVersion: string;
+  readonly budgetMs: number;
+  readonly quantum: number;
+  readonly wireVersion: number;
+  readonly variants: Readonly<Record<SolverObjectiveName, ConnectedVariantState>>;
+  readonly candidates: Readonly<Record<SolverObjectiveName, ConnectedOptimizedCandidate | null>>;
+}
+
+/** Separate connected capability: a local optimizer alone cannot answer fixed-boundary stages. */
+export interface ConnectedOptimizedCapturedAdapter {
+  readConnectedCaptured(ask: {
+    readonly stage: ConnectedOptimizationStage;
+    readonly objective: SolverObjectiveName;
+    readonly enabled: boolean;
+  }): ConnectedOptimizedRead;
+}

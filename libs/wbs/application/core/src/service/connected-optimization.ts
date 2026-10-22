@@ -1,0 +1,240 @@
+import {
+  canonicalConnectedStageInput,
+  type ConnectedOptimizationStage,
+  type ConnectedPublicationDecision,
+  guardConnectedPublication,
+  replayConnectedStage,
+  type Schedule,
+  type ScheduleEngine,
+  ScheduleInvalidOptimizedStartError,
+  sliceKey,
+  type SolverObjectiveName,
+} from '@wbs/domain';
+
+import type {
+  ConnectedOptimizationQuestion,
+  ConnectedOptimizedCapturedAdapter,
+  ConnectedOptimizedRead,
+} from '../ports/scheduler';
+
+/** Prepared common-axis component, before restoring project-local capacity identities or dates. */
+export interface PreparedConnectedOptimization {
+  readonly mode: ConnectedOptimizationStage['mode'];
+  readonly originOrdinal: number | null;
+  readonly input: ConnectedOptimizationStage['input'];
+  readonly relationships: ConnectedOptimizationStage['relationships'];
+  readonly projects: readonly (ConnectedOptimizationStage['projects'][number] & {
+    readonly engine: ScheduleEngine;
+    readonly objective: SolverObjectiveName;
+    readonly enabled: boolean;
+  })[];
+}
+
+/** Each record names its own captured boundary, which later selections never rewrite. */
+export interface ConnectedOptimizationSelection {
+  readonly stage: ConnectedOptimizationStage;
+  readonly engine: ScheduleEngine;
+  readonly objective: SolverObjectiveName;
+  readonly optimization: ConnectedOptimizedRead | null;
+  readonly decisions: Readonly<Record<SolverObjectiveName, ConnectedPublicationDecision | null>>;
+  readonly chosen: ConnectedPublicationDecision | null;
+}
+
+/**
+ * Detach the exact current placement and replay its hard constraints. Fast deadlines
+ * remain wanted dates; only optimized candidates must satisfy their own deadlines.
+ * Empty local projects have no solver question. Invalid trusted evidence throws.
+ */
+export function buildConnectedOptimizationStage(
+  prepared: PreparedConnectedOptimization,
+  placement: Schedule,
+  projectId: string,
+): ConnectedOptimizationStage | { readonly kind: 'idle'; readonly projectId: string } {
+  const order = prepared.input.order;
+  // Invariant diagnostic: prepared components use the connected resolver.
+  if (order.kind !== 'connected')
+    throw new Error('connected optimization requires connected order');
+  // Proof: removing membership returned idle in `unknown stage ownership...`.
+  if (!prepared.projects.some((project) => project.projectId === projectId))
+    throw new Error(`uncaptured optimization project ${projectId}`);
+  // Proof: before the empty-stage branch, `an entirely empty component...` refused a calendar-less empty plan.
+  if (
+    !prepared.input.slices.some(
+      (slice) => order.projectIdByWorkItem.get(slice.workItemId) === projectId,
+    )
+  )
+    return { kind: 'idle', projectId };
+  // Proof (diagnostic): removing this guard changed `an active stage refuses...` to the downstream finite-origin diagnostic.
+  if (prepared.originOrdinal === null)
+    throw new Error('active connected optimization has no calendar origin');
+  // Proof: bypassing detachment failed `stage detaches input maps...`: source floor appeared in the stage.
+  const stage: ConnectedOptimizationStage = structuredClone({
+    kind: 'connected-stage',
+    projectId,
+    mode: prepared.mode,
+    originOrdinal: prepared.originOrdinal,
+    projects: prepared.projects.map(({ projectId: id, rank, anchorOrdinal }) => ({
+      projectId: id,
+      rank,
+      anchorOrdinal,
+    })),
+    input: prepared.input,
+    relationships: prepared.relationships,
+    starts: new Map([...placement.slices].map(([key, slice]) => [key, slice.earliestStart])),
+    finishes: new Map([...placement.slices].map(([key, slice]) => [key, slice.earliestFinish])),
+  });
+  // Membership, exact keys and metadata use the shared domain boundary.
+  canonicalConnectedStageInput(stage);
+  // Proof: removing replay failed `stage detaches input maps...`: forged finish 100 was accepted.
+  replayConnectedStage(stage);
+  return stage;
+}
+
+function matchesQuestion(
+  question: ConnectedOptimizationQuestion,
+  stage: ConnectedOptimizationStage,
+  observation: ConnectedOptimizedRead,
+  objective: SolverObjectiveName,
+): boolean {
+  // Proof: independently dropping each identity term failed its mismatched-field case;
+  // dropping canonical bytes admitted the stale stage. Hash construction belongs to the adapter.
+  return (
+    question.projectId === stage.projectId &&
+    question.objective === objective &&
+    question.stageBytes === canonicalConnectedStageInput(stage) &&
+    question.inputHash === observation.inputHash &&
+    question.contractVersion === observation.contractVersion &&
+    question.budgetMs === observation.budgetMs &&
+    question.quantum === observation.quantum &&
+    question.wireVersion === observation.wireVersion &&
+    question.questionHash.length > 0
+  );
+}
+
+function validateObservation(
+  stage: ConnectedOptimizationStage,
+  observation: ConnectedOptimizedRead,
+) {
+  const variants = { ...observation.variants };
+  const candidates = { ...observation.candidates };
+  const decisions: Record<SolverObjectiveName, ConnectedPublicationDecision | null> = {
+    pri: null,
+    time: null,
+  };
+  const order = stage.input.order;
+  if (order.kind !== 'connected')
+    throw new Error('connected optimization requires connected order');
+  const localKeys = new Set(
+    stage.input.slices
+      .filter((slice) => order.projectIdByWorkItem.get(slice.workItemId) === stage.projectId)
+      .map((slice) => sliceKey(slice.workItemId, slice.stepId)),
+  );
+  const reference = new Map([...stage.starts].filter(([key]) => localKeys.has(key)));
+  for (const objective of ['pri', 'time'] as const) {
+    const state = variants[objective];
+    const candidate = candidates[objective];
+    let message: string | null = null;
+    if (state.state === 'boundary-infeasible') {
+      // Proof: bypassing identity failed `a stale boundary certificate...` (terminal instead of corrupt).
+      if (!matchesQuestion(state.certificate.question, stage, observation, objective))
+        message = 'boundary certificate question mismatch';
+    } else if (state.state === 'ready') {
+      if (
+        candidate === null ||
+        !matchesQuestion(candidate.question, stage, observation, objective)
+      ) {
+        message = 'connected candidate question mismatch';
+      } else {
+        try {
+          // Proof: removing the graph here admitted an invalid final B stage in `whole-component replay...`.
+          decisions[objective] = guardConnectedPublication(
+            stage,
+            candidate.starts,
+            objective === 'pri' ? 'priority' : 'makespan',
+            reference,
+          );
+        } catch (failure) {
+          if (!(failure instanceof ScheduleInvalidOptimizedStartError)) throw failure;
+          message = failure.message;
+        }
+      }
+    }
+    if (message !== null) {
+      variants[objective] = { state: 'corrupt', message };
+      candidates[objective] = null;
+    }
+  }
+  return { optimization: { ...observation, variants, candidates }, decisions };
+}
+
+/**
+ * Visit each project once in captured rank/bytewise-ID order. Both objective
+ * alternatives see one stage; only the configured objective can replace it.
+ * Reads are synchronous and non-admitting under the caller's snapshot lifetime.
+ * Missing required connected capability is a modeled refusal for the component.
+ */
+export function selectConnectedOptimizations(
+  prepared: PreparedConnectedOptimization,
+  baseline: Schedule,
+  optimizer: ConnectedOptimizedCapturedAdapter | null,
+) {
+  // Proof: bypassing sorting failed `visits rank then...`: observed C,B,A instead of A,B,C.
+  const members = [...prepared.projects].sort(
+    (a, b) =>
+      a.rank - b.rank || (a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0),
+  );
+  const order = prepared.input.order;
+  // Invariant diagnostic: prepared components use the connected resolver.
+  if (order.kind !== 'connected')
+    throw new Error('connected optimization requires connected order');
+  const activeProjects = new Set(
+    prepared.input.slices.map((slice) => order.projectIdByWorkItem.get(slice.workItemId)),
+  );
+  // Proof: without active filtering `an entirely empty component...` returned engine_unavailable.
+  const required = members.filter(
+    (project) =>
+      project.enabled && project.engine === 'optimized' && activeProjects.has(project.projectId),
+  );
+  // Proof: bypassing refusal returned selected in `missing connected capability...`.
+  if (optimizer === null && required.length > 0)
+    return {
+      kind: 'engine_unavailable' as const,
+      engine: 'optimized' as const,
+      projects: required.map((project) => project.projectId),
+    };
+  let placement = baseline;
+  const stages: ConnectedOptimizationSelection[] = [];
+  const idleProjects: string[] = [];
+  for (const member of members) {
+    // Proof: using baseline here failed `visits rank then...`: later A boundary remained 3 instead of 0.
+    const stage = buildConnectedOptimizationStage(prepared, placement, member.projectId);
+    if (stage.kind === 'idle') {
+      idleProjects.push(member.projectId);
+      continue;
+    }
+    // Proof: ignoring enablement added disabled C to the observed projects in `Fast and disabled...`.
+    const observed =
+      member.enabled && optimizer !== null
+        ? validateObservation(
+            stage,
+            optimizer.readConnectedCaptured({ stage, objective: member.objective, enabled: true }),
+          )
+        : null;
+    // Proof: removing engine selection moved Fast in `Fast and disabled...`; selecting Time unconditionally
+    // moved the PRI-selected project in `a ready nonselected objective...`.
+    const chosen =
+      member.engine === 'optimized' && observed !== null
+        ? observed.decisions[member.objective]
+        : null;
+    if (chosen !== null) placement = chosen.schedule;
+    stages.push({
+      stage,
+      engine: member.engine,
+      objective: member.objective,
+      optimization: observed?.optimization ?? null,
+      decisions: observed?.decisions ?? { pri: null, time: null },
+      chosen,
+    });
+  }
+  return { kind: 'selected' as const, baseline, placement, stages, idleProjects };
+}
