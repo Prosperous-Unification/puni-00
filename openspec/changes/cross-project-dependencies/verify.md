@@ -4984,3 +4984,17 @@ assertion failure was observed in those canceled shards; aggregate CI remained
 red. This infrastructure diagnosis does not replace a green exact-head CI run,
 the canonical h2puni gate, installed Python/image acceptance, or the unfinished
 parent task matrices.
+
+### B4 producer-backed HTTP 409 reconciliation — 2026-10-23
+
+The [bounded producer HTTP packet](evidence/task-9-2-producer-http-409.md) joins
+real fractional producer evidence and actual typed HTTP 409 decoding to mounted
+project runtime/writer reconciliation on table and cards. Held GETs preserve the
+complete Q1 cue and fractional Fast facts; Q2 alone supplies new Retry identity
+or terminal Pri evidence. Late refusals after runtime and project replacement
+produce no GET/toast/state mutation. The packet records five independent mounted
+fault failures, the honestly surviving mounted retired-writer guard mutation,
+its existing writer-boundary negative, restoration and verification commands.
+It leaves parent 7.3/7.4/9.2 and full Slice B unchecked. Backend authority,
+production hashing, activation, browser/session delivery, CI and host gate are
+outside this bounded packet.

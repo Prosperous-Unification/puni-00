@@ -230,10 +230,11 @@ function buildConnectedRead(
  * at quantum 48. The terminal certificate comes from solver preparation and
  * classification; no child process or invented infeasibility certificate is used.
  *
+ * Terminal Pri is prepared independently with its own objective and question hash.
  * The supplied hash controls fixture identity for successive authoritative reads.
  */
 export function createFractionalConnectedOptimizationTree(
-  sibling: 'idle' | 'pending' | 'failed' = 'idle',
+  sibling: 'idle' | 'pending' | 'failed' | 'boundary-infeasible' = 'idle',
   inputHash = 'fractional',
 ) {
   const projects = ['A', 'B', 'C'].map((projectId, rank) => {
@@ -283,29 +284,44 @@ export function createFractionalConnectedOptimizationTree(
   };
   const optimizer: ConnectedOptimizedCapturedAdapter = {
     readConnectedCaptured: ({ stage }) => {
-      const prepared = buildConnectedSolverRequest(
-        stage,
-        { inputHash, questionHash: `${inputHash}-time` },
-        { solverVersion: '0.4.0', budgetMs: 100 },
-        'time',
-      );
-      if (prepared.kind !== 'boundary-infeasible')
-        throw new Error(
-          `fractional fixture requires boundary-infeasible, received ${prepared.kind}`,
+      const prepareTerminal = (objective: 'pri' | 'time') => {
+        const prepared = buildConnectedSolverRequest(
+          stage,
+          { inputHash, questionHash: `${inputHash}-${objective}` },
+          { solverVersion: '0.4.0', budgetMs: 100 },
+          objective,
         );
-      const classified = prepareConnectedBoundaryOutcome(prepared);
-      const request = classified.certificate.request;
-      const question = {
-        projectId: stage.projectId,
-        inputHash: request.scope.inputHash,
-        questionHash: request.scope.questionHash,
-        objective: 'time' as const,
-        contractVersion: request.contractVersion,
-        budgetMs: request.budgetMs,
-        quantum: request.quantum,
-        wireVersion: request.wireVersion,
-        stageBytes: canonicalConnectedStageInput(classified.certificate.stage),
+        if (prepared.kind !== 'boundary-infeasible')
+          throw new Error(
+            `fractional fixture requires boundary-infeasible, received ${prepared.kind}`,
+          );
+        const classified = prepareConnectedBoundaryOutcome(prepared);
+        const request = classified.certificate.request;
+        const question = {
+          projectId: stage.projectId,
+          inputHash: request.scope.inputHash,
+          questionHash: request.scope.questionHash,
+          objective,
+          contractVersion: request.contractVersion,
+          budgetMs: request.budgetMs,
+          quantum: request.quantum,
+          wireVersion: request.wireVersion,
+          stageBytes: canonicalConnectedStageInput(classified.certificate.stage),
+        };
+        return {
+          state: classified.kind,
+          certificate: {
+            kind: classified.kind,
+            question,
+            evidence:
+              classified.certificate.evidence.kind === 'contradictory-bounds'
+                ? ('contradictory-bounds' as const)
+                : ('initial-model-infeasible' as const),
+          },
+        };
       };
+      const time = prepareTerminal('time');
+      const question = time.certificate.question;
       return {
         inputHash: question.inputHash,
         generation: null,
@@ -314,18 +330,13 @@ export function createFractionalConnectedOptimizationTree(
         quantum: question.quantum,
         wireVersion: question.wireVersion,
         variants: {
-          pri: sibling === 'failed' ? { state: 'failed', reason: 'timeout' } : { state: sibling },
-          time: {
-            state: classified.kind,
-            certificate: {
-              kind: classified.kind,
-              question,
-              evidence:
-                classified.certificate.evidence.kind === 'contradictory-bounds'
-                  ? 'contradictory-bounds'
-                  : 'initial-model-infeasible',
-            },
-          },
+          pri:
+            sibling === 'boundary-infeasible'
+              ? prepareTerminal('pri')
+              : sibling === 'failed'
+                ? { state: 'failed', reason: 'timeout' }
+                : { state: sibling },
+          time,
         },
         candidates: { pri: null, time: null },
       };

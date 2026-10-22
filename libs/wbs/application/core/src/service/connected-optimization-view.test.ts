@@ -468,3 +468,20 @@ for (const fault of [
     expect((await validateSchema(getWorkItems.responses[0].schema, body)).issues).toBeDefined();
   });
 }
+
+test('fractional terminal Pri has independently prepared objective evidence and preserves real dates', async () => {
+  const tree = createFractionalConnectedOptimizationTree('boundary-infeasible', 'q2');
+  expect(tree.optimization?.variants.pri).toMatchObject({
+    state: 'boundary-infeasible',
+    certificate: {
+      evidence: 'contradictory-bounds',
+      question: { objective: 'pri', inputHash: 'q2', questionHash: 'q2-pri' },
+    },
+  });
+  expect(tree.optimization?.variants.time).toMatchObject({
+    certificate: { question: { objective: 'time', questionHash: 'q2-time' } },
+  });
+  expect(tree.slices).toMatchObject([{ earliestStart: 0.2, earliestFinish: 1.2 }]);
+  expect(tree.workItems[0]?.deadline).toBeNull();
+  expect((await validateSchema(getWorkItems.responses[0].schema, tree)).issues).toBeUndefined();
+});

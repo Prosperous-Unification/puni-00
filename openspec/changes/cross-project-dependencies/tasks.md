@@ -415,3 +415,16 @@ This packet adds public target admission only. Existing committed-event fanout
 may admit other enabled projects after outcomes finish. Parent 7.3/7.4 and
 activation remain open; receipts and proof limits are in
 [evidence/connected-live-admission/report.md](evidence/connected-live-admission/report.md).
+
+Task 9.2 B4 producer-backed HTTP 409 packet (2026-10-23): six mounted
+producer→generated decoder→HTTP adapter→runtime/writer→table/cards cases now
+exercise held authoritative reads after typed terminal refusal, failed Q2 Retry
+identity replacement, terminal Q2 action suppression and delayed same-project
+runtime / same-API project replacement. Genuine fractional terminal Pri is
+prepared independently beside terminal Time. Five mounted production faults fail;
+the retired-owner writer guard fault survives mounted replacement under layered
+channel/feed guards but fails the existing isolated production writer test.
+Evidence and explicit coverage limits:
+[evidence/task-9-2-producer-http-409.md](evidence/task-9-2-producer-http-409.md).
+No runtime behavior change or production activation is included. Parent tasks
+7.3/7.4/9.2 and full Slice B remain unchecked.

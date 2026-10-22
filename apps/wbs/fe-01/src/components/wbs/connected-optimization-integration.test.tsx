@@ -444,3 +444,226 @@ it.each([1024, 390])(
     else expect(document.querySelector('[data-start]')).toHaveTextContent('5 Oct');
   },
 );
+
+function serveReconciliation() {
+  let current: unknown = createFractionalConnectedOptimizationTree('failed', 'q1');
+  let holdRead = false;
+  const reads: (() => void)[] = [];
+  const refusals: (() => void)[] = [];
+  const requests: { method: string; path: string; body: unknown }[] = [];
+  const json = (body: unknown, status: number) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  vi.stubGlobal('fetch', async (path: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    requests.push({
+      method,
+      path,
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
+    });
+    if (method === 'GET' && /^\/api\/projects\/[BC]\/work-items$/.test(path)) {
+      const captured = current;
+      if (holdRead) await new Promise<void>((resolve) => reads.push(resolve));
+      return json(captured, 200);
+    }
+    if (method === 'POST' && path === '/api/projects/B/optimization/retry') {
+      await new Promise<void>((resolve) => refusals.push(resolve));
+      return json({ code: 'not-retryable', state: 'boundary-infeasible' }, 409);
+    }
+    if (method === 'PATCH') return new Response('unexpected settings write', { status: 500 });
+    throw new Error(`unexpected reconciliation request ${method} ${path}`);
+  });
+  const http = httpProjectApi('token');
+  const compose = () => ({
+    ...fakeProjectApi(),
+    tree: http.tree.bind(http),
+    retryOptimization: http.retryOptimization.bind(http),
+    setOptimizationSettings: http.setOptimizationSettings.bind(http),
+  });
+  return {
+    api: compose(),
+    compose,
+    requests,
+    getCount: () => requests.filter((request) => request.method === 'GET').length,
+    setTree: (tree: unknown, hold = false) => {
+      current = tree;
+      holdRead = hold;
+    },
+    refuse: async () => {
+      const release = refusals.shift();
+      if (release === undefined) throw new Error('missing held Retry');
+      await act(async () => {
+        release();
+        await Promise.resolve();
+      });
+    },
+    releaseTree: async () => {
+      const release = reads.shift();
+      if (release === undefined) throw new Error('missing held authoritative tree');
+      holdRead = false;
+      await act(async () => {
+        release();
+        await Promise.resolve();
+      });
+    },
+  };
+}
+
+function readCueFact() {
+  return screen.getByRole('button', { name: /is the active schedule/ }).getAttribute('data-fact');
+}
+function retryPri() {
+  fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Pri' }));
+}
+function expectFractionalPlacement(width: number) {
+  expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Fast');
+  if (width === 390) {
+    expect(document.querySelector('[data-card-span]')).toHaveTextContent('5 Oct → 6 Oct');
+    expect(document.querySelector('[data-card-span]')).toHaveAttribute(
+      'data-fact',
+      '2026-10-05 → 2026-10-06',
+    );
+  } else {
+    expect(document.querySelector('[data-start]')).toHaveTextContent('5 Oct');
+    expect(document.querySelector('[data-finish]')).toHaveTextContent('6 Oct');
+  }
+}
+
+it.each(
+  [1024, 390].flatMap((width) =>
+    (['failed', 'boundary-infeasible'] as const).map((state) => ({ width, state })),
+  ),
+)(
+  'reconciles producer Q1 through HTTP 409 and held Q2 $state at width $width',
+  async ({ width, state }) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    const transport = serveReconciliation();
+    render(<WbsTableOverClient projectId="B" projectServices={projectServicesOf(transport.api)} />);
+    await screen.findByDisplayValue('b');
+    const oldFact = readCueFact();
+    expect(oldFact).toContain('Question hash q1-time');
+    const before = transport.getCount();
+    retryPri();
+    await waitFor(() => {
+      expect(transport.requests.filter((request) => request.method === 'POST')).toEqual([
+        {
+          method: 'POST',
+          path: '/api/projects/B/optimization/retry',
+          body: { objective: 'pri', inputHash: 'q1' },
+        },
+      ]);
+    });
+    transport.setTree(createFractionalConnectedOptimizationTree(state, 'q2'), true);
+    await transport.refuse();
+    await waitFor(() => {
+      expect(transport.getCount()).toBe(before + 1);
+    });
+    expect(readCueFact()).toBe(oldFact);
+    expect(readCueFact()).not.toContain('q2-pri');
+    expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Finish-first: This captured optimization question cannot fit',
+    );
+    expect(screen.getByRole('status')).not.toHaveTextContent(
+      'Priority-first: This captured optimization question cannot fit',
+    );
+    expectFractionalPlacement(width);
+    expect(document.querySelector('[data-toast-text]')).toHaveTextContent(
+      'This captured optimization question cannot fit',
+    );
+    await transport.releaseTree();
+    await waitFor(() => {
+      expect(readCueFact()).toContain('Question hash q2-time');
+    });
+    expect(readCueFact()).not.toContain('Question hash q1-time');
+    expectFractionalPlacement(width);
+    fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+    if (state === 'failed') {
+      expect(readCueFact()).not.toContain('Question hash q2-pri');
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Pri' }));
+      await waitFor(() => {
+        expect(transport.requests.filter((request) => request.method === 'POST')).toEqual([
+          {
+            method: 'POST',
+            path: '/api/projects/B/optimization/retry',
+            body: { objective: 'pri', inputHash: 'q1' },
+          },
+          {
+            method: 'POST',
+            path: '/api/projects/B/optimization/retry',
+            body: { objective: 'pri', inputHash: 'q2' },
+          },
+        ]);
+      });
+      await transport.refuse();
+    } else {
+      expect(readCueFact()).toContain('Question hash q2-pri');
+      expect(screen.getByRole('menuitem', { name: /^Pri/ })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Pri/ }), { key: 'Enter' });
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Pri/ }), { key: ' ' });
+      expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Pri/ }), { key: 'Escape' });
+      fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+      expect(screen.queryByRole('menuitem', { name: /Retry/ })).toBeNull();
+      expect(transport.requests.filter((request) => request.method === 'POST')).toHaveLength(1);
+    }
+    expect(transport.requests.filter((request) => request.method === 'PATCH')).toEqual([]);
+  },
+);
+
+it.each([1024, 390])(
+  'ignores delayed producer HTTP 409 after runtime and project replacement at width %s',
+  async (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    const transport = serveReconciliation();
+    const mounted = render(
+      <WbsTableOverClient projectId="B" projectServices={projectServicesOf(transport.api)} />,
+    );
+    await screen.findByDisplayValue('b');
+    retryPri();
+    await waitFor(() => {
+      expect(transport.requests.filter((request) => request.method === 'POST')).toHaveLength(1);
+    });
+    transport.setTree(createFractionalConnectedOptimizationTree('failed', 'replacement'));
+    const replacementServices = projectServicesOf(transport.compose());
+    mounted.rerender(<WbsTableOverClient projectId="B" projectServices={replacementServices} />);
+    await waitFor(() => {
+      expect(readCueFact()).toContain('Question hash replacement-time');
+    });
+    const replacementFact = readCueFact();
+    const afterRuntime = [...transport.requests];
+    await transport.refuse();
+    expect(transport.requests).toEqual(afterRuntime);
+    expect(readCueFact()).toBe(replacementFact);
+    expectFractionalPlacement(width);
+    expect(document.querySelector('[data-toast-text]')).toBeNull();
+
+    retryPri();
+    await waitFor(() => {
+      expect(transport.requests.filter((request) => request.method === 'POST')).toHaveLength(2);
+    });
+    expect(transport.requests.filter((request) => request.method === 'POST').at(1)?.body).toEqual({
+      objective: 'pri',
+      inputHash: 'replacement',
+    });
+    transport.setTree(createConnectedOptimizationTree('ready', 'C'));
+    mounted.rerender(<WbsTableOverClient projectId="C" projectServices={replacementServices} />);
+    await screen.findByDisplayValue('c');
+    const projectFact = readCueFact();
+    const afterProject = [...transport.requests];
+    await transport.refuse();
+    expect(transport.requests).toEqual(afterProject);
+    expect(readCueFact()).toBe(projectFact);
+    expect(screen.getByDisplayValue('c')).toBeEnabled();
+    expect(screen.queryByDisplayValue('b')).toBeNull();
+    expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
+    expect(document.querySelector('[data-toast-text]')).toBeNull();
+  },
+);
