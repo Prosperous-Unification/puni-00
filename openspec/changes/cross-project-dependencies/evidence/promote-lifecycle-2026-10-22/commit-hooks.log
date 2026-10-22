@@ -1,0 +1,51 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 7.97 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ format (2.97 seconds)
+✓ lint (7.92 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+[promote-lifecycle-packet 8926b288b] test(wbs): prove promotion external dependency lifecycle
+ 10 files changed, 592 insertions(+)
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/promote-fault-before.log
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/promote-fault-inverse.log
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/promote-fault-outgoing.log
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/promote-fault-overbroad.log
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/promote-fault-revision.log
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/promote-full.log
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/promote-lifecycle-2026-10-22/report.md

@@ -1528,6 +1528,7 @@ export class WorkItemService {
         // Proof: disabling this refusal made the admitted predecessor-delete test
         // throw at the later graph guard instead of returning its exact modeled
         // conflict; watched with the real SQLite UoW, 2026-10-22.
+        // Proof: bypassing this refusal made mounted promote outgoing return 500 instead of typed 409 (2026-10-22).
         if (outgoing.length > 0)
           return {
             ok: false,
@@ -5284,12 +5285,14 @@ export class WorkItemService {
     });
     if (structural !== null) return structural;
     await this.opts.dependencies.removeAllFor([id], stamp);
+    // Proof: broadening this promotion to subtreeOf(rows, id) made mounted promote replay return 500 instead of 200 (2026-10-22).
     const removedTyped = await this.opts.typedDependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
       // Proof: replacing both delete before-images with [] made the admitted
       // successor delete fail exact journal coverage and roll back (2026-10-22).
+      // Proof: omitting only the promotion before-image made mounted promote replay return 500 instead of 200 (2026-10-22).
       externalBefore: incidents.externalBefore,
       forward: withRemovedTyped(
         {
@@ -5357,6 +5360,7 @@ export class WorkItemService {
           },
           removedClaims,
         ),
+        // Proof: omitting promotion inverse typed links made mounted promote replay undo return 404 instead of 200 (2026-10-22).
         removedTyped,
         true,
       ),
@@ -7274,6 +7278,7 @@ export class WorkItemService {
           );
           // Proof: remote-revision-conflict bypass failed `external undo redo checks remote revisions`'s selected assertion
           // (actual SQLite boundary; watched 2026-10-22).
+          // Proof: bypassing this comparison made mounted promote stale undo commit with 200 instead of 409 (2026-10-22).
           if (
             external.expected.some(
               (revision) => revisions.get(scopedRevisionKey(revision)) !== revision.revision,

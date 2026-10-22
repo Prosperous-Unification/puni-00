@@ -4687,3 +4687,14 @@ existing core reexports remain unchanged. Astra independently reviewed the
 source, 176/176 focused tests and both watched negative mutations. The full
 k3s rehearsal, complete journal footprint, CI gate and exact-SHA h2puni gate
 remain unverified for this fix; task 11.2 stays open.
+
+### Bounded task 4.4 promotion lifecycle coverage (2026-10-22)
+
+The [promotion lifecycle report](evidence/promote-lifecycle-2026-10-22/report.md)
+records three mounted synthetic-authoring cases and five independently watched
+production faults. It covers parent-only promotion cleanup, surviving child
+incidents, exact undo/redo identities and remote revision journal coverage,
+stale remote-edit refusal with existing history pruning, and direct outgoing
+predecessor typed refusal. Existing behavior passed; only test coverage and
+observed Proof comments were added. Task 4.4, production external authoring and
+host/CI acceptance remain open.

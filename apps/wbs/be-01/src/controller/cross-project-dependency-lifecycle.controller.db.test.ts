@@ -1055,3 +1055,345 @@ test('synthetic mounted successor deletion removes only owned links and restores
       .all(fixture.owner.projectId),
   ).toEqual(remoteHistory);
 });
+
+for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
+  test(`synthetic mounted promote ${scenario} preserves surviving child incidents`, async () => {
+    const pushes: string[] = [];
+    const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
+    activateTestStepBlockages(harness.databasePath());
+    await harness.register('grace');
+    harness.member('org-a', 'grace', 'member');
+    harness.sqlite
+      .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
+      .run('member', 'org-a', fixture.principal.id);
+    harness.sqlite
+      .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
+      .run(harness.userId('grace'), fixture.predecessor.projectId);
+    const route = `/api/projects/${fixture.owner.projectId}`;
+    expect(
+      (
+        await fixture.request(`${route}/commands`, {
+          commands: [
+            { kind: 'createWorkItem', name: 'Local prerequisite' },
+            { kind: 'createWorkItem', name: 'Unrelated successor' },
+            { kind: 'createWorkItem', name: 'First promoted', parentId: fixture.owner.workItemId },
+            { kind: 'createWorkItem', name: 'Second promoted', parentId: fixture.owner.workItemId },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const readId = (name: string) => {
+      const row = harness.sqlite
+        .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE name=?')
+        .get(name);
+      if (row === null) throw new Error('mounted row missing');
+      return row.id;
+    };
+    const local = {
+      projectId: fixture.owner.projectId,
+      workItemId: readId('Local prerequisite'),
+      scope: 'whole' as const,
+    };
+    const unrelated = {
+      projectId: fixture.owner.projectId,
+      workItemId: readId('Unrelated successor'),
+      scope: 'whole' as const,
+    };
+    const remote = { ...fixture.predecessor, scope: 'whole' as const };
+    const child = {
+      projectId: fixture.owner.projectId,
+      workItemId: readId('First promoted'),
+      scope: 'whole' as const,
+    };
+    const children = [child.workItemId, readId('Second promoted')];
+    const parent = { ...fixture.owner, scope: 'whole' as const };
+    const readTree = () =>
+      harness.sqlite
+        .query<{ id: string; parent_id: string | null; position: number }, [string]>(
+          'SELECT id,parent_id,position FROM work_item WHERE project_id=? ORDER BY position,id',
+        )
+        .all(fixture.owner.projectId);
+    expect(
+      (
+        await fixture.request(`${route}/commands`, {
+          commands: [
+            {
+              kind: 'addTypedDependency',
+              predecessor: remote,
+              successor: parent,
+              type: 'FS',
+            },
+            {
+              kind: 'addTypedDependency',
+              predecessor: { ...fixture.successor, scope: 'whole' },
+              successor: parent,
+              type: 'SS',
+            },
+            {
+              kind: 'addTypedDependency',
+              predecessor: local,
+              successor: parent,
+              type: 'FF',
+            },
+            { kind: 'addTypedDependency', predecessor: remote, successor: unrelated, type: 'FS' },
+            { kind: 'addTypedDependency', predecessor: remote, successor: child, type: 'SS' },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await fixture.request(`/api/projects/${fixture.secondSuccessor.projectId}/commands`, {
+          commands: [
+            {
+              kind: 'addTypedDependency',
+              predecessor: child,
+              successor: { ...fixture.secondSuccessor, scope: 'whole' },
+              type: 'FF',
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const readLinks = () => ({
+      external: harness.sqlite
+        .query<{ id: string; successor_work_item_id: string }, []>(
+          'SELECT id,predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id,type FROM external_dependency ORDER BY id',
+        )
+        .all(),
+      local: harness.sqlite
+        .query(
+          'SELECT id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type FROM typed_dependency ORDER BY id',
+        )
+        .all(),
+    });
+    const before = readLinks();
+    const readUnrelated = () =>
+      harness.sqlite
+        .query('SELECT * FROM external_dependency WHERE successor_work_item_id=?')
+        .get(unrelated.workItemId);
+    const unrelatedBefore = readUnrelated();
+    expect(before.external).toHaveLength(5);
+    expect(before.local).toHaveLength(1);
+    const remoteHistory = harness.sqlite
+      .query('SELECT * FROM command_journal WHERE project_id!=? ORDER BY id')
+      .all(fixture.owner.projectId);
+    const readRevision = (id: string) => {
+      const row = harness.sqlite
+        .query<{ revision: number }, [string]>('SELECT revision FROM work_item WHERE id=?')
+        .get(id);
+      if (row === null) throw new Error('mounted endpoint missing');
+      return row.revision;
+    };
+    const watched = [
+      fixture.predecessor.workItemId,
+      fixture.successor.workItemId,
+      local.workItemId,
+    ];
+    const revisions = watched.map(readRevision);
+    const readJournal = () => {
+      const entry = harness.sqlite
+        .query<{ id: string; undone: number; preconditions: string }, [string]>(
+          'SELECT id,undone,preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+        )
+        .get(fixture.owner.projectId);
+      if (entry === null) throw new Error('mounted journal missing');
+      return entry;
+    };
+    const childLinksBefore = harness.sqlite
+      .query(
+        'SELECT * FROM external_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=? ORDER BY id',
+      )
+      .all(child.workItemId, child.workItemId);
+    const untouchedRevision = readRevision(fixture.secondSuccessor.workItemId);
+    if (scenario === 'outgoing') {
+      expect(
+        (
+          await fixture.request(`/api/projects/${fixture.secondSuccessor.projectId}/commands`, {
+            commands: [
+              {
+                kind: 'addTypedDependency',
+                predecessor: parent,
+                successor: { ...fixture.secondSuccessor, scope: 'whole' },
+                type: 'SS',
+              },
+              {
+                kind: 'addTypedDependency',
+                predecessor: parent,
+                successor: { ...fixture.secondSuccessor, scope: 'whole' },
+                type: 'FS',
+              },
+            ],
+          })
+        ).status,
+      ).toBe(200);
+      const beforeRefusal = readTables();
+      const pushesBefore = [...pushes];
+      const refusal = await fixture.request(`${route}/commands`, {
+        commands: [
+          { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'promote' },
+        ],
+      });
+      expect(refusal.status).toBe(409);
+      expect(await refusal.json()).toMatchObject({
+        error: 'referenced_by_external_dependency',
+        dependencyIds: harness.sqlite
+          .query<{ id: string }, [string]>(
+            'SELECT id FROM external_dependency WHERE predecessor_work_item_id=? ORDER BY id',
+          )
+          .all(fixture.owner.workItemId)
+          .map(({ id }) => id),
+      });
+      expect(readTables()).toEqual(beforeRefusal);
+      expect(pushes).toEqual(pushesBefore);
+      return;
+    }
+    const treeBefore = readTree();
+    const forbiddenBefore = readTables();
+    expect(
+      (
+        await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+          commands: [
+            {
+              kind: 'patchWorkItem',
+              workItemId: fixture.predecessor.workItemId,
+              patch: { name: 'Forbidden' },
+            },
+          ],
+        })
+      ).status,
+    ).toBe(403);
+    expect(readTables()).toEqual(forbiddenBefore);
+    expect(
+      (
+        await fixture.request(`${route}/commands`, {
+          commands: [
+            { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'promote' },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const deleted = readLinks();
+    expect(readUnrelated()).toEqual(unrelatedBefore);
+    expect(deleted.external).toEqual(
+      before.external.filter(
+        (relationship) => relationship.successor_work_item_id !== fixture.owner.workItemId,
+      ),
+    );
+    expect(deleted.local).toEqual([]);
+    expect(
+      harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(fixture.owner.workItemId),
+    ).toBeNull();
+    expect(watched.map(readRevision)).toEqual(revisions.map((revision) => revision + 1));
+    const journal = readJournal();
+    expect(journal.undone).toBe(0);
+    const expectedRevisions = [
+      { ...fixture.predecessor, revision: revisions[0] + 1 },
+      { ...fixture.successor, revision: revisions[1] + 1 },
+    ].sort((left, right) => left.projectId.localeCompare(right.projectId));
+    expect(
+      readPreconditions(JSON.parse(journal.preconditions) as unknown)
+        .externalRevisions?.expected.slice()
+        .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+    ).toEqual(expectedRevisions);
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT * FROM external_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=? ORDER BY id',
+        )
+        .all(child.workItemId, child.workItemId),
+    ).toEqual(childLinksBefore);
+    expect(readRevision(fixture.secondSuccessor.workItemId)).toBe(untouchedRevision);
+    expect(
+      readTree()
+        .filter((row) => children.includes(row.id))
+        .map((row) => ({ id: row.id, parent: row.parent_id })),
+    ).toEqual(
+      treeBefore
+        .filter((row) => children.includes(row.id))
+        .map((row) => ({ id: row.id, parent: null })),
+    );
+    expect(
+      readTree()
+        .filter((row) => row.parent_id === null)
+        .map((row) => row.id),
+    ).toEqual(
+      treeBefore
+        .filter((row) => row.parent_id === null)
+        .flatMap((row) =>
+          row.id === fixture.owner.workItemId
+            ? treeBefore
+                .filter((childRow) => childRow.parent_id === fixture.owner.workItemId)
+                .map((childRow) => childRow.id)
+            : [row.id],
+        ),
+    );
+    if (scenario === 'stale') {
+      harness.sqlite
+        .query('UPDATE project SET owner_id=?,restricted=0 WHERE id=?')
+        .run(fixture.principal.id, fixture.predecessor.projectId);
+      expect(
+        (
+          await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+            commands: [
+              {
+                kind: 'patchWorkItem',
+                workItemId: fixture.predecessor.workItemId,
+                patch: { name: 'Concurrent predecessor edit' },
+              },
+            ],
+          })
+        ).status,
+      ).toBe(200);
+      const beforeRefusal = readTables();
+      const pushesBefore = [...pushes];
+      const refusal = await fixture.request(`${route}/undo`);
+      expect(refusal.status).toBe(409);
+      expect(await refusal.json()).toMatchObject({ error: 'stale_undo' });
+      expect(readTables()).toEqual(
+        beforeRefusal.map((table) =>
+          table.name !== 'command_journal'
+            ? table
+            : {
+                ...table,
+                rows: table.rows.filter(
+                  (row) => (JSON.parse(row) as { id: string }).id !== journal.id,
+                ),
+              },
+        ),
+      );
+      expect(pushes).toEqual(pushesBefore);
+      expect(
+        harness.sqlite.query('SELECT id FROM command_journal WHERE id=?').get(journal.id),
+      ).toBeNull();
+      return;
+    }
+    const undoResponse = await fixture.request(`${route}/undo`);
+    expect(undoResponse.status).toBe(200);
+    expect(readLinks()).toEqual(before);
+    expect(readTree().filter((row) => row.id !== fixture.owner.workItemId)).toEqual(
+      treeBefore.filter((row) => row.id !== fixture.owner.workItemId),
+    );
+    expect(
+      readTree()
+        .filter((row) => row.parent_id === null)
+        .map((row) => row.id),
+    ).toEqual(treeBefore.filter((row) => row.parent_id === null).map((row) => row.id));
+    expect(readUnrelated()).toEqual(unrelatedBefore);
+    expect(
+      harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(fixture.owner.workItemId),
+    ).toEqual({ id: fixture.owner.workItemId });
+    expect(readJournal()).toMatchObject({ id: journal.id, undone: 1 });
+    expect(watched.map(readRevision)).toEqual(revisions.map((revision) => revision + 2));
+    expect((await fixture.request(`${route}/redo`)).status).toBe(200);
+    expect(readLinks()).toEqual(deleted);
+    expect(readUnrelated()).toEqual(unrelatedBefore);
+    expect(readJournal()).toMatchObject({ id: journal.id, undone: 0 });
+    expect(watched.map(readRevision)).toEqual(revisions.map((revision) => revision + 3));
+    expect(
+      harness.sqlite
+        .query('SELECT * FROM command_journal WHERE project_id!=? ORDER BY id')
+        .all(fixture.owner.projectId),
+    ).toEqual(remoteHistory);
+  });
+}
