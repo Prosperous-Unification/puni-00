@@ -1,6 +1,8 @@
 import type { Demand, Resource, ResourceCapacity } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import type { ConnectedPlanProjection } from '../service/connected-plan-projection';
+import type { ConnectedReadiness } from '../service/connected-readiness';
 import type { CalendarMarker } from './calendar-marker-store';
 import type { DirectoryCatalogRows } from './directory-values';
 import type { MembershipRefusal } from './organization-access';
@@ -75,6 +77,22 @@ export type LivePlanRead =
   | { readonly kind: 'isolated' }
   | { readonly kind: 'not_found' }
   | {
+      readonly kind: 'connected';
+      readonly projection: ConnectedPlanProjection;
+      readonly readiness: ConnectedReadiness;
+      readonly metadataByProject: ReadonlyMap<
+        string,
+        {
+          readonly project: Project;
+          readonly steps: readonly Step[];
+          readonly workItems: readonly LabelledWorkItem[];
+          readonly attempts: readonly StoredAttempt[];
+          readonly blockages: readonly StoredStepBlockage[];
+          readonly seq: number;
+        }
+      >;
+    }
+  | {
       readonly kind: 'shared';
       readonly organizationId: string;
       readonly chain: Exclude<SharedPeopleRead, { readonly kind: 'not_found' }>;
@@ -116,7 +134,7 @@ export interface PlanDocumentReads {
 
 /** Export-purpose evidence is private to core callers, never part of the public tree payload. */
 export type LivePlanExportRead =
-  | Exclude<LivePlanRead, { kind: 'shared' }>
+  | Exclude<LivePlanRead, { kind: 'shared' | 'connected' }>
   | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads });
 
 /** One detached aggregate observation; entries share authority, rank and schedule evidence. */

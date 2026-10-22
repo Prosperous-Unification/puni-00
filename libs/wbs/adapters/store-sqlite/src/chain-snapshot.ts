@@ -15,8 +15,9 @@ import type {
   Scheduler,
   ScheduleRead,
   SharedPeopleRead,
+  StoredAttempt,
 } from '@wbs/core';
-import { readChain } from '@wbs/core';
+import { deriveConnectedPlan, deriveConnectedReadiness, readChain } from '@wbs/core';
 import { eq } from 'drizzle-orm';
 
 import { CalendarMarkerRepository } from './calendar-marker';
@@ -52,6 +53,7 @@ import { readCapacityMode } from './shared-people-mode';
 import { StepBlockageRepository } from './step-blockage';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepParallelRepository } from './step-parallel';
+import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 
 export interface ChainSnapshotOptions {
@@ -324,6 +326,10 @@ export async function readChainSnapshotIn(
       return captured;
     },
     scheduler: {
+      readResolvedFast: (input) => {
+        lifetime.assertOpen();
+        return scheduler.readResolvedFast(input);
+      },
       supports: (engine) => {
         lifetime.assertOpen();
         return scheduler.supports(engine);
@@ -400,6 +406,8 @@ export function createLivePlanStore(
         const captured = await readLivePlanIn(db, projectId, access, options, lifetime);
         // Proof: removing this check made `export sequence continuation` issue 13 expired SQL queries.
         lifetime.assertOpen();
+        // Proof: returning the connected arm failed `connected export refuses instead of returning an incomplete document`.
+        if (captured.kind === 'connected') throw new Error('connected export is unsupported');
         if (captured.kind !== 'shared') return captured;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
@@ -478,6 +486,22 @@ async function readLiveAggregateIn(
 
   const projects = new ProjectRepository(db, OPEN);
   const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
+  lifetime.assertOpen();
+  const incident =
+    readable.length === 0
+      ? []
+      : await new TypedDependencyRepository(db, OPEN).listIncident(
+          readable.map((project) => project.id),
+        );
+  lifetime.assertOpen();
+  // Proof: without this branch the mounted shared aggregate reached rank-only
+  // scheduling and failed with a lower-level connected-capture error.
+  if (
+    incident.some(
+      (relationship) => relationship.predecessor.projectId !== relationship.successor.projectId,
+    )
+  )
+    throw new Error('connected aggregate is unsupported');
   const snapshot = await readChainSnapshotIn(
     db,
     access,
@@ -510,6 +534,7 @@ async function readLiveAggregateIn(
       return fresh;
     },
     scheduler: {
+      readResolvedFast: (input) => snapshot.scheduler.readResolvedFast(input),
       supports: (engine) => snapshot.scheduler.supports(engine),
       read: readSchedule,
     },
@@ -595,6 +620,60 @@ async function readLiveProjectIn(
   // Proof: removing this check made `project owned continuation` issue 2 expired SQL queries.
   lifetime.assertOpen();
   if (owned === null) return { kind: 'not_found' };
+  const incident = await new TypedDependencyRepository(db, OPEN).listIncident([projectId]);
+  lifetime.assertOpen();
+  // The legacy isolated path remains cheap when no foreign relationship exists.
+  // Proof: bypassing this arm made `actual isolated live route captures remote readiness without a calendar`
+  // return isolated, hiding the unfinished remote FS prerequisite.
+  if (
+    incident.some(
+      (relationship) => relationship.predecessor.projectId !== relationship.successor.projectId,
+    )
+  ) {
+    const capture = await captureConnectedPlanIn(
+      db,
+      access,
+      projectId,
+      lifetime,
+      options.captureRead,
+    );
+    lifetime.assertOpen();
+    const readCaptured =
+      options.optimization === undefined
+        ? undefined
+        : capturedOptimizationReaderOf(db, options.optimization);
+    const scheduler = options.schedulerOf(
+      readCaptured === undefined
+        ? undefined
+        : (ask) => {
+            lifetime.assertOpen();
+            return readCaptured(ask);
+          },
+    );
+    const projection = deriveConnectedPlan(capture, scheduler, (input) => {
+      lifetime.assertOpen();
+      return scheduler.readResolvedFast(input);
+    });
+    const metadataByProject = new Map<
+      string,
+      Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }
+    >();
+    const attemptsByProject = new Map<string, readonly StoredAttempt[]>();
+    for (const member of capture.projects) {
+      lifetime.assertOpen();
+      const memberProject = await projects.findInOrganization(
+        member.projectId,
+        access.scope.organizationId,
+      );
+      if (memberProject === null)
+        throw new Error(`connected project ${member.projectId} disappeared`);
+      const metadata = await readLiveMetadataIn(db, member.projectId, lifetime);
+      metadataByProject.set(member.projectId, { project: memberProject, ...metadata });
+      attemptsByProject.set(member.projectId, metadata.attempts);
+    }
+    const readiness = deriveConnectedReadiness(capture, projection.authored, attemptsByProject);
+    return { kind: 'connected', projection, readiness, metadataByProject };
+  }
   if (readCapacityMode(db, access.scope.organizationId) === 'isolated') return { kind: 'isolated' };
   const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);
   // Proof: removing this check made `project rank continuation` issue 4 expired SQL queries.

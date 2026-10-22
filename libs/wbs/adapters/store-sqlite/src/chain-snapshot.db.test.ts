@@ -7,6 +7,7 @@ import type { CapturedScheduleAsk, LiveScheduleAsk, ScheduleAsk, ScheduleRead } 
 import { readChain, scheduleInputOfCaptured, SharedPeopleReader } from '@wbs/core';
 import { SavedPlanResource } from '@wbs/core/module/saved-plans/saved-plan.resource';
 import { SavedPlanService } from '@wbs/core/module/saved-plans/saved-plans.feature';
+import { scheduleResolved } from '@wbs/domain';
 import { schedule, sliceKey } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { createScheduler } from '@wbs/runtime-portable';
@@ -57,6 +58,7 @@ const admitted = {
 const fast = createScheduler(
   (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
     schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
+  scheduleResolved,
 );
 
 function write(statement: string): void {
@@ -153,6 +155,7 @@ function snapshots(
               undefined,
               elsewhere,
             ),
+          scheduleResolved,
           readCaptured === undefined
             ? undefined
             : {

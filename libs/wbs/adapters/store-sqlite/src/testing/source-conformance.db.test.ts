@@ -65,6 +65,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { scheduleResolved } from '@wbs/domain';
 import { DEFAULT_ESTIMATE_RULE, schedule } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
@@ -765,19 +766,21 @@ const openers: ExistingStoreOpeners = {
     const { source, directory } = await seedSqliteSource();
     const configured = source.bindLivePlans({
       schedulerOf: () =>
-        createScheduler((rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
-          schedule(
-            rows,
-            edges,
-            slices,
-            floors,
-            pools,
-            reach,
-            deadlines,
-            typed,
-            undefined,
-            elsewhere,
-          ),
+        createScheduler(
+          (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+            schedule(
+              rows,
+              edges,
+              slices,
+              floors,
+              pools,
+              reach,
+              deadlines,
+              typed,
+              undefined,
+              elsewhere,
+            ),
+          scheduleResolved,
         ),
     });
     return sqliteFixture(

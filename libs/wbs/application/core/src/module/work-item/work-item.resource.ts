@@ -1508,6 +1508,8 @@ export class WorkItemService {
     const captured = await this.opts.livePlans?.read(projectId, access);
     if (captured?.kind === 'access_refused') return captured;
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'connected')
+      throw new Error('connected optimization input is unsupported');
     if (captured?.kind === 'shared') {
       if (captured.chain.kind === 'engine_unavailable')
         return {
@@ -1544,6 +1546,8 @@ export class WorkItemService {
   > {
     const captured = await this.opts.livePlans?.readProject(projectId);
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'connected')
+      throw new Error('connected optimization input is unsupported');
     if (captured?.kind === 'shared') {
       if (captured.chain.kind === 'engine_unavailable')
         return { kind: 'unavailable', reason: 'engine_unavailable' };
@@ -1742,6 +1746,8 @@ export class WorkItemService {
   ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.read(projectId, access);
+      if (captured.kind === 'connected')
+        throw new Error('connected tree projection is unsupported');
       if (captured.kind !== 'isolated') {
         const tree = projectSharedTree(captured);
         if (
@@ -2043,6 +2049,8 @@ export class WorkItemService {
   async tree(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.readProject(projectId);
+      if (captured.kind === 'connected')
+        throw new Error('connected tree projection is unsupported');
       if (captured.kind !== 'isolated') return projectSharedTree(captured);
     }
     return this.treeIsolated(projectId);
@@ -8747,13 +8755,13 @@ function projectSharedTree(
   captured: Extract<LivePlanRead, { readonly kind: 'shared' }>,
 ): PlanTree | EngineUnavailable;
 function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' }>,
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' | 'connected' }>,
 ): PlanTree | EngineUnavailable | null;
 function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }>,
 ): PlanTree | EngineUnavailable | AccessRefused | null;
 function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }>,
 ): PlanTree | EngineUnavailable | AccessRefused | null {
   if (captured.kind === 'access_refused') return captured;
   if (captured.kind === 'not_found') return null;

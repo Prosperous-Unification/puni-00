@@ -5,6 +5,7 @@ import type {
   Elsewhere,
   PlannedRow,
   PoolSizes,
+  ResolvedScheduleInput,
   Schedule,
   ScheduleEngine,
   Slice,
@@ -119,9 +120,13 @@ export type FastScheduler = (
   resourceCapacities: PoolSizes,
 ) => Schedule;
 
+/** Fast placement over a graph already resolved under each project's rules. */
+export type ResolvedFastScheduler = (input: ResolvedScheduleInput) => Schedule;
+
 /** Installed scheduling capabilities and their non-waiting read. */
 export interface Scheduler {
   supports(engine: ScheduleEngine): boolean;
+  readResolvedFast: ResolvedFastScheduler;
   read(ask: CapturedScheduleAsk): ScheduleRead;
   read(ask: LiveScheduleAsk): Promise<ScheduleRead>;
   read(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead>;
@@ -130,6 +135,7 @@ export interface Scheduler {
 /** Scheduling available to a borrowed snapshot; admission belongs to its owner after closure. */
 export interface CapturedScheduler {
   supports(engine: ScheduleEngine): boolean;
+  readResolvedFast: ResolvedFastScheduler;
   read(ask: CapturedScheduleAsk): ScheduleRead;
 }
 

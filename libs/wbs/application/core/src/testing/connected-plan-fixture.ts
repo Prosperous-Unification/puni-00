@@ -1,0 +1,103 @@
+import type { CapturedWorkItem, IsoDate, PlanInputReads } from '@wbs/domain';
+
+import type { ConnectedPlanCapture } from '../service/connected-plan-values';
+
+const work = (projectId: string, id: string): CapturedWorkItem => ({
+  id,
+  projectId,
+  parentId: null,
+  position: 0,
+  name: id,
+  notes: '',
+  frozenNumber: null,
+  startNoEarlierThan: null,
+  startNoEarlierThanReason: null,
+  deadline: null,
+  readiness: null,
+  hold: null,
+  priority: null,
+  serviceTeamId: null,
+  serviceId: null,
+  maxParallel: 1,
+  revision: 1,
+  teamIds: [],
+  tagIds: [],
+  serviceIds: [],
+  typeIds: [],
+  externalRefs: [],
+});
+export const connectedReads = (
+  id: string,
+  startDate: IsoDate | null = '2026-10-05',
+): PlanInputReads => ({
+  project: {
+    id,
+    name: id,
+    ownerId: 'u',
+    restricted: false,
+    estimateMethod: 'realistic',
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'exact',
+    startDate,
+    scheduleEngine: 'fast',
+    scheduleObjective: 'pri',
+    optimizationEnabled: false,
+    solutionRef: null,
+    timezone: 'UTC',
+  },
+  steps: [
+    {
+      id: 'build',
+      name: 'Build',
+      code: null,
+      position: 0,
+      allowancePercent: 0,
+      estimateUnit: 'workdays',
+    },
+  ],
+  workItems: [work(id, id.toLowerCase())],
+  estimates: [
+    { workItemId: id.toLowerCase(), stepId: 'build', optimistic: 1, realistic: 1, pessimistic: 1 },
+  ],
+  actuals: [],
+  progress: [],
+  stepBlockages: [],
+  stepParallels: [],
+  measures: [],
+  dependencies: [],
+  typedDependencies: [],
+  assignments: [],
+  capacity: new Map(),
+  demands: [],
+  resourceCapacities: [],
+  resources: [],
+  priorityBands: [],
+  people: [],
+  teams: [],
+  services: [],
+  tags: [],
+  workItemTypes: [],
+  externalSystems: [],
+});
+export const connectedCapture = (
+  a = connectedReads('A'),
+  b = connectedReads('B'),
+): ConnectedPlanCapture => ({
+  kind: 'connected',
+  organizationId: 'org',
+  mode: 'isolated',
+  projects: [
+    { projectId: 'A', abbreviation: 'A', rank: 0, reads: a },
+    { projectId: 'B', abbreviation: 'B', rank: 1, reads: b },
+  ],
+  relationships: [
+    {
+      id: 'ab',
+      projectId: 'B',
+      predecessor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
+      successor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
+      type: 'FS',
+    },
+  ],
+});

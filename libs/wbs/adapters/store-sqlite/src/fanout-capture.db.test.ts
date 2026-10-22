@@ -6,6 +6,7 @@ import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople } from '@wbs/core';
 import { displaySchedule } from '@wbs/core/service/shared-people';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
+import { scheduleResolved } from '@wbs/domain';
 import { schedule, sliceKey } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { afterEach, expect, it } from 'bun:test';
@@ -107,6 +108,7 @@ it('captures staged upstream displacement on the borrowed writer without admitti
   const fast = createScheduler(
     (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
       schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
+    scheduleResolved,
   );
   const chain = readSharedPeople([higher], 'a1', fast);
   if (chain.kind !== 'scheduled' || chain.scheduled.kind !== 'scheduled')
@@ -167,6 +169,7 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     createScheduler(
       (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
         schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
+      scheduleResolved,
       readCaptured === undefined
         ? undefined
         : {
