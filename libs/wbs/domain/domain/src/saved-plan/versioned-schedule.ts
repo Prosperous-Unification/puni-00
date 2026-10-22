@@ -12,6 +12,7 @@ import {
 } from './connected-schedule';
 import { type SavedConnectedDependencyHistory } from './dependency-history';
 import {
+  compareHistoryKeys,
   detachHistory,
   type Historical,
   historicalSliceKey,
@@ -96,9 +97,16 @@ export type SavedConnectedScheduleBody = Historical<typeof connectedBody.infer> 
   readonly connection: SavedConnectedScheduleEvidence;
 };
 
-/** Canonical schedule2 bytes shared by the eventual save hash and current-side comparison. */
+/** Canonical schedule2 bytes sort unordered idle members while retaining exact stage execution order. */
 export function serializeSavedConnectedScheduleBody(body: SavedConnectedScheduleBody): string {
-  return serializeHistory(body);
+  return serializeHistory({
+    ...body,
+    connection: {
+      ...body.connection,
+      // Proof: removing idle sorting fails `canonicalizes reversed idle members without changing stage execution order`; mounted save proof remains pending.
+      idleProjects: [...body.connection.idleProjects].sort(compareHistoryKeys),
+    },
+  });
 }
 
 /** Frozen connected body reader validates shape and captured evidence without running any engine. */

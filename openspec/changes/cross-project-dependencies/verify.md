@@ -3371,3 +3371,30 @@ and the full producer-state matrix. No new live read, scheduling, cache selectio
 hashing, quota or writer integration is added by B1. Mounted D, immutable lifecycle
 E, HTTP/UI summaries, CI secrets/migration checks and a canonical host gate are
 unverified here. Task 8.3 remains unchecked.
+
+#### B1 review correction — canonical idle-member order (2026-10-22)
+
+Astra found that schedule2 serialization preserved the insertion order of
+`connection.idleProjects`, although that collection is unordered. The new
+`canonicalizes reversed idle members without changing stage execution order`
+regression builds two valid empty connected A/B bodies with `['A','B']` and
+`['B','A']` and initially failed on unequal canonical bytes (exit 1). The serializer
+now bytewise-sorts a copied idle-member array. It preserves supplied stage
+execution order and does not mutate the input body's idle-member order.
+
+Watched fault: removing `.sort(compareHistoryKeys)` from the production schedule2
+serializer failed that same regression (exit 1); restoring it returned green.
+This is a serialization primitive proof; mounted connected-save coverage remains
+pending in D. No new safety branch or writer activation was added.
+
+```sh
+bun test libs/wbs/domain/domain/src/saved-plan/versioned-schedule.test.ts libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts
+NX_DAEMON=false bunx nx run wbs-domain:typecheck
+```
+
+Restored focused suite: 81 pass, 0 fail, 232 assertions across four files.
+Typecheck: passed. `git diff --check`: passed. Test output is in local scratch
+`/tmp/puni-b1-idle-correction-tests.log`. The previous B1 full-project checks are
+recorded above; this correction reruns focused tests/typecheck and normal staged
+lint/format hooks, not the canonical host gate. B2's detached converter and real
+SQLite fixture remain deferred; task 8.3 stays unchecked.

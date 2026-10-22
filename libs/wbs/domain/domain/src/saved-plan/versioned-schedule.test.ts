@@ -40,6 +40,69 @@ function buildTargetFixture() {
 }
 
 describe('connected schedule body builder', () => {
+  test('canonicalizes reversed idle members without changing stage execution order', () => {
+    const { history, evidence } = connectedHistoryFixture();
+    const dependencyHistory = readSavedDependencyHistory({
+      ...history,
+      projects: history.projects.map((project) => ({
+        ...project,
+        startDate: null,
+        workItems: [],
+        steps: [],
+      })),
+      relationships: [],
+      graph: { nodes: [], edges: [] },
+      ownership: [],
+      readiness: [],
+    });
+    if (dependencyHistory.kind !== 'connected') throw new Error('expected connected fixture');
+    const planned: Schedule = {
+      workItems: new Map(),
+      slices: new Map(),
+      waitingForPerson: 0,
+      waitingForCapacity: 0,
+      eventsVisited: 0,
+    };
+    const placement = { workItems: {}, slices: {}, waitingForPerson: 0, waitingForCapacity: 0 };
+    const connection = readSavedConnectedScheduleEvidence({
+      ...evidence,
+      originOrdinal: null,
+      baseline: placement,
+      composite: placement,
+      stages: [],
+      idleProjects: ['A', 'B'],
+    });
+    const forward = buildConnectedScheduleBody(planned, null, dependencyHistory, connection);
+    const reverse = buildConnectedScheduleBody(planned, null, dependencyHistory, {
+      ...connection,
+      idleProjects: ['B', 'A'],
+    });
+    expect(serializeSavedConnectedScheduleBody(reverse)).toBe(
+      serializeSavedConnectedScheduleBody(forward),
+    );
+    expect(reverse.connection.idleProjects).toEqual(['B', 'A']);
+
+    const active = buildTargetFixture();
+    const body = buildConnectedScheduleBody(
+      active.planned,
+      '2026-10-01',
+      active.dependencyHistory,
+      active.connection,
+    );
+    const stages = [...body.connection.stages].reverse();
+    const reordered = readSavedConnectedScheduleBody(
+      JSON.parse(
+        serializeSavedConnectedScheduleBody({
+          ...body,
+          connection: { ...body.connection, stages },
+        }),
+      ),
+    );
+    expect(reordered.connection.stages.map((stage) => stage.projectId)).toEqual(
+      stages.map((stage) => stage.projectId),
+    );
+  });
+
   test('serializes deterministic independent bytes after caller maps change', () => {
     const { planned, dependencyHistory, connection } = buildTargetFixture();
     const body = buildConnectedScheduleBody(planned, '2026-10-01', dependencyHistory, connection);
