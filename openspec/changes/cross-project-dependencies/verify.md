@@ -874,3 +874,25 @@ exhaustive message arm was added, then passed 15/15. Named-file ESLint and diff
 check passed. The adjacent `Proof:` comment records the removed-arm fault.
 Frontend-wide typecheck remains blocked by the separately reviewed task 6.3
 `referenced_by_external_dependency` refusal until that packet is integrated.
+
+## Task 5.2 — bounded isolated dependency fanout
+
+The [independent review](evidence/task-5.2-isolated-fanout-review.md) approved
+the [isolated fanout packet](verify-task-5.2-isolated-fanout.md). After
+integration, eight focused suites passed 131/131 (450 assertions) and the
+backend TypeScript build passed. Old/new external components, transitive
+recipients and post-commit delivery are covered without shared-person capture;
+scoped label privacy proof remains bounded to the tested refusal path. Full
+shared-mode external capture, all writers, successful mounted progress/topology
+publication and socket/UI acceptance remain open. Task 5.2 is unchecked; final
+CI and exact-SHA host gate remain pending.
+
+## Task 8.1 — connected export boundary
+
+The [export seam checkpoint](evidence/task-8-connected-export/README.md) records
+why current v10 document, local endpoint IDs and connected `readExport` refusal
+must remain until a coherent selected schedule/boundary and stable external
+identity response contract is available. Existing SQLite, writer and HTTP
+boundary suites passed 110/110 (293 assertions). Removing the production
+connected-export refusal made its existing negative fail; restoration passed.
+This is evidence only: connected export/import remain inactive and 8.1 is open.
