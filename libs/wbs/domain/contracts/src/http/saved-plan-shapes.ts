@@ -221,6 +221,95 @@ const difference = type({
   right: 'unknown',
 });
 
+const comparisonProject = type({ projectId: 'string', name: 'string', abbreviation: 'string' });
+const comparisonVariant = type({
+  state: "'ready'",
+  questionHash: 'string',
+  proof: "'proven' | 'incomplete' | 'quantisation-floor'",
+  chosen: "'baseline' | 'optimized'",
+})
+  .or({
+    state: "'boundary-infeasible'",
+    questionHash: 'string',
+    evidence: "'contradictory-bounds' | 'initial-model-infeasible'",
+  })
+  .or({ state: "'pending' | 'retrying' | 'idle'" })
+  .or({
+    state: "'failed'",
+    reason:
+      "'timeout' | 'invalid-output' | 'no-solution' | 'internal-error' | 'oom' | 'horizon-overflow' | 'objective-overflow'",
+  })
+  .or({ state: "'corrupt'", message: 'string' })
+  .or({
+    state: "'plan-infeasible'",
+    items: type({
+      ownerWorkItemId: 'string',
+      boundWorkItemId: 'string',
+      effectiveDeadlineOffset: 'number',
+    })
+      .array()
+      .readonly(),
+  });
+const comparisonStage = comparisonProject.and({
+  engine: "'fast' | 'optimized'",
+  objective: "'pri' | 'time'",
+  observation: type({
+    inputHash: 'string',
+    contractVersion: 'string',
+    budgetMs: 'number',
+    quantum: 'number',
+    wireVersion: 'number',
+  }).or('null'),
+  selected: "'pri' | 'time' | null",
+  variants: type({ pri: comparisonVariant, time: comparisonVariant }).or('null'),
+  boundary: {
+    kind: "'connected-stage'",
+    projectId: 'string',
+    format: "'connected-stage-v1'",
+    canonical: 'string',
+    originOrdinal: 'number',
+    // Proof: optional fixed/canonical/originOrdinal accepted malformed mounted summaries (500 became 200).
+    fixed: type({
+      projectId: 'string',
+      workItemId: 'string',
+      stepId: 'string | null',
+      projectName: 'string',
+      projectAbbreviation: 'string',
+      workItemName: 'string',
+      stepName: 'string | null',
+      start: 'number',
+      finish: 'number',
+    })
+      .array()
+      .readonly(),
+  },
+});
+const comparisonPlacement = type({ kind: "'scheduled'" })
+  .or({ kind: "'dependency_calendar_missing'", projects: comparisonProject.array().readonly() })
+  .or({
+    kind: "'engine_unavailable'",
+    engine: "'optimized'",
+    projects: type('string[]').readonly(),
+    reason: "'adapter_missing' | 'connected_optimization_not_supported'",
+  })
+  .or({ kind: "'unavailable'", reason: "'cycle' | 'calendar_range'" });
+const comparisonSide = type({
+  source: type({ kind: "'current'" }).or({ kind: "'saved'", savedPlanId: 'string' }),
+  schedule: type({ present: 'true', algorithmId: 'string' }).or({
+    present: 'false',
+    absentReason: 'string',
+  }),
+  provenance: type({ kind: "'legacy-unknown' | 'local'" }).or({
+    kind: "'connected'",
+    targetProjectId: 'string',
+    mode: "'isolated' | 'shared'",
+    placementState: comparisonPlacement,
+    projects: comparisonProject.array().readonly(),
+    idleProjects: comparisonProject.array().readonly(),
+    stages: comparisonStage.array().readonly(),
+  }),
+});
+
 /** Compares two saved ids or the exact current sentinel; duplicate queries retain their last value. */
 export const compareSavedPlans = defineEndpointShape({
   method: 'GET',
@@ -234,7 +323,12 @@ export const compareSavedPlans = defineEndpointShape({
       kind: 'json',
       status: 200,
       schema: responseSchema(
-        type({ diff: { input: difference.array(), schedule: difference.array() } }),
+        type({
+          diff: { input: difference.array(), schedule: difference.array() },
+          // Proof: optional left/right admitted missing summaries in the production schema validator.
+          left: comparisonSide,
+          right: comparisonSide,
+        }),
       ),
     },
   ],

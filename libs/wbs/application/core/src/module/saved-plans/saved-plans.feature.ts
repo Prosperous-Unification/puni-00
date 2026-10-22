@@ -33,6 +33,7 @@ import type {
 import type { Scheduler } from '../../ports/scheduler';
 import type { AccessRefused, SharedPeopleRead } from '../../ports/shared-people-values';
 import type { SavedPlanResource } from './saved-plan.resource';
+import { summarizeSavedComparisonSide } from './saved-plan-comparison';
 import { bodyByteLength } from './saved-plan-integrity';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
 import type {
@@ -364,9 +365,19 @@ export class SavedPlanService {
   ): Promise<SavedPlanCompareOutcome> {
     const leftSide = await this.sideOf(projectId, left, access);
     if (leftSide.outcome !== 'side') return leftSide;
-    const rightSide = await this.sideOf(projectId, right, access);
+    // Proof: removing reuse made mounted `captures current/current once` observe two captures.
+    const rightSide =
+      left.kind === 'current' && right.kind === 'current'
+        ? leftSide
+        : await this.sideOf(projectId, right, access);
     if (rightSide.outcome !== 'side') return rightSide;
-    return { outcome: 'compared', diff: diffPlans(leftSide.side, rightSide.side) };
+    return {
+      outcome: 'compared',
+      diff: diffPlans(leftSide.side, rightSide.side),
+      // Proof: forcing a current read made the poisoned-capability SQLite comparison throw.
+      left: summarizeSavedComparisonSide(leftSide.side, left),
+      right: summarizeSavedComparisonSide(rightSide.side, right),
+    };
   }
 
   /**

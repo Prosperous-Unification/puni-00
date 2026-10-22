@@ -102,3 +102,27 @@ The same existing absent-schedule policy SHALL apply to save and `current` compa
 - **GIVEN** a shared project's target schedule was saved
 - **WHEN** an influencer is edited or deleted
 - **THEN** the saved target schedule bytes remain unchanged
+
+## ADDED Requirements
+
+### Requirement: Comparison responses preserve each side's historical scope
+
+Every successful comparison SHALL return required `left` and `right` summaries alongside `diff`, including when both diff lists are empty. Each summary SHALL identify its requested source, schedule presence or captured absence reason, and provenance. Supported pre-input9 records SHALL report legacy unknown provenance; explicit input9 local evidence SHALL report local provenance. Connected summaries SHALL retain captured component labels, mode, placement availability, idle members, stage engine/objective/observation and both objective outcomes. Each stage boundary SHALL retain its exact captured canonical bytes and foreign intervals before selection. Summaries SHALL derive solely from verified frozen bodies; final composite positions SHALL NOT replace a stage's earlier boundary. A boundary-infeasible objective SHALL remain distinct from whole-plan infeasibility and SHALL NOT hide a valid captured schedule.
+
+#### Scenario: Equal historical sides retain their context
+
+- **GIVEN** two equal saved connected sides with complete frozen evidence
+- **WHEN** they are compared with live capture and scheduling unavailable
+- **THEN** the diff is empty and both required summaries preserve captured labels, objective states and stage boundaries
+
+#### Scenario: Unavailable and legacy sides remain explicit
+
+- **GIVEN** a saved unavailable connected side and a supported legacy side
+- **WHEN** either is compared with itself or with the other
+- **THEN** each side reports its own source, provenance and schedule availability without inferring them from the diff
+
+#### Scenario: Current self-comparison shares one capture
+
+- **GIVEN** both requested sides are current
+- **WHEN** comparison resolves the live plan
+- **THEN** one capture supplies both identical current summaries and the empty diff

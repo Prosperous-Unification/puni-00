@@ -247,6 +247,9 @@ export function savedPlanRoutes(
               ok: true,
               status: 200,
               body: {
+                // Proof: omitting left failed the mounted equal-history comparison with an empty diff.
+                left: outcome.left,
+                right: outcome.right,
                 diff: {
                   // A removed field is undefined in the domain diff; JSON requires both sides.
                   // Proof: upstream assignment removal made mounted saved/current compare return

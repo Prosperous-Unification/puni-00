@@ -3818,3 +3818,73 @@ diagnostics. Prettier checked all six owned files with exit 0. After the lint-on
 import/optional-chain corrections, the real SQL capture suite returned
 **24 pass/0 fail, 98 assertions**. `git diff --check` returned exit 0. Normal
 lefthook hooks were installed in this isolated clone; none were bypassed.
+
+## Saved comparison C2 bounded backend/HTTP (2026-10-22)
+
+Base: C1 `4e96371f343d5d5115c636a62bb31f91d9061537`; isolated clone
+`/tmp/puni-c2-backend`. Required `left`/`right` summaries now travel from the
+frozen C1 projector through service outcomes and the comparison HTTP shape.
+The generated document requires both summaries even for empty diffs. A
+current/current comparison reuses one resolved current side. Active ordinary
+writers remain input8/schedule1 and compose still refuses connected capture.
+
+TDD: `bun test libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts` first reported
+98 pass / 4 fail. The failures were missing connected/unavailable summaries,
+two current captures instead of one, and a schema accepting absent summaries
+(`/tmp/c2-red.log`). Additional mounted cases cover later-stage displacement
+and a boundary-infeasible sibling while the selected schedule stays present.
+
+Watched production faults, restored individually:
+
+| Injected fault                                                      | Observed failing path                                                                  | Evidence                                              |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Omit HTTP left summary                                              | Equal stored connected history returns 500 instead of 200                              | `/tmp/c2-fault-omit-side.log`                         |
+| Skip every foreign boundary member                                  | Equal stored connected history loses B's captured interval                             | `/tmp/c2-fault-omit-fixed-member.log`                 |
+| Replace retained starts/finishes with final composite positions     | Mounted later B displacement shows 3→5 instead of captured 1→3                         | `/tmp/c2-fault-final-position.log`                    |
+| Relabel boundary-infeasible as plan-infeasible                      | Mounted boundary objective returns 500 instead of its preserved valid-schedule summary | `/tmp/c2-fault-terminal-label.log`                    |
+| Make required left or right optional                                | Production response-schema validation accepts an omitted side                          | `/tmp/c2-fault-optional-{left,right}.log`             |
+| Make boundary fixed/canonical/originOrdinal optional, one at a time | Mounted malformed-summary case returns 200 instead of 500                              | `/tmp/c2-fault-optional-{fixed,canonical,origin}.log` |
+| Resolve current/current independently again                         | Mounted current/current observes two captures                                          | `/tmp/c2-fault-double-current-capture.log`            |
+| Force a current read before saved-only comparison                   | SQLite saved-only comparison throws from its poisoned live capability                  | `/tmp/c2-fault-live-read.log`                         |
+
+Each named fault run reported 0 pass / 1 fail. Optional top-level fields were
+proved at the production schema validator: the mounted route writes explicit
+undefined for malformed service output, which ArkType still rejects even when
+the property is optional. Nested boundary omissions were proved through the
+mounted HTTP response validator. C1's defensive missing-label guard mutations
+remain pure/provisional; this packet does not relabel them as mounted proofs.
+
+Saved-only service comparison uses real migrated SQLite with complete injected
+v9/v2 records and no live B project. The installed local capture connection,
+shared live capture, scheduler read/support/resolved-Fast, clock and ID
+capabilities all throw. Mounted HTTP covers equal connected, equal unavailable,
+legacy↔connected, exact boundaries, terminal scope and malformed required
+summaries; it preserves the existing target authorization read.
+
+Validation limitations and recovery: the initial directory-pattern Bun command
+collected freshly emitted `dist/out-tsc` test copies after typecheck (201 source
+tests passed; five emitted-JS alias import errors). The replacement uses explicit
+`./` source file arguments. Initial Nx socket access was denied by the sandbox;
+subsequent Nx commands use `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. A broad
+three-project lint attempt reported a contracts nonzero exit without diagnostics
+and was interrupted while continuing to the next project (exit 130). A combined
+owned-file lint was also interrupted to release memory; sequential file-scoped
+checks supersede those attempts. The first backend typecheck found a test-double
+Scheduler missing `readResolvedFast`; the corrected retry passed.
+
+Deferred: frontend API/state/rendered provenance and generated-client use,
+remaining B2/D lifecycle matrix, connected save/current writer activation,
+canonical h2puni/h4claw gate, CI secrets/migration checks and full build. No push,
+merge, deploy, participant fencing or runtime activation was performed. Task
+8.3 remains open.
+
+Final C2 backend evidence:
+
+- `bun test ./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts ./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts ./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts ./libs/wbs/application/core/src/module/saved-plans/module.test.ts ./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts ./libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts ./apps/wbs/be-01/src/service/saved-plan-read.db.test.ts ./apps/wbs/be-01/src/service/saved-plan-current.db.test.ts ./apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts ./apps/wbs/be-01/src/controller/saved-plan-organization.controller.db.test.ts`: 201 pass / 0 fail; 896 assertions, 10 source files (`/tmp/c2-tests-clean.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-contracts,wbs-core,wbs-be-01 --parallel=1`: contracts/core and both module targets passed; backend initially failed the test-double omission documented above (`/tmp/c2-typecheck-final.log`). `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck --outputStyle=static` then passed both backend targets (`/tmp/c2-be-typecheck.log`).
+- `bunx eslint libs/wbs/domain/contracts/src/http/saved-plan-shapes.ts libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts`: exit 0 (`/tmp/c2-contract-lint2.log`). `bunx eslint libs/wbs/application/core/src/module/saved-plans/saved-plan-values.ts libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.ts libs/wbs/application/core/src/http/saved-plan.routes.ts`: exit 0 (`/tmp/c2-core-lint.log`).
+- `./node_modules/.bin/openspec validate --all --json`: 268 valid / 0 failed; existing advisory warnings retained (`/tmp/c2-openspec-final.log`).
+- `git diff --check`: exit 0.
+- Backend changed-file lint initially found test-only unsafe JSON/matcher values, import ordering and an unnecessary async arrow. After explicit summary typing, ordinary string-array assertions and import sorting, `bunx eslint --fix apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts apps/wbs/be-01/src/service/saved-plan-read.db.test.ts` exited 0 (`/tmp/c2-backend-lint2.log`).
+- Post-lint focused rerun: `bun test ./apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts ./apps/wbs/be-01/src/service/saved-plan-read.db.test.ts ./libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts --test-name-pattern 'reads complete connected history|frozen connected SQL|generated comparison document'`: 3 pass / 0 fail (`/tmp/c2-post-lint-tests.log`).

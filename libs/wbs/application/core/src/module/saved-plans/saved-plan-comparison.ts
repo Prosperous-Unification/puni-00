@@ -91,7 +91,7 @@ export interface SavedComparisonSide {
  * Project an already resolved, integrity-verified side using frozen historical decoders only.
  * No capture, shelf, directory, settings or scheduler capability is accepted. The existing legacy resolver
  * retains its normalized v8 shape, so only explicitly captured input9 establishes local provenance. Throws for missing captured labels.
- * The dormant projector does not change comparison HTTP contracts or activate input9 writers.
+ * Comparison HTTP responses require this summary on each side, including empty diffs.
  */
 export function summarizeSavedComparisonSide(
   side: PlanSide,
@@ -130,6 +130,7 @@ function projectComparisonSide(side: PlanSide, source: SavedPlanSideRef): SavedC
                     pri: summarizeVariant(stage.variants.pri),
                     time: summarizeVariant(stage.variants.time),
                   },
+            // Proof: removing foreign members or substituting final composite positions failed mounted historical comparisons.
             boundary: summarizeBoundary(history, stage),
           };
         });
@@ -171,6 +172,7 @@ function summarizeVariant(variant: CapturedVariant): SavedComparisonVariant {
       proof: variant.proof,
       chosen: variant.decision.chosen,
     };
+  // Proof: relabeling this as plan-infeasible failed the mounted boundary objective case.
   if (variant.state === 'boundary-infeasible')
     return {
       state: variant.state,

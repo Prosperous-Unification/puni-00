@@ -4,6 +4,10 @@ import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import {
+  type SavedComparisonSide,
+  summarizeSavedComparisonSide,
+} from '@wbs/core/module/saved-plans/saved-plan-comparison';
 import { bodySha256 } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
@@ -59,6 +63,12 @@ import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import { savedPlanRoutes } from './saved-plan.routes';
 
+const comparisonSide = {
+  source: { kind: 'current' as const },
+  schedule: { present: false as const, absentReason: 'unavailable' },
+  provenance: { kind: 'legacy-unknown' as const },
+};
+
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /**
@@ -93,6 +103,7 @@ describe('the saved-plan routes', () => {
    * request.
    */
   let writes: ReturnType<typeof testWrites>;
+  let plans: ReturnType<typeof savedPlanServiceOn>;
 
   /** Seeds access policy through the real store; project-command behavior has its own suites. */
   const restrictProject = async () => {
@@ -142,6 +153,7 @@ describe('the saved-plan routes', () => {
     // the batch graph, and a double there has never seen these projects.
     writes = testWrites(broadcast, { projects: projectService });
 
+    plans = savedPlanServiceOn(path);
     app = buildApp({
       projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
@@ -171,7 +183,7 @@ describe('the saved-plan routes', () => {
       // would compile and would quietly put this app's project events somewhere
       // nothing in the file can read.
       projects: projectService,
-      savedPlans: savedPlanServiceOn(path),
+      savedPlans: plans,
       steps: testStepService(),
       workItems: testWorkItemService(),
       directory: testDirectoryService(),
@@ -593,7 +605,38 @@ describe('the saved-plan routes', () => {
       `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${id}`,
     );
     expect(compared.status).toBe(200);
-    expect(await compared.json()).toEqual({ diff: { input: [], schedule: [] } });
+    const comparison = (await compared.json()) as {
+      left: SavedComparisonSide;
+      right: SavedComparisonSide;
+    };
+    expect(comparison).toMatchObject({
+      diff: { input: [], schedule: [] },
+      left: {
+        source: { kind: 'saved', savedPlanId: id },
+        schedule: { present: true, algorithmId: 'connected-selection-v1:retired' },
+        provenance: {
+          kind: 'connected',
+          targetProjectId: projectId,
+          placementState: { kind: 'scheduled' },
+        },
+      },
+    });
+    expect(comparison.right).toEqual(comparison.left);
+    if (comparison.left.provenance.kind !== 'connected')
+      throw new Error('connected summary required');
+    expect(comparison.left.provenance.stages[0]?.boundary.fixed).toEqual([
+      {
+        projectId: 'B',
+        workItemId: 'b',
+        stepId: 'build',
+        projectName: 'Beta',
+        projectAbbreviation: 'B',
+        workItemName: 'b',
+        stepName: 'Build',
+        start: 1,
+        finish: 3,
+      },
+    ]);
 
     const renamedId = await savedIdOf(await save('ada'));
     const renamed = savedConnectedHistoryFixture(projectId);
@@ -613,6 +656,189 @@ describe('the saved-plan routes', () => {
     expect(await changed.json()).toMatchObject({
       diff: { input: [{ path: 'dependencyHistory.projects' }], schedule: [] },
     });
+  });
+
+  it('returns the pre-selection boundary after a later stage moves its foreign member', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    const connection = captured.schedule.connection;
+    const first = connection.stages[0];
+    const second = connection.stages[1];
+    const ready = first.variants?.time;
+    if (ready?.state !== 'ready' || captured.input.dependencyHistory.kind !== 'connected')
+      throw new Error('ready connected fixture required');
+    const baseline = structuredClone(connection.composite);
+    const later = structuredClone(connection.composite);
+    for (const span of [later.workItems['b'], later.slices['b\u0000build']]) {
+      Reflect.set(span, 'earliestStart', span.earliestStart + 2);
+      Reflect.set(span, 'earliestFinish', span.earliestFinish + 2);
+      Reflect.set(span, 'latestStart', span.latestStart + 2);
+      Reflect.set(span, 'latestFinish', span.latestFinish + 2);
+    }
+    Reflect.set(connection, 'composite', later);
+    Reflect.set(connection, 'stages', [
+      first,
+      {
+        ...second,
+        engine: 'optimized',
+        selected: 'pri',
+        observation: first.observation,
+        variants: {
+          pri: {
+            ...ready,
+            candidate: {
+              question: {
+                ...ready.candidate.question,
+                projectId: 'B',
+                objective: 'pri',
+                stageBytes: second.stageBytes,
+              },
+              starts: [['b\u0000build', 3]],
+            },
+            decision: {
+              ...ready.decision,
+              scope: { kind: 'connected-stage', projectId: 'B' },
+              baseline,
+              schedule: later,
+            },
+          },
+          time: { state: 'idle' },
+        },
+      },
+    ]);
+    const foreign = captured.input.dependencyHistory.projects.find(
+      (member) => member.projectId === 'B',
+    );
+    if (foreign === undefined) throw new Error('foreign fixture required');
+    Reflect.set(foreign, 'engine', 'optimized');
+    Reflect.set(foreign, 'enabled', true);
+    await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+    const compared = await compareOf('ada', id, id);
+    expect(compared.status).toBe(200);
+    expect(compared.body).toMatchObject({
+      diff: { input: [], schedule: [] },
+      left: {
+        provenance: {
+          stages: [
+            { boundary: { fixed: [{ workItemId: 'b', start: 1, finish: 3 }] } },
+            {
+              boundary: {
+                fixed: [
+                  { workItemId: 'a', stepId: 'design', start: 1, finish: 2 },
+                  { workItemId: 'a', stepId: 'test', start: 4, finish: 5 },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it('keeps a boundary-infeasible objective scoped while the captured schedule remains present', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    const stage = captured.schedule.connection.stages[0];
+    const ready = stage.variants?.time;
+    if (ready?.state !== 'ready' || stage.variants === null)
+      throw new Error('ready fixture required');
+    Reflect.set(stage.variants, 'pri', {
+      state: 'boundary-infeasible',
+      certificate: {
+        kind: 'boundary-infeasible',
+        evidence: 'contradictory-bounds',
+        question: { ...ready.candidate.question, objective: 'pri' },
+      },
+    });
+    await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+    const compared = await compareOf('ada', id, id);
+    expect(compared.status).toBe(200);
+    expect(compared.body).toMatchObject({
+      diff: { input: [], schedule: [] },
+      left: {
+        schedule: { present: true },
+        provenance: {
+          stages: [
+            {
+              selected: 'time',
+              variants: {
+                pri: {
+                  state: 'boundary-infeasible',
+                  questionHash: 'question',
+                  evidence: 'contradictory-bounds',
+                },
+                time: { state: 'ready' },
+              },
+            },
+            {},
+          ],
+        },
+      },
+    });
+  });
+
+  it('compares unavailable and legacy records using frozen evidence with live readers poisoned', async () => {
+    const legacy = await savedIdOf(await save('ada'));
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    if (captured.input.dependencyHistory.kind !== 'connected')
+      throw new Error('connected fixture required');
+    Reflect.set(captured.input.dependencyHistory, 'placementState', {
+      kind: 'unavailable',
+      reason: 'cycle',
+    });
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null, 'infeasible');
+    const capture = spyOn(plans, 'projectCurrentPlan').mockImplementation(() => {
+      throw new Error('live capture poisoned');
+    });
+    try {
+      const equal = await compareOf('ada', id, id);
+      expect(equal.status).toBe(200);
+      expect(equal.body).toMatchObject({
+        diff: { input: [], schedule: [] },
+        left: {
+          source: { kind: 'saved', savedPlanId: id },
+          schedule: { present: false, absentReason: 'infeasible' },
+          provenance: {
+            kind: 'connected',
+            placementState: { kind: 'unavailable', reason: 'cycle' },
+            stages: [],
+            idleProjects: [],
+          },
+        },
+      });
+      const mixed = await compareOf('ada', legacy, id);
+      expect(mixed.status).toBe(200);
+      expect(mixed.body).toMatchObject({
+        left: { provenance: { kind: 'legacy-unknown' } },
+        right: { provenance: { kind: 'connected' } },
+      });
+      const reversed = await compareOf('ada', id, legacy);
+      expect(reversed.status).toBe(200);
+      expect(reversed.body).toMatchObject({
+        left: { provenance: { kind: 'connected' } },
+        right: { provenance: { kind: 'legacy-unknown' } },
+      });
+    } finally {
+      capture.mockRestore();
+    }
+  });
+
+  it('captures current/current once and returns identical current summaries', async () => {
+    const capture = spyOn(plans, 'projectCurrentPlan');
+    try {
+      const compared = await compareOf('ada', 'current', 'current');
+      expect(compared.status).toBe(200);
+      expect(capture).toHaveBeenCalledTimes(1);
+      expect(compared.body).toMatchObject({
+        diff: { input: [], schedule: [] },
+        left: { source: { kind: 'current' }, provenance: { kind: 'legacy-unknown' } },
+      });
+      const summaries = compared.body as { left: unknown; right: unknown };
+      expect(summaries.right).toEqual(summaries.left);
+    } finally {
+      capture.mockRestore();
+    }
   });
 
   it.each([
@@ -1560,6 +1786,8 @@ function fixture() {
   const compare = spyOn(plans, 'compare').mockResolvedValue({
     outcome: 'compared',
     diff: { input: [], schedule: [] },
+    left: comparisonSide,
+    right: comparisonSide,
   });
   const rename = spyOn(plans, 'rename').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
   const remove = spyOn(plans, 'delete').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
@@ -1673,12 +1901,17 @@ test('mounted compare preserves last query values, opaque differences, and corru
     input: [{ category: 'other' as const, path: 'old.x', left: { old: [1, 'x'] }, right: null }],
     schedule: [],
   };
-  f.compare.mockResolvedValueOnce({ outcome: 'compared', diff });
+  f.compare.mockResolvedValueOnce({
+    outcome: 'compared',
+    diff,
+    left: comparisonSide,
+    right: comparisonSide,
+  });
   const response = await f.call(
     '/api/projects/p/saved-plans/compare?left=missing&left=current&right=s',
   );
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ diff });
+  expect(await response.json()).toEqual({ diff, left: comparisonSide, right: comparisonSide });
   expect(f.compare).toHaveBeenCalledWith(
     'p',
     { kind: 'current' },
@@ -1905,4 +2138,39 @@ it('classifies saved-plan service versions on each of the six operations', async
     });
   }
   expect(f.announcements.published).toEqual([]);
+});
+
+test('mounted comparison rejects missing required summaries and nested boundary fields', async () => {
+  const f = fixture();
+  const valid = {
+    outcome: 'compared',
+    diff: { input: [], schedule: [] },
+    left: comparisonSide,
+    right: comparisonSide,
+  };
+  for (const key of ['left', 'right']) {
+    const incomplete = structuredClone(valid);
+    Reflect.deleteProperty(incomplete, key);
+    f.compare.mockResolvedValueOnce(incomplete as never);
+    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=s')).status).toBe(500);
+  }
+  const captured = savedConnectedHistoryFixture('p');
+  const side = summarizeSavedComparisonSide(
+    {
+      input: captured.input,
+      schedule: {
+        present: true,
+        algorithmId: captured.schedule.algorithmId,
+        body: captured.schedule,
+      },
+    },
+    { kind: 'saved', savedPlanId: 's' },
+  );
+  for (const key of ['fixed', 'canonical', 'originOrdinal']) {
+    const incomplete = structuredClone(side);
+    if (incomplete.provenance.kind !== 'connected') throw new Error('connected summary required');
+    Reflect.deleteProperty(incomplete.provenance.stages[0].boundary, key);
+    f.compare.mockResolvedValueOnce({ ...valid, left: incomplete } as never);
+    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=s')).status).toBe(500);
+  }
 });
