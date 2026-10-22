@@ -71,6 +71,9 @@ export function createEndpointEvidence(
       return { ok: false, reason: 'forbidden' } as const;
     // Proof: scoped-project-evidence bypass failed `mounted foreign-organization`'s selected assertion
     // (actual SQLite boundary; watched 2026-10-22).
+    // Proof: bypassing this scoped read during external redo turned the concealed
+    // project-read refusal into a later graph-read throw; all-table rollback is
+    // checked by `external redo revalidates project-read delivery` (2026-10-22).
     const project = await checked(() =>
       findProjectWithin(reads.projects, address.projectId, authority.access),
     );
@@ -80,9 +83,15 @@ export function createEndpointEvidence(
     // Proof: bypassing this consumer failed `mounted absent-row`
     // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
     if (row === null) return { ok: false, reason: 'not_found' } as const;
+    // Proof: removing this check let `external redo revalidates wrong-identity
+    // delivery` restore its subtree and external link from misdelivered facts
+    // instead of throwing; watched against real SQLite, 2026-10-22.
     if (row.id !== address.workItemId) throw new Error('endpoint row identity mismatch');
     // Proof: exact-row-project-evidence bypass failed `mounted wrong-row-project`'s selected assertion
     // (actual SQLite boundary; watched 2026-10-22).
+    // Proof: removing this check let `external redo revalidates foreign-project
+    // delivery` restore its subtree and external link instead of returning
+    // concealed not_found; watched against real SQLite, 2026-10-22.
     if (row.projectId !== address.projectId) return { ok: false, reason: 'not_found' } as const;
     return { ok: true, project, row } as const;
   };

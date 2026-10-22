@@ -202,6 +202,7 @@ async function semantic<T extends { readonly ok: boolean }>(
   omitRecordedRevision = false,
   corruptStoredScope = false,
   restoredEndpointRefusal?: 'forbidden' | 'unknown_step',
+  endpointDelivery?: 'foreign-project' | 'wrong-identity',
 ): Promise<T> {
   const boundary = harness.publicWrites();
   const broadcast = recordingBroadcaster();
@@ -239,8 +240,27 @@ async function semantic<T extends { readonly ok: boolean }>(
               return member;
             },
           });
+    const workItems =
+      endpointDelivery === undefined
+        ? scope.stores.workItems
+        : new Proxy(scope.stores.workItems, {
+            get(target, key) {
+              if (key === 'findById')
+                return async (workItemId: string) => {
+                  const row = await target.findById(workItemId);
+                  if (row === null || workItemId !== fixture.predecessor.workItemId) return row;
+                  return endpointDelivery === 'foreign-project'
+                    ? { ...row, projectId: fixture.owner.projectId }
+                    : { ...row, id: 'wrong-delivered-identity' };
+                };
+              const member: unknown = Reflect.get(target, key);
+              if (typeof member === 'function')
+                return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
+              return member;
+            },
+          });
     const dependencies = createDependencyContext(
-      { ...scope.stores, projects },
+      { ...scope.stores, projects, workItems },
       {
         projectId: fixture.owner.projectId,
         actorId: fixture.principal.id,
@@ -2717,3 +2737,128 @@ for (const strategy of ['cascade', 'promote'] as const) {
     ).toBeNull();
   });
 }
+
+// Proof: skipping typedRefusal's connected read changed this exact refusal to
+// walkStack's final cycle refusal. Skipping both real graph calls admitted the
+// cyclic undo (ok:true); A/B revisions remained unchanged in both runs (2026-10-22).
+test('undo reaches the actual remote cycle guard after only unguarded remote endpoints change', async () => {
+  const fixture = await open();
+  const a = fixture.predecessor;
+  const b = fixture.owner;
+  const remoteOwner = { ...fixture, owner: a };
+  const x = { projectId: b.projectId, workItemId: await ownerRow(fixture, 'Cycle bridge X') };
+  const y = { projectId: a.projectId, workItemId: await ownerRow(remoteOwner, 'Cycle bridge Y') };
+  const node = (address: typeof a) => ({
+    ...address,
+    scope: 'node' as const,
+    stepId: workflowStep(address.projectId, 'Dev'),
+  });
+  for (const [owner, predecessor, successor] of [
+    [fixture, b, x],
+    [remoteOwner, y, a],
+  ] as const) {
+    expect(
+      await semantic(owner, (service) =>
+        service.addTypedDependency(owner.owner.projectId, fixture.principal.id, {
+          predecessor: node(predecessor),
+          successor: node(successor),
+          type: 'FS',
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+  }
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(b.projectId, fixture.principal.id, {
+      predecessor: node(a),
+      successor: node(b),
+      type: 'FS',
+    }),
+  );
+  if (!added.ok) throw new Error('fixture cycle-closing relationship refused');
+  expect(
+    await semantic(fixture, (service) =>
+      service.removeTypedDependency(b.projectId, fixture.principal.id, added.value),
+    ),
+  ).toMatchObject({ ok: true });
+  const guardedRevisions = () =>
+    harness.sqlite
+      .query<{ id: string; revision: number }, [string, string]>(
+        'SELECT id, revision FROM work_item WHERE id IN (?,?) ORDER BY id',
+      )
+      .all(a.workItemId, b.workItemId);
+  const revisions = guardedRevisions();
+  expect(
+    await semantic(remoteOwner, (service) =>
+      service.addTypedDependency(a.projectId, fixture.principal.id, {
+        predecessor: node(x),
+        successor: node(y),
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(guardedRevisions()).toEqual(revisions);
+  const before = effects();
+  const undone = await semantic(fixture, async (service) => {
+    const patched = await service.patch(x.workItemId, fixture.principal.id, {
+      name: 'This earlier successful action must roll back',
+    });
+    expect(patched).toMatchObject({ ok: true });
+    if (!patched.ok) return patched;
+    return service.undoWithin(b.projectId, fixture.principal.id, fixture.expectedAccess);
+  });
+  expect(undone).toMatchObject({
+    ok: false,
+    reason: 'stale_undo',
+    detail: 'that relationship would now be refused: cycle.',
+  });
+  expect(effects()).toEqual(before);
+});
+
+for (const defect of ['project-read', 'foreign-project', 'wrong-identity'] as const)
+  test(`external redo revalidates ${defect} delivery and rolls back an earlier successful action`, async () => {
+    const { fixture } = await undoneExternalCreate();
+    const before = effects();
+    const redone = await observed(
+      semantic(
+        fixture,
+        async (service) => {
+          const patched = await service.patch(fixture.owner.workItemId, fixture.principal.id, {
+            name: 'Must roll back before replay admission',
+          });
+          expect(patched).toMatchObject({ ok: true });
+          if (!patched.ok) return patched;
+          return service.redoWithin(
+            fixture.owner.projectId,
+            fixture.principal.id,
+            fixture.expectedAccess,
+          );
+        },
+        undefined,
+        defect === 'project-read' ? fixture.predecessor.projectId : undefined,
+        undefined,
+        false,
+        false,
+        undefined,
+        defect === 'project-read' ? undefined : defect,
+      ),
+    );
+    if (defect === 'wrong-identity') {
+      expect(redone).toBeInstanceOf(Error);
+      expect(redone instanceof Error ? redone.message : redone).toBe(
+        'endpoint row identity mismatch',
+      );
+    } else expect(redone).toMatchObject({ ok: false, reason: 'not_found', detail: null });
+    expect(effects()).toEqual(before);
+  });
+
+test('mounted external redo checks revoked current membership before opening its graph', async () => {
+  const { fixture } = await undoneExternalCreate();
+  harness.sqlite
+    .query('DELETE FROM organization_membership WHERE organization_id=? AND user_id=?')
+    .run('org-a', fixture.principal.id);
+  const before = effects();
+  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/redo`);
+  expect(response.status).toBe(403);
+  expect(await response.json()).toMatchObject({ error: 'not_a_member' });
+  expect(effects()).toEqual(before);
+});
