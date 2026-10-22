@@ -13,6 +13,7 @@ import {
   type PasswordHasher,
   type ProjectRankStore,
 } from '@wbs/core';
+import type { RecoveryWriteBoundary } from '@wbs/core/http/recovery-write';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
@@ -206,6 +207,7 @@ export class OrganizationHarness {
       token: string,
       cookie: string,
     ) => Promise<AuthenticatedUser>,
+    private readonly composedWrites?: RecoveryWriteBoundary,
   ) {}
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
@@ -289,6 +291,12 @@ export class OrganizationHarness {
   publicCommands(): PlanCommandRunner {
     if (this.composedCommands === undefined) throw new Error('composed commands are absent');
     return this.composedCommands;
+  }
+
+  /** Actual process writer boundary for direct admission integration tests. */
+  publicWrites(): RecoveryWriteBoundary {
+    if (this.composedWrites === undefined) throw new Error('composed write boundary is absent');
+    return this.composedWrites;
   }
 
   /** Runs the composed background edit admission in integration tests. */
@@ -830,6 +838,13 @@ export class OrganizationHarness {
             expected: { kind: 'present', organizationId: 'org-a' },
           },
         };
+      },
+      {
+        commandAccess,
+        uow: services.uow,
+        batch: services.batch,
+        announcements: services.announcements,
+        committedFanout: services.committedFanout,
       },
     );
     harness.federated = provider !== undefined;

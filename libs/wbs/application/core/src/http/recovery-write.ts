@@ -37,7 +37,8 @@ export interface RecoveryWriteBoundary {
 /**
  * Classifies a scoped project write inside its own unit of work, or runs a
  * legacy combined write under creator admission. A refusal rolls its audit
- * obligation back; events leave only after a committed write.
+ * obligation back; events leave only after a committed write. Principals without
+ * write scope are refused before opening the unit of work.
  */
 export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   boundary: RecoveryWriteBoundary,
@@ -48,6 +49,8 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   perform: (services: WritingServices, access: ResourceAccess) => Promise<T>,
   refuse: (reason: 'not_found' | 'forbidden') => T,
 ): Promise<T | AuthorityRefusal> {
+  // Proof: removing this guard committed a direct read-only recovery removal and its audit (command-current-authority.controller.db.test.ts).
+  if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
   const actorId = actor.id;
   const pending: { projectId: string; event: ProjectEvent }[] = [];
   let committed: readonly CommittedProjectEvent[] = [];

@@ -33,6 +33,7 @@ export interface AdmittedWriteOptions {
 
 /**
  * A project `depReach` change and a step removal, each run as one unit of work.
+ * Principals without write scope are refused before opening that unit of work.
  *
  * Both read the combined step-node graph and then write, outside any command
  * batch. Run as bare route writes, another write could land between the check
@@ -47,6 +48,8 @@ export function admittedWrites(options: AdmittedWriteOptions) {
     expectedAccess: ResourceAccess,
     act: (graph: AdmittedServices, access: ResourceAccess) => Promise<T>,
   ): Promise<T | AuthorityRefusal> => {
+    // Proof: removing this guard made direct read-only project update and bare step removal commit (command-current-authority.controller.db.test.ts).
+    if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
     const collector = new AnnouncementCollector(options.announcements);
     const outcome = await options.transaction.run<T>(
       { kind: 'human', principal: actor, expectedAccess },

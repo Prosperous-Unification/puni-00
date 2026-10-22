@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { runRecoveryWrite } from '@wbs/core/http/recovery-write';
+import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
@@ -10,6 +12,9 @@ let afterResolve: (() => void) | undefined;
 let instant = Date.now();
 let refusingObservations = false;
 let prematurePushes = 0;
+let writerTurns = 0;
+let observedCaptures = 0;
+let observedPushes = 0;
 afterEach(async () => {
   await harness.closeComposed();
 });
@@ -19,14 +24,22 @@ async function open() {
   afterResolve = undefined;
   refusingObservations = false;
   prematurePushes = 0;
+  writerTurns = 0;
+  observedCaptures = 0;
+  observedPushes = 0;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
     now: () => instant,
     afterResolve: () => afterResolve?.(),
+    onBorrowedUnitOfWork: () => {
+      writerTurns += 1;
+    },
     onFanoutCapture: () => {
+      observedCaptures += 1;
       if (refusingObservations) throw new Error('refused authority reached fan-out capture');
     },
     pushFetch: () => {
+      observedPushes += 1;
       if (refusingObservations) prematurePushes += 1;
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     },
@@ -386,3 +399,65 @@ test('direct authenticated runner entries refuse read-only principals before ope
     expect(await pending).toEqual({ ok: false, error: 'insufficient_scope' });
   expect(effects()).toEqual(before);
 });
+
+for (const operation of ['project update', 'bare step removal', 'recovery write'] as const) {
+  test(`direct ${operation} refuses read-only scope before opening its SQLite UoW`, async () => {
+    const fixture = await open();
+    const cookieValue = decodeURIComponent(fixture.cookie.slice(fixture.cookie.indexOf('=') + 1));
+    const principal = {
+      ...(await harness.authenticatedCommandPrincipal('ada', cookieValue)),
+      scopes: ['read'] as const,
+    };
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+    };
+    if (operation !== 'bare step removal') {
+      await harness.register('owner');
+      harness.member('org-a', 'owner', 'member');
+      harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
+        harness.userId('owner'),
+        fixture.projectId,
+      ]);
+    }
+    const boundary = harness.publicWrites();
+    const before = effects();
+    const turnsBefore = writerTurns;
+    const capturesBefore = observedCaptures;
+    const pushesBefore = observedPushes;
+    const outcome =
+      operation === 'project update'
+        ? await createAdmittedWrites(boundary).updateProjectWithin(
+            fixture.projectId,
+            principal,
+            { name: 'Must not write' },
+            access,
+          )
+        : operation === 'bare step removal'
+          ? await harness.removeBareStep(fixture.projectId, fixture.stepId, principal, true, access)
+          : await runRecoveryWrite(
+              boundary,
+              access,
+              fixture.projectId,
+              principal,
+              { step: 'remove' },
+              (services, freshAccess) =>
+                services.steps.removeWithin(
+                  fixture.projectId,
+                  fixture.stepId,
+                  principal.id,
+                  true,
+                  freshAccess,
+                ),
+              (reason) => ({ ok: false, reason }),
+            );
+    expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
+    expect(writerTurns).toBe(turnsBefore);
+    expect(observedCaptures).toBe(capturesBefore);
+    expect(observedPushes).toBe(pushesBefore);
+    expect(effects()).toEqual(before);
+    expect(
+      harness.sqlite.query('SELECT id FROM step WHERE id=?').get(fixture.stepId),
+    ).not.toBeNull();
+  });
+}
