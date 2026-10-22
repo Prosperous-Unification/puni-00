@@ -224,3 +224,16 @@ mounted terminal actions/read-only/stale/error-boundary coverage. Independent
 mounted faults cover scope/details, Retry/selection, retention, stale figures and
 unknown discriminators. Producer-to-HTTP/table/cards B3, reconciliation B4,
 remaining B5 proofs and activation are pending; 7.3/7.4/9.2 stay unchecked.
+
+Task 9.2 B3 producer-fixture prerequisite (2026-10-22): the original mixed-engine,
+distinct-anchor observation is now shared through a runner-free fixture, with a
+complete `presentConnectedTree(projectConnectedTree(...))` factory. A separate real
+FS A/B/C fixture derives A.finish=0.2, B=0.2→1.2 and C.start=1.2 with no authored
+deadlines, then uses actual connected solver preparation/classification at quantum
+48 for terminal Time. Captured Pri idle/pending/failed states remain independent
+through generated-client decoding. Public mixed fixtures retain A's captured C=8
+and final C=6 on the component axis. This is a bounded prerequisite, not completed
+B3: real `httpProjectApi.tree` → `WbsTableOverClient` table/cards, retained rendered
+dates/bars/spans, terminal HTTP actions, unavailable reads and mounted stale/refetch
+proofs remain pending. The frontend connected refusal remains in place. Parent
+7.3/7.4/9.2, B3 enablement, B4, remaining B5 and activation remain unchecked.

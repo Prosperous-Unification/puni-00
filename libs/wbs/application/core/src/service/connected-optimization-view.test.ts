@@ -1,193 +1,67 @@
 import { clientFromShapes, getWorkItems, validateSchema } from '@wbs/contracts';
-import { canonicalConnectedStageInput, scheduleResolved, sliceKey } from '@wbs/domain';
+import { canonicalConnectedStageInput, sliceKey } from '@wbs/domain';
 import { expect, test } from 'bun:test';
 
 import { presentConnectedTree } from '../module/work-item/work-item.resource';
-import type { ConnectedOptimizedCapturedAdapter } from '../ports/scheduler';
-import type { LivePlanRead } from '../ports/shared-people-values';
-import { connectedReads } from '../testing/connected-plan-fixture';
-import { deriveConnectedPlan } from './connected-plan';
-import type { ConnectedPlanCapture } from './connected-plan-values';
-import { deriveConnectedReadiness } from './connected-readiness';
+import {
+  createConnectedOptimizationRead as captured,
+  createConnectedOptimizationTree,
+  createFractionalConnectedOptimizationTree,
+} from '../testing/connected-optimization-view.fixture';
 import { projectConnectedTree } from './connected-tree';
 
-type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const key = (id: string) => sliceKey(id, 'build');
-function captured(
-  state: 'ready' | 'boundary-infeasible' | 'pending' | 'floor' = 'ready',
-): ConnectedRead {
-  const projects = ['A', 'B', 'C'].map((projectId, rank) => {
-    const reads = connectedReads(
-      projectId,
-      rank === 0 ? '2026-10-05' : rank === 1 ? '2026-10-06' : '2026-10-07',
-    );
-    const first = reads.workItems.at(0);
-    if (first === undefined) throw new Error('missing fixture work');
-    return {
-      projectId,
-      abbreviation: `P${projectId}`,
-      rank,
-      reads: {
-        ...reads,
-        project: {
-          ...reads.project,
-          optimizationEnabled: true,
-          scheduleEngine: projectId === 'B' ? ('fast' as const) : ('optimized' as const),
-          scheduleObjective: 'time' as const,
-        },
-        ...(projectId === 'A'
-          ? {
-              workItems: [
-                { ...first, id: 'a' },
-                { ...first, id: 'a2', position: 1 },
-              ],
-              estimates: [
-                ...reads.estimates,
-                { workItemId: 'a2', stepId: 'build', optimistic: 1, realistic: 1, pessimistic: 1 },
-              ],
-            }
-          : {}),
-      },
-    };
-  });
-  const capture: ConnectedPlanCapture = {
-    kind: 'connected',
-    organizationId: 'org',
-    mode: 'isolated',
-    projects,
-    relationships: [
-      {
-        id: 'ab',
-        projectId: 'B',
-        type: 'SS',
-        predecessor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
-        successor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-      },
-      {
-        id: 'bc',
-        projectId: 'C',
-        type: 'SS',
-        predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-        successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
-      },
-    ],
-  };
-  const optimizer: ConnectedOptimizedCapturedAdapter = {
-    readConnectedCaptured: ({ stage }) => {
-      const question = {
-        projectId: stage.projectId,
-        inputHash: stage.projectId,
-        questionHash: `q-${stage.projectId}`,
-        objective: 'time' as const,
-        contractVersion: 'test',
-        budgetMs: 100,
-        quantum: 48,
-        wireVersion: 5,
-        stageBytes: canonicalConnectedStageInput(stage),
-      };
-      const candidate =
-        state === 'ready' || state === 'floor'
-          ? {
-              question,
-              starts:
-                state === 'floor'
-                  ? new Map(
-                      [...stage.starts]
-                        .filter(([key]) =>
-                          stage.input.slices.some(
-                            (slice) =>
-                              sliceKey(slice.workItemId, slice.stepId) === key &&
-                              slice.workItemId.startsWith(stage.projectId.toLowerCase()),
-                          ),
-                        )
-                        .map(([key, start]) => [key, start + 1]),
-                    )
-                  : stage.projectId === 'A'
-                    ? new Map([
-                        [key('a'), 0],
-                        [key('a2'), 1],
-                      ])
-                    : new Map([
-                        [key(stage.projectId.toLowerCase()), stage.projectId === 'B' ? 3 : 6],
-                      ]),
-            }
-          : null;
-      return {
-        inputHash: stage.projectId,
-        generation: null,
-        contractVersion: 'test',
-        budgetMs: 100,
-        quantum: 48,
-        wireVersion: 5,
-        variants: {
-          pri:
-            state === 'ready' || state === 'floor'
-              ? { state: 'ready', proof: state === 'floor' ? 'quantisation-floor' : 'proven' }
-              : { state: 'idle' },
-          time:
-            state === 'ready' || state === 'floor'
-              ? { state: 'ready', proof: state === 'floor' ? 'quantisation-floor' : 'proven' }
-              : state === 'pending'
-                ? { state }
-                : {
-                    state,
-                    certificate: { kind: state, question, evidence: 'contradictory-bounds' },
-                  },
-        },
-        candidates: {
-          pri:
-            candidate === null
-              ? null
-              : { ...candidate, question: { ...question, objective: 'pri' } },
-          time: candidate,
-        },
-      };
+
+test('fractional fixture prepares the actual empty integer window and retains its real dates', async () => {
+  const tree = createFractionalConnectedOptimizationTree();
+  expect(tree.optimization).toMatchObject({
+    displayed: 'fast',
+    variants: {
+      time: { state: 'boundary-infeasible', certificate: { evidence: 'contradictory-bounds' } },
     },
-  };
-  const projection = deriveConnectedPlan(
-    capture,
-    { supports: () => true },
-    (input) =>
-      scheduleResolved(
-        input,
-        new Map([
-          [key('a'), 3],
-          [key('a2'), 7],
-          [key('b'), 5],
-          [key('c'), 8],
-        ]),
-      ),
-    optimizer,
-  );
-  return {
-    kind: 'connected',
-    projection,
-    readiness: deriveConnectedReadiness(
-      capture,
-      projection.authored,
-      new Map(projects.map(({ projectId }) => [projectId, []])),
-    ),
-    metadataByProject: new Map(
-      projects.map(({ projectId, abbreviation, reads }) => [
-        projectId,
-        {
-          project: { ...reads.project, abbreviation, revision: 1, createdAt: 0 },
-          workItems: reads.workItems.map((row) => ({
-            ...row,
-            externalRefs: [],
-            factStart: null,
-            factEnd: null,
-            createdAt: 0,
-          })),
-          steps: reads.steps.map((step) => ({ ...step, projectId })),
-          attempts: [],
-          blockages: [],
-          seq: 1,
-        },
-      ]),
-    ),
-  };
-}
+    finishDays: { fast: 1.2 },
+    sameOrderAsFast: {},
+  });
+  expect(tree.workItems[0]?.schedule).toMatchObject({ earliestStart: 0.2, earliestFinish: 1.2 });
+  expect(tree.workItems[0]?.deadline).toBeNull();
+  expect(tree.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'A')).toMatchObject({
+    start: 0,
+    finish: 0.2,
+  });
+  expect(tree.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'C')).toMatchObject({
+    start: 1.2,
+    finish: 2.2,
+  });
+  expect((await validateSchema(getWorkItems.responses[0].schema, tree)).issues).toBeUndefined();
+});
+
+test.each(['idle', 'pending', 'failed'] as const)(
+  'fractional terminal Time leaves the captured Pri %s state independent through decoding',
+  async (sibling) => {
+    const tree = createFractionalConnectedOptimizationTree(sibling);
+    expect(tree.optimization?.variants.pri.state).toBe(sibling);
+    expect(tree.optimization?.variants.time.state).toBe('boundary-infeasible');
+    expect(tree.optimization?.finishDays).toEqual({ fast: 1.2 });
+    expect(tree.slices).toMatchObject([{ earliestStart: 0.2, earliestFinish: 1.2 }]);
+    const serialized: unknown = JSON.parse(JSON.stringify(tree));
+    const decoded = await clientFromShapes([getWorkItems], () =>
+      Promise.resolve({ kind: 'json', status: 200, body: serialized }),
+    )['getApiProjectsByIdWork-items']({ params: { id: 'B' } });
+    expect(decoded).toMatchObject({ kind: 'success', body: tree });
+  },
+);
+
+test('mixed fixture exposes captured C=8 independently of its final common-axis C=6', () => {
+  const a = createConnectedOptimizationTree('ready', 'A');
+  const c = createConnectedOptimizationTree('ready', 'C');
+  expect(a.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'C')).toMatchObject({
+    start: 8,
+    finish: 9,
+  });
+  // C's Wednesday anchor is two workdays after the Monday component origin.
+  expect(c.workItems[0]?.schedule).toMatchObject({ earliestStart: 4, earliestFinish: 5 });
+  expect(c.startDate).toBe('2026-10-07');
+});
 
 test('projects retained scope and target-only comparisons through the real connected tree producer', () => {
   const observation = captured();
@@ -367,7 +241,7 @@ test.each(['ready', 'pending', 'boundary-infeasible', 'floor'] as const)(
   'public connected %s projection survives strict response and generated client decoding',
   async (state) => {
     const projection = projectConnectedTree(captured(state), 'A');
-    const tree = { ...presentConnectedTree(projection), undoable: false, redoable: false };
+    const tree = createConnectedOptimizationTree(state);
     if (projection.optimizationView === null) throw new Error('missing projected fixture');
     expect(tree.optimization).toEqual(projection.optimizationView);
     expect((await validateSchema(getWorkItems.responses[0].schema, tree)).issues).toBeUndefined();

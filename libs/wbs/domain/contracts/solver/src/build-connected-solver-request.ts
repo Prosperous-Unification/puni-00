@@ -274,6 +274,8 @@ export function buildConnectedSolverRequest(
     );
     const lower = Math.max(0, slice.notBeforeUnits, ...incoming.map((boundary) => boundary.bound));
     const upper = Math.min(preflight.horizonUnits, ...outgoing.map((boundary) => boundary.bound));
+    // Proof: bypassing this classifier made the real fractional public-tree
+    // fixture receive a request instead of boundary-infeasible (view tests, 2026-10-22).
     if (lower > upper) {
       const evidence: Extract<
         ConnectedPreparedRequest,

@@ -3145,3 +3145,92 @@ Prettier check and `git diff --check` passed.
 
 Post-lint focused rerun with the same four-suite command passed again:
 **170 tests, 738 assertions, 0 failures**, 44.39s.
+
+## Connected cue B3 producer-fixture prerequisite — 2026-10-22
+
+Bounded packet based on `bad43141f2f8cd156fa26b4b801264e5aa13221c`, developed in the
+isolated `/tmp/puni-b3` clone. The parent explicitly accepted a coherent producer
+prerequisite while preserving `connected_optimization_presentation_unavailable`.
+No frontend production adapter, activation or authoring behavior changes here.
+
+`src/testing/connected-optimization-view.fixture.ts` in `wbs-core` has no test-runner
+imports. Its mixed-engine observation was extracted from the existing producer
+suite. `createConnectedOptimizationTree` returns the actual projected public tree
+plus required undo/redo read fields. The existing ready/pending/terminal/floor
+response/generated-client tests now consume that factory. Its JSDoc distinguishes
+the synthetic mixed terminal identity fixture from mathematical infeasibility.
+
+`createFractionalConnectedOptimizationTree` derives a real FS chain with the
+ordinary connected derivation and scheduling path, preserving real B=0.2→1.2.
+Only B requests optimization. The controlled captured port calls the actual
+`buildConnectedSolverRequest` and `prepareConnectedBoundaryOutcome`; it does not
+invent the terminal question or a child response. Question fields and canonical
+stage bytes come from that prepared/classified request. Independent controlled
+Pri idle/pending/failed states survive JSON serialization and generated-client
+decoding beside terminal Time without finish/order figures. These states model
+captured sibling observations, not installed optimizer admission or cache behavior.
+
+Watched reds and restored greens:
+
+- The first fractional public-tree test failed while the fixture export was absent;
+  after implementation the existing suite plus the new test passed 29/29.
+- `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts`
+  failed 2/33 when pending/failed Pri controls still returned idle; after independent
+  sibling projection it passed 33/33.
+- Fault: replace production `if (lower > upper)` in
+  `solver/src/build-connected-solver-request.ts` with `if (false)`. Command:
+  `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts --test-name-pattern fractional`.
+  Observed **0 pass / 4 fail / 29 filtered**, all four reporting
+  `fractional fixture requires boundary-infeasible, received request` through
+  actual connected selection/derivation. This is a runtime preparation dependency
+  failure, not a typecheck failure or a handcrafted certificate. Restored the
+  classifier and added its adjacent `Proof:` comment. Full targeted selection
+  restored green; fault log: `/tmp/puni-b3-classifier-red.log`.
+
+Verification commands and final results are recorded below. Dependencies reuse
+this workspace's installed `node_modules` through a clone-local symlink; this
+packet did not perform a fresh frozen dependency install. Nx required
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false` because sandbox sockets were refused.
+An initial unqualified Nx invocation exited zero after socket warnings without
+running a target; that output is explicitly **not** a typecheck pass. Initial core
+lint caught an unsafe inline `JSON.parse`; the boundary now assigns it to
+`unknown` before passing it to the decoder.
+
+Deferred B3 assertions: the real HTTP frontend adapter and `projectServicesOf`
+into mounted `WbsTableOverClient`; table/card rendered start/end/bar/span oracles;
+terminal unavailable selection and zero Retry HTTP calls across reopen/refetch/
+remount; selected-ready sibling and floor retention; failed-sibling Retry hash;
+pending announcement; missing-calendar/engine-unavailable editable/readiness/
+dependency navigation; unknown external refusal before cue rendering; full
+adapter equality and URL mismatch over these producer fixtures. No connected
+refusal removal, frontend alias/config changes, B4 reconciliation or mounted B5
+proof is claimed. Frontend suites, build, browser geometry/focus, canonical host
+gate, required CI checks, installed solver runtime, live Retry authority and safe
+activation remain unrun for this packet. Parent 7.3/7.4/9.2 remain incomplete.
+
+Final bounded checks (all exit 0 after restoring faults):
+
+```sh
+bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts libs/wbs/domain/contracts/solver/src/connected-solver-outcome.test.ts libs/wbs/domain/contracts/solver/src/build-solver-request.test.ts libs/wbs/domain/contracts/src/http/work-item-response.test.ts libs/wbs/domain/contracts/src/http/schema-shape.test.ts
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint --outputStyle=stream
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck --outputStyle=stream
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:lint
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:typecheck
+./node_modules/.bin/openspec validate --all --json
+git diff --check
+```
+
+The targeted tests passed **80 tests in 5 files / 480 assertions**, including
+**33 producer tests**. Both Nx lint/typecheck projects ran successfully uncached;
+core typecheck also ran its module prerequisite. OpenSpec validated **268/268**,
+with existing advisory archive warnings. Final logs are
+`/tmp/puni-b3-{tests-final,lint-final,typecheck-final,contracts-lint,contracts-typecheck,openspec-final}.log`.
+An earlier command mistakenly included the nonexistent
+`build-connected-solver-request.test.ts`; Bun collected only four real files,
+so that invocation is not counted as builder-suite verification. The final
+five-file command above includes the existing `build-solver-request.test.ts`.
+
+`bunx lefthook install` installed the clone's normal pre-commit,
+prepare-commit-msg and commit-msg hooks. The bounded commit uses those hooks.
+Independent review is delegated to the parent after its current review slot frees;
+this packet does not represent a review or a gate approval of B3 enablement.
