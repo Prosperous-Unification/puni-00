@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { InMemoryMcpOAuth } from './oauth';
+import { McpOAuthServer } from './oauth';
 import type {
   ConsentOrganizations,
   DelegationOutcome,
@@ -52,7 +52,7 @@ function fixture(consent: ConsentOrganizations, delegation?: DelegationOutcome) 
       });
     },
   };
-  const oauth = new InMemoryMcpOAuth(
+  const oauth = new McpOAuthServer(
     CONFIG,
     {
       authorizationUrl: (input) =>
@@ -81,14 +81,14 @@ function fixture(consent: ConsentOrganizations, delegation?: DelegationOutcome) 
   return { oauth, recorded };
 }
 
-async function handled(oauth: InMemoryMcpOAuth, request: Request): Promise<Response> {
+async function handled(oauth: McpOAuthServer, request: Request): Promise<Response> {
   const response = await oauth.response(request);
   if (response === undefined) throw new Error(`${request.url} was not handled`);
   return response;
 }
 
 /** Registers, authorizes and returns the callback's answer. */
-async function consent(oauth: InMemoryMcpOAuth): Promise<{ clientId: string; callback: Response }> {
+async function consent(oauth: McpOAuthServer): Promise<{ clientId: string; callback: Response }> {
   const registered = await handled(
     oauth,
     new Request(`${BASE}/register`, {
@@ -123,7 +123,7 @@ async function consent(oauth: InMemoryMcpOAuth): Promise<{ clientId: string; cal
 }
 
 /** Exchanges the code in `redirect` and returns the MCP access token. */
-async function exchange(oauth: InMemoryMcpOAuth, clientId: string, redirect: Response) {
+async function exchange(oauth: McpOAuthServer, clientId: string, redirect: Response) {
   const code = new URL(redirect.headers.get('location') ?? 'https://invalid').searchParams.get(
     'code',
   );
@@ -363,7 +363,7 @@ describe('MCP organization binding', () => {
       Date.now() + 600_000,
       'refresh-1',
     );
-    const unwired = new InMemoryMcpOAuth(
+    const unwired = new McpOAuthServer(
       CONFIG,
       {
         authorizationUrl: () => Promise.reject(new Error('unused')),

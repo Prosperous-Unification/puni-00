@@ -8,6 +8,7 @@ import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blocka
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
+import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 import { type Answer, OrganizationHarness } from './testing/organization-harness';
 
 /**
@@ -594,7 +595,11 @@ describe('a swarm of two fleets on one plan', () => {
           h.sqlite.query('SELECT count(*) AS n FROM person_organization').all(),
         ]);
     const before = snapshot();
+    const mcpStore = `${h.databasePath()}-mcp.sqlite`;
+    writeMcpStoreFixture(mcpStore, 1);
     const rehearsed = cli('organization-activation-cli.ts', [
+      '--mcp-store',
+      mcpStore,
       '--name',
       'default',
       '--super-admin',
@@ -616,6 +621,8 @@ describe('a swarm of two fleets on one plan', () => {
     expect(activation()).toBe('pre_activation');
 
     const applied = cli('organization-activation-cli.ts', [
+      '--mcp-store',
+      mcpStore,
       '--name',
       'default',
       '--super-admin',
