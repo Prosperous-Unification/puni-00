@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:
+137 |             if (projection.placement.kind !== 'scheduled')
+138 |               throw new Error('fixture placement unavailable');
+139 |             expect(projection.placement.combined.slices.size).toBe(fixture.projects.length);
+140 |             for (const member of fixture.projects) {
+141 |               const requested = await snapshot.captureConnected(member.projectId);
+142 |               expect(queries.length - beforeCapture).toBe(captureQueries);
+                                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 10303
+Received: 20606
+
+      at <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:142:54)
+      at async withSnapshot (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:125:29)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:112:46)
+(fail) sparse: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [2041.01ms]
+137 |             if (projection.placement.kind !== 'scheduled')
+138 |               throw new Error('fixture placement unavailable');
+139 |             expect(projection.placement.combined.slices.size).toBe(fixture.projects.length);
+140 |             for (const member of fixture.projects) {
+141 |               const requested = await snapshot.captureConnected(member.projectId);
+142 |               expect(queries.length - beforeCapture).toBe(captureQueries);
+                                                           ^
+error: expect(received).toBe(expected)
+
+Expected: 5897
+Received: 11794
+
+      at <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:142:54)
+      at async withSnapshot (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:125:29)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:112:46)
+(fail) dense: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [573.47ms]
+
+ 0 pass
+ 2 fail
+ 20 expect() calls
+Ran 2 tests across 1 file. [4.93s]

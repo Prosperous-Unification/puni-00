@@ -1881,3 +1881,46 @@ observations are explicit`); no specification error is reported. Initial direct
 ESLint ran before the Nx graph existed and skipped module-boundary lint rules;
 the final configured lint runs have the graph and do not skip them. Dependencies
 are linked from the workspace; a clean frozen install was not performed.
+
+## Task 8.5 — connected capture and scheduling benchmark (2026-10-22)
+
+[Retained measurements and watched faults](evidence/connected-benchmark/README.md)
+cover sparse 202-project alternating incident/person closure and dense 26-project
+closure with 300 FS edges and a person-only final member. Production lookup pages
+of 25/200 do not cap capture; all member projections reuse one capture and add zero
+queries. Full work-item capture occurs exactly once per required member, excluding
+unrelated projects. Actual capture query counts are 10,303/5,897; one observed
+capture elapsed sample is 565.690243/124.554464 ms and core derive is
+15.396044/1.914040 ms, respectively. No unsupported budget is asserted.
+
+Watched full-input caps of 25 and 200 fail completeness; bypassed snapshot memo
+reuse doubles first-projection capture queries to 20,606/11,794 and fails. All
+mutations were restored before the green run. Focused Bun: 30 pass, 1 existing
+opt-in certification skip, 0 fail. Nx domain/store lint and typecheck: four targets
+pass, zero cache hits. OpenSpec: 18/18 valid. Normal hooks are installed; commit
+verification is reported at handoff. Full host gate/CI build/secrets/migration and
+frontend checks remain unrun for this focused slice; this evidence does not close
+any other task or activate external authoring.
+
+### Task 8.5 review correction — production live aggregate reuse
+
+The initial packet measured the exposed snapshot capability's memo, which the
+production live aggregate does not call. Sparse/dense fixtures now additionally
+execute `createLivePlanStore(...).readAggregate(...)` and verify exact aggregate
+member identities, shared connected-plan identity, project metadata and schedule
+selection. The full-input diagnostic seam counts each required member once;
+forwarding wrappers measure the actual production capture and core derivation
+once per component, and the Fast scheduler callback runs once. Live metadata
+adds a separate work-item table read per member and is accounted for explicitly.
+
+Observed sparse/dense live aggregate query totals: 13,532/6,464; capture queries:
+10,303/5,897. Actual capture elapsed: 985.658011/139.149972 ms; actual core derive:
+12.123249/2.235134 ms; entire aggregate observation: 1,180.340053/178.418501 ms.
+Single samples only, without performance budgets. Bypassing the actual
+`connectedByProject` memo fails both fixtures on the first duplicate full-input
+capture: expected 1, received 2, through the production `readAggregate` call path.
+Mutation restored; expanded focused verification: 48 pass, 1 existing opt-in skip,
+0 fail, 3,086 assertions. Uncached domain/store lint and typecheck: four targets
+pass; OpenSpec: 268/268 valid (250 changes, 18 specs). Normal commit hooks run
+again for this correction; the tool-wiki status is inactive/not certified. [Evidence and retained logs](evidence/connected-benchmark/README.md).
+Task 8.5 remains checked based on this corrected production caller coverage.
