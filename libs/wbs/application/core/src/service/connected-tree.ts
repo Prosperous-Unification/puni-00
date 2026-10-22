@@ -12,6 +12,7 @@ import type { LivePlanRead } from '../ports/shared-people-values';
 import {
   type ConnectedTreeEndpoint,
   createConnectedEndpointProjector,
+  validateConnectedMetadata,
 } from './connected-endpoints';
 export type { ConnectedTreeEndpoint } from './connected-endpoints';
 import type { ConnectedOptimizationSelection } from './connected-optimization';
@@ -83,25 +84,7 @@ export function projectConnectedTree(
 ): ConnectedTreeProjection {
   const { projection, readiness, metadataByProject } = captured;
   const placement = selectConnectedProject(projection, projectId);
-  for (const member of projection.capture.projects) {
-    const metadata = requireEvidence(
-      metadataByProject.get(member.projectId),
-      `metadata ${member.projectId}`,
-    );
-    const rowIds = new Set(member.reads.workItems.map((row) => row.id));
-    const stepIds = new Set(member.reads.steps.map((step) => step.id));
-    // Proof: removing this guard failed all five `refuses corrupted ... metadata identities` cases; missing steps and foreign owners were accepted.
-    if (
-      metadata.project.id !== member.projectId ||
-      metadata.workItems.length !== rowIds.size ||
-      metadata.steps.length !== stepIds.size ||
-      metadata.workItems.some(
-        (row) => row.projectId !== member.projectId || !rowIds.delete(row.id),
-      ) ||
-      metadata.steps.some((step) => step.projectId !== member.projectId || !stepIds.delete(step.id))
-    )
-      throw new Error(`inconsistent connected tree metadata identities ${member.projectId}`);
-  }
+  validateConnectedMetadata(captured);
   const member = requireEvidence(
     projection.capture.projects.find((candidate) => candidate.projectId === projectId),
     `member ${projectId}`,

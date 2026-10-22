@@ -3645,3 +3645,36 @@ agent message hooks. The tool-wiki hook returned `inactive`, `certified:false`
 because its external activation root is not provisioned; this is not Tool Wiki
 certification. Both migration hooks and doc-caps skipped because no matching
 migration or LLM_README paths were staged. Hook log: `commit.log`.
+
+### Task 8.3 saved-history B2 bounded detached converter (2026-10-22)
+
+Workspace `/tmp/puni-b2`, isolated clone from exact `faa4056b79c3b9a174a24027f5c4ef180e3fd4da`. The installed writer still emits v8/v1 and compose still refuses connected saved capture. No push, merge, gate, deployment or activation is claimed. Existing dependencies are reused through a node_modules symlink; no dependency update was made.
+
+Implemented the pure `captureConnectedHistory` preparation from one detached `LivePlanRead.connected`. It retains component projects, complete authored selectors and labels, authored graph/ownership, statuses/readings/causes/intrinsic/eligibility, explicit unavailable placement, exact stage canonical bytes, observation configuration without generation, both objective outcomes, encoded decision identities and public component placement. The B1 metadata identity check moved into its endpoint helper module and is shared with the tree projector. The production historical builders validate both new bodies before returning them. CalendarRangeError from dated timing conversion resolves both input state and schedule absence together.
+
+The optimized displacement case exposed a dormant codec mismatch: `encodeSavedPlacement` refused legitimate `boundBy: 'optimizer'` values in selected composite and decision schedules. The reserved schedule2 placement schema now accepts that existing live discriminator (target schedule2 already accepted it). No published writer version or algorithm changed.
+
+TDD: the new converter test initially failed because the function was absent; an explicit throwing stub then produced 0 pass/3 fail with “connected history conversion is not implemented”. The first full ready-displacement conversion failed with TraversalError for `boundBy: optimizer`; adding that discriminator made the case pass. The migrated fixture initially exposed a wrong SQL fixture assumption (abbreviation belongs in project_abbreviation) and held rows being excluded from placement; setup was corrected to use allocated abbreviations and a separate held cause. Those setup failures are not production proof.
+
+Fresh verification:
+
+- `bun test libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts apps/wbs/be-01/src/service/saved-plan-connected.test.ts libs/wbs/application/core/src/service/connected-tree.test.ts libs/wbs/application/core/src/service/connected-endpoints.test.ts libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts libs/wbs/domain/domain/src/saved-plan/versioned-schedule.test.ts libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts`: **129 pass, 0 fail, 304 assertions**. The migrated SQLite fixture captures the installed owned live store in isolated and shared modes, closes the snapshot and deletes the database before conversion; asserts A.design → B.build → A.test with differing anchors, fractional target start 1.75, actual string codes, three component relationships including outgoing and held-cause evidence, exact retained bytes, and independence from later map mutation.
+- `bunx tsc --noEmit -p libs/wbs/application/core/src/module/saved-plans/tsconfig.json --pretty false`: exit 0.
+- `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json --pretty false`: exit 0. An earlier attempted tsconfig.app.json path does not exist and was corrected; it provides no verification.
+- Scoped eslint initially found import sorting and unnecessary optional chaining; corrected. Its first run reported the Nx module-boundary rule skipped because the isolated clone lacked a cached graph; final hook/check evidence follows below.
+
+Watched faults in the production pure converter, restored after each:
+
+1. Remove `requireCaptured` nullish refusal: **10 pass/2 fail**. Missing status changed the required contextual error into `saved history json_required`; missing ready candidate became null.question TypeError. This establishes contextual fail-fast behavior, not a mounted save-side-effect proof.
+2. Replace retained canonical stage bytes with `{}`: **4 pass/8 fail**, frozen stage-shape refusal including the retained-boundary case.
+3. Force selected objective null: **11 pass/1 fail**, optimized displacement rejected selected-objective mismatch.
+4. Encode baseline as the composite: **11 pass/1 fail**, optimized displacement rejected retained stage-boundary inconsistency.
+5. Rethrow CalendarRangeError instead of modeled recovery: **11 pass/1 fail**, coherent input-state/schedule-absence test observed the injected range error.
+
+After restoration the combined seven-file run above returned 129/0. These are converter/codec production-path proofs only. Mounted save/current failure proofs remain pending for activation slice D.
+
+This is a bounded B2 prerequisite, not completion of B2 or task 8.3. Pending: real SQLite mixed Fast/optimized cache-ready displacement and later foreign-boundary changes; node/whole/descendant-step fixture breadth; public-versus-encoded person/team/resource identities; quantisation-floor selected baseline and ready-unselected sibling matrix; engine/cycle/range and nonempty-idle-member breadth; complete metadata/read-fact contradiction coverage and production guard proof matrix; deterministic bytes under reordered multi-slice candidate maps; the common final serializer/save/current integration and immutable lifecycle/HTTP/UI proofs. The range recovery case injects CalendarRangeError at the production builder dependency; actual out-of-range SQLite capture is not claimed. Full Nx/host gate, secrets/migration lint, external runtime activation and deployment were not run.
+
+Additional fresh B2 verification: `bun test apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts` returned **95 pass, 0 fail, 523 assertions** (40.33s), including ordinary save/current and mounted historical integrity regressions. After `NX_DAEMON=false bunx nx show project wbs-core --json` populated the isolated graph, scoped eslint returned exit 0 without skipped-rule warnings. Repeated core module and be-01 spec typechecks returned exit 0. `openspec validate cross-project-dependencies --json` returned valid (1 passed/0 failed) with nine existing long-requirement warnings; this is scoped validation, not the all-change gate.
+
+Normal hooks were installed with `bunx lefthook install`. The first commit attempt correctly failed its formatting check after import sorting changed the test file; Prettier corrected that file before retry. The tool-wiki hook reports inactive (external activation root not provisioned), so its exit does not establish certification. No hook was bypassed.

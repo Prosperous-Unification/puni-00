@@ -1,7 +1,10 @@
 export * from './canonical-plan-input';
 export {
+  encodeSavedPlacement,
   readSavedCanonicalStage,
   readSavedConnectedScheduleEvidence,
+  type SavedOptimizationStage,
+  type SavedOptimizationVariant,
   validateSavedConnectedHistory,
 } from './connected-schedule';
 export type { SavedConnectedDependencyHistory, SavedDependencyHistory } from './dependency-history';

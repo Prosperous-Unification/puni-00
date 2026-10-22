@@ -261,3 +261,5 @@ dates or optimization. Connected schedule enablement remains refused. Rendered
 B=0.2→1.2 bars/spans, mounted captured C=8 versus final C=6, selected-ready/floor
 retention, terminal action suppression and failed-sibling Retry HTTP hash proofs
 remain deferred; parent 7.3/7.4/9.2 and B3 enablement remain unchecked. See verify.md.
+
+Task 8.3 saved-history B2 bounded prerequisite (2026-10-22): detached connected-history preparation now retains complete component relationship/readiness evidence, exact stage bytes, observation configuration and selected schedules through reserved input9/schedule2 builders. A real migrated SQLite fixture proves isolated/shared interleaving and conversion after store deletion. Ready-displacement coverage corrected the dormant placement codec to accept its existing optimizer binding discriminator. Converter fault evidence and the remaining B2 matrix are recorded in verify.md. This does not activate save/current, remove compose refusal, or complete B2/task 8.3.

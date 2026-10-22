@@ -103,3 +103,26 @@ export function createConnectedEndpointProjector(
     };
   };
 }
+
+/** Cross-check complete captured member identities before projecting labels or historical facts. */
+export function validateConnectedMetadata(captured: ConnectedRead): void {
+  for (const member of captured.projection.capture.projects) {
+    const metadata = requireEndpointEvidence(
+      captured.metadataByProject.get(member.projectId),
+      `metadata ${member.projectId}`,
+    );
+    const rowIds = new Set(member.reads.workItems.map((row) => row.id));
+    const stepIds = new Set(member.reads.steps.map((step) => step.id));
+    // Proof: removing this guard failed all five `refuses corrupted ... metadata identities` cases; missing steps and foreign owners were accepted.
+    if (
+      metadata.project.id !== member.projectId ||
+      metadata.workItems.length !== rowIds.size ||
+      metadata.steps.length !== stepIds.size ||
+      metadata.workItems.some(
+        (row) => row.projectId !== member.projectId || !rowIds.delete(row.id),
+      ) ||
+      metadata.steps.some((step) => step.projectId !== member.projectId || !stepIds.delete(step.id))
+    )
+      throw new Error(`inconsistent connected tree metadata identities ${member.projectId}`);
+  }
+}

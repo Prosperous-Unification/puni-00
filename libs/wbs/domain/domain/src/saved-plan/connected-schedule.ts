@@ -38,7 +38,7 @@ const slice = type({
   stepId: 'string | null',
   personId: 'string | null',
   boundBy:
-    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'elsewhere'",
+    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'elsewhere' | 'optimizer'",
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
