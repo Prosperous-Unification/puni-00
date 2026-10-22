@@ -701,3 +701,10 @@ Fresh results: vitest organization, directory, runtime, app, app-router, session
 the four tier suites 40 files, 579 pass; the four new or changed organization suites 93 pass
 (panel 40, trusted issuers 19, people 7, page 27); `nx run-many -t typecheck lint -p wbs-fe-01
 --skip-nx-cache` exit 0. Screenshots 02 (populated) and 05 (secret shown once) retaken.
+
+## Gate of record (h4claw) — 2026-10-22
+
+- `bin/h2puni-gate.sh 688f7836403b49030bb21a279e6ec4b777ec2d3c` on h4claw (`~/gate-688f7836.log`; the plan branch head holding slices 1, 2, 3, 5 and 6 with main 1d143e932 merged): first Nx pass 49 projects + 9 dependents in 47m 11s, twilight pass 2 projects in 50m 26s, `solver-image-smoke` 3m 37s, `GATE_EXIT=0` at 09:38:24 UTC.
+- CI on 688f7836403 (PR #625): every check green.
+- Reviews: every slice had a Fable review before merging into the plan branch (#628 slice 1 after fixes incl. A23; #631 slice 2 after fixes incl. A24; #633 slice 5 after fixes incl. A25; #634 slice 6 after fixes; #641 slice 3 MERGE with S3 follow-ups landed).
+- Not observed live: tasks 3.5 (consent as an agent on dev), 4.x (slice 4, retirement of the operator links, waits for the fleets' self-serve onboarding), 5.4 (a real GitHub Actions token on dev), 6.3 (by-eye acceptance on dev).
