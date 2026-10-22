@@ -1335,7 +1335,7 @@ describe('who is doing the work', () => {
     // A picker rendered before somebody was removed. Out of date, not broken:
     // a typed 4xx rather than the foreign key the write used to reach.
     const id = await add('Strip');
-    await directory.removePerson('ada', true, WROTE);
+    await directory.removePerson('ada', true, WROTE, { kind: 'every' });
 
     const outcome = await service.assign(id, OWNER, stepId, 'ada');
 

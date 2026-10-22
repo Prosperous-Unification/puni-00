@@ -293,6 +293,23 @@ Fresh results after the fixes (`CLAUDECODE` unset):
 - Burokrat `check-indexes working . HEAD` and `check-root-migration`: exit 0. The fixes add no new file.
 - `bunx openspec validate --all --json`: 266 of 266 passed.
 
+## Slice 2 workspace gate fix (2026-10-22)
+
+The workspace gate on `5f63bdd77` failed `wbs-core:typecheck:module` and
+`wbs-store-sqlite:typecheck` (TS2554). Five test callers of `DirectoryStore.removePerson`
+still passed three arguments after A24 added `reach`: `claim.db.test.ts`,
+`resource-occupancy.db.test.ts`, `working-plan-directory.test.ts` (twice) and
+`work-item.resource.test.ts`. Each now passes `{ kind: 'every' }`. Lesson: a changed shared
+signature needs every library typecheck target that compiles its callers, tests included, not
+only `wbs-be-01:typecheck`, which does not compile library tests.
+
+Fresh results (`CLAUDECODE` unset):
+
+- `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain --skip-nx-cache`: all six targets succeed.
+- The same for `wbs-conformance,wbs-runtime-portable,wbs-mcp-01,wbs-gw-01,wbs-auth,wbs-realtime,wbs-be-01`: all eight targets succeed (`wbs-be-01:typecheck` and `:typecheck:module` included).
+- `bun test` `claim.db.test.ts`, `resource-occupancy.db.test.ts`: 81 pass, 0 fail. `working-plan-directory.test.ts`, `work-item.resource.test.ts`: 133 pass, 0 fail.
+- `tool-devsync:test` was not touched here; it also fails on #628, and slice 1's worker owns it.
+
 ## Gate output
 
 Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all
