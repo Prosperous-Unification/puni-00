@@ -9213,7 +9213,7 @@ function projectSharedTree(
 }
 
 /** Present one captured connected member without local scheduling or further IO. */
-function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
+export function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
   // Proof: restoring the old nonscheduled refusal made the mounted calendar,
   // optimized-refusal and postcommit edit/claim cases return 500 (2026-10-22).
   const { reads, metadata } = projection;
@@ -9264,6 +9264,9 @@ function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
   });
   const connected = {
     ...tree,
+    // Proof: omitting this attachment returned undefined for all four public
+    // connected producer/response/client fixture states (2026-10-22).
+    ...(projection.optimizationView === null ? {} : { optimization: projection.optimizationView }),
     slices,
     connectedDependencies: [...projection.dependencies],
     ...(projection.foreignPersonHolders.size === 0

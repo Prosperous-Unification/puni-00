@@ -196,7 +196,7 @@ const optimizationVariant = type({ state: "'pending' | 'retrying' | 'idle'" })
       .array()
       .readonly(),
   });
-const optimization = type({
+const optimizationBase = type({
   enabled: 'boolean',
   engine: "'fast' | 'optimized'",
   objective: "'pri' | 'time'",
@@ -205,13 +205,11 @@ const optimization = type({
   contractVersion: 'string',
   budgetMs: 'number',
   displayed: "'fast' | 'pri' | 'time'",
-  variants: { pri: optimizationVariant, time: optimizationVariant },
   // Absolute finishes rather than one delta, and one entry per schedule the
-  // read computed: the cue names Fast, PRI and Time together, every difference
-  // is taken against Fast, and the delta is that subtraction through the shared
-  // workday drift the client already applies. `fast` is required because a
-  // read that carries this object at all has computed Fast — it is the
-  // schedule the rows are placed by unless a variant displaces it.
+  // read retains: the cue names Fast, PRI and Time together, every difference
+  // is taken against the reference through the client's shared workday drift.
+  // `fast` is local Fast for a local read and the exact retained pre-selection
+  // reference for a connected stage, never a newly scheduled unpinned project.
   finishDays: { fast: 'number', 'pri?': 'number', 'time?': 'number' },
   // One boolean per variant that has a finish above, server-side per tasks.md
   // 8.7: the order relation is the half of the comparison a client cannot
@@ -219,6 +217,65 @@ const optimization = type({
   // the same pair.
   sameOrderAsFast: { 'pri?': 'boolean', 'time?': 'boolean' },
 });
+
+// Proof: independently making each terminal/certificate/question property optional
+// admitted missing JSON fields in the real projected-tree response test (2026-10-22).
+const connectedVariant = optimizationVariant.or({
+  state: "'boundary-infeasible'",
+  certificate: {
+    kind: "'boundary-infeasible'",
+    question: {
+      projectId: 'string',
+      inputHash: 'string',
+      questionHash: 'string',
+      objective: "'pri' | 'time'",
+      contractVersion: 'string',
+      budgetMs: 'number',
+      quantum: 'number',
+      wireVersion: 'number',
+      stageBytes: 'string',
+    },
+    evidence: "'contradictory-bounds' | 'initial-model-infeasible'",
+  },
+});
+// Proof: independently omitting required scope, fixed-slice and descriptor fields
+// admitted the altered projected payload; scope faults failed the public
+// producer/response/client fixture (2026-10-22).
+const connectedScope = type({
+  kind: "'connected-stage'",
+  projectId: 'string',
+  originOrdinal: 'number',
+  mode: "'isolated' | 'shared'",
+  quantum: 'number',
+  wireVersion: 'number',
+  boundary: { format: "'wbs-connected-stage'", version: '1', canonical: 'string' },
+  fixed: type({
+    projectId: 'string',
+    projectName: 'string',
+    projectAbbreviation: 'string',
+    workItemId: 'string',
+    workItemName: 'string',
+    stepId: 'string | null',
+    stepName: 'string | null',
+    start: 'number',
+    finish: 'number',
+  })
+    .array()
+    .readonly(),
+});
+const optimization = optimizationBase
+  .and({
+    // Proof: removing never admitted malformed connected scope as a local ready
+    // payload; widening local variants admitted an unscoped terminal certificate.
+    'scope?': 'never',
+    variants: { pri: optimizationVariant, time: optimizationVariant },
+  })
+  .or(
+    optimizationBase.and({
+      scope: connectedScope,
+      variants: { pri: connectedVariant, time: connectedVariant },
+    }),
+  );
 
 /**
  * The complete project tree shared by reads and exports. Account-specific undo

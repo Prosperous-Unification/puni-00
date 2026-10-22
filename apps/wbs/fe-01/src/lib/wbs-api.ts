@@ -1538,8 +1538,15 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
 }
 export interface PlanRead extends Omit<
   PlanReadWire,
-  'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity' | 'waitingElsewhere'
+  | 'workItems'
+  | 'slices'
+  | 'steps'
+  | 'waitingForPerson'
+  | 'waitingForCapacity'
+  | 'waitingElsewhere'
+  | 'optimization'
 > {
+  optimization?: PlanOptimizationView;
   workItems: WorkItemView[];
   typedDependencies?: TypedDependencyView[];
   slices: SliceView[];
@@ -2799,8 +2806,14 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           headers: auth(token),
         }),
       );
+      const { optimization, ...read } = tree;
+      // Proof: without this guard the public connected pending fixture became a
+      // local PlanRead; the API test resolved instead of rejecting (2026-10-22).
+      if (optimization?.scope !== undefined)
+        throw new Error('connected_optimization_presentation_unavailable');
       const plan: PlanRead = {
-        ...tree,
+        ...read,
+        ...(optimization === undefined ? {} : { optimization }),
         typedDependencies: dependencyViewsOf(tree, projectId),
         steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({

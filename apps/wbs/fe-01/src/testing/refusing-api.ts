@@ -560,9 +560,12 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       const plan = completed.get('tree');
+      const { optimization: wireOptimization, ...body } = reply.body;
       return {
-        ...reply.body,
+        ...body,
         ...plan,
+        // Missing optional fields stay absent across nested checked facades.
+        ...(wireOptimization === undefined ? {} : { optimization: plan.optimization }),
         workItems: reply.body.workItems.map((row, position) => {
           const facadeRow = plan.workItems.at(position);
           if (facadeRow === undefined) throw new Error('validated tree lost a work item');

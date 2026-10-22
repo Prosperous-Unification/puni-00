@@ -117,16 +117,20 @@ TDD slice and independent review unit, not a two-minute keystroke.
 Task 7.3/7.4 snapshot prerequisite (2026-10-22): the private
 `capturedSchedulerIn` factory now binds local and explicitly opted-in connected
 cache readers to the existing borrowed observation lifetime. Both production
-snapshot constructors use the factory without the connected opt-in. Coordinator
-question admission, terminal event-before-release, Retry/restart and production
-connected derivation remain pending; neither task checkbox is complete. Evidence
-and watched faults are recorded in `verify.md`.
+snapshot constructors use the factory without the connected opt-in. Private
+coordinator lifecycle progress is recorded above; production configuration,
+mounted admission/Retry and end-to-end publication binding remain pending.
+Neither task checkbox is complete. Evidence and watched faults are recorded in
+`verify.md`.
 
 Task 7.3/7.4 detached view prerequisite (2026-10-22):
 `projectConnectedTree.optimizationView` now projects exact retained stage scope,
 captured foreign labels and target-only objective comparisons without IO or
-admission. Public PlanTree/HTTP/client integration and its strict decoder faults
-remain Slice A work; no connected production source is installed. Parent task
+admission. Public PlanTree/HTTP/shape-generated-client structural integration now has a
+bounded packet with independently watched required-field and union faults. The
+frontend API explicitly refuses connected presentation until Slice B. Semantic
+wire identity equality remains Slice A work; no connected production source is
+installed. Parent task
 checkboxes remain open. Commands, watched producer faults and limits: `verify.md`.
 
 ### Task 8: Transfer, copies, immutable history and downstream readers — WBS 010.08

@@ -2588,3 +2588,99 @@ directory. The unchanged active-writer golden tests passed; no host gate,
 deployment, public activation or runtime resource wiring is claimed.
 
 Kubernetes prepared-only ownership evidence is recorded in [verify-k8s-storage-ownership.md](verify-k8s-storage-ownership.md). It adds no controller mutation, drain, release journal field or release dispatch, and does not complete B2 or tasks 10.1/10.2. Conditional suspension, post-patch crash acknowledgment, exact-owned Job/Pod drain and all release interval/restoration/admission work remain open.
+
+### Bounded public optimization contract prerequisite (2026-10-22)
+
+This packet follows private projection `e3e5d92df`. `PlanOptimization` now closes
+local and connected alternatives: local has no scope and cannot contain a
+boundary certificate; connected requires captured stage scope and structurally
+complete objective certificates. `presentConnectedTree` attaches the existing
+detached view without invoking a local optimizer or rebuilding earlier stages
+from final pins. The shared HTTP declaration and shape-generated client preserve
+that payload. Existing local response tests remain unchanged.
+
+The frontend API explicitly throws
+`connected_optimization_presentation_unavailable` for the connected arm before
+creating its local presentation read. This is a temporary, tested refusal until
+Slice B supplies scoped presentation. No production connected source is installed,
+no authoring capability is activated, and no saved-history writer/version changes.
+
+This is **not completion of Slice A or tasks 7.3/7.4**. The wire declaration checks
+field types and required scope/certificate evidence; it does not compare a
+certificate's project/objective/stage bytes/hash/version/budget/quantum fields
+against its sibling scope and optimization fields, nor enforce variant-state
+consistency with optional finish/order entries. The existing core selection
+validates captured certificate identity, but that does not establish a semantic
+wire decoder. A dedicated runtime wire identity guard and its watched negatives
+remain required before connected public activation. Browser, mounted installed
+production binding, CP-SAT execution and host-gate acceptance remain unverified.
+
+TDD and R5 evidence:
+
+- Adding the actual presentation/response/client fixture first returned missing
+  optimization in all four ready/pending/terminal/floor cases: 10 passed, 4 failed.
+- Frontend API refusal first failed because the connected pending tree resolved:
+  75 passed, 1 failed. With the explicit boundary guard restored: 76 passed.
+- Thirty-three independently injected faults made each newly required
+  terminal/certificate/question/scope/fixed-slice property optional, widened the
+  local arm to accept terminal state, or removed its scope exclusion. Each run of
+  `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts --test-name-pattern 'public connected'`
+  failed at `issues` unexpectedly undefined. Three further independent faults
+  made boundary `format`, `version`, or `canonical` optional and failed the same
+  production response path. Missing-field payloads were serialized through JSON
+  before validation so they represent absent wire properties.
+- Every fault was restored. Focused restored run:
+  `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts libs/wbs/application/core/src/service/connected-optimization.test.ts libs/wbs/domain/contracts/src/http/work-item-response.test.ts libs/wbs/domain/contracts/src/http/client.test.ts`
+  — **95 passed, 0 failed, 507 assertions**. This exercises the actual connected
+  producer, Standard Schema response boundary and portable shape-generated client;
+  it does not claim malformed sibling identities are semantically rejected.
+
+Additional restored checks:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p wbs-core,wbs-contracts,wbs-fe-01 --parallel=2 --skip-nx-cache`
+  — passed all eight tasks, including core/frontend module typechecks.
+- `./node_modules/.bin/openspec validate --all --json` — 268 passed, 0 failed.
+- Initial unrestricted `wbs-fe-01:test` exited nonzero in `test:unit` without
+  diagnostic output; that attempt does not establish a passing frontend target.
+- Repeating the frontend target with `VITEST_MAX_WORKERS=1` inside the sandbox
+  still failed its node prerequisite. A direct diagnostic node run showed five
+  failures in `playwright-config.test.ts`, `vitest-budget.test.ts`,
+  `src/node-tier.test.ts`, and `src/components/wbs/short-date.test.ts`; the same
+  four suites on unchanged base `e3e5d92df` reproduced 5 failed/28 passed,
+  including `spawnSync bun EPERM` and `spawnSync sh EPERM`. The diagnostic full
+  node run was cancelled after collecting these failures (exit 130).
+- `VITEST_MAX_WORKERS=1 TZ=UTC bunx vitest run --config vitest.config.ts src/lib/wbs-api.test.ts src/testing/refusing-api.test.ts --maxWorkers=1`
+  from `apps/wbs/fe-01` — **111 passed, 0 failed**.
+- Outside the sandbox, the full target's node tier passed 79 files/995 tests.
+  Its DOM tier exposed an actual test-facade regression: materializing
+  `optimization: undefined` instead of preserving absence made nested reads
+  fail `fake_invalid_response`. The exact fifty-card index fixture failed on
+  this packet and passed on the unchanged base; the import/toast fixture also
+  failed in the full run. The stale full run was stopped (exit 130), omission
+  was restored, and the two exact DOM fixtures then passed together (2 passed,
+  246 skipped). This facade is test-only; the observed regression is recorded
+  here without claiming an additional production safety proof.
+- After the facade omission fix, repeated frontend `lint`, `typecheck:module`
+  and `typecheck` passed via
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -p wbs-fe-01 -t lint,typecheck --parallel=2 --skip-nx-cache`.
+- The restarted outside-sandbox full frontend run passed its node tier again
+  (79 files/995 tests). Its DOM alias-parity test failed because the existing
+  expected map omits `@wbs/domain/project-address` and
+  `@wbs/domain/typed-dependency` (actual 32 entries versus expected 30).
+  Running only that alias test on unchanged base `e3e5d92df` reproduced the same
+  failure (1 failed, 17 skipped). Neither Vite config nor that unrelated test
+  is changed by this packet.
+- Final outside-sandbox full frontend command:
+  `VITEST_MAX_WORKERS=4 NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:test --skip-nx-cache --output-style=stream`.
+  Node tier: **79 files, 995 passed**. DOM tier: **223 files passed, 1 file
+  failed; 4,438 tests passed, 1 failed**. Its only failure is the reproduced
+  unchanged-base alias expectation above, so the configured target exits 1 and
+  is **not green**. Both restored card/import fixtures pass in this full run.
+- Since the target's `&&` skips its zoned command after that failure, ran the
+  exact configured zoned command separately outside the sandbox:
+  `TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000`
+  from `apps/wbs/fe-01` — **4 files, 5 passed, 0 failed**.
+- Latest focused Bun confirmation after test naming cleanup: **95 passed,
+  0 failed, 507 assertions**. Changed-file format and `git diff --check` pass.
+  No full build, host gate, browser E2E, installed solver or full CI/migration/
+  secrets gate was run here; normal commit hooks still apply.

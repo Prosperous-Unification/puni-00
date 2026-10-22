@@ -13,6 +13,7 @@ import type {
   ScheduleError,
 } from '@wbs/domain';
 
+import type { ConnectedOptimizationScope } from '../service/connected-optimization-view';
 import type { ConnectedTreeDependency } from '../service/connected-tree';
 import type { NumberedWorkItem } from '../service/numbered-work-item';
 import type { TeamCapacity } from './capacity-store';
@@ -20,7 +21,7 @@ import type { TeamCapacity } from './capacity-store';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { DirectoryStore } from './directory-store';
 import type { Project } from './project-store';
-import type { OptimizationVariantState } from './scheduler';
+import type { ConnectedVariantState, OptimizationVariantState } from './scheduler';
 import type { ElsewhereHolderLabel } from './shared-people-values';
 import type { Step } from './step-store';
 
@@ -48,7 +49,20 @@ export interface IdentifiedSlice extends ScheduledSlice {
 /** Why a project has no dates, when it has none. `null` is the ordinary case. */
 export type { ScheduleError } from '@wbs/domain';
 
-export interface PlanOptimization {
+export type PlanOptimization = LocalPlanOptimization | ConnectedPlanOptimization;
+
+export interface LocalPlanOptimization extends PlanOptimizationBase {
+  readonly scope?: never;
+  readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
+}
+
+/** Both objective states belong to the captured fixed boundary named by scope. */
+export interface ConnectedPlanOptimization extends PlanOptimizationBase {
+  readonly scope: ConnectedOptimizationScope;
+  readonly variants: Readonly<Record<Project['scheduleObjective'], ConnectedVariantState>>;
+}
+
+export interface PlanOptimizationBase {
   readonly enabled: boolean;
   readonly engine: Project['scheduleEngine'];
   readonly objective: Project['scheduleObjective'];
@@ -57,11 +71,10 @@ export interface PlanOptimization {
   readonly contractVersion: string;
   readonly budgetMs: number;
   readonly displayed: 'fast' | Project['scheduleObjective'];
-  readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
   /**
-   * The project finish each computed schedule reaches, in workdays from day
-   * zero. `fast` always — it is the schedule this read had to compute anyway —
-   * and a variant's only while this read materialized it.
+   * Project-relative finishes for the reference and validated alternatives.
+   * `fast` names local Fast on the local arm and the retained pre-selection
+   * placement on the connected arm. A variant appears only when materialized.
    *
    * Absolute figures rather than the one delta this shipped as: the cue names
    * all three schedules at once, every difference is taken against Fast, and a

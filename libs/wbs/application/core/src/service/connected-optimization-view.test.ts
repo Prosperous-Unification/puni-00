@@ -1,6 +1,8 @@
+import { clientFromShapes, getWorkItems, validateSchema } from '@wbs/contracts';
 import { canonicalConnectedStageInput, scheduleResolved, sliceKey } from '@wbs/domain';
 import { expect, test } from 'bun:test';
 
+import { presentConnectedTree } from '../module/work-item/work-item.resource';
 import type { ConnectedOptimizedCapturedAdapter } from '../ports/scheduler';
 import type { LivePlanRead } from '../ports/shared-people-values';
 import { connectedReads } from '../testing/connected-plan-fixture';
@@ -360,3 +362,112 @@ test('refuses absent captured labels and returns detached variant evidence', () 
     'missing connected optimization project name C',
   );
 });
+
+test.each(['ready', 'pending', 'boundary-infeasible', 'floor'] as const)(
+  'public connected %s projection survives strict response and generated client decoding',
+  async (state) => {
+    const projection = projectConnectedTree(captured(state), 'A');
+    const tree = { ...presentConnectedTree(projection), undoable: false, redoable: false };
+    if (projection.optimizationView === null) throw new Error('missing projected fixture');
+    expect(tree.optimization).toEqual(projection.optimizationView);
+    expect((await validateSchema(getWorkItems.responses[0].schema, tree)).issues).toBeUndefined();
+    const decodeTree = (body: unknown) =>
+      clientFromShapes([getWorkItems], () => Promise.resolve({ kind: 'json', status: 200, body }))[
+        'getApiProjectsByIdWork-items'
+      ]({ params: { id: 'A' } });
+    expect(await decodeTree(tree)).toMatchObject({
+      kind: 'success',
+      body: { optimization: projection.optimizationView },
+    });
+    const optimization = tree.optimization;
+    if (optimization?.scope === undefined) throw new Error('missing public connected scope');
+    const malformed: unknown[] = [
+      { ...optimization, scope: { ...optimization.scope, kind: 'unknown' } },
+      {
+        ...optimization,
+        scope: { ...optimization.scope, boundary: { ...optimization.scope.boundary, version: 2 } },
+      },
+      { ...optimization, scope: { ...optimization.scope, quantum: undefined } },
+      { ...optimization, variants: { ...optimization.variants, time: { state: 'unknown' } } },
+    ];
+    for (const field of Object.keys(optimization.scope)) {
+      malformed.push({ ...optimization, scope: { ...optimization.scope, [field]: undefined } });
+    }
+    for (const field of Object.keys(optimization.scope.boundary)) {
+      malformed.push({
+        ...optimization,
+        scope: {
+          ...optimization.scope,
+          boundary: { ...optimization.scope.boundary, [field]: undefined },
+        },
+      });
+    }
+    const foreign = optimization.scope.fixed.at(0);
+    if (foreign === undefined) throw new Error('missing fixed fixture');
+    for (const field of Object.keys(foreign)) {
+      malformed.push({
+        ...optimization,
+        scope: { ...optimization.scope, fixed: [{ ...foreign, [field]: undefined }] },
+      });
+    }
+    if (state === 'boundary-infeasible') {
+      malformed.push({
+        ...optimization,
+        variants: { ...optimization.variants, time: { state: 'boundary-infeasible' } },
+      });
+      const terminal = optimization.variants.time;
+      if (terminal.state !== 'boundary-infeasible') throw new Error('missing terminal fixture');
+      malformed.push({
+        ...optimization,
+        variants: { ...optimization.variants, time: { certificate: terminal.certificate } },
+      });
+      for (const field of Object.keys(terminal.certificate)) {
+        malformed.push({
+          ...optimization,
+          variants: {
+            ...optimization.variants,
+            time: { ...terminal, certificate: { ...terminal.certificate, [field]: undefined } },
+          },
+        });
+      }
+      for (const field of Object.keys(terminal.certificate.question)) {
+        malformed.push({
+          ...optimization,
+          variants: {
+            ...optimization.variants,
+            time: {
+              ...terminal,
+              certificate: {
+                ...terminal.certificate,
+                question: { ...terminal.certificate.question, [field]: undefined },
+              },
+            },
+          },
+        });
+      }
+      const unscoped = { ...optimization, scope: undefined };
+      malformed.push(unscoped);
+      malformed.push({
+        ...optimization,
+        variants: {
+          ...optimization.variants,
+          time: {
+            state: 'boundary-infeasible',
+            certificate: { kind: 'boundary-infeasible', question: {} },
+          },
+        },
+      });
+    }
+    for (const altered of malformed) {
+      const invalid: unknown = JSON.parse(JSON.stringify(altered));
+      expect(
+        (await validateSchema(getWorkItems.responses[0].schema, { ...tree, optimization: invalid }))
+          .issues,
+      ).toBeDefined();
+      expect(await decodeTree({ ...tree, optimization: invalid })).toMatchObject({
+        kind: 'failure',
+        failure: { code: 'invalid_response' },
+      });
+    }
+  },
+);

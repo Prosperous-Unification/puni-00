@@ -1996,3 +1996,37 @@ it('keeps the typed boundary Retry refusal through the generated client', async 
     },
   });
 });
+
+it('refuses connected optimization presentation until the scoped cue is installed', async () => {
+  const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
+  tree.optimization = {
+    enabled: true,
+    engine: 'optimized',
+    objective: 'time',
+    inputHash: 'input',
+    generation: null,
+    contractVersion: 'test',
+    budgetMs: 100,
+    displayed: 'fast',
+    variants: { pri: { state: 'pending' }, time: { state: 'pending' } },
+    finishDays: { fast: 1 },
+    sameOrderAsFast: {},
+    scope: {
+      kind: 'connected-stage',
+      projectId: 'p1',
+      originOrdinal: 1,
+      mode: 'isolated',
+      quantum: 48,
+      wireVersion: 5,
+      boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
+      fixed: [],
+    },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+  );
+  await expect(httpProjectApi('t').tree('p1')).rejects.toThrow(
+    'connected_optimization_presentation_unavailable',
+  );
+});

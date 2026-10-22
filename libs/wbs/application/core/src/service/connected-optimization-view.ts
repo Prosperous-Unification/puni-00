@@ -7,8 +7,7 @@ import {
   type SolverObjectiveName,
 } from '@wbs/domain';
 
-import type { PlanOptimization } from '../ports/plan-tree';
-import type { ConnectedVariantState } from '../ports/scheduler';
+import type { ConnectedPlanOptimization } from '../ports/plan-tree';
 import type { LivePlanRead } from '../ports/shared-people-values';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
@@ -40,10 +39,7 @@ export interface ConnectedOptimizationScope {
 }
 
 /** Both alternatives compare with one retained stage, independent of final component placement. */
-export interface ConnectedOptimizationView extends Omit<PlanOptimization, 'variants'> {
-  readonly scope: ConnectedOptimizationScope;
-  readonly variants: Readonly<Record<SolverObjectiveName, ConnectedVariantState>>;
-}
+export type ConnectedOptimizationView = ConnectedPlanOptimization;
 
 function requireCaptured<T>(value: T | null | undefined, name: string): T {
   // Proof: removing null and undefined predicates independently admitted absent C
