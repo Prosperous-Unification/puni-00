@@ -3014,3 +3014,54 @@ Final bounded verification:
 
 Hooks were installed through `bunx nx run tool-git-hooks:install`; the bounded
 commit uses normal pre-commit, prepare-commit-msg and commit-msg hooks.
+
+## Packet A — bounded admission and graph acceptance, 2026-10-22
+
+The [focused acceptance report](evidence/task-4-admission-acceptance.md) records
+new mounted real foreign-step tests, exact step-ID/project delivery refusals,
+add/update second-successor-owner rollback and protected-read boundaries,
+resulting-owner replay refusal, actual qualified lookup followed by queued
+membership/native credential revocation, and mounted local priority/dependency
+scheduling. Existing actual SQLite A→B→A distinct-node interleaving and the
+mounted local create/link/undo/redo alias batch are retained.
+
+Nine independent watched fault receipts are retained under
+[evidence/task-4-admission-acceptance](evidence/task-4-admission-acceptance/sha256.tsv).
+They distinguish early admission failure from later graph/working-plan/publication
+defense: no unsafe committed success is inferred when a redundant guard still
+refuses. Moving the same current-authority resolution before the held writer
+changes both qualified-lookup races from HTTP403 to the forbidden fan-out
+tripwire's HTTP500. The real writer enqueue signal prevents mere request
+authentication from being mistaken for queue admission.
+
+Verification from the isolated `a31f8b5c8`-based proof checkout:
+
+```sh
+bun test apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts libs/wbs/application/core/src/service/connected-dependency-graph.test.ts libs/wbs/application/core/src/service/dependency-graph.test.ts libs/wbs/domain/domain/src/connected-step-node.test.ts libs/wbs/domain/domain/src/schedule-connected.test.ts --timeout=15000
+NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-contracts,wbs-core,wbs-be-01 --skip-nx-cache
+bunx openspec validate --all --json
+```
+
+Initial nine-suite regression: **338 passed, 0 failed, 3,231 assertions**.
+A subsequent clean repeat under concurrent typechecking passed 337 and exposed
+one existing authority test's clock margin: the credential policy fixture advanced
+a clock initialized before setup by 301 seconds, which need not be 300 seconds
+past actual JWT issuance after slow setup. The fixture now derives the injected
+time from retained first-party `issuedAt + 301_000`. Its focused redo control
+passed, followed by the **entire current-authority suite: 105 passed, 0 failed,
+706 assertions**. The other eight suites passed in the repeat. No production
+credential rule changed.
+
+The final uncached configured contracts/core/backend typecheck completed all five
+targets successfully. Uncached configured `wbs-core:lint` and `wbs-be-01:lint`
+also passed, along with changed-file ESLint and Prettier checks. OpenSpec
+validation passed **268 items** (250 changes, 18 specs), zero failures. Nx could
+not create its plugin socket in the sandbox and used its supported in-process
+fallback; the configured targets completed rather than being skipped.
+
+Public external authoring remains dormant. Positive external graph and replay
+cases use explicitly admitted semantic SQLite fixtures; mounted local scheduling
+and public refusal witnesses are identified separately in the report. No whole
+3.2/4.2/4.3/4.4 task closes here. Host gate, full build, CI secrets scan, public
+activation, generated MCP enabled-success parity and deployment were not run or
+claimed by this bounded packet.

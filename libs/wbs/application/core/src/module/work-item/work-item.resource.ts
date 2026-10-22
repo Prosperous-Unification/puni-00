@@ -6673,6 +6673,9 @@ export class WorkItemService {
     proposed: StoredTypedDependency,
   ): Promise<WorkItemRefusal | null> {
     if (!isWritableRelationshipType(proposed.type)) return 'unsupported_relationship_type';
+    // Proof: removing only this guard changed misowned resulting-relationship redo
+    // from stale_undo/not_found to the working-plan owner throw, before storage
+    // (admitted redo test, 2026-10-22); entry guards stayed installed.
     if (proposed.projectId !== projectId || proposed.successor.projectId !== projectId)
       return 'not_found';
     return withDependencyContext(
@@ -6758,6 +6761,8 @@ export class WorkItemService {
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
+    // Proof: independently removing this entry guard read the protected second
+    // successor in the corresponding add/update SQLite test (2026-10-22).
     if (input.successor.projectId !== projectId) return { ok: false, reason: 'not_found' };
     const dependency: StoredTypedDependency = {
       id: this.clock.newId(),
@@ -6818,6 +6823,8 @@ export class WorkItemService {
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
+    // Proof: independently removing this entry guard read the protected second
+    // successor in the corresponding add/update SQLite test (2026-10-22).
     if (input.successor.projectId !== projectId) return { ok: false, reason: 'not_found' };
     const existing = await this.opts.typedDependencies.listByProject(projectId);
     const from = existing.find((row) => row.id === dependencyId);

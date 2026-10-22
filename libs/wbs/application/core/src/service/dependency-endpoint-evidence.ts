@@ -109,6 +109,9 @@ export function createEndpointEvidence(
       let step = null;
       if (endpoint.scope !== 'whole') {
         const steps = await checked(() => reads.projects.stepsOf(endpoint.projectId));
+        // Proof: independently dropping step id/project equality failed admitted
+        // step-identity/step-project misdelivery tests: the graph threw missing-step
+        // and the storage tripwire fired respectively (2026-10-22).
         const selected = steps.find(
           (candidate) =>
             candidate.id === endpoint.stepId && candidate.projectId === endpoint.projectId,

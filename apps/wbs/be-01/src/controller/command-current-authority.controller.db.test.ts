@@ -2,9 +2,11 @@ import { createHash } from 'node:crypto';
 
 import { runRecoveryWrite } from '@wbs/core/http/recovery-write';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
-import { afterEach, describe, expect, test } from 'bun:test';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
+import { openDatabase } from '../repository/db';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -238,7 +240,9 @@ describe('current command authority on the process writer', () => {
             harness.sqlite.run(
               "INSERT INTO organization_session_policy (organization_id,max_session_seconds,reauthenticate_after_seconds,created_at,updated_at) VALUES ('org-a',300,NULL,1,1)",
             );
-            instant += 301_000;
+            if (principal.authentication?.kind !== 'first_party')
+              throw new Error('credential race requires first-party issuance evidence');
+            instant = principal.authentication.issuedAt + 301_000;
             error = 'reauthentication_required';
           }
           const before = effects();
@@ -769,3 +773,146 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
     expect(failure).toBeInstanceOf(Error);
     expect(effects()).toEqual(before);
   });
+
+for (const fault of ['membership', 'revocation'] as const)
+  test(`qualified address lookup then queued external command refuses current ${fault}`, async () => {
+    const fixture = await open();
+    expect(
+      (await fixture.request('POST', '/api/projects', { name: 'Remote', abbreviation: 'REMOTE' }))
+        .status,
+    ).toBe(200);
+    const remote = harness.sqlite
+      .query<{ id: string }, []>("SELECT id FROM project WHERE name='Remote'")
+      .get();
+    if (remote === null) throw new Error('remote project absent');
+    expect(
+      (
+        await fixture.request('POST', `/api/projects/${remote.id}/commands`, {
+          commands: [{ kind: 'createWorkItem', name: 'Prerequisite' }],
+        })
+      ).status,
+    ).toBe(200);
+    const candidates = await fixture.request(
+      'GET',
+      `/api/projects/${remote.id}/address-candidates`,
+    );
+    expect(candidates.status).toBe(200);
+    const page = (await candidates.json()) as { addressRevision: string };
+    const lookup = await fixture.request(
+      'GET',
+      `/api/projects/${remote.id}/address-references?reference=REMOTE.010&revision=${page.addressRevision}`,
+    );
+    expect(lookup.status).toBe(200);
+    const resolved = (await lookup.json()) as {
+      projectId: string;
+      endpoint: { scope: 'whole'; workItemId: string };
+    };
+    const successor = harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
+      .get(fixture.projectId);
+    if (successor === null) throw new Error('successor absent');
+    const command = {
+      kind: 'addTypedDependency',
+      predecessor: { projectId: resolved.projectId, ...resolved.endpoint },
+      successor: { scope: 'whole', workItemId: successor.id },
+      type: 'FS',
+    };
+    const baseline = await fixture.request('POST', `${fixture.path}/commands`, {
+      commands: [command],
+    });
+    expect(baseline.status).toBe(409);
+    expect(await baseline.json()).toMatchObject({ error: 'external_dependencies_inactive' });
+    let release!: () => void;
+    let entered!: () => void;
+    const admitted = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const held = harness.holdWriteTurn(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+      entered,
+    );
+    await admitted;
+    let authenticated!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      authenticated = resolve;
+    });
+    let enqueued!: () => void;
+    const queued = new Promise<void>((resolve) => {
+      enqueued = resolve;
+    });
+    const descriptor = Object.getOwnPropertyDescriptor(WriteCoordinator.prototype, 'enter');
+    if (descriptor === undefined) throw new Error('writer admission method missing');
+    const enter = descriptor.value as WriteCoordinator['enter'];
+    const queue = spyOn(WriteCoordinator.prototype, 'enter').mockImplementation(function <T>(
+      this: WriteCoordinator,
+      work: () => Promise<T>,
+    ): Promise<T> {
+      const pending = enter.call(this, work) as Promise<T>;
+      enqueued();
+      return pending;
+    });
+    afterResolve = authenticated;
+    const pending = fixture.request('POST', `${fixture.path}/commands`, { commands: [command] });
+    await ready;
+    await queued;
+    queue.mockRestore();
+    afterResolve = undefined;
+    const separate = openDatabase(harness.databasePath());
+    expect(separate.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys').get()).toEqual({
+      foreign_keys: 1,
+    });
+    try {
+      const userId = harness.userId('ada');
+      if (fault === 'membership')
+        separate
+          .query("DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id=?")
+          .run(userId);
+      else {
+        const claims = decodeJwt(harness.token('ada'));
+        separate
+          .query(
+            'INSERT INTO browser_credential_revocations (kind,user_id,credential_digest,expires_at,revoked_at) VALUES (?,?,?,?,?)',
+          )
+          .run(
+            'native',
+            userId,
+            createHash('sha256').update(harness.token('ada')).digest('hex'),
+            Number(claims.exp) * 1000,
+            instant,
+          );
+      }
+      const before = effects();
+      const captures = observedCaptures;
+      const pushes = observedPushes;
+      refusingObservations = true;
+      release();
+      await held;
+      const response = await pending;
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: fault === 'membership' ? 'not_a_member' : 'no_active_organization',
+      });
+      expect(effects()).toEqual(before);
+      expect(observedCaptures).toBe(captures);
+      expect(observedPushes).toBe(pushes);
+      refusingObservations = false;
+      if (fault === 'membership')
+        separate
+          .query(
+            "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a',?,'super_admin',1)",
+          )
+          .run(userId);
+      else separate.query('DELETE FROM browser_credential_revocations WHERE user_id=?').run(userId);
+      const restored = await fixture.request('POST', `${fixture.path}/commands`, {
+        commands: [command],
+      });
+      expect(restored.status).toBe(409);
+      expect(await restored.json()).toMatchObject({ error: 'external_dependencies_inactive' });
+    } finally {
+      release();
+      await held;
+      separate.close();
+    }
+  }, 15_000);

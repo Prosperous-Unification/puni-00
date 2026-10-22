@@ -80,6 +80,9 @@ export function commandTransaction(
             organizationId: null,
           };
           const resources: CommandAdmission = {
+            // Proof: pre-resolving this same source authority before writer admission
+            // made both qualified-lookup queued revocation cases reach the forbidden
+            // fan-out tripwire (HTTP500 instead of 403), 2026-10-22.
             resolveAccess: (caller) => commandAccess.resolve(caller),
             refuseOutsideScope: async (...args) => {
               const refusal = await scope.refuseOutsideScope(...args);

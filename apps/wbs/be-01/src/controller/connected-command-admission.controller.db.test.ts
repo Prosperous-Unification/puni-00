@@ -56,9 +56,9 @@ async function open(pushUrls?: string[]) {
   expect(selected.status).toBe(200);
   const cookie = selected.headers.get('set-cookie')?.split(';')[0];
   if (cookie === undefined) throw new Error('fixture binding cookie missing');
-  const request = (path: string, body?: unknown) =>
+  const request = (path: string, body?: unknown, method = 'POST') =>
     harness.request(path, {
-      method: 'POST',
+      method,
       headers: {
         origin: 'http://localhost',
         authorization: `Bearer ${harness.token('ada')}`,
@@ -218,6 +218,8 @@ async function semantic<T extends { readonly ok: boolean }>(
   corruptStoredScope = false,
   restoredEndpointRefusal?: 'forbidden' | 'unknown_step',
   endpointDelivery?: 'foreign-project' | 'wrong-identity',
+  stepDelivery?: 'step-identity' | 'step-project',
+  forbiddenSuccessor?: string,
 ): Promise<T> {
   const boundary = harness.publicWrites();
   const broadcast = recordingBroadcaster();
@@ -256,6 +258,26 @@ async function semantic<T extends { readonly ok: boolean }>(
               return member;
             },
           });
+    const endpointProjects =
+      stepDelivery === undefined
+        ? projects
+        : new Proxy(projects, {
+            get(target, key) {
+              if (key === 'stepsOf')
+                return async (projectId: string) =>
+                  (await target.stepsOf(projectId)).map((step) =>
+                    projectId !== fixture.predecessor.projectId
+                      ? step
+                      : stepDelivery === 'step-identity'
+                        ? { ...step, id: 'wrong-step-identity' }
+                        : { ...step, projectId: fixture.owner.projectId },
+                  );
+              const member: unknown = Reflect.get(target, key);
+              return typeof member === 'function'
+                ? (...args: unknown[]): unknown => Reflect.apply(member, target, args)
+                : member;
+            },
+          });
     const workItems =
       endpointDelivery === undefined
         ? scope.stores.workItems
@@ -277,7 +299,7 @@ async function semantic<T extends { readonly ok: boolean }>(
           });
     const plan = createWorkingPlan(scope, fixture.owner.projectId);
     const dependencies = createDependencyContext(
-      { ...scope.stores, projects, workItems },
+      { ...scope.stores, projects: endpointProjects, workItems },
       {
         projectId: fixture.owner.projectId,
         actorId: fixture.principal.id,
@@ -318,9 +340,28 @@ async function semantic<T extends { readonly ok: boolean }>(
               },
             }),
           };
+    const guardedContext =
+      forbiddenSuccessor === undefined
+        ? graphContext
+        : {
+            ...graphContext,
+            endpoints: {
+              ...graphContext.endpoints,
+              readEndpoint: (
+                endpoint: Parameters<DependencyContext['endpoints']['readEndpoint']>[0],
+              ) => {
+                if (
+                  endpoint.projectId === forbiddenSuccessor &&
+                  endpoint.workItemId !== fixture.predecessor.workItemId
+                )
+                  throw new Error('second successor owner facts were read');
+                return graphContext.endpoints.readEndpoint(endpoint);
+              },
+            },
+          };
     let revisionReads = 0;
     const revisionContext: DependencyContext = !omitRecordedRevision
-      ? graphContext
+      ? guardedContext
       : {
           ...graphContext,
           endpoints: {
@@ -386,6 +427,22 @@ async function semantic<T extends { readonly ok: boolean }>(
           };
       const service = new WorkItemService({
         ...authoredStores,
+        ...(stepDelivery === undefined
+          ? {}
+          : {
+              typedDependencies: new Proxy(authoredStores.typedDependencies, {
+                get(target, key) {
+                  if (key === 'add' || key === 'update')
+                    return () => {
+                      throw new Error('misdelivered step reached storage');
+                    };
+                  const member: unknown = Reflect.get(target, key);
+                  return typeof member === 'function'
+                    ? (...args: unknown[]): unknown => Reflect.apply(member, target, args)
+                    : member;
+                },
+              }),
+            }),
         clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
         scheduler: fastScheduler,
         admission: granted.admission,
@@ -3068,3 +3125,264 @@ for (const command of ['createWorkItem', 'duplicateWorkItem'] as const) {
     expect(pushUrls).toEqual(pushedBefore);
   });
 }
+
+for (const source of ['owner', 'third'] as const)
+  test(`mounted remote predecessor refuses a real ${source} project step with equal labels`, async () => {
+    const fixture = await open();
+    if (source === 'third')
+      expect((await fixture.request('/api/projects', { name: 'Third' })).status).toBe(200);
+    const steps = harness.sqlite
+      .query<{ id: string; projectId: string }, []>(
+        'SELECT id, project_id AS projectId FROM step ORDER BY position',
+      )
+      .all();
+    const remote = steps.find((step) => step.projectId === fixture.predecessor.projectId);
+    const other = steps.find((step) =>
+      source === 'owner'
+        ? step.projectId === fixture.owner.projectId
+        : step.projectId !== fixture.owner.projectId &&
+          step.projectId !== fixture.predecessor.projectId,
+    );
+    if (remote === undefined || other === undefined) throw new Error('fixture steps missing');
+    harness.sqlite
+      .query("UPDATE step SET name='Equal design', code='design' WHERE id IN (?,?)")
+      .run(remote.id, other.id);
+    const before = effects();
+    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.owner.workItemId,
+          patch: { name: 'Must roll back' },
+        },
+        {
+          kind: 'addTypedDependency',
+          ...fixture.input,
+          predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: other.id },
+        },
+      ],
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: 'not_found',
+      at: 1,
+      kind: 'addTypedDependency',
+    });
+    expect(effects()).toEqual(before);
+  });
+
+for (const fault of ['step-identity', 'step-project'] as const)
+  test(`admitted add refuses ${fault} misdelivery before storage`, async () => {
+    const fixture = await open();
+    const step = harness.sqlite
+      .query<{ id: string }, [string]>(
+        'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      )
+      .get(fixture.predecessor.projectId);
+    if (step === null) throw new Error('remote step missing');
+    const before = effects();
+    expect(
+      await semantic(
+        fixture,
+        (service) =>
+          service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+            ...fixture.input,
+            predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
+          }),
+        undefined,
+        undefined,
+        undefined,
+        false,
+        false,
+        undefined,
+        undefined,
+        fault,
+      ),
+    ).toEqual({ ok: false, reason: 'not_found' });
+    expect(effects()).toEqual(before);
+  });
+
+for (const operation of ['add', 'update'] as const)
+  test(`second successor owner ${operation} refuses before protected facts and rolls back earlier local work`, async () => {
+    const fixture = await open();
+    const linked = await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    );
+    if (!linked.ok) throw new Error('fixture relationship refused');
+    expect(
+      (
+        await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+          commands: [{ kind: 'createWorkItem', name: 'Protected successor' }],
+        })
+      ).status,
+    ).toBe(200);
+    const protectedRow = harness.sqlite
+      .query<{ id: string }, [string]>(
+        "SELECT id FROM work_item WHERE project_id=? AND name='Protected successor'",
+      )
+      .get(fixture.predecessor.projectId);
+    if (protectedRow === null) throw new Error('protected row missing');
+    const input = {
+      ...fixture.input,
+      successor: { ...fixture.predecessor, workItemId: protectedRow.id, scope: 'whole' as const },
+    };
+    const before = effects();
+    expect(
+      await semantic(
+        fixture,
+        async (service) => {
+          const patched = await service.patch(fixture.owner.workItemId, fixture.principal.id, {
+            name: 'Must roll back',
+          });
+          if (!patched.ok) throw new Error('prior patch refused');
+          return operation === 'add'
+            ? service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, input)
+            : service.updateTypedDependency(
+                fixture.owner.projectId,
+                fixture.principal.id,
+                linked.value,
+                input,
+              );
+        },
+        undefined,
+        undefined,
+        undefined,
+        false,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        fixture.predecessor.projectId,
+      ),
+    ).toEqual({ ok: false, reason: 'not_found' });
+    expect(effects()).toEqual(before);
+    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.owner.workItemId,
+          patch: { name: 'Must roll back' },
+        },
+        operation === 'add'
+          ? { kind: 'addTypedDependency', ...input }
+          : { kind: 'updateTypedDependency', dependencyId: linked.value, ...input },
+      ],
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: 'not_found',
+      at: 1,
+      kind: operation === 'add' ? 'addTypedDependency' : 'updateTypedDependency',
+    });
+    expect(effects()).toEqual(before);
+  });
+
+test('mounted low priority prerequisite finishes before its high priority successor starts', async () => {
+  const fixture = await open();
+  const step = harness.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+    )
+    .get(fixture.owner.projectId);
+  if (step === null) throw new Error('local step absent');
+  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    commands: [
+      { kind: 'createWorkItem', ref: 'prerequisite', name: 'Low priority prerequisite' },
+      { kind: 'patchWorkItem', workItemRef: 'prerequisite', patch: { priority: 100 } },
+      { kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { priority: 1 } },
+      {
+        kind: 'setEstimate',
+        workItemRef: 'prerequisite',
+        stepId: step.id,
+        days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+      },
+      {
+        kind: 'setEstimate',
+        workItemId: fixture.owner.workItemId,
+        stepId: step.id,
+        days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      },
+      {
+        kind: 'addTypedDependency',
+        predecessor: { scope: 'whole', workItemRef: 'prerequisite' },
+        successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
+        type: 'FS',
+      },
+    ],
+  });
+  expect(response.status).toBe(200);
+  const read = await fixture.request(
+    `/api/projects/${fixture.owner.projectId}/work-items`,
+    undefined,
+    'GET',
+  );
+  expect(read.status).toBe(200);
+  const view = (await read.json()) as {
+    slices: { workItemId: string; earliestStart: number; earliestFinish: number }[];
+  };
+  const predecessor = harness.sqlite
+    .query<{ id: string }, [string]>(
+      "SELECT id FROM work_item WHERE project_id=? AND name='Low priority prerequisite'",
+    )
+    .get(fixture.owner.projectId);
+  if (predecessor === null) throw new Error('local prerequisite absent');
+  const prerequisite = view.slices.filter(
+    (slice: { workItemId: string }) => slice.workItemId === predecessor.id,
+  );
+  const successor = view.slices.filter(
+    (slice: { workItemId: string }) => slice.workItemId === fixture.owner.workItemId,
+  );
+  expect(prerequisite.length).toBeGreaterThan(0);
+  expect(successor.length).toBeGreaterThan(0);
+  const finish = Math.max(
+    ...prerequisite.map((slice: { earliestFinish: number }) => slice.earliestFinish),
+  );
+  const start = Math.min(
+    ...successor.map((slice: { earliestStart: number }) => slice.earliestStart),
+  );
+  expect(finish).toBeGreaterThan(0);
+  expect(start).toBeGreaterThanOrEqual(finish);
+});
+
+test('admitted redo refuses a misowned resulting relationship before storage', async () => {
+  const fixture = await open();
+  const linked = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!linked.ok) throw new Error('fixture link refused');
+  expect(
+    await semantic(fixture, (service) =>
+      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    ),
+  ).toMatchObject({ ok: true });
+  const entry = harness.sqlite
+    .query<{ id: string; payload: string }, [string]>(
+      'SELECT id,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+    )
+    .get(fixture.owner.projectId);
+  if (entry === null) throw new Error('journal missing');
+  const payload = JSON.parse(entry.payload) as { forward: CompensatingCommand };
+  if (payload.forward.do !== 'add_typed_dependency') throw new Error('typed forward missing');
+  const forward = {
+    ...payload.forward,
+    dependency: {
+      ...payload.forward.dependency,
+      projectId: fixture.predecessor.projectId,
+      successor: { ...fixture.predecessor, scope: 'whole' as const },
+    },
+  };
+  harness.sqlite
+    .query('UPDATE command_journal SET payload=? WHERE id=?')
+    .run(JSON.stringify({ ...payload, forward }), entry.id);
+  const before = effects();
+  expect(
+    await semantic(fixture, (service) =>
+      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    ),
+  ).toMatchObject({
+    ok: false,
+    reason: 'stale_undo',
+    detail: 'that relationship would now be refused: not_found.',
+  });
+  expect(effects()).toEqual(before);
+});

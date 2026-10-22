@@ -160,3 +160,24 @@ test('refuses evidence after closure and across an awaited read', async () => {
   expect(revisions).toBeInstanceOf(Error);
   expect(revisions instanceof Error ? revisions.message : revisions).toContain('closed evidence');
 });
+
+for (const fault of ['step-identity', 'step-project'] as const)
+  test(`refuses remote ${fault} misdelivery after genuine scoped row and tree reads`, async () => {
+    const scope = observation();
+    const readSteps = scope.reads.projects.stepsOf;
+    scope.reads.projects.stepsOf = async (projectId) =>
+      (await readSteps(projectId)).map((step) =>
+        fault === 'step-identity'
+          ? { ...step, id: 'other-design' }
+          : { ...step, projectId: 'owner' },
+      );
+    expect(
+      await scope.evidence.readEndpoint({
+        projectId: 'remote',
+        scope: 'node',
+        workItemId: 'b',
+        stepId: 'design',
+      }),
+    ).toEqual({ ok: false, reason: 'not_found' });
+    expect(scope.calls).toEqual(['admit:remote:org', 'row:b', 'tree:remote', 'steps:remote']);
+  });
