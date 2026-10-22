@@ -199,7 +199,9 @@ test('every retained placement constraint family changes the canonical stage ide
           ...captured.input,
           graph: {
             ...captured.input.graph,
-            edges: captured.input.graph.edges.map((edge) => ({ ...edge, type: 'SS' })),
+            edges: captured.input.graph.edges.map((edge) =>
+              edge.provenance === 'authored' ? { ...edge, type: 'SS' as const } : edge,
+            ),
           },
         },
       },
