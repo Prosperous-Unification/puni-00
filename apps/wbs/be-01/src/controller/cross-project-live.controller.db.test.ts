@@ -740,8 +740,9 @@ test('mounted calendar unavailable edit and eligible claim commit and publish cu
   );
 });
 
-test('mounted connected calendar range leaves no partial forecast display', async () => {
-  const { target } = await open();
+test('mounted shared connected calendar range leaves no partial forecast display', async () => {
+  const { remote, target } = await open();
+  shareAna(remote, target);
   harness.sqlite
     .query('UPDATE estimate SET optimistic=100000000,realistic=100000000,pessimistic=100000000')
     .run();

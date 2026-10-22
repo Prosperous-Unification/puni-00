@@ -94,3 +94,30 @@ explicit unavailable premature-claim regression, transitive fanout-specific proo
 full host gate, build, push or deployment was performed. Local and scheduled
 connected regressions are included in the focused suites, but this packet alone
 is not a release or whole-feature completion claim.
+
+## Astra review correction: final availability owns holder attachment
+
+Astra High review of `2869218bf` found a missing combination: a scheduled shared
+person component can retain captured foreign holders while the presenter later
+refuses calendar display. The initial range fixture had no shared person, so it
+could not expose the outer presenter's reattachment of that abandoned catalog.
+
+The mounted range regression now uses the real `shareAna(remote, target)` fixture.
+Before the fix it failed `not.toHaveProperty('elsewhereHolders')` with the captured
+Remote row catalog, despite null forecasts and empty slices. Log:
+`/tmp/puni-unavailable-holder-red.log` (1 failed test, 8 assertions).
+
+`presentConnectedTree` now returns the unavailable tree plus incident relationships
+before transferring foreign holder references or attaching holder catalogs. The
+final `tree.scheduleError` decides availability; the earlier captured placement
+cannot override display refusal. Scheduled-holder behavior uses its existing path.
+
+After the fix the mounted suite passed 14 tests, 119 assertions. Removing only
+that final-availability guard then reproduced the same catalog assertion failure:
+`/tmp/puni-unavailable-holder-proof.log` (1 failed test, 8 assertions). The guard was
+restored, with an adjacent `Proof:` comment. Final focused regression passed
+96 tests, 345 assertions; output is in
+`/tmp/puni-unavailable-holder-final-tests.log`; scoped lint output is in
+`/tmp/puni-unavailable-holder-lint.log`. The combined core/backend TypeScript
+command still reports the two excluded load/roll-up errors described above;
+`/tmp/puni-unavailable-holder-tsc.log`. No new integration boundary was widened.

@@ -9030,6 +9030,10 @@ function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
     },
     projection,
   );
+  // Proof: removing this final-availability guard made the mounted shared
+  // calendar-range case retain abandoned foreign holder labels (2026-10-22).
+  if (tree.scheduleError !== null)
+    return { ...tree, connectedDependencies: [...projection.dependencies] };
   // Proof: disabling this transfer reproduced the mounted visible-row Gantt
   // dangling-predecessor failure; removing only the catalog below reproduced
   // Gantt's missing-holder-label failure (2026-10-22).

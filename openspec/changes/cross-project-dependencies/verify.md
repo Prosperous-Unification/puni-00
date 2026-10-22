@@ -1004,3 +1004,9 @@ structured captured reasons to successful connected tree reads, suppresses row
 forecasts, and verifies durable postcommit publication for an edit and eligible
 claim. It records watched production mutations, focused tests and exact excluded
 integration boundaries. Tasks 8.4 and 9.2 remain incomplete.
+
+Astra's bounded packet review found stale foreign holder catalog attachment after
+connected calendar-range refusal. The same packet evidence now records the real
+shared-person regression and watched final-availability guard removal. Holder
+transfer and catalog attachment now require the final presented schedule to be
+available; broader integration obligations remain open.
