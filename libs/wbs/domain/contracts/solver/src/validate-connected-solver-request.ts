@@ -1,19 +1,30 @@
-import { readFileSync } from 'node:fs';
-
 import Ajv2020 from 'ajv/dist/2020.js';
 
+import schema from '../solver-wire.v5.json';
 import type { ConnectedSolverRequest } from './wire-types';
 
-// The checked-in normative schema is trusted package data; a missing or
-// malformed copy fails module initialization before a solver is prepared.
-const schema = JSON.parse(
-  readFileSync(new URL('../solver-wire.v5.json', import.meta.url), 'utf8'),
-) as { $schema: string; $defs: Record<string, unknown> };
+// Proof: replacing this checked-in JSON dependency with an import.meta.url
+// filesystem read made the release-style bundled local/connected caller exit
+// 1 with ENOENT; the source entry still ran. Bun must inline these bytes.
 const validator = new Ajv2020({ strict: false, allErrors: true }).compile({
   $schema: schema.$schema,
   $ref: '#/$defs/request-connected',
   $defs: schema.$defs,
 });
+
+/** Find retained occupancy whose rounded coordinates exceed the safe integer range. */
+export function findUnrepresentableOccupancy(
+  occupancy: ConnectedSolverRequest['scope']['occupancy'],
+  quantum: number,
+): string | null {
+  for (const holder of occupancy) {
+    // For a well-formed holder 0 <= start < finish, finish dominates both
+    // scaled coordinates. Malformed holders are refused by request validation.
+    const scaledFinish = holder.finish * quantum;
+    if (scaledFinish > Number.MAX_SAFE_INTEGER) return holder.key;
+  }
+  return null;
+}
 
 /** Check the complete normative connected arm before preparing a terminal finding. */
 export function validateConnectedSolverRequest(request: ConnectedSolverRequest): void {
@@ -22,9 +33,9 @@ export function validateConnectedSolverRequest(request: ConnectedSolverRequest):
       `connected solver request violates wire 5: ${JSON.stringify(validator.errors)}`,
     );
   }
-  // Proof: returning after schema validation made nine production-contract
-  // corruptions pass, including duplicate keys, owner mismatch, and missing
-  // occupancy bookings (one focused Bun test failed with all nine listed).
+  // Proof: 28 individually weakened predicates each failed a named Bun
+  // contract test; the corruptions include duplicate keys, wrong owners,
+  // unmatched occupancy and bookings outside the request horizon.
   const keys = new Set(request.slices.map((slice) => slice.key));
   if (keys.size !== request.slices.length) throw new Error('connected solver slice keys repeat');
   for (const [name, offsets] of [
@@ -56,22 +67,33 @@ export function validateConnectedSolverRequest(request: ConnectedSolverRequest):
       entry.projectId === request.scope.projectId
     )
       throw new Error('connected fixed slice has invalid ownership');
+    if (entry.start > entry.finish) throw new Error('connected fixed slice has reversed placement');
   }
   for (const boundary of request.scope.boundaries) {
     const foreign = fixed.get(boundary.foreignKey);
-    if (!keys.has(boundary.localKey) || foreign?.projectId !== boundary.foreignProjectId)
+    if (!keys.has(boundary.localKey))
+      throw new Error('connected boundary has invalid endpoints or owner');
+    if (foreign === undefined) throw new Error('connected boundary has invalid endpoints or owner');
+    if (foreign.projectId !== boundary.foreignProjectId)
       throw new Error('connected boundary has invalid endpoints or owner');
   }
   for (const holder of request.scope.occupancy) {
     const foreign = fixed.get(holder.key);
+    if (foreign === undefined)
+      throw new Error('connected occupancy does not match fixed foreign slice');
     if (
-      foreign?.projectId !== holder.projectId ||
+      foreign.projectId !== holder.projectId ||
       foreign.start !== holder.start ||
       foreign.finish !== holder.finish ||
       holder.start >= holder.finish
     )
       throw new Error('connected occupancy does not match fixed foreign slice');
   }
+  // Proof: moving this check below local-person filtering let a foreign-only
+  // 1e15-day holder reach a terminal that the installed CLI refused with 64.
+  const unsafeHolder = findUnrepresentableOccupancy(request.scope.occupancy, request.quantum);
+  if (unsafeHolder !== null)
+    throw new Error(`connected occupancy ${unsafeHolder} exceeds safe quantization range`);
   const localPeople = new Set(
     request.slices.flatMap((slice) =>
       slice.durationUnits > 0 && slice.personId !== null ? [slice.personId] : [],
@@ -82,8 +104,6 @@ export function validateConnectedSolverRequest(request: ConnectedSolverRequest):
     if (!localPeople.has(holder.personId)) continue;
     const startUnits = Math.max(0, Math.floor(holder.start * request.quantum));
     const endUnits = Math.ceil(holder.finish * request.quantum);
-    if (!Number.isSafeInteger(startUnits) || !Number.isSafeInteger(endUnits))
-      throw new Error('connected occupancy exceeds safe quantization range');
     const intervals = expected.get(holder.personId) ?? [];
     intervals.push([startUnits, endUnits]);
     expected.set(holder.personId, intervals);
@@ -100,18 +120,17 @@ export function validateConnectedSolverRequest(request: ConnectedSolverRequest):
     }
   }
   if (Object.keys(request.elsewhere).length !== expected.size)
-    throw new Error('connected elsewhere differs from foreign occupancy');
+    throw new Error('connected elsewhere person set differs from foreign occupancy');
   for (const [person, intervals] of expected) {
     const actual = request.elsewhere[person];
     if (JSON.stringify(actual) !== JSON.stringify(intervals))
-      throw new Error('connected elsewhere differs from foreign occupancy');
+      throw new Error('connected elsewhere intervals differ from foreign occupancy');
   }
   for (const bookings of Object.values(request.elsewhere)) {
-    let previousEnd = 0;
-    for (const [start, end] of bookings) {
-      if (start >= end || start < previousEnd || end > request.horizonUnits)
-        throw new Error('connected person booking is invalid');
-      previousEnd = end;
+    for (const [, end] of bookings) {
+      // Positive ordered spans already follow from equality to the union of
+      // rounded retained holders; only the request horizon remains to check.
+      if (end > request.horizonUnits) throw new Error('connected person booking is invalid');
     }
   }
 }

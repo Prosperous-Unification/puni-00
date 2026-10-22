@@ -22,7 +22,10 @@ import { quantiseElsewhere } from './quantise-elsewhere';
 import { preflightSolverRequest, type SolverPreflightFailure } from './solver-preflight';
 import { ffStartWeightUnits } from './solver-units';
 import { STAGE_BUDGET_SPLIT } from './stage-budget';
-import { validateConnectedSolverRequest } from './validate-connected-solver-request';
+import {
+  findUnrepresentableOccupancy,
+  validateConnectedSolverRequest,
+} from './validate-connected-solver-request';
 import {
   type ConnectedSolverRequest,
   SOLVER_WIRE_VERSION,
@@ -170,6 +173,16 @@ export function buildConnectedSolverRequest(
   );
   for (const bookings of elsewhere.values())
     bookings.sort((left, right) => left.start - right.start || left.end - right.end);
+  // Proof: removing this all-holder preflight returns a 10/9 terminal retaining
+  // foreign-only C at 1.2..1e15+1.2; the installed CLI refuses its exact bytes
+  // with exit 64. The modeled horizon failure must precede classification.
+  const unsafeHolder = findUnrepresentableOccupancy(occupancy, SOLVER_QUANTUM);
+  if (unsafeHolder !== null)
+    return {
+      kind: 'failed',
+      failure: 'horizon-overflow',
+      detail: `foreign occupancy ${unsafeHolder} exceeds the safe quantization range`,
+    };
   const bookings = quantiseElsewhere(elsewhere);
   if (!bookings.ok) {
     return {

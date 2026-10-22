@@ -261,8 +261,22 @@ test('complete connected request validation rejects cross-field corruption befor
     ],
     [
       (request) => {
+        Object.assign(request, { movementReferenceOffsets: { absent: 10 } });
+      },
+      /missing or out-of-horizon/,
+    ],
+    [
+      (request) => {
         Object.assign(request, {
           edges: [{ predecessorKey: 'absent', successorKey: b, type: 'FS' }],
+        });
+      },
+      /edge does not name/,
+    ],
+    [
+      (request) => {
+        Object.assign(request, {
+          edges: [{ predecessorKey: b, successorKey: 'absent', type: 'FS' }],
         });
       },
       /edge does not name/,
@@ -278,6 +292,22 @@ test('complete connected request validation rejects cross-field corruption befor
     [
       (request) => {
         Object.assign(request.scope, {
+          projects: request.scope.projects.filter((project) => project.projectId !== 'B'),
+        });
+      },
+      /projects are inconsistent/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          fixed: [request.scope.fixed[0], request.scope.fixed[0], request.scope.fixed[1]],
+        });
+      },
+      /fixed keys repeat/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
           fixed: [{ ...request.scope.fixed[0], projectId: 'B' }, request.scope.fixed[1]],
         });
       },
@@ -286,8 +316,54 @@ test('complete connected request validation rejects cross-field corruption befor
     [
       (request) => {
         Object.assign(request.scope, {
+          fixed: [{ ...request.scope.fixed[0], projectId: 'absent' }, request.scope.fixed[1]],
+        });
+      },
+      /fixed slice has invalid ownership/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          fixed: [{ ...request.scope.fixed[0], key: b }, request.scope.fixed[1]],
+        });
+      },
+      /fixed slice has invalid ownership/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          fixed: [{ ...request.scope.fixed[0], start: 0.3 }, request.scope.fixed[1]],
+        });
+      },
+      /fixed slice has reversed placement/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
           boundaries: [
             { ...request.scope.boundaries[0], foreignProjectId: 'C' },
+            request.scope.boundaries[1],
+          ],
+        });
+      },
+      /boundary has invalid endpoints/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          boundaries: [
+            { ...request.scope.boundaries[0], localKey: 'absent' },
+            request.scope.boundaries[1],
+          ],
+        });
+      },
+      /boundary has invalid endpoints/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          boundaries: [
+            { ...request.scope.boundaries[0], foreignKey: 'absent' },
             request.scope.boundaries[1],
           ],
         });
@@ -304,9 +380,50 @@ test('complete connected request validation rejects cross-field corruption befor
     ],
     [
       (request) => {
+        Object.assign(request.scope, {
+          occupancy: [{ personId: 'ana', projectId: 'A', key: 'absent', start: 0, finish: 0.2 }],
+        });
+      },
+      /occupancy does not match/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          occupancy: [{ personId: 'ana', projectId: 'C', key: a, start: 0, finish: 0.2 }],
+        });
+      },
+      /occupancy does not match/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          occupancy: [{ personId: 'ana', projectId: 'A', key: a, start: 0.1, finish: 0.2 }],
+        });
+      },
+      /occupancy does not match/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          occupancy: [{ personId: 'ana', projectId: 'A', key: a, start: 0.2, finish: 0.2 }],
+        });
+      },
+      /occupancy does not match/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          fixed: [{ ...request.scope.fixed[0], start: 0.2 }, request.scope.fixed[1]],
+          occupancy: [{ personId: 'ana', projectId: 'A', key: a, start: 0.2, finish: 0.2 }],
+        });
+      },
+      /occupancy does not match/,
+    ],
+    [
+      (request) => {
         Object.assign(request, { elsewhere: { ana: [[1, 1]] } });
       },
-      /elsewhere differs/,
+      /elsewhere person set differs/,
     ],
   ];
   const missed: string[] = [];
@@ -349,6 +466,73 @@ test('finite unrepresentable incoming, reference and outgoing evidence yields ty
     kind: 'failed',
     failure: 'horizon-overflow',
   });
+});
+
+test('foreign-only retained occupancy overflows before the 10/9 terminal is classified', () => {
+  const candidate = stage();
+  (candidate as { mode: 'shared' | 'isolated' }).mode = 'shared';
+  (candidate.input.slices[2] as { days: number; personId: string | null }).days = 1e15;
+  (candidate.input.slices[2] as { days: number; personId: string | null }).personId =
+    'foreign-only-person';
+  (candidate.finishes as Map<string, number>).set(c, 1.2 + 1e15);
+  const identity = {
+    inputHash: 'input',
+    questionHashes: { pri: 'question-pri', time: 'question-time' },
+  };
+  const pair = buildConnectedSolverRequestPair(candidate, identity, {
+    solverVersion: '0.4.0',
+    budgetMs: 1000,
+  });
+  expect(pair.pri).toMatchObject({ kind: 'failed', failure: 'horizon-overflow' });
+  expect(pair.time).toMatchObject({ kind: 'failed', failure: 'horizon-overflow' });
+  const nonfinite = stage();
+  (nonfinite.finishes as Map<string, number>).set(c, Number.NaN);
+  expect(() =>
+    buildConnectedSolverRequestPair(nonfinite, identity, {
+      solverVersion: '0.4.0',
+      budgetMs: 1000,
+    }),
+  ).toThrow();
+  const safeForeignOnly = stage();
+  (safeForeignOnly as { mode: 'shared' | 'isolated' }).mode = 'shared';
+  (safeForeignOnly.input.slices[2] as { personId: string | null }).personId = 'foreign-only-person';
+  const safe = buildConnectedSolverRequestPair(safeForeignOnly, identity, {
+    solverVersion: '0.4.0',
+    budgetMs: 1000,
+  });
+  expect(safe.pri.kind).toBe('boundary-infeasible');
+  if (safe.pri.kind !== 'boundary-infeasible') throw new Error('expected safe foreign holder');
+  expect(safe.pri.request.scope.occupancy).toHaveLength(1);
+  expect(safe.pri.request.elsewhere).toEqual({});
+  const ordinary = buildConnectedSolverRequestPair(stage(), identity, {
+    solverVersion: '0.4.0',
+    budgetMs: 1000,
+  });
+  expect(ordinary.pri.kind).toBe('boundary-infeasible');
+  if (ordinary.pri.kind !== 'boundary-infeasible') throw new Error('expected terminal');
+  expect(ordinary.pri.evidence).toMatchObject({ lower: 10, upper: 9 });
+  const invalidRetained = structuredClone(ordinary.pri.request);
+  Object.assign(invalidRetained.scope, {
+    fixed: [
+      invalidRetained.scope.fixed[0],
+      {
+        ...invalidRetained.scope.fixed[1],
+        finish: 1.2 + 1e15,
+      },
+    ],
+    occupancy: [
+      {
+        personId: 'foreign-only-person',
+        projectId: 'C',
+        key: c,
+        start: 1.2,
+        finish: 1.2 + 1e15,
+      },
+    ],
+  });
+  expect(() => {
+    validateConnectedSolverRequest(invalidRetained);
+  }).toThrow(/safe quantization/);
 });
 
 test('production preparation sends local decisions, fixed holders and an untrusted seed separately', () => {
@@ -633,7 +817,53 @@ test('connected request names the exact foreign person holder and booking', () =
   Object.assign(missingBooking, { elsewhere: {} });
   expect(() => {
     validateConnectedSolverRequest(missingBooking);
-  }).toThrow(/elsewhere/);
+  }).toThrow(/elsewhere person set/);
+  const wrongBooking = structuredClone(pair.pri.request);
+  Object.assign(wrongBooking, { elsewhere: { ana: [[0, 9]] } });
+  expect(() => {
+    validateConnectedSolverRequest(wrongBooking);
+  }).toThrow(/elsewhere intervals/);
+  const joinedBooking = structuredClone(pair.pri.request);
+  Object.assign(joinedBooking.scope, {
+    fixed: [
+      joinedBooking.scope.fixed[0],
+      {
+        ...joinedBooking.scope.fixed[1],
+        start: 0.1,
+        finish: 0.3,
+      },
+    ],
+    occupancy: [
+      joinedBooking.scope.occupancy[0],
+      {
+        personId: 'ana',
+        projectId: 'C',
+        key: c,
+        start: 0.1,
+        finish: 0.3,
+      },
+    ],
+  });
+  Object.assign(joinedBooking, { elsewhere: { ana: [[0, 15]] } });
+  expect(() => {
+    validateConnectedSolverRequest(joinedBooking);
+  }).not.toThrow();
+  const foreignOnly = structuredClone(pair.pri.request);
+  Object.assign(foreignOnly.scope, {
+    occupancy: [
+      foreignOnly.scope.occupancy[0],
+      {
+        personId: 'foreign-only-person',
+        projectId: 'C',
+        key: c,
+        start: 1.2,
+        finish: 2.2,
+      },
+    ],
+  });
+  expect(() => {
+    validateConnectedSolverRequest(foreignOnly);
+  }).not.toThrow();
   const bookingBeyondHorizon = structuredClone(pair.pri.request);
   Object.assign(bookingBeyondHorizon, {
     horizonUnits: 9,
