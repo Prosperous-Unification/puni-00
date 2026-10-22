@@ -4674,3 +4674,16 @@ and mounted first-child/remote-cycle-undo/final hand-down findings 5/5
 retained fault evidence but did not reinject mutations or run full CI/host gates.
 Task 4.3 is closed as its bounded graph contract; 3.2, 4.2, full 4.4,
 production authoring activation and delivery gates remain open.
+
+### PR #630 replay capability Job OOM diagnosis and bounded fix (2026-10-22)
+
+CI run `39848434568` reported forward and rollback previous-image replay
+capability Jobs `OOMKilled` at exit 137 with empty application logs. The
+[exact-image reproduction and import-isolation proof](evidence/replay-oom/2026-10-22-local-image-proof.md)
+records baseline failure at the unchanged 512 MiB Job limit, success at 1 GiB
+with about 728 MiB RSS, and success after a dependency-free replay vocabulary
+import at 512 MiB with about 15 MiB RSS. The four capability strings/order and
+existing core reexports remain unchanged. Astra independently reviewed the
+source, 176/176 focused tests and both watched negative mutations. The full
+k3s rehearsal, complete journal footprint, CI gate and exact-SHA h2puni gate
+remain unverified for this fix; task 11.2 stays open.
