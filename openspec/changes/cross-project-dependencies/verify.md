@@ -2117,3 +2117,90 @@ commands skipped by their configured file globs. No host gate or release-readine
 claim is made by this packet.
 
 Kubernetes B1 transport evidence is recorded separately in [verify-k8s-dependency-observation.md](verify-k8s-dependency-observation.md); it does not complete task 10.2 or establish live runtime admission.
+
+## Bounded connected v11 export (2026-10-22)
+
+This read-side packet starts from `169c816db9feb7b257c39bd5ed4e25eaf5321d42`
+in an isolated clone. It adds required v11 response history, a pure projection
+of the detached component, and the actual connected `readExport` → work-item →
+JSON/Markdown route. The existing read snapshot captures owner document facts
+alongside foreign identities and cache/stage selection. Production external
+write admission and connected optimizer installation are unchanged.
+
+Observed red: the new SQLite export test reached the deliberate
+`connected export is unsupported` error before capture wiring. Contract tests
+first failed on the absent declaration, then on admitted Infinity before finite
+numeric bounds. The missing selected-position test first returned an incomplete
+component before exact baseline/selected key checking. Existing v11 response
+fixture failed on missing `connected`; its updated test proves response-required
+and archival-import-optional history independently.
+
+Observed focused green: `bun test` over the two new contract/core suites,
+`plan-document.resource.test.ts`, `module.test.ts`, `connected-live-plan.db.test.ts`,
+`chain-snapshot.db.test.ts`, mounted `cross-project-export.controller.db.test.ts`,
+`schedule-organization.controller.db.test.ts`,
+`import-export-organization.controller.db.test.ts`, and
+`plan-document-boundary.test.ts` passed **295 tests, 0 failures, 1053 assertions**.
+A later producer missing-sequence/nonfinite-revision test passed 1 test/2 assertions.
+The exact regression output is retained under `evidence/v11-export/`.
+
+The mounted tests use synthetic persisted storage authority solely to seed
+external reader fixtures. Actual production import dormancy tests remain green
+with and without that fixture authority. The all-table before/after export
+comparison includes optimizer/cache/generation/queue/event state; JSON and
+Markdown allocate no durable work. The tests compare component-axis selected
+start 2.5 with the target's existing shifted presentation. Unavailable calendar
+and engine arms retain null row forecasts and inspectable links.
+
+Watched faults, each restored before rerunning green, are under
+`evidence/v11-export/`:
+
+| Injected production fault                   | Observed failing assertion                                                                                                         |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Make response `connected` optional          | Mounted absent-history returned 200 instead of required 500 (`optional-evidence.txt`). Malformed-history is independently refused. |
+| Export all incident edges as authored links | Predecessor export gained a foreign-owned outgoing instruction (`incident-transfer.txt`).                                          |
+| Remove stored owner/successor equality      | Malformed owner returned a document instead of throwing (`relationship-owner.txt`).                                                |
+| Serialize baseline as selected              | Exact optimized selected start was 3 instead of 0 (`selected-baseline.txt`).                                                       |
+| Replace retained canonical stage bytes      | Exact stage-boundary comparison failed (`stage-boundary.txt`).                                                                     |
+| Replace captured variants with idle         | Distinct plan/boundary infeasibility assertions lost the captured certificate (`drop-certificate.txt`).                            |
+| Remove owned observation BEGIN              | First connected export saw `Next remote` instead of the captured old name (`observation-transaction.txt`).                         |
+
+Limits: tasks 8.1/8.2 remain open. This packet does not prove authorized
+whole-project export/import, current-principal write admission integration,
+production external authoring, saved-plan storage/history, general replay,
+connected optimizer activation, or tasks 10.1/10.2. The project-page dormant-import
+UI scenario, full transport matrix, independent Astra High review and isolated
+h2/h4 host gate remain integration work. No deployment claim is made. Browser,
+MCP, Python solver, host gate, CI secrets and migration gates were not run by
+this packet. Scoped Nx and frontend results are recorded below when complete;
+a started or interrupted command is not a passing check.
+
+Additional watched negatives: `position-ownership.txt` removes the row-owner
+predicate and the production projector accepts an A slice attributed to B;
+`producer-validation.txt` removes the final trusted response-schema refusal and
+accepts absent sequence and infinite revision. Both fail their exact projector
+tests and were restored before the final focused rerun.
+
+Scoped Nx verification: all five relevant lint targets passed
+(`wbs-contracts`, `wbs-core`, `wbs-store-sqlite`, `wbs-be-01`, `wbs-fe-01`).
+Contract/store/frontend typecheck targets passed in the first scoped run;
+corrected core/backend test typings then passed their Nx typecheck and module
+prerequisites. Initial failed runs are not counted as passing evidence.
+
+`comparison-scope.txt` and `stage-metadata.txt` independently remove their
+producer predicates; the exact foreign-scope and mismatched-engine tests fail.
+The boundary-certificate mutation preserves PRI plan-infeasible state and drops
+only the TIME boundary certificate, so its failure reaches the certificate
+assertion independently. OpenSpec full validation passed 268/268 items.
+Final restore-green focused rerun passed 40 tests/242 assertions before the last
+foreign-stage/scope negative was added; that projector suite is rerun below.
+
+Final projector suite: 10 tests/36 assertions passed, and the final mounted
+export suite: 5 tests/42 assertions passed, including target local start 1.5
+versus component start 2.5 and sparse/uncoded refusal precedence. Final
+plan-document module `tsc -p` passed after these guard tests. Frontend full
+Nx test and full repository Nx format check were started but had no completed
+result at packet commit time; they remain unverified and are not passing claims.
+Sandbox attempts that stalled/returned 130 are superseded by running the same
+configured targets outside the sandbox. Review/integration must obtain their
+completed output and the required isolated host gate before release.

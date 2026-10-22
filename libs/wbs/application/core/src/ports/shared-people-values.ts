@@ -135,7 +135,11 @@ export interface PlanDocumentReads {
 /** Export-purpose evidence is private to core callers, never part of the public tree payload. */
 export type LivePlanExportRead =
   | Exclude<LivePlanRead, { kind: 'shared' | 'connected' }>
-  | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads });
+  | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads })
+  | (Extract<LivePlanRead, { kind: 'connected' }> & {
+      readonly projectId: string;
+      readonly document: PlanDocumentReads;
+    });
 
 /**
  * One detached aggregate observation. Component members share one captured read

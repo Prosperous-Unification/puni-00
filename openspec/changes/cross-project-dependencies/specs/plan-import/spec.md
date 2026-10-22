@@ -91,3 +91,39 @@ An imported project's abbreviation SHALL use the destination organization's allo
 - **WHEN** an authorized caller imports external declarations
 - **THEN** it receives the existing inactive-authoring conflict without writes
 - **AND** current principal admission remains required before the external-authoring decision
+
+### Requirement: Connected exports preserve one detached read observation
+
+A connected JSON export SHALL write version 11 with required read-only `connected` evidence. It SHALL retain every captured member's stable identity, name, abbreviation, rank, calendar, revision and sequence, and every component relationship's original scoped selectors and successor ownership. Authored `typedDependencies` SHALL contain exactly relationships owned by the exported successor project, using file-local internal endpoints and original stable external predecessor identities. External display addresses SHALL identify the qualified row; step scope and name SHALL remain separate, including uncoded remote steps. Outgoing and unrelated component links SHALL remain historical evidence only.
+
+Scheduled evidence SHALL preserve complete baseline and selected component positions with explicit ownership and finite real workday offsets, idle members, and each retained optimization stage. A stage SHALL preserve the versioned exact canonical boundary, captured questions and candidate starts, variant states, stage-scoped comparisons and actual chosen outcome. Boundary infeasibility SHALL remain distinct from plan infeasibility. Calendar and engine absence and known placement failures SHALL remain explicit unavailable evidence with null row dates.
+
+Export authorization, capture, document facts and cache selection SHALL share one observation. Serialization SHALL perform no live lookup, scheduling or optimization admission after closure. Version 10 local/shared output and uncoded/sparse export refusals SHALL retain existing behavior. Import SHALL discard connected history and revalidate writable identities through current import admission; an archival success or certificate SHALL confer no authority.
+
+#### Scenario: Export an incoming prerequisite and inspect outgoing history
+
+- **GIVEN** a connected component has incoming, outgoing and unrelated relationships
+- **WHEN** one project is exported
+- **THEN** only its successor-owned links become authored transfer instructions
+- **AND** all component relationships remain inspectable with original stable identities
+
+#### Scenario: Preserve exact stage scope and selected placement
+
+- **GIVEN** an earlier optimized stage moves a member and a later stage retains baseline
+- **WHEN** the connected document is serialized
+- **THEN** baseline and selected component offsets differ exactly as captured
+- **AND** the earlier canonical boundary and candidate question remain unchanged
+- **AND** the later non-null comparison states that baseline was chosen
+
+#### Scenario: Required response history and tolerant archival import differ
+
+- **WHEN** a backend response omits or corrupts required connected history
+- **THEN** response validation refuses it
+- **AND** import of an authored v11 archival document may omit history or contain arbitrary read-only history because its writable projection discards it
+
+#### Scenario: Facts change after capture
+
+- **GIVEN** remote labels, owner settings, markers or sparse policy change during or after the export observation
+- **WHEN** the captured export is serialized
+- **THEN** it contains one coherent old observation and the next export contains the new facts
+- **AND** no export allocates optimizer work or writes durable state

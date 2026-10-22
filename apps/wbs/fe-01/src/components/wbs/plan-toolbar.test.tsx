@@ -623,10 +623,37 @@ describe('sharing the plan', () => {
     const exported = {
       document: {
         format: 'wbs-plan',
-        version: 1,
+        version: 11,
         exportedAt: '2026-09-14T08:30:00.000Z',
       },
       settings: { name: 'Rewire the shed' },
+      typedDependencies: [
+        {
+          id: 'incoming',
+          type: 'FS',
+          predecessor: {
+            kind: 'external',
+            scope: 'whole',
+            projectId: 'remote-project',
+            workItemId: 'remote-row',
+            display: {
+              projectName: 'Remote',
+              abbreviation: 'REM',
+              workItemName: 'Build',
+              address: 'REM.010',
+            },
+          },
+          successor: { kind: 'internal', scope: 'whole', workItem: filtered.id },
+        },
+      ],
+      connected: {
+        kind: 'connected',
+        projectId: 'p1',
+        mode: 'isolated',
+        projects: [],
+        relationships: [],
+        placement: { kind: 'unavailable', reason: 'cycle' },
+      },
       workItems: [
         { id: parent.id, name: 'Visible parent' },
         { id: collapsed.id, name: 'Collapsed child exact' },
@@ -680,6 +707,17 @@ describe('sharing the plan', () => {
     expect(downloaded.workItems).toContainEqual({
       id: filtered.id,
       name: 'Filtered root exact',
+    });
+    expect(downloaded).toMatchObject({
+      document: { version: 11 },
+      typedDependencies: [
+        { predecessor: { projectId: 'remote-project', workItemId: 'remote-row' } },
+      ],
+      connected: { placement: { kind: 'unavailable', reason: 'cycle' } },
+    });
+    expect(collapsedDownload).toMatchObject({
+      connected: { kind: 'connected' },
+      typedDependencies: [{ predecessor: { workItemId: 'remote-row' } }],
     });
     expect(downloads.revoked).toEqual(['blob:plan-1', 'blob:plan-2']);
   });

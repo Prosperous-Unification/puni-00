@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+794 |       },
+795 |     },
+796 |   });
+797 |   const before = await plans.readExport('a1', access);
+798 |   if (before.kind !== 'connected') throw new Error('expected connected export');
+799 |   expect(before.metadataByProject.get('a2')?.project.name).not.toBe('Next remote');
+                                                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not "Next remote"
+
+      at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:799:64)
+(fail) connected export holds labels settings marker and sparse facts in one SQLite observation [204.49ms]
+
+ 0 pass
+ 24 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.60s]
+
+exit=1

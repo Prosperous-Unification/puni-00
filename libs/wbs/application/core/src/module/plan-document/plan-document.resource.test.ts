@@ -1632,7 +1632,19 @@ test('versioned response admits explicit v11 links while v10 remains frozen', as
     ...document,
     document: { ...document.document, version: 11 },
     typedDependencies: [external],
+    connected: {
+      kind: 'connected',
+      projectId: document.project.id,
+      mode: 'isolated',
+      projects: [],
+      relationships: [],
+      placement: { kind: 'unavailable', reason: 'cycle' },
+    },
   };
+  const incomplete = { ...next };
+  Reflect.deleteProperty(incomplete, 'connected');
+  expect((await validateSchema(planDocumentV11Response, incomplete)).issues).toBeDefined();
+  expect((await classifyPlanDocument(incomplete)).ok).toBe(true);
   expect((await validateSchema(planDocumentV11Response, next)).issues).toBeUndefined();
   expect((await validateSchema(planDocumentResponse, next)).issues).toBeUndefined();
   expect((await validateSchema(planDocumentV10Response, next)).issues).toBeDefined();

@@ -90,10 +90,19 @@ test('actual isolated live route captures remote readiness without a calendar', 
   expect(observed.readiness.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(false);
 });
 
-test('connected export refuses instead of returning an incomplete document', async () => {
-  expect((await failureOf(reader().readExport('a1', access))).message).toContain(
-    'connected export is unsupported',
-  );
+test('connected export captures required detached document evidence without a calendar', async () => {
+  const observed = await reader().readExport('a1', access);
+  expect(observed.kind).toBe('connected');
+  if (observed.kind !== 'connected') throw new Error('expected connected export');
+  expect(observed.projectId).toBe('a1');
+  expect(observed.document.markers).toEqual([]);
+  expect(observed.document.stepParallels).toEqual([]);
+  expect(observed.projection.placement.kind).toBe('dependency_calendar_missing');
+  write("UPDATE project SET name = 'Next' WHERE id = 'a2'");
+  expect(observed.metadataByProject.get('a2')?.project.name).not.toBe('Next');
+  const next = await reader().readExport('a1', access);
+  if (next.kind !== 'connected') throw new Error('expected connected export');
+  expect(next.metadataByProject.get('a2')?.project.name).toBe('Next');
 });
 
 test('remote hold changes the connected proxy reading in the next observation', async () => {
@@ -760,3 +769,43 @@ for (const mode of ['isolated', 'shared'] as const) {
     });
   }
 }
+
+test('connected export holds labels settings marker and sparse facts in one SQLite observation', async () => {
+  write(
+    "INSERT INTO calendar_marker(id,project_id,date,name,created_at) VALUES('marker','a1','2026-10-22','Old marker',1)",
+  );
+  let edited = false;
+  const plans = createLivePlanStore({
+    kind: 'owned',
+    openConnection: () => openReadOnlyConnection(path),
+    schedulerOf: () => fastScheduler,
+    captureRead: {
+      afterFirstRead: () => {
+        if (!edited) {
+          edited = true;
+          write("UPDATE project SET name='Next remote' WHERE id='a2'");
+          write("UPDATE project SET estimate_rounding='exact' WHERE id='a1'");
+          write("UPDATE calendar_marker SET name='Next marker' WHERE id='marker'");
+          write(
+            "INSERT INTO step_parallel(work_item_id,step_id,max_parallel) VALUES('a1','a1-s',2)",
+          );
+        }
+        return Promise.resolve();
+      },
+    },
+  });
+  const before = await plans.readExport('a1', access);
+  if (before.kind !== 'connected') throw new Error('expected connected export');
+  expect(before.metadataByProject.get('a2')?.project.name).not.toBe('Next remote');
+  expect(before.metadataByProject.get('a1')?.project.estimateRounding).toBe('ceil');
+  expect(before.document.markers.map((marker) => marker.name)).toEqual(['Old marker']);
+  expect(before.document.stepParallels).toEqual([]);
+  const after = await plans.readExport('a1', access);
+  if (after.kind !== 'connected') throw new Error('expected connected export');
+  expect(after.metadataByProject.get('a2')?.project.name).toBe('Next remote');
+  expect(after.metadataByProject.get('a1')?.project.estimateRounding).toBe('exact');
+  expect(after.document.markers.map((marker) => marker.name)).toEqual(['Next marker']);
+  expect(after.document.stepParallels).toEqual([
+    { workItemId: 'a1', stepId: 'a1-s', maxParallel: 2 },
+  ]);
+});

@@ -141,6 +141,7 @@ import type {
 import type {
   AccessRefused,
   ElsewhereHolderLabel,
+  LivePlanExportRead,
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
@@ -1690,6 +1691,12 @@ export class WorkItemService {
     | AccessRefused
     | EngineUnavailable
     | {
+        kind: 'connected';
+        project: Project & { timezone: string };
+        tree: PlanTree;
+        observation: Extract<LivePlanExportRead, { kind: 'connected' }>;
+      }
+    | {
         kind: 'shared';
         project: Project & { timezone: string };
         tree: PlanTree;
@@ -1698,6 +1705,15 @@ export class WorkItemService {
   > {
     if (this.opts.livePlans === undefined) return { kind: 'isolated' };
     const captured = await this.opts.livePlans.readExport(projectId, access);
+    if (captured.kind === 'connected') {
+      const projection = projectConnectedTree(captured, projectId);
+      return {
+        kind: 'connected',
+        project: { ...projection.metadata.project, timezone: projection.reads.project.timezone },
+        tree: presentConnectedTree(projection),
+        observation: captured,
+      };
+    }
     if (captured.kind !== 'shared') return captured;
     const tree = projectSharedTree(captured);
     if ('kind' in tree) return tree;

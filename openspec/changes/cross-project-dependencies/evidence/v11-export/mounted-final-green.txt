@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-export.controller.db.test.ts:
+(pass) mounted JSON exports v11 required evidence and stable incoming UUIDs without durable admission [535.72ms]
+(pass) mounted JSON preserves explicit unavailable outcomes and null dates [454.70ms]
+{"level":"error","time":1792684448813,"service":"be-01","err":{"occurrence_id":"AE_01SVSVSQVAZ2ZVNYK9BR1QS7CK","fingerprint":"fp1_60fd449a0b6921f23a060c85421b16b2","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared success representation","    at renderReply (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792684448839,"service":"be-01","err":{"occurrence_id":"AE_1EHN3FQ55GG6QQCJYDGHXG0Y51","fingerprint":"fp1_60fd449a0b6921f23a060c85421b16b2","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared success representation","    at renderReply (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted response rejects absent and malformed required v11 history independently [436.05ms]
+(pass) mounted export serializes captured labels settings and markers after observation closure [411.82ms]
+(pass) mounted connected JSON preserves sparse refusal and uncoded-step precedence [415.27ms]
+
+ 5 pass
+ 0 fail
+ 42 expect() calls
+Ran 5 tests across 1 file. [5.26s]

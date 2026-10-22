@@ -244,7 +244,7 @@ export function projectRoutes(
             status: 409,
             body: { error: captured.error, engine: captured.engine },
           };
-        if (captured.kind === 'shared') {
+        if (captured.kind === 'shared' || captured.kind === 'connected') {
           if (query.format === 'markdown')
             return {
               ok: true,
@@ -252,11 +252,14 @@ export function projectRoutes(
               text: projectMarkdown(captured.project, captured.tree.workItems),
             };
           // Proof: independent project/catalog/marker rereads each failed mounted structured-export coherence.
-          const exported = planDocuments.exportCaptured(
-            captured.project,
-            captured.tree,
-            captured.document,
-          );
+          const exported =
+            captured.kind === 'connected'
+              ? planDocuments.exportConnectedCaptured(
+                  captured.project,
+                  captured.tree,
+                  captured.observation,
+                )
+              : planDocuments.exportCaptured(captured.project, captured.tree, captured.document);
           if (!exported.ok)
             return {
               ok: false,

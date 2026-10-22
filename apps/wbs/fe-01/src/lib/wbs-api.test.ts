@@ -9,6 +9,7 @@ import {
   type DirectoryUsage,
   httpDirectoryApi,
   httpProjectApi,
+  planDocumentRequestFromJson,
   PlanImportRefusalError,
   STEP_REFUSALS,
   type StepUsage,
@@ -252,6 +253,67 @@ describe('plan JSON transfer', () => {
     vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
 
     await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+  });
+
+  it('accepts complete v11 history and strips it only at the JSON import boundary', async () => {
+    const document = PLAN_DOCUMENT(['kept-row']);
+    document['document'] = {
+      format: 'wbs-plan',
+      version: 11,
+      exportedAt: '2026-10-22T00:00:00.000Z',
+    };
+    document['typedDependencies'] = [
+      {
+        id: 'remote-link',
+        type: 'SS',
+        predecessor: {
+          kind: 'external',
+          projectId: 'remote-project',
+          workItemId: 'remote-row',
+          scope: 'node',
+          stepId: 'remote-step',
+          display: {
+            projectName: 'Remote',
+            abbreviation: 'REM',
+            workItemName: 'Remote row',
+            address: 'REM.010',
+            stepName: 'Build',
+          },
+        },
+        successor: { kind: 'internal', scope: 'whole', workItem: 'kept-row' },
+      },
+    ];
+    document['connected'] = {
+      kind: 'connected',
+      projectId: 'p1',
+      mode: 'isolated',
+      projects: [
+        {
+          projectId: 'p1',
+          name: 'Plan',
+          abbreviation: 'PLAN',
+          rank: 0,
+          startDate: null,
+          timezone: 'UTC',
+          revision: 1,
+          seq: 2,
+        },
+      ],
+      relationships: [],
+      placement: { kind: 'unavailable', reason: 'cycle' },
+    };
+    vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
+    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+    const request = await planDocumentRequestFromJson(JSON.stringify(document));
+    expect(request.typedDependencies).toEqual(document['typedDependencies']);
+    expect(request).not.toHaveProperty('connected');
+    delete document['connected'];
+    await expect(httpProjectApi('token').exportPlan('p1')).rejects.toThrow();
+    document['connected'] = { kind: 'connected' };
+    await expect(httpProjectApi('token').exportPlan('p1')).rejects.toThrow();
+    await expect(planDocumentRequestFromJson(JSON.stringify(document))).resolves.not.toHaveProperty(
+      'connected',
+    );
   });
 
   it('imports the archival request and returns its typed summary', async () => {

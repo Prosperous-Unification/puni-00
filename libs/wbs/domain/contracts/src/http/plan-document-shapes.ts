@@ -1,5 +1,6 @@
 import { type } from 'arktype';
 
+import { documentConnected } from './plan-document-connected-shapes';
 import { documentProject } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 import { numberedWorkItem, workItemTree } from './work-item-response';
@@ -16,7 +17,7 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
  * classifier converts earlier versions explicitly.
  */
 export const PLAN_DOCUMENT_VERSION = 10;
-/** Reserved transfer version; v10 remains the writer until connected capture supplies its evidence. */
+/** Connected exports carry stable external identities and required captured history; local/shared exports remain v10. */
 export const PLAN_DOCUMENT_EXTERNAL_VERSION = 11;
 
 const planHeader = type({
@@ -236,6 +237,8 @@ export const planDocumentV11 = planDocumentV10.omit('document', 'typedDependenci
   // Proof: replacing 11 with 10 failed the versioned-response test (2026-10-22).
   document: planHeader.omit('version').and({ version: '11' }),
   typedDependencies: documentV11TypedDependency.array(),
+  // Proof: optional-evidence.txt: making this optional made mounted absent-history return 200 instead of 500.
+  connected: documentConnected,
 });
 export type PlanDocumentV11 = (typeof planDocumentV11)['infer'];
 

@@ -46,8 +46,9 @@ import type {
 } from '../../ports/directory-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
-import type { PlanDocumentReads } from '../../ports/shared-people-values';
+import type { LivePlanExportRead, PlanDocumentReads } from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+import { projectConnectedDocument } from './connected-document';
 import type {
   ExportedProject,
   PlanDocumentClassification,
@@ -149,6 +150,26 @@ export class PlanDocumentService {
     return {
       ok: true,
       value: buildDocument(project, coded.value, reads, this.options.clock.now()),
+    };
+  }
+
+  /** Serializes a closed connected observation without IO or scheduling admission. */
+  exportConnectedCaptured(
+    project: ExportedProject,
+    tree: WorkItemTree,
+    captured: Extract<LivePlanExportRead, { kind: 'connected' }>,
+  ): PlanDocumentExport {
+    if (captured.projectId !== project.id) throw new Error('connected export target mismatch');
+    const local = this.exportCaptured(project, tree, captured.document);
+    if (!local.ok) return local;
+    const evidence = projectConnectedDocument(captured, project.id);
+    return {
+      ok: true,
+      value: {
+        ...local.value,
+        document: { ...local.value.document, version: PLAN_DOCUMENT_EXTERNAL_VERSION },
+        ...evidence,
+      },
     };
   }
 

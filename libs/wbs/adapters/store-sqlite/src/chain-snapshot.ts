@@ -358,6 +358,7 @@ export function createLivePlanStore(
       const transaction = drizzleReadTransaction(connection.db);
       // Proof: removing the transaction made shared aggregate capture see Next remote in the first old observation.
       // Proof: no-op transaction methods observed failed instead of idle in `owned isolated real selection excludes a rival publication`.
+      // Proof: v11-export/observation-transaction.txt: no-op BEGIN exposed Next remote in the first connected export.
       // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
       transaction.begin();
       try {
@@ -393,9 +394,11 @@ export function createLivePlanStore(
         const captured = await readLivePlanIn(db, projectId, access, options, lifetime);
         // Proof: removing this check made `export sequence continuation` issue 13 expired SQL queries.
         lifetime.assertOpen();
-        // Proof: returning the connected arm failed `connected export refuses instead of returning an incomplete document`.
-        if (captured.kind === 'connected') throw new Error('connected export is unsupported');
-        if (captured.kind !== 'shared') return captured;
+        if (captured.kind !== 'shared' && captured.kind !== 'connected') return captured;
+        const organizationId =
+          captured.kind === 'shared'
+            ? captured.organizationId
+            : captured.projection.capture.organizationId;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
         const [
@@ -411,23 +414,24 @@ export function createLivePlanStore(
           capacities,
           demands,
         ] = await Promise.all([
-          directory.listInOrganization('teams', captured.organizationId),
-          directory.listInOrganization('people', captured.organizationId),
-          directory.listInOrganization('tags', captured.organizationId),
-          directory.listInOrganization('services', captured.organizationId),
-          directory.listInOrganization('workItemTypes', captured.organizationId),
-          directory.listInOrganization('externalSystems', captured.organizationId),
+          directory.listInOrganization('teams', organizationId),
+          directory.listInOrganization('people', organizationId),
+          directory.listInOrganization('tags', organizationId),
+          directory.listInOrganization('services', organizationId),
+          directory.listInOrganization('workItemTypes', organizationId),
+          directory.listInOrganization('externalSystems', organizationId),
           new CalendarMarkerRepository(db, OPEN).listFor(projectId),
           // Proof: empty/omitted capture failed mounted shared exports; post-snapshot reread failed both concurrent races (mutation-capture-{empty,missing}.txt and mutation-post-snapshot-reread.txt).
           new StepParallelRepository(db, OPEN).listByProject(projectId),
           // Read in the same snapshot as the tree, so the document's demands
           // and capacities name the rows and resources it carries.
-          directory.listInOrganization('resources', captured.organizationId),
+          directory.listInOrganization('resources', organizationId),
           new ResourceCapacityRepository(db, OPEN).listFor(projectId),
           new DemandRepository(db, OPEN).listByProject(projectId),
         ]);
         return {
           ...captured,
+          projectId,
           document: {
             directory: { teams, people, tags, services, types, externalSystems },
             markers,

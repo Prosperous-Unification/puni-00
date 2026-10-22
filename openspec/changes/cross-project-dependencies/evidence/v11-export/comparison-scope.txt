@@ -1,0 +1,183 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+411 |   const stages = placement.stages.map((selection, at) => at === 0 ? { ...selection, engine: 'optimized' as const } : selection);
+412 |   expect(() => projectConnectedDocument({ ...captured, projection: { ...captured.projection, placement: { ...placement, stages } } }, 'B')).toThrow('stage metadata');
+413 |   const values = { makespan: 2, priority: 2, movement: 0 };
+414 |   const chosen = { scope: { kind: 'connected-stage' as const, projectId: 'foreign' }, chosen: 'baseline' as const, schedule: placement.baseline, baseline: placement.baseline, values, optimizedValues: values, baselineValues: values };
+415 |   const scoped = placement.stages.map((selection, at) => at === 0 ? { ...selection, chosen } : selection);
+416 |   expect(() => projectConnectedDocument({ ...captured, projection: { ...captured.projection, placement: { ...placement, stages: scoped } } }, 'B')).toThrow('comparison scope');
+                                                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "comparison scope"
+
+Received function did not throw
+Received value: {
+  typedDependencies: [
+    {
+      id: "ab",
+      type: "FS",
+      predecessor: {
+        kind: "external",
+        projectId: "A",
+        scope: "whole",
+        workItemId: "a",
+        display: {
+          projectName: "A",
+          abbreviation: "A",
+          workItemName: "a",
+          address: "A.010",
+        },
+      },
+      successor: {
+        kind: "internal",
+        scope: "whole",
+        workItem: "b",
+      },
+    }
+  ],
+  connected: {
+    kind: "connected",
+    projectId: "B",
+    mode: "isolated",
+    projects: [
+      {
+        projectId: "A",
+        name: "A",
+        abbreviation: "A",
+        rank: 0,
+        startDate: "2026-10-05",
+        timezone: "UTC",
+        revision: 7,
+        seq: 11,
+      }, {
+        projectId: "B",
+        name: "B",
+        abbreviation: "B",
+        rank: 1,
+        startDate: "2026-10-05",
+        timezone: "UTC",
+        revision: 7,
+        seq: 11,
+      }
+    ],
+    relationships: [
+      {
+        id: "ab",
+        projectId: "B",
+        predecessor: {
+          projectId: "A",
+          scope: "whole",
+          workItemId: "a",
+        },
+        successor: {
+          projectId: "B",
+          scope: "whole",
+          workItemId: "b",
+        },
+        type: "FS",
+      }
+    ],
+    placement: {
+      kind: "scheduled",
+      originOrdinal: 14810,
+      baseline: [
+        {
+          projectId: "A",
+          workItemId: "a",
+          stepId: "build",
+          start: 0,
+          finish: 1,
+        }, {
+          projectId: "B",
+          workItemId: "b",
+          stepId: "build",
+          start: 1,
+          finish: 2,
+        }
+      ],
+      selected: [
+        {
+          projectId: "A",
+          workItemId: "a",
+          stepId: "build",
+          start: 0,
+          finish: 1,
+        }, {
+          projectId: "B",
+          workItemId: "b",
+          stepId: "build",
+          start: 1,
+          finish: 2,
+        }
+      ],
+      idleProjects: [],
+      stages: [
+        {
+          projectId: "A",
+          engine: "fast",
+          objective: "pri",
+          boundary: {
+            format: "wbs-connected-stage",
+            version: 1,
+            canonical: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"isolated\",\"originOrdinal\":14810,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":14810},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":14810}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"ab\"}],\"relationships\":[{\"id\":\"ab\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]}],\"notBefore\":[[\"a\",0],[\"b\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000build\",0],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000build\",1],[\"b\\u0000build\",2]]}",
+          },
+          optimization: null,
+          decisions: {
+            pri: null,
+            time: null,
+          },
+          chosen: {
+            scope: {
+              kind: "connected-stage",
+              projectId: "foreign",
+            },
+            chosen: "baseline",
+            values: {
+              makespan: 2,
+              priority: 2,
+              movement: 0,
+            },
+            optimizedValues: {
+              makespan: 2,
+              priority: 2,
+              movement: 0,
+            },
+            baselineValues: {
+              makespan: 2,
+              priority: 2,
+              movement: 0,
+            },
+          },
+        }, {
+          projectId: "B",
+          engine: "fast",
+          objective: "pri",
+          boundary: {
+            format: "wbs-connected-stage",
+            version: 1,
+            canonical: "{\"kind\":\"connected-stage\",\"projectId\":\"B\",\"mode\":\"isolated\",\"originOrdinal\":14810,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":14810},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":14810}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"ab\"}],\"relationships\":[{\"id\":\"ab\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]}],\"notBefore\":[[\"a\",0],[\"b\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000build\",0],[\"b\\u0000build\",1]],\"finishes\":[[\"a\\u0000build\",1],[\"b\\u0000build\",2]]}",
+          },
+          optimization: null,
+          decisions: {
+            pri: null,
+            time: null,
+          },
+          chosen: null,
+        }
+      ],
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:416:149)
+(fail) producer refuses foreign stage metadata and comparison scope [17.28ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.91s]
+
+exit=1
