@@ -31,6 +31,7 @@ test('direct OIDC login binds the exact transaction to the provider and emits an
         if (next === undefined) throw new Error('random fixture exhausted');
         return next;
       },
+      issuer: () => Promise.resolve('https://idp.test'),
       verifier: {
         verify: () => {
           return Promise.reject(new Error('not reached'));

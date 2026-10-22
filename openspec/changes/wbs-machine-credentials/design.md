@@ -106,8 +106,9 @@ pair in it must never be mistaken for a machine.
 (`sso_required`) and the session policy (`reauthentication_required`) judge a human
 sign-in; a headless machine has none to reauthenticate. The organization's control is the
 issuer who created it, the trusted-issuer gate (A16) and revoke. `authentication` on a
-machine principal is `upstream` for `oidc` (the pair) and
-`{ kind: 'machine', credentialId }` for `api_key`; the rules return `ok` for a machine
+machine principal is `{ kind: 'machine', credentialId, personId }` for both `api_key` and
+`oidc` (slice 5 as built: the draft's `upstream` for `oidc` would have escaped A23's role
+cap, which reads the `machine` kind); the rules return `ok` for a machine
 principal, with a negative that a machine of an enforcing organization is still admitted.
 The `mcp_consent` source is the exception: its family was opened by a human sign-in, so the
 rules keep judging that sign-in's upstream pair as they do today (an enforcing organization
@@ -296,6 +297,26 @@ Authorization header and one boundary parser. Rotation therefore happens under o
 credential id. The credential id is public (UI, audit, `last_used_at`); the secret is 256
 random bits as base64url, shown once and stored as its SHA-256 hex digest. The
 `plaintext-secrets` hook matches the whole `wbs_mk_<id>.` form.
+
+**A25. The OIDC source is scoped by audience (assumed by the coordinator, 2026-10-22,
+from the slice 5 review; for Dany to confirm).** (a) A trusted issuer registration
+requires an `audience`, and every token is verified with one: the credential's own when it
+sets one (a narrowing: the token then carries both), else the registration's. The list and
+the registration answer carry it so an admin can paste it into the IdP's token request
+(GitHub Actions: `audience` on the OIDC token request); `wbs:org:<organizationId>` is
+recommended in the API documentation, not hard-coded. (b) `(issuer, audience)` is unique
+across the deployment (`409 audience_taken`): that is what tells two organizations'
+registrations of one public issuer apart. A credential's subject is unique per registration
+(`machine_credential_trusted_subject` replaces the deployment-wide pair index), so
+`subject_taken` is no cross-tenant oracle. Verification selects the registration by
+`(iss, aud)` (the `aud` string or array; none or more than one match is `invalid_token`, with
+no fetch), then the credential by `(registration, sub)` within the registration's
+organization. The column keeps its slice 1 name `default_audience`, held non-null by
+triggers in `20261022120000_scope_trusted_issuer_audience`, which is additive (no release
+before it writes an OIDC row). Why: without an audience a token any party obtains from a
+shared issuer for the same subject (a GitHub repository's workflow) is admitted for every
+organization that bound the subject, and the deployment-wide pair index let one tenant
+learn another's subjects.
 
 ## Risks / Trade-offs
 

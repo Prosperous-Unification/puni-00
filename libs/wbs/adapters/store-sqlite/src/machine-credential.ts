@@ -1,4 +1,9 @@
-import { LAST_USED_RESOLUTION_MS, type MachineCredentials } from '@wbs/core';
+import {
+  LAST_USED_RESOLUTION_MS,
+  type MachineCredentials,
+  type OidcCredentialRecord,
+  type TrustedIssuerRegistration,
+} from '@wbs/core';
 import type { MachineCredentialRecord, MachineCredentialSource } from '@wbs/domain';
 import { and, eq, isNull, lte, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -11,6 +16,7 @@ import {
   machineCredential,
   type MachineCredentialRow,
   machineCredentialSecret,
+  organizationTrustedIssuer,
   person,
 } from './schema';
 
@@ -68,6 +74,84 @@ export class MachineCredentialRepository implements MachineCredentials {
       trustedIssuerId: row.credential.trustedIssuerId,
       mcpFamilyId: row.credential.mcpFamilyId,
       secrets,
+    };
+  }
+
+  /**
+   * @throws when a registration's audience is null, which its triggers
+   * refuse (trusted state).
+   */
+  async trustedRegistrationsOf(issuer: string): Promise<readonly TrustedIssuerRegistration[]> {
+    await Promise.resolve();
+    return this.db
+      .select({
+        id: organizationTrustedIssuer.id,
+        organizationId: organizationTrustedIssuer.organizationId,
+        audience: organizationTrustedIssuer.defaultAudience,
+        jwksUri: organizationTrustedIssuer.jwksUri,
+      })
+      .from(organizationTrustedIssuer)
+      .where(eq(organizationTrustedIssuer.issuer, issuer))
+      .orderBy(organizationTrustedIssuer.id)
+      .all()
+      .map((row) => {
+        if (row.audience === null) throw new Error(`trusted issuer ${row.id} has no audience`);
+        return { ...row, audience: row.audience };
+      });
+  }
+
+  /**
+   * One read of the credential joined to its person's binding and to its
+   * trusted issuer, which must be of the credential's own organization and
+   * carry the credential's issuer URL (task 5.2a: no foreign key ties the two
+   * organizations, so this read does).
+   *
+   * @throws on a malformed stored source or time.
+   */
+  async findOidcCredential(
+    trustedIssuerId: string,
+    subject: string,
+  ): Promise<OidcCredentialRecord | null> {
+    await Promise.resolve();
+    const row = this.db
+      .select({ credential: machineCredential, boundAccountId: person.accountId })
+      .from(machineCredential)
+      .innerJoin(person, eq(person.id, machineCredential.personId))
+      .innerJoin(
+        organizationTrustedIssuer,
+        and(
+          eq(organizationTrustedIssuer.id, machineCredential.trustedIssuerId),
+          // Proof: with this predicate removed, `refuses a credential that
+          // names another organization's trusted issuer` in
+          // `oidc-credential.controller.db.test.ts` admitted B's credential
+          // through A's trusted issuer; watched 2026-10-22.
+          eq(organizationTrustedIssuer.organizationId, machineCredential.organizationId),
+          eq(organizationTrustedIssuer.issuer, machineCredential.issuer),
+        ),
+      )
+      .where(
+        and(
+          eq(machineCredential.source, 'oidc'),
+          eq(machineCredential.trustedIssuerId, trustedIssuerId),
+          eq(machineCredential.subject, subject),
+        ),
+      )
+      .get();
+    if (row === undefined) return null;
+    const id = row.credential.id;
+    return {
+      credential: {
+        id,
+        organizationId: row.credential.organizationId,
+        personId: row.credential.personId,
+        source: checkedSource(row.credential),
+        boundAccountId: row.boundAccountId,
+        revokedAt: checkedTime(row.credential.revokedAt, id),
+        trustedIssuerId: row.credential.trustedIssuerId,
+        mcpFamilyId: row.credential.mcpFamilyId,
+        secrets: [],
+      },
+      audience: row.credential.audience,
     };
   }
 

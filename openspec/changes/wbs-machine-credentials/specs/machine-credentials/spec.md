@@ -53,19 +53,27 @@ route SHALL answer `403 no_active_organization`.
 ### Requirement: An OIDC credential names a trusted issuer of the organization
 
 For `source: 'oidc'` the body SHALL name a `trustedIssuerId` of the active organization, a
-`subject` (1 to 512 characters, compared exactly) and optionally an `audience`. A trusted
-issuer of another organization SHALL be refused `404 unknown_trusted_issuer`. The
-`(issuer, subject)` pair SHALL be unique across every organization's OIDC credentials,
-revoked ones included (the storage index `machine_credential_pair` is deployment-wide), so
-one pair names one credential row for good; a second is refused `409 subject_taken`.
+`subject` (1 to 512 characters, compared exactly) and optionally an `audience`, which its
+tokens SHALL then carry besides the trusted issuer's. A trusted issuer of another
+organization SHALL be refused `404 unknown_trusted_issuer`. A subject SHALL be unique per
+trusted issuer, revoked credentials included (`machine_credential_trusted_subject`); a
+second is refused `409 subject_taken`, and no other organization's credentials are
+consulted, so two organizations may bind the same subject of one shared issuer URL (A25).
 
 #### Scenario: A GitHub Actions workflow is admitted
 
 - **WHEN** an admin of A, whose trusted issuer T is `https://token.actions.githubusercontent.com`
-  with default audience `wbs`, posts `{ source: 'oidc', trustedIssuerId: T, subject:
+  with audience `wbs:org:A`, posts `{ source: 'oidc', trustedIssuerId: T, subject:
 'repo:acme/wbs:ref:refs/heads/main', personId: <ci-agent> }`
 - **THEN** the credential is listed with its issuer and subject and no secret, and a token
   minted by T for that subject and audience is admitted on the next request
+
+#### Scenario: Two organizations bind one subject of a shared issuer
+
+- **WHEN** A registered T with audience `wbs:org:A` and B registered T's URL with
+  `wbs:org:B`, and each binds subject S
+- **THEN** a token for S with audience `wbs:org:A` acts in A only, one with `wbs:org:B` in B
+  only, and one naming both audiences is refused `401 invalid_token`
 
 #### Scenario: Another organization's trusted issuer
 
@@ -148,9 +156,11 @@ be-01 SHALL admit a request bearing `Authorization: Bearer <token>` by exactly o
 WBS-signed delegation naming a live `mcp_consent` credential; an API key
 `wbs_mk_<credential id>.<secret>` whose id selects an unrevoked credential by primary key
 and whose secret's SHA-256 digest equals, compared in constant time, one of that
-credential's unexpired secrets; a JWT verified against a trusted issuer's JWKS with the
-credential's audience (or the issuer's default) whose pair is an unrevoked `oidc` credential
-of that trusted issuer. A JWT of the configured issuer with a groups claim SHALL keep the
+credential's unexpired secrets; a JWT whose `(iss, aud)` selects exactly one trusted issuer
+registration, verified against its JWKS (asymmetric algorithms only, `exp` and `sub`
+required, at most one hour of remaining lifetime, `aud` always checked: the credential's
+audience, else the registration's), whose subject names an unrevoked `oidc` credential of
+that registration. A JWT of the configured issuer with a groups claim SHALL keep the
 browser login path; one without a groups claim SHALL be refused `401 unknown_identity` with
 no credential lookup and no account created, whatever `external_identity` rows exist. A `wbs_mk_` token SHALL never be parsed as a JWT, SHALL never be matched by scanning digests,
 and a malformed one (no `.`, or an id that is no credential) SHALL be refused `401
@@ -331,20 +341,28 @@ SHALL be refused `400 invalid_body`, and the audit detail SHALL NOT carry the na
 ### Requirement: An admin registers and removes trusted issuers
 
 `POST /api/organization/trusted-issuers` SHALL be accepted from an admin with an `issuer`
-HTTPS URL, an optional `defaultAudience` and an optional `ssoConnectionId`. WBS SHALL fetch
+HTTPS URL on a public name (a literal IP address, `localhost`, or a name under `.internal`,
+`.local` or `.localhost` is `400 invalid_body`), a required `audience` and an optional
+`ssoConnectionId`. `(issuer, audience)` SHALL be unique across the deployment (`409
+audience_taken`), and an organization SHALL hold at most eight trusted issuers (`409
+trusted_issuer_limit`). The list and the registration answer SHALL carry the audience. WBS SHALL fetch
 the issuer's OIDC discovery document once, require its `issuer` to equal the given URL and
-record its `jwks_uri`; an unreachable document SHALL be `409 issuer_unreachable`, a
+record its `jwks_uri`, which SHALL be a public HTTPS URL as above; an unreachable document SHALL be `409 issuer_unreachable`, a
 disagreeing one `409 issuer_mismatch`, and nothing is stored in either case. The configured
 issuer SHALL be refused `409 issuer_reserved`. With `ssoConnectionId` the connection SHALL be
-the organization's, of strategy `oidc` (`409 issuer_not_oidc` otherwise) and proven (`409
-sso_connection_unproven`). `(organization, issuer)` SHALL be unique (`409 issuer_taken`).
+the organization's (`404 unknown_sso_connection` otherwise), of strategy `oidc` (`409
+issuer_not_oidc` otherwise) and proven (`409 sso_connection_unproven`). `(organization, issuer)` SHALL be unique (`409 issuer_taken`).
 `DELETE /api/organization/trusted-issuers/:id` SHALL be refused `409 in_use` with the count
-while unrevoked credentials name it. Each act SHALL write its audit row in the same
+while unrevoked credentials name it; once none does, the revoked credentials naming it SHALL
+be removed with it in the same transaction, their audit rows kept. Every trusted issuer
+route SHALL refuse a `member` or `viewer` `403 forbidden`, a delegation or a machine
+credential `403 insufficient_scope`, and answer `403 no_active_organization` before
+activation. Each act SHALL write its audit row in the same
 transaction.
 
 #### Scenario: Registering a workload identity issuer
 
-- **WHEN** an admin posts `https://token.actions.githubusercontent.com` with default audience `wbs`
+- **WHEN** an admin posts `https://token.actions.githubusercontent.com` with audience `wbs:org:A`
 - **THEN** the trusted issuer is listed with the discovered `jwks_uri`, and one
   `trusted_issuer_registered` row records it
 

@@ -68,6 +68,7 @@ async function boot(withKeys = true): Promise<BootedBrowserProcess> {
       issuer: ISSUER,
       jwksUri: new URL(`http://127.0.0.1:${String(jwks.port)}/jwks`),
     }),
+    issuer: () => Promise.resolve(ISSUER),
   };
   const process = await BootedBrowserProcess.open(
     'enabled',

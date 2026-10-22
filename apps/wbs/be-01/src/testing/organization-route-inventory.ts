@@ -25,6 +25,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationTrusted-issuersById',
+    method: 'DELETE',
+    path: '/api/organization/trusted-issuers/:id',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationMachine-credentialsById',
     method: 'DELETE',
     path: '/api/organization/machine-credentials/:id',
@@ -129,6 +135,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationProject-rank',
     method: 'GET',
     path: '/api/organization/project-rank',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationTrusted-issuers',
+    method: 'GET',
+    path: '/api/organization/trusted-issuers',
     kind: 'read',
   },
   {
@@ -416,6 +428,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postApiOrganizationProjectsByIdRank',
     method: 'POST',
     path: '/api/organization/projects/:id/rank',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationTrusted-issuers',
+    method: 'POST',
+    path: '/api/organization/trusted-issuers',
     kind: 'mutation',
   },
   {

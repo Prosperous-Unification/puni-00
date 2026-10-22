@@ -21,6 +21,26 @@ export interface MachineCredentials {
    */
   findById(id: string): Promise<MachineCredentialRecord | null>;
   /**
+   * Every organization's registration of the issuer URL exactly `issuer`,
+   * each with its audience (A25: at most one per `(issuer, audience)` across
+   * the deployment); empty when no organization trusts it, so the
+   * verification path refuses without fetching any key set (A13 step 5).
+   */
+  trustedRegistrationsOf(issuer: string): Promise<readonly TrustedIssuerRegistration[]>;
+  /**
+   * The `oidc` credential of trusted issuer `trustedIssuerId` for exactly
+   * `subject` (A25: one per trusted issuer row), read only when that trusted
+   * issuer is of **the credential's own organization** and carries the
+   * credential's issuer URL (task 5.2a): any other row reads as none. Revoked
+   * credentials are returned: the admission decision refuses them.
+   *
+   * @throws when a stored row is malformed (trusted state).
+   */
+  findOidcCredential(
+    trustedIssuerId: string,
+    subject: string,
+  ): Promise<OidcCredentialRecord | null>;
+  /**
    * Records a use at `at` when the last recorded use is absent or at least
    * {@link LAST_USED_RESOLUTION_MS} older; otherwise writes nothing.
    *
@@ -29,12 +49,32 @@ export interface MachineCredentials {
   touchLastUsed(id: string, at: number): Promise<void>;
 }
 
+/** One organization's registration of a trusted issuer, as verification selects it. */
+export interface TrustedIssuerRegistration {
+  readonly id: string;
+  readonly organizationId: string;
+  /** The audience that selects this registration among those of one issuer URL. */
+  readonly audience: string;
+  readonly jwksUri: string;
+}
+
+/**
+ * An `oidc` credential and the audience its tokens must carry besides its
+ * trusted issuer's: its own, or null when it adds none.
+ */
+export interface OidcCredentialRecord {
+  readonly credential: MachineCredentialRecord;
+  readonly audience: string | null;
+}
+
 /**
  * A deployment, or a fixture, holding no machine credential: every API key
  * reads as unknown (`unknown_identity`), and nothing is ever touched.
  */
 export const NO_MACHINE_CREDENTIALS: MachineCredentials = {
   findById: () => Promise.resolve(null),
+  trustedRegistrationsOf: () => Promise.resolve([]),
+  findOidcCredential: () => Promise.resolve(null),
   touchLastUsed: () => Promise.reject(new Error('no machine credential exists to record a use of')),
 };
 
@@ -75,6 +115,16 @@ export interface MachineCredentialSummary {
  * actor who is no longer a member.
  */
 export type MachineCredentialActorRefusal = 'inactive' | 'forbidden';
+
+/** A new OIDC credential: its id minted by the caller, its pair named by trusted issuer and subject. */
+export interface OidcCredentialDraft {
+  readonly id: string;
+  readonly name: string;
+  readonly personId: string;
+  readonly trustedIssuerId: string;
+  readonly subject: string;
+  readonly audience: string | null;
+}
 
 /** A new API-key credential: ids minted by the caller, only the digest of its secret. */
 export interface ApiKeyDraft {
@@ -134,6 +184,33 @@ export interface MachineCredentialAdministration {
       }
   >;
   /**
+   * Creates an `oidc` credential, as {@link createApiKey} with its refusals,
+   * whose pair is the trusted issuer's URL and `subject`.
+   * `unknown_trusted_issuer` when the trusted issuer is not this
+   * organization's; `subject_taken` when a credential of that trusted
+   * issuer, revoked ones included, already names `subject`
+   * (`machine_credential_trusted_subject`, A25): another organization's
+   * credentials are never consulted.
+   */
+  createOidc(
+    organizationId: string,
+    actorId: string,
+    draft: OidcCredentialDraft,
+    act: AuditedAct,
+  ): Promise<
+    | { readonly kind: 'created'; readonly credential: MachineCredentialSummary }
+    | {
+        readonly kind:
+          | MachineCredentialActorRefusal
+          | 'unknown_person'
+          | 'person_not_bound'
+          | 'account_not_member'
+          | 'name_taken'
+          | 'unknown_trusted_issuer'
+          | 'subject_taken';
+      }
+  >;
+  /**
    * Adds a secret under the unchanged credential id and gives the previous
    * one `act.stamp.at +` {@link MACHINE_ROTATION_WINDOW_MS}. `not_found` for a
    * revoked credential, another organization's, or for a `member` one whose
@@ -175,6 +252,7 @@ export interface MachineCredentialAdministration {
 export const INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION: MachineCredentialAdministration = {
   list: () => Promise.resolve('inactive'),
   createApiKey: () => Promise.resolve({ kind: 'inactive' }),
+  createOidc: () => Promise.resolve({ kind: 'inactive' }),
   rotateApiKey: () => Promise.resolve({ kind: 'inactive' }),
   revoke: () => Promise.resolve('inactive'),
 };

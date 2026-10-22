@@ -54,6 +54,9 @@ import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-re
 import {
   createMachineCredential,
   listMachineCredentials,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
   revokeMachineCredential,
   rotateMachineCredential,
 } from './machine-credential-shapes';
@@ -177,6 +180,9 @@ export const httpShapes = [
   createMachineCredential,
   rotateMachineCredential,
   revokeMachineCredential,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,

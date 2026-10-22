@@ -1,4 +1,9 @@
-import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
+import {
+  buildOidcVerifier,
+  oidcCredentialEvidence,
+  trustedIssuerDiscovery,
+  TrustedIssuerKeySets,
+} from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
@@ -26,6 +31,7 @@ import {
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
+  TrustedIssuerAdministrationRepository,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
@@ -235,7 +241,12 @@ function mcpDelegationComposition(
             (userId) => users.findById(userId),
           ),
     mcpDelegation: mcpDelegationAuthority({
-      authenticate: (token) => services.auth.authenticateOrRefuse(token),
+      // mcp-01 forwards a human's configured-issuer token; one the trusted-issuer
+      // path refuses `invalid_token` is no upstream sign-in at all.
+      authenticate: async (token) => {
+        const outcome = await services.auth.authenticateOrRefuse(token);
+        return outcome === 'invalid_token' ? null : outcome;
+      },
       choices: new SqliteOrganizationSelection(db),
       organizations: access,
       credentialFactsOf: (principal, organizationId) =>
@@ -352,6 +363,18 @@ export async function bootBe01(
                 : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
             passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
             localIdentity: opts.localIdentity,
+            // Proof: omitting this binding made `refuses a stranger issuer's
+            // JWT invalid_token once booted` (boot.db.test.ts) authenticate
+            // the token as null (unauthenticated); watched 2026-10-22.
+            trustedIssuers: {
+              tokens: new TrustedIssuerKeySets({
+                fetch: globalThis.fetch,
+                report: (fields, message) => {
+                  opts.logger.warn(fields, message);
+                },
+              }),
+              configuredIssuer: configuredIssuerOf(opts.oidc),
+            },
             optimizer: opts.optimizer,
           }),
         { factoryReturnKind: 'sync-value' },
@@ -448,6 +471,16 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              // Proof: omitting this binding made `serves trusted issuer
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire trusted issuers`:
+              // the fallback answers every route no_active_organization;
+              // watched 2026-10-22.
+              trustedIssuers: {
+                administration: new TrustedIssuerAdministrationRepository(db, services.gate),
+                discovery: trustedIssuerDiscovery({ fetch: globalThis.fetch }),
+                configuredIssuer: configuredIssuerOf(opts.oidc),
+              },
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
@@ -644,4 +677,14 @@ export async function bootBe01(
       return bag.close();
     },
   };
+}
+
+/**
+ * The configured sign-in issuer's Issuer Identifier as discovery publishes
+ * it, or null for a deployment without OIDC (`wbs-machine-credentials` A13,
+ * A16).
+ */
+function configuredIssuerOf(oidc: OidcRouteOptions | undefined): () => Promise<string | null> {
+  if (oidc === undefined) return () => Promise.resolve(null);
+  return () => oidc.issuer();
 }

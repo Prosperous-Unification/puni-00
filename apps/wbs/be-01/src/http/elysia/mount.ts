@@ -146,7 +146,17 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // refusal` (watched 2026-10-20). The shape's default headers still apply.
         // Proof: answering without them made the same test's `cache-control`
         // read null on `/api/organization/active` (watched 2026-10-20).
-        if (!identity.ok && 'error' in identity.body && identity.body.error === 'unknown_identity')
+        // `invalid_token` from the trusted-issuer path (`wbs-machine-credentials`
+        // A13 step 5) is answered the same way, for the same reason.
+        // Proof: with it dropped from this condition, `refuses a stranger
+        // issuer invalid_token without fetching any key set`
+        // (oidc-credential.controller.db.test.ts) answered 500; watched
+        // 2026-10-22.
+        if (
+          !identity.ok &&
+          'error' in identity.body &&
+          (identity.body.error === 'unknown_identity' || identity.body.error === 'invalid_token')
+        )
           return Response.json(identity.body, {
             status: 401,
             headers: responseHeaders(matched.endpoint.shape),

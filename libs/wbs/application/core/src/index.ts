@@ -125,6 +125,7 @@ export * from './ports/step-store';
 export * from './ports/stores';
 export * from './ports/subtree-store';
 export type { Intervals, Timers } from './ports/timers';
+export * from './ports/trusted-issuers';
 export type { Decision, Scope, UnitOfWork } from './ports/unit-of-work';
 export * from './ports/user-store';
 export * from './ports/work-item-store';

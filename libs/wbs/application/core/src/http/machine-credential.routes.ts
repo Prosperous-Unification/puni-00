@@ -6,7 +6,10 @@ import {
 } from '@wbs/contracts';
 
 import type { Clock } from '../ports/clock';
-import type { MachineCredentialAdministration } from '../ports/machine-credentials';
+import type {
+  MachineCredentialActorRefusal,
+  MachineCredentialAdministration,
+} from '../ports/machine-credentials';
 import type { OrganizationAccess } from '../ports/organization-access';
 import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
 import { digestMachineSecret, newMachineKey } from '../service/machine-key';
@@ -22,6 +25,28 @@ const forbidden = { ok: false, status: 403, body: { error: 'forbidden' } } as co
 const notFound = { ok: false, status: 404, body: { error: 'not_found' } } as const;
 
 /**
+ * The session organization an administration route acts in, or the refusal
+ * that ends the request: a delegation, an MCP session or a machine
+ * credential's direct context alike, is `insufficient_scope`; no active
+ * organization (legacy or refused access) is its organization refusal.
+ * Shared by the machine credential and trusted issuer routes.
+ */
+export async function sessionOrganizationOf(
+  organizations: OrganizationAccess,
+  principal: Parameters<OrganizationAccess['resolve']>[0],
+) {
+  // Proof: with this guard dropped, `refuses a machine key and a delegation
+  // every credential route` in `machine-credential-admin.controller.db.test.ts`
+  // answered a machine key's list 200 with the credentials; watched
+  // 2026-10-22.
+  if (principal.delegation !== undefined) return insufficientScope;
+  const resolved = await organizations.resolve(principal);
+  if (!resolved.ok) return organizationRefusal(resolved);
+  if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+  return resolved.access.scope.organizationId;
+}
+
+/**
  * Machine credential administration (`wbs-machine-credentials` A7, A11, A15,
  * A17, A22) for the active organization's members and admins. A delegation —
  * an MCP session or a machine credential's direct context alike — answers
@@ -35,18 +60,8 @@ export function machineCredentialRoutes(
   credentials: MachineCredentialAdministration,
   clock: Pick<Clock, 'now'>,
 ) {
-  /** The session organization, or the refusal that ends the request. */
-  async function sessionOrganization(principal: Parameters<OrganizationAccess['resolve']>[0]) {
-    // Proof: with this guard dropped, `refuses a machine key and a delegation
-    // every credential route` in `machine-credential-admin.controller.db.test.ts`
-    // answered a machine key's list 200 with the credentials; watched
-    // 2026-10-22.
-    if (principal.delegation !== undefined) return insufficientScope;
-    const resolved = await organizations.resolve(principal);
-    if (!resolved.ok) return organizationRefusal(resolved);
-    if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
-    return resolved.access.scope.organizationId;
-  }
+  const sessionOrganization = (principal: Parameters<OrganizationAccess['resolve']>[0]) =>
+    sessionOrganizationOf(organizations, principal);
   const act = (actorId: string): AuditedAct => ({
     stamp: { at: clock.now(), by: actorId },
     actor: actorId,
@@ -92,6 +107,42 @@ export function machineCredentialRoutes(
         // `parseMachineKey` accepts only this UUID shape, and the table's
         // triggers refuse every other (task 2.5).
         const id = crypto.randomUUID();
+        if (body.source === 'oidc') {
+          const audience = body.audience ?? null;
+          const created = await credentials.createOidc(
+            organizationId,
+            principal.id,
+            {
+              id,
+              name: body.name,
+              personId: body.personId,
+              trustedIssuerId: body.trustedIssuerId,
+              subject: body.subject,
+              audience,
+            },
+            act(principal.id),
+          );
+          if (created.kind !== 'created') return createRefusal(created.kind, body.personId);
+          const { issuer } = created.credential;
+          if (issuer === null)
+            throw new Error(`oidc credential ${id} was stored without its issuer`);
+          return {
+            ok: true,
+            status: 201,
+            body: {
+              id,
+              source: 'oidc',
+              name: created.credential.name,
+              personId: created.credential.personId,
+              issuedBy: created.credential.issuedBy,
+              createdAt: created.credential.createdAt,
+              trustedIssuerId: body.trustedIssuerId,
+              issuer,
+              subject: body.subject,
+              audience,
+            },
+          };
+        }
         const { key, secret } = newMachineKey(id);
         const created = await credentials.createApiKey(
           organizationId,
@@ -105,37 +156,20 @@ export function machineCredentialRoutes(
           },
           act(principal.id),
         );
-        switch (created.kind) {
-          case 'inactive':
-            return organizationRefusal('no_active_organization');
-          case 'forbidden':
-            return forbidden;
-          case 'unknown_person':
-            return { ok: false, status: 404, body: { error: created.kind } };
-          case 'person_not_bound':
-            return {
-              ok: false,
-              status: 409,
-              body: { error: created.kind, personId: body.personId },
-            };
-          case 'account_not_member':
-          case 'name_taken':
-            return { ok: false, status: 409, body: { error: created.kind } };
-          case 'created':
-            return {
-              ok: true,
-              status: 201,
-              body: {
-                id,
-                source: 'api_key',
-                name: created.credential.name,
-                personId: created.credential.personId,
-                issuedBy: created.credential.issuedBy,
-                createdAt: created.credential.createdAt,
-                key,
-              },
-            };
-        }
+        if (created.kind !== 'created') return createRefusal(created.kind, body.personId);
+        return {
+          ok: true,
+          status: 201,
+          body: {
+            id,
+            source: 'api_key',
+            name: created.credential.name,
+            personId: created.credential.personId,
+            issuedBy: created.credential.issuedBy,
+            createdAt: created.credential.createdAt,
+            key,
+          },
+        };
       },
     ),
     bind(
@@ -195,4 +229,34 @@ export function machineCredentialRoutes(
       },
     ),
   ] as const;
+}
+
+/** The reply to a refused create, whichever source was asked for. */
+function createRefusal(
+  refused:
+    | MachineCredentialActorRefusal
+    | 'unknown_person'
+    | 'person_not_bound'
+    | 'account_not_member'
+    | 'name_taken'
+    | 'unknown_trusted_issuer'
+    | 'subject_taken',
+  personId: string,
+): HttpReply<typeof createMachineCredential> {
+  switch (refused) {
+    case 'inactive':
+      return organizationRefusal('no_active_organization');
+    case 'forbidden':
+      return forbidden;
+    case 'unknown_person':
+      return { ok: false, status: 404, body: { error: refused } };
+    case 'unknown_trusted_issuer':
+      return { ok: false, status: 404, body: { error: refused } };
+    case 'person_not_bound':
+      return { ok: false, status: 409, body: { error: refused, personId } };
+    case 'account_not_member':
+    case 'name_taken':
+    case 'subject_taken':
+      return { ok: false, status: 409, body: { error: refused } };
+  }
 }

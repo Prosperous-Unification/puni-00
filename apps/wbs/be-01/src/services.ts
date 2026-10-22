@@ -11,6 +11,7 @@ import {
   servicesOver as coreServicesOver,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import type { TrustedIssuerVerification } from '@wbs/core/module/authentication/authentication.feature';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
@@ -69,6 +70,12 @@ export interface ServicesOptions {
   oidc?: OidcVerifier;
   passwordSessions?: boolean;
   localIdentity?: AuthenticatedUser;
+  /**
+   * The OIDC machine source (`wbs-machine-credentials` A13 step 3): how
+   * trusted issuers' JWTs are verified, and the configured issuer they may
+   * never be. `boot.ts` always wires it; absent (fixtures), the source is off.
+   */
+  trustedIssuers?: TrustedIssuerVerification;
   optimizer?: OptimizerRuntime;
   /**
    * The clock's time source; `Date.now` unless a test fixes it to pin a
@@ -180,6 +187,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       // (`routes an API key to its credential …` among them); watched
       // 2026-10-22.
       machineCredentials: new MachineCredentialRepository(source.db, source.gate),
+      ...(options.trustedIssuers === undefined ? {} : { trustedIssuers: options.trustedIssuers }),
       ...(options.oidc === undefined ? {} : { oidc: options.oidc }),
       ...(options.passwordSessions === undefined
         ? {}

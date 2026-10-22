@@ -185,14 +185,14 @@ See `verify.md`, "Slice 2 record".
 
 ## 5. The OIDC source and trusted issuers
 
-- [ ] 5.1 Red: trusted issuer routes (admin only) (`/api/organization/trusted-issuers` list, create,
+- [x] 5.1 Red: trusted issuer routes (admin only) (`/api/organization/trusted-issuers` list, create,
       `DELETE :id`) with discovery at registration (A16): `issuer_unreachable`,
       `issuer_mismatch`, `issuer_reserved`, `issuer_not_oidc`, `sso_connection_unproven`,
       `issuer_taken`, `in_use` on delete, audit rows — test:
       `trusted-issuer.controller.db.test.ts` against a local discovery stub for each;
       negative: skip the issuer-equality check and the disagreeing document registers;
       watched.
-- [ ] 5.2 Verification path step 3 (A13): per-issuer cached JWKS verifier keyed by URL,
+- [x] 5.2 Verification path step 3 (A13): per-issuer cached JWKS verifier keyed by URL,
       audience from the credential or the issuer's default, pair lookup within the trusted
       issuer, `invalid_token` on a stranger issuer or an unfetchable key set, no fallback —
       test: `oidc-credential.controller.db.test.ts` with a local signing issuer: admitted,
@@ -200,18 +200,59 @@ See `verify.md`, "Slice 2 record".
       `invalid_token` with zero fetches, JWKS 503 refused; negative: let a stranger `iss`
       reach the configured verifier and the zero-fetch case fetches; watched. Property:
       two organizations trusting one URL never admit each other's subjects.
-- [ ] 5.2a Recorded by the slice 1 review: no constraint ties
+- [x] 5.2a Recorded by the slice 1 review: no constraint ties
       `machine_credential.organization_id` to its `organization_trusted_issuer`'s
       organization. 5.2's verifier selects the trusted issuer within the credential's
       organization, or 5.3 adds a composite foreign key. Either way a test refuses a
       credential pointing at another organization's trusted issuer.
-- [ ] 5.3 Create for `source: 'oidc'` (`trustedIssuerId`, `subject`, `audience`,
+- [x] 5.3 Create for `source: 'oidc'` (`trustedIssuerId`, `subject`, `audience`,
       `unknown_trusted_issuer`, `subject_taken`); `rotation_at_issuer` — test: the admin
       controller test cases; negative: drop the organization predicate from the trusted
       issuer read and B's issuer serves A; watched.
 - [ ] 5.4 Dev proof (not code): a GitHub Actions workflow of a puni repository obtains an
       OIDC token for audience `wbs`, is admitted on dev as its credential, and a claim as the
       pinned person is accepted; recorded in verify.md with the subject redacted.
+
+Slice 5 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on slice 2):
+
+- No migration: `20261022100000_add_machine_credential` already holds
+  `organization_trusted_issuer`, and slice 2's audit rebuild admits both acts.
+- 5.2a takes the verifier route: `findByPair` joins the trusted issuer on its id, the
+  credential's own organization and the credential's issuer URL, so a row naming another
+  organization's trusted issuer reads as none (`unknown_identity`). No composite foreign key.
+- Order of the verification path: the unverified `iss` routes (configured issuer → today's
+  path; no trusted issuer of that URL → `invalid_token`, no fetch); the credential is read
+  by the unverified pair only to choose the key set and the audience; then the token is
+  verified, and only a verified token reaches the admission decision. With no credential
+  the URL's first key set verifies the token, so a forged token for an unknown subject is
+  `invalid_token` and a genuine one `unknown_identity`.
+- An OIDC principal carries `authentication: { kind: 'machine' }` like an API key, not
+  `upstream` as A10 drafted, so A23's role cap and the machine credential rule apply to it.
+- Removing a trusted issuer whose credentials are all revoked deletes those revoked rows
+  with it (their audit rows stay), as a person's removal does in slice 2: an `oidc` row must
+  name a trusted issuer and `trusted_issuer_id` has no `ON DELETE`.
+- A connection of another organization (or none) as the gate is `404
+unknown_sso_connection`, a code the spec did not name.
+- `OidcRouteOptions.issuer` (from the configured verifier's discovery) is the configured
+  Issuer Identifier both checks read; `AUTH_ISSUER_DISCOVERY_URL` as written is never
+  compared.
+- 5.4 (the GitHub Actions dev proof) is not done: nothing ran on dev.
+
+See `verify.md`, "Slice 5 record".
+
+Slice 5 review (Fable, 2026-10-22: merge after fixes) and A25, built on the same branch:
+
+- [x] 5.5 A25: required `audience` on trusted issuers (`audience` replaces `defaultAudience`
+      on the wire), `(issuer, audience)` unique (`audience_taken`), subjects unique per
+      registration, selection by `(iss, aud)` then `(registration, sub)`; migration
+      `20261022120000_scope_trusted_issuer_audience` with `down.sql` refusing while two
+      organizations bind one subject — tests: `trusted-issuer-audience-migration.db.test.ts`,
+      the two-organizations and two-audiences cases in `oidc-credential.controller.db.test.ts`.
+- [x] 5.6 Negatives for the algorithm allow-list, the non-empty `sub`, `exp` required and
+      the one-hour lifetime, the `jwks_uri` length, a non-200 key set, both fetch timeouts,
+      both body caps (64 KB, 256 KB), the per-organization cap of eight, the 30 s failure
+      cooldown and the public-host filter at both URL checks — `trusted-issuer.test.ts` and
+      the controller tests.
 
 ## 6. The settings panel and the people page
 
