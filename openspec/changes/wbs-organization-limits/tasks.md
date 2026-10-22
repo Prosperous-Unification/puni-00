@@ -23,8 +23,9 @@
       `boot.db.test.ts` boots with all three. R5 fault: give one variable a default in the
       schema and the absent case boots; watched. Built 2026-10-22: compose (`configure.sh`,
       the swap preflight in `docker.ts`), Kubernetes overlays, both `.env.example` files and
-      the runbook carry the three; the dev host's own `.env` is a deploy step outside the
-      repository, named in the slice 1 PR.
+      the runbook carry the three. The dev host's own `.env` is outside the repository: the
+      coordinator seeded it on 2026-10-22 (with a backup), and `assertBeEnv` in tool-devsync
+      now refuses a dev deploy whose be-01 `.env` lacks any key be-01 requires.
 - [x] 1.3 Red: `organization-limits.test.ts` in `@wbs/domain`: `refuseLimit({ cap, current,
 added })` answers null under the cap, the refusal at and over it, and a property that
       `current + added <= cap` never refuses and `>` always does. R5 fault: compare with

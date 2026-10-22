@@ -152,8 +152,15 @@ export function readCapacityUsage(
 
 /**
  * The units of `resourceId` the organization's projects other than
- * `exceptProjectId` state, summed; 0 when none does. What a capacity write to
- * `exceptProjectId` adds its own units to (L9, used from slice 4).
+ * `exceptProjectId` state, summed; 0 when none does, and 0 for a resource the
+ * organization does not own. What a capacity write to `exceptProjectId` adds
+ * its own units to (L9, used from slice 4). Reads exactly the rows
+ * {@link readCapacityUsage} sums, less the excluded project's: both require the
+ * project and the resource to be the organization's (L16).
+ *
+ * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
+ * resource's organization predicate failed `never sums a resource the
+ * organization does not own` (12 pass, 1 fail).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
  * excluded project's predicate failed `sums another project’s units, never the
@@ -172,9 +179,14 @@ export function sumStatedCapacity(
       projectOrganization,
       eq(projectOrganization.resourceId, projectResourceCapacity.projectId),
     )
+    .innerJoin(
+      resourceOrganization,
+      eq(resourceOrganization.resourceId, projectResourceCapacity.resourceId),
+    )
     .where(
       and(
         eq(projectOrganization.organizationId, organizationId),
+        eq(resourceOrganization.organizationId, organizationId),
         eq(projectResourceCapacity.resourceId, resourceId),
         ne(projectResourceCapacity.projectId, exceptProjectId),
       ),
@@ -191,9 +203,9 @@ export function sumStatedCapacity(
  * activation, `forbidden` for anyone but a current `admin` or `super_admin`,
  * null when permitted. Read inside the caller's transaction.
  *
- * Proof, each watched 2026-10-22: with the role test answering null, `refuses
- * a member and a viewer, reading no usage` (organization-limits.controller.db.test.ts)
- * answered 200, and `answers caps and usage to an admin and a super-admin, and
+ * Proof, each watched 2026-10-22: with the role test answering null, `answers
+ * a member and a viewer 403 forbidden with no usage in the body`
+ * (organization-limits.controller.db.test.ts) answered 200, and `answers caps and usage to an admin and a super-admin, and
  * forbidden to everyone else` (organization-limits.db.test.ts) failed; with the
  * activation test removed, `answers inactive before activation` failed.
  */

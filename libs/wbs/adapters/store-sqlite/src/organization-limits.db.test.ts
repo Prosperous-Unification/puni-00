@@ -230,6 +230,17 @@ describe('usage', () => {
   });
 });
 
+describe('sumStatedCapacity and readCapacityUsage', () => {
+  it('never sums a resource the organization does not own', () => {
+    resourceIn('org-b', 'b-ram', 'GB');
+    // A's projects stating B's resource: not A's statement, by either reader.
+    state('pa1', 'b-ram', 40);
+    state('pa2', 'b-ram', 8);
+    expect(sumStatedCapacity(open(), 'org-a', 'b-ram', 'pa1')).toBe(0);
+    expect(readCapacityUsage(open(), 'org-a')).toEqual([]);
+  });
+});
+
 describe('OrganizationLimitsRepository.read', () => {
   it('answers inactive before activation', async () => {
     expect(await new OrganizationLimitsRepository(open(), DEFAULTS).read('org-a', 'dany')).toBe(
