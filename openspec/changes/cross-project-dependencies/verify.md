@@ -1223,3 +1223,25 @@ activation, mounted external-import tests, browser checks, full build or host
 gate. No selected connected optimization evidence DTO is fabricated: the current
 transfer producer has not yet supplied that evidence. V11 is a reserved contract
 arm until the coherent export producer and admission slices are integrated.
+
+### Task 8.1 review follow-up — 2026-10-22
+
+Addressed the export descriptor regression identified by Astra High review.
+`project-shapes.test.ts` now checks both `anyOf` object arms, exact document
+versions 10/11 and the format discriminator, project/work-item fields, and the
+absence of undo/redo fields in each arm. Production declarations are unchanged.
+
+- Reproduced the original project-shape failure: **3 pass, 1 fail**.
+- After the assertion change, the standalone suite: **4 pass, 0 fail**.
+- Exact source-file Bun run covering document emission, project shapes, mounted
+  plan-document boundary, preparation, plan-document resource/module and import
+  shapes: **206 pass, 0 fail**, 503 assertions across seven files.
+- `bunx tsc --build --force libs/wbs/domain/contracts/tsconfig.json libs/wbs/application/core/tsconfig.json apps/wbs/fe-01/tsconfig.app.json`: exit 0.
+- Changed-test ESLint and Prettier checks: exit 0.
+- Independently removed `project`, added `undoable`, and added `redoable` from/to
+  each union arm at the production declaration: all six mutations made the
+  descriptor test fail (exit 1), then were restored. The per-arm assertions are
+  therefore nonvacuous.
+
+Task 8.1 remains unchecked; the integration and verification limitations of the
+contract/preparation slice above still apply.
