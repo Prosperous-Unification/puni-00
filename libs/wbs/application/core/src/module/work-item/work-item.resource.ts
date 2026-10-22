@@ -6798,6 +6798,8 @@ export class WorkItemService {
         const bothDirections = [payload.forward, readCommand(entry.inverse)];
         const external = requireExternalRevisions(preconditions, projectId, bothDirections);
         const endpointKeys = new Set<string>();
+        // Proof: scanning both directions changed the SQLite other-direction
+        // not_found to application-time stale_undo (round1 ordering diagnostic).
         const restoredTyped = restoredTypedAddressesOf(command, projectId);
         let localEndpointDefect = false;
         for (const directionCommand of bothDirections)
@@ -6807,18 +6809,21 @@ export class WorkItemService {
             endpointKeys.add(JSON.stringify(endpoint));
             const checked = await dependencyContext.endpoints.readEndpoint(endpoint);
             if (!checked.ok) {
+              // Proof: restoring the external-metadata blanket gate lost valid
+              // SQLite redo. Exempting delivered forbidden/unknown_step outcomes
+              // instead returned ok:true in their round1 refusal-fault regressions.
+              if (
+                endpoint.projectId === projectId &&
+                checked.reason === 'not_found' &&
+                restoredTyped.has(scopedRevisionKey(endpoint))
+              )
+                continue;
               if (
                 external === null &&
                 endpoint.projectId === projectId &&
                 checked.reason !== 'forbidden'
               ) {
-                // Proof: restored-local-typed-evidence bypass failed `mounted local batch aliases survive`'s selected assertion
-                // (actual SQLite boundary; watched 2026-10-22).
-                if (
-                  checked.reason !== 'not_found' ||
-                  !restoredTyped.has(scopedRevisionKey(endpoint))
-                )
-                  localEndpointDefect = true;
+                localEndpointDefect = true;
               } else
                 return {
                   ok: false,

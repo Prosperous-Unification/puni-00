@@ -10,6 +10,8 @@ import {
   readCommand,
   readPreconditions,
   referencesOf,
+  restoredTypedAddressesOf,
+  scopedRevisionKey,
   STEP_BLOCKAGE_REPLAY_CAPABILITIES,
   subjectOf,
   touchedBy,
@@ -587,4 +589,82 @@ it('requires exact external revision coverage across both nested journal directi
   const references = referencesOf(commands[0]);
   expect(references.workItems).toEqual(['foreign-unrelated']);
   expect(references.scopedEndpoints).toEqual([dependency.predecessor, dependency.successor]);
+});
+
+const restoreForTypedReplay = (projectId: string, workItemId: string): CompensatingCommand => ({
+  do: 'restore_subtree',
+  rows: [workItemRow({ id: workItemId, projectId })],
+  rootPosition: 1,
+  reparented: [],
+  estimates: [],
+  actuals: [],
+  progress: [],
+  measures: [],
+  assignments: [],
+  internalDependencies: [],
+  externalDependencies: [],
+  removedEstimates: [],
+  removedActuals: [],
+  removedProgress: [],
+  removedMeasures: [],
+});
+
+it('predicts only earlier owner-local restores before nested typed adds and updates in application order', () => {
+  const local = { projectId: 'owner', scope: 'whole' as const, workItemId: 'restored' };
+  const remote = { ...local, projectId: 'remote' };
+  const dependency = {
+    id: 'link',
+    projectId: 'owner',
+    predecessor: local,
+    successor: { ...local, workItemId: 'successor' },
+    type: 'FS' as const,
+  };
+  const add: CompensatingCommand = { do: 'add_typed_dependency', dependency };
+  const update: CompensatingCommand = {
+    do: 'update_typed_dependency',
+    from: { ...dependency, predecessor: { ...local, workItemId: 'before' } },
+    to: dependency,
+  };
+  const nested = (...steps: CompensatingCommand[]): CompensatingCommand => ({ do: 'batch', steps });
+  const restored = restoreForTypedReplay('owner', 'restored');
+  const key = scopedRevisionKey(local);
+  for (const typed of [add, update]) {
+    expect([
+      ...restoredTypedAddressesOf(nested(nested(restored), nested(nested(typed))), 'owner'),
+    ]).toEqual([key]);
+    expect([...restoredTypedAddressesOf(nested(nested(typed), nested(restored)), 'owner')]).toEqual(
+      [],
+    );
+  }
+  expect([
+    ...restoredTypedAddressesOf(nested(restoreForTypedReplay('owner', 'different'), add), 'owner'),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(nested(restoreForTypedReplay('remote', 'restored'), add), 'owner'),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(
+      nested(restored, {
+        do: 'add_typed_dependency',
+        dependency: { ...dependency, predecessor: remote },
+      }),
+      'owner',
+    ),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(
+      nested(restored, { do: 'remove_typed_dependency', dependency }),
+      'owner',
+    ),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(
+      nested(restored, {
+        do: 'patch',
+        workItemId: 'restored',
+        patch: { name: 'Ordinary reference' },
+      }),
+      'owner',
+    ),
+  ]).toEqual([]);
 });

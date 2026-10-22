@@ -10,6 +10,7 @@ import {
 } from '@wbs/core/module/work-item/work-item.resource';
 import { AnnouncementCollector } from '@wbs/core/ports/announcement-collector';
 import type { DependencyContext } from '@wbs/core/ports/dependency-context';
+import type { CompensatingCommand } from '@wbs/core/service/compensating';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -196,6 +197,7 @@ async function semantic<T extends { readonly ok: boolean }>(
   failedGraphRead?: 'findCycle' | 'findStepReferences' | 'proposedCycle',
   omitRecordedRevision = false,
   corruptStoredScope = false,
+  restoredEndpointRefusal?: 'forbidden' | 'unknown_step',
 ): Promise<T> {
   const boundary = harness.publicWrites();
   const broadcast = recordingBroadcaster();
@@ -275,7 +277,7 @@ async function semantic<T extends { readonly ok: boolean }>(
             }),
           };
     let revisionReads = 0;
-    const dependencyContext: DependencyContext = !omitRecordedRevision
+    const revisionContext: DependencyContext = !omitRecordedRevision
       ? graphContext
       : {
           ...graphContext,
@@ -292,6 +294,25 @@ async function semantic<T extends { readonly ok: boolean }>(
             },
           },
         };
+    const dependencyContext: DependencyContext =
+      restoredEndpointRefusal === undefined
+        ? revisionContext
+        : {
+            ...revisionContext,
+            endpoints: {
+              ...revisionContext.endpoints,
+              readEndpoint: async (endpoint) => {
+                const read = await revisionContext.endpoints.readEndpoint(endpoint);
+                // Negative-only delivery fault: retain the real absent-row read and
+                // all other evidence, but demand propagation of this exact refusal.
+                return endpoint.projectId === fixture.owner.projectId &&
+                  !read.ok &&
+                  read.reason === 'not_found'
+                  ? { ok: false, reason: restoredEndpointRefusal }
+                  : read;
+              },
+            },
+          };
     const plan = createWorkingPlan(scope, fixture.owner.projectId);
     try {
       expect(
@@ -1536,3 +1557,357 @@ for (const missing of [false, true])
       );
     }
   });
+
+test('ordered restore lets an external create-link batch redo its local successor', async () => {
+  const fixture = await open();
+  const added = await semantic(fixture, async (service) => {
+    const created = await service.create(fixture.owner.projectId, fixture.principal.id, {
+      name: 'New external successor',
+      parentId: null,
+      afterId: null,
+    });
+    if (!created.ok) return created;
+    return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      ...fixture.input,
+      successor: {
+        scope: 'whole',
+        projectId: fixture.owner.projectId,
+        workItemId: created.value.id,
+      },
+    });
+  });
+  expect(added).toMatchObject({ ok: true });
+  const undone = await semantic(fixture, (service) =>
+    service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+  );
+  expect(undone).toMatchObject({ ok: true });
+  const redone = await semantic(fixture, (service) =>
+    service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+  );
+  expect(redone).toMatchObject({ ok: true });
+});
+
+for (const nested of [false, true])
+  test(`ordered restore lets a mounted local create-update batch redo its predecessor${nested ? ' through nested replay' : ''}`, async () => {
+    const fixture = await open();
+    const route = `/api/projects/${fixture.owner.projectId}`;
+    const initial = await fixture.request(`${route}/commands`, {
+      commands: [
+        { kind: 'createWorkItem', name: 'Original local predecessor', ref: 'original' },
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'whole', workItemRef: 'original' },
+          successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
+          type: 'FS',
+        },
+      ],
+    });
+    expect(initial.status).toBe(200);
+    const relationship = harness.sqlite
+      .query<{ id: string }, []>('SELECT id FROM typed_dependency')
+      .get();
+    if (relationship === null) throw new Error('fixture local relationship missing');
+    const updated = await fixture.request(`${route}/commands`, {
+      commands: [
+        { kind: 'createWorkItem', name: 'Replacement local predecessor', ref: 'replacement' },
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: relationship.id,
+          predecessor: { scope: 'whole', workItemRef: 'replacement' },
+          successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
+          type: 'FS',
+        },
+      ],
+    });
+    expect(updated.status).toBe(200);
+    const replacement = harness.sqlite
+      .query<{ id: string }, []>(
+        "SELECT id FROM work_item WHERE name='Replacement local predecessor'",
+      )
+      .get();
+    if (replacement === null) throw new Error('fixture replacement row missing');
+    const undone = await fixture.request(`${route}/undo`);
+    expect(undone.status).toBe(200);
+    expect(
+      harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(replacement.id),
+    ).toBeNull();
+    if (nested) {
+      const entry = harness.sqlite
+        .query<{ id: string; payload: string }, [string]>(
+          'SELECT id,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+        )
+        .get(fixture.owner.projectId);
+      if (entry === null) throw new Error('fixture update history missing');
+      const payload = JSON.parse(entry.payload) as { forward: CompensatingCommand };
+      if (payload.forward.do !== 'batch')
+        throw new Error('fixture update forward is not collected');
+      payload.forward = nestedReplay(
+        ...payload.forward.steps.map((step) => nestedReplay(nestedReplay(step))),
+      );
+      harness.sqlite
+        .query('UPDATE command_journal SET payload=? WHERE id=?')
+        .run(JSON.stringify(payload), entry.id);
+    }
+    const redone = await fixture.request(`${route}/redo`);
+    expect(redone.status).toBe(200);
+    expect(
+      harness.sqlite
+        .query<{ id: string; predecessor: string }, [string]>(
+          'SELECT id,predecessor_work_item_id AS predecessor FROM typed_dependency WHERE id=?',
+        )
+        .get(relationship.id),
+    ).toEqual({ id: relationship.id, predecessor: replacement.id });
+  });
+
+async function undoneExternalCreate() {
+  const fixture = await open();
+  const step = harness.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+    )
+    .get(fixture.owner.projectId);
+  if (step === null) throw new Error('fixture restored successor step missing');
+  let successorId: string | undefined;
+  const added = await semantic(fixture, async (service) => {
+    const created = await service.create(fixture.owner.projectId, fixture.principal.id, {
+      parentId: null,
+      afterId: null,
+      name: 'Nested external successor',
+    });
+    if (!created.ok) return created;
+    successorId = created.value.id;
+    return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      ...fixture.input,
+      successor: {
+        projectId: fixture.owner.projectId,
+        workItemId: created.value.id,
+        scope: 'node',
+        stepId: step.id,
+      },
+    });
+  });
+  expect(added).toMatchObject({ ok: true });
+  if (!added.ok || successorId === undefined) throw new Error('fixture external create refused');
+  expect(
+    await semantic(fixture, (service) =>
+      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    ),
+  ).toMatchObject({ ok: true });
+  const entry = harness.sqlite
+    .query<{ id: string; payload: string; inverse: string }, [string]>(
+      'SELECT id,payload,inverse FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+    )
+    .get(fixture.owner.projectId);
+  if (entry === null) throw new Error('fixture external create history missing');
+  // These are the real collected journal's commands; corrupt variants below
+  // change only trusted-history delivery/setup and never create valid grants.
+  const payload = JSON.parse(entry.payload) as { label: string; forward: CompensatingCommand };
+  if (payload.forward.do !== 'batch') throw new Error('fixture collected forward is not a batch');
+  const restore = payload.forward.steps.find((command) => command.do === 'restore_subtree');
+  const typed = payload.forward.steps.find((command) => command.do === 'add_typed_dependency');
+  if (restore?.do !== 'restore_subtree' || typed?.do !== 'add_typed_dependency')
+    throw new Error('fixture external create commands missing');
+  return { fixture, entry, payload, restore, typed, successorId, dependencyId: added.value };
+}
+
+const nestedReplay = (...steps: CompensatingCommand[]): CompensatingCommand => ({
+  do: 'batch',
+  steps,
+});
+
+function replaceForward(
+  prepared: Awaited<ReturnType<typeof undoneExternalCreate>>,
+  forward: CompensatingCommand,
+) {
+  harness.sqlite
+    .query('UPDATE command_journal SET payload=? WHERE id=?')
+    .run(JSON.stringify({ ...prepared.payload, forward }), prepared.entry.id);
+}
+
+test('ordered restore replays nested local restoration before an external typed add with exact revisions and identity', async () => {
+  const prepared = await undoneExternalCreate();
+  replaceForward(
+    prepared,
+    nestedReplay(nestedReplay(prepared.restore), nestedReplay(nestedReplay(prepared.typed))),
+  );
+  const { fixture } = prepared;
+  expect(
+    await semantic(fixture, (service) =>
+      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE id=?')
+      .get(prepared.successorId)?.id,
+  ).toBe(prepared.successorId);
+  expect(
+    harness.sqlite
+      .query<{ id: string; successor: string }, [string]>(
+        'SELECT id,successor_work_item_id AS successor FROM external_dependency WHERE id=?',
+      )
+      .get(prepared.dependencyId),
+  ).toEqual({ id: prepared.dependencyId, successor: prepared.successorId });
+  expect(lastPreconditions(fixture.owner.projectId)).toMatchObject({
+    externalRevisions: {
+      expected: [{ ...fixture.predecessor, revision: 3 }],
+      from: [{ ...fixture.predecessor, revision: 2 }],
+    },
+  });
+});
+
+for (const defect of [
+  'later-restore',
+  'other-direction',
+  'different-address',
+  'ordinary-reference',
+  'foreign-restore',
+  'mixed-restore',
+  'missing-step',
+  'shape',
+] as const)
+  test(`ordered restore refuses ${defect} in nested external replay without partial effects`, async () => {
+    const prepared = await undoneExternalCreate();
+    const { fixture, restore, typed } = prepared;
+    const root = restore.rows.at(0);
+    if (root === undefined) throw new Error('fixture restored root missing');
+    const malformedRestore: CompensatingCommand = {
+      ...restore,
+      rows: [
+        {
+          ...root,
+          ...(defect === 'foreign-restore'
+            ? { projectId: fixture.predecessor.projectId }
+            : { id: 'different-restored-address' }),
+        },
+      ],
+    };
+    let forward: CompensatingCommand;
+    switch (defect) {
+      case 'other-direction':
+        harness.sqlite
+          .query('UPDATE command_journal SET inverse=? WHERE id=?')
+          .run(JSON.stringify(nestedReplay(restore, typed)), prepared.entry.id);
+        forward = nestedReplay(typed);
+        break;
+      case 'later-restore':
+        forward = nestedReplay(nestedReplay(typed), nestedReplay(restore));
+        break;
+      case 'mixed-restore':
+        forward = nestedReplay(
+          {
+            ...restore,
+            rows: [
+              ...restore.rows,
+              { ...root, id: 'foreign-insert', projectId: fixture.predecessor.projectId },
+            ],
+          },
+          typed,
+        );
+        break;
+      case 'different-address':
+      case 'foreign-restore':
+        forward = nestedReplay(nestedReplay(malformedRestore), nestedReplay(typed));
+        break;
+      case 'ordinary-reference':
+        forward = nestedReplay(
+          { do: 'patch', workItemId: prepared.successorId, patch: { name: 'Not a restore' } },
+          nestedReplay(typed),
+        );
+        break;
+      case 'missing-step':
+        forward = nestedReplay(nestedReplay(restore), {
+          ...typed,
+          dependency: {
+            ...typed.dependency,
+            successor: {
+              projectId: fixture.owner.projectId,
+              workItemId: prepared.successorId,
+              scope: 'node',
+              stepId: 'absent-step',
+            },
+          },
+        });
+        break;
+      case 'shape':
+        forward = nestedReplay(nestedReplay(restore), {
+          ...typed,
+          dependency: {
+            ...typed.dependency,
+            successor: {
+              projectId: fixture.owner.projectId,
+              workItemId: prepared.successorId,
+              scope: 'descendant-step',
+              stepId:
+                typed.dependency.successor.scope === 'whole'
+                  ? 'absent-step'
+                  : typed.dependency.successor.stepId,
+            },
+          },
+        });
+        break;
+    }
+    replaceForward(prepared, forward);
+    const before = effects();
+    const redone = await semantic(fixture, (service) =>
+      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    );
+    expect(redone).toMatchObject(
+      defect === 'shape'
+        ? {
+            ok: false,
+            reason: 'stale_undo',
+            detail: 'that relationship would now be refused: not_a_parent.',
+          }
+        : { ok: false, reason: 'not_found' },
+    );
+    expect(effects()).toEqual(before);
+  });
+
+for (const refusal of ['forbidden', 'unknown_step'] as const)
+  test(`ordered restore propagates a delivered ${refusal} instead of exempting it as a missing row`, async () => {
+    const prepared = await undoneExternalCreate();
+    const { fixture } = prepared;
+    const before = effects();
+    const redone = await semantic(
+      fixture,
+      (service) =>
+        service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      undefined,
+      undefined,
+      undefined,
+      false,
+      false,
+      refusal,
+    );
+    expect(redone).toMatchObject({
+      ok: false,
+      reason: refusal === 'forbidden' ? 'forbidden' : 'not_found',
+      detail: null,
+    });
+    expect(effects()).toEqual(before);
+  });
+
+test('ordered restore never defers a missing remote row even when replay carries a foreign restore', async () => {
+  const prepared = await undoneExternalCreate();
+  const { fixture } = prepared;
+  const root = prepared.restore.rows.at(0);
+  if (root === undefined) throw new Error('fixture owner restore missing');
+  // Undo removed the external FK row, so actual remote endpoint deletion is a
+  // legitimate current state. The attempted foreign restore is corrupt history.
+  harness.sqlite.query('DELETE FROM work_item WHERE id=?').run(fixture.predecessor.workItemId);
+  const foreign: CompensatingCommand = {
+    ...prepared.restore,
+    rows: [
+      { ...root, id: fixture.predecessor.workItemId, projectId: fixture.predecessor.projectId },
+    ],
+  };
+  replaceForward(prepared, nestedReplay(foreign, nestedReplay(prepared.restore), prepared.typed));
+  const before = effects();
+  expect(
+    await semantic(fixture, (service) =>
+      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    ),
+  ).toMatchObject({ ok: false, reason: 'not_found', detail: null });
+  expect(effects()).toEqual(before);
+});

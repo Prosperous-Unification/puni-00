@@ -487,7 +487,11 @@ function readExternalRevisions(value: unknown): ExternalRevisionPreconditions {
   return { expected: read(value.expected), from: read(value.from) };
 }
 
-/** Local typed-add endpoints supplied by an earlier restore in this replay direction. */
+/**
+ * Owner-local typed add/update endpoints supplied by an earlier restore in the
+ * selected replay direction's nested application order. This predicts missing
+ * rows only; replay still authorizes restored rows and validates steps/shapes.
+ */
 export function restoredTypedAddressesOf(
   command: CompensatingCommand,
   ownerId: string,
@@ -496,14 +500,23 @@ export function restoredTypedAddressesOf(
   const allowed = new Set<string>();
   const visit = (step: CompensatingCommand): void => {
     if (step.do === 'batch') {
+      // Proof: precollecting later restores changed the real SQLite later-restore
+      // refusal from not_found to application-time stale_undo (round1 ordering diagnostic).
       for (const nested of step.steps) visit(nested);
       return;
     }
     if (step.do === 'restore_subtree') {
+      // Proof: removing the row-project condition failed the pure scanner's foreign
+      // restore oracle; SQLite restored-row authority is independently retained.
       for (const row of step.rows) if (row.projectId === ownerId) restored.add(row.id);
     }
-    if (step.do === 'add_typed_dependency')
-      for (const endpoint of [step.dependency.predecessor, step.dependency.successor]) {
+    // Proof: omitting UPDATE made both real mounted create/update redo regressions
+    // return 409 instead of 200 (round1 compatibility failure).
+    if (step.do === 'add_typed_dependency' || step.do === 'update_typed_dependency')
+      for (const endpoint of referencesOf(step).scopedEndpoints) {
+        // Proof: weakening exact membership changed SQLite different-address
+        // not_found to stale_undo. Removing endpoint project equality failed the
+        // pure remote-address oracle (ordering/classification, not unsafe writes).
         if (endpoint.projectId === ownerId && restored.has(endpoint.workItemId))
           allowed.add(scopedRevisionKey(endpoint));
       }
