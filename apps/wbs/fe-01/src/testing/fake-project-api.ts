@@ -504,6 +504,7 @@ export function fakeProjectApi(): ProjectApi & {
           id: 'p1',
           name: 'Rewire the shed',
           restricted: false,
+          abbreviation: 'PLAN',
           lastOpenedAt: null,
           ownerName: 'kat',
           createdAt: 1_780_000_000_000,
@@ -516,9 +517,11 @@ export function fakeProjectApi(): ProjectApi & {
       ]),
     // No `lastOpenedAt`: the create route answers with the project it wrote,
     // and never with this account's navigation history.
-    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    createProject: (name: string) =>
+      Promise.resolve({ id: 'p1', name, restricted: false, abbreviation: 'PLAN' }),
     openProject: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
+    setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
     tree: (projectId) => {
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.

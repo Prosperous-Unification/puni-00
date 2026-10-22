@@ -30,6 +30,7 @@ const entry = (id: string, name: string): ProjectListEntry => ({
   id,
   name,
   restricted: false,
+  abbreviation: 'PLAN',
   startDate: null,
   lastOpenedAt: null,
   ownerName: 'kat',

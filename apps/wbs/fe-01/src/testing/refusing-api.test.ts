@@ -77,6 +77,7 @@ describe('refusingApi contract boundary', () => {
           {
             id: 'project-1',
             restricted: false,
+            abbreviation: 'PLAN',
             lastOpenedAt: null,
             ownerName: 'Ada',
             startDate: null,
@@ -284,7 +285,7 @@ describe('refusingApi contract boundary', () => {
 
   it('refuses malformed project creation before the stated mutation runs', async () => {
     const createProject = vi.fn(() =>
-      Promise.resolve({ id: 'project-1', name: 'Plan', restricted: false }),
+      Promise.resolve({ id: 'project-1', name: 'Plan', restricted: false, abbreviation: 'PLAN' }),
     );
     const api = refusingApi({ createProject });
 
@@ -300,6 +301,7 @@ describe('refusingApi contract boundary', () => {
             id: 'project-1',
             name: 'Plan',
             restricted: false,
+            abbreviation: 'PLAN',
             lastOpenedAt: null,
             ownerName: 'Ada',
             startDate: null,

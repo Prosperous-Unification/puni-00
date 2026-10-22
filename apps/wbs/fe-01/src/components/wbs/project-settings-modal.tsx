@@ -17,6 +17,7 @@ import {
 } from '@/runtime/application-services-context';
 
 import { EstimatingPanel, type EstimatingPanelProps } from './estimating-panel';
+import { GeneralPanel, type GeneralPanelProps } from './general-panel';
 import { OptimizationSettingsPanel, type OptimizationSettingsProps } from './optimization-settings';
 import { PrioritiesPanel, type PrioritiesPanelProps } from './priorities-panel';
 import { StepsPanel, type StepsPanelProps } from './steps-panel';
@@ -30,9 +31,10 @@ import { SettingsIcon } from './toolbar-icons';
  * `project-config-modal` folded them into this one surface.
  */
 export type SettingsSection =
-  'teams' | 'priorities' | 'steps' | 'estimating' | 'optimization' | 'timezone';
+  'general' | 'teams' | 'priorities' | 'steps' | 'estimating' | 'optimization' | 'timezone';
 
 const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
+  { id: 'general', label: 'General' },
   { id: 'teams', label: 'Teams' },
   { id: 'priorities', label: 'Priorities' },
   { id: 'steps', label: 'Steps' },
@@ -132,6 +134,8 @@ export interface ProjectSettingsModalProps {
    * has the room. Both carry the same accessible name.
    */
   trigger: 'glyph' | 'labelled';
+  /** Unavailable until the page has read the selected catalog entry. */
+  general?: SectionOwn<GeneralPanelProps>;
   teams: SectionOwn<TeamsPanelProps>;
   priorities: SectionOwn<PrioritiesPanelProps>;
   steps: SectionOwn<StepsPanelProps>;
@@ -215,6 +219,7 @@ export interface ProjectSettingsModalProps {
 export function ProjectSettingsModal({
   projectId,
   trigger,
+  general,
   teams,
   priorities,
   steps,
@@ -301,6 +306,7 @@ export function ProjectSettingsModal({
   );
   const busyReporters = useMemo(
     () => ({
+      general: busyReporterFor('general'),
       teams: busyReporterFor('teams'),
       priorities: busyReporterFor('priorities'),
       steps: busyReporterFor('steps'),
@@ -312,6 +318,7 @@ export function ProjectSettingsModal({
   );
   const reporters = useMemo(
     () => ({
+      general: reporterFor('general'),
       teams: reporterFor('teams'),
       priorities: reporterFor('priorities'),
       steps: reporterFor('steps'),
@@ -590,6 +597,26 @@ export function ProjectSettingsModal({
             edge (ui-review F-123, Estimating at 1024×768).
           */}
           <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 pb-6">
+            <div
+              role="tabpanel"
+              id={panelId('general')}
+              aria-labelledby={tabId('general')}
+              aria-busy={busySections.includes('general')}
+              hidden={shown !== 'general'}
+            >
+              {general === undefined ? (
+                <p className="text-muted-foreground text-sm">
+                  Project abbreviation is not available until the selected project is read.
+                </p>
+              ) : (
+                <GeneralPanel
+                  key={projectId}
+                  {...general}
+                  onDirtyChange={reporters.general}
+                  onBusyChange={busyReporters.general}
+                />
+              )}
+            </div>
             <div
               role="tabpanel"
               id={panelId('teams')}

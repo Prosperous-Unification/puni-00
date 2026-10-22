@@ -1500,6 +1500,18 @@ export function ProjectPage({
                   // list rather than held twice: a rename lands in `projects` and
                   // the next export says the new name.
                   projectName={selectedProject?.name}
+                  {...(selectedProject === undefined
+                    ? {}
+                    : {
+                        generalSettings: {
+                          abbreviation: selectedProject.abbreviation,
+                          setAbbreviation: (abbreviation: string) =>
+                            catalog.setAbbreviation(selectedProject.id, abbreviation),
+                          onChanged: async () => {
+                            await load();
+                          },
+                        },
+                      })}
                   planImport={planImport}
                   // Proof: omitting this page-owned API left the remounted table's
                   // toast list empty after a successful import. Observed 2026-09-14.

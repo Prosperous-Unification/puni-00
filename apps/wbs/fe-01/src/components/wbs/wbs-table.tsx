@@ -672,6 +672,7 @@ export function WbsTable({
   planActive = true,
   viewControls,
   projectName,
+  generalSettings,
   planImport,
   toastApi: toastApiOverride,
   savedPlansShelf,
@@ -2336,6 +2337,7 @@ export function WbsTable({
       run={run}
       commands={commands}
       projectId={projectId}
+      {...(generalSettings === undefined ? {} : { generalSettings })}
       scheduleError={scheduleError}
       arrangeBySchedule={arrangeBySchedule}
       addWorkItem={addWorkItem}

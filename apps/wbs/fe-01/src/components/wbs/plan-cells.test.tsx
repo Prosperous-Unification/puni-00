@@ -301,6 +301,7 @@ describe('step node details', () => {
           id: 'p2',
           name: 'Other project',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: null,
           ownerName: 'kat',

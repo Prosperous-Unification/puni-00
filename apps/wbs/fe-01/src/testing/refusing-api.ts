@@ -176,6 +176,7 @@ const PROJECT_API_OPERATIONS = {
   createProject: 'postApiProjects',
   openProject: 'postApiProjectsByIdOpened',
   renameProject: 'patchApiProjectsById',
+  setAbbreviation: 'patchApiProjectsById',
   tree: 'getApiProjectsByIdWork-items',
   exportPlan: 'getApiProjectsByIdExport',
   importPlan: 'postApiProjectsImport',
@@ -461,6 +462,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
               ...project,
               id: project.id,
               name: project.name,
+              abbreviation: project.abbreviation,
               restricted: project.restricted,
               startDate: project.startDate,
               createdAt: project.createdAt,
@@ -476,6 +478,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       return reply.body.projects.map((project) => ({
         id: project.id,
         name: project.name,
+        abbreviation: project.abbreviation,
         restricted: project.restricted,
         startDate: project.startDate,
         createdAt: project.createdAt,
@@ -506,6 +509,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
               ...made,
               id: made.id,
               name: made.name,
+              abbreviation: made.abbreviation,
               restricted: made.restricted,
             },
             steps: [],
@@ -518,6 +522,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       return {
         id: reply.body.project.id,
         name: reply.body.project.name,
+        abbreviation: reply.body.project.abbreviation,
         restricted: reply.body.project.restricted,
       };
     };
@@ -606,6 +611,32 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body;
+    };
+  }
+
+  const setAbbreviationAnswer = answers.setAbbreviation;
+  if (setAbbreviationAnswer !== undefined) {
+    checked.setAbbreviation = async (projectId, abbreviation) => {
+      const preflight = preflightFakeRequest(patchProject, {
+        params: { id: projectId },
+        body: { abbreviation },
+      });
+      const prepared = isPromiseLike(preflight) ? await preflight : preflight;
+      const canonical = await setAbbreviationAnswer(prepared.params.id, abbreviation);
+      const client = clientFromShapes([patchProject], () =>
+        Promise.resolve({
+          kind: 'json' as const,
+          status: 200,
+          body: { project: projectWire(prepared.params.id, { abbreviation: canonical }) },
+        }),
+      );
+      const reply = await client.patchApiProjectsById({
+        params: prepared.params,
+        body: prepared.body,
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body.project.abbreviation;
     };
   }
 

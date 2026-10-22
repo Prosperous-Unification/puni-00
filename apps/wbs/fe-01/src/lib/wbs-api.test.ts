@@ -1816,3 +1816,34 @@ describe('project address observation client', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+describe('project abbreviation settings', () => {
+  it('patches only the abbreviation and returns the canonical stored code', async () => {
+    const fetched = stub(() =>
+      response(
+        200,
+        JSON.stringify({ project: { ...PROJECT, abbreviation: 'PUNI2-CORE_MAIN12345' } }),
+      ),
+    );
+    expect(await httpProjectApi('t').setAbbreviation('p1', 'puni2-core_main12345')).toBe(
+      'PUNI2-CORE_MAIN12345',
+    );
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[1]).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({ abbreviation: 'puni2-core_main12345' }),
+    });
+  });
+  it.each([
+    [422, 'invalid_abbreviation'],
+    [409, 'abbreviation_taken'],
+  ] as const)('retains typed refusal %s %s', async (status, error) => {
+    stub(() => response(status, JSON.stringify({ error })));
+    await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow(error);
+  });
+  it('rejects a successful response missing its trusted abbreviation', async () => {
+    const { abbreviation: _abbreviation, ...missing } = PROJECT;
+    stub(() => response(200, JSON.stringify({ project: missing })));
+    await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow();
+  });
+});

@@ -14,7 +14,7 @@ function recordedRoutes() {
     },
     createProject: (name) => {
       sent.push(`create:${name}`);
-      return Promise.resolve({ id: 'p9', name, restricted: false });
+      return Promise.resolve({ id: 'p9', name, restricted: false, abbreviation: 'PLAN' });
     },
     openProject: (id) => {
       sent.push(`open:${id}`);
@@ -23,6 +23,10 @@ function recordedRoutes() {
     renameProject: (id, name) => {
       sent.push(`rename:${id}:${name}`);
       return Promise.resolve();
+    },
+    setAbbreviation: (id, abbreviation) => {
+      sent.push(`abbreviation:${id}:${abbreviation}`);
+      return Promise.resolve(abbreviation.toUpperCase());
     },
     importPlan: () => {
       sent.push('import');
@@ -41,8 +45,15 @@ describe('the project catalog', () => {
     await catalog.create('Shed');
     await catalog.markOpened('p1');
     await catalog.rename('p1', 'Barn');
+    expect(await catalog.setAbbreviation('p1', 'puni2')).toBe('PUNI2');
 
-    expect(sent).toEqual(['list', 'create:Shed', 'open:p1', 'rename:p1:Barn']);
+    expect(sent).toEqual([
+      'list',
+      'create:Shed',
+      'open:p1',
+      'rename:p1:Barn',
+      'abbreviation:p1:puni2',
+    ]);
   });
 
   it('sends nothing once its session is withdrawn, and says so', async () => {
@@ -56,6 +67,7 @@ describe('the project catalog', () => {
       catalog.create('Shed'),
       catalog.markOpened('p1'),
       catalog.rename('p1', 'Barn'),
+      catalog.setAbbreviation('p1', 'puni2'),
       catalog.importPlan({} as PlanDocumentRequest),
     ]);
 
@@ -64,6 +76,6 @@ describe('the project catalog', () => {
       refusals.map(
         (each) => each.status === 'rejected' && each.reason instanceof CatalogWithdrawnError,
       ),
-    ).toEqual([true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true]);
   });
 });

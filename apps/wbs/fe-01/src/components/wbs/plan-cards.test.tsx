@@ -490,6 +490,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       createProject: () => notImplemented('createProject'),
       openProject: () => notImplemented('openProject'),
       renameProject: () => notImplemented('renameProject'),
+      setAbbreviation: (_id: string, abbreviation: string) =>
+        Promise.resolve(abbreviation.toUpperCase()),
       undo: () => notImplemented('undo'),
       redo: () => notImplemented('redo'),
       setEstimateMethod: () => notImplemented('setEstimateMethod'),

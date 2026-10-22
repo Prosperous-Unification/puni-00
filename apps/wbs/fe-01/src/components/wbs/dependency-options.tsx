@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, FocusEvent, MouseEvent } from 'react';
 
 import { REFUSAL_SUFFIX } from './dep-picker';
 import type { DependencyOption, EndpointOption } from './dependency-selection';
@@ -37,9 +37,28 @@ export function DependencyOptions({
     else onChoose(option);
   };
   const Option = phone ? 'button' : 'span';
+  const desktopInteractions = phone
+    ? {}
+    : {
+        onBlur: (event: FocusEvent<HTMLUListElement>) => {
+          const target = event.relatedTarget;
+          if (
+            target instanceof HTMLElement &&
+            (event.currentTarget.contains(target) ||
+              target.closest('.typed-dependency-editor') !== null)
+          )
+            return;
+          onLeave?.();
+        },
+        onMouseDown: (event: MouseEvent<HTMLUListElement>) => {
+          event.preventDefault();
+        },
+      };
   return (
     <ul
-      role="listbox"
+      {...desktopInteractions}
+      // Proof: CI browser shard 2 could not find the phone's named Rows list when it became a listbox.
+      role={phone ? 'list' : 'listbox'}
       aria-label={label}
       id={id}
       className={
@@ -50,19 +69,6 @@ export function DependencyOptions({
         if (list === null || phone) return;
         const room = window.innerWidth - list.getBoundingClientRect().left - 8;
         list.style.maxWidth = `${String(Math.max(DEP_LIST_WIDTH, room))}px`;
-      }}
-      onBlur={(event) => {
-        const target = event.relatedTarget;
-        if (
-          target instanceof HTMLElement &&
-          (event.currentTarget.contains(target) ||
-            target.closest('.typed-dependency-editor') !== null)
-        )
-          return;
-        onLeave?.();
-      }}
-      onMouseDown={(event) => {
-        event.preventDefault();
       }}
     >
       {search.options.map((option) => (

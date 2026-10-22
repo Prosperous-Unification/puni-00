@@ -163,7 +163,12 @@ export interface ProjectRuntime {
  */
 export type ProjectCatalogRoutes = Pick<
   ProjectApi,
-  'listProjects' | 'createProject' | 'openProject' | 'renameProject' | 'importPlan'
+  | 'listProjects'
+  | 'createProject'
+  | 'openProject'
+  | 'renameProject'
+  | 'setAbbreviation'
+  | 'importPlan'
 >;
 
 /**
@@ -182,6 +187,8 @@ export interface ProjectCatalog {
   /** Records this account as having opened the project, which is what sorts the list. */
   readonly markOpened: (projectId: string) => Promise<void>;
   readonly rename: (projectId: string, name: string) => Promise<void>;
+  /** Returns the canonical stored address prefix after an authorized edit. */
+  readonly setAbbreviation: (projectId: string, abbreviation: string) => Promise<string>;
   /** Restores one archival document as a new project. */
   readonly importPlan: (document: PlanDocumentRequest) => Promise<PlanImportSummary>;
 }

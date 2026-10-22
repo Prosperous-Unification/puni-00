@@ -22,6 +22,7 @@ import type { PlanRefusal, ProjectRuntime } from '@/modules/project/contract';
 import type { Store } from '@/modules/store';
 
 import { type CellCards } from './cell-card-store';
+import type { GeneralPanelProps } from './general-panel';
 import type { FocusIntent } from './live-editing';
 import { forgetRefusedDrafts } from './live-editing';
 import { NOTHING_TO_REDO, NOTHING_TO_UNDO, refusalSentence } from './plan-refusal';
@@ -58,6 +59,8 @@ export interface WbsTableProps {
    * in the app — see {@link UNNAMED_PROJECT} for what an export says without it.
    */
   projectName?: string;
+  /** Page-owned catalog observation and edit lifecycle. */
+  generalSettings?: Omit<GeneralPanelProps, 'onDirtyChange' | 'onBusyChange'>;
   /**
    * The saved-plan shelf, for the phone's `Plan actions` sheet — and rendered
    * **only** there, in the `cards` arm below.

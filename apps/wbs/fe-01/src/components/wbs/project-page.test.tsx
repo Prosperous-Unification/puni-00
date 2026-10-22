@@ -89,19 +89,29 @@ function fakeProjects(
             id,
             name,
             restricted: false,
+            abbreviation: 'PLAN',
             startDate: null,
             lastOpenedAt: null,
             ownerName: 'kat',
             createdAt: MADE_ON,
           },
         ];
-        const created: CreatedProject = { id, name, restricted: false };
+        const created: CreatedProject = { id, name, restricted: false, abbreviation: 'PLAN' };
         return Promise.resolve(created);
       },
       renameProject(id: string, name: string) {
         renamed.push([id, name]);
         projects = projects.map((p) => (p.id === id ? { ...p, name } : p));
         return Promise.resolve();
+      },
+      setAbbreviation(id: string, abbreviation: string) {
+        const canonical = abbreviation.toUpperCase();
+        if (projects.some((project) => project.id !== id && project.abbreviation === canonical))
+          return Promise.reject(new Error('abbreviation_taken'));
+        projects = projects.map((project) =>
+          project.id === id ? { ...project, abbreviation: canonical } : project,
+        );
+        return Promise.resolve(canonical);
       },
       tree: () =>
         Promise.resolve(
@@ -197,6 +207,7 @@ const TWO: ProjectListEntry[] = [
     id: 'p1',
     name: 'Rewire the shed',
     restricted: false,
+    abbreviation: 'PLAN',
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'kat',
@@ -206,6 +217,7 @@ const TWO: ProjectListEntry[] = [
     id: 'p2',
     name: 'Paint the fence',
     restricted: false,
+    abbreviation: 'PLAN',
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'strip',
@@ -309,6 +321,7 @@ const THREE: ProjectListEntry[] = [
     id: 'p3',
     name: 'Sand the floor',
     restricted: false,
+    abbreviation: 'PLAN',
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'kat',
@@ -735,6 +748,7 @@ describe('opening an imported project', () => {
           id: 'p3',
           name: 'Imported exact',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: null,
           ownerName: 'kat',
@@ -2573,6 +2587,7 @@ describe('the picker searches', () => {
           id: 'p2',
           name: 'Paint the fence',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: 900,
           ownerName: 'strip',
@@ -2582,6 +2597,7 @@ describe('the picker searches', () => {
           id: 'p1',
           name: 'Rewire the shed',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: null,
           ownerName: 'kat',
@@ -3539,5 +3555,62 @@ it.each(['resume_denied', 'resume_ack'] as const)(
       cleanup();
       vi.unstubAllGlobals();
     }
+  },
+);
+
+describe('project settings abbreviation through the real page and table', () => {
+  itDom(
+    'refreshes the selected catalog entry after a canonical abbreviation edit without changing identity',
+    async () => {
+      const api = fakeProjects(
+        TWO.map((project, at) => ({ ...project, abbreviation: at === 0 ? 'SHED' : 'FENCE' })),
+      );
+      const writes = recordCalls(api, 'setAbbreviation');
+      pageWith(api);
+      await selectProject('p1');
+      fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+      const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+      expect(field).toHaveValue('SHED');
+      fireEvent.change(field, { target: { value: 'shed2-main_core12345' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      await waitFor(() => expect(field).toHaveValue('SHED2-MAIN_CORE12345'));
+      expect(writes).toEqual([['p1', 'shed2-main_core12345']]);
+      expect((await api.listProjects()).find((project) => project.id === 'p1')).toMatchObject({
+        id: 'p1',
+        name: 'Rewire the shed',
+        abbreviation: 'SHED2-MAIN_CORE12345',
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+      expect(screen.getByRole('textbox', { name: 'Project abbreviation' })).toHaveValue(
+        'SHED2-MAIN_CORE12345',
+      );
+    },
+  );
+});
+
+itDom(
+  'an occupied abbreviation stays visible in real page settings without changing project identity',
+  async () => {
+    const api = fakeProjects(
+      TWO.map((project, at) => ({ ...project, abbreviation: at === 0 ? 'SHED' : 'FENCE' })),
+    );
+    pageWith(api);
+    await selectProject('p1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+    const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+    fireEvent.change(field, { target: { value: 'fence' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('already uses');
+    });
+    expect(field).toHaveValue('fence');
+    expect((await api.listProjects()).find((project) => project.id === 'p1')).toMatchObject({
+      id: 'p1',
+      name: 'Rewire the shed',
+      abbreviation: 'SHED',
+    });
   },
 );

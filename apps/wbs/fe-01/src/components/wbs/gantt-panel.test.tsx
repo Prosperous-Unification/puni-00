@@ -3866,6 +3866,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     createProject: () => notImplemented('createProject'),
     openProject: () => notImplemented('openProject'),
     renameProject: () => notImplemented('renameProject'),
+    setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
     undo: () => notImplemented('undo'),
     redo: () => notImplemented('redo'),
     setEstimateMethod: () => notImplemented('setEstimateMethod'),

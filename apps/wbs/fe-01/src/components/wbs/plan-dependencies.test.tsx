@@ -1979,7 +1979,8 @@ describe('dependencies in the table — cross-review findings', () => {
     refusingApi({
       listProjects: () =>
         Promise.resolve([projectListEntry({ name: 'P', createdAt: 1_780_000_000_000 })]),
-      createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+      createProject: (name: string) =>
+        Promise.resolve({ id: 'p1', name, restricted: false, abbreviation: 'PLAN' }),
       openProject: () => Promise.resolve(),
       setEstimateMethod: () => Promise.resolve(),
       setStartDate: () => Promise.resolve(),
@@ -1998,6 +1999,7 @@ describe('dependencies in the table — cross-review findings', () => {
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),
       assignPerson: () => Promise.resolve(),
       renameProject: () => Promise.resolve(),
+      setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
       duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
       steps: () => Promise.resolve([DEV]),
       addStep: () => Promise.reject(new Error('not_in_these_tests')),

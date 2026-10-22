@@ -140,6 +140,19 @@ export function usePlanDependencies({
    */
   const dependOn = useCallback(
     (successorId: string, typed: string, draftCapture: DependencyDraftCapture) => {
+      // A numeric list is a submitted gesture: it may partly land even when a
+      // transport response is lost. Clear its captured draft before the writes,
+      // while leaving a newer edit or another row alone. Remote selections use
+      // the separate resolved path, which retains refused drafts for repair.
+      // Proof: removing this guarded clear failed both ambiguous dependency-list
+      // recovery cases and `clears a submitted local list immediately without
+      // erasing a newer draft`: the submitted text remained in the input.
+      // Watched with the guard forced false, 2026-10-22.
+      setDepPicker((current) =>
+        current?.rowId === successorId && draftCapture.matchesDraft(current.typed)
+          ? { ...current, typed: '', highlightId: null }
+          : current,
+      );
       const { found, unknown } = parseDependencies(typed, flat);
       const notThere = unknownMessage(unknown);
       if (found.length === 0) {
@@ -204,12 +217,6 @@ export function usePlanDependencies({
         // asked of the last one is refused`: expected [ Array(1) ] to deeply equal [].
         if (isCurrent() && problems.length > 0)
           pushToast({ kind: 'error', text: problems.join(' ') });
-        if (isCurrent() && problems.length === 0)
-          setDepPicker((current) =>
-            current?.rowId === successorId && draftCapture.matchesDraft(current.typed)
-              ? { ...current, typed: '', highlightId: null }
-              : current,
-          );
       })();
     },
     [busy, commands, flat, isCurrent, pushToast, refreshOrMarkStale, setDepPicker],

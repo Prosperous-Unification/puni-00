@@ -696,3 +696,36 @@ bunx nx run wbs-fe-01:e2e -- e2e/plan-table-review.spec.ts -g 'keeps the
 dependency list inside the window'` on isolated local ports: one pass, exit 0.
 Changed-file ESLint, Prettier and `git diff --check` passed. The fresh full
 CI, host gate and deployment remain pending.
+
+## Task 9.2 — project abbreviation settings slice
+
+The [frozen 26-file manifest](evidence/task-9-settings-sha256.tsv)
+and [settings packet report](evidence/task-9-settings-report.md) record
+the General settings field, project-catalog refresh and typed PATCH response.
+Its mounted modal/page/toolbar suites passed 185/185; four independent
+production-path faults were observed failing their intended tests. Integration
+used a three-way patch; 25 reviewed file hashes and the new component match the
+packet, while `wbs-api.test.ts` also retains root's separate `addStep` fixture
+correction. On the combined tree, four mounted settings/API View files passed
+256/256 and frontend app/spec TypeScript programs passed. This closes only the
+abbreviation clause of 9.2; remote relationship, navigation and optimization
+outcomes remain open.
+
+CI run `39744552119` also exposed two phone Depends-sheet regressions: both
+existing browser cases could not find the named `Rows 020 could wait for` list
+after the shared picker assigned it listbox semantics. Restoring the phone
+list role, while keeping desktop listbox semantics, made those exact two cases
+pass through the Nx browser target on isolated local ports (2/2, exit 0).
+The original CI failures are the adjacent production `Proof:` negative.
+
+## Task 9.1 — combined editor recovery correction
+
+[Correction report](evidence/task-9-combined-frontend-report.md) and
+[three-file hashes](evidence/task-9-combined-frontend-sha256.tsv) preserve the
+numeric-list recovery and scoped active-option assertion. Astra independently
+approved both this packet and the settings slice after configured affected
+View suites passed 237/237 and three production-path mutations failed their
+selected assertions, including the valid 20-character abbreviation boundary.
+The integrated three source hashes match the frozen correction packet. Local
+and remote submission lifetimes remain separate; the full frontend suite and
+final PR CI are pending.

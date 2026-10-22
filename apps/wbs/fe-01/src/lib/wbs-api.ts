@@ -1305,6 +1305,7 @@ export type UndoResult =
  * `lastOpenedAt` the create route has never sent.
  */
 export interface ProjectListEntry {
+  abbreviation: string;
   id: string;
   name: string;
   restricted: boolean;
@@ -1339,6 +1340,7 @@ export interface ProjectListEntry {
  * fuller entry comes from.
  */
 export interface CreatedProject {
+  abbreviation: string;
   id: string;
   name: string;
   restricted: boolean;
@@ -1606,6 +1608,8 @@ export interface ProjectApi {
   openProject(id: string): Promise<void>;
   /** Renames the project. be-01 answers `forbidden` on a restricted one. */
   renameProject(id: string, name: string): Promise<void>;
+  /** Changes the project address prefix and returns its stored canonical spelling. */
+  setAbbreviation(id: string, abbreviation: string): Promise<string>;
   /** One read of the plan — see {@link PlanRead}, which be-01 answers whole. */
   tree(projectId: string): Promise<PlanRead>;
   /** Downloads the complete versioned archival document, independently of table visibility. */
@@ -2738,6 +2742,19 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           headers: auth(token),
         }),
       );
+    },
+    async setAbbreviation(id, abbreviation) {
+      // Proof: returning the requested uppercase string without reading the response
+      // failed `rejects a successful response missing its trusted abbreviation`:
+      // the promise resolved instead of rejecting. Watched 2026-10-22.
+      return jsonBody(
+        patchProjectShape,
+        await client.patchApiProjectsById({
+          params: { id },
+          body: { abbreviation },
+          headers: auth(token),
+        }),
+      ).project.abbreviation;
     },
     async tree(projectId) {
       const tree = jsonBody(

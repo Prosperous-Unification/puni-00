@@ -2567,6 +2567,38 @@ describe('write failure recovery scopes', () => {
     expect(input.value).toBe('');
   });
 
+  it('clears a submitted local list immediately without erasing a newer draft', async () => {
+    const api = fakeApi();
+    const first = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'First',
+    });
+    for (const name of ['Second', 'Successor'])
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
+    const addDependency = api.addDependency.bind(api);
+    let releaseWrite!: () => void;
+    api.addDependency = (...args) =>
+      args[1] === first.id
+        ? new Promise<void>((resolve) => {
+            releaseWrite = resolve;
+          }).then(() => addDependency(...args))
+        : addDependency(...args);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 030');
+    const input = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    fireEvent.change(input, { target: { value: '010, 020' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(input.value).toBe('');
+    fireEvent.change(input, { target: { value: '999' } });
+    await act(async () => {
+      releaseWrite();
+      await Promise.resolve();
+    });
+    await screen.findByRole('button', { name: 'Stop 030 waiting for 010' });
+    expect(input.value).toBe('999');
+  });
+
   it('keeps a dependency success before an ambiguous later failure', async () => {
     const api = fakeApi();
     for (const name of ['First', 'Second', 'Successor']) {
