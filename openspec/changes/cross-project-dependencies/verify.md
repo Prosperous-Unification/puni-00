@@ -4960,3 +4960,27 @@ Production edits are proof comments only. Tasks 7.3/7.4/8.4 remain open; install
 Python/image workers, full matrix, external authoring/activation and canonical
 host gate are outside this bounded packet. See the report for commands, exact
 observed failures and verification limits.
+
+### Reviewed integration checkpoint — 2026-10-23
+
+After independent Astra approval, the generated MCP node/alias parity and
+mounted displaced-stage packets were integrated at `642c3929e` and
+`b4e1f1278`. On the combined branch,
+`bun test apps/wbs/mcp-01/src/connected-command-parity.test.ts --timeout=45000`
+passed **26/26 tests, 188 assertions** (`/tmp/puni-integrated-mcp-node-tests.log`),
+and `bun test apps/wbs/be-01/src/services-connected.db.test.ts --timeout=45000`
+passed **20/20, 278 assertions** (`/tmp/puni-integrated-displaced-tests.log`).
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all` exited 0;
+OpenSpec validated **270/270** before the subsequent dash-only main merge and
+**271/271** after it (`/tmp/puni-openspec-after-main-merge.json`). Both packets
+passed normal commit hooks, and `git diff --check 9ceb50181..b4e1f1278` exited 0. The reviewed head `b4e1f1278` was pushed to draft PR #630; local merge
+`711ece2d6` brings in `origin/main` `52a41bfc4` but has not yet been pushed.
+
+The prior pushed `9ceb50181` CI pixel shards 2/4 and 3/4 exceeded their
+25-minute job cap while tests were still passing (117/150 and 133/163 cases
+logged). Read-only job logs show their Playwright Ubuntu package downloads took
+8m17s and 11m47s at 30–55 kB/s versus about 18–21s on passing shards. No
+assertion failure was observed in those canceled shards; aggregate CI remained
+red. This infrastructure diagnosis does not replace a green exact-head CI run,
+the canonical h2puni gate, installed Python/image acceptance, or the unfinished
+parent task matrices.
