@@ -20,6 +20,7 @@ interface WorkflowJob {
   outputs?: Record<string, string>;
   steps?: WorkflowStep[];
   strategy?: { matrix?: { shard?: number[] } };
+  'timeout-minutes'?: number;
 }
 
 interface Workflow {
@@ -40,6 +41,11 @@ const workflowPath = join(
 const readWorkflow = (): Workflow => Bun.YAML.parse(readFileSync(workflowPath, 'utf8')) as Workflow;
 
 describe('the CI pixels gate', () => {
+  test('keeps a finite budget for dependency setup and complete browser verdicts', () => {
+    const shardJob = readWorkflow().jobs?.['pixels_shard'];
+    expect(shardJob?.['timeout-minutes']).toBe(35);
+  });
+
   test('runs every browser shard and makes the stable pixels check depend on them', () => {
     const workflow = readWorkflow();
     const shardJob = workflow.jobs?.['pixels_shard'];
