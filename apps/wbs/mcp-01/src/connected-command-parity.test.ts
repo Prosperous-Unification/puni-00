@@ -540,7 +540,11 @@ function wholeEndpoint({ projectId, workItemId, scope }: Endpoint) {
   return { projectId, workItemId, scope };
 }
 
-function nodeCommands(fixture: Awaited<ReturnType<typeof openFixture>>, encoded = false) {
+function nodeCommands(
+  fixture: Awaited<ReturnType<typeof openFixture>>,
+  encoded = false,
+  type: 'FS' | 'SS' | 'FF' = 'FS',
+) {
   const remoteStep = fixture.predecessor.steps.at(-1);
   const ownerStep = fixture.successor.steps.at(0);
   if (remoteStep === undefined || ownerStep === undefined) throw new Error('fixture steps missing');
@@ -562,7 +566,7 @@ function nodeCommands(fixture: Awaited<ReturnType<typeof openFixture>>, encoded 
     },
     {
       kind: 'addTypedDependency',
-      type: 'FS',
+      type,
       predecessor,
       successor: { scope: 'node', workItemRef: 'REMOTE.010', stepId: ownerStep },
     },
@@ -774,3 +778,202 @@ test('readiness deadline failure reaps the child before returning', async () => 
     await rescueChild(backend);
   }
 });
+
+async function prepareLongPredecessor(fixture: Awaited<ReturnType<typeof openFixture>>) {
+  const stepId = fixture.predecessor.steps.at(-1);
+  if (stepId === undefined) throw new Error('remote step missing');
+  const reply = await fixture.http(
+    'POST',
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'setEstimate',
+          workItemId: fixture.predecessor.workItemId,
+          stepId,
+          days: { optimistic: 3, realistic: 3, pessimistic: 3 },
+        },
+      ],
+    },
+  );
+  expect(reply.status).toBe(200);
+  return fixture.inspect();
+}
+
+// Proof: forcing binding to FS failed both MCP SS/FF persisted-type assertions;
+// replacing SS zero or FF duration-difference weight with predecessor duration
+// placed the successor at 4→5 instead of 1→2 or 3→4 (2026-10-23).
+// Comparing the FF successor start instead of finish in materialized reconciliation
+// failed the MCP FF command with HTTP 500. Zero nominal FF weight survived because
+// that independent reconciliation restores its finish bound; see bounded evidence.
+for (const transport of ['HTTP', 'MCP'] as const) {
+  for (const encoded of [false, true]) {
+    for (const { type, earliestStart, earliestFinish } of [
+      { type: 'SS', earliestStart: 1, earliestFinish: 2 },
+      { type: 'FF', earliestStart: 3, earliestFinish: 4 },
+      { type: 'FS', earliestStart: 4, earliestFinish: 5 },
+    ] as const) {
+      test(`${transport} node ${encoded ? 'encoded' : 'split'} ${type} preserves type and distinct connected placement`, async () => {
+        const fixture = await openFixture();
+        try {
+          const before = await prepareLongPredecessor(fixture);
+          const commands = nodeCommands(fixture, encoded, type);
+          const reply = await submit(fixture, transport, commands);
+          expect(reply.status).toBe(200);
+          const snapshot = await fixture.inspect();
+          const { staged, relationship, journal } = snapshot;
+          if (staged === null || relationship === null || journal === null)
+            throw new Error('typed node commit missing');
+          const predecessor = {
+            ...wholeEndpoint(fixture.predecessor),
+            scope: 'node',
+            stepId: fixture.predecessor.steps.at(-1),
+          };
+          const successor = {
+            projectId: fixture.successor.projectId,
+            workItemId: staged.id,
+            scope: 'node',
+            stepId: fixture.successor.steps.at(0),
+          };
+          expect(JSON.parse(reply.text)).toMatchObject({
+            results: [
+              { index: 0, id: staged.id },
+              { index: 1 },
+              { index: 2 },
+              { index: 3, id: relationship.id },
+            ],
+          });
+          expect(staged).toMatchObject({ projectId: successor.projectId, revision: 3 });
+          expect(relationship).toMatchObject({
+            predecessor_project_id: predecessor.projectId,
+            predecessor_work_item_id: predecessor.workItemId,
+            predecessor_scope: 'node',
+            predecessor_step_id: predecessor.stepId,
+            successor_project_id: successor.projectId,
+            successor_work_item_id: staged.id,
+            successor_scope: 'node',
+            successor_step_id: successor.stepId,
+            type,
+          });
+          expect(snapshot.localRelationships).toEqual([]);
+          expect(snapshot.journalCount).toBe(before.journalCount + 1);
+          expect(journal.payload).toContain(staged.id);
+          expect(journal.payload).toContain(relationship.id);
+          expect(journal.payload).toContain(`"type":"${type}"`);
+          expect(journal.payload).not.toContain('REMOTE.010');
+          expect(JSON.parse(journal.preconditions)).toMatchObject({
+            externalRevisions: {
+              from: [
+                {
+                  projectId: predecessor.projectId,
+                  workItemId: predecessor.workItemId,
+                  revision: 1,
+                },
+              ],
+              expected: [
+                {
+                  projectId: predecessor.projectId,
+                  workItemId: predecessor.workItemId,
+                  revision: 2,
+                },
+              ],
+            },
+          });
+          const reading = await fixture.call('getApiProjectsByIdWork-items', {
+            id: successor.projectId,
+          });
+          expect(reading.isError).not.toBe(true);
+          const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+          // Remote's selected second node is 1→4; successor is one day.
+          expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+            revision: 3,
+            schedule: { earliestStart, earliestFinish },
+          });
+          expect(tree).toMatchObject({
+            scheduleError: null,
+            connectedDependencies: [
+              {
+                id: relationship.id,
+                type,
+                predecessor: { endpoint: predecessor, revision: 2 },
+                successor: { endpoint: successor, revision: 3 },
+              },
+            ],
+          });
+          const direct = await fixture.http(
+            'GET',
+            `/api/projects/${successor.projectId}/work-items`,
+          );
+          expect(direct.status).toBe(200);
+          expect(direct.body).toEqual(tree);
+          if (transport === 'MCP')
+            expect(fixture.forwarded.find(({ method }) => method === 'POST')).toEqual({
+              url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
+              method: 'POST',
+              headers: {
+                authorization: `Bearer ${fixture.key}`,
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({ commands }),
+            });
+          expect(snapshot.pushes.length).toBeGreaterThan(before.pushes.length);
+        } finally {
+          await fixture.close();
+        }
+      });
+    }
+  }
+  test(`${transport} node without external edge keeps the staged successor at 0→1`, async () => {
+    const fixture = await openFixture();
+    try {
+      await prepareLongPredecessor(fixture);
+      const reply = await submit(fixture, transport, nodeCommands(fixture).slice(0, 3));
+      expect(reply.status).toBe(200);
+      const snapshot = await fixture.inspect();
+      if (snapshot.staged === null) throw new Error('staged control missing');
+      expect(snapshot.relationship).toBeNull();
+      const reading = await fixture.call('getApiProjectsByIdWork-items', {
+        id: fixture.successor.projectId,
+      });
+      expect(reading.isError).not.toBe(true);
+      const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+      expect(tree.workItems.find(({ id }) => id === snapshot.staged?.id)).toMatchObject({
+        schedule: { earliestStart: 0, earliestFinish: 1 },
+      });
+    } finally {
+      await fixture.close();
+    }
+  });
+  // Proof: switching ordinary compose authoring to active made both MCP SS/FF
+  // dormant refusals return successful command results instead of HTTP 409 (2026-10-23).
+  for (const type of ['SS', 'FF'] as const) {
+    for (const fault of ['later-command', 'dormant'] as const) {
+      test(`${transport} node ${type} ${fault} preserves the prepared database and pushes`, async () => {
+        const fixture = await openFixture(fault !== 'dormant');
+        try {
+          const before = await prepareLongPredecessor(fixture);
+          const commands: Record<string, unknown>[] = nodeCommands(fixture, false, type);
+          if (fault === 'later-command')
+            commands.push({
+              kind: 'patchWorkItem',
+              workItemId: 'missing-row',
+              patch: { name: 'Invalid' },
+            });
+          const reply = await submit(fixture, transport, commands);
+          const status = fault === 'dormant' ? 409 : 404;
+          if (transport === 'HTTP') expect(reply.status).toBe(status);
+          else expect(reply.text).toContain(`HTTP ${String(status)}`);
+          expect(reply.text).toContain(`"at":${fault === 'dormant' ? '3' : '4'}`);
+          expect(reply.text).toContain(
+            fault === 'dormant' ? 'external_dependencies_inactive' : 'patchWorkItem',
+          );
+          const after = await fixture.inspect();
+          expect(after.effects).toEqual(before.effects);
+          expect(after.pushes).toEqual(before.pushes);
+        } finally {
+          await fixture.close();
+        }
+      });
+    }
+  }
+}

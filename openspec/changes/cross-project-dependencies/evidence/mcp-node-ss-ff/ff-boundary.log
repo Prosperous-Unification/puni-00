@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+2043 |             if (errorData.elicitations) {
+2044 |                 return new UrlElicitationRequiredError(errorData.elicitations, message);
+2045 |             }
+2046 |         }
+2047 |         // Default to generic McpError
+2048 |         return new McpError(code, message, data);
+                      ^
+McpError: MCP error -32603: postApiProjectsByIdCommands: be-01 answered unexpected HTTP 500 from POST /api/projects/{id}/commands.
+ code: -32603,
+ data: undefined,
+
+      at fromError (/home/df/wd/puni/puni-00/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js:2048:16)
+      at _onresponse (/home/df/wd/puni/puni-00/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js:490:36)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js:234:22)
+      at send (/home/df/wd/puni/puni-00/node_modules/@modelcontextprotocol/sdk/dist/esm/inMemory.js:40:34)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js:412:42)
+(fail) MCP node split FF preserves type and distinct connected placement [3702.10ms]
+
+ 0 pass
+ 47 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [6.41s]
