@@ -360,6 +360,9 @@ export function createLivePlanStore(
       // Proof: no-op transaction methods observed failed instead of idle in `owned isolated real selection excludes a rival publication`.
       // Proof: v11-export/observation-transaction.txt: no-op BEGIN exposed Next remote in the first connected export.
       // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
+      // Proof: no-op owned transaction methods made mounted execution observation
+      // mix old FS completion with new claim/occupancy and admit later SS attempts;
+      // both returned HTTP 200 before first-response equality failed (2026-10-23).
       transaction.begin();
       try {
         const captured = await read(connection.db, lifetime);

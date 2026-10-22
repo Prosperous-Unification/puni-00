@@ -4684,9 +4684,11 @@ records baseline failure at the unchanged 512 MiB Job limit, success at 1 GiB
 with about 728 MiB RSS, and success after a dependency-free replay vocabulary
 import at 512 MiB with about 15 MiB RSS. The four capability strings/order and
 existing core reexports remain unchanged. Astra independently reviewed the
-source, 176/176 focused tests and both watched negative mutations. The full
-k3s rehearsal, complete journal footprint, CI gate and exact-SHA h2puni gate
-remain unverified for this fix; task 11.2 stays open.
+source, 176/176 focused tests and both watched negative mutations. CI run
+`39852151649` at exact SHA `a9f022563877f43da07d066dda7531e28c835da9`
+passed its k3s rehearsal job `120082865697` after the fix. The complete journal
+footprint, remaining CI gates and exact-SHA h2puni gate remain unverified;
+task 11.2 stays open.
 
 ### Bounded task 4.4 promotion lifecycle coverage (2026-10-22)
 
@@ -4717,3 +4719,16 @@ suite, **533/533 tests and 3,014 assertions**, plus lint and typecheck. It
 proves bounded whole-to-whole FS transport with machine-key authority. Delegated
 OAuth, the remaining endpoint/type/history matrix, production activation and
 task 3.2 remain open. No host gate ran for this packet.
+
+### Bounded task 6.3 execution observation coherence (2026-10-23)
+
+The [mounted execution observation report](evidence/task-6-3-execution-observation/report.md)
+proves two GET startable reads use one owned snapshot. The FS fault returned
+HTTP 200 with old completion and new claim/occupancy; the SS fault admitted
+later attempt facts instead of retaining the old snapshot. Both assertions
+failed with transaction methods replaced by no-ops and passed after restoration.
+Astra independently approved the packet after fixing a composed-source teardown
+leak: the final two-case and lifetime suites passed 13/13 (125 assertions), and
+the old teardown left four deleted SQLite descriptors in the reviewer's probe.
+The seven unchanged baseline fixture failures are tracked separately. Broader
+readiness coverage, activation and task 6.3 remain open.
