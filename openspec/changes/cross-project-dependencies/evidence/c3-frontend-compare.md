@@ -41,7 +41,9 @@ wrapper failure and no source diagnostic. A retry capped at 768 MiB failed with
 `FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory`.
 Scoped lint separately caught import sorting, unsafe RequestInfo stringification
 in the test and a redundant source ternary; those were fixed. The full target
-was retried at 2048 MiB. Final lint/format/hook outcomes are recorded below.
+was retried at 2048 MiB and failed after 1m47s with `Ineffective mark-compacts
+near heap limit` / JavaScript heap out of memory. A final retry at 8192 MiB
+passed. Final lint/format/hook outcomes are recorded below.
 
 ## Production-path negative proofs
 
@@ -76,6 +78,14 @@ task 8.3 stays unchecked.
 
 ## Final bounded validation
 
+`NODE_OPTIONS=--max-old-space-size=8192 NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint`:
+PASS, full configured frontend lint target. The earlier failed lint attempts are
+recorded above; no source diagnostic remains.
+
 All eight changed TypeScript files pass scoped ESLint. Final Nx frontend
 typecheck passes after the complete source/test changes. `git diff --check`
-passes. Final format and normal commit hooks are checked as part of delivery.
+passes. Prettier check passes across all twelve changed files. Normal commit
+hooks passed lint, format, plaintext-secrets and private-nesting. Migration and
+doc-cap hooks skipped because no applicable paths changed. Tool-wiki reported
+`inactive`, `certified:false` because external activation is not provisioned;
+this is not a claim of Tool Wiki certification.
