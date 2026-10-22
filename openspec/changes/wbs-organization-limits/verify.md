@@ -313,6 +313,18 @@ coordinator's scratch directory `limits-shots/`: populated, exceeded (1280 and 3
 empty resources under the deployment default, read failure; none scrolls sideways. 6.3 (by
 eye on dev) stays open.
 
+Fresh local results, all with `env -u CLAUDECODE`, on the laptop, after merging
+`plan/wbs-organization-limits` at `75144fc8c`:
+
+| Command                                                                                                                                                                                                | Result                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- |
+| `bunx vitest run` on the organization components, the three limit word suites, `plan-import-words`, the directory page, `modules/directory`, `modules/directory-management`, `wbs-api.test.ts` (fe-01) | 22 files, 422 pass         |
+| `bunx vitest run src/test-tiers.test.ts src/node-tier.test.ts vitest-budget.test.ts vitest.view-level.test.ts` (fe-01)                                                                                 | 12 pass                    |
+| `bunx nx run-many -t typecheck,lint -p wbs-fe-01 --skip-nx-cache`                                                                                                                                      | succeeded                  |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                                                                                                        | 897 pass, 0 fail, 47 files |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                            | exit 0                     |
+| `bunx openspec validate --all --json`                                                                                                                                                                  | 267 items, 267 passed      |
+
 ## Failure proofs
 
 | Check                                                    | Fault injected                                                                                | Observed failing test                                                                                                                                                                                                                                                         | Result  |
