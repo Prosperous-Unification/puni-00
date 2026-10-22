@@ -53,13 +53,13 @@ provider access and acceptance environments remain constrained resources.
 
 ## Milestones and what becomes possible
 
-| Milestone                                             | Packages              | Outcome and exit gate                                                                                                                                                                                                                            | Engineering effort               |
-| ----------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| M0 — Establish the operating baseline                 | W01–W05               | Named service/owner contracts; scheduled backups and restore proven; production provenance reconciled; merge checks enforced; current estate/spec evidence available. Unresolved recovery, identity or enforcement findings keep this gate open. | 8–20 days                        |
-| M1 — Operate the infrastructure through its lifecycle | W06–W11, W16          | Standalone and cluster node lifecycle, Hetzner and AWS resource lifecycle, platform dependencies, credential lifecycle and complete restore coverage proven in the declared environments.                                                        | 50–100 days                      |
-| M2 — Deliver and measure changes safely               | W12–W15, W17–W21, W24 | Reusable CI/CD and app starter/auth; observable health and delivery cost; client boundaries and abuse behavior qualified; agent throughput measured; OpenClaw installation and authority packaged.                                               | 65–129 days                      |
-| M3 — Complete the three client journeys               | W22, W23, W25         | One new app launched, one existing app measurably scaled, and one assistant operated/recovered/offboarded; each has client acceptance, time/cost records and handover.                                                                           | 16–32 days                       |
-| M4 — Prove repeatability and ongoing service          | W26–W27               | All 12 journey/model cells qualified, second-operator repeatability demonstrated, service observation window and complete criteria review passed.                                                                                                | 10–20 days plus observation time |
+| Milestone                                             | Packages                   | Outcome and exit gate                                                                                                                                                                                                                            | Engineering effort               |
+| ----------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| M0 — Establish the operating baseline                 | W01–W05                    | Named service/owner contracts; scheduled backups and restore proven; production provenance reconciled; merge checks enforced; current estate/spec evidence available. Unresolved recovery, identity or enforcement findings keep this gate open. | 8–20 days                        |
+| M1 — Operate the infrastructure through its lifecycle | W06–W11, W16               | Standalone and cluster node lifecycle, Hetzner and AWS resource lifecycle, platform dependencies, credential lifecycle and complete restore coverage proven in the declared environments.                                                        | 50–100 days                      |
+| M2 — Deliver and measure changes safely               | W12–W15, W17–W21, W24, W28 | Reusable CI/CD and app starter/auth; observable health and delivery cost; client boundaries and abuse behavior qualified; agent throughput measured and agent coordination executable; OpenClaw installation and authority packaged.             | 65–129 days                      |
+| M3 — Complete the three client journeys               | W22, W23, W25              | One new app launched, one existing app measurably scaled, and one assistant operated/recovered/offboarded; each has client acceptance, time/cost records and handover.                                                                           | 16–32 days                       |
+| M4 — Prove repeatability and ongoing service          | W26–W27                    | All 12 journey/model cells qualified, second-operator repeatability demonstrated, service observation window and complete criteria review passed.                                                                                                | 10–20 days plus observation time |
 
 Milestones group deliverables; they are **not five sequential queues**. M1 and M2
 work can overlap according to the package dependency table. AWS is mandatory for
@@ -93,35 +93,36 @@ Dependencies below are required **before accepting the package**. Reading, desig
 and isolated fixtures may begin earlier if they do not invent an unresolved contract.
 Numbers are preliminary engineering-day ranges, not measured execution times.
 
-| ID  | Work                                                          | Depends on                             | Accountable role              | Engineer-days |
-| --- | ------------------------------------------------------------- | -------------------------------------- | ----------------------------- | ------------- |
-| W01 | Fix service scope, targets, delivery models and owners        | —                                      | Service owner                 | 2–4           |
-| W02 | Diagnose and restore scheduled backup protection              | —                                      | Recovery operator             | 1–5           |
-| W03 | Reconcile and prove production release identity               | W02, W04 if replacement is necessary   | Release/build owner           | 1–3           |
-| W04 | Enforce merge gates and reliable CI verdicts                  | —                                      | Repository administrator      | 2–4           |
-| W05 | Refresh estate evidence and reconcile existing work           | —                                      | Platform/knowledge owners     | 2–4           |
-| W06 | Manage the full node fleet, including standalone hosts        | W01, W05                               | Fleet owner                   | 8–16          |
-| W07 | Qualify Hetzner provisioning and infrastructure state         | W01, W05                               | Cloud owner                   | 5–10          |
-| W08 | Qualify k3s node maintenance, expansion and recovery          | W06, W07                               | Fleet owner                   | 6–12          |
-| W09 | Complete platform dependencies and service onboarding         | W07, W08                               | Platform owner                | 6–12          |
-| W10 | Cover every persistent store with protected recovery          | W02, W06, W09, W16                     | Recovery owner                | 8–16          |
-| W11 | Implement and qualify AWS resource lifecycle                  | W01, W05, W06, W16                     | Cloud owner                   | 12–24         |
-| W12 | Qualify reusable build, promotion and recovery pipelines      | W03, W04, W09, W16                     | Delivery owner                | 10–20         |
-| W13 | Connect health, logs, traces and alerts to real behavior      | W01, W05, W09                          | Observability owner           | 6–12          |
-| W14 | Collect delivery, cost and human-effort metrics               | W01, W03, W04                          | Delivery operations owner     | 6–12          |
-| W15 | Qualify identity, organization and client isolation           | W01, W05, W09, W12, W16                | Security/application owners   | 7–14          |
-| W16 | Manage secrets, access, retention and client exit             | W01, W05                               | Security/platform owners      | 5–10          |
-| W17 | Qualify abuse protection and resource contention              | W09, W13, W15                          | Security/performance owners   | 4–8           |
-| W18 | Package auth and prove second-application adoption            | W15, W16                               | Shared-module owner           | 8–15          |
-| W19 | Deliver a versioned client starter and upgrade path           | W04, W09, W12, W18, W20                | Developer-experience owner    | 6–12          |
-| W20 | Complete a modularity and artifact-quality pilot              | W01, W04                               | Architecture/knowledge owners | 6–12          |
-| W21 | Measure parallel-agent delivery and set supported concurrency | W14, W19, W20                          | Delivery operations owner     | 6–12          |
-| W22 | Accept the new-application journey                            | W10, W12, W13, W14, W15, W17, W18, W19 | Client/application owner      | 2–4           |
-| W23 | Accept the existing-application scaling journey               | W08, W10, W12, W13, W14, W15, W17      | Client/performance owner      | 8–16          |
-| W24 | Package OpenClaw installation and authority                   | W01, W06, W16; telemetry slice below   | Assistant/security owners     | 6–12          |
-| W25 | Accept assistant operation, recovery and handover             | W14, W24; recovery/abuse slices below  | Client/assistant owner        | 6–12          |
-| W26 | Qualify all delivery models and repeat independently          | W11, W21, W22, W23, W25                | Service/acceptance owners     | 8–16          |
-| W27 | Observe ongoing operation and close every criterion           | W26                                    | Service owner                 | 2–4           |
+| ID  | Work                                                                 | Depends on                             | Accountable role              | Engineer-days |
+| --- | -------------------------------------------------------------------- | -------------------------------------- | ----------------------------- | ------------- |
+| W01 | Fix service scope, targets, delivery models and owners               | —                                      | Service owner                 | 2–4           |
+| W02 | Diagnose and restore scheduled backup protection                     | —                                      | Recovery operator             | 1–5           |
+| W03 | Reconcile and prove production release identity                      | W02, W04 if replacement is necessary   | Release/build owner           | 1–3           |
+| W04 | Enforce merge gates and reliable CI verdicts                         | —                                      | Repository administrator      | 2–4           |
+| W05 | Refresh estate evidence and reconcile existing work                  | —                                      | Platform/knowledge owners     | 2–4           |
+| W06 | Manage the full node fleet, including standalone hosts               | W01, W05                               | Fleet owner                   | 8–16          |
+| W07 | Qualify Hetzner provisioning and infrastructure state                | W01, W05                               | Cloud owner                   | 5–10          |
+| W08 | Qualify k3s node maintenance, expansion and recovery                 | W06, W07                               | Fleet owner                   | 6–12          |
+| W09 | Complete platform dependencies and service onboarding                | W07, W08                               | Platform owner                | 6–12          |
+| W10 | Cover every persistent store with protected recovery                 | W02, W06, W09, W16                     | Recovery owner                | 8–16          |
+| W11 | Implement and qualify AWS resource lifecycle                         | W01, W05, W06, W16                     | Cloud owner                   | 12–24         |
+| W12 | Qualify reusable build, promotion and recovery pipelines             | W03, W04, W09, W16                     | Delivery owner                | 10–20         |
+| W13 | Connect health, logs, traces and alerts to real behavior             | W01, W05, W09                          | Observability owner           | 6–12          |
+| W14 | Collect delivery, cost and human-effort metrics                      | W01, W03, W04                          | Delivery operations owner     | 6–12          |
+| W15 | Qualify identity, organization and client isolation                  | W01, W05, W09, W12, W16                | Security/application owners   | 7–14          |
+| W16 | Manage secrets, access, retention and client exit                    | W01, W05                               | Security/platform owners      | 5–10          |
+| W17 | Qualify abuse protection and resource contention                     | W09, W13, W15                          | Security/performance owners   | 4–8           |
+| W18 | Package auth and prove second-application adoption                   | W15, W16                               | Shared-module owner           | 8–15          |
+| W19 | Deliver a versioned client starter and upgrade path                  | W04, W09, W12, W18, W20                | Developer-experience owner    | 6–12          |
+| W20 | Complete a modularity and artifact-quality pilot                     | W01, W04                               | Architecture/knowledge owners | 6–12          |
+| W21 | Measure parallel-agent delivery and set supported concurrency        | W14, W19, W20                          | Delivery operations owner     | 6–12          |
+| W28 | Make agent coordination executable: identity, admission, termination | W04, W14, W16                          | Dash owner + security lead    | 5–10          |
+| W22 | Accept the new-application journey                                   | W10, W12, W13, W14, W15, W17, W18, W19 | Client/application owner      | 2–4           |
+| W23 | Accept the existing-application scaling journey                      | W08, W10, W12, W13, W14, W15, W17      | Client/performance owner      | 8–16          |
+| W24 | Package OpenClaw installation and authority                          | W01, W06, W16; telemetry slice below   | Assistant/security owners     | 6–12          |
+| W25 | Accept assistant operation, recovery and handover                    | W14, W24; recovery/abuse slices below  | Client/assistant owner        | 6–12          |
+| W26 | Qualify all delivery models and repeat independently                 | W11, W21, W22, W23, W25                | Service/acceptance owners     | 8–16          |
+| W27 | Observe ongoing operation and close every criterion                  | W26                                    | Service owner                 | 2–4           |
 
 W24 may use W13's accepted **host/application telemetry slice** without waiting for
 cluster telemetry. W25 similarly needs W10's **assistant-state recovery slice** and

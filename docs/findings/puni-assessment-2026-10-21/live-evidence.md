@@ -197,3 +197,55 @@ series were present at those scrapes. No application load was generated.
 - Longitudinal service targets, delivery throughput, change failure rates and operator effort.
 
 These are explicit assessment limits and follow-up evidence needs, not passing checks.
+
+## Rerun refresh — 2026-10-22
+
+Read-only observations on 2026-10-22, approximately 08:40–09:05 UTC, when the
+assessment was rerun against the scope that gained [Agent swarm
+organization](../../../puni-assessment.md#agent-swarm-organization). Local checkout
+and GitHub `main` were `d43f4176a18ff32b22161f478eb02e62ae328667`. The three current
+findings of the first run were re-read; the methods and privacy limits above apply.
+
+| Finding                | 2026-10-21                                                       | 2026-10-22 read                                                                                                                                                                                                                                          | State     |
+| ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| SQLite backups         | Hourly `sqlite-backup.service` failing, cause unknown            | Still failing every hour through `08:18:10Z`: `Main process exited, code=exited, status=1/FAILURE`. The journal now shows the failing phase: `flock` reports `Command failed: scp h2puni:/home/puni1/backup-staging/<stamp>-wbs-dev-<pid>.partial.db …`. | Unchanged |
+| Production provenance  | State files `0afc7775…` for all tiers; containers up eight weeks | Same three state files read `0afc77758131bc4257dcaa78f0b26bc97ffd92dc`; `be-01-green`, `gw-01-green`, `fe-01-blue` still up eight weeks; dev containers up six to seven weeks.                                                                           | Unchanged |
+| Main branch protection | `protected:false`, HTTP 404 on protection, one tag ruleset       | `protected:false` at `d43f4176a…`, HTTP 404 `Branch not protected`, the only active ruleset is still `twilight-burokrat release tags` (id 23794440).                                                                                                     | Unchanged |
+
+The backup read identifies the failing step, not the cause: the pull from the h2puni
+staging directory fails. Whether the partial file is missing, renamed, unreadable or
+blocked by the transport was not determined, and no snapshot, upload or retention state
+was inspected. W02 remains open.
+
+### Delivery flow, seven days to 2026-10-22
+
+Read with `gh pr list --state merged --search "merged:>=2026-10-15T08:49Z"`, `gh run list
+--branch main` and `git log origin/main --since='7 days ago'`. These are flow counts for
+the swarm-organization assessment; they are not accepted outcomes in the sense of
+[the delivery metric contract](delivery.md#modularity-artifacts-and-parallel-agent-delivery).
+
+| Measure                             | Observed                                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Pull requests merged                | 111; per day 15, 21, 13, 1, 9, 18, 20, 14                                                          |
+| PR author and merger                | `dany-fedorov` for all 111, both roles                                                             |
+| Open-to-merge time                  | median 4.8 h, 90th percentile 23.0 h                                                               |
+| PR size, additions plus deletions   | median 1,089 lines, 90th percentile 11,898, maximum 216,863                                        |
+| Branch families                     | `feat/` 32, `docs/` 18, `fix/` 6, `plan/` 2; the rest unprefixed                                   |
+| Titles containing `fix` or `revert` | 19 of 111; four `revert` commits on main in 30 days                                                |
+| `ci` workflow on main               | 29 runs, 26 success, 3 failure; `Push on main` 28 of 28 success                                    |
+| Non-merge commits on main           | 456: author `Dany Fedorov` 445, `dany-fedorov` 8, `Claire` 2, `OpenClaw Queue Worker` 1            |
+| Agent trailers on those commits     | `Co-Authored-By: Claude Fable 5.1` 114, `Claude Opus 5.5` 56; 155 of the last 300 carry no trailer |
+
+What these establish: a high and sustained merge rate through one GitHub identity, agent
+authorship that is only partly attributable from git metadata, and a small but non-zero
+revert and CI-failure rate. They do not establish accepted business outcomes, rework
+cost, operator minutes or a throughput gain per added agent.
+
+### Not read in the rerun
+
+The dev WBS could not be queried: the `wbs-dev` MCP session was revoked by the
+credential-epoch run on dev at `2026-10-22T02:56Z` (recorded in the private plan
+repository) and needs the operator to re-authenticate. Live claims, agent persons,
+occupancy and attempt rows on dev were therefore not re-read; the 2026-10-21 bound-claim
+proof in the private plan repository is cited as dated evidence, not refreshed.
+Everything listed under "What remains unverified" above still stands.
