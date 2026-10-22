@@ -7,7 +7,7 @@ import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
-import { InMemoryMcpOAuth } from './oauth';
+import { McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { organizationAuthority } from './organization-authority';
 import { createServer } from './server';
@@ -38,7 +38,7 @@ let upstreamKeys: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
 let backend: Bun.Subprocess<'ignore', 'pipe', 'inherit'> | undefined;
 let beUrl = '';
-let oauth: InMemoryMcpOAuth;
+let oauth: McpOAuthServer;
 let handle: (request: Request) => Promise<Response>;
 /** Who the fake provider signs the next login and refresh as, and for how long. */
 const login = { subject: 'auth0|dany', lifetimeSeconds: 900 };
@@ -100,7 +100,7 @@ beforeAll(async () => {
     issuer: ISSUER,
     jwksUri: new URL(jwksUrl),
   });
-  oauth = new InMemoryMcpOAuth(
+  oauth = new McpOAuthServer(
     config,
     {
       authorizationUrl: (input) =>
