@@ -78,7 +78,7 @@ publish exactly one successor`: child `stdin.flush()` returned `EPERM` at line 1
 ## Watched fault evidence
 
 [Machine evidence](dormant-authority-mutations-20261022.json) retains each selected
-test, mutation identity, failing exit and observed summary for 56 injections.
+test, mutation identity, failing exit and observed summary for 59 injections.
 Each mutation was restored immediately before continuing. Six initial trigger
 predicate injections were repeated for the complete INSERT/UPDATE/DELETE matrix.
 The original selected names predate that test-name expansion; the final matrix
@@ -101,3 +101,34 @@ No h2/h4 exact-SHA gate, full build, fresh frozen install, live deployment,
 activation, startup admission, gateway/MCP handshake, participant drainage,
 semantic downgrade recovery or recovery/removal command was run or implemented.
 The final integrated branch still requires its isolated exact-SHA gate and review.
+
+## Astra P2 follow-up: numeric JSON protocol version
+
+Full review: `/tmp/puni-dependency-dormant-review.md`, reviewing `5ab49ed70`.
+The reviewer demonstrated that SQLite converts JSON true to SQL integer 1, so
+the former value-only predicate admitted a receipt rejected by the strict parser.
+
+Before changing the predicate, production repository INSERT, UPDATE and DELETE
+negatives with `json_set(receipt,'$.version',json('true'))` all failed because
+the writes resolved. Log: `/tmp/dependency-version-boolean-red.log`. Each case
+uses the existing full side-effect snapshot comparison after the refusal.
+
+The trigger predicate and its exact inspection mirror now require JSON type
+`integer` or `real` as well as numeric value 1. Positive real numeric `1.0` and
+`1e0` cases exercise repository insert/update/delete and exact adapter inspection,
+preserving the TypeScript parser's numeric semantics. The contract test also
+explicitly rejects boolean version true.
+
+Removing only the new type predicate from each action's trigger independently
+made its selected boolean-version repository test fail because its write
+resolved; all three mutations were restored. The three additional machine
+records name the selected test, observation and removed predicate. Initial
+restored focused run: **113 passed, 0 failed, 183 assertions**, two files.
+Log: `/tmp/dependency-version-boolean-green.log`. Final focused plus external
+storage and abbreviation migration regression command passed **157 tests,
+0 failures, 374 assertions**, four files. Log:
+`/tmp/dependency-version-type-final-tests.log`. Changed-file ESLint, contracts
+typecheck and migration lint passed (exit 0). Formatting, plaintext-secrets and
+private-nesting checks were rerun before the narrow follow-up commit. No full
+project gates or host gate were rerun. Task 10.1 remains unchecked; activation,
+startup, participant fencing and recovery scope remain open.

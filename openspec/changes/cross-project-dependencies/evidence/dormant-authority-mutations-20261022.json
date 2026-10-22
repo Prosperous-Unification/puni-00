@@ -335,5 +335,26 @@
     "test": "unknown marker state even",
     "exit": 1,
     "summary": "     at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:383:60)\n(fail) refuses unknown marker state even with an exact receipt [121.98ms]\n\n 0 pass\n 78 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [2.51s]\n"
+  },
+  {
+    "fault": "insert-json-version-type",
+    "test": "independent insert writer.*version.*true",
+    "exit": 1,
+    "summary": "e);\n231 |   throw new Error('expected native SQLite failure');\n                  ^\nerror: expected native SQLite failure\n      at nativeMessage (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:231:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:266:14)\n(fail) independent insert writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [163.05ms]\n\n 0 pass\n 83 filtered out\n 1 fail\nRan 1 test across 1 file. [2.65s]\n",
+    "note": "Removed only this action's json_type numeric predicate; receipt version true then made the production repository write resolve instead of producing the native refusal."
+  },
+  {
+    "fault": "update-json-version-type",
+    "test": "independent update writer.*version.*true",
+    "exit": 1,
+    "summary": "e);\n231 |   throw new Error('expected native SQLite failure');\n                  ^\nerror: expected native SQLite failure\n      at nativeMessage (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:231:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:266:14)\n(fail) independent update writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [177.71ms]\n\n 0 pass\n 83 filtered out\n 1 fail\nRan 1 test across 1 file. [2.78s]\n",
+    "note": "Removed only this action's json_type numeric predicate; receipt version true then made the production repository write resolve instead of producing the native refusal."
+  },
+  {
+    "fault": "delete-json-version-type",
+    "test": "independent delete writer.*version.*true",
+    "exit": 1,
+    "summary": "e);\n231 |   throw new Error('expected native SQLite failure');\n                  ^\nerror: expected native SQLite failure\n      at nativeMessage (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:231:13)\n      at <anonymous> (/tmp/puni-dependency-dormant/libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts:266:14)\n(fail) independent delete writer refuses invalid authority: UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true')) [199.77ms]\n\n 0 pass\n 83 filtered out\n 1 fail\nRan 1 test across 1 file. [2.86s]\n",
+    "note": "Removed only this action's json_type numeric predicate; receipt version true then made the production repository write resolve instead of producing the native refusal."
   }
 ]

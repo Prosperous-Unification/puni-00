@@ -244,6 +244,7 @@ for (const action of ['insert', 'update', 'delete'] as const) {
     "UPDATE cross_project_dependency_activation_receipt SET receipt='{}'",
     "UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.protocol','wrong')",
     "UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2)",
+    "UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true'))",
   ]) {
     it(`independent ${action} writer refuses invalid authority: ${fault}`, async () => {
       seed();
@@ -384,3 +385,23 @@ it('refuses unknown marker state even with an exact receipt', () => {
     'invalid dependency activation marker',
   );
 });
+
+for (const version of ['1.0', '1e0']) {
+  it(`accepts numeric JSON version ${version} for independent writes`, async () => {
+    seed();
+    enable();
+    connection.db.run(
+      `UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('${version}'))`,
+    );
+    expect(inspectDependencyActivation(connection.db)).toEqual({
+      state: 'ENABLED',
+      receipt: RECEIPT,
+    });
+    const repository = new TypedDependencyRepository(connection.db, OPEN);
+    await repository.add(link(), { at: 2, by: 'u' });
+    await repository.update({ ...link(), type: 'SS' }, { at: 3, by: 'u' });
+    expect((await repository.listByProject('b')).at(0)?.type).toBe('SS');
+    await repository.remove('edge', { at: 4, by: 'u' });
+    expect(await repository.listByProject('b')).toEqual([]);
+  });
+}

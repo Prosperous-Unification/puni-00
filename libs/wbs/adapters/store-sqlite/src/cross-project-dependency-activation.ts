@@ -16,12 +16,13 @@ const RECEIPT = `CREATE TABLE cross_project_dependency_activation_receipt (
 const ACTIONS = ['insert', 'update', 'delete'] as const;
 
 function triggerSql(action: (typeof ACTIONS)[number]): string {
+  // Proof: removing each action's numeric JSON type predicate admitted true in its repository negative (2026-10-22, Astra P2).
   return `CREATE TRIGGER external_dependency_admit_${action}
 BEFORE ${action.toUpperCase()} ON external_dependency
 WHEN (SELECT count(*) FROM cross_project_dependency_activation) <> 1
  OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation WHERE id = 1 AND state = 'ENABLED')
  OR (SELECT count(*) FROM cross_project_dependency_activation_receipt) <> 1
- OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_extract(receipt,'$.version') = 1)
+ OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_type(receipt,'$.version') IN ('integer','real') AND json_extract(receipt,'$.version') = 1)
 BEGIN
  SELECT RAISE(ABORT, 'external_dependencies_inactive');
 END`;

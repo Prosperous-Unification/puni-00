@@ -19,6 +19,7 @@ it('accepts exact attributed receipt', () => {
 for (const [field, value] of [
   ['protocol', 'wrong'],
   ['version', 2],
+  ['version', true],
   ['activationId', ' '],
   ['databaseIdentity', ''],
   ['candidateImage', 'wbs:latest'],

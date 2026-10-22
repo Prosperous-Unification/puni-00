@@ -14,34 +14,37 @@ CREATE TABLE cross_project_dependency_activation_receipt (
 );
 --> statement-breakpoint
 -- Proof: disabling this INSERT trigger admitted its dormant repository write; removing each count/state/receipt identity/protocol/version predicate admitted its independent-writer fault (2026-10-22).
+-- Proof: removing only this numeric JSON version type predicate admitted true in the independent INSERT repository negative (2026-10-22, Astra P2).
 CREATE TRIGGER external_dependency_admit_insert
 BEFORE INSERT ON external_dependency
 WHEN (SELECT count(*) FROM cross_project_dependency_activation) <> 1
  OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation WHERE id = 1 AND state = 'ENABLED')
  OR (SELECT count(*) FROM cross_project_dependency_activation_receipt) <> 1
- OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_extract(receipt,'$.version') = 1)
+ OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_type(receipt,'$.version') IN ('integer','real') AND json_extract(receipt,'$.version') = 1)
 BEGIN
  SELECT RAISE(ABORT, 'external_dependencies_inactive');
 END;
 --> statement-breakpoint
 -- Proof: disabling this UPDATE trigger admitted its dormant repository write; removing each count/state/receipt identity/protocol/version predicate admitted its independent-writer fault (2026-10-22).
+-- Proof: removing only this numeric JSON version type predicate admitted true in the independent UPDATE repository negative (2026-10-22, Astra P2).
 CREATE TRIGGER external_dependency_admit_update
 BEFORE UPDATE ON external_dependency
 WHEN (SELECT count(*) FROM cross_project_dependency_activation) <> 1
  OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation WHERE id = 1 AND state = 'ENABLED')
  OR (SELECT count(*) FROM cross_project_dependency_activation_receipt) <> 1
- OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_extract(receipt,'$.version') = 1)
+ OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_type(receipt,'$.version') IN ('integer','real') AND json_extract(receipt,'$.version') = 1)
 BEGIN
  SELECT RAISE(ABORT, 'external_dependencies_inactive');
 END;
 --> statement-breakpoint
 -- Proof: disabling this DELETE trigger admitted its dormant repository write; removing each count/state/receipt identity/protocol/version predicate admitted its independent-writer fault (2026-10-22).
+-- Proof: removing only this numeric JSON version type predicate admitted true in the independent DELETE repository negative (2026-10-22, Astra P2).
 CREATE TRIGGER external_dependency_admit_delete
 BEFORE DELETE ON external_dependency
 WHEN (SELECT count(*) FROM cross_project_dependency_activation) <> 1
  OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation WHERE id = 1 AND state = 'ENABLED')
  OR (SELECT count(*) FROM cross_project_dependency_activation_receipt) <> 1
- OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_extract(receipt,'$.version') = 1)
+ OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_type(receipt,'$.version') IN ('integer','real') AND json_extract(receipt,'$.version') = 1)
 BEGIN
  SELECT RAISE(ABORT, 'external_dependencies_inactive');
 END;
