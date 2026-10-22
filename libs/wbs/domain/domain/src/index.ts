@@ -10,6 +10,12 @@ export * from './attempt';
 // caller must arrange a plan exactly one way (ADR 0023).
 export * from './arrange-siblings';
 export * from './capacity';
+export {
+  type ConnectedPublicationDecision,
+  ConnectedStageEvidenceError,
+  guardConnectedPublication,
+  replayConnectedStage,
+} from './connected-publication';
 // The one trim-or-refuse rule every directory entry and step name goes through.
 export * from './clean-name';
 // The read-time resolution of stored deadline dates to `schedule()`'s offsets,
