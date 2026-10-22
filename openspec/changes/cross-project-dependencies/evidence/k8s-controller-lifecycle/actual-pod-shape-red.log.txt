@@ -1,0 +1,213 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+899 |     expect(
+900 |       fixture.objects['pods'].items.every((pod: any) => pod.status.phase === 'Succeeded'),
+901 |     ).toBe(true);
+902 |     for (const pod of fixture.objects['pods'].items) {
+903 |       const owner = fixture.objects['jobs'].items.find((job: any) => job.metadata.uid === pod.metadata.ownerReferences[0].uid);
+904 |       expect(pod.spec).toEqual(owner.spec.template.spec);
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "automountServiceAccountToken": false,
+    "containers": [
+      {
+-       "command": [
+-         "bun",
+-         "-e",
+-
+- "
+- const { Database } = require('bun:sqlite');
+- const fs = require('node:fs');
+- const crypto = require('node:crypto');
+- const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+- const dbPath = process.env.DB_PATH;
+- const mode = process.env.PUNI_TASK;
+- if (!dbPath || !mode) throw new Error('DB_PATH and PUNI_TASK are required');
+- // Proof: moving this preflight after VACUUM made the old --to-only candidate's
+- // generated-script test find an already-created snapshot before capability refusal.
+- // Proof: creating the snapshot directory before this probe made that test fail
+- // its directory-absence assertion even without a snapshot file.
+- if (mode === 'capture') {
+-   // Proof: removing this invocation made the legacy --to-only candidate test create a snapshot.
+-   const child = Bun.spawnSync(['bun', 'run', 'src/migrate-capabilities-cli.ts'],
+-     { stdout: 'pipe', stderr: 'pipe' });
+-   // Proof: ignoring a nonzero capability process made the failing-executable test
+-   // report a malformed response instead of refusing the failed probe.
+-   if (child.exitCode !== 0) {
+-     throw new Error('exact-set migration CLI capability probe failed: ' + child.stderr.toString());
+-   }
+-   let advertised;
+-   // Proof: substituting a successful response for malformed stdout made its
+-   // generated-script test reach the absent database.
+-   try { advertised = JSON.parse(child.stdout.toString()); }
+-   catch { throw new Error('exact-set migration CLI capability response is malformed'); }
+-   // Proof: removing exact-key, protocol or version checks independently made the
+-   // unknown-field, wrong-protocol or wrong-version tests reach the absent database.
+-   if (advertised === null || typeof advertised !== 'object' || Array.isArray(advertised) ||
+-       Object.keys(advertised).sort().join(',') !== 'capabilities,protocol,version' ||
+-       advertised.protocol !== 'wbs-migration' || advertised.version !== 1 ||
+-       !Array.isArray(advertised.capabilities)) {
+-     throw new Error('exact-set migration CLI capability response is unsupported');
+-   }
+-   // Proof: removing the count check made the duplicate-capability test reach SQLite;
+-   // dropping either required-capability check made its partial candidate do the same.
+-   if (advertised.capabilities.length !== 2 ||
+-       !advertised.capabilities.includes('capture-v1') ||
+-       !advertised.capabilities.includes('restore-v1-sha256')) {
+-     throw new Error('exact-set migration CLI capability response lacks required operations');
+-   }
+- }
+- if (!fs.existsSync(dbPath)) throw new Error('database ' + dbPath + ' does not exist');
+- const cli = (args) => {
+-   const child = Bun.spawnSync(['bun', 'run', ...args], { stdout: 'inherit', stderr: 'inherit' });
+-   if (child.exitCode !== 0) throw new Error(args.join(' ') + ' exited ' + child.exitCode);
+- };
+- if (mode === 'migrate') cli(['src/migrate-cli.ts']);
+- if (mode === 'rollback') {
+-   // Proof: removing captured-byte transport made the generated-script older-stamp
+-   // regression fail before it could restore its candidate table.
+-   const bytes = process.env.PUNI_CAPTURE_BYTES;
+-   const pin = process.env.PUNI_CAPTURE_SHA256;
+-   const target = process.env.PUNI_CAPTURE_TARGET;
+-   const attempt = process.env.PUNI_CAPTURE_ATTEMPT;
+-   const candidate = process.env.PUNI_CAPTURE_CANDIDATE;
+-   // Proof: removing the required-field refusal made the real generated-script missing-capture
+-   // test see a later file-write error instead of the exact-set input-boundary refusal.
+-   if (!bytes || !pin || !target || !attempt || !candidate) {
+-     throw new Error('exact-set rollback requires captured bytes, digest and caller identity');
+-   }
+-   const path = '/tmp/wbs-migration-capture-' + process.pid + '.json';
+-   fs.writeFileSync(path, bytes, { flag: 'wx', mode: 0o600 });
+-   try {
+-     // Proof: replacing exact-set CLI with legacy --to left an older candidate migration
+-     // applied in the generated-script older-stamp regression.
+-     cli(['src/migrate-down-cli.ts', '--capture-file=' + path,
+-       '--capture-sha256=' + pin, '--target=' + target, '--attempt=' + attempt,
+-       '--candidate=' + candidate]);
+-   } finally { fs.rmSync(path); }
+- }
+- const db = new Database(dbPath, { readwrite: true, create: false });
+- const table = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'").get();
+- const applied = table === null ? [] : db.query('SELECT name, hash, created_at FROM __drizzle_migrations ORDER BY created_at').all();
+- const folders = fs.readdirSync('./drizzle', { withFileTypes: true })
+-   .filter((e) => e.isDirectory() && fs.existsSync('./drizzle/' + e.name + '/migration.sql'))
+-   .map((e) => e.name).sort()
+-   .map((name) => ({
+-     name,
+-     hash: sha(fs.readFileSync('./drizzle/' + name + '/migration.sql').toString()),
+-     downSha256: fs.existsSync('./drizzle/' + name + '/down.sql') ? sha(fs.readFileSync('./drizzle/' + name + '/down.sql')) : null,
+-   }));
+- let snapshot = null;
+- if (mode === 'capture') {
+-   const dir = process.env.PUNI_SNAPSHOT_DIR;
+-   fs.mkdirSync(dir, { recursive: true });
+-   const path = dir + '/' + process.env.PUNI_RELEASE + '.sqlite';
+-   fs.rmSync(path, { force: true });
+-   db.run("VACUUM INTO '" + path + "'");
+-   const copy = new Database(path, { readonly: true });
+-   const integrity = copy.query('PRAGMA integrity_check').all();
+-   copy.close();
+-   if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
+-     throw new Error('snapshot integrity_check failed: ' + JSON.stringify(integrity));
+-   }
+-   snapshot = { path, sha256: sha(fs.readFileSync(path)) };
+- }
+- db.close();
+- console.log('PUNI_RESULT ' + JSON.stringify({ applied, folders, snapshot }));
+- "
+- ,
+-       ],
+-       "env": [
+-         {
+-           "name": "DB_PATH",
+-           "value": "/data/wbs.sqlite",
+-         },
+-         {
+-           "name": "HOME",
+-           "value": "/tmp",
+-         },
+-       ],
+-       "image": "registry.test/backend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+-       "name": "task",
+-       "resources": {
+-         "limits": {
+-           "memory": "512Mi",
+-         },
+-         "requests": {
+-           "cpu": "50m",
+-           "memory": "128Mi",
+-         },
+-       },
+-       "securityContext": {
+-         "allowPrivilegeEscalation": false,
+-         "capabilities": {
+-           "drop": [
+-             "ALL",
+-           ],
+-         },
+-         "readOnlyRootFilesystem": true,
+-         "runAsNonRoot": true,
+-         "seccompProfile": {
+-           "type": "RuntimeDefault",
+-         },
+-       },
++       "image": "registry.test/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "name": "backup",
+        "volumeMounts": [
+          {
+            "mountPath": "/data",
+-           "name": "data",
+-         },
+-         {
+-           "mountPath": "/tmp",
+-           "name": "tmp",
++           "name": "db",
+          },
+        ],
+      },
+    ],
+-   "nodeSelector": {
+-     "puni.dev/capability-product": "true",
+-   },
+-   "restartPolicy": "Never",
+-   "securityContext": {
+-     "fsGroup": 10001,
+-     "runAsGroup": 10001,
+-     "runAsNonRoot": true,
+-     "runAsUser": 10001,
+-     "seccompProfile": {
+-       "type": "RuntimeDefault",
+-     },
+-   },
+-   "serviceAccountName": "wbs-backend",
+    "volumes": [
+      {
+-       "name": "data",
++       "name": "db",
+        "persistentVolumeClaim": {
+          "claimName": "wbs-data",
+        },
+-     },
+-     {
+-       "emptyDir": {
+-         "sizeLimit": "256Mi",
+-       },
+-       "name": "tmp",
+      },
+    ],
+  }
+
+- Expected  - 167
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:904:24)
+(fail) mounted retained production Job manifests survive every subsequent source barrier [3665.24ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [3.71s]

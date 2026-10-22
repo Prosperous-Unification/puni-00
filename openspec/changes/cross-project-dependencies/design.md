@@ -805,3 +805,58 @@ are not silently treated as certified history.
 
 Non-goals: activating authoring, changing service composition or connected solver
 admission, providing participant fencing, or authorizing deployment recovery.
+
+### Kubernetes journal-owned backup lifecycle prerequisite (bounded task 10.2)
+
+Intent: prevent the known source backup controller from overlapping source replay,
+capture or migration work, while preserving exact controller history and conservative
+restart behavior. Outcome: the production release coordinator owns two bounded
+storage intervals in the existing fsync/rename file journal. Non-goals: dependency
+authoring activation, semantic rollback admission, B3 exposure, custom-controller
+admission or complete participant fencing. Prepared ownership remains its independent
+version-1, prepared-only contract.
+
+Journal schema 4 retains separate `controllers.forward` and `controllers.rollback`
+histories. Forward source work runs after the backend stops and before its rollout:
+prepare, durable suspend intent, conditional suspension, exact acknowledgment,
+bounded descendant drain, repeated unfiltered storage readback, replay/capture/migrate,
+and conditional restoration with durable acknowledgment. The adapter tests the actual
+CronJob UID, resourceVersion, complete spec and annotation state atomically. The
+immutable prepared template hash remains mandatory while an interval is active.
+Restoration distinguishes absent, false and true suspension and progresses through
+restore intent, restored field, token cleanup intent and completed acknowledgment.
+A restart reconciles only the exact recorded UID/template/token and expected current
+state; foreign or ambiguous state retains the barrier.
+
+Existing backend rollout legitimately changes the backup image. Therefore the
+forward interval is restored before `rollout-backend`; its completed template is not
+revalidated after that rollout. An abort while the forward interval remains active
+reuses it. An abort after completed forward restoration prepares a new rollback
+interval, retaining both histories and a new token, before schema reversal or rollback
+replay. That interval is restored after rollback replay and before `rollback-tiers`.
+No writer rollout runs before the relevant restoration acknowledgment is durable.
+
+Drain follows actual CronJob→Job→Pod controller UID references. API deletes include
+UID preconditions and orphan propagation with normal graceful Pod termination; Pods disappear before their Jobs are
+deleted. Repeated inventories use no writer labels and require two empty descendant
+observations, then the existing standard-resource storage inspector twice. Unrelated
+live or deleting source consumers, including readers, refuse without receiving deletion.
+Strictly terminal Job/Pod history is accepted through the shared B2a classifier
+without granting ownership or deletion authority; active/terminating workers and
+missing or false completion conditions remain refusals. Every source
+task repeats this bounded proof and finally revalidates the exact recorded backup
+UID/template/token/suspension after fence reads, before replay or other source work. Controller uncertainty parks `rollback-failed`
+before generic schema reversal or writer restart; Lease loss and journal-write
+failure propagate as interruptions.
+
+Before controller intent, the release Lease acquires a sticky
+`puni.dev/journal-required=true` marker under UID/resourceVersion/session CAS and
+readback. A marked Lease never authorizes a fresh start without its journal. The
+adapter pins the Lease UID per session, preserves the marker across renewal,
+takeover and parking, and refuses UID replacement or a cleared marker. Marked Lease
+cleanup requires an eligible completed journal and restored controller histories,
+then deletes with UID/resourceVersion preconditions. A lost marker patch response
+is reconciled only through the same UID/session with the marker present. The marker
+is a conservative journal-retention latch, not a transactional fence against
+privileged API actors. Full storage-interval and semantic participant exclusion
+remain B2/B3 integration work.

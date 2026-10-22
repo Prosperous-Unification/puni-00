@@ -8,6 +8,7 @@ import { fileJournal, type JournalRecord } from './journal';
 import { migrationIdentityOf, sealMigrationCapture } from './migration-capture';
 import { initialState, type ReleaseRequest } from './release';
 import { sealReplayReceipt } from './replay-receipt';
+import { sealStorageOwnership } from './storage-ownership';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -45,6 +46,40 @@ const seed = initialState(request);
 const fixedState = {
   ...seed,
   phase: 'migrated' as const,
+  controllers: {
+    forward: {
+      ownership: sealStorageOwnership(
+        {
+          transactionId: seed.transactionId,
+          clusterUid: request.cluster.uid,
+          namespace: request.namespaces.backend,
+          storage: {
+            namespace: request.namespaces.backend,
+            pvcName: 'wbs-data',
+            pvcUid: 'pvc',
+            volumeName: 'disk',
+            pvUid: 'pv',
+            databasePath: '/data/wbs.sqlite',
+          },
+          flux: null,
+        },
+        {
+          fluxUid: null,
+          owner: {
+            kind: 'CronJob',
+            name: 'sqlite-backup',
+            uid: 'backup',
+            resourceVersion: '1',
+            templateSha256: 'a'.repeat(64),
+            suspension: { kind: 'absent' },
+          },
+        },
+        'token',
+      ),
+      stage: 'drained' as const,
+    },
+    rollback: null,
+  },
   replayForward: sealReplayReceipt(
     request,
     seed.transactionId,
@@ -57,7 +92,7 @@ const fixedState = {
 
 function record(): JournalRecord {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     request,
     state: fixedState,
     history: [{ phase: 'migrated', at: '2026-09-18T00:00:00.000Z' }],
@@ -94,11 +129,11 @@ describe('fileJournal', () => {
 
   it('rejects a newer schema', () => {
     const path = join(directory(), 'release.json');
-    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 4 }));
+    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 5 }));
     expect(() => fileJournal(path).read()).toThrow('unsupported schema version');
   });
 
-  for (const schemaVersion of [1, 2]) {
+  for (const schemaVersion of [1, 2, 3]) {
     it(`refuses a legacy in-flight journal schema ${String(schemaVersion)} without replacing its bytes`, () => {
       const path = join(directory(), 'release.json');
       const legacy = JSON.stringify({ ...record(), schemaVersion });
@@ -132,4 +167,47 @@ describe('fileJournal', () => {
     chmodSync(path, 0o000);
     expect(() => fileJournal(path).read()).toThrow('is unreadable');
   });
+});
+
+it('refuses missing or malformed controller lifecycle trusted state', () => {
+  const path = join(directory(), 'release.json');
+  const valid = record();
+  const { controllers: _controllers, ...missing } = valid.state;
+  writeFileSync(path, JSON.stringify({ ...valid, state: missing }));
+  expect(() => fileJournal(path).read()).toThrow('controller lifecycle');
+  writeFileSync(
+    path,
+    JSON.stringify({ ...valid, state: { ...valid.state, controllers: { stage: 'suspended' } } }),
+  );
+  expect(() => fileJournal(path).read()).toThrow();
+});
+
+it('refuses missing source drain and restore acknowledgments in durable phase history', () => {
+  const path = join(directory(), 'release.json');
+  const valid = record();
+  writeFileSync(
+    path,
+    JSON.stringify({
+      ...valid,
+      state: { ...valid.state, controllers: { forward: null, rollback: null } },
+    }),
+  );
+  expect(() => fileJournal(path).read()).toThrow('missing forward controller interval');
+  const forward = valid.state.controllers.forward;
+  writeFileSync(
+    path,
+    JSON.stringify({
+      ...valid,
+      state: {
+        ...valid.state,
+        controllers: { forward: { ...forward, stage: 'suspended' }, rollback: null },
+      },
+    }),
+  );
+  expect(() => fileJournal(path).read()).toThrow('drain acknowledgment');
+  writeFileSync(
+    path,
+    JSON.stringify({ ...valid, state: { ...valid.state, phase: 'backend-ready' } }),
+  );
+  expect(() => fileJournal(path).read()).toThrow('restore acknowledgment');
 });

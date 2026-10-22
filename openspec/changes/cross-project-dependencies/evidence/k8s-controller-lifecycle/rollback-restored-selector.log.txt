@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+938 |         fixture.journal,
+939 |         fixture.fake,
+940 |         () => undefined,
+941 |         fixture.options,
+942 |       ),
+943 |     ).rejects.toThrow('rolled-back');
+                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "rolled-back"
+Received message: "release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed\njournal: /tmp/wbs-test-237-nihKep/k8s-controller-release-bWdDg9/release.json\nfailed step: rollback-tiers: storage controller barrier failed: source interval is missing before writer rollout\ncaptured migration set: baseline 0001_init; applied [0001_init]; pending [0002_add]\nreplay forward: dcd10a0dc2d3e80366dcf3ae0fa41e7810ee69740edae98451aa24fa791396a9\nreplay rollback: cbcdfdb94df2288e1dbc2e16d4fa53122cae23fa40405eeb1a2b5f651045bba2\nsnapshot: /data/snapshots/bbbbbbbbbbbb-4d914821ccea-b54f71.sqlite sha256 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\nwrites remain fenced and the Lease stays held\nmanual command: '/tmp/wbs-test-237-nihKep/k8s-controller-release-bWdDg9/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token deba3fb0-7915-4dc7-86f5-cc9270b900b1; preserve journal /tmp/wbs-test-237-nihKep/k8s-controller-release-bWdDg9/release.json; restore the recorded suspension only after verifying the stopped source interval"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:943:15)
+(fail) mounted dormant rollback resumes after durable restoration of its reused forward interval [5549.77ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [5.59s]

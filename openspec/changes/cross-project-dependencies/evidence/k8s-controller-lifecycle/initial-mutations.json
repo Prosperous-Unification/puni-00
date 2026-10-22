@@ -1,0 +1,182 @@
+[
+  {
+    "fault": "controller-uid",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted atomic UID guard"
+  },
+  {
+    "fault": "controller-rv",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted atomic resourceVersion guard"
+  },
+  {
+    "fault": "controller-template",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted atomic template guard"
+  },
+  {
+    "fault": "controller-token",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted atomic token guard"
+  },
+  {
+    "fault": "pending-checkpoint",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted release checkpoints and restores exact false"
+  },
+  {
+    "fault": "suspension-ack",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted release checkpoints and restores exact false"
+  },
+  {
+    "fault": "drain-dispatch",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted unlabelled readonly"
+  },
+  {
+    "fault": "restore-dispatch",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted release checkpoints and restores exact false"
+  },
+  {
+    "fault": "rollback-reentry",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted dormant abort after rollout"
+  },
+  {
+    "fault": "uncertain-routing",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted exact restore failure"
+  },
+  {
+    "fault": "lease-authority",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted Lease loss during inventory"
+  },
+  {
+    "fault": "journal-marker",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted missing journal"
+  },
+  {
+    "fault": "marker-uid",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease marker refuses UID"
+  },
+  {
+    "fault": "marker-rv",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease marker refuses resourceVersion"
+  },
+  {
+    "fault": "marker-holder",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease marker refuses holder"
+  },
+  {
+    "fault": "marker-readback",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease marker refuses no-apply"
+  },
+  {
+    "fault": "lease-renew-uid",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease renewLease refuses delete-recreate"
+  },
+  {
+    "fault": "takeover-uid",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease takeover refuses UID ABA"
+  },
+  {
+    "fault": "lease-sticky-preservation",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease adapter preserves a sticky"
+  },
+  {
+    "fault": "lease-cleanup-phase",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease cleanup refuses recoverable"
+  },
+  {
+    "fault": "lease-delete-uid",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease cleanup deleteUID race"
+  },
+  {
+    "fault": "lease-delete-rv",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "real Lease cleanup deleteVersion race"
+  },
+  {
+    "fault": "descendant-delete-uid",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted drain deletes actual UID"
+  },
+  {
+    "fault": "descendant-ancestry",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "mounted drain never deletes a Pod"
+  },
+  {
+    "fault": "closed-lifecycle",
+    "exit": 0,
+    "namedFailure": false,
+    "test": "malformed lifecycle never reaches cluster"
+  },
+  {
+    "fault": "object-boundary",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "malformed lifecycle object identifies"
+  },
+  {
+    "fault": "token-stability",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "owned token changing between read passes"
+  },
+  {
+    "fault": "restored-current-state",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "completed restore history"
+  },
+  {
+    "fault": "journal-history-required",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "refuses missing or malformed controller lifecycle"
+  },
+  {
+    "fault": "journal-progress-validation",
+    "exit": 1,
+    "namedFailure": true,
+    "test": "refuses missing source drain and restore"
+  }
+]

@@ -668,6 +668,7 @@ describe('parseLease', () => {
     const lease = parseLease(
       JSON.stringify({
         metadata: {
+          uid: 'lease-uid',
           resourceVersion: '42',
           annotations: { 'puni.dev/journal': '/j.json', 'puni.dev/parked': 'rollback-failed' },
         },
@@ -679,6 +680,8 @@ describe('parseLease', () => {
       }),
     );
     expect(lease).toEqual({
+      uid: 'lease-uid',
+      journalRequired: false,
       holder: 'tx#run',
       renewedAtMs: Date.parse('2026-09-18T05:00:00.000Z'),
       durationSeconds: 20,

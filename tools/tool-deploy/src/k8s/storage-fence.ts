@@ -180,6 +180,37 @@ export async function inspectStorageIdentity(
   return observed.storage;
 }
 
+/** Terminal Job history grants no deletion authority and cannot retain active/terminating workers. */
+export function isTerminalJob(value: unknown): boolean {
+  const job = readFields(value, 'Job');
+  const metadata = readFields(job['metadata'], 'Job metadata');
+  // Proof: terminal-deleting-job bypass lost the early named drain diagnostic; the later fence still refused.
+  if ('deletionTimestamp' in metadata) return false;
+  const status = readFields(job['status'], 'Job status');
+  // Proof: removing active/terminating independently admitted that worker in each mounted retained-history negative.
+  for (const count of ['active', 'terminating'])
+    if (count in status && status[count] !== 0) return false;
+  if (!('conditions' in status)) return false;
+  return readList(status['conditions'], 'Job conditions').some((condition) => {
+    const flag = readFields(condition, 'Job condition');
+    // Proof: terminal-condition bypass admitted a false Complete condition before source capture.
+    return (
+      ['Complete', 'Failed'].includes(readText(flag['type'], 'condition type')) &&
+      flag['status'] === 'True'
+    );
+  });
+}
+/** Completed Pod history is inert only after normal termination and without a pending deletion. */
+export function isTerminalPod(value: unknown): boolean {
+  const pod = readFields(value, 'Pod');
+  const metadata = readFields(pod['metadata'], 'Pod metadata');
+  // Proof: terminal-deleting-pod bypass lost the early named drain diagnostic; the later fence still refused.
+  if ('deletionTimestamp' in metadata) return false;
+  const phase = readText(readFields(pod['status'], 'Pod status')['phase'], 'Pod phase');
+  // Proof: terminal-live-pod bypass admitted a running retained Pod before source capture.
+  return phase === 'Succeeded' || phase === 'Failed';
+}
+
 /**
  * Reads the bounded standard Kubernetes storage owners without selectors. Rechecks exact PVC/PV,
  * stopped/suspended owner identities and templates against prior evidence. Kubernetes omits zero
@@ -265,7 +296,7 @@ export async function inspectStorageFence(
       )
     )
       throw new Error('unclassifiable Pod phase');
-    const terminal = phase === 'Succeeded' || phase === 'Failed';
+    const terminal = isTerminalPod(pod);
     if (
       labels['app.kubernetes.io/name'] === 'wbs-backend' &&
       (!terminal || 'deletionTimestamp' in metadata)
@@ -337,19 +368,7 @@ export async function inspectStorageFence(
         throw new Error('foreign writable ReplicaSet owner');
       state = 'stopped';
     } else if (kind === 'Job') {
-      const status = readFields(fields['status'], 'Job status');
-      // Proof: removing terminal refusal admitted active and false-Complete Jobs.
-      if (
-        ('active' in status && status['active'] !== 0) ||
-        !readList(status['conditions'], 'Job conditions').some((condition) => {
-          const flag = readFields(condition, 'Job condition');
-          return (
-            ['Complete', 'Failed'].includes(readText(flag['type'], 'condition type')) &&
-            flag['status'] === 'True'
-          );
-        })
-      )
-        throw new Error('writable Job is not terminal');
+      if (!isTerminalJob(owner)) throw new Error('writable Job is not terminal');
       state = 'terminal';
     } else {
       // Proof: removing unknown-owner refusal admitted unknown StatefulSet/DaemonSet/controller fixtures.

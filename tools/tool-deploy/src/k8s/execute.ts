@@ -3,12 +3,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
+import { type ControllerEffects, controllerEffects } from './controller-adapter';
+import { assertControllerProgress, type ControllerAuthority } from './controller-lifecycle';
 import {
   type DependencyObservationEffects,
   observeDependencyBinaries,
   observeDependencyStore,
 } from './dependency-observation';
-import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
+import { fileJournal, isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
   assertMigrationCapture,
   migrationIdentityOf,
@@ -62,16 +64,18 @@ import { inspectStorageFence, type StorageFenceEffects } from './storage-fence';
  * Every Kubernetes effect the transaction performs. Each call is bounded and either completes
  * its observable postcondition or throws; none of them decides what happens next.
  */
-export interface ReleaseEffects {
+export interface ReleaseEffects extends ControllerEffects {
   observeCluster(request: ReleaseRequest): Promise<ObservedCluster>;
   /** The release Lease with its optimistic-concurrency version, or `null` when absent. */
   readLease(): Promise<(ObservedLease & { version: string }) | null>;
   /** Creates the Lease; throws if another process created it first. */
   createLease(holder: string, journalPath: string): Promise<void>;
   /** Replaces the Lease at `version` with `holder`; throws if it changed since it was read. */
-  takeoverLease(holder: string, version: string, journalPath: string): Promise<void>;
+  takeoverLease(holder: string, version: string, journalPath: string, uid: string): Promise<void>;
   /** Heartbeat: renews the Lease, and throws unless `holder` still holds it. */
   renewLease(holder: string): Promise<void>;
+  /** Sticky UID/session-fenced marker, committed before source-controller journal writes. */
+  requireJournal(holder: string): Promise<void>;
   /** Marks the Lease held with no live process, at a terminal phase an operator must resolve. */
   parkLease(holder: string, phase: string): Promise<void>;
   /** Deletes the Lease only if `holder` holds it. */
@@ -192,6 +196,9 @@ export class FluxRevertRequiredError extends Error {}
 /** Another process holds, or took, the Lease; this one must stop without touching anything. */
 export class LeaseLostError extends Error {}
 
+class ControllerCheckpointError extends Error {}
+class ControllerUncertainError extends Error {}
+
 function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -269,8 +276,6 @@ async function perform(
       return direction === 'forward' ? { replayForward: receipt } : { replayRollback: receipt };
     }
     case 'capture-state': {
-      // Proof: removing this refusal admits in-process receipt loss at replay-checked before capture.
-      assertReplayReceipt(state.replayForward, request, state.transactionId, 'forward');
       const identity = migrationIdentityOf(request, state.transactionId);
       // Proof: replacing a rejected capability Job with a fabricated capture made the
       // coordinator test record state-captured and launch forward migration instead of refusing.
@@ -303,13 +308,6 @@ async function perform(
       return {};
     case 'reopen-writes':
     case 'rollback-reopen-writes':
-      // Proof: removing reopen validation admits in-process receipt loss at release-persisted or rollback-verified.
-      assertReplayReceipt(
-        step.kind === 'reopen-writes' ? state.replayForward : state.replayRollback,
-        request,
-        state.transactionId,
-        step.kind === 'reopen-writes' ? 'forward' : 'rollback',
-      );
       await effects.reopenWrites();
       return {};
     case 'reconcile-desired':
@@ -357,13 +355,33 @@ async function perform(
       return {};
     }
     case 'rollback-tiers':
-      // Proof: removing restore validation admits in-process receipt loss at rollback-replay-checked before rolloutTiers.
-      assertReplayReceipt(state.replayRollback, request, state.transactionId, 'rollback');
       await effects.rolloutTiers(state.previous);
       return {};
     case 'rollback-verify':
       await effects.smoke(`${state.transactionId}-rollback`, state.previous);
       return {};
+  }
+}
+
+/** Refuses lost replay evidence before controller checkpoints or any protected step effects. */
+function assertStepReplay(kind: StepKind, request: ReleaseRequest, state: ReleaseState): void {
+  if (kind === 'capture-state') {
+    // Proof: removing this refusal admits in-process receipt loss at replay-checked before capture.
+    assertReplayReceipt(state.replayForward, request, state.transactionId, 'forward');
+  }
+  if (kind === 'reopen-writes' || kind === 'rollback-reopen-writes') {
+    // Proof: removing reopen validation admits receipt loss at release-persisted or rollback-verified.
+    const forward = kind === 'reopen-writes';
+    assertReplayReceipt(
+      forward ? state.replayForward : state.replayRollback,
+      request,
+      state.transactionId,
+      forward ? 'forward' : 'rollback',
+    );
+  }
+  if (kind === 'rollback-tiers') {
+    // Proof: removing restore validation admits receipt loss at rollback-replay-checked before rolloutTiers.
+    assertReplayReceipt(state.replayRollback, request, state.transactionId, 'rollback');
   }
 }
 
@@ -413,6 +431,7 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
       migrationIdentityOf(request, existing.state.transactionId),
     );
   }
+  assertControllerProgress(existing.state, request);
   // Proof: removing resume validation mutates the cluster with missing or altered durable replay progress.
   assertReplayProgress(existing.state, existing.request);
   const requestedId = releaseIdOf(request.release);
@@ -521,7 +540,7 @@ export async function executeRelease(
       try {
         if (decision.kind === 'create') await effects.createLease(holder, journal.path);
         if (decision.kind === 'takeover' && observed !== null) {
-          await effects.takeoverLease(holder, observed.version, journal.path);
+          await effects.takeoverLease(holder, observed.version, journal.path, observed.uid);
         }
       } catch (e: unknown) {
         // Another process created or replaced the Lease between our read and write; re-read.
@@ -537,7 +556,7 @@ export async function executeRelease(
   const history: { phase: string; at: string }[] = [...(existing?.history ?? [])];
   const record = (next: ReleaseState): void => {
     history.push({ phase: next.phase, at: new Date(clock()).toISOString() });
-    const entry: JournalRecord = { schemaVersion: 3, request, state: next, history };
+    const entry: JournalRecord = { schemaVersion: 4, request, state: next, history };
     journal.write(entry);
   };
   // Proof: recording before claiming let `refuses to resume a transaction whose live
@@ -551,9 +570,11 @@ export async function executeRelease(
   // without this queue; the live F8 lab lost its Lease to a 409 in reconcile-desired (verify.md).
   let leaseQueue: Promise<void> = Promise.resolve();
   const renewals = { pending: 0 };
-  const serialRenew = (): Promise<void> => {
+  const serialRenew = (
+    operation: () => Promise<void> = () => effects.renewLease(holder),
+  ): Promise<void> => {
     renewals.pending++;
-    const next = leaseQueue.then(() => effects.renewLease(holder));
+    const next = leaseQueue.then(operation);
     leaseQueue = next.then(
       () => {
         renewals.pending--;
@@ -563,6 +584,125 @@ export async function executeRelease(
       },
     );
     return next;
+  };
+  let journalRequired = false;
+  const controllerAuthority = (direction: 'forward' | 'rollback'): ControllerAuthority => ({
+    async assertLease() {
+      if (!held.value || held.lost !== null)
+        throw new LeaseLostError('controller interval lost its release Lease');
+      try {
+        // Proof: lease-authority omission let the mounted inventory Lease-loss case delete descendants.
+        await serialRenew();
+      } catch (cause) {
+        throw new LeaseLostError(`controller interval Lease lost: ${messageOf(cause)}`);
+      }
+    },
+    async checkpoint(lifecycle) {
+      const next = { ...state, controllers: { ...state.controllers, [direction]: lifecycle } };
+      try {
+        const before = journal.read();
+        if (before === null || JSON.stringify(before.state) !== JSON.stringify(state))
+          throw new Error('controller checkpoint lost its previous authoritative journal');
+        if (!journalRequired) {
+          try {
+            await serialRenew(() => effects.requireJournal(holder));
+          } catch (cause) {
+            throw new LeaseLostError(
+              `controller journal marker lost Lease authority: ${messageOf(cause)}`,
+            );
+          }
+          journalRequired = true;
+        }
+        await this.assertLease();
+        record(next);
+        // Proof: the mounted omitted-checkpoint case refuses a write that did not retain these exact bytes.
+        const durable = journal.read();
+        if (
+          durable === null ||
+          JSON.stringify(durable.state) !== JSON.stringify(next) ||
+          JSON.stringify(durable.request) !== JSON.stringify(request)
+        )
+          throw new Error('controller checkpoint did not read back its exact release journal');
+      } catch (cause) {
+        if (cause instanceof LeaseLostError) throw cause;
+        throw new ControllerCheckpointError('controller checkpoint failed', { cause });
+      }
+      state = next;
+      await this.assertLease();
+    },
+  });
+  // Proof: rollback-reentry forced forward reuse and failed the mounted post-rollout dormant abort.
+  const activeDirection = (): 'forward' | 'rollback' =>
+    state.controllers.forward !== null && state.controllers.forward.stage !== 'restored'
+      ? 'forward'
+      : 'rollback';
+  const establishInterval = async (direction: 'forward' | 'rollback'): Promise<void> => {
+    const authority = controllerAuthority(direction);
+    const target = {
+      transactionId: state.transactionId,
+      clusterUid: request.cluster.uid,
+      namespace: request.namespaces.backend,
+      flux:
+        request.flux === null
+          ? null
+          : { namespace: request.flux.namespace, kustomization: request.flux.kustomization },
+    };
+    let prior = state.controllers[direction];
+    if (
+      prior !== null &&
+      ['restore-pending', 'restore-applied', 'cleanup-pending'].includes(prior.stage)
+    ) {
+      await effects.restoreStorageController(prior, authority);
+      if (state.controllers[direction]?.stage !== 'restored')
+        throw new ControllerUncertainError('controller restoration acknowledgment is missing');
+      // A restart must retain completed history and open a distinct rollback interval.
+      if (direction === 'forward') return establishInterval('rollback');
+      throw new ControllerUncertainError(
+        'rollback controller interval was restored before source work completed',
+      );
+    }
+    if (prior?.stage === 'restored')
+      throw new ControllerUncertainError('completed controller interval cannot be reused');
+    const suspended = await effects.suspendStorageController(target, prior, authority);
+    prior = state.controllers[direction];
+    if (
+      prior === null ||
+      JSON.stringify(prior) !== JSON.stringify(suspended) ||
+      !['suspended', 'drained'].includes(prior.stage)
+    )
+      throw new ControllerUncertainError('controller suspension acknowledgment is missing');
+    // Proof: drain-dispatch omission admitted the mounted unlabelled readonly source consumer.
+    await effects.drainStorageController(prior, authority);
+    await authority.checkpoint({ ...prior, stage: 'drained' });
+  };
+  const restoreInterval = async (direction: 'forward' | 'rollback'): Promise<void> => {
+    const prior = state.controllers[direction];
+    if (prior === null)
+      throw new ControllerUncertainError('source interval is missing before writer rollout');
+    await effects.restoreStorageController(prior, controllerAuthority(direction));
+    if (state.controllers[direction]?.stage !== 'restored')
+      throw new ControllerUncertainError(
+        'controller restoration acknowledgment is missing before writer rollout',
+      );
+  };
+  const controllerBarrier = async (step: StepKind): Promise<void> => {
+    try {
+      if (step === 'check-replay' || step === 'capture-state' || step === 'migrate')
+        await establishInterval('forward');
+      if (step === 'rollback-schema' || step === 'rollback-check-replay')
+        await establishInterval(activeDirection());
+      // Proof: restore-dispatch omission reached backend rollout without a durable restored interval.
+      if (step === 'rollout-backend') await restoreInterval('forward');
+      // Proof: rollback-restored-selector regression parked after durable restoration of reused forward history.
+      if (step === 'rollback-tiers')
+        await restoreInterval(state.controllers.rollback === null ? 'forward' : 'rollback');
+    } catch (cause) {
+      if (cause instanceof LeaseLostError || cause instanceof ControllerCheckpointError)
+        throw cause;
+      throw new ControllerUncertainError(`storage controller barrier failed: ${messageOf(cause)}`, {
+        cause,
+      });
+    }
   };
   const heartbeat = setInterval(() => {
     // A renewal already queued refreshes the Lease; heartbeats never pile up behind it.
@@ -596,14 +736,32 @@ export async function executeRelease(
         await leaseQueue;
       }
       try {
+        assertStepReplay(step.kind, request, state);
+        await controllerBarrier(step.kind);
         outcome = await perform(step, request, state, effects, { claim, holder });
       } catch (e: unknown) {
         if (releasing) held.value = true;
         // Nothing is durable before intent: validation and Lease failures change no state.
         if (state.phase === 'requested' || state.phase === 'validated') throw e;
         if (e instanceof LeaseLostError) throw e;
+        if (e instanceof ControllerCheckpointError) throw e.cause;
         log(`[k3s-release ${state.releaseId}] ${step.kind} failed: ${messageOf(e)}`);
-        if (e instanceof FluxRevertRequiredError && request.flux !== null) {
+        // Proof: uncertain-routing bypass entered generic rollback after the mounted exact restore failure.
+        if (e instanceof ControllerUncertainError) {
+          const interval = state.controllers.rollback ?? state.controllers.forward;
+          state = {
+            ...state,
+            phase: 'rollback-failed',
+            failure: {
+              step: step.kind,
+              message: e.message,
+              manualCommand:
+                interval === null
+                  ? `inspect the authoritative journal ${journal.path}; no controller ownership was established`
+                  : effects.manualControllerCommand(interval, journal.path),
+            },
+          };
+        } else if (e instanceof FluxRevertRequiredError && request.flux !== null) {
           state = {
             ...state,
             phase: 'flux-revert-required',
@@ -1161,27 +1319,39 @@ export function matchesProjection(observed: unknown, expected: unknown): boolean
 /** Parses `kubectl get lease -o json`; a Lease without holder or renew time is malformed state. */
 export function parseLease(json: string): ObservedLease & { version: string } {
   const lease = JSON.parse(json) as {
-    metadata?: { resourceVersion?: string; annotations?: Partial<Record<string, string>> };
+    metadata?: {
+      uid?: string;
+      resourceVersion?: string;
+      annotations?: Partial<Record<string, string>>;
+    };
     spec?: { holderIdentity?: string; renewTime?: string; leaseDurationSeconds?: number };
   };
   const holder = lease.spec?.holderIdentity;
   const renewTime = lease.spec?.renewTime;
   const duration = lease.spec?.leaseDurationSeconds;
   const version = lease.metadata?.resourceVersion;
+  const uid = lease.metadata?.uid;
+  const required = lease.metadata?.annotations?.['puni.dev/journal-required'];
+  if (required !== undefined && required !== 'true' && required !== 'false')
+    throw new Error('release Lease has malformed journal-required marker');
   if (
     holder === undefined ||
     renewTime === undefined ||
     duration === undefined ||
-    version === undefined
+    version === undefined ||
+    typeof uid !== 'string' ||
+    uid.trim() === ''
   ) {
     throw new Error(
-      'the release Lease lacks holderIdentity, renewTime, leaseDurationSeconds or resourceVersion',
+      'the release Lease lacks holderIdentity, renewTime, leaseDurationSeconds resourceVersion or UID',
     );
   }
   const renewedAtMs = Date.parse(renewTime);
   if (Number.isNaN(renewedAtMs))
     throw new Error(`the release Lease renewTime ${renewTime} is not a time`);
   return {
+    uid,
+    journalRequired: required === 'true',
     holder,
     renewedAtMs,
     durationSeconds: duration,
@@ -1528,6 +1698,8 @@ export function kubectlEffects(
     journalPath: string,
     version: string | null,
     parked: string | null,
+    uid: string | null,
+    journalRequired: boolean,
   ): Record<string, unknown> => {
     const now = new Date().toISOString().replace(/\.(\d{3})Z$/, '.$1000Z');
     return {
@@ -1537,8 +1709,10 @@ export function kubectlEffects(
         name: OBJECTS.lease,
         namespace: backend,
         ...(version === null ? {} : { resourceVersion: version }),
+        ...(uid === null ? {} : { uid }),
         annotations: {
           'puni.dev/journal': journalPath,
+          'puni.dev/journal-required': String(journalRequired),
           ...(parked === null ? {} : { 'puni.dev/parked': parked }),
         },
       },
@@ -1550,10 +1724,22 @@ export function kubectlEffects(
       },
     };
   };
+  const session: { uid: string | null; journalRequired: boolean } = {
+    uid: null,
+    journalRequired: false,
+  };
   const writersSelector = { matchLabels: { 'app.kubernetes.io/name': 'wbs-backend' } };
   const fencedSelector = { matchLabels: { 'puni.dev/writes': 'fenced' } };
 
   return {
+    ...controllerEffects(
+      (args, input) => kubectl(args, input ?? null),
+      {
+        attempts: Math.max(4, Math.ceil(settings.drainTimeoutMs / 1000) + 3),
+        sleep: () => Bun.sleep(Math.min(1000, settings.drainTimeoutMs / 4)),
+      },
+      base,
+    ),
     inspectStorageFence(flux, expected) {
       return inspectStorageFence({ namespace: backend, flux }, kubectl, expected);
     },
@@ -1620,40 +1806,157 @@ export function kubectlEffects(
     async createLease(holder, journalPath) {
       await kubectl(
         ['create', '-f', '-'],
-        JSON.stringify(leaseManifest(holder, journalPath, null, null)),
+        JSON.stringify(leaseManifest(holder, journalPath, null, null, null, false)),
       );
+      const observed = await this.readLease();
+      if (observed?.holder !== holder)
+        throw new LeaseLostError('created release Lease did not read back its session');
+      session.uid = observed.uid;
     },
-    async takeoverLease(holder, version, journalPath) {
+    async takeoverLease(holder, version, journalPath, uid) {
+      // Proof: takeover-uid bypass adopted a delete/recreate ABA in the real Lease adapter test.
+      const observed = await this.readLease();
+      if (observed?.version !== version || observed.uid !== uid)
+        throw new LeaseLostError('release Lease changed before takeover');
       await kubectl(
         ['replace', '-f', '-'],
-        JSON.stringify(leaseManifest(holder, journalPath, version, null)),
+        JSON.stringify(
+          leaseManifest(holder, journalPath, version, null, observed.uid, observed.journalRequired),
+        ),
       );
+      session.uid = observed.uid;
+      session.journalRequired = observed.journalRequired;
     },
     async renewLease(holder) {
+      // Proof: lease-renew-uid bypass renewed a replacement; sticky-preservation injected false and lost the retained marker.
       const observed = await this.readLease();
-      if (observed?.holder !== holder) {
+      if (
+        observed?.holder !== holder ||
+        observed.uid !== session.uid ||
+        (session.journalRequired && !observed.journalRequired)
+      ) {
         throw new LeaseLostError(`Lease is held by ${observed?.holder ?? 'nobody'}, not ${holder}`);
       }
       await kubectl(
         ['replace', '-f', '-'],
-        JSON.stringify(leaseManifest(holder, observed.journal ?? '', observed.version, null)),
+        JSON.stringify(
+          leaseManifest(
+            holder,
+            observed.journal ?? '',
+            observed.version,
+            null,
+            observed.uid,
+            observed.journalRequired,
+          ),
+        ),
       );
+    },
+    async requireJournal(holder) {
+      const observed = await this.readLease();
+      if (
+        observed?.holder !== holder ||
+        observed.uid !== session.uid ||
+        observed.journal === null ||
+        (session.journalRequired && !observed.journalRequired)
+      )
+        throw new LeaseLostError('release Lease session changed before journal marker');
+      if (observed.journalRequired) {
+        session.journalRequired = true;
+        return;
+      }
+      let uncertain: unknown = null;
+      try {
+        await kubectl([
+          '-n',
+          backend,
+          'patch',
+          'lease',
+          OBJECTS.lease,
+          '--type=json',
+          '-p',
+          // Proof: removing each marker UID/RV/holder CAS test independently mutated a raced foreign Lease.
+          JSON.stringify([
+            { op: 'test', path: '/metadata/uid', value: observed.uid },
+            { op: 'test', path: '/metadata/resourceVersion', value: observed.version },
+            { op: 'test', path: '/spec/holderIdentity', value: holder },
+            { op: 'add', path: '/metadata/annotations/puni.dev~1journal-required', value: 'true' },
+          ]),
+        ]);
+      } catch (cause) {
+        uncertain = cause;
+      }
+      // Proof: marker-readback bypass accepted the real adapter's no-apply uncertain response.
+      const readback = await this.readLease();
+      if (readback?.uid !== observed.uid || readback.holder !== holder || !readback.journalRequired)
+        throw new LeaseLostError(
+          `release journal marker did not read back its Lease session: ${messageOf(uncertain)}`,
+        );
+      session.journalRequired = true;
     },
     async parkLease(holder, phase) {
       const observed = await this.readLease();
-      if (observed?.holder !== holder) return;
+      if (
+        observed?.holder !== holder ||
+        observed.uid !== session.uid ||
+        (session.journalRequired && !observed.journalRequired)
+      )
+        throw new LeaseLostError('release Lease session changed before parking');
       await kubectl(
         ['replace', '-f', '-'],
-        JSON.stringify(leaseManifest(holder, observed.journal ?? '', observed.version, phase)),
+        JSON.stringify(
+          leaseManifest(
+            holder,
+            observed.journal ?? '',
+            observed.version,
+            phase,
+            observed.uid,
+            observed.journalRequired,
+          ),
+        ),
       );
     },
     async releaseLease(holder) {
       const observed = await this.readLease();
       if (observed === null) return;
-      if (observed.holder !== holder) {
+      if (
+        observed.holder !== holder ||
+        observed.uid !== session.uid ||
+        (session.journalRequired && !observed.journalRequired)
+      ) {
         throw new Error(`Lease is held by ${observed.holder}, not this coordinator; leaving it`);
       }
-      await kubectl(['-n', backend, 'delete', 'lease', OBJECTS.lease]);
+      // Proof: lease-cleanup-phase bypass deleted a marked Lease while its journal still held recoverable intent.
+      if (observed.journalRequired) {
+        if (observed.journal === null)
+          throw new Error('marked release Lease has no authoritative journal path');
+        const durable = fileJournal(observed.journal).read();
+        if (
+          durable === null ||
+          !['flux-resumed', 'rollback-flux-resumed', 'rollback-writes-reopened'].includes(
+            durable.state.phase,
+          ) ||
+          !holder.startsWith(`${durable.state.transactionId}#`) ||
+          Object.values(durable.state.controllers).some(
+            (interval) => interval !== null && interval.stage !== 'restored',
+          )
+        )
+          throw new Error('marked release Lease still protects recoverable controller intent');
+      }
+      await kubectl(
+        [
+          'delete',
+          '--raw',
+          `/apis/coordination.k8s.io/v1/namespaces/${encodeURIComponent(backend)}/leases/${OBJECTS.lease}`,
+          '-f',
+          '-',
+        ],
+        JSON.stringify({
+          apiVersion: 'v1',
+          kind: 'DeleteOptions',
+          // Proof: independently removing UID/RV preconditions deleted a replacement in each real Lease cleanup race.
+          preconditions: { uid: observed.uid, resourceVersion: observed.version },
+        }),
+      );
     },
     async fluxSourceRevision(unit) {
       return (

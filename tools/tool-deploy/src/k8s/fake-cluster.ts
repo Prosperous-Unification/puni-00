@@ -1,3 +1,5 @@
+import type { ControllerTarget } from './controller-adapter';
+import type { ControllerAuthority, ControllerLifecycle } from './controller-lifecycle';
 import type { ReleaseEffects } from './execute';
 import type { JournalRecord, ReleaseJournal } from './journal';
 import { sealMigrationCapture, sha256Of } from './migration-capture';
@@ -10,6 +12,7 @@ import {
   type ReleaseRequest,
 } from './release';
 import type { ReplayCount } from './replay-receipt';
+import { sealStorageOwnership } from './storage-ownership';
 
 /** A migration folder as one backend image carries it. */
 export interface FakeMigration {
@@ -71,6 +74,70 @@ export class FakeCluster implements ReleaseEffects {
     if (this.brokenEffects.has(name)) throw new Error(`${name} is broken`);
   }
 
+  async suspendStorageController(
+    target: ControllerTarget,
+    prior: ControllerLifecycle | null,
+    authority: ControllerAuthority,
+  ): Promise<ControllerLifecycle> {
+    this.enter('suspendStorageController');
+    await authority.assertLease();
+    if (prior !== null) return prior;
+    const ownership = sealStorageOwnership(
+      {
+        ...target,
+        storage: {
+          namespace: target.namespace,
+          pvcName: 'wbs-data',
+          pvcUid: 'fake-pvc',
+          volumeName: 'fake-volume',
+          pvUid: 'fake-pv',
+          databasePath: '/data/wbs.sqlite',
+        },
+      },
+      {
+        fluxUid: target.flux === null ? null : 'fake-flux',
+        owner: {
+          kind: 'CronJob',
+          name: 'sqlite-backup',
+          uid: 'fake-backup',
+          resourceVersion: '1',
+          templateSha256: sha256Of(this.images.backend),
+          suspension: { kind: 'absent' },
+        },
+      },
+      `${target.transactionId}-${String(this.calls.length)}`,
+    );
+    await authority.checkpoint({ ownership, stage: 'suspend-pending' });
+    const suspended: ControllerLifecycle = { ownership, stage: 'suspended' };
+    await authority.checkpoint(suspended);
+    return suspended;
+  }
+  async drainStorageController(
+    _lifecycle: ControllerLifecycle,
+    authority: ControllerAuthority,
+  ): Promise<void> {
+    this.enter('drainStorageController');
+    await authority.assertLease();
+    if (this.backendReplicas !== 0) throw new Error('backend must stop before controller drain');
+  }
+  async restoreStorageController(
+    prior: ControllerLifecycle,
+    authority: ControllerAuthority,
+  ): Promise<ControllerLifecycle> {
+    this.enter('restoreStorageController');
+    for (const stage of [
+      'restore-pending',
+      'restore-applied',
+      'cleanup-pending',
+      'restored',
+    ] as const)
+      await authority.checkpoint({ ...prior, stage });
+    return { ...prior, stage: 'restored' };
+  }
+  manualControllerCommand(lifecycle: ControllerLifecycle, journalPath: string): string {
+    return `kubectl get cronjob sqlite-backup # UID ${lifecycle.ownership.owner.uid}; journal ${journalPath}`;
+  }
+
   /** F6 admission: a backend-image pod starts only if its digest is in `solverImages`. */
   private admit(image: string): void {
     if (!this.approved.includes(image)) throw new Error(`admission denied ${image}`);
@@ -109,6 +176,8 @@ export class FakeCluster implements ReleaseEffects {
   /** Leaves a Lease as a process that has since died would have. */
   seedLease(holder: string, journal: string | null, parked: string | null = null): void {
     this.lease = {
+      uid: 'fake-lease-uid',
+      journalRequired: false,
       holder,
       renewedAtMs: this.now,
       durationSeconds: this.leaseDurationSeconds,
@@ -130,10 +199,12 @@ export class FakeCluster implements ReleaseEffects {
     this.seedLease(holder, journalPath);
     return Promise.resolve();
   }
-  takeoverLease(holder: string, version: string, journalPath: string) {
+  takeoverLease(holder: string, version: string, journalPath: string, uid: string) {
     this.enter('takeoverLease');
-    if (this.lease === null || String(this.lease.version) !== version) throw new Error('Conflict');
+    if (this.lease === null || String(this.lease.version) !== version || this.lease.uid !== uid)
+      throw new Error('Conflict');
     this.lease = {
+      ...this.lease,
       holder,
       renewedAtMs: this.now,
       durationSeconds: this.leaseDurationSeconds,
@@ -149,6 +220,12 @@ export class FakeCluster implements ReleaseEffects {
       throw new Error(`Lease is held by ${this.lease?.holder ?? 'nobody'}`);
     }
     this.lease = { ...this.lease, renewedAtMs: this.now, version: this.lease.version + 1 };
+    return Promise.resolve();
+  }
+  requireJournal(holder: string) {
+    this.enter('requireJournal');
+    if (this.lease?.holder !== holder) throw new Error('foreign release Lease');
+    this.lease = { ...this.lease, journalRequired: true, version: this.lease.version + 1 };
     return Promise.resolve();
   }
   parkLease(holder: string, phase: string) {

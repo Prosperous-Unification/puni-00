@@ -1,0 +1,61 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+793 |       await effects.parkLease(holder, state.phase);
+794 |     }
+795 |   } finally {
+796 |     clearInterval(heartbeat);
+797 |   }
+798 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed
+journal: /tmp/wbs-test-4-mQkOVG/k8s-controller-release-e4J8sY/release.json
+failed step: capture-state: storage controller barrier failed: foreign source consumer Job
+captured migration set: (not captured)
+replay forward: 5f99a6e007112b8e6551ecb01d4903ee66982828845ca3dae105603a0854a778
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: '/tmp/wbs-test-4-mQkOVG/k8s-controller-release-e4J8sY/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token 924e90f4-da6e-42e8-950b-f06f9fe858af; preserve journal /tmp/wbs-test-4-mQkOVG/k8s-controller-release-e4J8sY/release.json; restore the recorded suspension only after verifying the stopped source interval
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-8117bc",
+  phase: "rollback-failed",
+  rollbackFrom: null,
+  capture: null,
+  replayForward: [Object ...],
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-4-mQkOVG/k8s-controller-release-e4J8sY/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:798:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:837:11)
+(fail) mounted retained production Job manifests survive every subsequent source barrier [1586.21ms]
+
+tools/tool-deploy/src/k8s/storage-fence.test.ts:
+459 |   });
+460 |
+461 | test('refuses terminal Job evidence while a terminating worker remains', async () => {
+462 |   const cluster = fixture();
+463 |   cluster.objects[inventory].items.push({ kind: 'Job', metadata: { name: 'completed-source', namespace, uid: 'completed-uid' }, spec: { template: { spec: cluster.writable } }, status: { active: 0, terminating: 1, conditions: [{ type: 'Complete', status: 'True' }] } });
+464 |   await expect(inspectStorageFence(options, cluster.call)).rejects.toThrow('not terminal');
+                                                                         ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/storage-fence.test.ts:464:68)
+(fail) refuses terminal Job evidence while a terminating worker remains [0.81ms]
+
+ 0 pass
+ 88 filtered out
+ 2 fail
+ 1 expect() calls
+Ran 2 tests across 2 files. [1.65s]

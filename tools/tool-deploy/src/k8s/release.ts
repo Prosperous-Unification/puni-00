@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
+import type { ControllerLifecycle } from './controller-lifecycle';
 import type { AppliedMigration, MigrationCapture } from './migration-capture';
 import type { ReplayReceipt } from './replay-receipt';
 
@@ -139,6 +140,7 @@ export interface ReleaseFailure {
 }
 
 export interface ReleaseState {
+  controllers: { forward: ControllerLifecycle | null; rollback: ControllerLifecycle | null };
   releaseId: string;
   /**
    * One attempt at `releaseId`, named into every Job and snapshot. A resumed attempt reuses
@@ -342,6 +344,7 @@ export function initialState(request: ReleaseRequest): ReleaseState {
     replayRollback: null,
     previous: request.expectedCurrent,
     snapshot: null,
+    controllers: { forward: null, rollback: null },
     fluxSuspendedByUs: false,
     writesReopened: false,
     failure: null,
@@ -544,6 +547,9 @@ export function assertRestoredSet(
 
 /** The coordination Lease as the cluster reports it. */
 export interface ObservedLease {
+  uid: string;
+  /** Sticky after source-controller intent: losing its journal is never a fresh release. */
+  journalRequired: boolean;
   /** `<transactionId>#<run>`: the transaction and the one process that holds it. */
   holder: string;
   renewedAtMs: number;
@@ -582,6 +588,11 @@ export function decideLease(
   nowMs: number,
 ): LeaseDecision {
   if (observed === null) return { kind: 'create' };
+  // Proof: journal-marker bypass made the mounted missing-journal restart start a fresh transaction.
+  if (observed.journalRequired && claim.journalTransaction === null)
+    throw new Error(
+      'release Lease requires its missing authoritative journal; manual recovery required',
+    );
   if (observed.holder === claim.holder) return { kind: 'held' };
   const holderTransaction = transactionOf(observed.holder);
   const remainingMs = observed.renewedAtMs + observed.durationSeconds * 1000 - nowMs;

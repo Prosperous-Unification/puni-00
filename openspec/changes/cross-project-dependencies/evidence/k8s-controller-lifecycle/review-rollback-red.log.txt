@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+852 |     const interrupted = { ...fixture.journal, write: (entry: Parameters<typeof fixture.journal.write>[0]) => {
+853 |       fixture.journal.write(entry);
+854 |       if (!crashed && entry.state.phase === 'rollback-replay-checked' && entry.state.controllers.forward?.stage === 'restored') { crashed = true; throw new Error('crash after durable rollback restore'); }
+855 |     } };
+856 |     await expect(executeRelease(fixture.request, interrupted, fixture.fake, () => undefined, fixture.options)).rejects.toThrow('crash after durable rollback restore');
+857 |     await expect(executeRelease(fixture.request, fixture.journal, fixture.fake, () => undefined, fixture.options)).rejects.toThrow('rolled-back');
+                                                                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "rolled-back"
+Received message: "release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed\njournal: /tmp/wbs-test-3-6OiENl/k8s-controller-release-cdPpTI/release.json\nfailed step: rollback-tiers: storage controller barrier failed: source interval is missing before writer rollout\ncaptured migration set: baseline 0001_init; applied [0001_init]; pending [0002_add]\nreplay forward: ffc6ad95953f79ec8e3ffffb438f2d2c2c2e28d313f5e6a53fc255cd081bdc9c\nreplay rollback: 39c78cef321dde5acdc48fc34dfb9776b34800fe0a3356b11d614141c14ce38d\nsnapshot: /data/snapshots/bbbbbbbbbbbb-4d914821ccea-e83b2b.sqlite sha256 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\nwrites remain fenced and the Lease stays held\nmanual command: '/tmp/wbs-test-3-6OiENl/k8s-controller-release-cdPpTI/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token c31f4964-2997-4f69-b09e-3625d5df69fa; preserve journal /tmp/wbs-test-3-6OiENl/k8s-controller-release-cdPpTI/release.json; restore the recorded suspension only after verifying the stopped source interval"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:857:124)
+(fail) mounted dormant rollback resumes after durable restoration of its reused forward interval [4467.79ms]
+
+ 0 pass
+ 31 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [4.51s]

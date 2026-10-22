@@ -428,3 +428,11 @@ Evidence and explicit coverage limits:
 [evidence/task-9-2-producer-http-409.md](evidence/task-9-2-producer-http-409.md).
 No runtime behavior change or production activation is included. Parent tasks
 7.3/7.4/9.2 and full Slice B remain unchecked.
+
+### Kubernetes journal-owned controller lifecycle (bounded task 10.2 prerequisite)
+
+- [x] Retain separate forward/rollback controller histories in journal schema 4 while preserving the prepared-only B2b codec.
+- [x] Wire production suspend/drain/readback around source replay/capture/migration, conditional restoration before rollout, and fresh rollback re-entry after completed forward restoration.
+- [x] Prove exact absent/false/true restoration, patch-before-ack restart, individual UID/resourceVersion/template/token guards, unrelated descendant and unlabelled/readonly consumer refusal, repeated inventory, Lease loss and bounded drain timeout through the real executor/file journal/kubectl adapter.
+- [x] Prove sticky Lease journal retention, missing/unreadable/corrupt journal refusal, UID/session CAS and ABA refusal, and guarded Lease cleanup; record watched faults and configured checks.
+- [ ] Complete independent review and isolated host gate for the integrated SHA. Parent 10.1/10.2, complete B2 participant exclusion and B3 semantic activation remain open.

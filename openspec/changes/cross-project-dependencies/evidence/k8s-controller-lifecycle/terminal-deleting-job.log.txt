@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+1007 |           fixture.journal,
+1008 |           fixture.fake,
+1009 |           () => undefined,
+1010 |           fixture.options,
+1011 |         ),
+1012 |       ).rejects.toThrow('foreign source consumer');
+                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "foreign source consumer"
+Received message: "release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed\njournal: /tmp/wbs-test-3330-eV5cZe/k8s-controller-release-as0H8F/release.json\nfailed step: capture-state: storage controller barrier failed: wbs-replay-inventory-bbbbbbbbbbbb-4d914821ccea-22fa0d-forward is deleting\ncaptured migration set: (not captured)\nreplay forward: 1d337ad755edff2a6487897b4bf386609bab312c1e04f1e42e61fb01020f9eed\nreplay rollback: (not checked)\nsnapshot: (none)\nwrites remain fenced and the Lease stays held\nmanual command: '/tmp/wbs-test-3330-eV5cZe/k8s-controller-release-as0H8F/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token b40c3395-b11d-4abe-b7af-de2e4027511d; preserve journal /tmp/wbs-test-3330-eV5cZe/k8s-controller-release-as0H8F/release.json; restore the recorded suspension only after verifying the stopped source interval"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:1012:17)
+(fail) mounted retained history refuses deleting-job before source capture [1849.58ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.90s]

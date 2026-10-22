@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+169 |   test(`refuses foreign ${fault} before mutation`, async () => {
+170 |     const cluster = fixture(false);
+171 |     const owner = await prepared(cluster);
+172 |     change(cluster.objects['cronjob/sqlite-backup']);
+173 |     await expect(suspendController(owner, null, cluster.call, authority())).rejects.toThrow();
+174 |     expect(cluster.patches).toHaveLength(0);
+                                  ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 0
+Received length: 1
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:174:29)
+(fail) refuses foreign UID before mutation [3.70ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [41.00ms]

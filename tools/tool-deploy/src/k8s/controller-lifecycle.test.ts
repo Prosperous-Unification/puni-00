@@ -1,0 +1,465 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-dynamic-delete, @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Mutable Kubernetes JSON fault fixtures; Bun async rejection assertions have installed void typings. */
+import { expect, test } from 'bun:test';
+
+import { restoreController, suspendController } from './controller-lifecycle';
+import { inspectStorageOwner } from './storage-controller';
+import { sealStorageOwnership } from './storage-ownership';
+
+function fixture(suspend?: boolean) {
+  const namespace = 'wbs';
+  const objects: Record<string, any> = {
+    'namespace/kube-system': { metadata: { name: 'kube-system', uid: 'cluster' } },
+    'pvc/wbs-data': {
+      metadata: { name: 'wbs-data', namespace, uid: 'pvc' },
+      spec: { volumeName: 'disk' },
+      status: { phase: 'Bound' },
+    },
+    'pv/disk': {
+      metadata: { name: 'disk', uid: 'pv' },
+      spec: { claimRef: { name: 'wbs-data', namespace, uid: 'pvc' } },
+      status: { phase: 'Bound' },
+    },
+    'cronjob/sqlite-backup': {
+      apiVersion: 'batch/v1',
+      kind: 'CronJob',
+      metadata: { name: 'sqlite-backup', namespace, uid: 'backup', resourceVersion: '7' },
+      spec: {
+        schedule: '* * * * *',
+        ...(suspend === undefined ? {} : { suspend }),
+        jobTemplate: {
+          spec: { template: { spec: { containers: [{ name: 'backup', image: 'backup:1' }] } } },
+        },
+      },
+    },
+  };
+  const identity = {
+    transactionId: 'transaction',
+    clusterUid: 'cluster',
+    namespace,
+    storage: {
+      namespace,
+      pvcName: 'wbs-data',
+      pvcUid: 'pvc',
+      volumeName: 'disk',
+      pvUid: 'pv',
+      databasePath: '/data/wbs.sqlite',
+    } as const,
+    flux: null,
+  };
+  const patches: any[][] = [];
+  const call = async (args: readonly string[]) => {
+    await Promise.resolve();
+    if (args.includes('get')) return JSON.stringify(objects[args[args.indexOf('get') + 1]]);
+    if (!args.includes('patch')) throw new Error('unexpected command');
+    const operations = JSON.parse(args[args.indexOf('-p') + 1]) as any[];
+    patches.push(operations);
+    const backup = objects['cronjob/sqlite-backup'];
+    const draft = structuredClone(backup);
+    for (const operation of operations) {
+      const keys = operation.path
+        .slice(1)
+        .split('/')
+        .map((key: string) => key.replaceAll('~1', '/').replaceAll('~0', '~'));
+      let parent = draft;
+      for (const key of keys.slice(0, -1)) parent = parent[key];
+      const key = keys.at(-1);
+      if (
+        operation.op === 'test' &&
+        JSON.stringify(parent[key]) !== JSON.stringify(operation.value)
+      )
+        throw new Error('Conflict');
+      if (operation.op === 'add' || operation.op === 'replace') parent[key] = operation.value;
+      if (operation.op === 'remove') delete parent[key];
+    }
+    draft.metadata.resourceVersion = String(Number(backup.metadata.resourceVersion) + 1);
+    objects['cronjob/sqlite-backup'] = draft;
+    return JSON.stringify(draft);
+  };
+  return { objects, identity, call, patches };
+}
+async function prepared(cluster: ReturnType<typeof fixture>) {
+  return sealStorageOwnership(
+    cluster.identity,
+    await inspectStorageOwner(cluster.identity, cluster.call),
+    'token',
+  );
+}
+function authority() {
+  const records: unknown[] = [];
+  return {
+    records,
+    assertLease: async () => {
+      await Promise.resolve();
+    },
+    checkpoint: async (record: unknown) => {
+      records.push(structuredClone(record));
+      await Promise.resolve();
+    },
+  };
+}
+for (const original of [undefined, false, true])
+  test(`conditionally suspends and restores exact ${String(original)} field`, async () => {
+    const cluster = fixture(original);
+    const owner = await prepared(cluster);
+    const durable = authority();
+    const suspended = await suspendController(owner, null, cluster.call, durable);
+    expect(suspended.stage).toBe('suspended');
+    expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+    expect(
+      cluster.objects['cronjob/sqlite-backup'].metadata.annotations['puni.dev/storage-owner'],
+    ).toBe('token');
+    expect(durable.records.map((record: any) => record.stage)).toEqual([
+      'suspend-pending',
+      'suspended',
+    ]);
+    const restored = await restoreController(suspended, cluster.call, durable);
+    expect(restored.stage).toBe('restored');
+    expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(original);
+    expect(
+      cluster.objects['cronjob/sqlite-backup'].metadata.annotations['puni.dev/storage-owner'],
+    ).toBeUndefined();
+  });
+test('checkpoint failure refuses mutation', async () => {
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  await expect(
+    suspendController(owner, null, cluster.call, {
+      ...authority(),
+      checkpoint: async () => {
+        await Promise.resolve();
+        throw new Error('disk failed');
+      },
+    }),
+  ).rejects.toThrow('disk failed');
+  expect(cluster.patches).toHaveLength(0);
+});
+test('restart acknowledges only its exact patch after checkpoint failure', async () => {
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  const durable = authority();
+  let pending: any;
+  await expect(
+    suspendController(owner, null, cluster.call, {
+      ...durable,
+      checkpoint: async (record: any) => {
+        await Promise.resolve();
+        if (record.stage === 'suspended') throw new Error('crash');
+        pending = structuredClone(record);
+      },
+    }),
+  ).rejects.toThrow('crash');
+  const resumed = await suspendController(owner, pending, cluster.call, durable);
+  expect(resumed.stage).toBe('suspended');
+  expect(cluster.patches).toHaveLength(1);
+});
+for (const [fault, change] of Object.entries({
+  UID: (backup: any) => {
+    backup.metadata.uid = 'replacement';
+  },
+  template: (backup: any) => {
+    backup.spec.schedule = 'foreign';
+  },
+  token: (backup: any) => {
+    backup.metadata.annotations = { 'puni.dev/storage-owner': 'foreign' };
+  },
+  suspension: (backup: any) => {
+    backup.spec.suspend = true;
+  },
+}))
+  test(`refuses foreign ${fault} before mutation`, async () => {
+    const cluster = fixture(false);
+    const owner = await prepared(cluster);
+    change(cluster.objects['cronjob/sqlite-backup']);
+    await expect(suspendController(owner, null, cluster.call, authority())).rejects.toThrow();
+    expect(cluster.patches).toHaveLength(0);
+  });
+
+test('drains actual UID descendants and refuses unrelated unlabelled source readers', async () => {
+  const { drainController } = await import('./controller-lifecycle');
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  const suspended = await suspendController(owner, null, cluster.call, authority());
+  cluster.objects['jobs'] = {
+    items: [
+      {
+        kind: 'Job',
+        metadata: {
+          name: 'backup-job',
+          namespace: 'wbs',
+          uid: 'job',
+          ownerReferences: [
+            { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+          ],
+        },
+        spec: { template: { spec: { containers: [{ name: 'backup' }] } } },
+      },
+    ],
+  };
+  cluster.objects['pods'] = {
+    items: [
+      {
+        metadata: {
+          name: 'backup-pod',
+          namespace: 'wbs',
+          uid: 'pod',
+          ownerReferences: [{ kind: 'Job', name: 'backup-job', uid: 'job', controller: true }],
+        },
+        spec: {
+          containers: [{ name: 'backup' }],
+          volumes: [{ name: 'db', persistentVolumeClaim: { claimName: 'wbs-data' } }],
+        },
+      },
+    ],
+  };
+  const deleted: unknown[] = [];
+  const call = async (args: readonly string[], input?: string) => {
+    if (!args.includes('delete')) return cluster.call(args);
+    const options = JSON.parse(input ?? '{}');
+    deleted.push(options.preconditions);
+    const resource = args[args.indexOf('--raw') + 1].includes('/pods/') ? 'pods' : 'jobs';
+    cluster.objects[resource].items = [];
+    return '{}';
+  };
+  await drainController(suspended, call, authority(), {
+    attempts: 4,
+    sleep: async () => {
+      await Promise.resolve();
+    },
+  });
+  expect(deleted).toEqual([{ uid: 'pod' }, { uid: 'job' }]);
+  cluster.objects['pods'].items = [
+    {
+      metadata: { name: 'unlabelled-reader', namespace: 'wbs', uid: 'foreign' },
+      status: { phase: 'Running' },
+      spec: {
+        containers: [
+          {
+            name: 'reader',
+            volumeMounts: [
+              { name: 'db', mountPath: '/data', readOnly: true, recursiveReadOnly: 'Enabled' },
+            ],
+          },
+        ],
+        volumes: [{ name: 'db', persistentVolumeClaim: { claimName: 'wbs-data', readOnly: true } }],
+      },
+    },
+  ];
+  await expect(
+    drainController(suspended, call, authority(), {
+      attempts: 2,
+      sleep: async () => {
+        await Promise.resolve();
+      },
+    }),
+  ).rejects.toThrow('foreign source consumer');
+  expect(deleted).toHaveLength(2);
+});
+
+for (const [name, race] of Object.entries({
+  UID: (backup: any) => {
+    backup.metadata.uid = 'replacement';
+  },
+  resourceVersion: (backup: any) => {
+    backup.metadata.resourceVersion = '99';
+  },
+  template: (backup: any) => {
+    backup.spec.schedule = 'changed';
+  },
+  token: (backup: any) => {
+    backup.metadata.annotations['puni.dev/storage-owner'] = 'foreign';
+  },
+}))
+  test(`atomic ${name} race refuses before changing suspension`, async () => {
+    const cluster = fixture(false);
+    cluster.objects['cronjob/sqlite-backup'].metadata.annotations = {};
+    const owner = await prepared(cluster);
+    let raced = false;
+    const call = async (args: readonly string[]) => {
+      if (args.includes('patch') && !raced) {
+        raced = true;
+        race(cluster.objects['cronjob/sqlite-backup']);
+      }
+      return cluster.call(args);
+    };
+    await expect(suspendController(owner, null, call, authority())).rejects.toThrow();
+    expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(false);
+  });
+
+test('lost Lease after suspension patch cannot acknowledge or restore', async () => {
+  const cluster = fixture(false);
+  const owner = await prepared(cluster);
+  let patched = false;
+  const durable = authority();
+  const call = async (args: readonly string[]) => {
+    const stdout = await cluster.call(args);
+    if (args.includes('patch')) patched = true;
+    return stdout;
+  };
+  await expect(
+    suspendController(owner, null, call, {
+      ...durable,
+      assertLease: async () => {
+        await Promise.resolve();
+        if (patched) throw new Error('Lease lost');
+      },
+    }),
+  ).rejects.toThrow('Lease lost');
+  expect(durable.records.map((record: any) => record.stage)).toEqual(['suspend-pending']);
+  expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+});
+
+test('malformed lifecycle never reaches cluster transport', async () => {
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  for (const corrupted of [
+    null,
+    {},
+    { ownership: owner, stage: 'unknown' },
+    { ownership: { ...owner, token: 'changed' }, stage: 'suspended' },
+    { ownership: owner, stage: 'suspended', extra: true },
+  ]) {
+    await expect(
+      restoreController(
+        corrupted as never,
+        async () => {
+          await Promise.resolve();
+          throw new Error('unexpected cluster call');
+        },
+        authority(),
+      ),
+    ).rejects.toThrow();
+  }
+});
+
+test('restore mismatch retains token and suspension', async () => {
+  const cluster = fixture(false);
+  const owner = await prepared(cluster);
+  const durable = authority();
+  const suspended = await suspendController(owner, null, cluster.call, durable);
+  cluster.objects['cronjob/sqlite-backup'].spec.schedule = 'foreign';
+  await expect(restoreController(suspended, cluster.call, durable)).rejects.toThrow('template');
+  expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+  expect(
+    cluster.objects['cronjob/sqlite-backup'].metadata.annotations['puni.dev/storage-owner'],
+  ).toBe('token');
+});
+
+test('drain timeout retains suspended owner without deleting a foreign Pod', async () => {
+  const { drainController } = await import('./controller-lifecycle');
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  const suspended = await suspendController(owner, null, cluster.call, authority());
+  cluster.objects['jobs'] = {
+    items: [
+      {
+        metadata: {
+          name: 'backup-job',
+          namespace: 'wbs',
+          uid: 'job',
+          ownerReferences: [
+            { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+          ],
+        },
+      },
+    ],
+  };
+  cluster.objects['pods'] = { items: [] };
+  const deleted: unknown[] = [];
+  const call = async (args: readonly string[], input?: string) => {
+    if (!args.includes('delete')) return cluster.call(args);
+    deleted.push(JSON.parse(input ?? '{}').preconditions);
+    return '{}';
+  };
+  await expect(
+    drainController(suspended, call, authority(), {
+      attempts: 2,
+      sleep: async () => {
+        await Promise.resolve();
+      },
+    }),
+  ).rejects.toThrow('did not converge');
+  expect(deleted).toEqual([{ uid: 'job' }, { uid: 'job' }]);
+  expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+});
+
+for (const interrupted of ['restore-applied', 'restored'])
+  test(`restart finishes exact restoration after ${interrupted} acknowledgment crash`, async () => {
+    const cluster = fixture(false);
+    const owner = await prepared(cluster);
+    const suspended = await suspendController(owner, null, cluster.call, authority());
+    let durable: any = suspended;
+    await expect(
+      restoreController(suspended, cluster.call, {
+        ...authority(),
+        checkpoint: async (record: any) => {
+          await Promise.resolve();
+          if (record.stage === interrupted) throw new Error('crash');
+          durable = structuredClone(record);
+        },
+      }),
+    ).rejects.toThrow('crash');
+    const restored = await restoreController(durable, cluster.call, authority());
+    expect(restored.stage).toBe('restored');
+    expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(false);
+    expect(
+      cluster.objects['cronjob/sqlite-backup'].metadata.annotations['puni.dev/storage-owner'],
+    ).toBeUndefined();
+  });
+
+test('completed restore history is checked against current state before writer rollout', async () => {
+  const cluster = fixture(false);
+  const owner = await prepared(cluster);
+  const suspended = await suspendController(owner, null, cluster.call, authority());
+  const restored = await restoreController(suspended, cluster.call, authority());
+  cluster.objects['cronjob/sqlite-backup'].spec.suspend = true;
+  await expect(restoreController(restored, cluster.call, authority())).rejects.toThrow('restored');
+});
+
+test('malformed lifecycle object identifies the trusted-state boundary', async () => {
+  await expect(
+    restoreController(
+      null as never,
+      async () => {
+        await Promise.resolve();
+        throw new Error('unexpected call');
+      },
+      authority(),
+    ),
+  ).rejects.toThrow('malformed backup controller');
+});
+
+test('owned token changing between read passes refuses before acknowledgment', async () => {
+  const cluster = fixture(true);
+  const owner = await prepared(cluster);
+  const suspended = await suspendController(owner, null, cluster.call, authority());
+  let reads = 0;
+  const call = async (args: readonly string[]) => {
+    const text = await cluster.call(args);
+    if (args.includes('cronjob/sqlite-backup') && ++reads === 1)
+      delete cluster.objects['cronjob/sqlite-backup'].metadata.annotations[
+        'puni.dev/storage-owner'
+      ];
+    return text;
+  };
+  await expect(suspendController(owner, suspended, call, authority())).rejects.toThrow(
+    'token changed during observation',
+  );
+});
+
+test('unknown lifecycle fields refuse before any cluster transport', async () => {
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  let calls = 0;
+  await expect(
+    restoreController(
+      { ownership: owner, stage: 'suspended', extra: true } as never,
+      async () => {
+        calls++;
+        await Promise.resolve();
+        throw new Error('unexpected transport');
+      },
+      authority(),
+    ),
+  ).rejects.toThrow('malformed controller lifecycle');
+  expect(calls).toBe(0);
+});

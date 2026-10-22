@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+668 |           fixture.journal,
+669 |           fixture.fake,
+670 |           () => undefined,
+671 |           fixture.options,
+672 |         ),
+673 |       ).rejects.toThrow('foreign source consumer');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:673:17)
+(fail) mounted unlabelled readonly source consumer refuses [1664.94ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1.71s]

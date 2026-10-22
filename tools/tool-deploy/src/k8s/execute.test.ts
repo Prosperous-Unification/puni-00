@@ -122,6 +122,7 @@ describe('executeRelease', () => {
     const phases: string[] = [];
     const recording = {
       ...journal,
+      read: () => journal.read(),
       write: (r: Parameters<typeof journal.write>[0]) => {
         phases.push(r.state.phase);
         journal.write(r);
@@ -129,10 +130,19 @@ describe('executeRelease', () => {
     };
     const final = await executeRelease(request(), recording, fake, quiet, on(fake));
     expect(final.phase).toBe('lease-released');
-    expect(phases).toEqual(
+    expect(phases.filter((phase, index) => index === 0 || phase !== phases[index - 1])).toEqual(
       FORWARD_PHASES.filter((p) => !['requested', 'validated', 'lease-acquired'].includes(p)),
     );
-    const mutations = fake.calls.filter((c) => !c.endsWith('Lease'));
+    const mutations = fake.calls.filter(
+      (c) =>
+        !c.endsWith('Lease') &&
+        c !== 'requireJournal' &&
+        ![
+          'suspendStorageController',
+          'drainStorageController',
+          'restoreStorageController',
+        ].includes(c),
+    );
     expect(mutations).toEqual([
       'observeCluster',
       'admitBackendImages',
@@ -363,7 +373,7 @@ describe('executeRelease', () => {
     const journal = memoryJournal();
     const release = request();
     journal.stored = JSON.stringify({
-      schemaVersion: 3,
+      schemaVersion: 4,
       request: release,
       state: { ...initialState(release), phase: 'migrated', capture: null },
       history: [{ phase: 'migrated', at: '2026-10-06T00:00:00.000Z' }],
@@ -737,6 +747,7 @@ describe('executeRelease', () => {
       };
       const recording = {
         ...journal,
+        read: () => journal.read(),
         write: (entry: Parameters<typeof journal.write>[0]) => {
           journal.write(entry);
           if (entry.state.phase === 'rollback-failed') terminalRecorded.resolve(undefined);

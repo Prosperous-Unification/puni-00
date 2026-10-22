@@ -457,3 +457,14 @@ for (const fault of ['uid', 'namespace'])
     });
     await expect(inspectStorageFence(options, cluster.call)).rejects.toThrow();
   });
+
+test('refuses terminal Job evidence while a terminating worker remains', async () => {
+  const cluster = fixture();
+  cluster.objects[inventory].items.push({
+    kind: 'Job',
+    metadata: { name: 'completed-source', namespace, uid: 'completed-uid' },
+    spec: { template: { spec: cluster.writable } },
+    status: { active: 0, terminating: 1, conditions: [{ type: 'Complete', status: 'True' }] },
+  });
+  await expect(inspectStorageFence(options, cluster.call)).rejects.toThrow('not terminal');
+});

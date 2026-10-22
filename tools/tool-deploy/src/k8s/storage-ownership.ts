@@ -58,14 +58,15 @@ function hashOf(value: unknown): string {
   if (!/^[0-9a-f]{64}$/.test(hash)) throw new Error('malformed storage ownership hash');
   return hash;
 }
-function canonical(value: unknown): string {
+/** Canonical JSON for immutable storage evidence; missing fields refuse. */
+export function serializeStorage(value: unknown): string {
   // Proof: canonical-missing removal lost the missing-field boundary diagnostic.
   if (value === undefined) throw new Error('missing storage ownership field');
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (Array.isArray(value)) return `[${value.map(serializeStorage).join(',')}]`;
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, field]) => `${JSON.stringify(key)}:${canonical(field)}`)
+      .map(([key, field]) => `${JSON.stringify(key)}:${serializeStorage(field)}`)
       .join(',')}}`;
   return JSON.stringify(value);
 }
@@ -189,7 +190,7 @@ export function assertStorageOwnership(
   if (typeof bytes !== 'string' || sha256Of(bytes) !== hashOf(sha256))
     throw new Error('storage ownership differs from original SHA-256');
   // Proof: canonical-envelope removal admitted an altered token before a cluster call.
-  if (bytes !== canonical(raw))
+  if (bytes !== serializeStorage(raw))
     throw new Error('storage ownership envelope differs from canonical bytes');
   const payload = readPayload(raw);
   const observed = {
@@ -200,7 +201,7 @@ export function assertStorageOwnership(
     flux: payload.flux,
   };
   // Proof: target removal admitted independently foreign transaction, cluster, namespace, PVC and Flux targets.
-  if (canonical(observed) !== canonical(expected))
+  if (serializeStorage(observed) !== serializeStorage(expected))
     throw new Error('storage ownership belongs to another target or transaction');
 }
 
@@ -223,7 +224,7 @@ export function sealStorageOwnership(
         ? 'already-suspended'
         : 'suspend-requested',
   };
-  const bytes = canonical(payload);
+  const bytes = serializeStorage(payload);
   const ownership: unknown = { ...payload, bytes, sha256: sha256Of(bytes) };
   assertStorageOwnership(ownership, identity);
   return ownership;

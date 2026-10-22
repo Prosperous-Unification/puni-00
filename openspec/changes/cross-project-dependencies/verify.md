@@ -5022,3 +5022,12 @@ assertions (`/tmp/puni-integrated-mcp-ssff-tests.log`). OpenSpec validated all
 **271/271** items after both integrations and the evidence link
 (`/tmp/puni-openspec-after-mcp-ssff.json`). These are bounded regression
 receipts, not complete frontend/backend delivery or host-gate evidence.
+
+## Kubernetes journal-owned controller lifecycle prerequisite — 2026-10-23
+
+The bounded two-interval implementation and its mounted executor/file-journal/kubectl
+proofs are recorded in [the dedicated verification record](verify-k8s-controller-lifecycle.md).
+This packet preserves the prepared-only ownership contract. It does not activate
+external authoring, establish complete participant exclusion or complete B3; parent
+10.1/10.2 remain open. Independent review and isolated host acceptance are recorded
+only after they actually run.

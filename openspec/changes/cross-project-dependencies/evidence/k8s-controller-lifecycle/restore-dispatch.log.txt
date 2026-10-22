@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+806 |       await effects.parkLease(holder, state.phase);
+807 |     }
+808 |   } finally {
+809 |     clearInterval(heartbeat);
+810 |   }
+811 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rolled-back
+journal: /tmp/wbs-test-1823-ZuKANk/k8s-controller-release-XC2W4Z/release.json
+failed step: rollout-backend: expect(received).toBe(expected)
+
+Expected: "restored"
+Received: "drained"
+
+captured migration set: baseline 0001_init; applied [0001_init]; pending [0002_add]
+replay forward: 353f3d104781492a6ed6217cebabb3f7c715b7fe8a04c907704cbc40b7b211b0
+replay rollback: e7c095ef850a5600e3cc41abda1222af6cee00569cb0b04d15f5fc474853a8ec
+snapshot: /data/snapshots/bbbbbbbbbbbb-4d914821ccea-d0f9c4.sqlite sha256 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-d0f9c4",
+  phase: "rolled-back",
+  rollbackFrom: "migrated",
+  capture: [Object ...],
+  replayForward: [Object ...],
+  replayRollback: [Object ...],
+  previous: [Object ...],
+  snapshot: [Object ...],
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-1823-ZuKANk/k8s-controller-release-XC2W4Z/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:811:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:336:27)
+(fail) mounted release checkpoints and restores exact false backup suspension [6682.70ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [6.75s]

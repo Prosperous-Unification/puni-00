@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+807 |       await effects.parkLease(holder, state.phase);
+808 |     }
+809 |   } finally {
+810 |     clearInterval(heartbeat);
+811 |   }
+812 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed
+journal: /tmp/wbs-test-1171-wHKJRj/k8s-controller-release-YBQrv4/release.json
+failed step: capture-state: storage controller barrier failed: foreign source consumer Job
+captured migration set: (not captured)
+replay forward: fb66ed71f0f9b50560f501b1870d29077361e354924638462e36bb51f81914a5
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: '/tmp/wbs-test-1171-wHKJRj/k8s-controller-release-YBQrv4/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token 9fba07a2-34e4-49a0-9ca7-508248f8d9bc; preserve journal /tmp/wbs-test-1171-wHKJRj/k8s-controller-release-YBQrv4/release.json; restore the recorded suspension only after verifying the stopped source interval
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-9bc626",
+  phase: "rollback-failed",
+  rollbackFrom: null,
+  capture: null,
+  replayForward: [Object ...],
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-1171-wHKJRj/k8s-controller-release-YBQrv4/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:812:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:880:11)
+(fail) mounted retained production Job manifests survive every subsequent source barrier [1696.93ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1.74s]

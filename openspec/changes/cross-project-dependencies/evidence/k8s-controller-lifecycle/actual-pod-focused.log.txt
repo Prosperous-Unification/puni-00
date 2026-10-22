@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+(pass) mounted retained production Job manifests survive every subsequent source barrier [3640.18ms]
+(pass) mounted dormant rollback resumes after durable restoration of its reused forward interval [5452.82ms]
+(pass) mounted owner template drift after drain refuses before source replay [1232.79ms]
+(pass) mounted owner token drift after drain refuses before source replay [1177.68ms]
+(pass) mounted retained history refuses active before source capture [1607.31ms]
+(pass) mounted retained history refuses terminating before source capture [1675.11ms]
+(pass) mounted retained history refuses condition before source capture [1667.00ms]
+(pass) mounted retained history refuses deleting-job before source capture [1629.85ms]
+(pass) mounted retained history refuses live-pod before source capture [1636.31ms]
+(pass) mounted retained history refuses deleting-pod before source capture [1605.59ms]
+
+ 10 pass
+ 28 filtered out
+ 0 fail
+ 45 expect() calls
+Ran 10 tests across 1 file. [21.37s]

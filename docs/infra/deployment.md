@@ -56,7 +56,9 @@ end. `--keep` leaves them in place for inspection.
 validate identity/admission → acquire Lease → persist intent → admit rollback + candidate digests
 → suspend WBS Flux unit
 → close writes → drain gateway → stop backend, prove no writer
-→ capture migrations + VACUUM INTO snapshot (integrity_check, sha256) → migration Job
+→ journal backup ownership → conditionally suspend + drain exact descendants
+→ replay admission → capture migrations + VACUUM INTO snapshot (integrity_check, sha256) → migration Job
+→ restore exact backup suspension + durably acknowledge
 → backend ready → gateway/frontend/MCP ready → smoke Job
 → publish desired deploy revision (Flux) + persist release record
 → reopen writes → reconcile desired revision → resume Flux → release Lease
@@ -73,6 +75,17 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   `podReplacementPolicy: Failed`, and a crashed run reuses the Job it already created. After
   a migration, the coordinator checks the applied set against the captured plan, not against
   Job completion.
+- **Backup controller intervals.** The coordinator records exact `sqlite-backup` UID,
+  template, token and absent/false/true suspension in journal schema 4, then suspends
+  conditionally and drains actual UID-owned Jobs/Pods. Unlabelled source consumers,
+  including readers, refuse. Each source task repeats unfiltered inspection. The
+  forward interval is restored before backend rollout changes the backup image. An
+  eligible abort reuses an active interval or retains a separate rollback interval
+  after forward restoration, restoring it before old-tier rollout. An uncertain
+  restore parks the Lease and prints the pinned UID/template/token and inspection
+  command; preserve the journal and current database bytes. Do not delete the Lease
+  or remove the ownership annotation to bypass that refusal. This bounded mechanism
+  does not activate cross-project semantics or establish complete participant fencing.
 - **MCP sessions.** `wbs-mcp` is one `Recreate` replica with its own retained PVC at
   `/var/lib/wbs-mcp`; its current store and signing keys come from `wbs/wbs-mcp-secrets`.
   Previous keys are optional rotation slots. The production overlay declares that Secret
@@ -84,11 +97,17 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   A second coordinator is refused while the holder is live. A restarted coordinator waits
   for its dead predecessor's Lease to lapse, then takes it over. It never takes over another
   transaction's Lease. Terminal failures park the Lease for an operator or recovery.
+  Source-controller intent first sets the sticky `puni.dev/journal-required=true`
+  annotation under UID/resourceVersion/session CAS. A marked Lease requires its
+  authoritative journal even if the process died before the next checkpoint. A
+  missing, unreadable or corrupt file is attended recovery, never permission to start
+  over. Session renewals and cleanup pin the Lease UID; cleanup also requires a
+  completed controller history and an eligible durable phase.
 - **Admission.** Before any backend pod starts, the coordinator writes F6's `solverImages`
   list with the candidate digest first, then the rollback digest (the F6 contract in
   [platform](platform.md#trusted-image-ownership)); the WBS manifests never carry that ConfigMap,
   so CD cannot regenerate it from Git.
-- **Before writes reopen**, any failure rolls back. The coordinator stops the writer, checks
+- **Before writes reopen**, ordinary failures use the existing rollback path while storage ownership remains provable. Controller uncertainty parks the release before source rollback or writer restart. The coordinator stops the writer, checks
   that the `down.sql` hashes match what capture recorded, runs the pinned backend image's
   `migrate-down-cli --capture-file=<path> --capture-sha256=<digest> --target=<target>
 --attempt=<transaction> --candidate=<image>` against the captured applied/pending set,
@@ -107,26 +126,11 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   the snapshot, and the exact manual command, for example
   `kubectl --context <ctx> create -f <dir>/wbs-manual-rollback-<id>.json`. Every later run
   refuses with the same command.
-- **Existing schema-1 journals.** Journal schema 2 carries the versioned exact-set capture.
-  The new executor refuses every schema-1 journal, including a terminal record, before taking
-  a Lease or changing it. Finish an in-flight attempt with its prior compatible executor or
-  reviewed manual recovery, and retain the old journal as evidence. Before a fresh schema-2
-  journal path is used, confirm the actual cluster release/schema, writer fence and absence
-  of a held Lease. Never overwrite or relabel the old journal. The legacy backend `--to=` CLI
-  remains available for that reviewed procedure.
-
-The executor/backend migration-protocol combinations are:
-
-| Executor  | Candidate backend  | Adoption rule                                                                                                                     |
-| --------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Prior     | Prior              | Continue an already-started attempt with its prior executor; timestamp rollback cannot repair a newly introduced older migration. |
-| Prior     | Exact-set capable  | `--to=` remains available, but the prior executor still selects by timestamp.                                                     |
-| Exact-set | Prior `--to=` only | Refuse before SQLite open, snapshot or forward migration. The candidate lacks digest-pinned exact-set restore.                    |
-| Exact-set | Exact-set capable  | Require the candidate's DB-free protocol response, then capture and restore the pinned set with that image and attempt identity.  |
-
-The candidate's `migrate-capabilities-cli.ts` must emit only the version-1
-`wbs-migration` response with `capture-v1` and `restore-v1-sha256`. A readable ledger, the
-coordinator's own code, or status CLI output does not establish candidate rollback support.
+- **Existing schema-1/2/3 journals.** Journal schema 4 carries the two controller
+  histories and explicit restoration progress. This executor refuses older journals
+  before changing the cluster. Finish them with their prior compatible executor or
+  attended manual recovery, retain the original journal as evidence, and verify the
+  old Lease/controller state before starting a fresh schema-4 transaction.
 
 - **After writes reopen**, a failure ends at `recovery-required`. The coordinator does not
   roll back to the old image, because that would drop writes users have already been told

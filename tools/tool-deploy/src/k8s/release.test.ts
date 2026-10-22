@@ -272,6 +272,8 @@ describe('migration evidence', () => {
 describe('decideLease', () => {
   const claim = { holder: 'tx-1#run-b', journalTransaction: 'tx-1', journalPath: '/j.json' };
   const lease = (patch: Partial<Parameters<typeof decideLease>[0] & object> = {}) => ({
+    uid: 'lease-uid',
+    journalRequired: false,
     holder: 'tx-1#run-a',
     renewedAtMs: 1000,
     durationSeconds: 20,

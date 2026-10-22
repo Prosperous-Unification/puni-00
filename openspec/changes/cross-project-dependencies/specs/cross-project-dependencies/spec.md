@@ -529,3 +529,72 @@ SHALL NOT authorize external authoring or deployment recovery.
 - **GIVEN** pre-migration inspection admitted valid dormant authority
 - **WHEN** a pending migration removes the authority receipt table
 - **THEN** strict post-migration inspection refuses before service creation or application writes and closes storage
+
+### Requirement: Kubernetes release owns bounded backup controller intervals
+
+The production release coordinator SHALL retain separate forward and rollback
+controller histories in its authoritative versioned file journal. After backend
+shutdown and before source replay, capture or migration, it SHALL checkpoint the
+exact original backup UID/resourceVersion/template, token and absent/false/true
+suspension; conditionally suspend with UID/resourceVersion/spec/annotation guards;
+read back and durably acknowledge suspension; and drain only actual CronJob→Job→Pod
+UID-owned descendants with UID-preconditioned deletes and bounded convergence.
+Repeated unfiltered inventories SHALL refuse unrelated live or deleting source consumers, including
+readers, without deleting them. Strictly terminal retained Job/Pod history SHALL
+remain readable without granting ownership or deletion authority; active or
+terminating workers and missing/false completion conditions SHALL refuse. The exact
+recorded backup UID, template, token and suspension SHALL be revalidated after
+fence observations and before any source replay or capture. Missing acknowledgment SHALL prevent source work.
+
+The coordinator SHALL conditionally restore the exact original suspension and
+acknowledge it durably before backend rollout. An eligible dormant abort SHALL reuse
+an active forward interval or, after its completed restoration, retain a new rollback
+interval before schema reversal or rollback replay, restoring it before old-tier
+rollout. Completed forward history SHALL survive authorized image-template changes;
+active history SHALL never weaken its original template guards. Uncertain controller
+history SHALL retain the release barrier and print pinned manual inspection facts
+instead of invoking generic schema reversal or writer restart.
+
+#### Scenario: Patch commits before acknowledgment and coordinator restarts
+
+- **WHEN** suspension or restoration reached Kubernetes but the next journal write failed
+- **THEN** restart reconciles only the recorded UID, template, original suspension, token and exact expected current state
+- **AND** missing, changed or ambiguous state refuses without replacing original history or rolling out a writer
+
+#### Scenario: Rollback follows an authorized backup image transition
+
+- **WHEN** the forward interval was restored and backend rollout changed the backup template before an eligible dormant abort
+- **THEN** rollback retains completed forward history and establishes a separate rollback interval under the current template before source rollback work
+- **AND** both histories retain their exact original suspension and distinct ownership tokens
+
+#### Scenario: Retained coordinator history does not block or authorize source work
+
+- **WHEN** completed source task Jobs and their terminated Pods remain for their normal retention period
+- **THEN** subsequent source barriers accept only their strict inert status and leave those resources intact
+- **AND** live, deleting, active, terminating or falsely completed source consumers still refuse before the next source task
+
+#### Scenario: Eligible rollback restarts after its restore acknowledgment
+
+- **WHEN** dormant rollback reused the forward interval and the coordinator dies after durably acknowledging its restoration before old-tier rollout
+- **THEN** restart verifies that completed forward history and finishes rollback without inventing or selecting an absent rollback interval
+
+### Requirement: Kubernetes source intent retains its authoritative journal
+
+Before checkpointing source-controller intent, the coordinator SHALL mark the real
+release Lease as requiring its journal using UID/resourceVersion/session CAS and
+readback. That marker SHALL remain true across renewal, takeover and parking.
+Missing, unreadable or malformed marked journals SHALL refuse recovery as a fresh
+release. Lease UID replacement, marker loss and session loss SHALL prevent further
+controller mutation, acknowledgment or source work. Marked Lease cleanup SHALL
+require an eligible completed journal with restored controller histories and use
+UID/resourceVersion deletion preconditions.
+
+#### Scenario: Journal disappears after the sticky marker
+
+- **WHEN** the journal is missing, unreadable or malformed after the Lease acquired its marker, including before the first controller checkpoint
+- **THEN** recovery refuses and retains the Lease and current controller state for attended recovery
+
+#### Scenario: Lease is deleted and recreated under the same holder
+
+- **WHEN** the Lease UID changes despite a repeated holder or resourceVersion
+- **THEN** marker changes, renewals, parking, takeover and cleanup refuse to adopt or delete that replacement

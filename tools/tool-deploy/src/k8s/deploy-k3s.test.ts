@@ -11,6 +11,7 @@ import { fileJournal } from './journal';
 import { checkDescriptor, readDeliveryTarget, requestFor } from './promotion';
 import { initialState } from './release';
 import { sealReplayReceipt } from './replay-receipt';
+import { sealStorageOwnership } from './storage-ownership';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const roots: string[] = [];
@@ -127,9 +128,54 @@ function resumable(recordedContext: string) {
     { image: recorded.expectedCurrent.images.backend, capabilities: [] },
   );
   fileJournal(journalPath).write({
-    schemaVersion: 3,
+    schemaVersion: 4,
     request: recorded,
-    state: { ...progress, replayForward, phase: 'writes-reopened', writesReopened: true },
+    state: {
+      ...progress,
+      replayForward,
+      phase: 'writes-reopened',
+      writesReopened: true,
+      controllers: {
+        forward: {
+          stage: 'restored',
+          ownership: sealStorageOwnership(
+            {
+              transactionId: progress.transactionId,
+              clusterUid: recorded.cluster.uid,
+              namespace: recorded.namespaces.backend,
+              storage: {
+                namespace: recorded.namespaces.backend,
+                pvcName: 'wbs-data',
+                pvcUid: 'fixture-pvc',
+                volumeName: 'disk',
+                pvUid: 'fixture-pv',
+                databasePath: '/data/wbs.sqlite',
+              },
+              flux:
+                recorded.flux === null
+                  ? null
+                  : {
+                      namespace: recorded.flux.namespace,
+                      kustomization: recorded.flux.kustomization,
+                    },
+            },
+            {
+              fluxUid: recorded.flux === null ? null : 'fixture-flux',
+              owner: {
+                kind: 'CronJob',
+                name: 'sqlite-backup',
+                uid: 'fixture-backup',
+                resourceVersion: '1',
+                templateSha256: 'a'.repeat(64),
+                suspension: { kind: 'absent' },
+              },
+            },
+            'fixture-owner',
+          ),
+        },
+        rollback: null,
+      },
+    },
     history: [{ phase: 'writes-reopened', at: '2026-09-18T00:00:00.000Z' }],
   });
   const kubectl = join(state, 'kubectl');
