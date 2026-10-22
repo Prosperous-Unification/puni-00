@@ -224,13 +224,18 @@ class SshHostProvider implements ComputeProvider {
   /**
    * Runs one measuring ssh. Past the command deadline ssh is killed and the answer is `timedOut`
    * as soon as it has exited, without waiting for its pipes: a `ProxyCommand` or other descendant
-   * may still hold them open.
+   * may still hold them open. The pipe readers then outlive the answer until that descendant
+   * closes the pipes; this is bounded by the descendant's life, and the losing branch of the race
+   * cannot become an unhandled rejection because the race's own `then` handles it. Any exit after
+   * the deadline fired is `timedOut`, whichever branch of the race settles first.
    */
   private async execute(remoteCommand: string): Promise<Execution> {
     const child = this.spawnSsh(remoteCommand);
     let deadline: ReturnType<typeof setTimeout> | undefined;
+    let pastDeadline = false;
     const killed = new Promise<Execution>((resolve) => {
       deadline = setTimeout(() => {
+        pastDeadline = true;
         child.kill('SIGKILL');
         void child.exited.then((exitCode) => {
           resolve({ exitCode, stdout: '', stderr: '', timedOut: true });
@@ -247,10 +252,15 @@ class SshHostProvider implements ComputeProvider {
       if (stdout.length > MAX_OUTPUT_BYTES) {
         throw new Error(`${remoteCommand} on ${this.host} answered more than 1 MiB`);
       }
-      return { exitCode, stdout, stderr, timedOut: false };
+      // In the fixture `killed` always won (3 of 3 runs with `timedOut: false` still passed), so
+      // the proof forces this branch first by never resolving `killed`.
+      // Proof: so forced, the flag passed `answers timeout when a killed ssh has no descendant`
+      // and `timedOut: false` failed it with `true on stalled.fixture exited 137` (2026-10-22).
+      return { exitCode, stdout, stderr, timedOut: pastDeadline };
     });
-    // Proof: awaiting only `answered` made `bounds an unreachable reason…` wait out the fixture
-    // dial's descendant `sleep` past the test budget (2026-10-22).
+    // Proof: awaiting only `answered` made `bounds an unreachable reason…` fail its elapsed-time
+    // assertion, the timed-out observation answering only after the fixture dial's descendant
+    // `sleep` ended (about 5 s, not under 2 s) (2026-10-22).
     try {
       return await Promise.race([answered, killed]);
     } finally {

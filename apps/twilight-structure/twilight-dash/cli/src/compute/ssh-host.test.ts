@@ -40,6 +40,7 @@ const fixture = createSshFixture({
   'overcommitted.fixture': { meminfo: 'MemTotal: 1048576 kB\nMemAvailable: 2097152 kB\n' },
   'oversized.fixture': { meminfo: `${MEMINFO_15_7}${'x'.repeat(1024 * 1024)}\n` },
   [`${'l'.repeat(190)}.fixture`]: { dialDelay: '5' },
+  'stalled.fixture': { execDialDelay: '5' },
   'chatty.fixture': {
     refuse: `ssh: connect to host chatty.fixture port 22: Connection refused ${'x'.repeat(300)}\r\n`,
   },
@@ -169,7 +170,11 @@ describe('the ssh_host adapter against the fixture client', () => {
   test('bounds an unreachable reason to the 200 characters WBS accepts', async () => {
     const slots: ResourceBinding = { resourceId: 'slots', measure: 'agent_slots', slots: 4 };
     // A 190-character host whose dial outlasts a 200 ms command deadline: the timeout reason.
-    const timedOut = await (await provider(`${'l'.repeat(190)}.fixture`, 200)).observe(slots, NOW);
+    const longHost = await provider(`${'l'.repeat(190)}.fixture`, 200);
+    const started = performance.now();
+    const timedOut = await longHost.observe(slots, NOW);
+    // Well under the 5 s dial: the answer does not wait for the descendant holding the pipes.
+    expect(performance.now() - started).toBeLessThan(2000);
     // A 255 diagnostic longer than 200 characters.
     const refused = await (await provider('chatty.fixture')).observe(memory, NOW);
     for (const [measurement, cause] of [
@@ -181,6 +186,16 @@ describe('the ssh_host adapter against the fixture client', () => {
       expect(reason).toStartWith(cause);
       expect(reason).toHaveLength(200);
     }
+  });
+
+  test('answers timeout when a killed ssh has no descendant', async () => {
+    const slots: ResourceBinding = { resourceId: 'slots', measure: 'agent_slots', slots: 4 };
+    const measurement = await (await provider('stalled.fixture', 200)).observe(slots, NOW);
+    expect(measurement).toEqual({
+      kind: 'unreachable',
+      reason: 'ssh timeout: no answer from stalled.fixture within the command deadline',
+      observedAt: NOW,
+    });
   });
 
   test('throws for every malformed answer from a reachable host', async () => {

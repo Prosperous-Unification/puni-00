@@ -344,21 +344,21 @@ PR:
 - S3-9: spec, tasks and design now say the gate uses a fixture `ssh` client and a real sshd was
   only the rehearsal.
 
-| Fault injected (watched 2026-10-22)                                                | Observed failing test                                                                                                                     |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_slots` usage read from `#activeRuns` after the dial                         | `counts the runs in use at the stamp, not after the dial`                                                                                 |
-| each `TRANSPORT_FAULTS` entry removed in turn                                      | `answers unreachable for every typed transport fault` (four new causes); the closed-port case (`connection_refused`, `host_key_mismatch`) |
-| timeout reason not cut                                                             | `bounds an unreachable reason to the 200 characters WBS accepts` (length 254)                                                             |
-| deadline awaits the pipes (`answered` alone)                                       | the same test, timed out on the descendant `sleep`                                                                                        |
-| unmatched 255 answered `unreachable`                                               | `throws for an ssh failure that names no transport fault`                                                                                 |
-| non-zero remote exit branch dropped                                                | `throws when the remote command fails on a reachable host` (received the parser's `has no MemTotal line`)                                 |
-| run-environment allow-list refusal skipped                                         | `refuses a run environment key outside the allow-list before ssh starts`                                                                  |
-| 1 MiB output cap dropped                                                           | `refuses an answer over 1 MiB`                                                                                                            |
-| `AbortSignal.any([wake.signal, stop])` per sleep, or `[stop, timeout]` per request | `adds a fixed number of abort listeners whatever the number of ticks` (16 composites instead of 0), each                                  |
-| superseded count kept across a transient answer                                    | `counts only consecutive report_superseded` (exited `another_reporter`)                                                                   |
-| any `200` answered `stored`                                                        | `throws on a 200 that carries no stored report`                                                                                           |
-| `isFile()` check skipped                                                           | `refuses a directory config_unreadable…` (raw `EISDIR` escaped)                                                                           |
-| 64 KiB cap dropped                                                                 | `…and a file over 64 KiB config_malformed` (the file loaded)                                                                              |
+| Fault injected (watched 2026-10-22)                                                | Observed failing test                                                                                                                                            |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_slots` usage read from `#activeRuns` after the dial                         | `counts the runs in use at the stamp, not after the dial`                                                                                                        |
+| each `TRANSPORT_FAULTS` entry removed in turn                                      | `answers unreachable for every typed transport fault` (four new causes); the closed-port case (`connection_refused`, `host_key_mismatch`)                        |
+| timeout reason not cut                                                             | `bounds an unreachable reason to the 200 characters WBS accepts` (length 254)                                                                                    |
+| deadline awaits the pipes (`answered` alone)                                       | the same test's elapsed-time assertion (5001 ms, not under 2000 ms) under the project's `--timeout=60000` (the first watch named only bun's default 5 s timeout) |
+| unmatched 255 answered `unreachable`                                               | `throws for an ssh failure that names no transport fault`                                                                                                        |
+| non-zero remote exit branch dropped                                                | `throws when the remote command fails on a reachable host` (received the parser's `has no MemTotal line`)                                                        |
+| run-environment allow-list refusal skipped                                         | `refuses a run environment key outside the allow-list before ssh starts`                                                                                         |
+| 1 MiB output cap dropped                                                           | `refuses an answer over 1 MiB`                                                                                                                                   |
+| `AbortSignal.any([wake.signal, stop])` per sleep, or `[stop, timeout]` per request | `adds a fixed number of abort listeners whatever the number of ticks` (16 composites instead of 0), each                                                         |
+| superseded count kept across a transient answer                                    | `counts only consecutive report_superseded` (exited `another_reporter`)                                                                                          |
+| any `200` answered `stored`                                                        | `throws on a 200 that carries no stored report`                                                                                                                  |
+| `isFile()` check skipped                                                           | `refuses a directory config_unreadable…` (raw `EISDIR` escaped)                                                                                                  |
+| 64 KiB cap dropped                                                                 | `…and a file over 64 KiB config_malformed` (the file loaded)                                                                                                     |
 
 Recorded, not changed:
 
@@ -381,3 +381,25 @@ Commands after the review fixes (2026-10-22, `env -u CLAUDECODE`):
   succeeded.
 - `bunx nx run twilight-dash:test --skip-nx-cache`: 2158 pass, 0 fail.
 - `bunx nx run tool-fleet:test --skip-nx-cache`: 589 pass, 0 fail.
+
+### Slice 2 re-review (Fable, 2026-10-22, PR #659 at `2ca651681`)
+
+The re-review passed. Three items closed on the same PR:
+
+- S2-A: the hang fix's proof named a failure that only appears under bun's default 5 s test
+  timeout. `bounds an unreachable reason…` now asserts that the timed-out observation answers in
+  under 2000 ms. With `execute` awaiting `answered` alone, it failed at 5001 ms under
+  `--timeout=60000`.
+- S3-A: `execute` sets a flag when the deadline fires and treats any exit after it as timed
+  out, so the answer no longer depends on which branch of the race settles first. With
+  `timedOut: false` restored, `answers timeout when a killed ssh has no descendant` still passed
+  3 of 3 runs, because `killed` always won in the fixture. With `killed` made never to resolve,
+  so that `answered` settles first, the flag passed and `timedOut: false` failed with
+  `true on stalled.fixture exited 137`.
+- JSDoc: `execute` now says the pipe readers outlive the answer until a descendant closes the
+  pipes, and that the race's loser is not an unhandled rejection. `runReporter` now says a stop
+  is noticed at the next step, up to one request timeout plus one command deadline late (two
+  hard-coded 30 s constants).
+
+Recorded, not changed: S3-C, pre-existing. The 1 MiB output cap is checked on stdout only, and
+only after reading all of it; stderr is not capped.
