@@ -78,6 +78,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
         dependencyId?: string;
         selection?: DependencySelection;
         draft?: string;
+        canClearDraft?: (current: string) => boolean;
       } | null>(null);
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [announcement, setAnnouncement] = useState('');
@@ -124,6 +125,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
           predecessorId: option.selection.endpoint.workItemId,
           selection: option.selection,
           draft: picker?.typed ?? '',
+          canClearDraft: search.captureDraft(),
         });
       };
       const choose = (option: EndpointOption) => {
@@ -141,7 +143,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
         );
         setAdding((current) => new Set(current).add(option.key));
         void live.current
-          .pickDependency(row.original.id, option.selection, draft)
+          .pickDependency(row.original.id, option.selection, draft, search.captureDraft(draft))
           .then((outcome) => {
             setAdding((current) => {
               const next = new Set(current);
@@ -781,7 +783,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               onFocus={() => {
                 live.current.setDepPicker((current) => ({
                   rowId: row.original.id,
-                  typed: '',
+                  // Proof: resetting this draft erased 999 before local Customize success returned focus (mounted round1 test).
+                  typed: current?.rowId === row.original.id ? current.typed : '',
                   highlightId: null,
                   ...(current?.rowId === row.original.id && current.stepId !== undefined
                     ? { stepId: current.stepId }
@@ -974,9 +977,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 live.current.dependOn(
                   row.original.id,
                   typed,
-                  search.selectedProject === null
-                    ? undefined
-                    : { project: search.selectedProject, revision: search.revision },
+                  search.observations,
+                  search.captureDraft(),
                 );
               }}
             />
@@ -1026,6 +1028,12 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     preferredCode={dependencySteps.find((step) => step.id === picker?.stepId)?.code}
                     onCancel={() => {
                       setEditing(null);
+                      // Proof: omitting focus left body active after remote Back in the mounted round1 probe.
+                      document
+                        .querySelector<HTMLInputElement>(
+                          `[data-depends-input="${row.original.id}"]`,
+                        )
+                        ?.focus();
                     }}
                     onSave={(source, target, type) =>
                       live.current
@@ -1041,7 +1049,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         .then((outcome) => {
                           if (didLand(outcome))
                             live.current.setDepPicker((current) =>
-                              current?.rowId === row.original.id && current.typed === draft
+                              current?.rowId === row.original.id &&
+                              editing.canClearDraft?.(current.typed) === true
                                 ? {
                                     ...current,
                                     typed: currentDependencyToken(draft).prefix,
@@ -1140,10 +1149,11 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                       .then((outcome) => {
                         if (didLand(outcome) && editing.draft !== undefined)
                           live.current.setDepPicker((current) =>
-                            current?.rowId === row.original.id && current.typed === editing.draft
+                            current?.rowId === row.original.id &&
+                            editing.canClearDraft?.(current.typed) === true
                               ? {
                                   ...current,
-                                  typed: currentDependencyToken(editing.draft).prefix,
+                                  typed: currentDependencyToken(current.typed).prefix,
                                   highlightId: null,
                                 }
                               : current,

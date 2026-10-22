@@ -2705,8 +2705,8 @@ export function WbsTable({
               // `removeDependency` are the paths the table's list and its chip `✕`
               // take, for `rowActions`' bargain, a fifth dimension over.
               dependencyOptions={(row, typed) => depEntriesFor(row, typed)}
-              addDependency={(row, selection, draft) => {
-                return pickDependency(row.id, selection, draft);
+              addDependency={(row, selection, draft, canClearDraft) => {
+                return pickDependency(row.id, selection, draft, canClearDraft);
               }}
               dropDependency={(row, predecessorId) => {
                 return run((write) =>

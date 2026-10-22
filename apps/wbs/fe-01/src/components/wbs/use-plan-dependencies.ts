@@ -9,8 +9,9 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 
 import { pickerEntries } from './dep-picker';
-import { type DependencyObservation, resolveDependencyDraft } from './dependency-draft';
+import { resolveDependencyDraft } from './dependency-draft';
 import { type DependencySelection, serializeDependencyEndpoint } from './dependency-selection';
+import type { DependencyTokenObservation } from './dependency-token-bindings';
 import { currentDependencyToken, replaceDependencyToken } from './depends-input';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type CommitOutcome } from './live-editing';
@@ -135,7 +136,7 @@ export function usePlanDependencies({
    * a typed list is one gesture and its outcome is one sentence.
    */
   const dependOn = useCallback(
-    (successorId: string, typed: string) => {
+    (successorId: string, typed: string, canClearDraft: (current: string) => boolean) => {
       const { found, unknown } = parseDependencies(typed, flat);
       const notThere = unknownMessage(unknown);
       if (found.length === 0) {
@@ -202,7 +203,7 @@ export function usePlanDependencies({
           pushToast({ kind: 'error', text: problems.join(' ') });
         if (isCurrent() && problems.length === 0)
           setDepPicker((current) =>
-            current?.rowId === successorId && current.typed === typed
+            current?.rowId === successorId && canClearDraft(current.typed)
               ? { ...current, typed: '', highlightId: null }
               : current,
           );
@@ -213,11 +214,16 @@ export function usePlanDependencies({
 
   /** Submits mixed local/qualified source spans, preserving identity and one aggregate refusal. */
   const submitDependencies = useCallback(
-    (successorId: string, typed: string, observation?: DependencyObservation) => {
+    (
+      successorId: string,
+      typed: string,
+      observations: readonly DependencyTokenObservation[],
+      canClearDraft: (current: string) => boolean,
+    ) => {
       if (
         typed.split(/[,\s]+/).every((token) => token === '' || /^[0-9]+(?:\.[0-9]+)*$/.test(token))
       ) {
-        dependOn(successorId, typed);
+        dependOn(successorId, typed, canClearDraft);
         return;
       }
       void (async () => {
@@ -231,7 +237,7 @@ export function usePlanDependencies({
             rows: flat,
             nodes: stepNodes ?? [],
             lookup,
-            observation,
+            observations,
           });
           refused.push(...draft.problems);
           for (const predecessor of draft.found) {
@@ -256,9 +262,10 @@ export function usePlanDependencies({
           await refreshOrMarkStale(ambiguous ? undefined : 'tree');
           if (isCurrent() && refused.length > 0)
             pushToast({ kind: 'error', text: `These were refused: ${refused.join(', ')}.` });
+          // Proof: text equality alone erased a newer same-text holder when an older list completed (mounted round1 list-capture test).
           if (isCurrent() && refused.length === 0)
             setDepPicker((current) =>
-              current?.rowId === successorId && current.typed === typed
+              current?.rowId === successorId && canClearDraft(current.typed)
                 ? { ...current, typed: '', highlightId: null }
                 : current,
             );
@@ -318,6 +325,7 @@ export function usePlanDependencies({
       successorId: string,
       selection: DependencySelection,
       draft: string,
+      canClearDraft: (current: string) => boolean,
     ): Promise<CommitOutcome> => {
       const predecessor = selection.endpoint;
       if (
@@ -345,7 +353,7 @@ export function usePlanDependencies({
       ).then((outcome) => {
         if (outcome === 'landed' || outcome === 'landed-unread')
           setDepPicker((current) =>
-            current?.rowId !== successorId || current.typed !== draft
+            current?.rowId !== successorId || !canClearDraft(current.typed)
               ? current
               : { ...current, typed: replaceDependencyToken(draft, ''), highlightId: null },
           );

@@ -1,5 +1,5 @@
 import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { TypedDependencyType } from '@/lib/wbs-api';
 import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
@@ -9,17 +9,7 @@ import type { CommitOutcome } from './live-editing';
 import { type DependencyEndpointEditor, ScopedDependencyEditor } from './typed-dependency-editor';
 import { useDependencySearch } from './use-dependency-search';
 
-/** Remote choices use only the selected stable project's candidate evidence; pages never invent a local row. */
-export function RemoteDependencyEditor({
-  selection,
-  lookup,
-  ownerProjectId,
-  ownerId,
-  successor,
-  preferredCode,
-  onSave,
-  onCancel,
-}: {
+interface RemoteDependencyEditorProps {
   selection: Extract<DependencySelection, { kind: 'remote' }>;
   lookup: DependencyLookup;
   ownerProjectId: string;
@@ -32,7 +22,35 @@ export function RemoteDependencyEditor({
     type: TypedDependencyType,
   ) => Promise<CommitOutcome>;
   onCancel: () => void;
-}) {
+}
+
+/** A target/revision/runtime change starts a new editor observation and manual choice lifetime. */
+export function RemoteDependencyEditor(props: RemoteDependencyEditorProps) {
+  const lifetime = useRef({ lookup: props.lookup, generation: 0 });
+  if (lifetime.current.lookup !== props.lookup)
+    lifetime.current = { lookup: props.lookup, generation: lifetime.current.generation + 1 };
+  // Proof: removing this session key left Add enabled with old evidence on a revision change (remote editor round1 test).
+  const identity = JSON.stringify([
+    props.ownerProjectId,
+    props.ownerId,
+    encodeDependencyEndpoint(props.selection.endpoint),
+    props.selection.addressRevision,
+    lifetime.current.generation,
+  ]);
+  return <RemoteDependencySession key={identity} {...props} />;
+}
+
+/** Remote choices use only the selected stable project's candidate evidence; pages never invent a local row. */
+function RemoteDependencySession({
+  selection,
+  lookup,
+  ownerProjectId,
+  ownerId,
+  successor,
+  preferredCode,
+  onSave,
+  onCancel,
+}: RemoteDependencyEditorProps) {
   const [expectedRevision, setExpectedRevision] = useState<string | undefined>(
     selection.addressRevision,
   );
@@ -46,15 +64,17 @@ export function RemoteDependencyEditor({
       throw new Error('Customize does not choose a different project');
     },
     localEntries: [],
-    initialProject: selection.project,
+    boundProject: selection.project,
     expectedRevision,
   });
   const choices = useMemo(
     () =>
       search.options.flatMap((option) => {
+        // Proof: bypassing either project or work-item filter offered mismatched observed scope in the respective remote editor round1 negative.
         if (
           option.kind !== 'endpoint' ||
           option.selection.kind !== 'remote' ||
+          option.selection.endpoint.projectId !== selection.endpoint.projectId ||
           option.selection.endpoint.workItemId !== selection.endpoint.workItemId
         )
           return [];
@@ -97,6 +117,15 @@ export function RemoteDependencyEditor({
   return (
     <>
       {search.state === 'loading' && <p role="status">Loading predecessor scopes…</p>}
+      {/* Proof: omitting this outcome hid cancellation and its deliberate retry in the mounted Customize round1 test. */}
+      {search.state === 'cancelled' && (
+        <p role="status">
+          Predecessor lookup cancelled.{' '}
+          <button type="button" onClick={search.retry}>
+            Retry scopes
+          </button>
+        </p>
+      )}
       {search.state === 'failure' && (
         <p role="alert">
           Could not load predecessor scopes.{' '}

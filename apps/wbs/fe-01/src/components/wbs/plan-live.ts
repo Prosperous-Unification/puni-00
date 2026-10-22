@@ -9,8 +9,8 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
 import type { PickerEntry } from './dep-picker';
-import type { DependencyObservation } from './dependency-draft';
 import type { DependencySelection } from './dependency-selection';
+import type { DependencyTokenObservation } from './dependency-token-bindings';
 import { type DropHint } from './drag-drop';
 import { type CellElement } from './editable-grid';
 import type { FocusIntent } from './live-editing';
@@ -46,7 +46,12 @@ export interface PlanLiveValues {
   onCommandKey: (event: React.KeyboardEvent, row: TreeRow, columnId: string) => void;
   setDragging: React.Dispatch<React.SetStateAction<string | null>>;
   setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
-  dependOn: (successorId: string, typed: string, observation?: DependencyObservation) => void;
+  dependOn: (
+    successorId: string,
+    typed: string,
+    observations: readonly DependencyTokenObservation[],
+    canClearDraft: (current: string) => boolean,
+  ) => void;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{
       rowId: string;
@@ -66,6 +71,7 @@ export interface PlanLiveValues {
     successorId: string,
     selection: DependencySelection,
     draft: string,
+    canClearDraft: (current: string) => boolean,
   ) => Promise<CommitOutcome>;
   moveDepHighlight: (rowId: string, delta: 1 | -1, entryIds: readonly string[]) => void;
   commitEstimate: (

@@ -4,6 +4,7 @@ import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
 import type { AddressProject, DependencyLookup } from '@/modules/dependency-lookup/contract';
 
 import { encodeDependencyEndpoint } from './dependency-selection';
+import type { DependencyTokenObservation } from './dependency-token-bindings';
 import type { NumberedRow } from './depends-input';
 
 export interface DependencyObservation {
@@ -24,21 +25,19 @@ export async function resolveDependencyDraft({
   rows,
   nodes,
   lookup,
-  observation,
+  observations,
 }: {
   typed: string;
   projectId: string;
   rows: readonly NumberedRow[];
   nodes: readonly { workItemId: string; stepId: string; reference: string | null }[];
   lookup: DependencyLookup;
-  observation?: DependencyObservation;
+  observations?: readonly DependencyTokenObservation[];
 }): Promise<{ found: ResolvedDependencyToken[]; problems: string[] }> {
   const found: ResolvedDependencyToken[] = [];
   const problems: string[] = [];
   const seen = new Set<string>();
   const observed = new Map<string, DependencyObservation>();
-  if (observation !== undefined)
-    observed.set(observation.project.abbreviation.toUpperCase(), observation);
   for (const match of typed.matchAll(/[^,\s]+/g)) {
     const token = match[0];
     const parsed = parseWorkItemAddress(token);
@@ -55,7 +54,20 @@ export async function resolveDependencyDraft({
         endpoint = { projectId, scope: 'node', workItemId: step.workItemId, stepId: step.stepId };
       } else if (matches.length > 1 || steps.length > 1) problem = 'ambiguous';
     } else if (parsed.kind === 'qualified') {
-      let bound = observed.get(parsed.abbreviation);
+      // Proof: removing span matching merged separately selected identical tokens into one holder (mounted round1 test).
+      const selected = observations?.find(
+        (binding) =>
+          binding.start === match.index &&
+          binding.end === match.index + token.length &&
+          binding.token === token,
+      );
+      // Proof: dropping the ambiguity marker dependency authored instead of requiring reselection (mounted round1 duplicate-deletion test).
+      if (selected?.requiresReselection === true) {
+        problems.push(`${token} (choose a project)`);
+        continue;
+      }
+      // Proof: using abbreviation-wide state rebound the retained selected occurrence to a replacement holder in the mounted round1 test.
+      let bound = selected?.observation ?? observed.get(parsed.abbreviation);
       if (bound === undefined) {
         const projects = await lookup.discoverProjects(parsed.abbreviation, null);
         if (projects.kind !== 'success') {
@@ -91,7 +103,8 @@ export async function resolveDependencyDraft({
         revision = page.body.addressRevision;
         bound = { project: page.body.project, revision };
       }
-      observed.set(parsed.abbreviation, bound);
+      if (observations?.some((binding) => binding.start === match.index) !== true)
+        observed.set(parsed.abbreviation, bound);
       const resolution = await lookup.resolveReference(bound.project.projectId, token, revision);
       if (resolution.kind === 'success') {
         if (

@@ -14,6 +14,11 @@ import {
   type DependencyOption,
   encodeDependencyEndpoint,
 } from './dependency-selection';
+import {
+  type DependencyTokenObservation,
+  encodeDependencyBindings,
+  retainDependencyBindings,
+} from './dependency-token-bindings';
 import { currentDependencyToken, replaceDependencyToken } from './depends-input';
 
 type LookupState =
@@ -37,10 +42,11 @@ export function useDependencySearch({
   typed,
   setTyped,
   localEntries,
-  initialProject,
+  boundProject,
   expectedRevision,
 }: {
-  initialProject?: AddressProject;
+  /** Explicit Customize project binding, independent of editable token spelling. */
+  boundProject?: AddressProject;
   expectedRevision?: string;
   lookup: DependencyLookup;
   projectId: string;
@@ -50,13 +56,43 @@ export function useDependencySearch({
   setTyped: (typed: string) => void;
   localEntries: readonly PickerEntry[];
 }) {
-  const { token } = currentDependencyToken(typed);
-  const [scope, setScope] = useState<{ project: AddressProject; prefix: string } | null>(() =>
-    initialProject === undefined
-      ? null
-      : { project: initialProject, prefix: `${initialProject.abbreviation.toUpperCase()}.` },
+  const selections = useRef(0);
+  const { token, prefix } = currentDependencyToken(typed);
+  const retained = useRef<{
+    typed: string;
+    lookup: DependencyLookup;
+    bindings: DependencyTokenObservation[];
+  }>({ typed, lookup, bindings: [] });
+  // Proof: preserving binding authority across lookup replacement sent a scoped request before deliberate reselection (mounted round1 search test).
+  if (retained.current.lookup !== lookup)
+    retained.current = {
+      ...retained.current,
+      lookup,
+      bindings: retained.current.bindings.map((binding) => ({
+        ...binding,
+        requiresReselection: true,
+      })),
+    };
+  if (retained.current.typed !== typed)
+    retained.current = {
+      typed,
+      lookup,
+      // Proof: dropping retained occurrences rebound a selected token after a delimiter (mounted round1 test).
+      bindings: retainDependencyBindings(retained.current.typed, typed, retained.current.bindings),
+    };
+  const activeBinding = retained.current.bindings.find(
+    (binding) => binding.start === prefix.length && binding.token === token,
   );
-  const scoped = scope !== null && token.toUpperCase().startsWith(scope.prefix) ? scope : null;
+  const selected =
+    boundProject ??
+    (activeBinding?.requiresReselection === true ? undefined : activeBinding?.observation.project);
+  const scoped = useMemo(
+    () =>
+      selected === undefined
+        ? null
+        : { project: selected, prefix: `${selected.abbreviation.toUpperCase()}.` },
+    [selected],
+  );
   const parsed = parseWorkItemAddress(token);
   const query =
     scoped === null
@@ -73,6 +109,7 @@ export function useDependencySearch({
     typed,
     scoped?.project.projectId ?? null,
     query.toLowerCase(),
+    expectedRevision ?? null,
   ]);
   const current = useRef({ identity, lookup });
   current.current = { identity, lookup };
@@ -88,9 +125,6 @@ export function useDependencySearch({
   });
   const [fatal, setFatal] = useState<{ identity: string; failure: unknown } | null>(null);
   const selectedProjectId = scoped?.project.projectId ?? null;
-  useEffect(() => {
-    if (scope !== null && scoped === null) setScope(null);
-  }, [scope, scoped]);
   useEffect(() => {
     if (!eligible) return;
     const controller = new AbortController();
@@ -226,7 +260,26 @@ export function useDependencySearch({
           }),
     [localEntries, projectId, scoped],
   );
+  if (activeBinding !== undefined && visible?.revision != null)
+    activeBinding.observation = {
+      project: activeBinding.observation.project,
+      revision: visible.revision,
+    };
   return {
+    observations: retained.current.bindings,
+    /** Success may clear only this captured occurrence, including its explicit project selection. */
+    captureDraft(draft = typed) {
+      // Proof: removing the binding comparison erased newer identical-text selections in Customize and desktop/phone one-click round1 tests.
+      const captured = encodeDependencyBindings(
+        retainDependencyBindings(typed, draft, retained.current.bindings),
+      );
+      return (currentTyped: string) =>
+        currentTyped === draft &&
+        retained.current.lookup === lookup &&
+        encodeDependencyBindings(
+          retainDependencyBindings(retained.current.typed, currentTyped, retained.current.bindings),
+        ) === captured;
+    },
     options: [...local, ...(eligible ? (visible?.options ?? []) : [])],
     state: !eligible ? ('local' as const) : (visible?.state ?? ('loading' as const)),
     message: visible?.message ?? '',
@@ -244,9 +297,23 @@ export function useDependencySearch({
       setRequest((previous) => ({ sequence: previous.sequence + 1, identity, cursor: null }));
     },
     chooseProject(project: AddressProject) {
-      setScope({ project, prefix: `${project.abbreviation.toUpperCase()}.` });
+      const next = replaceDependencyToken(typed, `${project.abbreviation}.`);
+      retained.current = {
+        typed: next,
+        lookup,
+        bindings: [
+          ...retained.current.bindings.filter((binding) => binding.start !== prefix.length),
+          {
+            start: prefix.length,
+            end: next.length,
+            token: `${project.abbreviation}.`,
+            observation: { project, revision: null },
+            selectionId: ++selections.current,
+          },
+        ],
+      };
       setRequest((previous) => ({ sequence: previous.sequence + 1, identity, cursor: null }));
-      setTyped(replaceDependencyToken(typed, `${project.abbreviation}.`));
+      setTyped(next);
     },
     selectedProject: scoped?.project ?? null,
     revision: visible?.revision ?? null,

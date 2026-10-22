@@ -239,6 +239,7 @@ export interface PlanCardsProps {
     row: TreeRow,
     selection: DependencySelection,
     draft: string,
+    canClearDraft: (current: string) => boolean,
   ) => Promise<CommitOutcome>;
   /**
    * Takes one of those waits off again — the table's chip `✕`, in a sheet.
@@ -2079,6 +2080,7 @@ function CardDependsField({
     row: TreeRow,
     selection: DependencySelection,
     draft: string,
+    canClearDraft: (current: string) => boolean,
   ) => Promise<CommitOutcome>;
   dropDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
 }) {
@@ -2088,6 +2090,7 @@ function CardDependsField({
     dependencyId?: string;
     selection?: DependencySelection;
     draft?: string;
+    canClearDraft?: (current: string) => boolean;
   } | null>(null);
   const triggerRef = useTriggerAboveSheet(open);
   // What has been typed into the search box, cleared on every open and after
@@ -2095,6 +2098,12 @@ function CardDependsField({
   // later — so unlike the date and priority sheets there is no `key` re-seed to
   // make: the list of waits is read from the row on every render, which is what
   // lets a landed edge appear under the reader's own thumb.
+  const dependencyInput = useRef<HTMLInputElement>(null);
+  const closeEditor = () => {
+    setEditing(null);
+    // Proof: omitting focus left the sheet dialog active after phone remote Back (mounted round1 test).
+    dependencyInput.current?.focus();
+  };
   const [typed, setTyped] = useState('');
   // The edges whose writes are still travelling, by predecessor id and by
   // direction. An option whose add has not settled may not be tapped again —
@@ -2137,10 +2146,13 @@ function CardDependsField({
     const draft = reference === null ? typed : replaceDependencyToken(typed, reference);
     setTyped(draft);
     setAdding((current) => withId(current, option.key));
-    void addDependency(row, option.selection, draft).then((outcome) => {
+    const canClearDraft = search.captureDraft(draft);
+    void addDependency(row, option.selection, draft, canClearDraft).then((outcome) => {
       setAdding((current) => withoutId(current, option.key));
       if (didLand(outcome))
-        setTyped((current) => (current === draft ? currentDependencyToken(draft).prefix : current));
+        setTyped((current) =>
+          canClearDraft(current) ? currentDependencyToken(draft).prefix : current,
+        );
     });
   };
 
@@ -2214,7 +2226,14 @@ function CardDependsField({
         The twMerge conflict with the surface's own `overflow-y-auto` resolves
         this way because `className` is `cn`'s last argument.
       */}
-      <ModalContent side="bottom" className="min-h-[60vh] overflow-y-hidden">
+      <ModalContent
+        side="bottom"
+        className="min-h-[60vh] overflow-y-hidden"
+        onEscapeKeyDown={(event) => {
+          // Proof: without this guard phone Customize Escape dismissed the sheet and focused its trigger (mounted round1 focus test).
+          if (editing !== null) event.preventDefault();
+        }}
+      >
         <ModalHeader>
           <ModalTitle>Depends on for {rowWords(row.number, row.name)}</ModalTitle>
           <ModalDescription>
@@ -2347,9 +2366,7 @@ function CardDependsField({
                     ownerProjectId={projectId}
                     ownerId={row.id}
                     successor={buildLocalDependencyEditor(projectId, row, dependencyRows, steps)}
-                    onCancel={() => {
-                      setEditing(null);
-                    }}
+                    onCancel={closeEditor}
                     onSave={(source, target, type) => {
                       if (addTypedDependency === undefined)
                         throw new Error('Missing typed dependency writer');
@@ -2360,7 +2377,9 @@ function CardDependsField({
                       ).then((outcome) => {
                         if (didLand(outcome))
                           setTyped((current) =>
-                            current === draft ? currentDependencyToken(draft).prefix : current,
+                            editing.canClearDraft?.(current) === true
+                              ? currentDependencyToken(draft).prefix
+                              : current,
                           );
                         return outcome;
                       });
@@ -2423,9 +2442,7 @@ function CardDependsField({
                   rows={dependencyRows}
                   steps={steps}
                   dependency={dependency}
-                  onCancel={() => {
-                    setEditing(null);
-                  }}
+                  onCancel={closeEditor}
                   onSave={(source, target, type) =>
                     (dependency === undefined
                       ? addTypedDependency(source, target, type)
@@ -2433,7 +2450,7 @@ function CardDependsField({
                     ).then((outcome) => {
                       if (didLand(outcome) && editing.draft !== undefined)
                         setTyped((current) =>
-                          current === editing.draft
+                          editing.canClearDraft?.(current) === true
                             ? currentDependencyToken(current).prefix
                             : current,
                         );
@@ -2468,6 +2485,7 @@ function CardDependsField({
               placeholder="search by number or name"
               data-cell={cellKey(row.id, 'depends')}
               data-card-depends-input
+              ref={dependencyInput}
               className={`${TAP} border-input bg-background box-border w-full rounded-md border p-2 text-base`}
               value={typed}
               onChange={(event) => {
@@ -2492,6 +2510,7 @@ function CardDependsField({
                   predecessorId: option.selection.endpoint.workItemId,
                   selection: option.selection,
                   draft: typed,
+                  canClearDraft: search.captureDraft(),
                 });
               }}
               isPending={(key) => adding.has(key)}

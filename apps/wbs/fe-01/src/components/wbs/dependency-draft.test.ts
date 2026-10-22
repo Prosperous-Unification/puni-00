@@ -74,7 +74,14 @@ it('an explicitly selected project stays bound while its first revision is still
     rows: [],
     nodes: [],
     lookup: service,
-    observation: { project, revision: null },
+    observations: [
+      {
+        start: 0,
+        end: 'PUNI.080.s1-dev'.length,
+        token: 'PUNI.080.s1-dev',
+        observation: { project, revision: null },
+      },
+    ],
   });
   expect(service.discoverProjects).not.toHaveBeenCalled();
   expect(service.searchEndpoints).toHaveBeenCalledWith('remote', '080.s1-dev', null);

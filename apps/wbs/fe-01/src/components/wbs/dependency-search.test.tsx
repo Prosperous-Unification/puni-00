@@ -298,6 +298,7 @@ it('qualified discovery uses the first-dot abbreviation and numeric replacement 
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '080' } });
   await tick();
   expect(service.discoverProjects).toHaveBeenCalledTimes(1);
+  expect(service.searchEndpoints).toHaveBeenCalledTimes(1);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
   await tick();
   expect(service.discoverProjects).toHaveBeenCalledTimes(2);
@@ -322,4 +323,27 @@ it('rejects candidate evidence for a different stable project', async () => {
   await tick();
   expect(screen.getByRole('button', { name: 'Refresh choices' })).toBeDefined();
   expect(screen.queryByText('No matching dependency choices.')).toBeNull();
+});
+
+it('replacement lookup requires a deliberate project choice before using retained selected scope', async () => {
+  vi.useFakeTimers();
+  const service = lookup();
+  const mounted = render(<Field service={service} />);
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
+  await tick();
+  fireEvent.click(screen.getByRole('option', { name: 'Project PUNI - Puni project' }));
+  await tick();
+  const replacement = lookup();
+  mounted.rerender(<Field service={replacement} />);
+  await tick();
+  expect(replacement.searchEndpoints).not.toHaveBeenCalled();
+  expect(replacement.discoverProjects).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('option', { name: 'Project PUNI - Puni project' }));
+  await tick();
+  expect(replacement.searchEndpoints).toHaveBeenCalledWith(
+    'remote',
+    '',
+    null,
+    expect.any(AbortSignal),
+  );
 });

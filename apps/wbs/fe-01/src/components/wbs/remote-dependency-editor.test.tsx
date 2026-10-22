@@ -205,3 +205,111 @@ it.each([null, undefined])(
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(true);
   },
 );
+
+it('new revision or lookup resets manual scopes and relationship type for the same endpoint', async () => {
+  vi.useFakeTimers();
+  const service: DependencyLookup = {
+    discoverProjects: vi.fn(),
+    resolveReference: vi.fn(),
+    searchEndpoints: vi.fn().mockResolvedValue(page([whole, dev], null)),
+  };
+  const onSave = vi.fn().mockResolvedValue('landed');
+  const view = (lookup: DependencyLookup, revision: string) => (
+    <RemoteDependencyEditor
+      selection={{ ...selection, addressRevision: revision }}
+      lookup={lookup}
+      ownerProjectId="local"
+      ownerId="l"
+      successor={successor}
+      preferredCode="DEV"
+      onSave={onSave}
+      onCancel={vi.fn()}
+    />
+  );
+  const mounted = render(view(service, 'r1'));
+  await tick();
+  fireEvent.change(screen.getByLabelText('Predecessor'), {
+    target: { value: JSON.stringify(['remote', 'r', 'whole', null]) },
+  });
+  fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'SS' } });
+  vi.mocked(service.searchEndpoints).mockResolvedValue({
+    ...page([whole, dev], null),
+    body: { ...page([whole, dev], null).body, addressRevision: 'r2' },
+  });
+  mounted.rerender(view(service, 'r2'));
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(true);
+  await tick();
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(false);
+  expect(screen.getByLabelText<HTMLSelectElement>('Relationship').value).toBe('FS');
+  expect(screen.getByLabelText<HTMLSelectElement>('Predecessor').value).toBe(
+    JSON.stringify(['remote', 'r', 'node', 'remote-dev']),
+  );
+  fireEvent.change(screen.getByLabelText('Predecessor'), {
+    target: { value: JSON.stringify(['remote', 'r', 'whole', null]) },
+  });
+  const replacement: DependencyLookup = {
+    ...service,
+    searchEndpoints: vi.fn().mockResolvedValue({
+      ...page([whole, dev], null),
+      body: { ...page([whole, dev], null).body, addressRevision: 'r2' },
+    }),
+  };
+  mounted.rerender(view(replacement, 'r2'));
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Add' }).disabled).toBe(true);
+  await tick();
+  expect(screen.getByLabelText<HTMLSelectElement>('Predecessor').value).toBe(
+    JSON.stringify(['remote', 'r', 'node', 'remote-dev']),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  expect(onSave).toHaveBeenCalledWith(
+    { projectId: 'remote', ...dev.endpoint },
+    successor.choices[0]?.endpoint,
+    'FS',
+  );
+});
+
+it.each(['project', 'work-item'] as const)(
+  'offers no scope when observed %s identity differs from the selected coordinate',
+  async (mismatch) => {
+    vi.useFakeTimers();
+    const observedProject = mismatch === 'project' ? { ...project, projectId: 'other' } : project;
+    const observedWorkItemId = mismatch === 'work-item' ? 'other-row' : whole.workItemId;
+    const observed = {
+      ...whole,
+      projectId: observedProject.projectId,
+      workItemId: observedWorkItemId,
+      endpoint: { scope: 'whole' as const, workItemId: observedWorkItemId },
+    };
+    const service: DependencyLookup = {
+      discoverProjects: vi.fn(),
+      resolveReference: vi.fn(),
+      searchEndpoints: vi.fn().mockResolvedValue({
+        kind: 'success',
+        body: {
+          project: observedProject,
+          addressRevision: 'r1',
+          candidates: [observed],
+          nextCursor: null,
+        },
+      }),
+    };
+    const onSave = vi.fn();
+    // Inject a broken selected-project descriptor while retaining its stable coordinate.
+    render(
+      <RemoteDependencyEditor
+        selection={{ ...selection, project: observedProject }}
+        lookup={service}
+        ownerProjectId="local"
+        ownerId="l"
+        successor={successor}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    await tick();
+    const selector = screen.getByLabelText<HTMLSelectElement>('Predecessor');
+    expect([...selector.options].filter((option) => !option.disabled)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(onSave).not.toHaveBeenCalled();
+  },
+);

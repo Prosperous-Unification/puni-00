@@ -188,6 +188,15 @@ export function DependencyOptions({
       ))}
       {search.state === 'loading' && <li role="status">Loading dependency choices…</li>}
       {search.state === 'empty' && <li role="status">No matching dependency choices.</li>}
+      {/* Proof: omitting this outcome hid current cancellation in the mounted actual field probe. */}
+      {search.state === 'cancelled' && (
+        <li role="status">
+          Dependency lookup cancelled.{' '}
+          <button type="button" onClick={search.retry}>
+            Retry lookup
+          </button>
+        </li>
+      )}
       {search.state === 'failure' && (
         <li role="alert">
           {search.message}{' '}
