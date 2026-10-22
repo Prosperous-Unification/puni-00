@@ -244,6 +244,8 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -314,6 +316,7 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'organization_trusted_issuer' &&
           n !== 'machine_credential' &&
           n !== 'machine_credential_secret' &&
+          n !== 'organization_limits' &&
           n !== 'shared_people_restore_operation' &&
           n !== 'shared_people_restore_receipt' &&
           n !== 'shared_people_restore_consumption' &&

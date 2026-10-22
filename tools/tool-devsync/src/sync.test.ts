@@ -8,8 +8,11 @@ import { describe, expect, it } from 'bun:test';
 import { readProjects } from '../workspace-projects.mjs';
 import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-preparation';
 import {
+  assertBeEnv,
   assertDevSolverSourceCompatible,
   assertMcpEnv,
+  BE_COMPOSE_SUPPLIED_ENV,
+  BE_REQUIRED_ENV,
   deployRehearsalTarget,
   deploySolverTarget,
   devSolverMappingOf,
@@ -935,6 +938,81 @@ describe('MCP environment prerequisite', () => {
 
     expect(await rejection(sync('unreachable-sha', { mcpEnvPath: missing }))).toContain(
       `missing ${missing}; seed the gitignored mcp-01 environment before deploying`,
+    );
+  });
+});
+
+describe('be-01 environment prerequisite', () => {
+  const VALID_MCP = [
+    'PORT=3300',
+    'MCP_AUTH_MODE=standalone',
+    'WBS_API_URL=http://localhost:3100',
+    'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+    'MCP_SIGNING_KEY_CURRENT=signing-key',
+    'MCP_STORE_KEY_CURRENT=store-key',
+    'MCP_STORE_PATH=/data/mcp-session.sqlite',
+    'MCP_ACCESS_TOKEN_TTL=3600',
+  ].join('\n');
+  const validBe = (): string => BE_REQUIRED_ENV.map((key) => `${key}=value`).join('\n');
+
+  // Proof: with ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS removed from
+  // BE_REQUIRED_ENV, this failed (8 pass, 1 fail); watched 2026-10-22.
+  it('names the keys be-01 refuses to boot without, less those compose supplies', () => {
+    // The required set read off the real loader: every key `BeConfig` reports
+    // missing for an empty environment.
+    const script = `
+      import { BeConfig } from './apps/wbs/be-01/src/config.ts';
+      import { type } from 'arktype';
+      const errors = BeConfig({});
+      if (!(errors instanceof type.errors)) throw new Error('BeConfig accepted an empty environment');
+      console.log(JSON.stringify([...new Set(errors.map((each) => each.propString))].sort()));
+    `;
+    const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+      cwd: new URL('../../../', import.meta.url).pathname,
+      env: { PATH: process.env['PATH'] },
+    });
+    expect(new TextDecoder().decode(probe.stderr)).toBe('');
+    const required = JSON.parse(new TextDecoder().decode(probe.stdout)) as string[];
+    const declared: string[] = [...BE_REQUIRED_ENV, ...BE_COMPOSE_SUPPLIED_ENV];
+    expect(declared.sort()).toEqual(required);
+  });
+
+  it('refuses a missing file, and a missing, empty or repeated required key', async () => {
+    const directory = await scratchAsync('wbs-be-env-');
+    const envPath = join(directory, '.env');
+    expect(await rejection(assertBeEnv(envPath))).toContain(
+      `missing ${envPath}; seed the gitignored be-01 environment before deploying`,
+    );
+    await writeFile(envPath, `${validBe()}\n`);
+    await assertBeEnv(envPath);
+    for (const key of BE_REQUIRED_ENV) {
+      for (const broken of [
+        validBe().replace(`${key}=value`, ''),
+        validBe().replace(`${key}=value`, `${key}=`),
+        `${validBe()}\n${key}=again`,
+      ]) {
+        await writeFile(envPath, `${broken}\n`);
+        expect(await rejection(assertBeEnv(envPath))).toContain(
+          `exactly one non-empty ${key}=... assignment`,
+        );
+      }
+    }
+  });
+
+  // Proof: with assertBeEnv's call removed from sync, this reached `git fetch`
+  // and failed on its exit 128 instead (8 pass, 1 fail); watched 2026-10-22.
+  it('refuses a be-01 environment missing a required key before fetch or reset', async () => {
+    const directory = await scratchAsync('wbs-be-env-order-');
+    const mcpEnvPath = join(directory, 'mcp.env');
+    await writeFile(mcpEnvPath, `${VALID_MCP}\n`);
+    await chmod(mcpEnvPath, 0o600);
+    const beEnvPath = join(directory, 'be.env');
+    await writeFile(
+      beEnvPath,
+      `${validBe().replace('ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=value', '')}\n`,
+    );
+    expect(await rejection(sync('unreachable-sha', { mcpEnvPath, beEnvPath }))).toContain(
+      'exactly one non-empty ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=... assignment',
     );
   });
 });

@@ -1084,8 +1084,12 @@ describe('after activation', () => {
       {
         root: 'person',
         id: 'pe-a',
+        // A membership patch reaches the same raw person owner; a promotion to
+        // agent on this public standalone graph throws instead, because the
+        // agent person cap is read only in a command batch's admitted
+        // transaction (`wbs-organization-limits` L10).
         write: () =>
-          h.publicDirectoryService().patchPersonWithin('pe-a', actorId, { kind: 'agent' }, access),
+          h.publicDirectoryService().patchPersonWithin('pe-a', actorId, { teamIds: [] }, access),
       },
       {
         root: 'service_team',

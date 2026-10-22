@@ -12,6 +12,29 @@ type ImportRefusalReply = Extract<ImportReply, { ok: false }>;
 
 function refusal(outcome: Extract<ImportOutcome, { ok: false }>): ImportRefusalReply {
   if (outcome.code === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+  if (outcome.code === 'agent_person_limit')
+    return {
+      ok: false,
+      status: 409,
+      body: {
+        error: outcome.code,
+        cap: outcome.cap,
+        current: outcome.current,
+        added: outcome.added,
+      },
+    };
+  if (outcome.code === 'capacity_limit')
+    return {
+      ok: false,
+      status: 409,
+      body: {
+        error: outcome.code,
+        resourceId: outcome.resourceId,
+        cap: outcome.cap,
+        declared: outcome.declared,
+        asked: outcome.asked,
+      },
+    };
   if (outcome.code === 'engine_unavailable' || outcome.code === 'source_refused') {
     return {
       ok: false,

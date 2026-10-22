@@ -12,7 +12,16 @@ const VALID = {
   AUTH_MODE: 'local',
   APP_ORIGIN: 'http://localhost:4200',
   BROWSER_SESSION_AUTHORITY: 'disabled',
+  ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
 };
+
+const ORGANIZATION_DEFAULT_LIMITS = [
+  'ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS',
+  'ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS',
+  'ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE',
+] as const;
 
 describe('BeConfig', () => {
   it('accepts only explicit enabled or disabled proof scheduling overrides', () => {
@@ -120,6 +129,37 @@ describe('BeConfig', () => {
       loadConfig({ ...VALID, BROWSER_SESSION_AUTHORITY: 'enabled' }).BROWSER_SESSION_AUTHORITY,
     ).toBe('enabled');
   });
+
+  it('reads the three organization default limits', () => {
+    expect(loadConfig(VALID).organizationDefaultLimits).toEqual({
+      maxAgentPersons: 50,
+      maxConcurrentClaims: 200,
+      maxCapacityUnitsPerResource: 10_000,
+    });
+    expect(
+      loadConfig({
+        ...VALID,
+        ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '0',
+        ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '1000000',
+      }).organizationDefaultLimits,
+    ).toEqual({
+      maxAgentPersons: 0,
+      maxConcurrentClaims: 200,
+      maxCapacityUnitsPerResource: 1_000_000,
+    });
+  });
+
+  // A deployment without its default caps does not boot, naming the variable
+  // and never its value (`wbs-organization-limits` L7).
+  for (const key of ORGANIZATION_DEFAULT_LIMITS)
+    it(`refuses an absent, fractional, negative or over-bound ${key}`, () => {
+      const absent = Object.fromEntries(Object.entries(VALID).filter(([k]) => k !== key));
+      expect(() => loadConfig(absent)).toThrow(`Validation failed for ${key}`);
+      for (const value of ['', 'many', '1.5', '-1', '1000001', '0100'])
+        expect(() => loadConfig({ ...VALID, [key]: value })).toThrow(
+          `Validation failed for ${key}`,
+        );
+    });
 
   it('rejects a short INTERNAL_AUTH_SECRET', () => {
     expect(BeConfig({ ...VALID, INTERNAL_AUTH_SECRET: 'too-short' })).toHaveProperty('summary');

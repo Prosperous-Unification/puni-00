@@ -59,7 +59,19 @@ design trades for its speed — know which row your change is in:
 | `libs/wbs/adapters/solver-py`, `apps/wbs/be-01/Dockerfile`      | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
 | `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                                              |
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
-| Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
+| Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container. `tool-devsync` refuses the deploy before reset when mcp-01's or be-01's file lacks a required key (`assertMcpEnv`, `assertBeEnv`).                                           |
+
+be-01 boots only with the three organization default limits (`wbs-organization-limits` L7) in
+`/home/puni1/wbs-dev/src/apps/wbs/be-01/.env`:
+
+```
+ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50
+ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200
+ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000
+```
+
+Without them be-01 throws at boot under `bun --watch` while the container stays up, so nothing
+restarts it. `assertBeEnv` refuses the deploy first, naming the key.
 
 `tools/tool-devsync/src/sync.ts` holds both lists: `RESTART_PATHS` (a restart applies it)
 and `RECREATE_PATHS` (a restart cannot — the running container was created from the old

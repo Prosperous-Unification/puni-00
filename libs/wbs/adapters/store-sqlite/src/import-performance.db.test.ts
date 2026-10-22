@@ -134,7 +134,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);
-    if (!outcome.ok) throw new Error(`measurement import refused at ${outcome.path}`);
+    if (!outcome.ok) throw new Error(`measurement import refused: ${JSON.stringify(outcome)}`);
     expect(outcome.rows).toBe(ROWS);
     expect(await stores.workItems.listByProject(outcome.projectId)).toHaveLength(ROWS);
     expect(queuedTag.name).toBe('Queued ordinary write');

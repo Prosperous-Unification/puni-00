@@ -80,7 +80,18 @@ export type ClaimRefusalOutcome =
   | ({ readonly ok: false } & BelowHeldOccupancy)
   | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders'> & {
         readonly holders: readonly NamedOccupancyHolder[];
-      });
+      })
+  /**
+   * The claim would add one more bound claim than the organization's cap
+   * allows (`wbs-organization-limits` L9): the cap and the bound claims held,
+   * read in the batch's transaction.
+   */
+  | {
+      readonly ok: false;
+      readonly reason: 'claim_limit';
+      readonly cap: number;
+      readonly current: number;
+    };
 
 /** What a successful claim answers: whether it wrote nothing, and the claims it holds. */
 export interface Claimed {

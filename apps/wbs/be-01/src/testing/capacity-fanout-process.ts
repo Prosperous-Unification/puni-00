@@ -10,6 +10,7 @@ import { buildApp } from '../app';
 import { bootBe01 } from '../boot';
 import { openDatabase } from '../repository/db';
 import { joseTokenCodec } from '../runtime/bun-runtime';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 
 const [role, databasePath, directory] = process.argv.slice(2);
 if (!['writer', 'reader'].includes(role) || !databasePath || !directory)
@@ -102,6 +103,7 @@ const running = await bootBe01(
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: secret,
     browserSessionAuthority: 'enabled',
+    organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
   },
   {
     openSource: openSqliteSource,

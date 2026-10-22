@@ -40,7 +40,7 @@ for (const fault of ['none', 'migration-interruption'] as const) {
         import { createLogger } from ${JSON.stringify(new URL('../../../libs/wbs/adapters/observability/src/index.ts', import.meta.url).pathname)};
         import { openSqliteSource } from ${JSON.stringify(new URL('../../../libs/wbs/adapters/store-sqlite/src/source.ts', import.meta.url).pathname)};
         try {
-          const running = await bootBe01({ appOrigin: 'http://localhost', dbPath: ${JSON.stringify(database)}, port: 0, logger: createLogger({ service: 'be-01' }), jwtKey: 'k'.repeat(32), gwUrl: 'http://gw.invalid', internalAuthSecret: 's'.repeat(32), browserSessionAuthority: 'disabled', migrateOnStartup: false }, {
+          const running = await bootBe01({ appOrigin: 'http://localhost', dbPath: ${JSON.stringify(database)}, port: 0, logger: createLogger({ service: 'be-01' }), jwtKey: 'k'.repeat(32), gwUrl: 'http://gw.invalid', internalAuthSecret: 's'.repeat(32), browserSessionAuthority: 'disabled', organizationDefaultLimits: { maxAgentPersons: 50, maxConcurrentClaims: 200, maxCapacityUnitsPerResource: 10000 }, migrateOnStartup: false }, {
             openSource: openSqliteSource,
             makeApp: options => { const app = buildApp(options); app.stop = () => Promise.resolve(app); return app; },
             startListener: (_app, _port, ready) => ready(),

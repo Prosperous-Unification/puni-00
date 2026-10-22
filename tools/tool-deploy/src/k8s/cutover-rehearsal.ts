@@ -277,7 +277,7 @@ async function upOld(images: Record<Tier, string>): Promise<void> {
   const secret = 'f11-rehearsal-only-secret-000000000000';
   writeFileSync(
     join(old, 'be-01.env'),
-    `PORT=3100\nLOG_LEVEL=info\nGW_URL=http://${container('gw-01')}:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=local\nBROWSER_SESSION_AUTHORITY=disabled\nNODE_ENV=lab\n`,
+    `PORT=3100\nLOG_LEVEL=info\nGW_URL=http://${container('gw-01')}:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=local\nBROWSER_SESSION_AUTHORITY=disabled\nORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50\nORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200\nORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000\nNODE_ENV=lab\n`,
   );
   writeFileSync(
     join(old, 'gw-01.env'),
