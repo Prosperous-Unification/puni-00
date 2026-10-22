@@ -1924,3 +1924,79 @@ Mutation restored; expanded focused verification: 48 pass, 1 existing opt-in ski
 pass; OpenSpec: 268/268 valid (250 changes, 18 specs). Normal commit hooks run
 again for this correction; the tool-wiki status is inactive/not certified. [Evidence and retained logs](evidence/connected-benchmark/README.md).
 Task 8.5 remains checked based on this corrected production caller coverage.
+
+## Compose dormant preservation prerequisite
+
+Packet A is implemented against integrated base `9265f2933355e588e03722e6460ead9598477d9f`
+in an isolated `/tmp/puni-compose-admission` shared clone. The original feature
+checkout was not edited. It reuses the workspace's installed dependencies through
+a node_modules symlink; this is not a frozen installation proof.
+
+The coordinator's self-contained SQLite scanner checks actual ledger/relationship
+tables, unique nonempty names and lowercase SHA256 identities, both dependency
+migration identities, exact marker/receipt constrained schemas, all three exact
+admission triggers (including numeric JSON version), one id=1 DISABLED marker,
+zero receipts and zero external relationships. A missing authority is never a
+DISABLED default. The source bind stays recursively readonly/private while the
+scanner opens a scratch main/WAL/journal copy, never source SHM. Image-local
+inspection is not authoritative and advertised support never admits ENABLED-empty.
+
+Shared recovery and ordinary pre-maintenance admission use the same command.
+After maintenance stops, Compose independently resolves the SQLite family again,
+compares durable database/rollback image associations, inventories exactly the
+outgoing and replacement maintenance identities, proves every one stopped and
+executes a fresh scan before exposure. Null predecessor expects maintenance only
+at this later boundary. Existing durable-stop failure handling retains current
+bytes, migration capture and interruption evidence; it grants no automatic down,
+restore, old-writer restart or marker clearance.
+
+Tests first observed missing ordinary before/after admission reach application
+startup. After implementation, [18 primary watched mutations](evidence/compose-dormant-preservation/mutations.log.txt)
+and [9 additional watched mutations](evidence/compose-dormant-preservation/extra-mutations.log.txt)
+failed named production-path negatives. These include independent action-trigger
+removal, numeric JSON predicate drift, schemas/ledger/marker/receipt/edge faults,
+coordinator substitution by deceptive image inspection, both admission-call
+omissions, post-maintenance identity/stopped-state faults, WAL-copy omission,
+source/built installed recovery bypass, pin/path/mount/deadline faults and removal
+of the generated command's explicit path/read-only opening policy.
+
+Unreadability uses a real mode-000 main file and asserts nonroot effective UID;
+absence and malformed SQLite are distinct fixtures. Migrated positive stores agree
+with the actual backend inspection CLI and authentic backend boot. The retained-WAL
+positive moves an ENABLED main-file marker to DISABLED only in WAL, so omitting WAL
+copy is detected. The authentic post-maintenance ENABLED-drift negative checks exact
+current main/sidecar bytes after refusal, retained stop/migration markers and absence
+of exposure/start. A coherent historical fixture actually omits both dependency
+migrations, rather than merely dropping a migrated table. Missing first-install
+files and historical bootstrap remain intentionally unsupported.
+
+The exact installed source and freshly bundled recovery executables run with a
+filesystem-only test preload redirecting hardcoded host paths to scratch and a
+controlled Docker executable that executes the generated scanner. Both refuse
+ENABLED and retain existing markers. These are CLI dispatch/transport tests, not
+proofs of real Docker mounts or live installed-host behavior.
+
+Verification:
+
+- Focused serial Bun run with `--preload ./tools/test/scratch/preload.ts --timeout=10000`, covering dependency-inventory, dependency-admission, dependency-preflight, swap-writer-barrier, swap-maintenance.db, swap-migration.db and sqlite-probe: **267 passed, 0 failed** in the final repeat (58.17 seconds), including the strengthened authentic drift byte-preservation test.
+- Backend capability/activation CLI and cross-project boot conformance combined sandbox run: **31 passed, 1 failed**; the sole failure was `EPERM: listen` for the existing health-server boot positive. The entire boot file rerun with permitted localhost socket access: **8 passed, 0 failed**. Both CLI files' 24 tests passed in the combined run; the restricted combined command is not claimed green.
+- Scoped uncached Nx `tool-remote-scripts:lint`, `:typecheck`, `:build` passed with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. Initial export ordering/type findings were fixed. Default Nx daemon/plugin socket startup was sandbox-denied; in-process Nx execution supplied the checks.
+- `openspec validate --all --json`: **268 passed, 0 failed** (250 changes and 18 specs). Existing nonfatal warnings remain; validation is not archive readiness.
+- Changed-file Prettier check and `git diff --check`: passed. Normal lefthook hooks were installed in the isolated clone before commit; none are bypassed.
+
+[Verification output excerpts](evidence/compose-dormant-preservation/verification.log.txt)
+retain counts, scoped checks and the socket refusal/rerun. During proof development,
+the first database-drift fixture was already refused by family canonicalization
+without the new intent comparison; it was corrected to redirect a coherent entire
+family, then removing comparison admitted it. A readonly-only opening mutation was
+still refused under `create:false`; the recorded mutation replaces the complete
+opening policy, and no independent readonly-flag proof is claimed.
+
+Not run here: the complete remote-script suite/Caddy/backend-recreation daemon
+rehearsal, real Docker/Kubernetes operation, frozen dependency install, full CI,
+secrets/migration full gate, isolated h2/h4 host gate, deployment or independent
+review. Parent integration owns review and the host gate against its integrated
+SHA. Task 10.1/10.2 remain open: complete semantic participant fencing, activation
+receipt mutation/transport, Kubernetes preservation and downgrade policy are not
+implemented or proved by this prerequisite. The writer scanner still permits
+readonly readers and cannot establish gateway/MCP/browser exclusion.

@@ -46,3 +46,5 @@ None yet.
 ## Impact
 
 WBS domain/application/store libraries, HTTP/MCP contracts, be-01/gw-01/fe-01, scheduler engines, migrations, snapshots and plan documents.
+
+Compose additionally requires migrated DISABLED/no-edge authority before maintenance and after stop. Historical bootstrap, participant fencing, activation and Kubernetes remain outside this prerequisite.

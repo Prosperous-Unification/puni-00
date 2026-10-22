@@ -31,6 +31,8 @@ const image = 'registry/wbs-be-01@sha256:' + 'c'.repeat(64);
 async function fixture(
   fault:
     | 'none'
+    | 'dependency-before'
+    | 'dependency-after'
     | 'first-install'
     | 'preflight'
     | 'running'
@@ -61,6 +63,7 @@ async function fixture(
   let blueRunning = fault !== 'first-install';
   let greenRunning = fault === 'idle';
   let inventoryReads = 0;
+  let dependencyReads = 0;
   let stoppedInspected = fault === 'first-install';
   const io: SwapExecutionIo = {
     namespaceProof: () => Promise.resolve(),
@@ -147,6 +150,20 @@ async function fixture(
         });
       if (args[0] === 'image') return image;
       if (args[0] === 'run') {
+        if (args.some((argument) => argument.includes('wbs-dependency-preservation'))) {
+          dependencyReads += 1;
+          if (
+            fault === 'dependency-before' ||
+            (fault === 'dependency-after' && events.includes('stop-green'))
+          )
+            throw new Error('dependency authority changed');
+          return JSON.stringify({
+            protocol: 'wbs-dependency-preservation',
+            version: 1,
+            state: 'DISABLED',
+            externalRelationships: 0,
+          });
+        }
         expect(args).toContain('none');
         expect(args).toContain(
           `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
@@ -160,6 +177,8 @@ async function fixture(
       }
       if (args[0] === 'inspect' && args[2] === '{{.Id}}') return incomingId;
       if (args[0] === 'ps') {
+        if (events.includes('maintenance'))
+          return fault === 'first-install' ? maintenanceId : `${outgoingId}\n${maintenanceId}`;
         if (fault === 'first-install') return '';
         inventoryReads += 1;
         if (fault === 'race' && inventoryReads > 1) return incomingId;
@@ -171,9 +190,9 @@ async function fixture(
         return JSON.stringify(
           (args[1] === '--type' ? args.slice(3) : args.slice(1)).map((identity) => ({
             Id: identity,
-            Image: `sha256:${'e'.repeat(64)}`,
+            Image: `sha256:${(identity === maintenanceId ? 'c' : 'e').repeat(64)}`,
             Config: {
-              Image: previousImage,
+              Image: identity === maintenanceId ? image : previousImage,
               Env:
                 fault === 'database-env-missing'
                   ? []
@@ -293,6 +312,7 @@ async function fixture(
     root,
     io,
     events,
+    dependencyReads: () => dependencyReads,
     plan: { ...planned, steps },
     isBlueRunning: () => blueRunning,
     isGreenRunning: () => greenRunning,
@@ -318,6 +338,8 @@ test('candidate starts only after exact outgoing ID was stopped and inspected', 
     'maintenance',
     'stop-green',
     'inspect-green',
+    'inspect-blue',
+    'inspect-green',
     'start',
   ]);
   expect(attempt.isBlueRunning()).toBe(false);
@@ -329,6 +351,8 @@ test('candidate starts only after exact outgoing ID was stopped and inspected', 
     'inspect-blue',
     'maintenance',
     'stop-green',
+    'inspect-green',
+    'inspect-blue',
     'inspect-green',
     'start',
   ]);
@@ -353,6 +377,8 @@ test('startup failure retains boot exposure and never authorizes schema recovery
     'inspect-blue',
     'maintenance',
     'stop-green',
+    'inspect-green',
+    'inspect-blue',
     'inspect-green',
     'start',
   ]);
@@ -454,6 +480,15 @@ test('recovery refuses old replay capability before any writer restart', async (
   await refuses(
     checkBackendRecovery(previousImage, image, '/data/wbs.db', (args) => {
       commands.push(args);
+      if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+        return Promise.resolve(
+          JSON.stringify({
+            protocol: 'wbs-dependency-preservation',
+            version: 1,
+            state: 'DISABLED',
+            externalRelationships: 0,
+          }),
+        );
       if (args.includes('src/dependency-capabilities-cli.ts'))
         return Promise.resolve(
           JSON.stringify({
@@ -551,6 +586,15 @@ test('complete backend plan commits only after health, vocabulary recheck, and p
       return Promise.resolve();
     },
     sh: (args) => {
+      if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+        return Promise.resolve(
+          JSON.stringify({
+            protocol: 'wbs-dependency-preservation',
+            version: 1,
+            state: 'DISABLED',
+            externalRelationships: 0,
+          }),
+        );
       if (args.includes('src/dependency-capabilities-cli.ts'))
         return Promise.resolve(
           JSON.stringify({
@@ -647,6 +691,8 @@ test('a pre-existing idle backend is stopped and inspected before the new candid
     'inspect-green',
     'maintenance',
     'stop-green',
+    'inspect-green',
+    'inspect-blue',
     'inspect-green',
     'start',
   ]);
@@ -1165,6 +1211,15 @@ test('failed app exposure publication keeps completed migration evidence and ref
     execute(attempt.plan, image, 'deadbeef', {
       ...attempt.io,
       sh: async (args) => {
+        if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-preservation',
+              version: 1,
+              state: 'DISABLED',
+              externalRelationships: 0,
+            }),
+          );
         if (args.includes('src/dependency-capabilities-cli.ts'))
           return Promise.resolve(
             JSON.stringify({
@@ -1320,6 +1375,15 @@ for (const incompatible of ['candidate', 'rollback'] as const) {
     await refuses(
       checkBackendRecovery(previous, image, '/data/wbs.db', (args) => {
         commands.push(args);
+        if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-preservation',
+              version: 1,
+              state: 'DISABLED',
+              externalRelationships: 0,
+            }),
+          );
         if (args.includes('src/dependency-capabilities-cli.ts'))
           return Promise.resolve(
             JSON.stringify({
@@ -1596,6 +1660,15 @@ for (const vocabulary of storedVocabularies) {
       const commands: string[][] = [];
       attempt.io.sh = async (args) => {
         commands.push(args);
+        if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-preservation',
+              version: 1,
+              state: 'DISABLED',
+              externalRelationships: 0,
+            }),
+          );
         if (args.includes('src/dependency-capabilities-cli.ts'))
           return Promise.resolve(
             JSON.stringify({
@@ -2031,6 +2104,15 @@ for (const badImage of [image, previousImage]) {
     const runDocker = f.io.sh;
     f.io.sh = async (args, signal) => {
       commands.push(args);
+      if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+        return Promise.resolve(
+          JSON.stringify({
+            protocol: 'wbs-dependency-preservation',
+            version: 1,
+            state: 'DISABLED',
+            externalRelationships: 0,
+          }),
+        );
       if (args.includes('src/dependency-capabilities-cli.ts'))
         return JSON.stringify(
           args.includes(badImage)
@@ -2113,3 +2195,81 @@ for (const badImage of [image, previousImage]) {
     ).toBe(true);
   });
 }
+
+for (const fault of ['dependency-before', 'dependency-after'] as const)
+  test(`ordinary swap refuses ${fault} authority before exposure`, async () => {
+    const attempt = await fixture(fault);
+    await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'explicit recovery');
+    expect(attempt.events).not.toContain('start');
+    expect(attempt.events).not.toContain('alias');
+    if (fault === 'dependency-before') expect(attempt.events).not.toContain('maintenance');
+    else {
+      expect(attempt.events).toContain('stop-green');
+      expect(attempt.dependencyReads()).toBe(2);
+    }
+    expect(attempt.isBlueRunning()).toBe(false);
+    await refuses(assertNoWriterBarrier(attempt.root), 'explicit recovery');
+  });
+
+for (const fault of [
+  'running-outgoing',
+  'replaced-maintenance',
+  'missing-outgoing',
+  'database-drift',
+  'rollback-drift',
+] as const)
+  test(`post-maintenance dependency admission refuses ${fault}`, async () => {
+    const attempt = await fixture();
+    const original = attempt.io.sh;
+    attempt.io.resolveMount = (path) =>
+      Promise.resolve(
+        attempt.events.includes('stop-green') &&
+          fault === 'database-drift' &&
+          path.startsWith(`${ROOT}/data`)
+          ? path.replace(`${ROOT}/data`, '/replaced')
+          : path,
+      );
+    attempt.io.sh = async (args, signal) => {
+      if (!attempt.events.includes('stop-green')) return original(args, signal);
+      if (args[0] === 'ps' && fault === 'replaced-maintenance')
+        return `${outgoingId}\n${incomingId}`;
+      if (args[0] === 'ps' && fault === 'missing-outgoing') return maintenanceId;
+      const output = await original(args, signal);
+      if (
+        fault === 'running-outgoing' &&
+        args[0] === 'inspect' &&
+        args[1] === '--format' &&
+        args[3] === outgoingId
+      ) {
+        const observed = JSON.parse(output) as { State: { Running: boolean } };
+        observed.State.Running = true;
+        return JSON.stringify(observed);
+      }
+      if (fault === 'rollback-drift' && args[0] === 'inspect' && args[1] === '--type') {
+        const observed = JSON.parse(output) as { Config: { Image: string }; Image: string }[];
+        for (const container of observed) {
+          container.Config.Image = image;
+          container.Image = `sha256:${'c'.repeat(64)}`;
+        }
+        return JSON.stringify(observed);
+      }
+      return output;
+    };
+    await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'explicit recovery');
+    expect(attempt.events).toContain('stop-green');
+    expect(attempt.events).not.toContain('start');
+    expect(attempt.dependencyReads()).toBe(1);
+    expect(await readFile(join(attempt.root, 'be-writer-migration.json'), 'utf8')).toContain(image);
+    await refuses(assertNoWriterBarrier(attempt.root), 'explicit recovery');
+  });
+test('first-install dependency admission replaces the idle set with stopped maintenance identity', async () => {
+  const attempt = await fixture('first-install');
+  const original = attempt.io.sh;
+  attempt.io.sh = (args, signal) =>
+    args.some((argument) => argument.includes('src/step-blockage-replay-kinds-cli.ts'))
+      ? Promise.resolve('["step_blockage_activation_v1"]')
+      : original(args, signal);
+  await execute(attempt.plan, image, 'deadbeef', attempt.io);
+  expect(attempt.dependencyReads()).toBe(2);
+  expect(attempt.events).toContain('start');
+});

@@ -369,3 +369,22 @@ NOT prove store admission, participant exclusion or activation permission.
 - **GIVEN** both exact image executables return valid backend observations with explicit empty semantics
 - **WHEN** ordinary Compose preflight runs
 - **THEN** it continues through existing admission boundaries without activating dependency authoring or changing automatic rollback behavior
+
+### Requirement: Compose preserves only provably dormant dependency stores
+
+After proving all known writers stopped, Compose shared backend recovery admission SHALL independently inspect coordinator-owned SQLite authority before backup, migration capture or maintenance startup. It SHALL use a bounded, network-free command with a recursively readonly/private source bind and scratch main/WAL/journal copy, excluding source SHM. It SHALL require actual ledger and relationship tables, unique nonempty ledger names and SHA256 hash identities, both dependency migration identities exactly once, exact constrained marker/receipt schemas and all three exact admission triggers including numeric JSON receipt-version checks. It SHALL require exactly one id=1 DISABLED marker, no receipts and no external relationships. ENABLED SHALL refuse regardless of edge count or advertised binary support. Candidate application inspection SHALL NOT supply authoritative evidence. Source absence, unreadability, malformed SQLite or malformed transport SHALL refuse; a coherent historical store without both dependency authority migrations SHALL also refuse.
+
+#### Scenario: Fresh maintenance observation differs from stopped preflight
+
+- **GIVEN** stopped preflight admitted a migrated dormant store
+- **WHEN** maintenance completes and its exact container is stopped
+- **THEN** Compose freshly resolves the entire SQLite family, compares its canonical database identity with durable intent, independently verifies the retained rollback image association when present, inventories exactly the outgoing and replacement maintenance writers and proves each stopped
+- **AND** it runs a fresh coordinator store inspection before recording exposure or starting an application
+- **AND** changed or uncertain authority, image, database family, writer identity or stopped state retains current store and interruption/migration evidence for attended recovery, with no automatic down migration, snapshot restore or old-writer restart
+
+#### Scenario: First installation already has migrated dormant storage
+
+- **GIVEN** candidate capability and stopped preflight prove a first installation with an existing fully migrated dormant store and no managed backend writer
+- **WHEN** maintenance replaces the idle identity
+- **THEN** fresh post-maintenance admission expects only its exact stopped maintenance identity and does not apply the pre-maintenance no-container invariant again
+- **AND** neither observation authorizes semantic activation, participant exclusion, writer restart or marker clearance

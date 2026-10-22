@@ -616,13 +616,32 @@ unreadable, failing, stalled or malformed CLI refuses; an older image lacking th
 CLI cannot be used as either candidate or rollback. First installation probes only
 the candidate. Explicit empty semantics is a valid binary observation.
 
-This prerequisite does not admit an ENABLED dependency store or prove participant
-exclusion. The coordinator-owned strict DISABLED/no-edge scan and fresh stopped
-post-maintenance/pre-exposure admission remain pending task 10.2. Do not infer
-dependency rollout or downgrade safety from a successful swap or recovery check.
-No dependency activation, schema reversal, snapshot restore, writer restart or
-marker clearance is added. A refusal after durable stop intent follows the
-[attended recovery procedure](#backend-writer-barrier-recovery) below.
+After every known writer is stopped, shared recovery admission runs the coordinator's
+strict dependency inventory against a private SQLite main/WAL/journal copy. The
+source bind is recursively readonly/private. Neither image's activation inspector
+supplies authoritative store evidence. The scanner requires both dependency
+migration identities, a well-formed unique name/hash ledger, actual tables, exact
+constrained marker/receipt schemas, all three exact admission triggers, exactly one
+DISABLED marker, no receipts and no external relationships. ENABLED always refuses,
+including an empty store and images advertising support.
+
+A fresh scan runs after maintenance stops and before durable application exposure.
+It first resolves the complete SQLite family again, verifies the retained rollback
+image association, inventories exactly the outgoing and replacement maintenance
+containers (maintenance only on first installation), and independently proves each
+stopped. A successful earlier observation cannot substitute for this scan.
+
+Historical stores without both dependency migrations refuse, even if otherwise
+coherent. This path cannot bootstrap an older store or a missing first-install
+file; a historical compatibility adapter needs separate specification and proof.
+Refusal after durable stop intent retains current bytes, migration capture and
+interruption evidence under the [attended recovery procedure](#backend-writer-barrier-recovery).
+Standalone inspection grants no restart or marker clearance authority.
+
+Task 10.2 remains open for complete semantic participant exclusion, activation and
+Kubernetes integration. Writer inventory permits readonly readers and does not
+fence gateway/MCP/browser participation; a successful dormant observation grants no
+dependency rollout, activation or downgrade permission.
 
 ## Backend writer barrier recovery
 

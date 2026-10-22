@@ -640,3 +640,20 @@ ledger/schema/trigger validation, stopped pre-maintenance and fresh stopped
 post-maintenance/pre-exposure observations, historical compatibility limits,
 complete participant fencing and all Kubernetes work remain unimplemented in this
 slice. Binary observations alone cannot establish that an ENABLED store is safe.
+
+## Compose dormant preservation boundary
+
+The coordinator owns the dependency scanner and closed observation decoder. Its
+self-contained function is embedded into a `bun:sqlite` command, independent of
+image application imports, and exported narrowly through `@tools/deploy-contract`
+for future transport reuse. Ledger hash shape does not assert migration artifact
+identity; applied-set capture remains responsible for byte/hash comparisons.
+
+Shared recovery admission scans only after fresh stopped-writer proof. Following
+maintenance, a separate narrow admission repeats canonical family resolution,
+retained image readback, exact outgoing/replacement-maintenance inventory and all
+stopped checks before a new scanner subprocess. It deliberately avoids invoking
+the whole first-install recovery helper against its now-existing maintenance
+container. Existing durable-stop catch behavior retains current bytes and evidence.
+Historical stores without authority refuse; this packet has no bootstrap adapter,
+semantic participant proof, activation mutation or Kubernetes admission.

@@ -35,6 +35,7 @@ import {
   backendWorkingDirectory,
   maintenanceConfig,
 } from './lib/backend-maintenance';
+import { admitDormantDependencies } from './lib/dependency-admission';
 import { probeDependencyCapabilities } from './lib/dependency-preflight';
 import {
   assertDigestPinnedRef,
@@ -1241,12 +1242,12 @@ export async function inspectBackendWriters(
 /**
  * Read-only admission proof before candidate boot or attended recovery. Both colours and every known
  * writer must be stopped. Independently observes exact candidate/previous dependency
- * capabilities without DB access; these observations grant no dependency store admission.
+ * capabilities without DB access, then requires coordinator-proven DISABLED/no-edge dependency authority.
  * The candidate independently inventories the database;
  * both candidate and previous digest must independently understand every stored vocabulary,
  * including fact kinds and journal capabilities, before maintenance or migration.
  * Null predecessor is reserved for a proven first installation: no managed backend writer,
- * a capable candidate, and pre-marker/DISABLED authority. ENABLED requires rollback.
+ * a capable candidate, and fully migrated dormant dependency authority. Dependency ENABLED always refuses.
  * This proof grants no write authority and never restarts a container.
  */
 export async function checkBackendRecovery(
@@ -1294,6 +1295,8 @@ export async function checkBackendRecovery(
   if (previousImage === null && writers.size !== 0)
     throw new Error('first backend install requires no existing backend writer');
   for (const identity of writers.values()) await assertContainerStopped(identity, runDocker);
+  // Proof: omission reached maintenance in ordinary dependency-before and passed installed source/built ENABLED recovery.
+  await admitDormantDependencies(candidateImage, databasePath, runDocker);
   const oneOff = (image: string, command: string[]): string[] => [
     'run',
     '--rm',
@@ -1875,6 +1878,44 @@ export async function execute(
           await io.sh(['stop', maintenanceId]);
           // Proof: running/replaced maintenance stop negatives refuse app exposure and startup.
           await assertContainerStopped(maintenanceId, io.sh);
+          if (writerIntent === null) throw new Error('dependency admission lacks writer intent');
+          {
+            const canonical = await resolveDatabaseHost(
+              backendPrepared.databasePath,
+              [{ type: 'bind', source: `${ROOT}/data`, target: '/data', writable: true }],
+              io.resolveMount ?? realpath,
+            );
+            // Proof: removing equality admitted post-maintenance database-drift with an otherwise coherent replacement family.
+            if (canonical !== writerIntent.databaseHostPath)
+              throw new Error('post-maintenance database family identity changed');
+            if (writerIntent.rollback !== null) {
+              const observed = await readWriterImage(writerIntent.rollback.containerId, io.sh);
+              // Proof: removing equality admitted post-maintenance rollback-drift.
+              if (
+                observed.image !== writerIntent.rollback.image ||
+                observed.imageId !== writerIntent.rollback.imageId
+              )
+                throw new Error('post-maintenance rollback image association changed');
+            }
+            const writers = await inspectBackendWriters(
+              io.sh,
+              canonical,
+              io.resolveMount,
+              image,
+              io.namespaceProof,
+            );
+            const expected = [
+              maintenanceId,
+              ...(writerIntent.outgoingId === null ? [] : [writerIntent.outgoingId]),
+            ].sort();
+            // Proof: removing set equality admitted post-maintenance replaced-maintenance and missing-outgoing.
+            if (JSON.stringify([...writers.values()].sort()) !== JSON.stringify(expected))
+              throw new Error('post-maintenance writer inventory changed');
+            // Proof: omitting this fresh stopped proof admitted post-maintenance running-outgoing.
+            for (const identity of writers.values()) await assertContainerStopped(identity, io.sh);
+            // Proof: omission let authentic maintenance dependency-drift reach application boot/exposure.
+            await admitDormantDependencies(image, backendPrepared.databasePath, io.sh);
+          }
           maintenanceStopped = true;
           break;
         case 'record-writer-exposure':
@@ -2363,7 +2404,7 @@ async function main(): Promise<void> {
       await checkBackendRecovery(previous, candidate, argOf('database-path'), sh, realpath);
     });
     console.log(
-      '[swap-be] recovery dependency capability and vocabulary observations passed; writers remain stopped; interruption markers retained',
+      '[swap-be] recovery dormant dependency authority, capability and vocabulary observations passed; writers remain stopped; interruption markers retained',
     );
     return;
   }

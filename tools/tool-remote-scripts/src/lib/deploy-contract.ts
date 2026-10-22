@@ -103,6 +103,11 @@ export function bundleFilesFor(root: string): BundleFile[] {
 
 export { writeAtomic } from './atomic';
 export {
+  buildDependencyInventoryCommand,
+  decodeDormantDependencies,
+  type DormantDependencyStore,
+} from './dependency-inventory';
+export {
   type DependencyCapabilityObservation,
   probeDependencyCapabilities,
 } from './dependency-preflight';

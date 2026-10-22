@@ -55,6 +55,13 @@ for (const mode of ['clean', 'wal', 'wal-and-shm'] as const) {
         image,
         '/data/wbs.db',
         async (args) => {
+          if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+            return JSON.stringify({
+              protocol: 'wbs-dependency-preservation',
+              version: 1,
+              state: 'DISABLED',
+              externalRelationships: 0,
+            });
           if (args.includes('src/dependency-capabilities-cli.ts'))
             return JSON.stringify({
               protocol: 'wbs-dependency-runtime',
