@@ -139,3 +139,57 @@ all governed admission consumers, shared-mode/full mounted/browser and MCP
 acceptance remain outside this packet. Full CI, OpenSpec-wide validation and the
 canonical exact-SHA host gate were not run. The seven reproduced baseline
 failures remain open; no broad regression success is claimed.
+
+## Review correction: composed fixture teardown (2026-10-23)
+
+Independent review blocked `bc8b02718` because its synchronous `harness.close()`
+removed the fixture directory while leaving the composed source open. Inspection
+confirmed that `OrganizationHarness.closeComposed()` stops the coordinator and
+closes the composed source before closing the fixture writer and deleting files.
+The teardown now awaits that existing method; no harness or production method
+changes.
+
+The permanent teardown check on Linux enumerates `/proc/self/fd` and rejects
+references to the fixture's exact database path, including WAL/SHM suffixes and
+` (deleted)` references. Only `ENOENT` while reading a descriptor is modeled:
+`readdir` itself can open and close a descriptor before `readlink`. Other errors
+throw. Non-Linux runs still await composed closure but omit this Linux-specific
+file descriptor witness; this packet claims descriptor evidence only on Linux.
+
+Watched negative: add the descriptor assertion while retaining the original
+`harness.close()` teardown, then run:
+
+```sh
+bun test apps/wbs/be-01/src/controller/cross-project-execution-observation.controller.db.test.ts --timeout=10000
+```
+
+Observed **0 pass, 2 fail, 24 assertions**, exit 1. Both response witnesses finish
+successfully and fail only at the teardown assertion. Each fixture leaves **six**
+deleted DB/WAL/SHM descriptor references in this run (the independent reviewer
+observed four). Receipt: `/tmp/execution-teardown-fault.log`. Replacing that call
+with `await harness.closeComposed()` makes the same permanent assertion pass
+with zero references. The adjacent test `Proof:` comment names this injected
+fault and both observed mounted cases.
+
+Fresh verification:
+
+| Command                                                                                                                                                                                 | Observed outcome                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| New mounted test command above                                                                                                                                                          | 2 pass, 0 fail, 24 assertions (`/tmp/execution-teardown-final-green.log`) |
+| `bun test apps/wbs/be-01/src/controller/cross-project-execution-observation.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts --timeout=10000` | 13 pass, 0 fail, 125 assertions (`/tmp/execution-teardown-green.log`)     |
+| `bunx tsc --project apps/wbs/be-01/tsconfig.spec.json --noEmit`                                                                                                                         | Exit 0 (`/tmp/execution-teardown-typecheck.log`)                          |
+| Changed-test ESLint, both changed-file Prettier, `git diff --check`                                                                                                                     | Exit 0                                                                    |
+
+The owned observation no-op transaction fault was also repeated after the
+teardown repair: **0 pass, 2 fail, 18 assertions**, exit 1. Both calls still
+return 200 and fail first-response equality, while the teardown descriptor
+checks pass. FS still mixes old remote completion with the newer claim and
+occupancy; SS still admits later attempt/claim facts into the pinned-old
+observation, without claiming its projected fields are intrinsically mixed.
+Receipt: `/tmp/execution-teardown-transaction-fault.log`. The production file was
+restored byte for byte and the new mounted suite rerun green afterward.
+
+This follow-up reruns the snapshot-lifetime suite and scoped checks, not the
+three-suite baseline matrix already recorded above. Its seven existing failures
+remain open. Full CI/host gate, parent task 6.3 and production adjacent `Proof:`
+placement still await integration/review.

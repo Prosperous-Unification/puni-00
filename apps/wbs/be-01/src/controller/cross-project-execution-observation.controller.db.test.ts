@@ -1,3 +1,5 @@
+import { readdirSync, readlinkSync } from 'node:fs';
+
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
@@ -95,9 +97,27 @@ beforeEach(async () => {
     [remote, target, remoteStep, targetStep],
   );
 });
-afterEach(() => {
-  harness.close();
+afterEach(async () => {
+  const path = harness.databasePath();
+  // Proof: replacing closeComposed with close left six deleted database/WAL/SHM descriptors in both mounted cases (execution-teardown-fault.log).
+  await harness.closeComposed();
+  if (process.platform === 'linux') expect(readDatabaseDescriptors(path)).toEqual([]);
 });
+
+/** Linux witness for both live and deleted descriptors retained by a composed source. */
+function readDatabaseDescriptors(path: string): string[] {
+  return readdirSync('/proc/self/fd').flatMap((descriptor) => {
+    let target: string;
+    try {
+      target = readlinkSync(`/proc/self/fd/${descriptor}`);
+    } catch (failure) {
+      // Enumerating /proc opens a directory descriptor which can close before readlink.
+      if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT') return [];
+      throw failure;
+    }
+    return target.startsWith(path) ? [target] : [];
+  });
+}
 
 const address = {
   workItemId: 'target-leaf',
