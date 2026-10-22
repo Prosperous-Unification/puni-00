@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
@@ -44,6 +45,40 @@ function renderPage() {
 }
 
 describe('organization page', () => {
+  it('composes the limits panel for an admin', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/limits': [
+        () =>
+          answer(200, {
+            source: 'default',
+            limits: {
+              maxAgentPersons: 8,
+              maxConcurrentClaims: 200,
+              maxCapacityUnitsPerResource: 64,
+            },
+            usage: { agentPersons: 7, concurrentClaims: 12, capacityUnits: [] },
+          }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <OrganizationPage nav={<nav />} account={<span />} />
+      </OrganizationResourcesProvider>,
+    );
+    const panel = await screen.findByRole('region', { name: 'Organization limits' });
+    expect(await within(panel).findByText('7 of 8')).toBeDefined();
+  });
+
   it('composes company sign-in setup on the organization page', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();

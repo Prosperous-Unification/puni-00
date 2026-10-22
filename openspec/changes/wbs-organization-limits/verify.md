@@ -272,6 +272,39 @@ format check, the coordinator-bypass sabotage of the capacity race (the stale-su
 is the one watched). Not observable: the capacity cap through the memory batch runner, which
 has no scoped path; the memory twin is held to SQLite at the gauge port instead.
 
+## Slice 6 record (2026-10-22, branch `feat/wbs-organization-limits-6`)
+
+Built: `LimitsPanel` (`apps/wbs/fe-01/src/components/organization/limits-panel.tsx`) after the
+session policy panel, behind `LimitsSlot`, which reads the caller's role from
+`GET /api/organization/active` (`organization-role.ts`, copied verbatim from
+`plan/wbs-machine-credentials` so the two branches add the same file) and mounts the panel
+for an admin or super-admin only: a member or viewer sends no limits request, a deployment
+without organizations sends nothing, and a failed role read renders its message with
+"Retry organization limits". The panel renders loading, failure with retry, and ready: the
+source sentence ("deployment default" or "set for this organization"), "Agent persons 7 of
+8", "Concurrent claims 12 of 200", and under "Capacity units per resource (cap 64)" one
+line per listed resource ("h2puni ram 48 of 64 GB"), or "No project states a capacity of
+any resource yet."; a count at its cap is marked "At the cap", one over it "Exceeded". A
+`forbidden` read renders the panel absent. There is no edit control, only "Refresh
+organization limits". An unknown `source` throws in render and reaches the Error Boundary.
+
+Refusal copy (`lib/organization-limit-words.ts`): `refusalSentence` words
+`agent_person_limit`, `claim_limit` and `capacity_limit` from the batch refusal body on every
+plan surface ("Organization limit: 8 of 8 agent persons; adding 1 would exceed the cap.",
+"Organization limit: 40 of 10 concurrent claims.", "Organization limit: resource res-ram
+would declare 72 of 64 units across your projects (48 stated by your other projects, 24
+asked here)."); the people page (`/directory`, the kind select) carries the agent cap as its
+own `DirectoryRefusal` arm; the import dialog's capacity sentence names the resource. fe-01
+has no startable surface, sends no `claimWorkItem` or `setResourceCapacity`, and has no
+project-settings resources section, so those refusals reach a reader only through
+`refusalSentence`; the resource is named by id because no fe-01 surface reads the resource
+directory. `vitest.node-suites.json` gains the three DOM-free word suites.
+
+Screenshots (Chromium against vite with every `/api` route stubbed, not dev), in the
+coordinator's scratch directory `limits-shots/`: populated, exceeded (1280 and 375 wide),
+empty resources under the deployment default, read failure; none scrolls sideways. 6.3 (by
+eye on dev) stays open.
+
 ## Failure proofs
 
 | Check                                                    | Fault injected                                                                                | Observed failing test                                                                                                                                                                                                                                                         | Result  |
@@ -339,7 +372,15 @@ has no scoped path; the memory twin is held to SQLite at the gauge port instead.
 | audit widening rollback guard                            | guard replaced by `CHECK (1)` or trigger dropped                                              | (slice 5)                                                                                                                                                                                                                                                                     | pending |
 | audit in the same transaction                            | audit written outside it                                                                      | (slice 5)                                                                                                                                                                                                                                                                     | pending |
 | `set` starts from the defaults                           | `set` started from zeros                                                                      | (slice 5)                                                                                                                                                                                                                                                                     | pending |
-| panel never shows a stale organization                   | late-reply fence removed                                                                      | (slice 6)                                                                                                                                                                                                                                                                     | pending |
+| panel never shows a stale organization                   | `version !== requestVersion.current` fence removed in `LimitsPanel.refresh`                   | `never shows the previous organization's numbers after a switch` (`limits-panel.test.tsx`): org-a's late 7 of 8 replaced org-b's 1 of 8, 13 pass 1 fail                                                                                                                       | watched |
+| member and viewer send no limits read                    | `LimitsSlot` mounting the panel for every role                                                | `sends no limits request and renders no panel for a member` and `… for a viewer`, 12 pass 2 fail                                                                                                                                                                              | watched |
+| role read failure is a rendered state                    | `LimitsSlot` rendering nothing on a failed role read                                          | `renders a failed role read with retry, and recovers`, 13 pass 1 fail                                                                                                                                                                                                         | watched |
+| `forbidden` renders the panel absent                     | `forbidden` rendered as a failure                                                             | `renders no panel when the read answers forbidden`, 13 pass 1 fail                                                                                                                                                                                                            | watched |
+| unknown source reaches the Error Boundary                | `sourceSentence`'s default arm answering the deployment-default sentence                      | `routes an impossible source to the Error Boundary`, 13 pass 1 fail                                                                                                                                                                                                           | watched |
+| at the cap is not exceeded                               | `used > cap` replaced by `>=` in `standingOf`                                                 | `marks a count over its cap exceeded and one at its cap as at the cap`: 8 of 8 read `Exceeded`, 13 pass 1 fail                                                                                                                                                                | watched |
+| the page composes the panel                              | `LimitsSlot` left out of `OrganizationPage`                                                   | `composes the limits panel for an admin` (`organization-page.test.tsx`), 21 pass 1 fail                                                                                                                                                                                       | watched |
+| batch refusals name the body's numbers                   | `limitSentence` dropped from `refusalSentence`                                                | five cases of `organization-limit-words.test.ts` read the code-only fallback, 1 pass 5 fail                                                                                                                                                                                   | watched |
+| the people page names the agent cap's numbers            | `refusalOf`'s `agent_person_limit` arm never matching                                         | `names the organization’s agent-person cap with the refusal’s own numbers` (`directory-page.test.tsx`), 49 pass 1 fail                                                                                                                                                        | watched |
 
 ## Gate output
 

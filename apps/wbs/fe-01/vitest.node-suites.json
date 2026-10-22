@@ -235,6 +235,15 @@
     },
     {
       "file": "src/components/wbs/hover-card-placement.test.ts"
+    },
+    {
+      "file": "src/components/wbs/capacity-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/claim-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/organization-limit-words.test.ts"
     }
   ]
 }

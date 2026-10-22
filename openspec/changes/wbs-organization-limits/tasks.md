@@ -183,17 +183,31 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
 
 ## 6. The organization page and the refusal copy
 
-- [ ] 6.1 `LimitsPanel` after the session policy panel: loading, failure with reload, ready
+- [x] 6.1 `LimitsPanel` after the session policy panel: loading, failure with reload, ready
       with one row per cap and one line per listed resource, exceeded marking, "deployment
       default" when `source` is `default`; `forbidden` renders the panel absent — Red:
       `limits-panel.test.tsx`: the three states, 7 of 8, 40 over 10 marked exceeded, the
       member's page sends the read once and renders no panel, no edit control exists. R5
       fault: render usage from the previous organization after a switch (the session-policy
       panel's late-reply fence removed) and the scoped test observes B's numbers under A;
-      watched.
-- [ ] 6.2 Refusal copy: the table and startable surfaces for `claim_limit`, the people page
+      watched. Built 2026-10-22 (`limits-panel.tsx`), amended: the page reads the caller's
+      role from `GET /api/organization/active` first (`organization-role.ts`, the
+      machine-credentials pattern), so a member or viewer sends no limits request at all
+      rather than one refused read; a `forbidden` read (a role lost between the two reads)
+      still renders the panel absent. A count at its cap is marked "At the cap", one over it
+      "Exceeded". The panel offers "Refresh organization limits" and no edit control. The
+      fence fault was observed as org-a's late 7 of 8 replacing org-b's 1 of 8.
+- [x] 6.2 Refusal copy: the table and startable surfaces for `claim_limit`, the people page
       for `agent_person_limit`, project settings for `capacity_limit`, each naming the numbers
       from the refusal body — Red: the rendering tests with each refusal body; the copy never
-      invents a number the body lacks.
+      invents a number the body lacks. Built 2026-10-22: the sentences are
+      `lib/organization-limit-words.ts`; `refusalSentence` (every plan surface's batch
+      refusal) words all three from the body through `limitSentence`, the people page
+      (`/directory`, the kind select) carries `agent_person_limit` as its own
+      `DirectoryRefusal` arm, and the import dialog's capacity sentence now names the
+      resource. fe-01 has no startable surface, sends no `claimWorkItem` and no
+      `setResourceCapacity`, and has no project-settings resources section yet, so those
+      refusals reach the reader only through `refusalSentence`; the resource is named by id
+      (`resource <id>`) because no fe-01 surface reads the resource directory.
 - [ ] 6.3 UI acceptance by eye on dev (`ui-work-acceptance`): the panel at 7 of 8 and at 40
       over 10; a refused claim's message in the table; recorded in verify.md with screenshots.

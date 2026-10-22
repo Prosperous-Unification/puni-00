@@ -207,7 +207,7 @@ describe('importRefusalSentence', () => {
         }),
       ),
     ).toBe(
-      'Organization limit: this plan would state 32 units of a resource your other projects already state 48 of, past the cap of 64, so nothing was imported.',
+      'Organization limit: this plan would state 32 units of resource ram, which your other projects already state 48 of, past the cap of 64, so nothing was imported.',
     );
   });
 
