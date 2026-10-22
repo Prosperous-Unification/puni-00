@@ -1072,3 +1072,14 @@ focused runs passed 11 tests and 10 production export combinations; the broad
 551-case frontend run remains the packet's earlier observation rather than a
 new combined-branch result. Full task 9.2, CI and exact-SHA host gate remain
 pending.
+
+### Task 8.4 bounded shared connected aggregate packet — 2026-10-22
+
+The [shared aggregate packet](evidence/shared-connected-aggregate/README.md)
+replaces the aggregate's external-edge refusal with observation-local connected
+capture/derivation reuse and explicit member projection. Mounted load, weekly
+totals, selected Space roll-ups and in-progress refresh foreign-only changes with
+target identity fixed. It records seven independently watched production faults,
+focused regressions and check outcomes. Task 8.4 remains unchecked; connected
+arrangement/restart/admission, the remaining authority/lifetime matrix, browser
+proofs and the committed host gate remain outside this bounded packet.

@@ -1919,15 +1919,30 @@ export class WorkItemService {
     if (captured.kind !== 'shared') return captured;
     return {
       kind: 'shared',
-      entries: captured.entries.map(({ rank, basis, plan }) => ({
-        projectId: plan.project.id,
-        name: plan.project.name,
-        rank,
-        revision: plan.project.revision,
-        seq: plan.seq,
-        basis,
-        tree: projectSharedTree(plan),
-      })),
+      entries: captured.entries.map(({ projectId, rank, basis, plan }) => {
+        if (plan.kind === 'connected') {
+          // Proof: selecting the component's first member failed mounted target identity and dates.
+          const projection = projectConnectedTree(plan, projectId);
+          return {
+            projectId,
+            name: projection.metadata.project.name,
+            rank,
+            revision: projection.metadata.project.revision,
+            seq: projection.metadata.seq,
+            basis,
+            tree: presentConnectedTree(projection),
+          };
+        }
+        return {
+          projectId,
+          name: plan.project.name,
+          rank,
+          revision: plan.project.revision,
+          seq: plan.seq,
+          basis,
+          tree: projectSharedTree(plan),
+        };
+      }),
     };
   }
 

@@ -764,20 +764,27 @@ test('mounted shared connected calendar range leaves no partial forecast display
   expect(tree.body).not.toHaveProperty('resourceLabels');
 });
 
-test.each([
-  'calendar',
-  'calendar_range',
-  'adapter_missing',
-  'connected_optimization_not_supported',
-] as const)(
-  'mounted isolated-capacity load and space preserve connected unavailability (%s)',
-  async (reason) => {
+test.each(
+  (['isolated', 'shared'] as const).flatMap((mode) =>
+    (
+      [
+        'calendar',
+        'calendar_range',
+        'adapter_missing',
+        'connected_optimization_not_supported',
+      ] as const
+    ).map((reason) => [mode, reason] as const),
+  ),
+)(
+  'mounted %s-capacity load and space preserve connected unavailability (%s)',
+  async (mode, reason) => {
     const { remote, target } = await open({
       withOptimizer: reason === 'connected_optimization_not_supported',
     });
     shareAna(remote, target);
-    // Isolated capacity uses real connected tree reads, not the unsupported shared aggregate.
-    harness.sqlite.run("UPDATE organization SET shared_people=0 WHERE id='org-a'");
+    harness.sqlite
+      .query("UPDATE organization SET shared_people=? WHERE id='org-a'")
+      .run(mode === 'shared' ? 1 : 0);
     if (reason === 'calendar')
       harness.sqlite.query('UPDATE project SET start_date=NULL WHERE id=?').run(remote.projectId);
     else if (reason === 'calendar_range')
@@ -913,8 +920,8 @@ test.each([
                     name: 'Target row',
                     stepId: target.stepId,
                     width: 1,
-                    startsOn: '2026-10-20',
-                    endsOn: '2026-10-22',
+                    startsOn: mode === 'shared' ? '2026-10-21' : '2026-10-20',
+                    endsOn: mode === 'shared' ? '2026-10-23' : '2026-10-22',
                   },
                 ],
               },
@@ -927,8 +934,8 @@ test.each([
                 scheduleError: null,
                 displayed: 'fast',
                 dates: {
-                  startsOn: '2026-10-20',
-                  endsOn: '2026-10-22',
+                  startsOn: mode === 'shared' ? '2026-10-21' : '2026-10-20',
+                  endsOn: mode === 'shared' ? '2026-10-23' : '2026-10-22',
                 },
               },
             },
@@ -958,3 +965,151 @@ test.each([
     }
   },
 );
+
+test('shared aggregate load and selected Space refresh foreign-only facts with target caches warm', async () => {
+  const { remote, target } = await open();
+  shareAna(remote, target);
+  harness.sqlite.run("DELETE FROM external_dependency WHERE id='remote-fs'");
+  for (const [endpoint, position] of [
+    [target, 10],
+    [remote, 20],
+  ] as const)
+    harness.sqlite
+      .query(
+        "INSERT INTO project_rank(project_id,organization_id,position,created_at,created_by) VALUES (?,'org-a',?,1,(SELECT id FROM users WHERE username='ada'))",
+      )
+      .run(endpoint.projectId, position);
+  const createdSpace = await harness.call('ada', 'POST', '/api/spaces', { name: 'Successor only' });
+  expect(createdSpace.status).toBe(201);
+  const space = (createdSpace.body as { space: { id: string } }).space.id;
+  expect(
+    (
+      await harness.call('ada', 'POST', `/api/spaces/${space}/projects`, {
+        projectId: target.projectId,
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
+        commands: [{ kind: 'setStatus', workItemId: target.workItemId, status: 'in_progress' }],
+      })
+    ).status,
+  ).toBe(200);
+  const loadPath = '/api/people/ana/load?from=2026-10-19&to=2026-11-06';
+  const rollPath = `/api/spaces/${space}/roll-ups?projectIds=${target.projectId}`;
+  const identity = () =>
+    harness.sqlite
+      .query<{ revision: number; seq: number }, [string]>(
+        "SELECT revision, COALESCE((SELECT max(seq) FROM event_log WHERE subscription='project:' || project.id),-1) AS seq FROM project WHERE id=?",
+      )
+      .get(target.projectId);
+  const fixed = identity();
+  expect((await harness.call('ada', 'GET', loadPath)).status).toBe(200);
+  expect((await harness.call('ada', 'GET', rollPath)).status).toBe(200);
+  harness.sqlite
+    .query(
+      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('remote-fs','org-a',?,?,?,?,'whole','whole','FS')",
+    )
+    .run(remote.projectId, target.projectId, remote.workItemId, target.workItemId);
+  for (const [anchor, startsOn, endsOn] of [
+    ['2026-10-19', '2026-10-21', '2026-10-23'],
+    ['2026-10-26', '2026-10-28', '2026-10-30'],
+    [null, null, null],
+    ['2026-10-19', '2026-10-21', '2026-10-23'],
+  ] as const) {
+    harness.sqlite
+      .query('UPDATE project SET start_date=? WHERE id=?')
+      .run(anchor, remote.projectId);
+    const load = await harness.call('ada', 'GET', loadPath);
+    const rolled = await harness.call('ada', 'GET', rollPath);
+    const progress = await harness.call('ada', 'GET', `/api/spaces/${space}/in-progress`);
+    expect(progress.status).toBe(200);
+    expect(progress.body).toMatchObject({
+      items: [
+        {
+          projectId: target.projectId,
+          workItemId: target.workItemId,
+          dates: startsOn === null ? null : { startsOn, endsOn },
+        },
+      ],
+    });
+    expect(load.status).toBe(200);
+    expect(rolled.status).toBe(200);
+    expect(identity()).toEqual(fixed);
+    if (startsOn === null) {
+      expect(load.body).toMatchObject({
+        projects: [],
+        unavailable: expect.arrayContaining([
+          { projectId: target.projectId, name: 'Target', reason: 'dependency_calendar_missing' },
+        ]) as unknown,
+      });
+      expect(rolled.body).toMatchObject({
+        rollUps: { [target.projectId]: { dates: null, displayed: null } },
+      });
+    } else {
+      expect(load.body).toMatchObject({
+        projects: expect.arrayContaining([
+          {
+            projectId: target.projectId,
+            name: 'Target',
+            engine: 'fast',
+            rank: 1,
+            bookings: [
+              {
+                workItemId: target.workItemId,
+                number: '010',
+                name: 'Target row',
+                width: 1,
+                stepId: target.stepId,
+                startsOn,
+                endsOn,
+              },
+            ],
+          },
+        ]) as unknown,
+        unavailable: [],
+      });
+      expect(rolled.body).toMatchObject({
+        rollUps: { [target.projectId]: { dates: { startsOn, endsOn }, displayed: 'fast' } },
+      });
+      const organization = await harness.call(
+        'ada',
+        'GET',
+        '/api/people/load?from=2026-10-19&to=2026-11-06',
+      );
+      expect(organization.status).toBe(200);
+      expect(organization.body).toMatchObject({
+        people: [
+          {
+            id: 'ana',
+            weeks:
+              anchor === '2026-10-19'
+                ? [{ booked: 5 }, { booked: 0 }, { booked: 0 }]
+                : [{ booked: 0 }, { booked: 5 }, { booked: 0 }],
+          },
+        ],
+      });
+    }
+  }
+  harness.sqlite
+    .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
+    .run(remote.projectId);
+  expect((await harness.call('ada', 'GET', loadPath)).body).toMatchObject({
+    projects: [],
+    unavailable: expect.arrayContaining([
+      { projectId: target.projectId, name: 'Target', reason: 'engine_unavailable' },
+    ]) as unknown,
+  });
+  expect((await harness.call('ada', 'GET', rollPath)).body).toMatchObject({
+    rollUps: { [target.projectId]: { dates: null, displayed: null } },
+  });
+  expect(identity()).toEqual(fixed);
+  harness.sqlite
+    .query("UPDATE project SET schedule_engine='fast',optimization_enabled=0 WHERE id=?")
+    .run(remote.projectId);
+  harness.sqlite.run("DELETE FROM external_dependency WHERE id='remote-fs'");
+  expect((await harness.call('ada', 'GET', rollPath)).body).toMatchObject({
+    rollUps: { [target.projectId]: { dates: { startsOn: '2026-10-20' }, displayed: 'fast' } },
+  });
+});

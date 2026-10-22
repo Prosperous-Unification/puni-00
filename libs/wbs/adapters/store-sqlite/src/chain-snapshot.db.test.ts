@@ -892,7 +892,7 @@ describe('detached live snapshot guards', () => {
     const observed = await store.readAggregate('ada', access);
     expect(observed.kind).toBe('shared');
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-    expect(observed.entries.map(({ plan }) => plan.project.id)).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(observed.entries.map(({ projectId }) => projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
     expect(schedules).toBe(4);
   });
   it('captures persisted blockage facts in the aggregate entry from its snapshot', async () => {
@@ -902,20 +902,23 @@ describe('detached live snapshot guards', () => {
     );
     const observed = await livePlans().readAggregate('ada', access);
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-    expect(observed.entries.find(({ plan }) => plan.project.id === 'a2')?.plan.blockages).toEqual([
+    const upstream = observed.entries.find(({ projectId }) => projectId === 'a1');
+    const target = observed.entries.find(({ projectId }) => projectId === 'a2');
+    if (upstream?.plan.kind !== 'shared' || target?.plan.kind !== 'shared')
+      throw new Error('expected ordinary shared members');
+    expect(target.plan.blockages).toEqual([
       { workItemId: 'a2', stepId: 'a2-s0', blockedAt: 123456 },
     ]);
-    expect(observed.entries.find(({ plan }) => plan.project.id === 'a1')?.plan.blockages).toEqual(
-      [],
-    );
+    expect(upstream.plan.blockages).toEqual([]);
   });
   it('keeps the incoming basis and full input identity across rename and unrelated rank changes', async () => {
     const store = livePlans();
     const target = async () => {
       const observed = await store.readAggregate('ada', access);
       if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
-      const entry = observed.entries.find(({ plan }) => plan.project.id === 'a3');
-      if (entry?.plan.chain.kind !== 'scheduled') throw new Error('target schedule unavailable');
+      const entry = observed.entries.find(({ projectId }) => projectId === 'a3');
+      if (entry?.plan.kind !== 'shared' || entry.plan.chain.kind !== 'scheduled')
+        throw new Error('target schedule unavailable');
       return { basis: entry.basis, inputHash: scheduleInputHash(entry.plan.chain.input) };
     };
     const before = await target();

@@ -54,7 +54,6 @@ import { readCapacityMode } from './shared-people-mode';
 import { StepBlockageRepository } from './step-blockage';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepParallelRepository } from './step-parallel';
-import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 
 export interface ChainSnapshotOptions {
@@ -363,6 +362,7 @@ export function createLivePlanStore(
     read: (db: Drizzle, lifetime: ReadSnapshotLifetime) => Promise<T>,
   ): Promise<T> {
     if (options.kind === 'borrowed') {
+      // Proof: a fresh connection also made borrowed shared aggregate miss its staged edge (connected became shared).
       // Proof: replacing this borrowed db with a fresh snapshot fails mounted staged arrangement/preflight.
       // Proof: omitted entry check issued 22 SQL reads through expired source readers.
       options.lifetime.assertOpen();
@@ -374,6 +374,7 @@ export function createLivePlanStore(
     const lifetime = createReadSnapshotLifetime();
     try {
       const transaction = drizzleReadTransaction(connection.db);
+      // Proof: removing the transaction made shared aggregate capture see Next remote in the first old observation.
       // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
       transaction.begin();
       try {
@@ -490,21 +491,6 @@ async function readLiveAggregateIn(
   const projects = new ProjectRepository(db, OPEN);
   const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
   lifetime.assertOpen();
-  const incident =
-    readable.length === 0
-      ? []
-      : await new TypedDependencyRepository(db, OPEN).listIncident(
-          readable.map((project) => project.id),
-        );
-  lifetime.assertOpen();
-  // Proof: without this branch the mounted shared aggregate reached rank-only
-  // scheduling and failed with a lower-level connected-capture error.
-  if (
-    incident.some(
-      (relationship) => relationship.predecessor.projectId !== relationship.successor.projectId,
-    )
-  )
-    throw new Error('connected aggregate is unsupported');
   const snapshot = await readChainSnapshotIn(
     db,
     access,
@@ -542,13 +528,37 @@ async function readLiveAggregateIn(
       read: readSchedule,
     },
   };
+  const connectedByProject = new Map<string, Extract<LivePlanRead, { kind: 'connected' }>>();
+  const externalByProject = new Map<string, boolean>();
   const entries: Extract<LivePlanAggregate, { kind: 'shared' }>['entries'][number][] = [];
   for (const [index, { project }] of snapshot.projects.entries()) {
+    // Proof: bypassing this component memo failed both aggregate capture-count tests.
+    let connected = connectedByProject.get(project.id);
+    if (connected === undefined) {
+      let hasExternal = externalByProject.get(project.id);
+      if (hasExternal === undefined) {
+        const topology = discoverConnectedTopologyIn(db, project.id, 'shared', lifetime);
+        hasExternal = topology.hasExternal;
+        for (const memberId of topology.projects) externalByProject.set(memberId, hasExternal);
+      }
+      // Proof: forcing rank-only routing failed mounted warm-cache load with 500 instead of dependency dates.
+      if (hasExternal) {
+        connected = await readConnectedLivePlanIn(db, access, project.id, options, lifetime);
+        for (const member of connected.projection.capture.projects)
+          connectedByProject.set(member.projectId, connected);
+      }
+    }
+    if (connected !== undefined) {
+      // Proof: substituting the old empty-calendar basis failed mounted foreign-only refresh with stale target dates.
+      entries.push({ projectId: project.id, rank: index + 1, basis: null, plan: connected });
+      continue;
+    }
     const chain = await readChain(shared, project.id);
     if (chain.kind === 'not_found')
       throw new Error('ranked target disappeared inside aggregate snapshot');
     const metadata = await readLiveMetadataIn(db, project.id, lifetime);
     entries.push({
+      projectId: project.id,
       rank: index + 1,
       basis: chain.kind === 'scheduled' ? incomingCalendarHash(chain.input.elsewhere) : null,
       plan: {
@@ -588,6 +598,60 @@ async function readLivePlanIn(
     if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
   }
   return readLiveProjectIn(db, projectId, admitted, options, lifetime);
+}
+
+/** Captures and derives a whole component while borrowing the caller's observation. */
+async function readConnectedLivePlanIn(
+  db: Drizzle,
+  access: Extract<ChainAccess, { kind: 'scoped' }>,
+  projectId: string,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
+): Promise<Extract<LivePlanRead, { kind: 'connected' }>> {
+  const projects = new ProjectRepository(db, OPEN);
+  const capture = await captureConnectedPlanIn(
+    db,
+    access,
+    projectId,
+    lifetime,
+    options.captureRead,
+  );
+  lifetime.assertOpen();
+  const readCaptured =
+    options.optimization === undefined
+      ? undefined
+      : capturedOptimizationReaderOf(db, options.optimization);
+  const scheduler = options.schedulerOf(
+    readCaptured === undefined
+      ? undefined
+      : (ask) => {
+          lifetime.assertOpen();
+          return readCaptured(ask);
+        },
+  );
+  const projection = deriveConnectedPlan(capture, scheduler, (input) => {
+    lifetime.assertOpen();
+    return scheduler.readResolvedFast(input);
+  });
+  const metadataByProject = new Map<
+    string,
+    Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }
+  >();
+  const attemptsByProject = new Map<string, readonly StoredAttempt[]>();
+  for (const member of capture.projects) {
+    lifetime.assertOpen();
+    const memberProject = await projects.findInOrganization(
+      member.projectId,
+      access.scope.organizationId,
+    );
+    if (memberProject === null)
+      throw new Error(`connected project ${member.projectId} disappeared`);
+    const metadata = await readLiveMetadataIn(db, member.projectId, lifetime);
+    metadataByProject.set(member.projectId, { project: memberProject, ...metadata });
+    attemptsByProject.set(member.projectId, metadata.attempts);
+  }
+  const readiness = deriveConnectedReadiness(capture, projection.authored, attemptsByProject);
+  return { kind: 'connected', projection, readiness, metadataByProject };
 }
 
 async function readLiveProjectIn(
@@ -632,49 +696,7 @@ async function readLiveProjectIn(
   // Proof: bypassing this arm made `actual isolated live route captures remote readiness without a calendar`
   // return isolated, hiding the unfinished remote FS prerequisite.
   if (topology.hasExternal) {
-    const capture = await captureConnectedPlanIn(
-      db,
-      access,
-      projectId,
-      lifetime,
-      options.captureRead,
-    );
-    lifetime.assertOpen();
-    const readCaptured =
-      options.optimization === undefined
-        ? undefined
-        : capturedOptimizationReaderOf(db, options.optimization);
-    const scheduler = options.schedulerOf(
-      readCaptured === undefined
-        ? undefined
-        : (ask) => {
-            lifetime.assertOpen();
-            return readCaptured(ask);
-          },
-    );
-    const projection = deriveConnectedPlan(capture, scheduler, (input) => {
-      lifetime.assertOpen();
-      return scheduler.readResolvedFast(input);
-    });
-    const metadataByProject = new Map<
-      string,
-      Awaited<ReturnType<typeof readLiveMetadataIn>> & { project: Project }
-    >();
-    const attemptsByProject = new Map<string, readonly StoredAttempt[]>();
-    for (const member of capture.projects) {
-      lifetime.assertOpen();
-      const memberProject = await projects.findInOrganization(
-        member.projectId,
-        access.scope.organizationId,
-      );
-      if (memberProject === null)
-        throw new Error(`connected project ${member.projectId} disappeared`);
-      const metadata = await readLiveMetadataIn(db, member.projectId, lifetime);
-      metadataByProject.set(member.projectId, { project: memberProject, ...metadata });
-      attemptsByProject.set(member.projectId, metadata.attempts);
-    }
-    const readiness = deriveConnectedReadiness(capture, projection.authored, attemptsByProject);
-    return { kind: 'connected', projection, readiness, metadataByProject };
+    return readConnectedLivePlanIn(db, access, projectId, options, lifetime);
   }
   if (mode === 'isolated') return { kind: 'isolated' };
   const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);

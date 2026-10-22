@@ -240,7 +240,8 @@ export class PersonLoad {
 
   /**
    * Every project the caller can open, with a 1-based rank. Shared projects
-   * are detached from one authorized aggregate observation. Isolated projects
+   * are detached from one authorized aggregate observation. Connected members
+   * have a null basis and bypass this process's cache on every observation. Isolated projects
    * use the organization's project rank, or under legacy access, creation order.
    *
    * The rank is renumbered over the caller's listed projects, not copied from

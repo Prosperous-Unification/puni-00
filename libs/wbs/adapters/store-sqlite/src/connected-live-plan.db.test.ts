@@ -2,13 +2,21 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { servicesOver } from '@wbs/core/compose';
+import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { projectConnectedTree } from '@wbs/core/service/connected-tree';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { sliceKey } from '@wbs/domain';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { createLivePlanStore } from './chain-snapshot';
-import { openDatabase, openReadOnlyConnection } from './db';
+import { openConnection, openDatabase, openReadOnlyConnection } from './db';
+import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
+import { openSqliteSource } from './source';
 import { openSpaceDatabase } from './testing/space-database';
 
 let folder: string;
@@ -95,11 +103,48 @@ test('remote hold changes the connected proxy reading in the next observation', 
   expect(after.readiness.nodes.readings.get('a1')?.['a1-s']).toBe('blocked_by_proxy');
 });
 
-test('shared aggregate refuses a connected component instead of returning rank-only plans', async () => {
+test('shared aggregate reuses one detached connected read with explicit member identity', async () => {
   write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-  expect((await failureOf(reader().readAggregate('ada', access))).message).toContain(
-    'connected aggregate is unsupported',
+  write("INSERT INTO work_item (id,project_id,position,name) VALUES ('a3','a3',10,'a3')");
+  write("INSERT INTO step (id,project_id,name,position) VALUES ('a3-s','a3','Build',10)");
+  write("INSERT INTO person (id,name) VALUES ('p','P')");
+  write(
+    "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','P')",
   );
+  for (const id of ['a1', 'a3'])
+    write(`INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${id}','${id}-s','p')`);
+  const captured: string[] = [];
+  const observed = await createLivePlanStore({
+    kind: 'owned',
+    openConnection: () => openReadOnlyConnection(path),
+    schedulerOf: () => fastScheduler,
+    captureRead: {
+      afterFirstRead: ({ projectId }) => {
+        captured.push(projectId);
+        return Promise.resolve();
+      },
+    },
+  }).readAggregate('ada', access);
+  expect(observed.kind).toBe('shared');
+  if (observed.kind !== 'shared') throw new Error('expected shared');
+  expect(observed.entries.map((entry) => entry.projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
+  const first = observed.entries.at(0);
+  const second = observed.entries.at(1);
+  if (first === undefined || second === undefined) throw new Error('expected members');
+  expect(first.plan.kind).toBe('connected');
+  expect(second.plan).toBe(first.plan);
+  expect(first.basis).toBeNull();
+  expect(second.basis).toBeNull();
+  if (first.plan.kind !== 'connected' || second.plan.kind !== 'connected')
+    throw new Error('expected connected');
+  expect(projectConnectedTree(first.plan, 'a1').metadata.project.id).toBe('a1');
+  expect(projectConnectedTree(second.plan, 'a2').metadata.project.id).toBe('a2');
+  expect(first.plan.projection.placement.kind).toBe('dependency_calendar_missing');
+  expect(captured.filter((id) => id === 'a1')).toHaveLength(1);
+  expect(captured.filter((id) => id === 'a2')).toHaveLength(1);
+  expect(captured.filter((id) => id === 'a3')).toHaveLength(1);
+  expect(observed.entries[2]?.plan).toBe(first.plan);
+  expect(observed.entries[3]?.plan.kind).toBe('shared');
 });
 
 test('a shared person peer selects the same external component from either target', async () => {
@@ -260,12 +305,6 @@ test('execution observation refuses foreign and absent targets alike', async () 
 });
 
 test('borrowed service claim sees staged remote completion and collects its normal announcement', async () => {
-  const { servicesOver } = await import('@wbs/core/compose');
-  const { CREATOR_ADMISSION } = await import('@wbs/core/ports/edit-admission');
-  const { createLocalDependencyContext } = await import('@wbs/core/service/dependency-context');
-  const { recordingBroadcaster } = await import('@wbs/core/testing/broadcast-fixture');
-  const { testClock } = await import('@wbs/core/testing/clock-fixture');
-  const { openSqliteSource } = await import('./source');
   write("INSERT INTO person (id,name,account_id) VALUES ('executor','Executor','ada')");
   write(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('executor','org-a','Executor')",
@@ -356,3 +395,192 @@ test('foreign holder labels remain captured after closure and subsequent live re
   );
   expect(opened).toBe(1);
 });
+
+test('shared aggregate schedules disconnected external components once each', async () => {
+  write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+  for (const id of ['a3', 'a4']) {
+    write(
+      `INSERT INTO work_item(id,project_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
+    );
+    write(`INSERT INTO step(id,project_id,name,position) VALUES ('${id}-s','${id}','Build',10)`);
+  }
+  write(
+    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('second','org-a','a4','a3','a4','a3','whole','whole','FS')",
+  );
+  write(
+    "UPDATE project SET start_date='2026-10-19',estimate_method='realistic',estimate_rounding='exact'",
+  );
+  for (const id of ['a1', 'a2', 'a3', 'a4'])
+    write(
+      `INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('${id}','${id}-s',2,2,2)`,
+    );
+  const captured: string[] = [];
+  let scheduled = 0;
+  const queries: string[] = [];
+  const observed = await createLivePlanStore({
+    kind: 'owned',
+    openConnection: () =>
+      openReadOnlyConnection(path, {
+        logQuery: (query) => {
+          queries.push(query);
+        },
+      }),
+    captureRead: {
+      afterFirstRead: ({ projectId }) => {
+        captured.push(projectId);
+        return Promise.resolve();
+      },
+    },
+    schedulerOf: () => ({
+      ...fastScheduler,
+      readResolvedFast: (input) => {
+        scheduled++;
+        return fastScheduler.readResolvedFast(input);
+      },
+    }),
+  }).readAggregate('ada', access);
+  if (observed.kind !== 'shared') throw new Error('expected shared');
+  expect(observed.entries.map(({ projectId }) => projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
+  expect(scheduled).toBe(2);
+  expect(queries.filter((query) => query.includes('from "step_node_attempt"'))).toHaveLength(4);
+  expect(captured.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+  for (const [successorId, predecessorId] of [
+    ['a1', 'a2'],
+    ['a3', 'a4'],
+  ]) {
+    const successor = observed.entries.find(({ projectId }) => projectId === successorId);
+    const predecessor = observed.entries.find(({ projectId }) => projectId === predecessorId);
+    if (successor?.plan.kind !== 'connected' || predecessor?.plan.kind !== 'connected')
+      throw new Error('expected connected');
+    expect(successor.plan).toBe(predecessor.plan);
+    const target = projectConnectedTree(successor.plan, successorId);
+    const upstream = projectConnectedTree(predecessor.plan, predecessorId);
+    expect(target.placement.kind).toBe('scheduled');
+    expect(upstream.placement.kind).toBe('scheduled');
+    const direct = await reader().read(successorId, access);
+    if (direct.kind !== 'connected') throw new Error('expected connected');
+    expect(target.placement).toEqual(projectConnectedTree(direct, successorId).placement);
+  }
+});
+
+test('shared aggregate captures calendars links and metadata in one observation', async () => {
+  write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+  write("UPDATE project SET start_date='2026-10-19'");
+  let edited = false;
+  const store = createLivePlanStore({
+    kind: 'owned',
+    openConnection: () => openReadOnlyConnection(path),
+    schedulerOf: () => fastScheduler,
+    captureRead: {
+      afterFirstRead: () => {
+        if (edited) return Promise.resolve();
+        edited = true;
+        write("UPDATE project SET start_date='2026-10-26',name='Next remote' WHERE id='a2'");
+        write("UPDATE work_item SET name='Next row' WHERE id='a2'");
+        write("UPDATE external_dependency SET type='SS' WHERE id='edge'");
+        return Promise.resolve();
+      },
+    },
+  });
+  const first = await store.readAggregate('ada', access);
+  const next = await store.readAggregate('ada', access);
+  if (first.kind !== 'shared' || next.kind !== 'shared') throw new Error('expected shared');
+  const oldRead = first.entries.at(0)?.plan;
+  const newRead = next.entries.at(0)?.plan;
+  if (oldRead?.kind !== 'connected' || newRead?.kind !== 'connected')
+    throw new Error('expected connected');
+  const oldTree = projectConnectedTree(oldRead, 'a1');
+  const newTree = projectConnectedTree(newRead, 'a1');
+  expect(oldRead.metadataByProject.get('a2')?.project.name).toBe('a2');
+  expect(newRead.metadataByProject.get('a2')?.project.name).toBe('Next remote');
+  expect(oldRead.metadataByProject.get('a2')?.workItems[0]?.name).toBe('a2');
+  expect(newRead.metadataByProject.get('a2')?.workItems[0]?.name).toBe('Next row');
+  expect(oldTree.dependencies[0]?.type).toBe('FS');
+  expect(newTree.dependencies[0]?.type).toBe('SS');
+  expect(
+    oldRead.projection.capture.projects.find(({ projectId }) => projectId === 'a2')?.reads.project
+      .startDate,
+  ).toBe('2026-10-19');
+  expect(
+    newRead.projection.capture.projects.find(({ projectId }) => projectId === 'a2')?.reads.project
+      .startDate,
+  ).toBe('2026-10-26');
+});
+
+test('borrowed shared aggregate sees staged relationships and expires without owning the transaction', async () => {
+  write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+  write("DELETE FROM external_dependency WHERE id='edge'");
+  const connection = openConnection(path);
+  const lifetime = createReadSnapshotLifetime();
+  connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+  try {
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('staged','org-a','a2','a1','a2','a1','whole','whole','FS')",
+      ),
+    );
+    const store = createLivePlanStore({
+      kind: 'borrowed',
+      db: connection.db,
+      lifetime,
+      schedulerOf: () => fastScheduler,
+    });
+    const observed = await store.readAggregate('ada', access);
+    if (observed.kind !== 'shared') throw new Error('expected shared');
+    expect(observed.entries.at(0)?.plan.kind).toBe('connected');
+    const plan = observed.entries.at(0)?.plan;
+    if (plan?.kind !== 'connected') throw new Error('expected connected');
+    expect(projectConnectedTree(plan, 'a1').dependencies.map(({ id }) => id)).toEqual(['staged']);
+    expect(() => connection.db.run(sql.raw('BEGIN IMMEDIATE'))).toThrow(
+      'Failed query: BEGIN IMMEDIATE',
+    );
+    lifetime.expire();
+    expect((await failureOf(store.readAggregate('ada', access))).message).toContain('closed');
+    expect(() => connection.db.run(sql.raw('BEGIN IMMEDIATE'))).toThrow(
+      'Failed query: BEGIN IMMEDIATE',
+    );
+  } finally {
+    lifetime.expire();
+    connection.db.run(sql.raw('ROLLBACK'));
+    connection.close();
+  }
+  const next = await reader().readAggregate('ada', access);
+  if (next.kind !== 'shared') throw new Error('expected shared');
+  expect(next.entries.at(0)?.plan.kind).toBe('shared');
+});
+
+test.each(['calendar', 'optimized'] as const)(
+  'shared aggregate unavailable %s allocates no durable solver or execution work',
+  async (reason) => {
+    write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+    if (reason === 'optimized') {
+      write("UPDATE project SET start_date='2026-10-19'");
+      write("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a2'");
+    }
+    function snapshotSolverState() {
+      const client = openDatabase(path);
+      try {
+        return [
+          'optimization_generation',
+          'optimized_schedule_cache',
+          'solver_slot',
+          'solver_queue',
+          'step_node_attempt',
+          'step_node_attempt_issued',
+          'event_log',
+        ].map((table) => client.query(`SELECT * FROM ${table}`).all());
+      } finally {
+        client.close();
+      }
+    }
+    const before = snapshotSolverState();
+    const observed = await reader().readAggregate('ada', access);
+    if (observed.kind !== 'shared') throw new Error('expected shared');
+    const plan = observed.entries.at(0)?.plan;
+    if (plan?.kind !== 'connected') throw new Error('expected connected');
+    expect(plan.projection.placement.kind).toBe(
+      reason === 'calendar' ? 'dependency_calendar_missing' : 'engine_unavailable',
+    );
+    expect(snapshotSolverState()).toEqual(before);
+  },
+);

@@ -137,15 +137,20 @@ export type LivePlanExportRead =
   | Exclude<LivePlanRead, { kind: 'shared' | 'connected' }>
   | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads });
 
-/** One detached aggregate observation; entries share authority, rank and schedule evidence. */
+/**
+ * One detached aggregate observation. Component members share one captured read
+ * but select their own explicit projectId. Connected entries bypass persistent
+ * consumer caches with a null basis; reuse lasts only for this observation.
+ */
 export type LivePlanAggregate =
   | AccessRefused
   | { readonly kind: 'isolated' }
   | {
       readonly kind: 'shared';
       readonly entries: readonly {
+        readonly projectId: string;
         readonly rank: number;
         readonly basis: string | null;
-        readonly plan: Extract<LivePlanRead, { kind: 'shared' }>;
+        readonly plan: Extract<LivePlanRead, { kind: 'shared' | 'connected' }>;
       }[];
     };
