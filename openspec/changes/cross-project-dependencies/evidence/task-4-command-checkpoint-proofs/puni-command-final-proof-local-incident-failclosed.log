@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/dependency-context.test.ts:
+23 | }
+24 | 
+25 | async function rejects(call: Promise<unknown>, message: string) {
+26 |   const failure: unknown = await call.then(() => null, (error: unknown) => error);
+27 |   expect(failure).toBeInstanceOf(Error);
+28 |   expect(failure instanceof Error ? failure.message : failure).toContain(message);
+                                                                    ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "external incidents"
+Received: "local dependency context cannot inspect another project"
+
+      at rejects (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-context.test.ts:28:64)
+      at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-context.test.ts:72:9)
+(fail) local service owner admission precedes factory access, and outgoing foreign incidents fail closed [30.17ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [1.91s]

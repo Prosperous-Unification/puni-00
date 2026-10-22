@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+{"level":"error","time":1792631273988,"service":"be-01","err":{"occurrence_id":"AE_36PSEQSJZSA30W8VHY21XFGYBQ","fingerprint":"fp1_c451b213cd9b2be27aa09d1d1b3540e9","stack":["Error: no work item 9b77d656-b227-4ca2-b24e-3244a1915022 in this plan","    at <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/domain/domain/src/schedule.ts:621:40)","    at resolveEndpoint (/tmp/puni-cross-command-integration/libs/wbs/domain/domain/src/slice-edges.ts:352:18)","    at resolveAuthoredEdges (/tmp/puni-cross-command-integration/libs/wbs/domain/domain/src/slice-edges.ts:302:18)","    at resolveStepNodeGraph (/tmp/puni-cross-command-integration/libs/wbs/domain/domain/src/slice-edges.ts:280:19)","    at resolveScheduleInput (/tmp/puni-cross-command-integration/libs/wbs/domain/domain/src/resolved-schedule-input.ts:48:12)","    at schedule (/tmp/puni-cross-command-integration/libs/wbs/domain/domain/src/schedule.ts:3401:5)","    at readSchedule (/tmp/puni-cross-command-integration/libs/wbs/adapters/runtime-portable/src/scheduler.ts:64:24)","    at treeIsolated (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2063:46)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+67 | 
+68 | test('mounted external authoring stays dormant and rolls back an earlier successful command', async () => {
+69 |   const fixture = await open();
+70 |   const before = effects();
+71 |   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, { commands: [{ kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { name: 'Must roll back' } }, { kind: 'addTypedDependency', ...fixture.input }] });
+72 |   expect(response.status).toBe(409);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:72:27)
+(fail) mounted external authoring stays dormant and rolls back an earlier successful command [400.82ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.53s]

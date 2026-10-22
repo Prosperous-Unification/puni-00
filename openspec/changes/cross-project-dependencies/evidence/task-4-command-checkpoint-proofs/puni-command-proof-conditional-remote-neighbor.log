@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+274 |   if (peerEdit) harness.sqlite.query('UPDATE work_item SET revision=revision+1 WHERE id=?').run(fixture.predecessor.workItemId);
+275 |   expect(await semantic(fixture, (service) => service.updateTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value, { ...fixture.input, type: 'SS' }))).toMatchObject({ ok: true });
+276 |   expect(await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess))).toMatchObject({ ok: true });
+277 |   const before = effects();
+278 |   const undone = await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+279 |   expect(undone).toMatchObject(peerEdit ? { ok: false, reason: 'stale_undo' } : { ok: true });
+                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "make “Owner row” wait for “PRE.010 Predecessor row”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:279:18)
+(fail) external neighbor restamping preserves a genuine intervening edit [432.73ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [2.57s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+904 |         undefined,
+905 |         failedGraphRead,
+906 |       ),
+907 |     );
+908 |     expect(failure).toBeInstanceOf(Error);
+909 |     expect(failure instanceof Error ? failure.message : failure).toBe(
+                                                                       ^
+error: expect(received).toBe(expected)
+
+Expected: "injected connected proposedCycle read failure"
+Received: "step_blockage_inactive"
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:909:66)
+(fail) connected replay-move refuses an injected failed graph read without partial effects [404.92ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [2.66s]

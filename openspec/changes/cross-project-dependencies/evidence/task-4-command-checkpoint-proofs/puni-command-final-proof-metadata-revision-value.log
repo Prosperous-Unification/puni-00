@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+221 |     : defect === 'extra' ? { expected: [revision, { ...fixture.owner, revision: 1 }], from: [revision] }
+222 |     : { expected: [], from: [revision] };
+223 |   harness.sqlite.query("UPDATE command_journal SET preconditions=json_set(preconditions,'$.externalRevisions',json(?)) WHERE project_id=?").run(JSON.stringify(externalRevisions), fixture.owner.projectId);
+224 |   const before = effects();
+225 |   const failure = await observed(semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess)));
+226 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: false,
+  reason: "stale_undo",
+  detail: "an external dependency endpoint changed since this command.",
+  entryId: "efd511e7-7a80-4932-9394-e7f3fddc4116",
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:226:19)
+(fail) real SQLite replay refuses invalid-revision trusted external metadata without partial effects [375.34ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.46s]

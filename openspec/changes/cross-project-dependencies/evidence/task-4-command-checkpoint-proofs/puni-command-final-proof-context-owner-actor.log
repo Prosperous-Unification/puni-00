@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/dependency-context.test.ts:
+22 |   return source;
+23 | }
+24 | 
+25 | async function rejects(call: Promise<unknown>, message: string) {
+26 |   const failure: unknown = await call.then(() => null, (error: unknown) => error);
+27 |   expect(failure).toBeInstanceOf(Error);
+                       ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at rejects (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-context.test.ts:27:19)
+      at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-context.test.ts:98:80)
+(fail) actual service cannot borrow a bound context for another owner or actor [24.29ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.01s]

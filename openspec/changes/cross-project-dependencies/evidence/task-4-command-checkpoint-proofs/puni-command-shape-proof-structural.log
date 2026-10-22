@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+237 |   const fixture = await open();
+238 |   const step = harness.sqlite.query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1').get(fixture.predecessor.projectId);
+239 |   if (step === null) throw new Error('fixture step missing');
+240 |   expect(await semantic(fixture, (service) => service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, { ...fixture.input, predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id } }))).toMatchObject({ ok: true });
+241 |   const before = effects();
+242 |   expect(await observed(semantic({ ...fixture, owner: fixture.predecessor }, (service) => service.create(fixture.predecessor.projectId, fixture.principal.id, { parentId: fixture.predecessor.workItemId, afterId: null, name: 'Would make a pinned node a parent' })))).toMatchObject({ ok: false, reason: 'node_on_parent' });
+                                                                                                                                                                                                                                                                               ^
+error: expect(received).toMatchObject(expected)
+
+- {
+-   "ok": false,
+-   "reason": "node_on_parent",
+- }
++ [Error: node endpoint of a38b430b-3e0d-4044-b9c3-4072981959ac names 7567c428-4da6-486f-83ba-9aa1da726409, which is not a leaf]
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:242:266)
+(fail) structural first-child creation refuses a remote-owned pinned node before mutation [341.68ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [2.35s]

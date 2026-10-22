@@ -581,3 +581,12 @@ and failed workspace/Twilight test targets. Root preserved two binary evidence
 logs as readable escapes plus byte-identical Base64 originals. Fixture and
 classification corrections are assigned to the active Sol lanes. No final
 CI, host gate, image smoke or deployment success is claimed.
+
+## Tasks 3.2 / 4.2–4.4 — command checkpoint frozen for review
+
+[Command checkpoint evidence](evidence/task-4-command-checkpoint.md) preserves
+113 source hashes at isolated `db2d38ec9`, author checks, 51 fault observations
+and two replay graph-close red/green checks. Root verified unchanged hashes and
+clean status after normal-hook commit. Fresh Astra review is active; source is
+unintegrated and the dormant production barrier remains closed. The full MCP,
+incident lifecycle and live/runtime/activation requirements are still open.

@@ -1,0 +1,61 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+384 |       return decision;
+385 |     }, settled) },
+386 |   });
+387 |   const before = effects();
+388 |   const outcome = await observed(direction === 'undo' ? runner.undoWithin(fixture.owner.projectId, fixture.principal, fixture.expectedAccess) : runner.redoWithin(fixture.owner.projectId, fixture.principal, fixture.expectedAccess));
+389 |   expect(outcome).toMatchObject({ ok: false, reason: 'nothing_to_undo' });
+                        ^
+error: expect(received).toMatchObject(expected)
+
+- {
+-   "ok": false,
+-   "reason": "nothing_to_undo",
+- }
++ [Error: expect(received).toThrow(expected)
++ 
++ Expected substring: "dependency context is closed"
++ 
++ Received function did not throw
++ Received value: undefined
++ ]
+
+- Expected  - 4
++ Received  + 7
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:389:19)
+(fail) real SQLite undo closes its graph before writer settlement [363.48ms]
+384 |       return decision;
+385 |     }, settled) },
+386 |   });
+387 |   const before = effects();
+388 |   const outcome = await observed(direction === 'undo' ? runner.undoWithin(fixture.owner.projectId, fixture.principal, fixture.expectedAccess) : runner.redoWithin(fixture.owner.projectId, fixture.principal, fixture.expectedAccess));
+389 |   expect(outcome).toMatchObject({ ok: false, reason: 'nothing_to_undo' });
+                        ^
+error: expect(received).toMatchObject(expected)
+
+- {
+-   "ok": false,
+-   "reason": "nothing_to_undo",
+- }
++ [Error: expect(received).toThrow(expected)
++ 
++ Expected substring: "dependency context is closed"
++ 
++ Received function did not throw
++ Received value: undefined
++ ]
+
+- Expected  - 4
++ Received  + 7
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:389:19)
+(fail) real SQLite redo closes its graph before writer settlement [282.05ms]
+
+ 0 pass
+ 43 filtered out
+ 2 fail
+ 16 expect() calls
+Ran 2 tests across 1 file. [2.87s]
