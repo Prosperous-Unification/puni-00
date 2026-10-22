@@ -264,7 +264,7 @@ const batchRefusals = [
         // Proof: with this arm removed, `refuses a statement past the cap,
         // naming the four numbers and writing nothing` and the other refusals of
         // capacity-limit.controller.db.test.ts answered 500 "returned an
-        // undeclared refusal" (5 pass, 6 fail); watched 2026-10-22.
+        // undeclared refusal" (6 pass, 6 fail); watched 2026-10-22.
         type({ ...context, error: "'capacity_limit'", ...capacityLimitCrossed }),
       ),
     ),

@@ -496,7 +496,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     // was added under scoped access without organization limits" (13 pass, 1 fail);
     // every activated statement case of capacity-limit.controller.db.test.ts
     // answered 500 "a resource capacity was stated under scoped access without
-    // organization limits" (2 pass, 9 fail).
+    // organization limits" (2 pass, 10 fail).
     get organizationLimits() {
       assertOpen();
       return scope.stores.organizationLimits;

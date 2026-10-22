@@ -152,7 +152,7 @@ export class CapacityService {
     // Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts: with
     // this check removed, `refuses a statement past the cap, naming the four
     // numbers and writing nothing` and five more statement cases applied
-    // (5 pass, 6 fail).
+    // (6 pass, 6 fail).
     if (units !== null) {
       const crossed = await this.refuseCapacityWithin(access, projectId, resourceId, units);
       if (crossed !== null) return { ok: false, reason: 'capacity_limit', ...crossed };
@@ -185,10 +185,10 @@ export class CapacityService {
    *
    * Proof, each watched 2026-10-22 in capacity-limit.controller.db.test.ts:
    * with legacy access answered as a refusal, `states past any cap with no
-   * organization to own one` was refused (10 pass, 1 fail); with the project's
+   * organization to own one` was refused (11 pass, 1 fail); with the project's
    * own units counted (another project excepted in its place), `raises a
    * project’s own statement within the cap, its own units not counted` and
-   * three more were refused (7 pass, 4 fail).
+   * three more were refused (8 pass, 4 fail).
    *
    * @throws when this graph was composed without organization limits.
    */

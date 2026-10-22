@@ -237,7 +237,7 @@ export class CommandContext {
       // Proof: with `declared` replaced by 0 here, `refuses a statement past
       // the cap, naming the four numbers and writing nothing`
       // (capacity-limit.controller.db.test.ts) and three more named declared 0
-      // (7 pass, 4 fail); watched 2026-10-22.
+      // (8 pass, 4 fail); watched 2026-10-22.
       return this.refuse({
         reason: outcome.reason,
         detail: {

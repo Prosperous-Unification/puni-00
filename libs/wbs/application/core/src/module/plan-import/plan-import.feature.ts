@@ -418,10 +418,10 @@ export class ImportService {
         // Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts:
         // with this check removed, `refuses an import stating past the cap,
         // writing nothing` and the import beside another project were
-        // admitted (9 pass, 2 fail); with the other projects' sum read as 0 in
+        // admitted (10 pass, 2 fail); with the other projects' sum read as 0 in
         // `refuseCapacityWithin`, `refuses an import that would state past the
         // cap beside another project, the export’s source among them` was
-        // admitted (10 pass, 1 fail).
+        // admitted (11 pass, 1 fail).
         const capacities = prepared.resourceCapacities.map((stated) => ({
           resourceId: resolvedId(resourcesByFileId, stated.resourceFileId, 'capacity resource'),
           units: stated.units,

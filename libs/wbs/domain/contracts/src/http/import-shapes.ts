@@ -86,7 +86,7 @@ export const importProject = defineEndpointShape({
     // Proof: with this arm's code replaced, `refuses an import stating past
     // the cap, writing nothing` and the other import refusal
     // (capacity-limit.controller.db.test.ts) answered 500 "returned an
-    // undeclared refusal" (9 pass, 2 fail); watched 2026-10-22.
+    // undeclared refusal" (10 pass, 2 fail); watched 2026-10-22.
     {
       status: 409,
       schema: responseSchema(type({ error: "'capacity_limit'", ...capacityLimitCrossed })),

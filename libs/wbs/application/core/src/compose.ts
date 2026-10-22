@@ -128,7 +128,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       resourceCapacity: stores.resourceCapacity,
       // Proof: with this spread removed, every activated statement case of
       // capacity-limit.controller.db.test.ts threw the capacity service's
-      // composition error (2 pass, 9 fail); watched 2026-10-22.
+      // composition error (2 pass, 10 fail); watched 2026-10-22.
       ...(stores.organizationLimits === undefined
         ? {}
         : { organizationLimits: stores.organizationLimits }),

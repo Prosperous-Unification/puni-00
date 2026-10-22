@@ -112,7 +112,7 @@ export interface CapacityLimitCrossed {
  * `never refuses restating or lowering, even above a lowered cap` and the
  * property failed in organization-limits.test.ts (11 pass, 2 fail), and
  * `applies lowering and restating under a cap lowered below them` with one
- * more in capacity-limit.controller.db.test.ts (9 pass, 2 fail); with `held`
+ * more in capacity-limit.controller.db.test.ts (10 pass, 2 fail); with `held`
  * added to `declared`, `replaces the project’s own units rather than counting
  * them twice` and the property failed (11 pass, 2 fail).
  */

@@ -176,7 +176,7 @@ export function readCapacityUsage(
  *
  * Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts: dropping
  * the resource predicate failed `sums each resource on its own`, another
- * resource's 64 refusing one unit of `worktrees` (10 pass, 1 fail).
+ * resource's 64 refusing one unit of `worktrees` (11 pass, 1 fail).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
  * excluded project's predicate failed `sums another project’s units, never the
