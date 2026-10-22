@@ -379,3 +379,23 @@ COMMIT, exact claim stage/send/acceptance and turn-intent COMMIT before turn.
 
 - **WHEN** both stores and verified application operations pass their bounded conformance
 - **THEN** source history acceptance may proceed while parent6a.5, crash ordering, other adapters and full gates remain open
+
+### Requirement: Scoped execution retains independent historical context
+
+Each scoped execution record SHALL retain the provider-observed scope revision independently
+from its generated acknowledgement. Reconstruction SHALL use that complete historical prefix
+and retained owner provenance, enforce causal lower bounds and compare the original reply.
+Exact replay SHALL preserve context without comparing it to current retry revisions.
+
+#### Scenario: A turn reply substitutes an older same-epoch grant
+
+- **GIVEN** claim acceptance at scope revision4 and later accepted acquisition B at revision6
+- **WHEN** a turn recorded with context6 is coherently changed only in its reply/current projection to name earlier grant A
+- **THEN** read, replay, mutation and reopen reject the reply against the independently retained context
+- **AND** a valid original turn recorded at4 remains valid after scope advancement or takeover
+
+#### Scenario: Scope context violates a pending or causal boundary
+
+- **WHEN** a turn's retained scope prefix has a pending command, precedes its exact claim acceptance or moves backward from its attempt's prior scoped observation
+- **THEN** complete history reconstruction throws
+- **AND** coherent rewriting of context and all independent contradictory history remains outside this local consistency guarantee

@@ -232,11 +232,17 @@ ClaimAcceptAck1 = {
   binding: ClaimBinding1, attempt: Attempt2
 }
 TurnStageAck1 = { version: 1, kind: 'turn_staged', intent: TurnIntent1, attempt: Attempt2 }
+ScopeContext1 = { version: 1, scopeRevision: Revision }
+ExecutionRecord1 = correlated union of
+  { version: 1, command: ExecutionCommand2, context: null },
+  { version: 1, command: ClaimStageCommand2, context: ScopeContext1 },
+  { version: 1, command: ClaimAcceptCommand2, context: ScopeContext1 },
+  { version: 1, command: TurnStageCommand2, context: ScopeContext1 }
 RecordedExecution2 = correlated union of
-  { command: ExecutionCommand2, reply: ExecutionAck1 },
-  { command: ClaimStageCommand2, reply: ClaimStageAck1 },
-  { command: ClaimAcceptCommand2, reply: ClaimAcceptAck1 },
-  { command: TurnStageCommand2, reply: TurnStageAck1 }
+  { version: 1, command: ExecutionCommand2, context: null, reply: ExecutionAck1 },
+  { version: 1, command: ClaimStageCommand2, context: ScopeContext1, reply: ClaimStageAck1 },
+  { version: 1, command: ClaimAcceptCommand2, context: ScopeContext1, reply: ClaimAcceptAck1 },
+  { version: 1, command: TurnStageCommand2, context: ScopeContext1, reply: TurnStageAck1 }
 ```
 
 No `claim_acquired`, `launch_recorded` or `turn_intended` ordinary fact can bypass dedicated scope-aware operations. `recordExecution` returns Attempt2 as before; its stored reply has the ExecutionAck envelope. Dedicated APIs return their matching paired acknowledgement. The SQLite reply-revision query must read `$.attempt.revision` for every execution-row envelope; do not retain the old `$.revision` SQL accidentally.
@@ -393,7 +399,7 @@ Each attempt fold starts queued/revision0 and merges execution acknowledgements 
 Use existing SQL columns:
 
 - `run_attempt.record`: Attempt2; immutable `admission` unchanged.
-- `run_execution.record`: ExecutionSubmission2; `reply`: its exact correlated acknowledgement.
+- `run_execution.record`: ExecutionRecord1, including the original command and provider-owned scope context; `reply`: its exact correlated acknowledgement.
 - Existing consumption/completion/receipt columns carry adapted nested versions.
 - Existing runtime intent/acceptance tables carry their unchanged version1 records; accepted claim projection resides in the exact execution command/acknowledgement history.
 - No new mutable session/turn/claim table, second per-attempt revision, or whole-store snapshot writer.
@@ -462,3 +468,50 @@ coherent provider change; no half-format, unimplemented method or temporary lega
 counts as complete. The whole phase then needs independent final review. Final cohesive
 branch review, printed-SHA canonical host gate and applicable CI remain separate required
 acceptance; the old3fdc gate and failed browser runs do not verify these changes.
+
+## Independent scope context for historical reconstruction
+
+A grantCommandId alone cannot identify which scope state an attempt observed. Each fresh
+scoped operation therefore retains ExecutionRecord1.context.scopeRevision from its locked
+provider view after checking expectedScopeRevision. Ordinary execution records use explicit
+null. The record column is independent of the generated reply/current Attempt; history
+returns version, original command, context and original reply. No extra SQL table, caller
+input, TurnIntent field or global sequencer is introduced.
+
+Context is provider-owned and excluded from caller retry identity. Exact replay under current
+ownership returns the original acknowledgement/context before stale revision checks. It must
+never compare or restamp the retained context against today's expectedScopeRevision. Fresh
+commands capture today's actual locked revision; they cannot borrow an older context.
+
+The pure joined audit reconstructs a complete consecutive scope prefix at that retained
+revision. A turn uses command.request.owner and the latest accepted authority acquisition
+at the prefix; that acquisition must have matching immutable localOwner and its command ID
+must equal the derived TurnIntent.grantCommandId. Do not search backward past a newer accepted
+acquisition to find an older matching grant. The prefix must have no pending command. Today's
+RuntimeScopeSnapshot.grant is not historical input. Reconstruct the complete expected paired
+reply using that prefix and independently folded attempt predecessor, then compare it.
+
+Claim stage context r requires its independent runtime intent stagedRevision=r+1; claim
+acceptance context r requires its independent runtime acceptance acceptedRevision=r+1 and
+the exact pending intent. Stage provenance comes from the independent runtime intent row,
+not the copied acknowledgement. RuntimeAcceptance1 has no accepting-owner field; do not
+invent an audit promise about who recorded a late acceptance.
+
+A turn's context cannot precede its ClaimBinding.acceptance.acceptedRevision. While folding
+an attempt, derive a scope lower bound from each coupled claim event's resulting revision
+and each turn's observed revision. Later scoped events cannot observe below that bound.
+Repeated turn stages may observe the same revision because they do not increment scope.
+This bound is computed during validation, not separately persisted mutable state.
+
+Tests must distinguish two same-epoch accepted grants, a pending scope prefix, an old turn
+read after later scope advancement/takeover, a cut before claim acceptance, and a continuation
+whose cut moves backward. Changing only the original reply/current projection to an older
+same-epoch grant must fail against the retained independent record context. Prove these
+through actual provider reads/reopen and targeted guard-removal faults.
+
+This establishes live current-scope checks and consistency of retained original replies with
+their independently retained context and causal links. Coherently rewriting record context,
+reply, projections and every contradictory independent fact can describe another valid
+interleaving; no wall-clock chronology or tamper-proof history is claimed. Complete historical
+lease ownership/expiry is also not independently retained. Existing latest-owner label and
+nondecreasing staged-epoch checks remain; old source provenance is not relabeled as current.

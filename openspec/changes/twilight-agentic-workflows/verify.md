@@ -2266,3 +2266,21 @@ Both new trials are actual isolated assertion failures, bringing retained totals
 trials/41valid proofs/28unproved originals. Original failed combined runs, focused coverage
 and unknown timeout causes remain unchanged. No broad checks were repeated for comments.
 Scoped re-review and Task1closure remain pending; Task2 and all parent/full gates stay open.
+
+### Portable codec prerequisite acceptance
+
+Independent task review and R1 scoped re-review now approve Task1 spec compliance and code
+quality. Both missing outer-freeze proofs are addressed; no new breakage was found. Only
+the six local Task1 source/evidence items are closed. Original failed combined commands,
+focused coverage, unknown timeout causes and output limitations remain as recorded.
+
+Task2's coherent Attempt2/atomic-claim/history/format3 work and whole-phase review are next.
+Its historical reconstruction additionally requires provider-owned scope context independent
+from generated replies; no source implementation of that correction is claimed here. All
+parent/fullgate/CI/main/operational acceptance remains open.
+
+The historical-scope correction and Task1 acceptance metadata passed fresh locked scoped
+OpenSpec validation (1pass/0fail, same11inheritedwarnings), exact four-file formatting
+and diff checks. Task2 public APIs and format3 SQL shape are unchanged by the correction;
+provider-owned record context, historical prefix and causal bounds supply the missing
+independent reconstruction input. No Task2 implementation or R5 proof is claimed yet.
