@@ -182,6 +182,7 @@ function gauge(cap: number, current: number) {
       reads.push(organizationId);
       return Promise.resolve({ cap, current });
     },
+    readConcurrentClaimCap: () => Promise.reject(new Error('a directory write read the claim cap')),
   };
   return { limits, reads };
 }

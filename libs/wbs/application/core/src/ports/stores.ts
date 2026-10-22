@@ -41,10 +41,12 @@ export interface PlanTransactionalStores {
   directory: DirectoryStore;
   /**
    * The organization limits a write consults inside its own transaction
-   * (`wbs-organization-limits`). Optional only for legacy fixture adapters
-   * and the memory source, which has no organization limits yet (its twin is
-   * slice 3 of the change); an acquisition under scoped access through a
-   * graph without it throws rather than admitting uncapped.
+   * (`wbs-organization-limits`). Only the catalogs a unit of work admits
+   * carry it: on SQLite when `openSqliteSource` is given the deployment
+   * defaults, on memory only through `openMemorySourceFixture` given them
+   * (`openMemorySource()` never carries it). Optional for the public catalogs
+   * and for legacy fixture adapters; an acquisition under scoped access
+   * through a graph without it throws rather than admitting uncapped.
    */
   organizationLimits?: OrganizationLimitGauge;
   capacity: CapacityStore;

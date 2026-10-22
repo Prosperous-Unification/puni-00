@@ -219,7 +219,19 @@ export type CommandRefusalCode =
    * `patchPerson` making an agent, or an add of an agent, past the
    * organization's cap (`wbs-organization-limits` L9); names the numbers.
    */
-  | 'agent_person_limit';
+  | 'agent_person_limit'
+  /**
+   * `claimWorkItem` adding one more bound claim than the organization's cap
+   * allows (`wbs-organization-limits` L9), checked after every other claim
+   * refusal; names the cap and the bound claims held.
+   */
+  | 'claim_limit';
+
+/** What a refused claim names: the organization's cap on bound claims and how many it holds. */
+export interface ClaimLimitRefusalDetail {
+  cap: number;
+  current: number;
+}
 
 /** What an organization limit refusal names: the cap, what was held and what the write would add. */
 export interface LimitRefusalDetail {
@@ -377,7 +389,9 @@ export type CommandRefusalDetail = {
                               }
                             : C extends 'agent_person_limit'
                               ? LimitRefusalDetail
-                              : Record<never, never>);
+                              : C extends 'claim_limit'
+                                ? ClaimLimitRefusalDetail
+                                : Record<never, never>);
 };
 
 type BareRefusalCode =

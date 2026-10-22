@@ -62,6 +62,17 @@ export function refusalTypeCases() {
     cap: 8,
     current: 8,
   });
+  expectTypeOf<CommandRefusal>({
+    error: 'claim_limit',
+    at: 0,
+    kind: 'claimWorkItem',
+    cap: 40,
+    current: 40,
+  });
+  // @ts-expect-error A claim cap refusal always names the bound claims held.
+  expectTypeOf<CommandRefusal>({ error: 'claim_limit', at: 0, kind: 'claimWorkItem', cap: 40 });
+  // @ts-expect-error The claim cap is a batch refusal only, never a bare one.
+  expectTypeOf<Refusal>({ error: 'claim_limit', cap: 40, current: 40 });
   // @ts-expect-error An arbitrary detail bag is not a directory refusal.
   expectTypeOf<Refusal>({ error: 'taken', at: 0, kind: 'createTeam', arbitrary: true });
   expectTypeOf<CommandRefusal>({

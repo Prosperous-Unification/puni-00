@@ -89,6 +89,7 @@ function runnerWith(hold: Hold) {
         }
         return reading;
       },
+      readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
     };
   };
   return createPlanCommandRunner({

@@ -1,4 +1,5 @@
 import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
+import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
 import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
@@ -49,6 +50,11 @@ import {
   type MemoryWorkItemTables,
   memoryWorkItemTables,
 } from './memory-work-item-fixture';
+import {
+  inMemoryOrganizationLimitGauge,
+  type MemoryOrganizationLimitTables,
+  memoryOrganizationLimitTables,
+} from './organization-limits-fixture';
 import {
   inMemoryPriorityBands,
   type MemoryPriorityBandTable,
@@ -105,6 +111,7 @@ interface MemoryTables {
   readonly calendarMarkers: MemoryCalendarMarkerTable;
   readonly eventLog: MemoryEventLogTables;
   readonly journal: MemoryCommandJournalTables;
+  readonly organizationLimits: MemoryOrganizationLimitTables;
 }
 
 function emptyTables(): MemoryTables {
@@ -129,6 +136,7 @@ function emptyTables(): MemoryTables {
     calendarMarkers: memoryCalendarMarkerTable(),
     eventLog: memoryEventLogTables(),
     journal: memoryCommandJournalTables(),
+    organizationLimits: memoryOrganizationLimitTables(),
   };
 }
 
@@ -260,12 +268,23 @@ export class MemoryState {
     replaceMap(this.tables.eventLog.nextSeq, next.tables.eventLog.nextSeq);
     replaceArray(this.tables.journal.entries, next.tables.journal.entries);
     replaceArray(this.tables.journal.events, next.tables.journal.events);
+    replaceMap(this.tables.organizationLimits.caps, next.tables.organizationLimits.caps);
+    replaceMap(
+      this.tables.organizationLimits.projectOrganization,
+      next.tables.organizationLimits.projectOrganization,
+    );
   }
 }
 
+/**
+ * The stores over `state`. Given `organizationDefaultLimits`, the catalog also
+ * carries the organization limits gauge (`wbs-organization-limits` L10), which
+ * the source hands only to the scopes its unit of work admits, as SQLite does.
+ */
 export function bindStores(
   state: MemoryState,
   lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
+  organizationDefaultLimits?: OrganizationLimitValues,
 ): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
@@ -603,6 +622,19 @@ export function bindStores(
         lateWrite.reach('subtree-final-satellite', { satelliteKeys });
       },
     ),
+    ...(organizationDefaultLimits === undefined
+      ? {}
+      : {
+          organizationLimits: inMemoryOrganizationLimitGauge(
+            {
+              limits: state.tables.organizationLimits,
+              directory: state.tables.directory,
+              claims: state.tables.claims,
+              workItems: state.tables.workItems,
+            },
+            organizationDefaultLimits,
+          ),
+        }),
   };
   // Proof: returning stores directly failed both public and admitted detached
   // storage-shape reads after caller mutation (2026-10-16).

@@ -207,6 +207,38 @@ describe('the agent person cap, activated', () => {
     expect(kindOf('lee')).toBe('person');
   });
 
+  // A project batch runs its directory commands over the working plan's
+  // catalog, not the directory batch's: the path slice 2 left uncapped.
+  // Proof: with the working plan's `organizationLimits` getter removed, the
+  // promotion under the cap answered 500 "an agent person was added under
+  // scoped access without organization limits" (13 pass, 1 fail); watched 2026-10-22.
+  it('promotes inside a project batch under the cap and refuses it at the cap', async () => {
+    capAgents('org-a', 8);
+    agentsIn('org-a', 'bot', 7);
+    personIn('org-a', 'kat', 'person');
+    personIn('org-a', 'lee', 'person');
+    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Fleet' });
+    if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+    const projectId = (created.body as { project: { id: string } }).project.id;
+    const inProject = (commands: unknown[]) =>
+      h.call('ada', 'POST', `/api/projects/${projectId}/commands`, { commands });
+
+    expect((await inProject([promote('kat')])).status).toBe(200);
+    expect(await inProject([promote('lee')])).toEqual({
+      status: 409,
+      body: {
+        at: 0,
+        kind: 'patchPerson',
+        error: 'agent_person_limit',
+        cap: 8,
+        current: 8,
+        added: 1,
+      },
+    });
+    expect(kindOf('kat')).toBe('agent');
+    expect(kindOf('lee')).toBe('person');
+  });
+
   it('frees capacity by deleting an agent in the same batch', async () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 8);
