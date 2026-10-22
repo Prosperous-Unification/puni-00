@@ -580,3 +580,68 @@ Scoped independent re-review inspected all eight new fault patches and failing l
 confirmed complete validation routing and the corrected proof comment, and reported no
 new breakage or out-of-scope findings. Storage Task 4 is accepted; its nine slice checkboxes
 are checked. Parent 6a.1–6a.2 remain unchecked until Task 5 and aggregate acceptance.
+
+### Storage Task 5 — production selection and acceptance candidate
+
+The async `openStores` factory validates explicit SQLite selection and delegates settings
+and trusted-state validation to the existing opener. It cannot select memory or bootstrap.
+The SQLite provider now explicitly fences operations after close, even when a retained real
+connection prevents the driver's own exception from masking the missing check; close is
+idempotent. Public port keys are enumerated against valid existing identities. Structural
+AST tests reject adapter/path/schema dependencies in the portable boundary and production
+memory imports. A separate Bun process commits a public admission between the parent
+`readRun` header and remaining reads; the public read must expose a whole old snapshot,
+then the whole new snapshot on its next call.
+
+Root's direct migration-lint command initially exited 1: its trusted-root allowlist did
+not own the new provider directory. CI scans all tracked SQL. This slice registers only
+`runs/sqlite/migrations` and an exact staged SQL hook route, preserving other roots and
+waivers. Existing migration tests now cover the real forward/down pair, missing rollback,
+destructive forward SQL, sibling-path refusal and parsed production hook routing.
+
+Observed development failures were retained, not treated as proof: initial missing factory
+module; invalid admission fixture and incomplete portable-import allowlist; a cached
+statement interceptor firing twice; and seven test lint diagnostics. The meaningful close
+RED was `Missing expected rejection: acquireOwnership must refuse a closed store`.
+Migration RED had four expected failures for missing root/routing. After implementation,
+the first aggregate passed 411 tests but lint failed; tests were corrected, relevant fault
+observations repeated, and the final aggregate below passed.
+
+Eighteen distinct faults were observed:
+
+- Provider discriminator removal; closed-operation fence removal; close-idempotence removal.
+- Read transaction bypass, producing revision zero with one attempt and one reservation.
+- Eight actual forbidden import forms: provider, path, adapter type, re-export, import type,
+  dynamic literal, dynamic computed and require. AST assertions named the dependency.
+- Migration root removal/widening, hook route removal/widening, missing-down bypass and
+  destructive-forward bypass. These failed acceptance or refusal assertions on real paths.
+
+Exact edits, argv and failing output are recorded in
+`/tmp/task5-mutation-summary-initial.json`,
+`/tmp/task5-snapshot-mutation-summary-final.json` and
+`/tmp/task5-migration-mutation-summary-final.json`, with named
+`/tmp/task5-proof-*.log` files. All mutations were restored. There were 27 mutation
+invocations: 25 accepted observations across 18 distinct faults, plus two excluded attempts.
+Both excluded attempts reached behavior assertions but did not meet the mutation runner's
+Bun assertion-counter requirement; the migration attempt also used an incorrect expected
+message. Their logs remain as `provider-attempt1` and `migration-root-removed-attempt1`.
+They are not counted as proofs. Earlier storage proof cases were not rerun or recertified.
+
+Final restored checks:
+
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs ./tools/tool-git-hooks/src/hooks/migration-lint.test.ts ./tools/tool-git-hooks/src/hooks.test.ts --timeout=60000`: 411 pass, zero fail, 1,099 assertions, 18 files, 11.68s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p twilight-dash,tool-git-hooks --skip-nx-cache`: both targets pass, 2.2s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p twilight-dash,tool-git-hooks --skip-nx-cache`: both targets pass, 20.8s.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0001-run-store/migration.sql apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0001-run-store/down.sql`: exit 0 after checking the supplied paths.
+- `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/runs tools/tool-git-hooks/src/hooks/migration-lint.ts tools/tool-git-hooks/src/hooks/migration-lint.test.ts lefthook.yml` and `git diff --check`: exit 0.
+
+Logs are `/tmp/task5-final-restored-{tests,typecheck,lint}.log`,
+`/tmp/task5-final-migration-cli.log`, `/tmp/task5-final-format.log` and
+`/tmp/task5-final-diff-check.log`. Root inspected the final aggregate/static output and
+fault metadata. Regular locked OpenSpec validation after the plan amendments passed with
+the same seven long-requirement warnings; strict validation is not claimed.
+
+Task 5 independent review remains pending. Full project test targets, build, whole-repository
+migration lint/secrets, exact-SHA host gate, current-main integration and whole-branch review
+remain outstanding. Parent 6a.1–6a.2 are still unchecked. No live worker/WBS, hardware
+power-loss, second durable provider or coordinator readiness claim follows from this packet.

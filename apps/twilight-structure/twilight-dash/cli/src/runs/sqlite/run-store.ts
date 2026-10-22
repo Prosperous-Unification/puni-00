@@ -81,12 +81,13 @@ function rollback(database: Database, cause: unknown): void {
     });
   }
 }
-/** Independent row-level SQLite adapter. Each write supplies shared planners a locked, current view. */
+/** Independent row-level SQLite adapter. Writes plan against a locked view; reads share one snapshot. Close is idempotent and fences both ports, including queued operations. */
 export function createSqliteRunStore(
   database: Database,
   options: TransactionOptions,
 ): { runs: RunStore; artifacts: ArtifactStore; close(): void } {
   let queue = Promise.resolve();
+  let closed = false;
 
   async function transact<T>(write: boolean, operation: () => T): Promise<T> {
     const previous = queue;
@@ -94,6 +95,8 @@ export function createSqliteRunStore(
     queue = turn.promise;
     await previous;
     try {
+      // Proof: bypassing this fence let acquireOwnership resolve after close with the real connection deliberately retained.
+      if (closed) throw new Error('run store is closed');
       for (let attempt = 1; attempt <= options.maxBusyAttempts; attempt += 1) {
         try {
           // Proof: bypassing write BEGIN/COMMIT left a durable attempt after the real reservation-abort trigger; the rollback test expected no rows.
@@ -101,6 +104,7 @@ export function createSqliteRunStore(
           // Proof: injecting atomic reservation bypass failed `reservation insert abort preserves whole prior state across reopen` at its explicit assertion.
           // Proof: injecting atomic consumption bypass failed `consumption insert abort preserves whole prior state across reopen` at its explicit assertion.
           // Proof: injecting atomic receipt bypass failed `receipt insert abort preserves whole prior state across reopen` at its explicit assertion.
+          // Proof: bypassing only the read transaction exposed revision 0 with one attempt and one reservation after a real competing-process admission.
           database.run(write ? 'BEGIN IMMEDIATE' : 'BEGIN');
           const value = operation();
           database.run('COMMIT');
@@ -594,7 +598,10 @@ export function createSqliteRunStore(
     runs,
     artifacts: createSqliteArtifactStore(database, transact),
     close() {
+      // Proof: bypassing idempotence called the retained connection's close twice in the public close test.
+      if (closed) return;
       database.close();
+      closed = true;
     },
   };
 }

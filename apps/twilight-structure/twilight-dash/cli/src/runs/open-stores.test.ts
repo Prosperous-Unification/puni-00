@@ -1,0 +1,240 @@
+import { rejects } from 'node:assert/strict';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { Database } from 'bun:sqlite';
+import { afterEach, expect, test } from 'bun:test';
+import ts from 'typescript';
+
+import { openStores, type SqliteConfiguration } from './open-stores';
+import { organizationId, ownerId } from './record-codecs';
+import { bootstrapSqliteStores } from './sqlite/open-stores';
+import {
+  createCompletion,
+  createManifest,
+  createRun,
+  FixtureClock,
+  unwrapReply,
+} from './testing/fixtures';
+import { prepareWait } from './testing/signals-contract';
+
+const directories: string[] = [];
+afterEach(() => {
+  for (const directory of directories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
+});
+function configuration(): SqliteConfiguration {
+  const directory = mkdtempSync(join(tmpdir(), 'runs-production-'));
+  directories.push(directory);
+  return {
+    provider: 'sqlite',
+    path: join(directory, 'runs.sqlite'),
+    organizationId: organizationId('organization'),
+    capacity: 1,
+    leaseMilliseconds: 100,
+    maxBusyAttempts: 3,
+    busyDelayMilliseconds: 1,
+  };
+}
+test('production SQLite selection reopens persisted ports and ownership', async () => {
+  const settings = configuration();
+  const clock = new FixtureClock();
+  const initial = await bootstrapSqliteStores({ ...settings, clock });
+  const ownership = unwrapReply(await initial.runs.acquireOwnership(ownerId('owner'), 0));
+  unwrapReply(await initial.runs.retainManifest(ownership, createManifest()));
+  unwrapReply(await initial.runs.createRun(ownership, createRun()));
+  const retained = await initial.artifacts.retainArtifact(new Uint8Array([4, 2]), 'test/bytes');
+  if (retained.kind !== 'retained') throw new Error('fixture artifact refused');
+  initial.close();
+  const stores = await openStores(settings, clock);
+  try {
+    expect(stores.ownership.owner).toEqual(ownership);
+    expect((await stores.runs.readRun(createRun().runId)).run).toEqual(createRun());
+    expect(await stores.artifacts.readArtifact(retained.reference)).toEqual(new Uint8Array([4, 2]));
+  } finally {
+    stores.close();
+  }
+});
+for (const provider of ['memory', 'unknown', '', null, undefined, 1])
+  test(`production selection rejects provider ${String(provider)}`, async () => {
+    const settings = configuration();
+    const clock = new FixtureClock();
+    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    expect(existsSync(settings.path)).toBe(true);
+    await rejects(async () => {
+      const stores = await openStores({ ...settings, provider } as SqliteConfiguration, clock);
+      stores.close();
+    }, /Validation failed/);
+  });
+const malformed: readonly (readonly [string, unknown])[] = [
+  ['path', ''],
+  ['path', 1],
+  ['organizationId', ''],
+  ['organizationId', 1],
+  ['capacity', 0],
+  ['capacity', 1.5],
+  ['capacity', Number.MAX_SAFE_INTEGER + 1],
+  ['leaseMilliseconds', 0],
+  ['maxBusyAttempts', 0],
+  ['busyDelayMilliseconds', -1],
+];
+for (const [field, invalid] of malformed)
+  test(`production configuration rejects malformed ${field} ${String(invalid)}`, async () => {
+    const settings = configuration();
+    const clock = new FixtureClock();
+    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    await rejects(openStores({ ...settings, [field]: invalid }, clock));
+  });
+for (const field of [
+  'path',
+  'organizationId',
+  'capacity',
+  'leaseMilliseconds',
+  'maxBusyAttempts',
+  'busyDelayMilliseconds',
+] as const)
+  test(`production configuration requires ${field}`, async () => {
+    const settings = configuration();
+    const clock = new FixtureClock();
+    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    const missing = Object.fromEntries(Object.entries(settings).filter(([name]) => name !== field));
+    await rejects(openStores(missing as SqliteConfiguration, clock));
+  });
+test('production configuration rejects nullish input and malformed clock', async () => {
+  const settings = configuration();
+  const clock = new FixtureClock();
+  (await bootstrapSqliteStores({ ...settings, clock })).close();
+  for (const input of [null, undefined, 1])
+    await rejects(openStores(input as unknown as SqliteConfiguration, clock));
+  await rejects(openStores(settings, {} as FixtureClock));
+});
+test('production open never bootstraps absent trusted state', async () => {
+  const settings = configuration();
+  await rejects(openStores(settings, new FixtureClock()), /absent/);
+  expect(existsSync(settings.path)).toBe(false);
+});
+for (const [field, changed] of [
+  ['organizationId', 'foreign'],
+  ['capacity', 2],
+  ['leaseMilliseconds', 101],
+] as const)
+  test(`production open refuses changed persisted ${field}`, async () => {
+    const settings = configuration();
+    const clock = new FixtureClock();
+    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    await rejects(openStores({ ...settings, [field]: changed }, clock), /configuration/);
+  });
+
+test('production close is idempotent and every public operation refuses closed despite a retained connection', async () => {
+  const settings = configuration();
+  const clock = new FixtureClock();
+  (await bootstrapSqliteStores({ ...settings, clock })).close();
+  const stores = await openStores(settings, clock);
+  const setup = await prepareWait({ ...stores, clock });
+  const { ownership, decision, claim, quiescence, command, admission, run } = setup;
+  unwrapReply(await stores.runs.receiveDecision(ownership, decision));
+  const consumptionGuard = await setup.currentGuard();
+  unwrapReply(await stores.runs.consumeDecision(consumptionGuard, decision.decisionId));
+  const completion = createCompletion(claim, quiescence);
+  const outcomeGuard = await setup.currentGuard();
+  unwrapReply(await stores.runs.commitOutcome(outcomeGuard, completion));
+  const receipt = {
+    version: 1 as const,
+    commandId: completion.intent.commandId,
+    commandDigest: completion.intent.commandDigest,
+    authority: claim,
+    acceptedWbsRevision: 'accepted',
+    evidence: quiescence.evidence,
+  };
+  const receiptGuard = await setup.currentGuard();
+  unwrapReply(await stores.runs.reconcileReceipt(receiptGuard, receipt));
+  const operations = {
+    acquireOwnership: () => stores.runs.acquireOwnership(ownerId('owner'), ownership.epoch),
+    renewOwnership: () => stores.runs.renewOwnership(ownership),
+    retainManifest: () => stores.runs.retainManifest(ownership, createManifest()),
+    readManifest: () => stores.runs.readManifest(run.manifestDigest),
+    createRun: () => stores.runs.createRun(ownership, createRun()),
+    readRun: () => stores.runs.readRun(run.runId),
+    admitAttempt: () =>
+      stores.runs.admitAttempt({ ownership, runId: run.runId, expectedRevision: 0 }, admission),
+    recordExecution: () => stores.runs.recordExecution(setup.guard, command),
+    commitOutcome: () => stores.runs.commitOutcome(outcomeGuard, completion),
+    receiveDecision: () => stores.runs.receiveDecision(ownership, decision),
+    consumeDecision: () => stores.runs.consumeDecision(consumptionGuard, decision.decisionId),
+    reconcileReceipt: () => stores.runs.reconcileReceipt(receiptGuard, receipt),
+    retainArtifact: () => stores.artifacts.retainArtifact(new Uint8Array([1]), 'test/bytes'),
+    readArtifact: () => stores.artifacts.readArtifact(quiescence.evidence),
+  };
+  for (const operation of Object.values(operations)) await operation();
+  expect(Object.keys(operations).sort()).toEqual(
+    [...Object.keys(stores.runs), ...Object.keys(stores.artifacts)].sort(),
+  );
+  const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'close');
+  if (descriptor === undefined) throw new Error('Database.close descriptor absent');
+  const connections: Database[] = [];
+  Object.defineProperty(Database.prototype, 'close', {
+    ...descriptor,
+    value(this: Database) {
+      connections.push(this);
+    },
+  });
+  try {
+    stores.close();
+    stores.close();
+    for (const [name, operation] of Object.entries(operations))
+      await rejects(operation(), /closed/, `${name} must refuse a closed store`);
+    expect(connections).toHaveLength(1);
+  } finally {
+    Object.defineProperty(Database.prototype, 'close', descriptor);
+    for (const connection of new Set(connections)) connection.close();
+    stores.close();
+  }
+});
+
+function portableImports(path: string): string[] {
+  const file = ts.createSourceFile(
+    path,
+    readFileSync(join(import.meta.dir, path), 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const dependencies: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    )
+      dependencies.push(node.moduleSpecifier.text);
+    if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    )
+      dependencies.push(node.argument.literal.text);
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    )
+      for (const argument of node.arguments)
+        dependencies.push(ts.isStringLiteral(argument) ? argument.text : '<computed import>');
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return dependencies;
+}
+test('portable ports and core records exclude adapter dependencies structurally', () => {
+  const allowed = new Set([
+    './records',
+    './record-codecs',
+    '@shared/validation',
+    '@twilight-burokrat/contracts',
+  ]);
+  const violations = ['run-store.ts', 'artifact-store.ts', 'records.ts', 'record-codecs.ts']
+    .flatMap((path) => portableImports(path).map((dependency) => ({ path, dependency })))
+    .filter(({ dependency }) => !allowed.has(dependency));
+  // Proof: eight real port-source injections (provider/path/schema imports, export, import type, dynamic/computed import and require) each named the forbidden dependency here.
+  expect(violations).toEqual([]);
+});

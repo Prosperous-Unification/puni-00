@@ -48,12 +48,13 @@ export interface RunStore {
   acquireOwnership(ownerId: OwnerId, expectedEpoch: Epoch): Promise<StoreReply<Ownership>>;
   /** Refreshes exact current authority using the store clock, never a supplied expiry. */
   renewOwnership(ownership: Ownership): Promise<StoreReply<Ownership>>;
-  /** Trusted persistence: caller must verify every referenced artifact in this exact manifest first. */
+  /** Retains immutable insert-or-identical content. Caller must verify every referenced artifact in this exact manifest first; hash/identity corruption throws. */
   retainManifest(ownership: Ownership, manifest: Manifest): Promise<StoreReply<Manifest>>;
+  /** Reads and validates retained content; an absent manifest or invalid identity/hash throws. */
   readManifest(digest: ManifestDigest): Promise<Manifest>;
   /** Freezes initial run identity and retry budget against a retained manifest. */
   createRun(ownership: Ownership, run: Run): Promise<StoreReply<Run>>;
-  /** Reads one consistent run plus global reservation count without acquiring ownership. */
+  /** Reads one consistent run, complete attempt provenance, inbox/outbox and global reservation count without ownership; missing or inconsistent trusted records throw. */
   readRun(runId: RunId): Promise<RunSnapshot>;
   /** Atomically admits an occurrence, reserving capacity; retries require determinate interrupted or failed terminal evidence. */
   admitAttempt(guard: RunGuard, admission: Admission): Promise<StoreReply<Attempt>>;
@@ -61,9 +62,9 @@ export interface RunStore {
   recordExecution(guard: AttemptGuard, command: ExecutionCommand): Promise<StoreReply<Attempt>>;
   /** Trusted persistence: caller has verified every artifact in this exact completion. Atomically records outcome, pending command and settled capacity release. */
   commitOutcome(guard: AttemptGuard, completion: Completion): Promise<StoreReply<Attempt>>;
-  /** Trusted inbox: caller verified the complete authorization artifact before persistence. */
+  /** Retains a global decision identity insert-or-identical, including after consumption. Caller verified the complete authorization artifact before persistence. */
   receiveDecision(ownership: Ownership, decision: Decision): Promise<StoreReply<Decision>>;
-  /** Atomically retains original continuation reply, consumes one wait and reacquires capacity. */
+  /** Atomically retains the original continuation reply, consumes one wait and reacquires capacity; capacity refusal leaves the decision unconsumed. */
   consumeDecision(guard: AttemptGuard, decisionId: DecisionId): Promise<StoreReply<Attempt>>;
   /** Trusted receipt: caller verified evidence bytes; exact matching does not authenticate WBS acceptance. */
   reconcileReceipt(guard: AttemptGuard, receipt: CommandReceipt): Promise<StoreReply<Attempt>>;
