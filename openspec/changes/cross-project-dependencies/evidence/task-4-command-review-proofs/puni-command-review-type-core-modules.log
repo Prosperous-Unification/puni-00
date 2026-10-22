@@ -1,0 +1,17 @@
+typecheck libs/wbs/application/core/src/module/authentication
+typecheck libs/wbs/application/core/src/module/bounded-replay-sweep
+typecheck libs/wbs/application/core/src/module/calendar-marker
+typecheck libs/wbs/application/core/src/module/capacity
+typecheck libs/wbs/application/core/src/module/directory
+typecheck libs/wbs/application/core/src/module/event-log
+typecheck libs/wbs/application/core/src/module/plan-commands
+typecheck libs/wbs/application/core/src/module/plan-document
+typecheck libs/wbs/application/core/src/module/plan-event
+typecheck libs/wbs/application/core/src/module/plan-history
+typecheck libs/wbs/application/core/src/module/plan-import
+typecheck libs/wbs/application/core/src/module/priority-band
+typecheck libs/wbs/application/core/src/module/project
+typecheck libs/wbs/application/core/src/module/realtime
+typecheck libs/wbs/application/core/src/module/saved-plans
+typecheck libs/wbs/application/core/src/module/step
+typecheck libs/wbs/application/core/src/module/work-item

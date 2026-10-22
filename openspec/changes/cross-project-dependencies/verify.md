@@ -590,3 +590,13 @@ and two replay graph-close red/green checks. Root verified unchanged hashes and
 clean status after normal-hook commit. Fresh Astra review is active; source is
 unintegrated and the dormant production barrier remains closed. The full MCP,
 incident lifecycle and live/runtime/activation requirements are still open.
+
+## Tasks 3.2 / 4.2–4.4 — independent command review requires corrections
+
+[Final command review](evidence/task-4-command-review.md) records two reproduced
+redo defects: local create-and-update aliases and local-create/external-link
+batches. Fresh focused suites and six actual type programs pass, but the
+independent corrected probes fail replay assertions. The 51-fault audit records
+what each failure proves without claiming every one admits an unsafe write.
+Original Sol is correcting ordered owner-local restoration for typed add/update;
+remote authority and metadata remain strict. Source is still unintegrated.
