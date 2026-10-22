@@ -3,7 +3,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
 239 | });
-240 | 
+240 |
 241 | test('execution observation rechecks membership and activation before materializing foreign evidence', async () => {
 242 |   write("DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='ada'");
 243 |   expect(await reader().readExecution('a1', access, null)).toEqual({ kind: 'access_refused', refusal: 'not_a_member' });
@@ -40,7 +40,7 @@ error: expect(received).toEqual(expected)
 +         },
 +       ],
 +     },
-+     "eligibilityByNode": 
++     "eligibilityByNode":
 + Map {
 +       "a1\0a1-s" => {
 +         "canFinish": true,
@@ -80,7 +80,7 @@ error: expect(received).toEqual(expected)
 +       },
 +     }
 + ,
-+     "evidenceByNode": 
++     "evidenceByNode":
 + Map {
 +       "a1\0a1-s" => {
 +         "done": false,
@@ -93,7 +93,7 @@ error: expect(received).toEqual(expected)
 +     }
 + ,
 +     "nodes": {
-+       "causes": 
++       "causes":
 + Map {
 +         "a1" => {
 +           "a1-s": [],
@@ -103,7 +103,7 @@ error: expect(received).toEqual(expected)
 +         },
 +       }
 + ,
-+       "readings": 
++       "readings":
 + Map {
 +         "a1" => {
 +           "a1-s": "unknown",
@@ -115,14 +115,14 @@ error: expect(received).toEqual(expected)
 + ,
 +     },
 +     "occupancy": [],
-+     "orderByWorkItem": 
++     "orderByWorkItem":
 + Map {
 +       "a1" => 0,
 +       "a2" => 1,
 +     }
 + ,
 +     "personNames": Map {},
-+     "predecessorIdsByLeaf": 
++     "predecessorIdsByLeaf":
 + Map {
 +       "a1" => [
 +         "a2",
@@ -159,7 +159,7 @@ error: expect(received).toEqual(expected)
 +       },
 +     ],
 +     "stated": [],
-+     "statuses": 
++     "statuses":
 + Map {
 +       "a1" => "ready",
 +       "a2" => "ready",
