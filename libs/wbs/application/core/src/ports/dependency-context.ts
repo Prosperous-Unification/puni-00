@@ -2,6 +2,7 @@ import type { ScopedDependencyEndpoint } from '@wbs/domain';
 
 import type { DependencyGraphGuard } from '../service/dependency-graph';
 import type { EditAdmission } from './edit-admission';
+import type { IncidentNodeTransition } from './incident-node-transition';
 import type { ResourceAccess } from './organization-access';
 import type { Step } from './step-store';
 
@@ -54,6 +55,7 @@ export interface CommandGraphAuthority {
 /** Exact capabilities installed into one command graph. */
 export interface DependencyContext {
   readonly graph: DependencyGraphGuard;
+  readonly incidents: IncidentNodeTransition;
   readonly endpoints: DependencyEndpointEvidence;
   /** Throws for a different owner/actor or a closed graph/observation. */
   assertUsable(projectId: string, actorId: string): void;

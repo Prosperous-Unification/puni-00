@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+642 |     await repo.add(original,stamp);
+643 |     const receipt=await repo.incidents.capture(original.id);
+644 |     await repo.incidents.detach(receipt);
+645 |     const dependency=fault==='identity' ? {...original,id:'replacement'} : {...original,projectId:'a',predecessor:original.successor,successor:original.predecessor};
+646 |     const before=stored('SELECT id,revision FROM work_item ORDER BY id');
+647 |     expect(await rejection(repo.incidents.restore({...receipt,dependency},original,{at:5,by:'u'}))).toContain('incident restoration cannot change identity or owner');
+                                                                                                          ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "incident restoration cannot change identity or owner"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:647:101)
+(fail) incident restore refuses changing identity before writing any row [115.06ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.06s]

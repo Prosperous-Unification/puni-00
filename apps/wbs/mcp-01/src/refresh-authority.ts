@@ -1,6 +1,6 @@
 import type { CredentialRuleFacts } from '@wbs/core';
 
-import type { CredentialBinding, FamilyRecord } from './session-store';
+import type { ConsentBinding, CredentialBinding, FamilyRecord } from './session-store';
 
 /** Immutable identity supplied to the independently trusted authority boundary. */
 export interface McpRefreshAuthority {
@@ -10,6 +10,8 @@ export interface McpRefreshAuthority {
   readonly scope: string;
   readonly credentialEpoch: number;
   readonly binding: CredentialBinding;
+  /** The agent person and consent credential a consent family acts as (A20). */
+  readonly consent?: ConsentBinding;
 }
 
 /**
@@ -34,6 +36,8 @@ export type McpRefreshAuthorityReader = (authority: McpRefreshAuthority) => Prom
  * Compares all immutable authority fields; provider rotation changes none of them.
  * Proof: 2026-10-13, omitting each of the eight comparisons separately made all three
  * corresponding `checks substituted <field>` production-path negatives release credentials.
+ * Proof: 2026-10-22, with the two consent comparisons removed, `refuses an authority whose
+ * consent credential differs from the family` (refresh-authority.test.ts) matched.
  */
 export function matchesRefreshAuthority(
   authority: McpRefreshAuthority,
@@ -47,6 +51,8 @@ export function matchesRefreshAuthority(
     authority.credentialEpoch === family.credentialEpoch &&
     authority.binding.organizationId === family.binding?.organizationId &&
     authority.binding.userId === family.binding.userId &&
-    authority.binding.issuer === family.binding.issuer
+    authority.binding.issuer === family.binding.issuer &&
+    authority.consent?.personId === family.consent?.personId &&
+    authority.consent?.credentialId === family.consent?.credentialId
   );
 }

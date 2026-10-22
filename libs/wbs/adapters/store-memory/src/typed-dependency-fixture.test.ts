@@ -111,3 +111,34 @@ it('protects a surviving external successor before removing any doomed links', a
   expect(store.rows).toEqual([local, external]);
   expect(await store.removeAllFor(['a', 'c'], stamp)).toEqual([local, external]);
 });
+
+it('incident receipts preserve creation audit and refuse a stale detach', async () => {
+  const store = inMemoryTypedDependencies();
+  const original = link('incident', 'parent', 'peer');
+  await store.add(original, stamp);
+  const receipt = await store.incidents.capture(original.id);
+  expect(receipt).toEqual({ dependency: original, createdAt: 1, createdBy: 'owner' });
+  await store.update({ ...original, type: 'SS' }, { at: 2, by: 'peer' });
+  expect(await refuses(() => store.incidents.detach(receipt))).toBe(true);
+  const current = await store.incidents.capture(original.id);
+  await store.incidents.detach(current);
+  const mapped = {
+    ...original,
+    type: 'SS' as const,
+    predecessor: { ...original.predecessor, workItemId: 'child' },
+  };
+  await store.incidents.restore({ ...current, dependency: mapped }, current.dependency, {
+    at: 3,
+    by: 'peer',
+  });
+  expect(await store.incidents.capture(original.id)).toEqual({ ...current, dependency: mapped });
+});
+
+it('incident restoration refuses a reused identity without duplicating its row', async () => {
+  const store = inMemoryTypedDependencies();
+  const original = link('incident', 'parent', 'peer');
+  await store.add(original, stamp);
+  const receipt = await store.incidents.capture(original.id);
+  expect(await refuses(() => store.incidents.restore(receipt, original, stamp))).toBe(true);
+  expect(await store.listByProject('project')).toEqual([original]);
+});

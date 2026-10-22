@@ -73,6 +73,7 @@ test('bound contexts reject a different owner, actor and closed observation', as
     () => {
       if (!observing) throw new Error('observation closed');
     },
+    { kind: 'raw' },
   );
   const bound = { kind: 'bound' as const, context: opened.context };
   await rejects(
@@ -179,6 +180,7 @@ test('actual service cannot borrow a bound context for another owner or actor', 
     source.stores,
     { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
     () => undefined,
+    { kind: 'raw' },
   );
   try {
     const service = servicesOver(source.stores, {
@@ -234,3 +236,109 @@ test('runner-facing graph inspection requires owner admission before opening loc
   );
   expect(called).toBe(false);
 });
+
+test('incident transition enforces owner actor and observation lifetime around its genuine suspended incident read', async () => {
+  const source = await seeded();
+  let release: (() => void) | undefined;
+  let entered: (() => void) | undefined;
+  const readEntered = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const readRelease = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const opened = createDependencyContext(
+    {
+      ...source.stores,
+      typedDependencies: {
+        ...source.stores.typedDependencies,
+        listIncident: async (projects) => {
+          const relationships = await source.stores.typedDependencies.listIncident(projects);
+          if (entered === undefined) throw new Error('fixture continuation missing');
+          entered();
+          await readRelease;
+          return relationships;
+        },
+      },
+    },
+    { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+    () => undefined,
+    { kind: 'raw' },
+  );
+  let writes = 0;
+  const request = { kind: 'fresh' as const, fromWorkItemId: 'a1', toWorkItemId: 'child' };
+  for (const [owner, actor] of [
+    ['b', 'actor'],
+    ['a', 'rival'],
+  ])
+    await rejects(
+      opened.context.incidents.run(owner, actor, request, { at: 2, by: actor }, () => {
+        writes++;
+        return Promise.resolve({ ok: true });
+      }),
+      'owner or actor',
+    );
+  const pending = opened.context.incidents.run(
+    'a',
+    'actor',
+    request,
+    { at: 2, by: 'actor' },
+    () => {
+      writes++;
+      return Promise.resolve({ ok: true });
+    },
+  );
+  await readEntered;
+  opened.close();
+  if (release === undefined) throw new Error('fixture release missing');
+  release();
+  await rejects(pending, 'closed');
+  expect(writes).toBe(0);
+  await rejects(
+    opened.context.incidents.run('a', 'actor', request, { at: 2, by: 'actor' }, () =>
+      Promise.resolve({
+        ok: true,
+      }),
+    ),
+    'closed',
+  );
+});
+
+for (const retention of [
+  undefined,
+  null,
+  { kind: 'unknown' },
+  { kind: 'owner' },
+  { kind: 'owner', refresh: 42 },
+])
+  test(`required incident retention refuses malformed construction ${JSON.stringify(retention)}`, async () => {
+    const source = await seeded();
+    expect(() =>
+      createDependencyContext(
+        source.stores,
+        { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+        () => undefined,
+        retention as never,
+      ),
+    ).toThrow('incident retention');
+  });
+
+for (const missing of ['all', 'capture', 'detach', 'restore'] as const)
+  test(`admitted incident persistence requires ${missing} at construction`, async () => {
+    const source = await seeded();
+    const persistence =
+      missing === 'all'
+        ? undefined
+        : { ...source.stores.typedDependencies.incidents, [missing]: undefined };
+    expect(() =>
+      createDependencyContext(
+        {
+          ...source.stores,
+          typedDependencies: { ...source.stores.typedDependencies, incidents: persistence },
+        } as never,
+        { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+        () => undefined,
+        { kind: 'raw' },
+      ),
+    ).toThrow('incident persistence is missing');
+  });

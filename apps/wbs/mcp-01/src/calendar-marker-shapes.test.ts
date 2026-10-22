@@ -25,6 +25,10 @@ test('derives all marker tools with project id and markerId in separate location
     '/api/organization/active',
     '/api/organization/provisioning-tokens',
     '/api/organization/provisioning-tokens/fixture',
+    '/api/organization/machine-credentials',
+    '/api/organization/machine-credentials/fixture',
+    '/api/organization/trusted-issuers',
+    '/api/organization/trusted-issuers/fixture',
   ] as const;
   const document = documentFromShapes([
     listCalendarMarkers,

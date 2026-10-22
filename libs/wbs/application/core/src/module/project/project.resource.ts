@@ -516,7 +516,7 @@ export class ProjectService {
                 patch,
                 stamp,
                 access.scope.organizationId,
-                { actorId, auditId: this.clock.newId() },
+                { actorId, auditId: this.clock.newId(), role: access.scope.role },
               );
         // The in-transaction classification refused: demoted, or the project
         // changed hands or restriction, since the request was read.

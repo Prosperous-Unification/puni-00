@@ -753,6 +753,9 @@ describe('the enterprise SSO stores', () => {
       const db = openDrizzle(path);
       const details: OrganizationAuditDetail[] = [
         { token: 'wbs_scim_abc' },
+        // Proof: with the `wbs_mk_` prefix dropped from `isSecretShaped`,
+        // this API-key-shaped detail was stored; watched 2026-10-22.
+        { key: 'wbs_mk_abc' },
         { digest: digest('d') },
         { subject: 'samlp|acme-saml|carol' },
         { subjects: ['google-oauth2|1'] },

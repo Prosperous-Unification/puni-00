@@ -7,3 +7,4 @@ export * from './oidc-identity';
 export * from './oidc-store';
 export * from './oidc-verifier';
 export * from './token-verifier';
+export * from './trusted-issuer';

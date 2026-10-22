@@ -11,6 +11,7 @@ import {
   type SolverRequestPair,
 } from '@wbs/contracts/solver/solver-request-pair';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { OrganizationRole } from '@wbs/domain';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -527,7 +528,11 @@ export class OptimizationCoordinator {
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput;
-    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+    readonly scoped?: {
+      readonly organizationId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    };
   }): Promise<OptimizationRetryResult> => {
     const currentInputHash = this.options.hashInput(ask.input);
     if (ask.inputHash !== currentInputHash) {

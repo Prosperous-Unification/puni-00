@@ -8,6 +8,7 @@ import { runCommandBatch } from '../src/module/plan-commands/run-command-batch';
 import { replay } from '../src/module/realtime/realtime.feature';
 import { savePlan } from '../src/module/saved-plans/save-plan';
 import { clockOf } from '../src/ports/clock';
+import { NO_MACHINE_CREDENTIALS } from '../src/ports/machine-credentials';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
 import { expectCreated } from '../src/testing/expect-created';
 import { localCommandAccess } from '../src/testing/organization-access-fixture';
@@ -103,6 +104,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
         verify: () => Promise.resolve(null),
       },
       enterprise: NO_PROVEN_CONNECTIONS,
+      machineCredentials: NO_MACHINE_CREDENTIALS,
     },
     shared,
   });

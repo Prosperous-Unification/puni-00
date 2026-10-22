@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+141 |     .get(owner);
+142 |   if (journal === null) throw new Error('fixture history missing');
+143 |   const preconditions = readPreconditions(JSON.parse(journal.preconditions) as unknown);
+144 |   expect(
+145 |     preconditions
+146 |       .externalRevisions!.expected.map(
+             ^
+TypeError: undefined is not an object (evaluating 'preconditions.externalRevisions.expected')
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:146:8)
+(fail) mixed incident handdown preserves scopes steps both owners history and local retained rows through nested undo redo [544.93ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.87s]

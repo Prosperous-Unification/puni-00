@@ -70,6 +70,7 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
           ask.key.projectId,
           ask.scoped.organizationId,
           ask.scoped.actorId,
+          ask.scoped.role,
         );
   // Proof: forcing ordinary here let a removed super-admin Retry succeed.
   // Proof: removing either refusal changed foreign/removed mounted outcomes.

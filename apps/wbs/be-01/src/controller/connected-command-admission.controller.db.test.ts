@@ -220,6 +220,7 @@ async function semantic<T extends { readonly ok: boolean }>(
       'org-a',
       fixture.principal.id,
       { commands: ['addTypedDependency'] },
+      resolved.access.scope.role,
     );
     if (admitted === null || admitted === 'forbidden')
       throw new Error('fixture owner admission refused');
@@ -259,6 +260,7 @@ async function semantic<T extends { readonly ok: boolean }>(
               return member;
             },
           });
+    const plan = createWorkingPlan(scope, fixture.owner.projectId);
     const dependencies = createDependencyContext(
       { ...scope.stores, projects, workItems },
       {
@@ -268,6 +270,7 @@ async function semantic<T extends { readonly ok: boolean }>(
         admission: granted.admission,
       },
       () => undefined,
+      { kind: 'owner', refresh: plan.refreshRows },
     );
     // Negative-only dependency fault: finish the genuine connected SQLite read,
     // then reject its delivery. No permissive graph is installed for positives.
@@ -337,7 +340,6 @@ async function semantic<T extends { readonly ok: boolean }>(
               },
             },
           };
-    const plan = createWorkingPlan(scope, fixture.owner.projectId);
     try {
       expect(
         (await plan.stores.workItems.listByProject(fixture.owner.projectId)).length,
@@ -695,7 +697,7 @@ for (const defect of [
     expect(effects()).toEqual(before);
   });
 
-test('structural first-child creation refuses a remote-owned pinned node before mutation', async () => {
+test('structural first-child creation hands a remote-owned pinned node to its first child', async () => {
   const fixture = await open();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
@@ -711,7 +713,6 @@ test('structural first-child creation refuses a remote-owned pinned node before 
       }),
     ),
   ).toMatchObject({ ok: true });
-  const before = effects();
   expect(
     await observed(
       semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
@@ -722,8 +723,54 @@ test('structural first-child creation refuses a remote-owned pinned node before 
         }),
       ),
     ),
-  ).toMatchObject({ ok: false, reason: 'node_on_parent' });
-  expect(effects()).toEqual(before);
+  ).toMatchObject({ ok: true });
+  const child = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE parent_id=?')
+    .get(fixture.predecessor.workItemId);
+  if (child === null) throw new Error('fixture child missing');
+  expect(
+    harness.sqlite.query('SELECT predecessor_work_item_id FROM external_dependency').get(),
+  ).toEqual({ predecessor_work_item_id: child.id });
+});
+
+test('mounted first-child creation publishes a remote-owned pinned node on the new child', async () => {
+  const fixture = await open();
+  const step = harness.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+    )
+    .get(fixture.predecessor.projectId);
+  if (step === null) throw new Error('fixture step missing');
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        ...fixture.input,
+        predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+
+  const response = await fixture.request(
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'createWorkItem',
+          parentId: fixture.predecessor.workItemId,
+          afterId: null,
+          name: 'Mounted incident child',
+        },
+      ],
+    },
+  );
+  expect(response.status).toBe(200);
+  const child = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE parent_id=?')
+    .get(fixture.predecessor.workItemId);
+  if (child === null) throw new Error('mounted child missing');
+  expect(
+    harness.sqlite.query('SELECT predecessor_work_item_id FROM external_dependency').get(),
+  ).toEqual({ predecessor_work_item_id: child.id });
 });
 
 test('external predecessor deletion returns a modeled conflict without changing any table', async () => {

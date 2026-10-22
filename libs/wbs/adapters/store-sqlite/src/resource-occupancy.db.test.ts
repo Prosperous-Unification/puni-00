@@ -1329,7 +1329,12 @@ for (const store of STORES) {
       try {
         await run([claim(0, 'a0')]);
         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
-        const removed = await source.stores.directory.removePerson('a0', false, { at: 9, by: F });
+        const removed = await source.stores.directory.removePerson(
+          'a0',
+          false,
+          { at: 9, by: F },
+          { kind: 'every' },
+        );
         expect(removed).toMatchObject({ ok: true });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });

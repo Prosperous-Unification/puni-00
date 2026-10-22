@@ -7,11 +7,14 @@ import {
 } from '@wbs/domain';
 
 import type { ScopedRevision, WorkItemAddress } from '../ports/dependency-context';
+import type { IncidentNodeReceipt } from '../ports/incident-node-transition';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
+import type { IncidentReceipt } from '../ports/typed-dependency-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Reparented } from '../ports/work-item-store';
 import type { CommandSubject, CompensatingCommand, JournalPayload } from './compensating-command';
+import { formatIncidentKey, mapIncidentNode } from './incident-node-transition';
 
 export type {
   AttemptKey,
@@ -114,6 +117,7 @@ const COMMANDS = [
   'add_typed_dependency',
   'remove_typed_dependency',
   'update_typed_dependency',
+  'transition_incident_nodes',
   'move',
   'set_frozen',
   'set_step_allowance',
@@ -162,6 +166,84 @@ export function readCommand(value: unknown): CompensatingCommand {
       do: named,
       from: readJournalDependency(value.from),
       to: readJournalDependency(value.to),
+    };
+  }
+  // Proof: omitting receipt-list validation changed missing-receipt replay from named corruption to TypeError; omitting mapping/audit validation deferred corrupted step/audit to stale refusal, 2026-10-22.
+  if (named === 'transition_incident_nodes') {
+    if (
+      !('projectId' in value) ||
+      typeof value.projectId !== 'string' ||
+      value.projectId.length === 0 ||
+      !('fromWorkItemId' in value) ||
+      typeof value.fromWorkItemId !== 'string' ||
+      value.fromWorkItemId.length === 0 ||
+      !('toWorkItemId' in value) ||
+      typeof value.toWorkItemId !== 'string' ||
+      value.toWorkItemId.length === 0 ||
+      value.fromWorkItemId === value.toWorkItemId ||
+      !('structural' in value) ||
+      !('receipts' in value) ||
+      !Array.isArray(value.receipts) ||
+      value.receipts.length === 0
+    )
+      throw new Error('journal incident transition is malformed');
+    const projectId = value.projectId;
+    const fromWorkItemId = value.fromWorkItemId;
+    const toWorkItemId = value.toWorkItemId;
+    const structural = readCommand(value.structural);
+    // Proof: bypassing creation-time validation changed missing-created-at to stale refusal; bypassing direction presence changed its named diagnostic, real SQLite replay, 2026-10-22.
+    const readReceipt = (candidate: unknown): IncidentReceipt => {
+      if (
+        typeof candidate !== 'object' ||
+        candidate === null ||
+        !('dependency' in candidate) ||
+        !('createdAt' in candidate) ||
+        !(
+          candidate.createdAt === null ||
+          (typeof candidate.createdAt === 'number' && Number.isSafeInteger(candidate.createdAt))
+        ) ||
+        !('createdBy' in candidate) ||
+        !(candidate.createdBy === null || typeof candidate.createdBy === 'string')
+      )
+        throw new Error('journal incident receipt is malformed');
+      return {
+        dependency: readJournalDependency(candidate.dependency),
+        createdAt: candidate.createdAt,
+        createdBy: candidate.createdBy,
+      };
+    };
+    const seen = new Set<string>();
+    const candidates: readonly unknown[] = value.receipts;
+    const receipts: IncidentNodeReceipt[] = candidates.map((candidate) => {
+      if (
+        typeof candidate !== 'object' ||
+        candidate === null ||
+        !('from' in candidate) ||
+        !('to' in candidate)
+      )
+        throw new Error('journal incident receipt directions are missing');
+      const from = readReceipt(candidate.from);
+      const to = readReceipt(candidate.to);
+      const mapped = mapIncidentNode(from.dependency, projectId, fromWorkItemId, toWorkItemId);
+      if (
+        seen.has(from.dependency.id) ||
+        from.dependency.predecessor.projectId === from.dependency.successor.projectId ||
+        formatIncidentKey(mapped) === formatIncidentKey(from.dependency) ||
+        formatIncidentKey(mapped) !== formatIncidentKey(to.dependency) ||
+        from.createdAt !== to.createdAt ||
+        from.createdBy !== to.createdBy
+      )
+        throw new Error('journal incident receipt does not describe its exact node mapping');
+      seen.add(from.dependency.id);
+      return { from, to };
+    });
+    return {
+      do: named,
+      projectId: value.projectId,
+      fromWorkItemId: value.fromWorkItemId,
+      toWorkItemId: value.toWorkItemId,
+      structural,
+      receipts,
     };
   }
   if (named === 'replace_blockage') {
@@ -505,6 +587,14 @@ export function restoredTypedAddressesOf(
       for (const nested of step.steps) visit(nested);
       return;
     }
+    // Proof: skipping this ordered recursion refused actual outgoing first-child redo, 2026-10-22.
+    if (step.do === 'transition_incident_nodes') {
+      visit(step.structural);
+      for (const endpoint of referencesOf(step).scopedEndpoints)
+        if (endpoint.projectId === ownerId && restored.has(endpoint.workItemId))
+          allowed.add(scopedRevisionKey(endpoint));
+      return;
+    }
     if (step.do === 'restore_subtree') {
       // Proof: removing the row-project condition failed the pure scanner's foreign
       // restore oracle; SQLite restored-row authority is independently retained.
@@ -593,6 +683,10 @@ export function estimateStepsOf(commands: readonly CompensatingCommand[]): Set<s
   const steps = new Set<string>();
   for (const command of commands) {
     switch (command.do) {
+      case 'transition_incident_nodes':
+        // Proof: omission recorded empty units instead of the child's inherited step binding, 2026-10-22.
+        for (const stepId of estimateStepsOf([command.structural])) steps.add(stepId);
+        break;
       case 'set_estimate':
       case 'clear_estimate':
         steps.add(command.stepId);
@@ -649,6 +743,8 @@ function readRevisions(value: unknown): Revisions {
 /** Exact progress pairs written by this command, including explicit structural rows and nested batches. */
 export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
   switch (command.do) {
+    case 'transition_incident_nodes':
+      return progressKeysOf(command.structural);
     case 'set_progress':
     case 'clear_progress':
       return [{ workItemId: command.workItemId, stepId: command.stepId }];
@@ -688,6 +784,23 @@ export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
  */
 export function touchedBy(command: CompensatingCommand): string[] {
   switch (command.do) {
+    case 'transition_incident_nodes':
+      return [
+        ...new Set([
+          ...touchedBy(command.structural),
+          ...command.receipts.flatMap(({ from, to }) =>
+            [
+              from.dependency.predecessor,
+              from.dependency.successor,
+              to.dependency.predecessor,
+              to.dependency.successor,
+            ]
+              // Proof: partitioning by successor owner lost the structural parent from actual undo flip preconditions, 2026-10-22.
+              .filter((endpoint) => endpoint.projectId === command.projectId)
+              .map(({ workItemId }) => workItemId),
+          ),
+        ]),
+      ];
     case 'patch':
     case 'set_estimate':
     case 'clear_estimate':
@@ -779,6 +892,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
  * inverse move carries the snapshot. Other command owners are excluded.
  */
 export function expectedProgressOwnersOf(command: CompensatingCommand): string[] {
+  if (command.do === 'transition_incident_nodes')
+    return expectedProgressOwnersOf(command.structural);
   if (command.do === 'batch') return [...new Set(command.steps.flatMap(expectedProgressOwnersOf))];
   if (
     (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
@@ -863,6 +978,15 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     ].forEach(onStep);
   }
   switch (command.do) {
+    case 'transition_incident_nodes':
+      collectReferences(command.structural, found);
+      found.projects.push(command.projectId);
+      // Proof: dropping receipt references lost actual mixed history external revision coverage, 2026-10-22.
+      for (const { from, to } of command.receipts)
+        for (const dependency of [from.dependency, to.dependency]) {
+          found.scopedEndpoints.push(dependency.predecessor, dependency.successor);
+        }
+      return;
     case 'add_typed_dependency':
     case 'remove_typed_dependency':
       found.scopedEndpoints.push(command.dependency.predecessor, command.dependency.successor);
@@ -1025,6 +1149,9 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
  */
 export function subjectOf(command: CompensatingCommand): CommandSubject {
   switch (command.do) {
+    case 'transition_incident_nodes':
+      // Proof: omission recorded null instead of the created child in the real plan event, 2026-10-22.
+      return subjectOf(command.structural);
     case 'set_estimate':
     case 'clear_estimate':
     case 'set_actual':
@@ -1248,4 +1375,23 @@ function readClaims(value: object): readonly object[] {
     checked.push(each);
   }
   return checked;
+}
+
+/** Exact derived structural mappings do not activate general external authoring. */
+export function requiresExternalAuthoring(command: CompensatingCommand): boolean {
+  switch (command.do) {
+    case 'transition_incident_nodes':
+      return requiresExternalAuthoring(command.structural);
+    case 'batch':
+      return command.steps.some(requiresExternalAuthoring);
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      return command.dependency.predecessor.projectId !== command.dependency.successor.projectId;
+    case 'update_typed_dependency':
+      return [command.from, command.to].some(
+        (dependency) => dependency.predecessor.projectId !== dependency.successor.projectId,
+      );
+    default:
+      return false;
+  }
 }

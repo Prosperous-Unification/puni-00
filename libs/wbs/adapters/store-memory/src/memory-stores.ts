@@ -42,6 +42,7 @@ import {
   memoryEstimateTable,
 } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
+import { bindIncidentDependencies } from './incident-dependency-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { inMemoryMeasures, type MemoryMeasureTable, memoryMeasureTable } from './measure-fixture';
 import {
@@ -146,6 +147,8 @@ function detachedStore<T extends object>(store: T): T {
   return new Proxy(store, {
     get(target, key, receiver) {
       const member: unknown = Reflect.get(target, key, receiver);
+      if (key === 'incidents' && typeof member === 'object' && member !== null)
+        return detachedStore(member);
       if (typeof member !== 'function') return structuredClone(member);
       return (...args: unknown[]): unknown => {
         const returned: unknown = Reflect.apply(member, target, args);
@@ -229,6 +232,8 @@ export class MemoryState {
     // Proof: omitting this copy left `commits all mixed-store writes together`
     // with no committed typed row; watched failing 2026-09-27.
     replaceArray(this.tables.typedDependencies.rows, next.tables.typedDependencies.rows);
+    // Proof: omission lost the creation receipt for a typed row committed through the real source UoW, 2026-10-22.
+    replaceMap(this.tables.typedDependencies.creation, next.tables.typedDependencies.creation);
     replaceMap(this.tables.workItems.byId, next.tables.workItems.byId);
     replaceMap(this.tables.workItems.teamsOf, next.tables.workItems.teamsOf);
     replaceMap(this.tables.workItems.tagsOf, next.tables.workItems.tagsOf);
@@ -303,7 +308,7 @@ export function bindStores(
     async usageOfPerson(personId) {
       return { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimsOf(personId) };
     },
-    async removePerson(personId, cascade, stamp) {
+    async removePerson(personId, cascade, stamp, reach) {
       const claimed = claimsOf(personId);
       // Proof: with this refusal removed, the memory certification's
       // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
@@ -314,7 +319,7 @@ export function bindStores(
           usage: { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimed },
         };
       }
-      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp);
+      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp, reach);
       if (!removed.ok) return removed;
       cascadeClaims(state.tables.claims, (each) => each.personId === personId);
       // Proof: without the claims' work items here, the memory
@@ -441,6 +446,7 @@ export function bindStores(
       members: [],
       claims: [],
       pinnedCredentials: 0,
+      machineCredentials: 0,
       capacityOf: new Map<string, number>(),
       workItems: rows.flat(),
       projects: projectIds.map((id) => {
@@ -452,7 +458,11 @@ export function bindStores(
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
-  const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
+  const typedFixture = inMemoryTypedDependencies([], state.tables.typedDependencies);
+  const typedDependencies = {
+    ...typedFixture,
+    incidents: bindIncidentDependencies(typedFixture.incidents, state),
+  };
   // Proof: a separate parallel table let source removal erase the step; mixed rollback tests failed, 2026-10-17.
   const tableSteps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
     table: state.tables.stepParallels,

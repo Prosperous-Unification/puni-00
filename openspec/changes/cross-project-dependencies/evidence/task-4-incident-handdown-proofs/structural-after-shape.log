@@ -1,0 +1,177 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+185 |     });
+186 |     const failure: unknown = await operation.then(
+187 |       (value) => value,
+188 |       (error: unknown) => error,
+189 |     );
+190 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    ok: true,
+  },
+  evidence: {
+    receipts: [
+      {
+        from: {
+          dependency: {
+            id: "incoming",
+            projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            predecessor: {
+              scope: "node",
+              workItemId: "b3199cbd-7fa7-4496-ba34-99b1a6d2b9f4",
+              stepId: "6cc90daa-f154-404f-9f80-bb83d474ee1f",
+              projectId: "35f82d3f-fa7c-4410-bce0-04e3b369189d",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "22ae4f34-6242-4151-ad22-50da8c993bcc",
+              stepId: "beb14f3d-4d25-4247-b7dc-58da9d6a05f7",
+              projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            },
+            type: "SS",
+          },
+          createdAt: 10,
+          createdBy: "c9c1caa7-84a5-4631-b670-61afb173a47c",
+        },
+        to: {
+          dependency: {
+            id: "incoming",
+            projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            predecessor: {
+              scope: "node",
+              workItemId: "b3199cbd-7fa7-4496-ba34-99b1a6d2b9f4",
+              stepId: "6cc90daa-f154-404f-9f80-bb83d474ee1f",
+              projectId: "35f82d3f-fa7c-4410-bce0-04e3b369189d",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "detached-child",
+              stepId: "beb14f3d-4d25-4247-b7dc-58da9d6a05f7",
+              projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            },
+            type: "SS",
+          },
+          createdAt: 10,
+          createdBy: "c9c1caa7-84a5-4631-b670-61afb173a47c",
+        },
+      }, {
+        from: {
+          dependency: {
+            id: "outgoing-1",
+            projectId: "202dac26-6556-41c9-b35e-6250ab2c310a",
+            predecessor: {
+              scope: "node",
+              workItemId: "22ae4f34-6242-4151-ad22-50da8c993bcc",
+              stepId: "beb14f3d-4d25-4247-b7dc-58da9d6a05f7",
+              projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "99e0eb5c-6661-442c-8685-8fc9cc4d0fbc",
+              stepId: "742bfe6b-4351-4be9-a752-4edcd29fdb6b",
+              projectId: "202dac26-6556-41c9-b35e-6250ab2c310a",
+            },
+            type: "FF",
+          },
+          createdAt: 10,
+          createdBy: "c9c1caa7-84a5-4631-b670-61afb173a47c",
+        },
+        to: {
+          dependency: {
+            id: "outgoing-1",
+            projectId: "202dac26-6556-41c9-b35e-6250ab2c310a",
+            predecessor: {
+              scope: "node",
+              workItemId: "detached-child",
+              stepId: "beb14f3d-4d25-4247-b7dc-58da9d6a05f7",
+              projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "99e0eb5c-6661-442c-8685-8fc9cc4d0fbc",
+              stepId: "742bfe6b-4351-4be9-a752-4edcd29fdb6b",
+              projectId: "202dac26-6556-41c9-b35e-6250ab2c310a",
+            },
+            type: "FF",
+          },
+          createdAt: 10,
+          createdBy: "c9c1caa7-84a5-4631-b670-61afb173a47c",
+        },
+      }, {
+        from: {
+          dependency: {
+            id: "outgoing-2",
+            projectId: "3bef2313-1a55-4132-91cd-18629f1945df",
+            predecessor: {
+              scope: "node",
+              workItemId: "22ae4f34-6242-4151-ad22-50da8c993bcc",
+              stepId: "beb14f3d-4d25-4247-b7dc-58da9d6a05f7",
+              projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "251a5cc9-0820-4af3-8b0d-cdfca4ecbc37",
+              stepId: "00440a28-b597-4e8a-8e46-1a9a8b068285",
+              projectId: "3bef2313-1a55-4132-91cd-18629f1945df",
+            },
+            type: "FS",
+          },
+          createdAt: 10,
+          createdBy: "c9c1caa7-84a5-4631-b670-61afb173a47c",
+        },
+        to: {
+          dependency: {
+            id: "outgoing-2",
+            projectId: "3bef2313-1a55-4132-91cd-18629f1945df",
+            predecessor: {
+              scope: "node",
+              workItemId: "detached-child",
+              stepId: "beb14f3d-4d25-4247-b7dc-58da9d6a05f7",
+              projectId: "a30cb0dd-b80f-4788-8d15-6b7306c529ff",
+            },
+            successor: {
+              scope: "node",
+              workItemId: "251a5cc9-0820-4af3-8b0d-cdfca4ecbc37",
+              stepId: "00440a28-b597-4e8a-8e46-1a9a8b068285",
+              projectId: "3bef2313-1a55-4132-91cd-18629f1945df",
+            },
+            type: "FS",
+          },
+          createdAt: 10,
+          createdBy: "c9c1caa7-84a5-4631-b670-61afb173a47c",
+        },
+      }
+    ],
+    externalBefore: [
+      {
+        projectId: "35f82d3f-fa7c-4410-bce0-04e3b369189d",
+        workItemId: "b3199cbd-7fa7-4496-ba34-99b1a6d2b9f4",
+        revision: 2,
+      }, {
+        projectId: "202dac26-6556-41c9-b35e-6250ab2c310a",
+        workItemId: "99e0eb5c-6661-442c-8685-8fc9cc4d0fbc",
+        revision: 2,
+      }, {
+        projectId: "3bef2313-1a55-4132-91cd-18629f1945df",
+        workItemId: "251a5cc9-0820-4af3-8b0d-cdfca4ecbc37",
+        revision: 2,
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:190:21)
+(fail) bound structural capability refuses detached-child instead of admitting an arbitrary node retarget [438.11ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [2.90s]

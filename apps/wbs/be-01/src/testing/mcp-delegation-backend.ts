@@ -12,9 +12,14 @@ import { writeMcpStoreFixture } from './mcp-store-fixture';
  * with a fresh delegation key pair and the RS256 upstream verifier the test's
  * JWKS (`MCP_TEST_JWKS_URL`) signs for. Prints `{"port":N}` once serving.
  *
- * Two fixture routes stand in for the operator: `/__fixture/activate` runs the
- * organization activation CLI and then adds a second organization holding a
- * new account, and `/__fixture/remove-member` removes one account's membership.
+ * Fixture routes stand in for the operator and the people page:
+ * `/__fixture/activate` runs the organization activation CLI and then adds a
+ * second organization holding a new account, `/__fixture/remove-member`
+ * removes one account's membership, `/__fixture/agent` adds an agent person
+ * to dany's organization bound to an account or to nobody,
+ * `/__fixture/revoke-consent` revokes a person's live consent credentials as
+ * the revoke route does, and `/__fixture/consents` lists the consent
+ * credentials (`wbs-machine-credentials` A20).
  */
 const jwksUrl = process.env['MCP_TEST_JWKS_URL'];
 const issuer = process.env['MCP_TEST_ISSUER'];
@@ -29,6 +34,7 @@ const backend = await BootedBrowserProcess.open(
   {
     ...new FakeOidcProvider().routeOptions(BOOTED_ORIGIN),
     verifier: new JwksTokenVerifier({ audience, issuer, jwksUri: new URL(jwksUrl) }),
+    issuer: () => Promise.resolve(trustedIssuer),
   },
   BOOTED_ORIGIN,
   undefined,
@@ -95,6 +101,32 @@ const server = Bun.serve({
       );
       return new Response(run.stdout.toString(), { status: 200 });
     }
+    if (request.method === 'POST' && path === '/__fixture/restrict-project') {
+      const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };
+      backend.sqlite.run('UPDATE project SET restricted = ?, owner_id = ? WHERE id = ?', [
+        restricted ? 1 : 0,
+        restricted ? 'u-grace' : 'u-dany',
+        id,
+      ]);
+      return Response.json({ id, restricted });
+    }
+    if (request.method === 'POST' && path === '/__fixture/write-state') {
+      const tables = [
+        'project',
+        'work_item',
+        'step',
+        'calendar_marker',
+        'command_journal',
+        'saved_plan',
+        'saved_plan_body',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ];
+      return Response.json(
+        tables.map((table) => backend.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
+      );
+    }
     if (request.method === 'POST' && path === '/__fixture/remove-member') {
       const { username } = (await request.json()) as { username: string };
       backend.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [
@@ -102,6 +134,44 @@ const server = Bun.serve({
       ]);
       return Response.json({ removed: username });
     }
+    if (request.method === 'POST' && path === '/__fixture/agent') {
+      const { id, account } = (await request.json()) as { id: string; account: string | null };
+      const organization = backend.sqlite
+        .query<{ organization_id: string }, []>(
+          "SELECT organization_id FROM organization_membership WHERE user_id = 'u-dany'",
+        )
+        .get();
+      if (organization === null) return new Response('dany has no organization', { status: 500 });
+      backend.sqlite.run(
+        "INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, 'agent', ?)",
+        [id, id, account === null ? null : `u-${account}`],
+      );
+      backend.sqlite.run(
+        'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+        [id, organization.organization_id, id],
+      );
+      return Response.json({ organizationId: organization.organization_id });
+    }
+    if (request.method === 'POST' && path === '/__fixture/revoke-consent') {
+      const { personId } = (await request.json()) as { personId: string };
+      const revoked = backend.sqlite.run(
+        "UPDATE machine_credential SET revoked_at = ? WHERE person_id = ? AND source = 'mcp_consent' AND revoked_at IS NULL",
+        [Date.now(), personId],
+      );
+      return Response.json({ revoked: revoked.changes });
+    }
+    if (request.method === 'GET' && path === '/__fixture/consents')
+      return Response.json(
+        backend.sqlite
+          .query(
+            "SELECT person_id AS personId, issued_by AS issuedBy, revoked_at AS revokedAt FROM machine_credential WHERE source = 'mcp_consent' ORDER BY created_at, id",
+          )
+          .all(),
+      );
+    if (request.method === 'GET' && path === '/__fixture/claims')
+      return Response.json(
+        backend.sqlite.query('SELECT person_id AS personId FROM claim ORDER BY person_id').all(),
+      );
     return backend.app.handle(request);
   },
 });

@@ -122,6 +122,29 @@ Dependency-affecting edits, tree and step mutations, dynamic anchor changes, und
 - **WHEN** its first child inherits that step through hand-down
 - **THEN** the relationship follows the same hand-down mapping and affected projects are invalidated together
 
+#### Scenario: Exact structural mapping can retain a restricted remote successor
+
+- **GIVEN** the actor can edit the structural project and currently read every required endpoint, including a restricted remote successor they cannot edit
+- **WHEN** a leaf gains its first child, or that exact structural change is undone or redone
+- **THEN** only incident node endpoints on that structural row follow the exact child mapping
+- **AND** relationship ID, successor ownership, type, scope, step and creation audit remain unchanged
+- **AND** one compound history entry belongs to the structural project; no remote entry is created or silently rebased
+- **AND** ordinary edits of the remote-owned relationship remain forbidden
+
+#### Scenario: Replay cannot overwrite changed incident evidence
+
+- **GIVEN** the structural command recorded exact original and mapped incident receipts and all remote endpoint revisions
+- **WHEN** an endpoint revision, relationship snapshot, required readable endpoint or exact incident set has changed
+- **THEN** replay refuses atomically, including a relationship type edit that did not bump endpoint revisions
+- **AND** missing or malformed trusted receipts are corruption rather than permission to capture a new mapping
+
+#### Scenario: Other authored scopes retain their attachment
+
+- **GIVEN** whole endpoints or ancestor descendant-step endpoints surround the leaf gaining a first child
+- **WHEN** its node endpoints are handed down
+- **THEN** those other scopes retain their authored work-item and step identities
+- **AND** adding a second child does not remap the first child's node endpoints again
+
 ### Requirement: Deleting an external prerequisite requires explicit relationship removal
 
 Deleting a project, work item or step that would remove an externally referenced predecessor SHALL refuse until affected relationships are removed or explicitly reassigned by authorized editors. Deleting a successor SHALL remove its owned incoming relationships in its existing undoable transaction. Internal-only deletion behavior SHALL remain unchanged.

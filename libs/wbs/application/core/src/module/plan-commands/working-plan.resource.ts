@@ -17,6 +17,8 @@ import { createWorkingPlanValues } from './working-plan-values.resource';
 /** One project's lazily retained reads, owned by one admitted command batch. */
 export interface WorkingPlan {
   readonly stores: PlanTransactionalStores;
+  /** Strictly reloads local identities after raw incident staging; never accepts remote rows. */
+  readonly refreshRows: (ids: readonly string[]) => Promise<void>;
   close(): void;
 }
 
@@ -309,6 +311,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       ),
     ]);
   const typedDependencies: TypedDependencyStore = {
+    get incidents(): TypedDependencyStore['incidents'] {
+      throw new Error('incident staging requires raw admitted stores');
+    },
     // Proof: removing the open check or requested-project checks separately made `passes typed links through the batch and refuses cross-project and closed access` resolve forbidden/closed incident calls (2026-10-22).
     listIncident: (requestedProjectIds) => {
       assertOpen();
@@ -644,6 +649,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
 
   return {
     stores,
+    refreshRows,
     close: () => {
       isClosed = true;
     },

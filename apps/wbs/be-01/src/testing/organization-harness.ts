@@ -2,7 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@wbs/auth';
+import {
+  buildOidcVerifier,
+  type IssuerFetch,
+  type KeySetFailureReport,
+  oidcCredentialEvidence,
+  type TokenVerifier,
+  trustedIssuerDiscovery,
+  TrustedIssuerKeySets,
+} from '@wbs/auth';
 import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   type CapacityModeSwitch,
@@ -38,6 +46,8 @@ import {
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialAdministrationRepository,
+  MachineCredentialRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
@@ -55,6 +65,7 @@ import {
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
   type SqliteSource,
+  TrustedIssuerAdministrationRepository,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
@@ -289,6 +300,13 @@ export class OrganizationHarness {
     return this.commandPrincipal(this.token(username), cookie);
   }
 
+  /** Verifies a machine key before a direct runner test queues its retained principal. */
+  authenticatedMachinePrincipal(key: string): Promise<AuthenticatedUser> {
+    if (this.commandPrincipal === undefined)
+      throw new Error('composed command principal fixture is absent');
+    return this.commandPrincipal(key, '');
+  }
+
   /** The actual core runner installed beside the mounted HTTP runner. */
   publicCommands(): PlanCommandRunner {
     if (this.composedCommands === undefined) throw new Error('composed commands are absent');
@@ -389,6 +407,7 @@ export class OrganizationHarness {
       users,
       identities: users,
       enterprise: new EnterpriseConnectionRepository(db, gate),
+      machineKeys: { credentials: new MachineCredentialRepository(db, gate), now },
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
       ...(upstreamCredential === undefined
@@ -524,6 +543,7 @@ export class OrganizationHarness {
         clock: { now },
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
+      machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -634,6 +654,7 @@ export class OrganizationHarness {
     sessionBinding,
     provider,
     upstreamCredential,
+    trustedIssuers,
     migrate = (path) => {
       runMigrations(path, FOLDER);
     },
@@ -667,7 +688,11 @@ export class OrganizationHarness {
         userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
       () => clock.now(),
     );
-    const commandAccess = new SqliteCommandAccess(source.db, organizationAccess);
+    const commandAccess = new SqliteCommandAccess(
+      source.db,
+      organizationAccess,
+      new MachineCredentialRepository(source.db, source.gate),
+    );
     const services = buildServices({
       source,
       clock,
@@ -677,6 +702,21 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch,
+      ...(now === undefined ? {} : { now }),
+      ...(trustedIssuers === undefined
+        ? {}
+        : {
+            trustedIssuers: {
+              tokens: new TrustedIssuerKeySets({
+                fetch: trustedIssuers.fetch,
+                report: trustedIssuers.report ?? (() => undefined),
+                ...(trustedIssuers.cooldownMs === undefined
+                  ? {}
+                  : { cooldownMs: trustedIssuers.cooldownMs }),
+              }),
+              configuredIssuer: () => Promise.resolve(trustedIssuers.configuredIssuer),
+            },
+          }),
       ...(provider === undefined
         ? {}
         : {
@@ -757,6 +797,16 @@ export class OrganizationHarness {
       ),
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
+      machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      ...(trustedIssuers === undefined
+        ? {}
+        : {
+            trustedIssuers: {
+              administration: new TrustedIssuerAdministrationRepository(source.db, services.gate),
+              discovery: trustedIssuerDiscovery({ fetch: trustedIssuers.fetch }),
+              configuredIssuer: () => Promise.resolve(trustedIssuers.configuredIssuer),
+            },
+          }),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
@@ -811,7 +861,7 @@ export class OrganizationHarness {
             objective: 'pri',
             inputHash,
             input,
-            scoped: { organizationId, actorId },
+            scoped: { organizationId, actorId, role: 'super_admin' },
           })
         ).kind;
       },
@@ -834,6 +884,7 @@ export class OrganizationHarness {
       async (token, cookie) => {
         const principal = await services.auth.authenticate(token);
         if (principal === null) throw new Error('command fixture token did not authenticate');
+        if (principal.authentication?.kind === 'machine') return principal;
         const credential = await organizationCredentialEvidence(services.auth, TEST_JWT_KEY)(
           token,
           principal,
@@ -1037,8 +1088,9 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
-  readonly now?: () => number;
   readonly sessionBinding?: boolean;
+  /** The services clock's time source; real time unless a test fixes it. */
+  readonly now?: () => number;
   withOptimizer?: boolean;
   /** Runs after organization access resolves, before the route acts. */
   afterResolve?: () => void;
@@ -1060,6 +1112,23 @@ export interface ComposedHarnessOptions {
    * `runMigrations` when absent. A rehearsal passes the operator's `migrate-cli.ts`.
    */
   migrate?: (dbPath: string) => void;
+  /**
+   * Turns the OIDC machine source on (`wbs-machine-credentials` slice 5), as
+   * `boot.ts` does: trusted issuer administration and the trusted-issuer
+   * verification path, both fetching through `fetch` (a test routes it to a
+   * local issuer). `configuredIssuer` is the sign-in issuer they refuse.
+   */
+  trustedIssuers?: HarnessTrustedIssuers;
+}
+
+/** What {@link ComposedHarnessOptions.trustedIssuers} wires. */
+export interface HarnessTrustedIssuers {
+  readonly fetch: IssuerFetch;
+  readonly configuredIssuer: string | null;
+  /** The key sets' unknown-`kid` refetch cooldown; production's 30 s when absent. */
+  readonly cooldownMs?: number;
+  /** Where an unfetchable key set is reported; nowhere when absent. */
+  readonly report?: KeySetFailureReport;
 }
 
 /**

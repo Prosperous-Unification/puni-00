@@ -23,7 +23,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { type ChainSnapshotOptions, readChainSnapshotIn } from './chain-snapshot';
 import type { Drizzle } from './db';
 import { OPEN } from './gate';
-import { validateStoredRole } from './organization-access';
+import { capStoredRole, validateStoredRole } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
@@ -87,7 +87,11 @@ export function authorizeImportIn(db: Drizzle): BeforeImport {
     if (membership === undefined) return Promise.resolve({ ok: false, reason: 'forbidden' });
     // Proof: replacing validation with admin let a queued malformed role
     // import return 201 instead of surfacing trusted corruption as 500.
-    const role = validateStoredRole(membership.role, organizationId);
+    // Proof: dropping this ceiling made borrowed viewer-import authority admit (2026-10-22).
+    const role = capStoredRole(
+      validateStoredRole(membership.role, organizationId),
+      access.scope.role,
+    );
     // Proof: admitting unconditionally let a queued viewer import return 201
     // instead of the typed 403, with writes and capture after demotion.
     return Promise.resolve(
@@ -125,7 +129,8 @@ export function authorizeProjectFanoutIn(
     const edit = classifyProjectEdit(project, {
       organizationId,
       userId: actorId,
-      role: validateStoredRole(membership.role, organizationId),
+      // Proof: dropping this ceiling made borrowed restricted-project and viewer-project authority admit (2026-10-22).
+      role: capStoredRole(validateStoredRole(membership.role, organizationId), access.scope.role),
     });
     return edit === 'refused' ? { ok: false, reason: 'forbidden' } : { ok: true };
   };
@@ -160,7 +165,8 @@ export function authorizeStepFanoutIn(
     const admitted = canEditProjectInOrganization(project, {
       organizationId,
       userId: actorId,
-      role: validateStoredRole(membership.role, organizationId),
+      // Proof: dropping this ceiling made borrowed viewer-step authority admit (2026-10-22).
+      role: capStoredRole(validateStoredRole(membership.role, organizationId), access.scope.role),
     });
     return admitted ? { ok: true } : { ok: false, reason: 'forbidden' };
   };

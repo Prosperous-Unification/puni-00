@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+491 |     if(key==='listIncident')return async(ids:readonly string[])=>(await target.listIncident(ids)).map((relationship)=>relationship.id!=='outgoing-1'?relationship:delivery==='wrong-owner'?{...relationship,projectId:fixture.owner.projectId}:{...relationship,predecessor:{...relationship.predecessor,projectId:fixture.successor.projectId}});
+492 |     const member:unknown=Reflect.get(target,key);return typeof member==='function'?(...args:unknown[]):unknown=>Reflect.apply(member,target,args):member;
+493 |   }})}));
+494 |   const failure:unknown=await operation.then((value)=>value,(error:unknown)=>error);
+495 |   expect(failure).toBeInstanceOf(Error);
+496 |   expect(failure instanceof Error?failure.message:'').toBe('incident enumeration returned inconsistent project ownership');
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "incident enumeration returned inconsistent project ownership"
+Received: "incident restoration cannot change identity or owner"
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:496:55)
+(fail) incident enumeration refuses wrong-owner delivery through the real scoped adapter boundary [546.46ms]
+491 |     if(key==='listIncident')return async(ids:readonly string[])=>(await target.listIncident(ids)).map((relationship)=>relationship.id!=='outgoing-1'?relationship:delivery==='wrong-owner'?{...relationship,projectId:fixture.owner.projectId}:{...relationship,predecessor:{...relationship.predecessor,projectId:fixture.successor.projectId}});
+492 |     const member:unknown=Reflect.get(target,key);return typeof member==='function'?(...args:unknown[]):unknown=>Reflect.apply(member,target,args):member;
+493 |   }})}));
+494 |   const failure:unknown=await operation.then((value)=>value,(error:unknown)=>error);
+495 |   expect(failure).toBeInstanceOf(Error);
+496 |   expect(failure instanceof Error?failure.message:'').toBe('incident enumeration returned inconsistent project ownership');
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "incident enumeration returned inconsistent project ownership"
+Received: "non-incident relationship outgoing-1 returned for a98ef7cf-befc-473f-a368-a39f086e52db"
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:496:55)
+(fail) incident enumeration refuses foreign-source-project delivery through the real scoped adapter boundary [377.03ms]
+
+ 0 pass
+ 10 filtered out
+ 2 fail
+ 26 expect() calls
+Ran 2 tests across 1 file. [3.27s]

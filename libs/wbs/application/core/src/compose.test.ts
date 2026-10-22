@@ -19,6 +19,7 @@ import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
 import { CREATOR_ADMISSION } from './ports/edit-admission';
+import { NO_MACHINE_CREDENTIALS } from './ports/machine-credentials';
 import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
@@ -233,6 +234,7 @@ test('accountless composition has no auth capability', () => {
       verify: () => Promise.resolve(null),
     },
     enterprise: NO_PROVEN_CONNECTIONS,
+    machineCredentials: NO_MACHINE_CREDENTIALS,
   };
   // Proof: relaxing the accountless runtime exclusion made core:typecheck fail
   // with TS2578 at this directive; the mismatched composition then compiled.
@@ -262,6 +264,7 @@ test('accountful composition exposes auth when its source and runtime both offer
         verify: () => Promise.resolve(null),
       },
       enterprise: NO_PROVEN_CONNECTIONS,
+      machineCredentials: NO_MACHINE_CREDENTIALS,
     },
     shared: fixtureShared,
   });

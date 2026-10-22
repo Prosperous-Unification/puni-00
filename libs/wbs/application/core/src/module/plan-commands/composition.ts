@@ -107,13 +107,16 @@ export function commandTransaction(
               assertObservation();
               if (projectId !== null && projectId !== authority.projectId)
                 throw new Error('retained project does not match dependency owner');
+              const workingPlan =
+                projectId === null ? undefined : createWorkingPlan(rawScope, projectId);
               const dependencies = createDependencyContext(
                 rawScope.stores,
                 authority,
                 assertObservation,
+                workingPlan === undefined
+                  ? { kind: 'raw' }
+                  : { kind: 'owner', refresh: workingPlan.refreshRows },
               );
-              const workingPlan =
-                projectId === null ? undefined : createWorkingPlan(rawScope, projectId);
               try {
                 return {
                   services: factory(
@@ -267,6 +270,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
             admission: NO_ADMISSION,
           },
           () => undefined,
+          { kind: 'raw' },
         );
         try {
           const decision = await act(

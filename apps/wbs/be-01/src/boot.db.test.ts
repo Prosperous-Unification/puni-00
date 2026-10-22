@@ -235,6 +235,7 @@ function oidcOptions(passwordLoginEnabled: boolean): OidcRouteOptions {
     tokens: new InMemoryTokenStore(),
     groupPrefix: 'dev',
     groupsClaim: 'wbs_groups',
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: { verify: () => Promise.reject(new errors.JOSEAlgNotAllowed('not an OIDC token')) },
     client: {
       authorizationUrl: () => Promise.resolve(new URL('https://idp.test/authorize')),
@@ -659,6 +660,112 @@ describe('bootBe01', () => {
     expect(listed?.status).toBe(200);
     expect(await listed?.json()).toMatchObject({ totalResults: 0, Resources: [] });
     expect((await list(`wbs_scim_${'D'.repeat(43)}`))?.status).toBe(401);
+  });
+
+  it('serves machine credential administration from the shared database once activated', async () => {
+    const dir = tempDir('wbs-machine-credential-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let administration: Parameters<typeof buildApp>[0]['machineCredentials'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        administration = options.machineCredentials;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (administration === undefined) throw new Error('boot did not wire machine credentials');
+    expect(
+      await administration.list('org-a', 'ada', { includeRevoked: false }, Date.now()),
+    ).toEqual([]);
+    expect(
+      await administration.list('org-a', 'nobody', { includeRevoked: false }, Date.now()),
+    ).toBe('forbidden');
+  });
+
+  it('serves trusted issuer administration from the shared database once activated', async () => {
+    const dir = tempDir('wbs-trusted-issuer-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let trusted: Parameters<typeof buildApp>[0]['trustedIssuers'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        trusted = options.trustedIssuers;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (trusted === undefined) throw new Error('boot did not wire trusted issuers');
+    expect(await trusted.administration.list('org-a', 'ada')).toEqual([]);
+    expect(await trusted.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await trusted.configuredIssuer()).toBeNull();
+  });
+
+  it("refuses a stranger issuer's JWT invalid_token once booted", async () => {
+    const dir = tempDir('wbs-trusted-issuer-token-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    let auth: Parameters<typeof buildApp>[0]['auth'] | undefined;
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        auth = options.auth;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (auth === undefined) throw new Error('boot did not wire authentication');
+    const { privateKey } = await generateKeyPair('RS256');
+    const token = await new SignJWT({ sub: 'repo:acme/wbs' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+      .setIssuer('https://stranger.example.test')
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    expect(await auth.authenticateOrRefuse(token)).toBe('invalid_token');
   });
 
   it('codes the steps an older writer left uncoded once it has migrated', async () => {

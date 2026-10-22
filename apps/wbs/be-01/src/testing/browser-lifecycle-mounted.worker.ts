@@ -168,6 +168,7 @@ const oidc = {
   random: () => 'unused-correlation',
   redirectUri: `${origin}/api/auth/okta/callback`,
   verifier,
+  issuer: () => Promise.resolve('https://idp.test'),
   browserLifecycle: lifecycle,
   tokens,
   transactions: new InMemoryOidcTransactionStore({ now: Date.now, ttlMs: 300_000 }),

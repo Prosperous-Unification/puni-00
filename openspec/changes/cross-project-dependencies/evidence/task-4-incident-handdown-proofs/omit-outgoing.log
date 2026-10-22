@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+132 |       .from(workItem)
+133 |       .where(eq(workItem.parentId, endpoint.workItemId))
+134 |       .limit(1)
+135 |       .get();
+136 |     if (endpoint.scope === 'node' && child !== undefined) {
+137 |       throw new Error(
+                      ^
+error: typed dependency outgoing names a node of 67c44bfc-ea8c-4fb6-be01-15ce9aaf5dfd, a parent
+      at assertEndpointsHeld (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:137:17)
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:371:34)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:365:17)
+      at async <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:363:23)
+      at async <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/service/incident-node-transition.ts:207:50)
+      at async <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2350:39)
+      at async withDependencyContext (/tmp/puni-incident-handdown/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)
+(fail) actual first child hands an outgoing node to its child and undo redo preserves the remote row [427.18ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [2.59s]

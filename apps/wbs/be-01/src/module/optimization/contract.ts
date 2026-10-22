@@ -4,6 +4,7 @@ import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { ProjectEvent } from '@wbs/core/ports/project-event';
 import type { RecordedEvent } from '@wbs/core/ports/recorded-event';
 import type { OptimizationVariantState } from '@wbs/core/ports/scheduler';
+import type { OrganizationRole } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -292,7 +293,11 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly ownerId: string;
     readonly now: number;
     readonly attemptToken: () => string;
-    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+    readonly scoped?: {
+      readonly organizationId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    };
   }): Promise<CommittedDecision<OptimizationRetryDecision>>;
   /** Commit the outcome and event before returning downstream envelopes; slot release is separate. */
   recordOutcome(

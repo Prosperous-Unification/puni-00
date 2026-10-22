@@ -1,3 +1,4 @@
+import type { AuthenticationRefusal } from '@wbs/core/module/authentication/authentication.feature';
 import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { decodeJwt, errors } from 'jose';
 
@@ -87,6 +88,10 @@ export function identityResolver(
     // A verified machine token no account is linked to (`wbs-team-claims` D6b).
     if (principal === 'unknown_identity')
       return { ok: false, status: 401, body: { error: 'unknown_identity' } };
+    // A JWT of no trusted issuer, or one its trusted issuer's key set does
+    // not verify (`wbs-machine-credentials` A13 step 5).
+    if (principal === 'invalid_token')
+      return { ok: false, status: 401, body: { error: 'invalid_token' } };
     let requestPrincipal = principal;
     if (credentialEvidence !== undefined && principal.delegation === undefined) {
       const credential = bearerContextCredential(request.headers);
@@ -128,7 +133,7 @@ async function delegatedOrSession(
   auth: AuthService,
   delegation: DelegationVerifier,
   headers: Headers,
-): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
   const flat = Object.fromEntries(headers.entries());
   const bearer = headers.get('authorization');
   const presented = bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null;

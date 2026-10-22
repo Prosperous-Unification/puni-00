@@ -5,6 +5,7 @@ import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition
 import { afterEach, describe, expect, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
+import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
@@ -461,3 +462,310 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
     ).not.toBeNull();
   });
 }
+
+const credentialFaults = [
+  'missing',
+  'revoked',
+  'person',
+  'account',
+  'unbound',
+  'organization',
+  'source',
+  'family',
+  'direct-consent',
+  'no-context',
+] as const;
+
+for (const kind of ['machine', 'consent'] as const)
+  for (const fault of credentialFaults) {
+    if (kind === 'machine' && (fault === 'family' || fault === 'direct-consent')) continue;
+    test(`${kind} direct runner refuses current credential ${fault} before capture`, async () => {
+      const fixture = await open();
+      addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
+      addAgentPerson(harness.sqlite, 'other-agent', 'org-a', harness.userId('ada'));
+      const credential = await issueApiKey(harness.sqlite, {
+        organizationId: 'org-a',
+        personId: 'agent',
+        issuedBy: harness.userId('ada'),
+      });
+      const authenticated = await harness.authenticatedMachinePrincipal(credential.key);
+      const principal =
+        kind === 'machine'
+          ? authenticated
+          : {
+              ...authenticated,
+              authentication: {
+                kind: 'consent' as const,
+                credentialId: credential.id,
+                personId: 'agent',
+                issuer: 'https://issuer.test',
+                subject: 'ada',
+              },
+              delegation: {
+                organizationId: 'org-a',
+                audience: 'wbs-be-01/via-mcp-01' as const,
+                client: 'client',
+                grant: 'family',
+              },
+            };
+      if (kind === 'consent')
+        harness.sqlite.run(
+          "UPDATE machine_credential SET source='mcp_consent',mcp_family_id='family' WHERE id=?",
+          [credential.id],
+        );
+      harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
+      switch (fault) {
+        case 'missing':
+          harness.sqlite.run('DELETE FROM machine_credential_secret WHERE credential_id=?', [
+            credential.id,
+          ]);
+          harness.sqlite.run('DELETE FROM machine_credential WHERE id=?', [credential.id]);
+          break;
+        case 'revoked':
+          harness.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [
+            credential.id,
+          ]);
+          break;
+        case 'person':
+          harness.sqlite.run("UPDATE machine_credential SET person_id='other-agent' WHERE id=?", [
+            credential.id,
+          ]);
+          break;
+        case 'account':
+          await harness.register('other');
+          harness.sqlite.run("UPDATE person SET account_id=? WHERE id='agent'", [
+            harness.userId('other'),
+          ]);
+          break;
+        case 'unbound':
+          harness.sqlite.run("UPDATE person SET account_id=NULL WHERE id='agent'");
+          break;
+        case 'organization':
+          harness.sqlite.run("UPDATE machine_credential SET organization_id='org-b' WHERE id=?", [
+            credential.id,
+          ]);
+          break;
+        case 'source':
+          harness.sqlite.run('UPDATE machine_credential SET source=? WHERE id=?', [
+            kind === 'machine' ? 'mcp_consent' : 'api_key',
+            credential.id,
+          ]);
+          break;
+        case 'family':
+          harness.sqlite.run("UPDATE machine_credential SET mcp_family_id='other' WHERE id=?", [
+            credential.id,
+          ]);
+          break;
+        case 'direct-consent':
+          principal.delegation = { organizationId: 'org-a', audience: 'wbs-be-01/direct' };
+          break;
+        case 'no-context':
+          delete principal.delegation;
+          break;
+      }
+      const before = effects();
+      refusingObservations = true;
+      expect(
+        await harness.publicCommands().runWithin(fixture.projectId, principal, [], {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+        }),
+      ).toEqual({ ok: false, refusal: 'organization_context_changed' });
+      expect(effects()).toEqual(before);
+    });
+  }
+
+for (const operation of [
+  'batch',
+  'directory',
+  'undo',
+  'redo',
+  'prelude',
+  'ordinary',
+  'recovery',
+] as const)
+  test(`machine ${operation} refuses revocation queued after request resolution`, async () => {
+    const fixture = await open();
+    addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
+    const credential = await issueApiKey(harness.sqlite, {
+      organizationId: 'org-a',
+      personId: 'agent',
+      issuedBy: harness.userId('ada'),
+    });
+    let release!: () => void;
+    let resolved!: () => void;
+    let held: Promise<void> | undefined;
+    const ready = new Promise<void>((resolve) => {
+      resolved = resolve;
+    });
+    afterResolve = () => {
+      afterResolve = undefined;
+      held = harness.holdWriteTurn(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+        resolved,
+      );
+    };
+    const pending = harness.callWith(
+      credential.key,
+      operation === 'prelude' || operation === 'ordinary'
+        ? 'PATCH'
+        : operation === 'recovery'
+          ? 'DELETE'
+          : 'POST',
+      operation === 'directory'
+        ? '/api/directory/commands'
+        : operation === 'prelude'
+          ? `${fixture.path}/steps/${fixture.stepId}`
+          : operation === 'ordinary'
+            ? fixture.path
+            : operation === 'recovery'
+              ? `${fixture.path}/steps/${fixture.stepId}?cascade=true`
+              : `${fixture.path}/${operation === 'batch' ? 'commands' : operation}`,
+      operation === 'batch'
+        ? { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Queued' }] }
+        : operation === 'directory'
+          ? { commands: [{ kind: 'createTeam', name: 'Queued' }] }
+          : operation === 'prelude'
+            ? { name: 'Queued', allowancePercent: 10 }
+            : operation === 'ordinary'
+              ? { name: 'Queued' }
+              : undefined,
+    );
+    await ready;
+    try {
+      harness.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [credential.id]);
+      const before = effects();
+      refusingObservations = true;
+      release();
+      await held;
+      const response = await pending;
+      expect(response.status).toBe(409);
+      expect(response.body).toEqual({ error: 'organization_context_changed' });
+      expect(effects()).toEqual(before);
+      expect(prematurePushes).toBe(0);
+    } finally {
+      release();
+      await held;
+    }
+  }, 15_000);
+
+for (const kind of ['machine', 'consent'] as const)
+  for (const operation of ['batch', 'directory', 'undo', 'redo', 'prelude'] as const)
+    test(`${kind} retained ${operation} refuses revocation while waiting on the writer`, async () => {
+      const fixture = await open();
+      addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
+      const credential = await issueApiKey(harness.sqlite, {
+        organizationId: 'org-a',
+        personId: 'agent',
+        issuedBy: harness.userId('ada'),
+      });
+      const principal = await harness.authenticatedMachinePrincipal(credential.key);
+      if (kind === 'consent') {
+        harness.sqlite.run(
+          "UPDATE machine_credential SET source='mcp_consent',mcp_family_id='family' WHERE id=?",
+          [credential.id],
+        );
+        principal.authentication = {
+          kind: 'consent',
+          credentialId: credential.id,
+          personId: 'agent',
+          issuer: 'https://issuer.test',
+          subject: 'ada',
+        };
+        principal.delegation = {
+          organizationId: 'org-a',
+          audience: 'wbs-be-01/via-mcp-01',
+          client: 'client',
+          grant: 'family',
+        };
+      }
+      const access = {
+        kind: 'scoped' as const,
+        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' as const },
+      };
+      const runner = harness.publicCommands();
+      expect(await runner.runWithin(fixture.projectId, principal, [], access)).toMatchObject({
+        ok: true,
+      });
+      let release!: () => void;
+      let entered!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const held = harness.holdWriteTurn(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+        entered,
+      );
+      await ready;
+      const pending =
+        operation === 'directory'
+          ? runner.runDirectoryWithin(principal, [], access)
+          : operation === 'undo'
+            ? runner.undoWithin(fixture.projectId, principal, access)
+            : operation === 'redo'
+              ? runner.redoWithin(fixture.projectId, principal, access)
+              : operation === 'prelude'
+                ? runner.runAfterWithin(
+                    fixture.projectId,
+                    principal,
+                    () => {
+                      throw new Error('revoked credential reached prelude');
+                    },
+                    [],
+                    access,
+                  )
+                : runner.runWithin(fixture.projectId, principal, [], access);
+      try {
+        harness.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [
+          credential.id,
+        ]);
+        const before = effects();
+        refusingObservations = true;
+        release();
+        await held;
+        expect(await pending).toEqual({ ok: false, refusal: 'organization_context_changed' });
+        expect(effects()).toEqual(before);
+        expect(prematurePushes).toBe(0);
+      } finally {
+        release();
+        await held;
+      }
+    });
+
+for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation'] as const)
+  test(`machine direct runner throws on trusted credential ${fault}`, async () => {
+    const fixture = await open();
+    addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('ada'));
+    const credential = await issueApiKey(harness.sqlite, {
+      organizationId: 'org-a',
+      personId: 'agent',
+      issuedBy: harness.userId('ada'),
+    });
+    const principal = await harness.authenticatedMachinePrincipal(credential.key);
+    harness.sqlite.run('PRAGMA ignore_check_constraints=ON');
+    if (fault === 'absent-table')
+      harness.sqlite.run('ALTER TABLE machine_credential RENAME TO credential_away');
+    else if (fault === 'unreadable-table') {
+      harness.sqlite.run('ALTER TABLE machine_credential RENAME TO credential_away');
+      harness.sqlite.run('CREATE VIEW machine_credential AS SELECT * FROM missing_credentials');
+    } else if (fault === 'source')
+      harness.sqlite.run("UPDATE machine_credential SET source='broken'");
+    else harness.sqlite.run("UPDATE machine_credential SET revoked_at='broken'");
+    const before = effects();
+    const failure = await harness
+      .publicCommands()
+      .runWithin(fixture.projectId, principal, [], {
+        kind: 'scoped',
+        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+      })
+      .then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+    expect(failure).toBeInstanceOf(Error);
+    expect(effects()).toEqual(before);
+  });

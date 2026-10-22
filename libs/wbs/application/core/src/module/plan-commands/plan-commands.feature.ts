@@ -1,5 +1,5 @@
 import type { PlanCommandKind } from '@wbs/contracts';
-import { type AuthenticatedUser, type CredentialPair, credentialPairOf } from '@wbs/contracts';
+import { type AuthenticatedUser, type CredentialPin, credentialPinOf } from '@wbs/contracts';
 import type { ExecutionPrerequisite, ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
@@ -417,7 +417,7 @@ export class PlanCommandRunner {
       return { ok: false, error: 'insufficient_scope' };
     const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
     const credential =
-      caller.kind === 'human' ? credentialPairOf(caller.principal.authentication) : null;
+      caller.kind === 'human' ? credentialPinOf(caller.principal.authentication) : null;
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     // Proof: reusing a constructor-owned collector made compose.test.ts receive
@@ -714,7 +714,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);

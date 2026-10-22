@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/undo.db.test.ts:
+104 |   // made the main live-tree caller resolve instead of refusing its absent
+105 |   // predecessor; both watched 2026-10-13.
+106 |   for (const dependency of state.legacy) {
+107 |     for (const endpoint of [dependency.predecessorId, dependency.successorId]) {
+108 |       if (!rowIds.has(endpoint))
+109 |         throw new Error(`legacy dependency names absent work item ${endpoint}`);
+                        ^
+error: legacy dependency names absent work item 1d8fa132-5d06-4f5b-822a-c9feffa8f5d4
+      at prepareDependencyGraph (/tmp/puni-incident-baseline/libs/wbs/application/core/src/service/dependency-graph.ts:109:19)
+      at resolveDependencyGraphContext (/tmp/puni-incident-baseline/libs/wbs/application/core/src/service/dependency-graph.ts:86:8)
+      at map (1:11)
+      at resolveConnectedDependencyGraph (/tmp/puni-incident-baseline/libs/wbs/application/core/src/service/connected-dependency-graph.ts:77:30)
+      at findCycle (/tmp/puni-incident-baseline/libs/wbs/application/core/src/service/dependency-graph.ts:215:37)
+      at async <anonymous> (/tmp/puni-incident-baseline/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1450:43)
+      at async <anonymous> (/tmp/puni-incident-baseline/libs/wbs/application/core/src/service/dependency-context.ts:166:29)
+(fail) restoring the edges that left the branch > restores the branch without an edge whose other end has gone, and says so [427.22ms]
+
+ 0 pass
+ 99 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [5.84s]

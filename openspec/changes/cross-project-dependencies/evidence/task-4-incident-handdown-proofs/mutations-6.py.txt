@@ -1,0 +1,10 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-incident-handdown');target=root/'libs/wbs/application/core/src/service/compensating.ts';original=target.read_text();summary=[]
+for name,old,new,pattern in [('receipt-created-at',"        !('createdAt' in candidate) ||\n        !(\n          candidate.createdAt === null ||\n          (typeof candidate.createdAt === 'number' && Number.isSafeInteger(candidate.createdAt))\n        ) ||",'        false ||','missing-created-at'),('receipt-direction',"        !('from' in candidate) ||",'        false ||','missing-receipt-direction')]:
+ try:
+  if old not in original:raise ValueError('missing anchor')
+  target.write_text(original.replace(old,new,1));run=subprocess.run(['bun','test','./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts','-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=40)
+  Path('/tmp/puni-incident-handdown-evidence/'+name+'.log').write_text(run.stdout);summary.append({'name':name,'exit':run.returncode,'status':'CAUGHT' if run.returncode else 'SURVIVED','pattern':pattern});print(name,run.returncode,flush=True)
+ finally:target.write_text(original)
+Path('/tmp/puni-incident-handdown-evidence/mutation-summary-6.json').write_text(json.dumps(summary,indent=2)+'\n')

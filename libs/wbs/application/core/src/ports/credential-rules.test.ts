@@ -60,6 +60,33 @@ describe('the credential rules', () => {
     ).toBeNull();
   });
 
+  it('refuses a consent delegation whose human signed in outside the enforced connection, and admits one inside it', () => {
+    const consent = (subject: string) =>
+      ({
+        authentication: {
+          kind: 'consent',
+          issuer: 'https://idp.test/',
+          subject,
+          credentialId: 'credential-claire',
+          personId: 'claire',
+        },
+        delegated: true,
+      }) as const;
+    expect(credentialRuleRefusal('org-a', enforcing, consent(sso.subject), 1)).toBeNull();
+    expect(credentialRuleRefusal('org-a', enforcing, consent(social.subject), 1)?.refusal).toBe(
+      'sso_required',
+    );
+    // Unlike a headless machine (A10), a consent is still judged by its session policy.
+    expect(
+      credentialRuleRefusal(
+        'org-a',
+        { ...none, policy: { maxSessionSeconds: 60, reauthenticateAfterSeconds: null } },
+        consent(sso.subject),
+        1,
+      )?.refusal,
+    ).toBe('reauthentication_required');
+  });
+
   describe('under a session policy', () => {
     const facts = (lifecycle: CredentialRuleFacts['lifecycle']): CredentialRuleFacts => ({
       ...none,

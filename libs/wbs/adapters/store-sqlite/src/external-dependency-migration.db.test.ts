@@ -585,3 +585,104 @@ it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
     );
   },
 );
+
+it('incident detach and restore preserve null creation audit and bump the completed endpoint union once', async () => {
+  const repo = repository();
+  const original: StoredTypedDependency = {
+    ...link(),
+    predecessor: { projectId: 'a', workItemId: 'a', scope: 'node', stepId: 'a' },
+  };
+  await repo.add(original, stamp);
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run('UPDATE external_dependency SET created_at=NULL,created_by=NULL');
+    const before = stored('SELECT id,revision FROM work_item ORDER BY id');
+    const receipt = await repo.incidents.capture(original.id);
+    expect(receipt).toEqual({ dependency: original, createdAt: null, createdBy: null });
+    await repo.incidents.detach(receipt);
+    expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before);
+    sqlite.run(
+      "INSERT INTO work_item(id,project_id,parent_id,position,name,revision) VALUES ('child','a','a',1,'child',0)",
+    );
+    const mapped = { ...original, predecessor: { ...original.predecessor, workItemId: 'child' } };
+    await repo.incidents.restore({ ...receipt, dependency: mapped }, original, { at: 4, by: 'u' });
+    expect(await repo.listIncident(['a'])).toEqual([mapped]);
+    expect(stored('SELECT created_at,created_by,updated_at FROM external_dependency')).toEqual([
+      { created_at: null, created_by: null, updated_at: 4 },
+    ]);
+    expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual([
+      { id: 'a', revision: 2 },
+      { id: 'b', revision: 2 },
+      { id: 'b2', revision: 0 },
+      { id: 'c', revision: 0 },
+      { id: 'child', revision: 1 },
+    ]);
+    const inverse = await repo.incidents.capture(original.id);
+    await repo.incidents.detach(inverse);
+    sqlite.run("DELETE FROM work_item WHERE id='child'");
+    await repo.incidents.restore(receipt, mapped, { at: 5, by: 'u' });
+    expect(await repo.listIncident(['a'])).toEqual([original]);
+    expect(stored('SELECT created_at,created_by,updated_at FROM external_dependency')).toEqual([
+      { created_at: null, created_by: null, updated_at: 5 },
+    ]);
+  } finally {
+    sqlite.close();
+  }
+});
+
+it('incident detach refuses changed relationship evidence before deleting it', async () => {
+  const repo = repository();
+  await repo.add(link(), stamp);
+  const receipt = await repo.incidents.capture('external');
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run("UPDATE external_dependency SET type='SS'");
+  } finally {
+    sqlite.close();
+  }
+  const before = stored('SELECT * FROM external_dependency');
+  expect(await rejection(repo.incidents.detach(receipt))).toContain('incident receipt changed');
+  expect(stored('SELECT * FROM external_dependency')).toEqual(before);
+});
+
+for (const fault of ['identity', 'owner'] as const)
+  it(`incident restore refuses changing ${fault} before writing any row`, async () => {
+    const repo = repository();
+    const original = link();
+    await repo.add(original, stamp);
+    const receipt = await repo.incidents.capture(original.id);
+    await repo.incidents.detach(receipt);
+    const dependency =
+      fault === 'identity'
+        ? { ...original, id: 'replacement' }
+        : {
+            ...original,
+            projectId: 'a',
+            predecessor: original.successor,
+            successor: original.predecessor,
+          };
+    const before = stored('SELECT id,revision FROM work_item ORDER BY id');
+    expect(
+      await rejection(
+        repo.incidents.restore({ ...receipt, dependency }, original, { at: 5, by: 'u' }),
+      ),
+    ).toContain('incident restoration cannot change identity or owner');
+    expect(stored('SELECT * FROM external_dependency')).toEqual([]);
+    expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before);
+  });
+
+it('incident restore refuses a reused physical identity before writing revisions', async () => {
+  const repo = repository();
+  const original = link();
+  await repo.add(original, stamp);
+  const receipt = await repo.incidents.capture(original.id);
+  await repo.incidents.detach(receipt);
+  await repo.add({ ...original, type: 'SS' }, { at: 3, by: 'u' });
+  const before = stored('SELECT * FROM external_dependency');
+  const revisions = stored('SELECT id,revision FROM work_item ORDER BY id');
+  expect(await rejection(repo.incidents.restore(receipt, original, { at: 4, by: 'u' }))).toContain(
+    'incident dependency external already exists',
+  );
+  expect(stored('SELECT * FROM external_dependency')).toEqual(before);
+  expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(revisions);
+});

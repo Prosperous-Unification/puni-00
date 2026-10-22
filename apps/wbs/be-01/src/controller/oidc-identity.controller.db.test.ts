@@ -229,6 +229,7 @@ describe('the OIDC callback after activation', () => {
       now: () => now,
       random: () => 'session-1',
       redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
+      issuer: () => Promise.resolve('https://idp.test'),
       verifier: {
         verify: (token: string) => {
           const known = accessClaims.get(token);

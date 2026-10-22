@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+299 |         'missing-relationship',
+300 |         'both-receipt-types',
+301 |         'both-receipt-audits',
+302 |       ].includes(corruption)
+303 |     ) {
+304 |       expect(outcome).toMatchObject({ ok: false, reason: 'stale_undo' });
+                            ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "stale_undo",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "add “Guarded child”",
++   },
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:304:23)
+(fail) compound undo refuses missing-relationship atomically after an earlier patch [620.21ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [2.77s]
