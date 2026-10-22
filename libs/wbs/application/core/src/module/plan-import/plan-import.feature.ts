@@ -1,5 +1,5 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
-import { attemptOf, canWriteInOrganization } from '@wbs/domain';
+import { attemptOf, canWriteInOrganization, type LimitCrossed } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
@@ -53,13 +53,22 @@ export interface ImportForbidden {
   detail: null;
 }
 
+/**
+ * The import would make the organization hold more agent persons than its cap
+ * allows (`wbs-organization-limits` L9): `added` is every agent the import
+ * would create, counted once, and nothing is written.
+ */
+export type ImportLimitRefusal = { ok: false; code: 'agent_person_limit' } & LimitCrossed;
+
 export type ImportOutcome =
   | ImportAdmission
   | ImportSourceRefusal
   | ImportForbidden
+  | ImportLimitRefusal
   | Extract<ImportPreparation, { ok: false }>;
 
-type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal | ImportForbidden;
+type AdmittedImportOutcome =
+  ImportAdmission | ImportSourceRefusal | ImportForbidden | ImportLimitRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -194,6 +203,27 @@ export class ImportService {
           directory.listWithin('resources', access),
         ]);
         const prepared = preparation.value;
+        // Every agent the import would create, against the cap once and before
+        // anything is created: the import is all or none (L9), and a name the
+        // organization already holds keeps its own kind, so it adds nothing.
+        // Proof, each watched 2026-10-22 in agent-person-limit.controller.db.test.ts:
+        // with this whole-import check removed, `refuses an import of three
+        // agents at 6 of 8, writing nothing` answered 500 from the third
+        // agent's own refusal in `addPersonWithin` instead of 409 with added 3;
+        // counting the file's agents the organization already holds made
+        // `imports at the cap when every agent of the file is already held`
+        // refuse (11 pass, 1 fail each).
+        const heldPersonNames = new Set(people.map(({ name }) => name));
+        const addedAgents = new Set(
+          [...prepared.personByFileId.values()]
+            .filter((person) => person.kind === 'agent' && !heldPersonNames.has(person.name))
+            .map(({ name }) => name),
+        ).size;
+        if (addedAgents > 0) {
+          const crossed = await directory.refuseAgentPersonsWithin(access, addedAgents);
+          if (crossed !== null)
+            return { commit: false, value: { ok: false, code: 'agent_person_limit', ...crossed } };
+        }
         const created = {
           services: createdNames(prepared.serviceByFileId, services),
           teams: createdNames(prepared.teamByFileId, teams),

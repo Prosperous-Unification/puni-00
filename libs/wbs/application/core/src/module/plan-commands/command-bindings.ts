@@ -219,6 +219,12 @@ export class CommandContext {
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
+    if (outcome.reason === 'agent_person_limit') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { cap: outcome.cap, current: outcome.current, added: outcome.added },
+      });
+    }
     if (outcome.reason === 'in_use') {
       // Proof: with the counts dropped here, `refuses removing a demanded resource,
       // naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)

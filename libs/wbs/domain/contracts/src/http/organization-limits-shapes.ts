@@ -4,6 +4,13 @@ import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { responseSchema } from './schema-shape';
 
+/**
+ * The fields every organization limit refusal carries beside its code
+ * (`wbs-organization-limits` L9): the cap, what the organization held and
+ * what the refused write would have added.
+ */
+export const limitCrossed = { cap: 'number', current: 'number', added: 'number' } as const;
+
 /** The three caps (`wbs-organization-limits` L1), each a whole number from 0 to 1,000,000. */
 const organizationLimitValues = type({
   maxAgentPersons: 'number',

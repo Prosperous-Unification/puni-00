@@ -7,6 +7,7 @@ export const PORT_NAMES = [
   'projectRanks',
   'users',
   'directory',
+  'organizationLimits',
   'capacity',
   'resourceCapacity',
   'priorityBands',
@@ -57,6 +58,9 @@ export const CASE_MANIFEST = {
     'directory.addResource:taken',
     'directory.removeResource:in-use-cascade',
   ],
+  // No case yet: the memory twin and its conformance cases are slice 3 of
+  // `wbs-organization-limits`; the SQLite gauge is proven by its own tests.
+  organizationLimits: [],
   capacity: [
     'capacity.set:project-team-key',
     'capacity.set:clear',

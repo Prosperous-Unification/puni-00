@@ -338,7 +338,15 @@ export async function bootBe01(
       // test report `Expected: 1`, `Received: 0` source closes (0 pass, 1 fail).
       source: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (): OwnedSource => dependencies.openSource({ dbPath: opts.dbPath }),
+          // Proof: omitting the defaults here made `enforces the agent person
+          // cap with the configured defaults once activated` (boot.db.test.ts)
+          // throw "an agent person was added under scoped access without
+          // organization limits"; watched 2026-10-22.
+          (): OwnedSource =>
+            dependencies.openSource({
+              dbPath: opts.dbPath,
+              organizationDefaultLimits: opts.organizationDefaultLimits,
+            }),
           { factoryReturnKind: 'sync-value' },
         ),
         // Proof: on 2026-09-20, swallowing this refusal produced no cleanup

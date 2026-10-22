@@ -1,4 +1,4 @@
-import type { OrganizationLimits } from '@wbs/core';
+import type { CapReading, OrganizationLimitGauge, OrganizationLimits } from '@wbs/core';
 import {
   isOrganizationLimit,
   type OrganizationLimitsReading,
@@ -263,5 +263,31 @@ export class OrganizationLimitsRepository implements OrganizationLimits {
         },
       };
     });
+  }
+}
+
+/**
+ * {@link OrganizationLimitGauge} over the shared database: plain reads on the
+ * process's one connection, inside whatever transaction its caller holds. The
+ * source installs it among the stores a batch is admitted with, so a batch
+ * reads its count in its own `BEGIN IMMEDIATE` under its write turn (L10).
+ */
+export class OrganizationLimitGaugeRepository implements OrganizationLimitGauge {
+  private readonly defaults: OrganizationLimitValues;
+
+  /** @throws when `defaults` are outside the bounds an organization may hold. */
+  constructor(
+    private readonly db: SQLiteBunDatabase,
+    defaults: OrganizationLimitValues,
+  ) {
+    this.defaults = checkedLimits(defaults, 'the deployment default');
+  }
+
+  async readAgentPersonCap(organizationId: string): Promise<CapReading> {
+    await Promise.resolve();
+    return {
+      cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits.maxAgentPersons,
+      current: countAgentPersons(this.db, organizationId),
+    };
   }
 }

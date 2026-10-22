@@ -185,6 +185,16 @@ describe('importRefusalSentence', () => {
     }
   });
 
+  it('names the organization limit with the refusal’s own numbers', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({ error: 'agent_person_limit', cap: 8, current: 6, added: 3 }),
+      ),
+    ).toBe(
+      'Organization limit: this plan would add 3 agent persons to the 6 of 8 the organization holds, so nothing was imported.',
+    );
+  });
+
   it('falls back to a sentence that names nothing internal', () => {
     for (const message of [
       'http_502',

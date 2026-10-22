@@ -396,7 +396,7 @@ export const commandDefinitions = {
     }),
     scope: 'directory',
     description:
-      'Rename a person, change their teams or their kind, or bind them to the account that may act as them (accountId; null unbinds; organization admins only).',
+      'Rename a person, change their teams or their kind, or bind them to the account that may act as them (accountId; null unbinds; organization admins only). Making a person an agent past the organization’s cap on agent persons is refused agent_person_limit, naming cap, current and added; the whole batch writes nothing. Changing an agent back to a person, renaming or re-teaming never is.',
   }),
   deletePerson: defineCommand('deletePerson', {
     schema: type({ kind: "'deletePerson'", ...person, 'cascade?': 'boolean' }),
