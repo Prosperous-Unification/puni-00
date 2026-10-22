@@ -1107,3 +1107,43 @@ step name beside a non-null qualified node address. Two mounted red cases,
 40 restored packet/editor tests and an independent watched address-only mutation
 cover desktop/phone labels, details and stable navigation. Scoped check receipts
 and unchanged task 9.2 completion boundaries remain in the same packet.
+
+### Task 7.3/7.4 bounded durable optimizer contract foundation — 2026-10-22
+
+The [durable contract packet](evidence/task-7-durable-contracts/verify.md) adds
+strict versioned stage, success and boundary-certificate codecs plus exact
+question identity. An [independent Astra review](evidence/task-7-durable-contracts/independent-review.md)
+approved this bounded packet after 38 focused tests (849 assertions), two
+production-library typechecks and inspection of the 99 recorded mutation
+failures. On the integrated branch, the same 38 tests and full contracts
+TypeScript passed. A separate test-fixture correction at `37cfa290a` restored
+the full SQLite TypeScript build; five identity tests passed. Runtime SQL
+persistence, current-question admission, raw candidate publication, restart and
+Retry remain open, so tasks 7.3 and 7.4 stay unchecked.
+
+### Task 3.2 bounded dormant HTTP/MCP command parity — 2026-10-22
+
+The [command parity packet](evidence/external-command-parity/README.md) pins
+explicit scoped stable-ID validation, shared generated tool descriptions,
+legacy local aliases and equivalent dormant external refusals through booted
+HTTP and MCP. Its [independent Astra review](evidence/external-command-parity/independent-review.md)
+approved the bounded packet and inspected seven watched production-path fault
+receipts. At integrated head `eca2e15c0`, fresh shared/normalizer/publication
+runs passed 57 tests (392 assertions), booted HTTP/MCP passed 21 (698), and
+mounted controller regressions passed 127 (1,615). OpenSpec validated 268/268.
+External authoring remains inactive; successful mounted external writes,
+fanout/read-after-write, real calendar/optimizer outcomes and activation are
+still required. Task 3.2 remains unchecked.
+
+### Activation recovery contract correction — 2026-10-22
+
+[ADR 0057](../../../docs/adr/0057-cross-project-dependency-activation-is-monotone.md)
+and the delta specification now keep activation authority after the last live
+external row and distinguish attended post-exposure recovery from independently
+verified eligible dormant Kubernetes rollback. The former universal automatic
+migration-reversal task wording conflicted with the current Compose runbook.
+Independent Astra review accepted the corrected wording; strict validation of
+this change passed 1/1 with no issues, and normal repository-wide validation
+passed 268/268. Repository-wide strict validation still reports unrelated
+existing warnings. No runtime activation, deploy or host gate is claimed by
+this documentation correction.
