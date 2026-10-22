@@ -2394,3 +2394,68 @@ Watched negative: temporarily installed an `AFTER INSERT ON project` trigger imm
 All three runs used `bun test ./apps/wbs/be-01/src/controller/cross-project-import.controller.db.test.ts --timeout=30000 -t 'downloaded successor-owned'`. Logs: `/tmp/puni-v11-history-before-fix.log`, `/tmp/puni-v11-history-after-fix.log`, `/tmp/puni-v11-history-control.log`. The earlier preserved-link proof description is corrected above: the refusal comes from connected graph `addEffective` before typed persistence, not a late storage refusal.
 
 Follow-up validation: mounted import/export suites passed **12 tests / 117 assertions**. Uncached configured `nx run-many -t lint typecheck -p wbs-be-01 --parallel=1 --skipNxCache --outputStyle=static` passed lint, typecheck and the module prerequisite (1m 9s). OpenSpec validation passed with the same five existing long-requirement warnings; `git diff --check` passed. Frontend tests and host/full CI gates were not repeated for this backend-test/documentation-only correction.
+
+### Task 7.3/7.4 — detached connected optimization view prerequisite (2026-10-22)
+
+This bounded Slice A prerequisite adds `projectConnectedOptimization` to the
+actual `projectConnectedTree` producer as `optimizationView`. It does not attach
+the view to the public `PlanTree`, widen the local optimization union, install a
+connected source/runtime or enable external relationship authoring. Existing
+internal selections, stage bytes, history versions and final placement remain
+available unchanged. Tasks 7.3 and 7.4 remain unchecked.
+
+The real domain connected selection fixture visits A→B→C with distinct anchors,
+A/C optimized and B Fast. Both objective alternatives compare target-owned slices
+against their retained stage baseline. A retains C's captured common-axis start
+8 although final C starts at 6 (target-relative 4). Fast B stays at common-axis 5
+while its alternative compares at 3. Null generation remains null. Pending and
+boundary-infeasible retain dates without candidate comparisons; quantisation-floor
+compares the published baseline. Idle/disabled/unavailable views remain absent.
+Captured foreign project, row and step labels come from the same detached read.
+
+TDD: initial new producer suite was **0 pass / 6 fail** because the view was absent
+and foreign C labels were unchecked; after implementation **6 pass / 0 fail**.
+Expanded final producer suite: **10 pass / 0 fail**, 24 assertions.
+
+| Independent injected production fault                   | Watched failure before restoration                                         |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Replace actual tree producer projection call with null  | 9 failures: scope/comparison, terminal, floor and label refusal assertions |
+| Read fixed foreign starts from final combined placement | Mixed-engine scope assertion: C start 6 instead of captured 8              |
+| Remove target-only schedule filtering                   | Mixed-engine and floor finish/order assertions fail                        |
+| Remove null-label predicate                             | All 3 captured C project/row/step label refusals fail                      |
+| Remove undefined-label predicate                        | Deleted C project-name refusal fails                                       |
+| Default missing active stage to null                    | Active missing-stage assertion fails                                       |
+| Replace exact canonical stage bytes with empty string   | Retained stage descriptor assertion fails                                  |
+| Return retained variant objects by alias                | Consumer mutation changes a subsequent producer read's terminal state      |
+
+Each mutation ran `bun test
+libs/wbs/application/core/src/service/connected-optimization-view.test.ts`, exited 1,
+and was restored independently. These are actual detached producer-path proofs;
+**they do not prove a public HTTP producer→decoder path**.
+
+Fresh verification:
+
+- `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts libs/wbs/application/core/src/service/connected-tree.test.ts libs/wbs/application/core/src/service/connected-optimization.test.ts libs/wbs/application/core/src/service/connected-plan.test.ts`: **129 pass / 0 fail**, 314 assertions after restoring all faults.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck`:
+  succeeds, including required `typecheck:module`; no cache hits.
+- `./node_modules/.bin/openspec validate --all --json`: **268 passed / 0 failed**.
+
+- `bun test libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts libs/wbs/application/core/src/module/plan-document/connected-document.test.ts`:
+  **138 pass / 0 fail**, 376 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint`:
+  succeeds uncached. Initial changed-test lint found two unnecessary indexed-array
+  absence checks; using `.at(0)` makes their actual optional boundary explicit.
+
+The isolated clone reuses feature checkout dependencies through a node_modules
+symlink; a fresh frozen dependency installation was not performed. Initial Nx
+socket-restricted invocations did not execute targets; the explicit daemon/plugin
+settings above produced actual target commands and success output.
+
+Remaining Slice A work: closed local/connected public optimization union; public
+presentation attachment without local optimized selection; strict response,
+client and generated-client decoding of this actual payload; rejection of missing
+scope/certificate identity, mismatched target/stage and unknown connected union
+arms. The terminal-as-local and missing-public-scope R5 faults remain unverified.
+Frontend Slice B, installed C/D/E, solver execution, browser checks, full
+CI/build/secrets/migration checks and canonical host gate were not run by this
+prerequisite. No release or activation claim follows.

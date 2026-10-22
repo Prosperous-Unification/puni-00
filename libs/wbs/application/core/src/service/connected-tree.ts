@@ -14,6 +14,10 @@ import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { ElsewhereHolderLabel } from '../ports/shared-people-values';
 import type { LivePlanRead } from '../ports/shared-people-values';
 import type { ConnectedOptimizationSelection } from './connected-optimization';
+import {
+  type ConnectedOptimizationView,
+  projectConnectedOptimization,
+} from './connected-optimization-view';
 import { selectConnectedProject } from './connected-plan-projection';
 import type { ConnectedReadiness } from './connected-readiness';
 
@@ -54,6 +58,8 @@ export interface ConnectedTreeProjection {
   readonly placement: ReturnType<typeof selectConnectedProject>;
   /** Exact target boundary and objective comparisons; final dates still come only from placement. */
   readonly optimization: ConnectedOptimizationSelection | null;
+  /** Detached public-view prerequisite; not attached to the HTTP tree yet. */
+  readonly optimizationView: ConnectedOptimizationView | null;
   readonly dependencies: readonly ConnectedTreeDependency[];
   /** Checked display holders by target slice; numerical placement remains unchanged. */
   readonly foreignPersonHolders: ReadonlyMap<string, ElsewhereHolder>;
@@ -248,6 +254,9 @@ export function projectConnectedTree(
             (selection) => selection.stage.projectId === projectId,
           ) ?? null)
         : null,
+    // Proof: replacing this call with null failed nine producer-path view tests
+    // including scoped comparisons, terminal evidence and absent-label refusal.
+    optimizationView: projectConnectedOptimization(captured, projectId),
     dependencies: projection.capture.relationships
       // Proof: replacing the incident predicate with true exposed unrelated bc to A and failed `projects incoming and outgoing incident labels`.
       .filter(

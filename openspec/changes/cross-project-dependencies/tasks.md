@@ -122,6 +122,13 @@ question admission, terminal event-before-release, Retry/restart and production
 connected derivation remain pending; neither task checkbox is complete. Evidence
 and watched faults are recorded in `verify.md`.
 
+Task 7.3/7.4 detached view prerequisite (2026-10-22):
+`projectConnectedTree.optimizationView` now projects exact retained stage scope,
+captured foreign labels and target-only objective comparisons without IO or
+admission. Public PlanTree/HTTP/client integration and its strict decoder faults
+remain Slice A work; no connected production source is installed. Parent task
+checkboxes remain open. Commands, watched producer faults and limits: `verify.md`.
+
 ### Task 8: Transfer, copies, immutable history and downstream readers — WBS 010.08
 
 - [ ] 8.1 Version `libs/wbs/domain/contracts/src/http/{plan-document-shapes.ts,import-shapes.ts}` and core `module/plan-document/{plan-document-values.ts,plan-document.resource.ts}` / `module/plan-import/{import-values.ts,prepare-import.ts,imported-plan.resource.ts}`. Distinguish remappable internal endpoints from stable external IDs and descriptive labels; export selected schedule/boundary evidence coherently. Import resolves original UUIDs or explicit destination mappings inside transaction, applies destination abbreviation allocation, and revalidates ownership/access/shape/duplicates/graph. Extend plan-document module tests, `apps/wbs/be-01/src/http/elysia/plan-document-boundary.test.ts` and add `controller/cross-project-import.controller.db.test.ts`: `rename round trips stable external identity`, `reused address never replaces absent UUID`, `explicit mapping binds declared endpoint`, `foreign absent malformed cyclic external references refuse whole import`, `abbreviation conflict cannot overwrite another project`, `legacy document retains reach`, `unsupported version refuses without writes`. Negatives: omit external evidence, bypass version/mapping/current access/graph guards, and inject post-project-creation failure separately; mounted export/import tests must catch loss or partial rows/history/events.
