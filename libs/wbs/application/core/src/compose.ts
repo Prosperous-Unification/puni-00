@@ -396,6 +396,8 @@ export function composeServices(
     uow: source.uow,
     batch,
     imports: installPlanImport({
+      // Proof: active substitution failed the mounted dormant case even with synthetic storage authority (2026-10-22).
+      externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
       clock: runtime.clock,
       scheduler: runtime.scheduler,
       uow: source.uow,

@@ -1,9 +1,7 @@
-import type { ScopedTypedDependency } from '@wbs/domain';
-
+import type { StoredTypedDependency } from './typed-dependency-values';
 import type { WriteStamp } from './write-stamp';
 
-/** A typed link owned by its successor project; the owner must equal successor.projectId. */
-export type StoredTypedDependency = ScopedTypedDependency & { projectId: string };
+export type { StoredTypedDependency } from './typed-dependency-values';
 
 /** Exact physical creation evidence, including legitimate legacy null audit. */
 export interface IncidentReceipt {

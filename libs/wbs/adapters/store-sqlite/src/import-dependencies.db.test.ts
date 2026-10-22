@@ -7,6 +7,7 @@ import { servicesOver } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { clockOf } from '@wbs/core/ports/clock';
 import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { LEGACY_ACCESS } from '@wbs/core/ports/organization-access';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -191,6 +192,7 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
   };
   const announcements = recordingBroadcaster();
   const imports = createImportService({
+    externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
     clock,
     scheduler: fastScheduler,
     uow,

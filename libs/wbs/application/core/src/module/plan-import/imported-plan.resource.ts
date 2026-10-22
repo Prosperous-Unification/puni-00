@@ -1,6 +1,11 @@
-import type { PriorityBand, StoredStepBlockage } from '@wbs/domain';
+import { findTypedEndpointDefect, type PriorityBand, type StoredStepBlockage } from '@wbs/domain';
 
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
+import type { DependencyContext } from '../../ports/dependency-context';
+import {
+  type ExternalDependencyAuthoring,
+  permitsExternalDependencies,
+} from '../../ports/external-dependency-authoring';
 import type { ImportDirectory } from '../../ports/import-directory';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
@@ -9,10 +14,11 @@ import type { StoredAttempt } from '../../ports/step-node-attempt-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeCopy } from '../../ports/subtree-store';
 import type { TreeAnnouncement } from '../../ports/tree-announcement';
-import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
 import type { WorkItemPatch } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
+import { findImportDependencyDuplicate } from './import-values';
+import type { LocatedImportDependency } from './resolve-import-dependencies';
 
 /** The ports one import uses to reconcile directory entries and announce its tree. */
 export interface ImportServices {
@@ -59,6 +65,23 @@ export type ImportedLabels = Required<
 /** A label write's answer; a refusal names the store's reason. */
 export type LabelOutcome = { ok: true } | { ok: false; reason: string };
 
+/** Modeled endpoint, shape, tuple or graph refusal from transaction admission. */
+export interface ImportDependencyRefusal {
+  readonly ok: false;
+  readonly code: 'unknown_ref' | 'invalid_typed_dependency';
+  readonly path: string;
+  readonly detail: string | null;
+}
+
+/** Bound by composition; no feature receives a scope or dependency context. */
+export interface ImportAuthority {
+  readonly actorId: string;
+  readonly access: ResourceAccess;
+  readonly externalDependencies: ExternalDependencyAuthoring;
+  assertActive(): void;
+  contextFor(projectId: string): DependencyContext;
+}
+
 /**
  * The repository writes of one admitted Plan import, over the scope its unit of
  * work supplied.
@@ -66,14 +89,35 @@ export type LabelOutcome = { ok: true } | { ok: false; reason: string };
  * Every read and write goes through that scope, so it commits or rolls back
  * with the import. A write the created project refuses is an internal error:
  * preparation already admitted the document, so each such refusal throws and
- * abandons the unit of work. Only a row's label write answers a refusal,
- * because the import reports that one as `source_refused`.
+ * abandons the unit of work. Dependency admission answers modeled reference,
+ * shape, duplicate and graph refusals; labels answer `source_refused`.
  */
 export class ImportedPlanResource {
   readonly #scope: Scope;
+  readonly #authority: ImportAuthority;
+  #createdProjectId: string | null = null;
 
-  constructor(scope: Scope) {
+  constructor(scope: Scope, authority: ImportAuthority) {
     this.#scope = scope;
+    this.#authority = authority;
+  }
+
+  // Proof: removing this assertion let retained slug reads succeed after all three settlement arms (scoped-import-dependencies.db.test.ts, 2026-10-22).
+  get #stores() {
+    this.#authority.assertActive();
+    return this.#scope.stores;
+  }
+
+  /** Refuses external declarations before allocation; legacy never gains remote authority. */
+  checkExternalAuthoring(path: string) {
+    this.#authority.assertActive();
+    // Proof: independently bypassing inactive capability or scoped access failed the dormant/inactive and active+legacy SQLite cases (2026-10-22).
+    if (
+      !permitsExternalDependencies(this.#authority.externalDependencies) ||
+      this.#authority.access.kind !== 'scoped'
+    )
+      return { ok: false, code: 'external_dependencies_inactive', path, detail: null } as const;
+    return null;
   }
 
   /**
@@ -89,11 +133,11 @@ export class ImportedPlanResource {
   async isSolutionSlugHeld(slug: string, access: ResourceAccess): Promise<boolean> {
     const holder =
       access.kind === 'scoped'
-        ? await this.#scope.stores.projects.findBySolutionSlugInOrganization(
+        ? await this.#stores.projects.findBySolutionSlugInOrganization(
             slug,
             access.scope.organizationId,
           )
-        : await this.#scope.stores.projects.findBySolutionSlug(slug);
+        : await this.#stores.projects.findBySolutionSlug(slug);
     return holder !== null;
   }
 
@@ -113,14 +157,17 @@ export class ImportedPlanResource {
   ): Promise<'abbreviation_taken' | 'abbreviation_exhausted' | null> {
     const created =
       access.kind === 'scoped'
-        ? await this.#scope.stores.projects.createInOrganization(
+        ? await this.#stores.projects.createInOrganization(
             project,
             steps,
             stamp,
             access.scope.organizationId,
           )
-        : await this.#scope.stores.projects.create(project, steps, stamp);
-    return typeof created === 'string' ? created : null;
+        : await this.#stores.projects.create(project, steps, stamp);
+    this.#authority.assertActive();
+    if (typeof created === 'string') return created;
+    this.#createdProjectId = project.id;
+    return null;
   }
 
   /** @throws when the created project refuses its priority bands. */
@@ -129,7 +176,7 @@ export class ImportedPlanResource {
     bands: readonly PriorityBand[],
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#scope.stores.priorityBands.replace(projectId, bands, stamp);
+    const written = await this.#stores.priorityBands.replace(projectId, bands, stamp);
     if (!written.ok) throw new Error(`created project refused its priority bands: ${projectId}`);
   }
 
@@ -140,7 +187,7 @@ export class ImportedPlanResource {
     size: number | null,
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#scope.stores.capacity.set(projectId, teamId, size, stamp);
+    const written = await this.#stores.capacity.set(projectId, teamId, size, stamp);
     if (!written.ok) throw new Error(`created project refused its capacity: ${projectId}`);
   }
 
@@ -151,12 +198,7 @@ export class ImportedPlanResource {
     units: number,
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#scope.stores.resourceCapacity.set(
-      projectId,
-      resourceId,
-      units,
-      stamp,
-    );
+    const written = await this.#stores.resourceCapacity.set(projectId, resourceId, units, stamp);
     if (!written.ok)
       throw new Error(`created project refused its resource capacity: ${written.reason}`);
   }
@@ -168,20 +210,20 @@ export class ImportedPlanResource {
     units: number,
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#scope.stores.demands.set(workItemId, resourceId, units, stamp);
+    const written = await this.#stores.demands.set(workItemId, resourceId, units, stamp);
     if (written !== 'written') throw new Error(`created row refused its demand: ${written}`);
   }
 
   /** @throws when the created project refuses the marker, naming the store's reason. */
   async createCalendarMarker(marker: CalendarMarker): Promise<void> {
-    const written = await this.#scope.stores.calendarMarkers.create(marker);
+    const written = await this.#stores.calendarMarkers.create(marker);
     if (!written.ok)
       throw new Error(`created project refused its calendar marker: ${written.reason}`);
   }
 
   /** Inserts the whole prepared tree, parents first, with its step values and edges. */
   async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
-    await this.#scope.stores.subtrees.insertSubtree(copy, stamp);
+    await this.#stores.subtrees.insertSubtree(copy, stamp);
   }
 
   /**
@@ -191,13 +233,13 @@ export class ImportedPlanResource {
    * @throws when the created project is not there to take it.
    */
   async setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<void> {
-    if (!(await this.#scope.stores.projects.setTimezone(projectId, timezone, stamp)))
+    if (!(await this.#stores.projects.setTimezone(projectId, timezone, stamp)))
       throw new Error(`created project refused its timezone: ${projectId}`);
   }
 
   /** Restores an exact imported fact within the admitted unit of work; refuses a lost step. */
   async restoreBlockage(fact: StoredStepBlockage, stamp: WriteStamp): Promise<void> {
-    const written = await this.#scope.stores.blockages.set(fact, stamp);
+    const written = await this.#stores.blockages.set(fact, stamp);
     // Proof: bypassing refusal resolved `rolls back direct blockage import after refused`, leaking the import (2026-10-14).
     if (written !== 'written')
       throw new Error(`created project refused its blockage: ${fact.workItemId}/${fact.stepId}`);
@@ -205,11 +247,95 @@ export class ImportedPlanResource {
 
   /** Writes one attempt verbatim under its own number onto a created leaf. */
   async restoreAttempt(attempt: StoredAttempt, stamp: WriteStamp): Promise<void> {
-    await this.#scope.stores.attempts.restore(attempt, stamp);
+    await this.#stores.attempts.restore(attempt, stamp);
   }
 
-  async addTypedDependency(row: StoredTypedDependency, stamp: WriteStamp): Promise<void> {
-    await this.#scope.stores.typedDependencies.add(row, stamp);
+  /**
+   * Admits the complete newly created owner's set against staged endpoint and
+   * connected graph evidence before its first typed insert. Refusals leave
+   * rollback to the outer import writer; trusted faults and store failures throw.
+   */
+  async writeDependencies(
+    projectId: string,
+    located: readonly LocatedImportDependency[],
+    stamp: WriteStamp,
+  ): Promise<ImportDependencyRefusal | null> {
+    this.#authority.assertActive();
+    // Proof: independently dropping owner or actor equality failed its forged trusted-boundary SQLite case (2026-10-22).
+    if (projectId !== this.#createdProjectId || stamp.by !== this.#authority.actorId)
+      throw new Error('import dependency owner or actor mismatch');
+    if (located.length === 0) return null;
+    const context = this.#authority.contextFor(projectId);
+    context.assertUsable(projectId, stamp.by);
+    for (const { relationship, path } of located) {
+      // Proof: independently dropping owner or successor-owner equality failed its forged relationship SQLite case (2026-10-22).
+      if (relationship.projectId !== projectId || relationship.successor.projectId !== projectId)
+        throw new Error('import relationship owner mismatch');
+      if (relationship.predecessor.projectId !== projectId) {
+        const dormant = this.checkExternalAuthoring(path);
+        // Proof: omitting this refusal let an injected declaration-gate bypass persist remote links with inactive capability (2026-10-22).
+        if (dormant !== null) throw new Error('external import bypassed authoring admission');
+      }
+      for (const side of ['predecessor', 'successor'] as const) {
+        const endpoint = relationship[side];
+        const checked = await context.endpoints.readEndpoint(endpoint);
+        // Proof: bypassing this consumer failed concealed missing-reference SQLite cases before any typed INSERT (2026-10-22).
+        if (!checked.ok)
+          return { ok: false, code: 'unknown_ref', path: `${path}.${side}`, detail: null };
+        const defect = findTypedEndpointDefect(endpoint, {
+          isLeaf: () => checked.evidence.isLeaf,
+          hasStep: () => checked.evidence.step !== null,
+        });
+        // Proof: bypassing this modeled refusal failed both parent-node and leaf-descendant SQLite cases (2026-10-22).
+        if (defect !== null)
+          return {
+            ok: false,
+            code: 'invalid_typed_dependency',
+            path: `${path}.${side}`,
+            detail: defect,
+          };
+      }
+    }
+    const duplicate = findImportDependencyDuplicate(
+      located.map(({ path, relationship }) => ({ path, ...relationship })),
+    );
+    // Proof: bypassing this invocation's refusal failed the allocated internal/external collision case (2026-10-22).
+    if (duplicate !== null)
+      return { ok: false, code: 'invalid_typed_dependency', path: duplicate, detail: 'duplicate' };
+    const relationships = located.map(({ relationship }) => relationship);
+    // Proof: bypassing the complete-set graph check failed reverse-mapping and seeded-corruption SQLite cases (2026-10-22).
+    const cycle = await context.graph.findCycle(projectId, { typed: relationships });
+    if (cycle !== null) {
+      let path = 'typedDependencies';
+      for (const declaration of located)
+        if (cycle.relationshipIds.includes(declaration.relationship.id)) path = declaration.path;
+      // Proof: omitting this diagnosis failed the later external component's original-path assertion (2026-10-22).
+      if (path === 'typedDependencies') {
+        // Only after complete-set refusal: find which declaration reached a
+        // pre-existing corrupt component whose cycle names no imported edge.
+        const local = relationships.filter(
+          (relationship) => relationship.predecessor.projectId === projectId,
+        );
+        for (const declaration of located) {
+          if (declaration.relationship.predecessor.projectId === projectId) continue;
+          const defect = await context.graph.findCycle(projectId, {
+            typed: [...local, declaration.relationship],
+          });
+          if (defect !== null) {
+            path = declaration.path;
+            break;
+          }
+        }
+      }
+      return { ok: false, code: 'invalid_typed_dependency', path, detail: cycle.kind };
+    }
+    for (const relationship of relationships) {
+      context.assertUsable(projectId, stamp.by);
+      // Proof: omitting persistence failed the real scoped whole-predecessor import (2026-10-22).
+      await this.#stores.typedDependencies.add(relationship, stamp);
+      context.assertUsable(projectId, stamp.by);
+    }
+    return null;
   }
 
   /**
@@ -224,7 +350,7 @@ export class ImportedPlanResource {
     labels: ImportedLabels,
     stamp: WriteStamp,
   ): Promise<LabelOutcome> {
-    const written = await this.#scope.stores.workItems.patch(workItemId, labels, stamp);
+    const written = await this.#stores.workItems.patch(workItemId, labels, stamp);
     return written.ok ? { ok: true } : { ok: false, reason: written.reason };
   }
 
@@ -241,11 +367,8 @@ export class ImportedPlanResource {
   async listToldProjectIds(actorId: string, access: ResourceAccess): Promise<string[]> {
     const told =
       access.kind === 'scoped'
-        ? await this.#scope.stores.projects.listForInOrganization(
-            actorId,
-            access.scope.organizationId,
-          )
-        : await this.#scope.stores.projects.list();
+        ? await this.#stores.projects.listForInOrganization(actorId, access.scope.organizationId)
+        : await this.#stores.projects.list();
     return told.map(({ id }) => id);
   }
 }

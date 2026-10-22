@@ -5,6 +5,7 @@ import { DiBag } from 'di-bag';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
@@ -24,6 +25,7 @@ const requirements = () => {
   let next = 0;
   const clock = clockOf({ now: () => STAMP_AT, newId: () => `imported-${String(++next)}` });
   return {
+    externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
     clock,
     scheduler: fastScheduler,
     uow: source.uow,
@@ -51,6 +53,9 @@ const completeHost = () =>
   DiBag.createBuilder()
     .withInstalledModules([planImportModule])
     .withServices({
+      externalDependencies: DiBag.createProvider(() => INACTIVE_EXTERNAL_DEPENDENCIES, {
+        factoryReturnKind: 'sync-value',
+      }),
       clock: DiBag.createProvider(() => clockOf({ now: () => STAMP_AT, newId: () => 'id' }), {
         factoryReturnKind: 'sync-value',
       }),
@@ -244,6 +249,9 @@ describe('the Plan import module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([planImportModule])
       .withServices({
+        externalDependencies: DiBag.createProvider(() => INACTIVE_EXTERNAL_DEPENDENCIES, {
+          factoryReturnKind: 'sync-value',
+        }),
         clock: DiBag.createProvider(() => clockOf({ now: () => STAMP_AT, newId: () => 'id' }), {
           factoryReturnKind: 'sync-value',
         }),
@@ -270,7 +278,15 @@ describe('ImportedPlanResource', () => {
   // and the AdmittedScope twin fail (8 pass, 2 fail).
   it('keeps the raw scope out of reach at run time', () => {
     const scope = { stores: {} } as Scope;
-    const writes = new ImportedPlanResource(scope);
+    const writes = new ImportedPlanResource(scope, {
+      actorId: 'importer',
+      access: LEGACY_ACCESS,
+      externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
+      assertActive: () => undefined,
+      contextFor: () => {
+        throw new Error('reflection test cannot open dependency context');
+      },
+    });
     expect(Reflect.ownKeys(writes)).toEqual([]);
     expect(Reflect.get(writes, 'scope')).toBeUndefined();
   });

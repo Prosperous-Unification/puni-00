@@ -3,14 +3,10 @@ import { attemptOf, canWriteInOrganization } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
-import {
-  INACTIVE_EXTERNAL_DEPENDENCIES,
-  permitsExternalDependencies,
-} from '../../ports/external-dependency-authoring';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
-import type { ImportTransaction } from './imported-plan.resource';
+import type { ImportDependencyRefusal, ImportTransaction } from './imported-plan.resource';
 import {
   type ImportPreparation,
   type PreparedNamedEntry,
@@ -68,7 +64,8 @@ export type ImportOutcome =
   | ImportForbidden
   | Extract<ImportPreparation, { ok: false }>;
 
-type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal | ImportForbidden;
+type AdmittedImportOutcome =
+  ImportAdmission | ImportSourceRefusal | ImportForbidden | ImportDependencyRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -192,22 +189,10 @@ export class ImportService {
       { ok: false, code: 'forbidden', path: '', detail: null },
       collector,
       async ({ writes, services: graph }) => {
-        // Proof: forcing this condition false made the mounted v11 SQLite import answer 201 and create a project instead of refusing 409 (2026-10-22).
-        if (
-          preparation.value.externalDependencies.length > 0 &&
-          !permitsExternalDependencies(INACTIVE_EXTERNAL_DEPENDENCIES)
-        ) {
-          const first = preparation.value.externalDependencies.at(0);
-          if (first === undefined) throw new Error('prepared external dependency disappeared');
-          return {
-            commit: false,
-            value: {
-              ok: false,
-              code: 'external_dependencies_inactive',
-              path: first.path,
-              detail: null,
-            },
-          };
+        const external = preparation.value.externalDependencies.at(0);
+        if (external !== undefined) {
+          const dormant = writes.checkExternalAuthoring(external.path);
+          if (dormant !== null) return { commit: false, value: dormant };
         }
         const directory = graph.directory;
         const [services, teams, people, tags, types, systems, resources] = await Promise.all([
@@ -583,9 +568,9 @@ export class ImportService {
           stepsByFileId,
           () => this.opts.clock.newId(),
         );
-        // Proof: omitting persistence failed all three SQLite allocation/atomicity cases (2026-10-22).
-        for (const { relationship } of relationships)
-          await writes.addTypedDependency(relationship, stamp);
+        const dependencyRefusal = await writes.writeDependencies(projectId, relationships, stamp);
+        // Proof: commit:true here leaked project/directory/fact rows after concealed missing-reference refusals (real SQLite, 2026-10-22).
+        if (dependencyRefusal !== null) return { commit: false, value: dependencyRefusal };
         for (const [at, row] of prepared.workItems.entries()) {
           const written = await writes.labelWorkItem(
             resolvedId(rowsByFileId, row.fileId, 'labelled work item'),

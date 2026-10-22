@@ -13,6 +13,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
@@ -121,6 +122,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     const clock = clockOf({ now: () => stamp.at, newId: () => crypto.randomUUID() });
     const announcements = recordingBroadcaster();
     const imports = createImportService({
+      externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
       clock,
       scheduler: fastScheduler,
       uow: measuredUow,

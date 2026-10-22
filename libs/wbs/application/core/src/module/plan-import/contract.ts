@@ -10,6 +10,10 @@ import type { ImportService } from './plan-import.feature';
  * supplies. Composition binds it to the unit of work before constructing the
  * feature, which receives only mapped import resources. The factory is built
  * per admission because staged stores are fresh on every turn.
+ * `externalDependencies` is required and production supplies inactive; only
+ * isolated semantic fixtures combine active capability with synthetic storage
+ * authority. Current actor/access admission does not establish current
+ * session/machine/consent identity binding, so production must remain inactive.
  *
  * **No K3 debt.** `ImportService.import` reaches the repository only through
  * the private `ImportedPlanResource` that `importTransaction` builds over

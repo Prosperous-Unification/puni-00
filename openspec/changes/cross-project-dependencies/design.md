@@ -471,6 +471,26 @@ predecessor into successor-owned projects elsewhere: those relationships keep
 their original predecessor, and copying introduces no new implicit blockers in
 another project.
 
+Scoped import preparation retains authored diagnostic paths. Allocation produces
+one complete successor-owned relationship set in document order before typed
+persistence. The private import resource binds the admitted actor/access and
+created owner; its dependency context reads raw stores on the borrowed writer
+with no incident mutation admission. It checks endpoint ownership/readability,
+shape, final scoped tuples and the complete proposed connected graph before the
+first typed insert. If a refused graph names only existing corrupt edges,
+subsequent read-only closure checks identify the external declaration for the
+refusal; they never grant per-edge admission. Composition closes context and
+observation on every settlement, captures durable consequences inside the writer
+and delivers them only after release.
+
+Production import supplies inactive authoring explicitly, independently of the
+persisted storage marker. Actor ID plus `ResourceAccess` can recheck membership
+and cap the current role but cannot revalidate session/machine/consent bindings.
+Before activation, HTTP/module callers must carry `CommandCaller` and resolve
+current access through `CommandAccess` on the borrowed writer. Test-only active
+capability plus synthetic persisted authority proves transaction semantics,
+never public activation or current-principal parity.
+
 ### D8. Picker and implementation boundaries
 
 The active empty or numeric token searches locally only. An alphabetic initial

@@ -11,6 +11,7 @@ import { createImportService } from '../module/plan-import/composition';
 import type { ImportService } from '../module/plan-import/plan-import.feature';
 import { clockOf } from '../ports/clock';
 import { CREATOR_ADMISSION } from '../ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../ports/external-dependency-authoring';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
@@ -43,6 +44,7 @@ function importService(
   });
   const announcements = options.announcements ?? recordingBroadcaster();
   return createImportService({
+    externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
     clock,
     scheduler: fastScheduler,
     uow: options.uow ?? source.uow,

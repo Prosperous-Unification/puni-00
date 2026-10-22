@@ -1,6 +1,6 @@
 import type { ScopedDependencyEndpoint, TypedDependency } from '@wbs/domain';
 
-import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
+import type { StoredTypedDependency } from '../../ports/typed-dependency-values';
 import type { PreparedImport } from './import-values';
 
 /** One fully allocated relationship and the original declaration used for refusals. */

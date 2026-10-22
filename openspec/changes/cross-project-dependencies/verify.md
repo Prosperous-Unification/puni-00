@@ -1756,3 +1756,128 @@ The extra direct configured full UTC DOM run was stopped on the integration
 owner's request after a final poll still showed no completion output (only runner
 startup). It is **incomplete**, not passing; its exact process group was inspected
 and terminated without touching another lane. Normal commit hooks passed.
+
+### Task 8.1 scoped admission transaction slice — 2026-10-22
+
+Based on `e2014d36e`, isolated clone `/tmp/puni-import-admission`. Task 8.1 remains
+unchecked. Architecture Task B is implemented, with the following Task C proofs;
+this is not the complete transfer/activation workstream.
+
+`PlanImportSource.externalDependencies` is required and validated at construction.
+Every production composition binds inactive explicitly. Only isolated SQLite
+fixtures supply active capability, and they separately seed synthetic persisted
+storage authority. Active+legacy still receives the dormant refusal. The mounted
+production import retains its 409 both without and with that seeded marker.
+
+The private resource binds actor/access, the exact newly created owner and the
+writer observation. It reuses raw staged endpoint evidence and the connected
+graph guard with `NO_ADMISSION` for incident mutation. All endpoint existence,
+project ownership/readability and shape checks, the full final scoped duplicate
+check and the complete proposed graph check occur before any typed INSERT.
+Expected faults return original document paths and `commit:false`; unknown or
+foreign references share the same `unknown_ref` body. Trusted corruption and
+persistence faults throw. When an existing corrupt component reports no imported
+relationship ID, only after the full-set refusal do read-only diagnostic closure
+checks identify which external declaration reached it. They never persist or
+admit edges individually.
+
+The new scoped SQLite suite exercises:
+
+- Whole/node/descendant-step external prerequisites to restricted readable projects
+  owned by another member; current stable IDs survive old descriptive labels.
+- Multiple FS/SS/FF tuples, mixed internal typed and legacy reach, selected explicit
+  mappings, invalid mapping without fallback to a valid original, final allocated
+  internal/external duplicate, reverse mapping cycle, and trusted-corruption setup
+  in an external component (including a later declaration after a clean component).
+- Missing/foreign project, absent/wrong-project row, absent/wrong-project step,
+  parent-as-node and leaf-as-descendant-step, with zero typed INSERTs on modeled
+  admission refusal and all application tables unchanged.
+- A mapping to a newly allocated local endpoint uses local typed storage; fresh
+  relationship IDs are distinct from authored IDs.
+- Exact existing store behavior: the referenced remote row keeps identity/content,
+  gains one revision and updated-at stamp, and retains created-at/by. Its project,
+  steps and unrelated rows are unchanged. Imports create no undo, plan-event or
+  saved-plan rows. These assertions preserve the unified store's revision/audit
+  contract rather than suppressing its normal endpoint bump.
+- Actual `servicesOver` tree announcements and borrowed before/after fanout
+  captures. Committed delivery must admit another real writer turn, proving release
+  before transport; collected announcements follow successful settlement.
+- Queued membership removal before admission; missing/malformed capability;
+  declaration-gate bypass; forged private owner, actor and relationship ownership.
+- A throw after the second actual typed write (including the external write), and
+  a label refusal after relationships are staged. These populated documents also
+  stage directory entries and associations, capacity, markers, estimates, actuals,
+  progress, measures and legacy links. Every table on the actual writer is compared
+  before/after, including remote revisions/audit, ownership, abbreviation counters,
+  journals, events/sequencers and migration state; only SQLite implementation
+  tables are excluded. No announcements or committed deliveries escape failure.
+- Retained resources and contexts after success/refusal/throw, and a refused endpoint
+  read suspended across observation closure. A rejected read is deliberate: a
+  successful read's next pre-read guard could conceal a missing post-await guard.
+
+Watched R5 faults are recorded in `/tmp/puni-import-admission-proof-*.log` locally:
+independent inactive-capability/scoped-access bypasses; missing-capability
+validation; active production substitution despite seeded storage authority;
+current-membership bypass; selected-mapping substitution; endpoint organization,
+row ownership and modeled-refusal bypasses; shape refusal bypass; final duplicate
+refusal bypass; complete graph bypass; owner/actor/relationship-owner/successor-owner
+predicate bypasses; observation expiry; remote persistence's second dormant guard;
+commit on dependency refusal; omitted relationship persistence; delivery before
+commit (real nested writer cannot progress, test times out); retained store access;
+context cleanup; endpoint post-await assertion; and corrupt-component diagnosis.
+Each selected test failed under its fault and the production source was restored.
+Context cleanup was tested with its separate outer-observation dependency disabled:
+the dependency-only control passed all three settlement cases, then omitting
+cleanup failed all three. Production always supplies the real observation guard.
+Guard-adjacent comments describe only these observed proofs.
+
+Initial scoped tests were observed red against the old importer (18 failures,
+2 existing dormant cases passing). The later corrupt-component path test was
+observed red against the first implementation's first-reference fallback, then
+passed after precise diagnosis. Test-only fixture/type/lint issues were corrected
+before the final verification commands below.
+
+Current-principal limitation remains a rollout blocker: import carries only actor
+ID and `ResourceAccess`. Its borrowed membership/role recheck does not prove
+session/machine/consent identity bindings. `CommandCaller` plumbing and current
+`CommandAccess` resolution on the same writer are still required before activation.
+Connected export and selected schedule/boundary evidence, remaining transfer/copy/
+history work, live activation and public active-import success are not delivered.
+This slice does not newly prove active-external abbreviation exhaustion, every
+external mapping/workflow combination, failure of durable event insertion, or
+actual gateway transport. Existing mounted allocation and import regressions are
+rerun but are not relabeled as those missing active-path cases. Full host gates,
+CI/build/browser, fresh frozen installation and deployment remain unverified.
+
+An additional module-boundary audit caught a value-placement error inherited from
+this change's allocation checkpoint: `StoredTypedDependency` was declared in a
+repository port and the pure mapper imported it there, tainting the feature's
+value packet. The audit reported five references and failed 1/15 tests.
+The DTO now lives in `ports/typed-dependency-values.ts`; the store port re-exports
+it for compatibility, and the mapper imports the value file directly. The
+unchanged boundary audit now passes **15/15 tests, 20 assertions**. No debt entry,
+checker exemption, duplicate DTO or repository-capability escape was introduced.
+
+Fresh verification commands:
+
+```sh
+bun test ./libs/wbs/application/core/src/service/prepare-import.test.ts ./libs/wbs/application/core/src/module/plan-import/module.test.ts ./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts ./libs/wbs/adapters/store-sqlite/src/import-dependencies.db.test.ts ./libs/wbs/adapters/store-sqlite/src/scoped-import-dependencies.db.test.ts ./libs/wbs/adapters/store-sqlite/src/import.service.db.test.ts ./libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts ./apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts ./libs/wbs/adapters/store-memory/src/import.service.test.ts --timeout=30000
+bun test ./libs/wbs/application/core/src/module-boundaries.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:typecheck --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:lint --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:lint --skipNxCache --outputStyle=static
+./node_modules/.bin/openspec validate cross-project-dependencies --json
+```
+
+The nine exact behavior suites pass **248 tests, 0 failures, 936 assertions**;
+the separate module-boundary suite passes as noted above. All three configured
+typechecks and three configured lints pass uncached. Prettier checks all changed
+files and `git diff --check` passes. OpenSpec reports one valid change and one
+warning about an unchanged existing long added requirement (`Read-only dependency
+observations are explicit`); no specification error is reported. Initial direct
+ESLint ran before the Nx graph existed and skipped module-boundary lint rules;
+the final configured lint runs have the graph and do not skip them. Dependencies
+are linked from the workspace; a clean frozen install was not performed.
