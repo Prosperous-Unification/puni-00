@@ -1083,3 +1083,27 @@ target identity fixed. It records seven independently watched production faults,
 focused regressions and check outcomes. Task 8.4 remains unchecked; connected
 arrangement/restart/admission, the remaining authority/lifetime matrix, browser
 proofs and the committed host gate remain outside this bounded packet.
+
+### Task 9.2 bounded persisted remote display/navigation packet — 2026-10-22
+
+The [persisted remote display packet](evidence/task-9-2-persisted-remote-display-packet.md)
+consumes the actual captured connected endpoint DTO through PlanRead, renders
+qualified desktop/phone labels and stable project/work-item/step navigation,
+and keeps foreign endpoints out of local Gantt arrows. It records initial red,
+restored mounted coverage, regression checks and watched production-path faults.
+Persisted remote scope edits remain an explicit read-only details state; terminal
+boundary certificate/Retry and remaining 9.2 integration stay open. Task 9.2 is
+not marked complete.
+
+Independent review corrections in the same packet preserve the captured step
+and all-descendants selector when its qualified reference names the parent,
+and restore captured-details entry focus, Escape/ArrowLeft dismissal and picker
+focus return. Eight added red cases, 38 restored packet/editor checks and four
+independent watched mutations cover desktop and phone. The packet's correction
+section records exact commands and excluded gates; task 9.2 remains unchecked.
+
+The packet's captured-node-name rereview correction also retains the projected
+step name beside a non-null qualified node address. Two mounted red cases,
+40 restored packet/editor tests and an independent watched address-only mutation
+cover desktop/phone labels, details and stable navigation. Scoped check receipts
+and unchanged task 9.2 completion boundaries remain in the same packet.

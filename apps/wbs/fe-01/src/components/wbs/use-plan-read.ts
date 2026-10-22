@@ -6,6 +6,7 @@ import { ALL_RESOURCES, type DirectoryRead } from '@/lib/plan-refresh';
 import type { AssignedPersonView, ElsewhereHolderView } from '@/lib/wbs-api';
 import {
   DEFAULT_PERT_WEIGHTS_VIEW,
+  dependencyViewsOf,
   type EstimateMethod,
   type EstimateRoundingView,
   type PertWeightsView,
@@ -279,7 +280,10 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
   const stepNodes = tree === null ? undefined : tree.value.stepNodes;
-  const typedDependencies = tree === null ? [] : (tree.value.typedDependencies ?? []);
+  const typedDependencies = useMemo(
+    () => (tree === null ? [] : dependencyViewsOf(tree.value, projectId)),
+    [tree, projectId],
+  );
 
   /** The project whose whole tree most recently completed a successful read. */
   const treeReadProject = useRef<string | null>(null);

@@ -75,19 +75,26 @@ export function isHeld(row: HeldReading): boolean {
   return row.subRows.length === 0 ? row.hold === 'on_hold' : row.subRows.every(isHeld);
 }
 
-/** Keep an unknown wire relationship type from being drawn as FS. */
+/** Keeps foreign endpoints out of the local chart and refuses unknown relationship types. */
 export function chartTypedDependencies(
   dependencies: readonly TypedDependencyView[],
 ): TypedChartDependency[] {
-  return dependencies.map((dependency) => {
-    // Proof: bypassing this check made `refuses an unknown typed chart
-    // relationship` stop throwing. Replacing GanttDataError with Error made
-    // `contains an unsupported chart relationship inside the chart fault
-    // boundary` show the generic fault. Watched 2026-09-28.
-    if (dependency.type !== 'FS' && dependency.type !== 'SS' && dependency.type !== 'FF')
-      throw new GanttDataError(`unsupported chart dependency ${dependency.type}`);
-    return { ...dependency, type: dependency.type };
-  });
+  // Proof: removing this filter admitted external into local chart input and removed the mounted chart’s real bar; both production adapter and mounted tests failed (2026-10-22).
+  return dependencies
+    .filter(
+      (dependency) =>
+        dependency.predecessor.captured === undefined &&
+        dependency.successor.captured === undefined,
+    )
+    .map((dependency) => {
+      // Proof: bypassing this check made `refuses an unknown typed chart
+      // relationship` stop throwing. Replacing GanttDataError with Error made
+      // `contains an unsupported chart relationship inside the chart fault
+      // boundary` show the generic fault. Watched 2026-09-28.
+      if (dependency.type !== 'FS' && dependency.type !== 'SS' && dependency.type !== 'FF')
+        throw new GanttDataError(`unsupported chart dependency ${dependency.type}`);
+      return { ...dependency, type: dependency.type };
+    });
 }
 
 /**

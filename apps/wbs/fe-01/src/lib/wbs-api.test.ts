@@ -1847,3 +1847,40 @@ describe('project abbreviation settings', () => {
     await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow();
   });
 });
+
+it('preserves exact captured remote coordinates and labels through the HTTP tree adapter', async () => {
+  const endpoint = {
+    endpoint: { projectId: 'remote-id', scope: 'whole', workItemId: 'remote-row' },
+    isLeaf: true,
+    revision: 4,
+    name: 'Captured title',
+    projectAbbreviation: 'RENAMED',
+    workItemNumber: '080',
+    step: null,
+    qualifiedReference: 'RENAMED.080',
+    stepReference: null,
+    stepNodeId: null,
+  };
+  const wire = JSON.parse(TREE('p1', ['w1'])) as Record<string, unknown>;
+  wire['connectedDependencies'] = [
+    {
+      id: 'remote-relationship',
+      projectId: 'p1',
+      type: 'FS',
+      predecessor: endpoint,
+      successor: { ...endpoint, endpoint: { projectId: 'p1', scope: 'whole', workItemId: 'w1' } },
+    },
+  ];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(response(200, JSON.stringify(wire)))),
+  );
+  const plan = await httpProjectApi('t').tree('p1');
+  expect(plan.typedDependencies).toMatchObject([
+    {
+      id: 'remote-relationship',
+      predecessor: { projectId: 'remote-id', workItemId: 'remote-row', captured: endpoint },
+      successor: { workItemId: 'w1' },
+    },
+  ]);
+});

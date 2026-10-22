@@ -33,6 +33,7 @@ import {
 } from './creatable-picker';
 import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from './deadline-impossible';
 import { type PickerEntry } from './dep-picker';
+import { CapturedDependencyDetails, DependencyNavigation } from './dependency-navigation';
 import { DependencyOptions } from './dependency-options';
 import {
   type DependencySelection,
@@ -2198,6 +2199,13 @@ function CardDependsField({
               {[
                 ...waits.map((each) => each.number),
                 ...typedWaits.map((dependency) => {
+                  if (dependency.predecessor.captured !== undefined)
+                    return endpointText(
+                      dependency.predecessor,
+                      dependencyRows,
+                      steps,
+                      dependencyStepNodes,
+                    );
                   const predecessor = dependencyRows.find(
                     (candidate) => candidate.id === dependency.predecessor.workItemId,
                   );
@@ -2264,7 +2272,10 @@ function CardDependsField({
                 // error instead of presenting an invented code. Watched 2026-09-28.
                 if (
                   dependencyStepNodes === undefined &&
-                  (dependency.predecessor.scope === 'node' || dependency.successor.scope === 'node')
+                  ((dependency.predecessor.scope === 'node' &&
+                    dependency.predecessor.captured === undefined) ||
+                    (dependency.successor.scope === 'node' &&
+                      dependency.successor.captured === undefined))
                 )
                   throw new Error('Missing dependency step nodes for card');
                 const words = dependencyWords(
@@ -2294,6 +2305,7 @@ function CardDependsField({
                     <span>
                       {words.chip} · {words.label}
                     </span>
+                    <DependencyNavigation dependency={dependency} />
                     <button
                       type="button"
                       className={`${TAP} rounded-md border px-3`}
@@ -2410,6 +2422,12 @@ function CardDependsField({
                     </button>
                   </p>
                 );
+              // Proof: disabling this branch made the phone mounted case report a removed predecessor instead of captured details (2026-10-22).
+              if (
+                dependency?.predecessor.captured !== undefined ||
+                dependency?.successor.captured !== undefined
+              )
+                return <CapturedDependencyDetails dependency={dependency} onClose={closeEditor} />;
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
               );

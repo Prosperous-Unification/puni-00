@@ -739,6 +739,7 @@ export function ProjectPage({
         const naming = url.searchParams.has('stepNode') ? 'Step link' : 'Project link';
         url.searchParams.delete('project');
         url.searchParams.delete('stepNode');
+        url.searchParams.delete('workItem');
         window.history.replaceState(window.history.state, '', url.href);
         // Said on the page rather than as a toast: toasts are drawn by the
         // table, and a link that opens nothing leaves no table to draw them.

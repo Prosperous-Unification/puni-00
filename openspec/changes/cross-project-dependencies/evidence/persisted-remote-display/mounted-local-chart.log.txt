@@ -1,0 +1,54 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '-t', 'keeps the mounted chart']
+Injected fault: dependency.predecessor.captured === undefined &&
+        dependency.successor.captured === undefined -> true
+
+ RUN  v5.0.0 /tmp/puni-remote-display-proof/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (12 tests | 1 failed | 11 skipped) 473ms
+   × keeps the mounted chart available with captured foreign endpoints absent from its rows 471ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 skipped (12)
+   Start at  11:53:10
+   Duration  6.54s (import 58%, transform 27%, tests 7%, environment 7%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+stderr | src/components/wbs/persisted-remote-dependencies.test.tsx > keeps the mounted chart available with captured foreign endpoints absent from its rows
+GanttDataError: unknown chart work item remote-row
+    at leavesUnder (/tmp/puni-remote-display-proof/apps/wbs/fe-01/src/components/wbs/typed-gantt-arrows.ts:51:41)
+    at endsOf (/tmp/puni-remote-display-proof/apps/wbs/fe-01/src/components/wbs/typed-gantt-arrows.ts:65:5)
+    at resolveTypedGanttArrows (/tmp/puni-remote-display-proof/apps/wbs/fe-01/src/components/wbs/typed-gantt-arrows.ts:114:26)
+    at layOutGantt (/tmp/puni-remote-display-proof/apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts:2634:17)
+    at /tmp/puni-remote-display-proof/apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx:4323:31
+    at mountMemo (/home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:8777:23)
+    at Object.useMemo (/home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:26216:18)
+    at process.env.NODE_ENV.exports.useMemo (/home/df/wd/puni/puni-00/node_modules/react/cjs/react.development.js:1251:34)
+    at GanttRenderer (/tmp/puni-remote-display-proof/apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx:4323:17)
+    at Object.react_stack_bottom_frame (/home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:25904:20) {
+  [stack]: [Getter/Setter],
+  [message]: 'unknown chart work item remote-row',
+  name: 'GanttDataError'
+}
+
+The above error occurred in the <GanttRenderer> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, FaultBoundary.
+
+the Gantt panel could not draw this plan unknown chart work item remote-row AE_2ZGKDCSF6G52E8P2ZJ5KJ7E4XB nothing
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps the mounted chart available with captured foreign endpoints absent from its rows
+AssertionError: expected null not to be null
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:187:58
+    185|   fireEvent.click(screen.getByRole('button', { name: 'Gantt', exact: t…
+    186|   expect(await screen.findByRole('region', { name: 'Gantt chart', exac…
+    187|   expect(document.querySelector('[data-gantt-bar]')).not.toBeNull();
+       |                                                          ^
+    188|   expect(document.querySelector('[data-gantt-arrow]')).toBeNull();
+    189| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

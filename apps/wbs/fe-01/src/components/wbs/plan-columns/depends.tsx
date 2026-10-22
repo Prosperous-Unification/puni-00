@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { TypedDependencyEndpoint } from '@/lib/wbs-api';
 
 import { PICKER_PANEL_STYLE } from '../creatable-picker';
+import { CapturedDependencyDetails, DependencyNavigation } from '../dependency-navigation';
 import { DependencyOptions } from '../dependency-options';
 import {
   type DependencySelection,
@@ -1092,6 +1093,18 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   </div>
                 );
               // Proof: before this ordering, `shows a stale edit when deleting its predecessor also removes the relationship` threw `Missing predecessor` instead of rendering the alert; watched 2026-09-28.
+              const close = () => {
+                setEditing(null);
+                document
+                  .querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
+                  ?.focus();
+              };
+              // Proof: disabling this branch reported a removed predecessor instead of opening mounted captured details (2026-10-22).
+              if (
+                dependency?.predecessor.captured !== undefined ||
+                dependency?.successor.captured !== undefined
+              )
+                return <CapturedDependencyDetails dependency={dependency} onClose={close} />;
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
               );
@@ -1111,12 +1124,6 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     </button>
                   </div>
                 );
-              const close = () => {
-                setEditing(null);
-                document
-                  .querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
-                  ?.focus();
-              };
               return (
                 <TypedDependencyEditor
                   projectId={live.current.projectId}
@@ -1204,6 +1211,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               entries={waitingFor}
               typedEntries={typedDependencies.map((dependency) => ({
                 id: dependency.id,
+                navigation: <DependencyNavigation dependency={dependency} />,
                 label: dependencyWords(
                   dependency,
                   dependencyRows,
