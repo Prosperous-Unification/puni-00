@@ -88,6 +88,12 @@ The API-model adapter SHALL use selected tools, retained instructions, maxOutput
 - **WHEN** the installed mock model throws a retryable SDK API-call error after turn dispatch begins
 - **THEN** the real SDK driver reports transport uncertainty and invokes the model only once
 
+#### Scenario: Transport fails after partial streamed output
+
+- **WHEN** the installed model stream emits text and then rejects with an SDK API-call error
+- **THEN** the driver returns unresolved/transport_lost with the observed text, original turn identity and unknown interrupted usage, without another model call
+- **AND** local tool errors retain their exception ownership even when their cause is an SDK API-call error, and failed cleanup preserves both original and cleanup causes
+
 #### Scenario: Unexpected tool failure is not ordinary text completion
 
 - **WHEN** an injected tool throws an unexpected exception in the real SDK loop
@@ -104,6 +110,12 @@ The API-model adapter SHALL use selected tools, retained instructions, maxOutput
 - **WHEN** every completed step reports finite nonnegative safe integer input/output counts and their sums are safe
 - **THEN** the driver reports measured sums, including an explicit measured zero
 - **AND** any missing count yields unknown/provider-usage-unavailable, incomplete interrupted usage stays unknown/interrupted-before-usage, and malformed counts or unsafe sums throw with turn correlation
+
+#### Scenario: A complete SDK response suspends for approval or client input
+
+- **WHEN** a trustworthy completed SDK tool boundary leaves approval or client tool input unresolved
+- **THEN** the reply retains measured per-step sums when complete, or unknown/provider-usage-unavailable when any count is absent
+- **AND** malformed counts still throw, while the reply remains unresolved with no history append or effect-completion claim
 
 #### Scenario: A listener or tool input cannot complete normally
 

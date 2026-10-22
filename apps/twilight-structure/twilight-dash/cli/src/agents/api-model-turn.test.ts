@@ -618,3 +618,178 @@ for (const boundary of ['tool', 'listener'] as const) {
     expect(failure.message).toBe('Activity dispatch failed');
   });
 }
+
+function rejectStream(cause: unknown): ModelResponse {
+  const chunks: ModelPart[] = [
+    { type: 'text-start', id: 'partial' },
+    { type: 'text-delta', id: 'partial', delta: 'Partial' },
+  ];
+  return {
+    stream: new ReadableStream<ModelPart>({
+      pull(controller) {
+        const chunk = chunks.shift();
+        if (chunk === undefined) controller.error(cause);
+        else controller.enqueue(chunk);
+      },
+    }),
+  };
+}
+
+function transportError() {
+  return new APICallError({
+    message: 'secret reader failure',
+    url: 'https://invalid.local',
+    requestBodyValues: {},
+    statusCode: 503,
+    isRetryable: true,
+  });
+}
+
+test('rejected SDK reader reports transport uncertainty with partial text and one call', async () => {
+  const model = new MockLanguageModelV4({ doStream: rejectStream(transportError()) });
+  const options = fixture(model);
+  const dispatched = await runApiModelTurn(options);
+  expect(dispatched).toMatchObject({
+    kind: 'unresolved',
+    reason: 'transport_lost',
+    identity: options.identity,
+    text: 'Partial',
+    usage: { kind: 'unknown', reason: 'interrupted-before-usage' },
+  });
+  expect(dispatched).not.toHaveProperty('responseMessages');
+  expect(model.doStreamCalls).toHaveLength(1);
+  expect(
+    options.parts.filter((part) => part.type === 'text-delta').map((part) => part.delta),
+  ).toEqual(['Partial']);
+  expect(JSON.stringify(options.parts)).not.toContain('secret');
+});
+
+test('unexpected rejected SDK reader retains original cause and turn correlation', async () => {
+  const cause = new Error('secret unknown reader failure');
+  const model = new MockLanguageModelV4({ doStream: rejectStream(cause) });
+  const options = fixture(model);
+  const failure = await runApiModelTurn(options).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ActivityDispatchError);
+  if (!(failure instanceof ActivityDispatchError)) throw new Error('expected dispatch failure');
+  expect(failure.cause).toBe(cause);
+  expect(failure.identity).toEqual(options.identity);
+});
+
+test('local tool APICallError retains tool ownership instead of modeled transport', async () => {
+  const cause = transportError();
+  const capability = tool({
+    inputSchema: schema,
+    execute: (): string => {
+      throw cause;
+    },
+  });
+  const model = new MockLanguageModelV4({ doStream: [toolStep(), response([finish()])] });
+  const options = fixture(model, { read: capability });
+  const failure = await runApiModelTurn(options).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ActivityDispatchError);
+  if (!(failure instanceof ActivityDispatchError)) throw new Error('expected dispatch failure');
+  expect(failure.cause).toBe(cause);
+  expect(failure.identity).toEqual(options.identity);
+  expect(model.doStreamCalls).toHaveLength(1);
+});
+
+for (const boundary of ['transport', 'unexpected'] as const) {
+  test(`rejected ${boundary} reader plus abort cleanup preserves both original causes`, async () => {
+    const cause = boundary === 'transport' ? transportError() : new Error('secret reader');
+    const cleanup = new Error('secret cleanup');
+    const options = fixture(new MockLanguageModelV4({ doStream: rejectStream(cause) }));
+    const failure = await runApiModelTurn({
+      ...options,
+      abort: () => {
+        throw cleanup;
+      },
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ActivityDispatchError);
+    if (!(failure instanceof ActivityDispatchError)) throw new Error('expected dispatch failure');
+    expect(failure.identity).toEqual(options.identity);
+    expect(failure.cause).toBeInstanceOf(AggregateError);
+    if (!(failure.cause instanceof AggregateError)) throw new Error('expected combined failure');
+    expect(failure.cause.cause).toBe(cause);
+    expect(failure.cause.errors).toEqual([cause, cleanup]);
+  });
+}
+
+for (const cleanupFails of [false, true]) {
+  test(`listener failure precedes rejected transport when abort cleanup ${cleanupFails ? 'fails' : 'succeeds'}`, async () => {
+    const readerFailure = transportError();
+    const listenerFailure = transportError();
+    const cleanup = new Error('secret listener abort');
+    const options = fixture(new MockLanguageModelV4({ doStream: rejectStream(readerFailure) }));
+    let callbacks = 0;
+    const dispatched = await runApiModelTurn({
+      ...options,
+      abort: cleanupFails
+        ? () => {
+            throw cleanup;
+          }
+        : options.abort,
+      onPart: (part) => {
+        callbacks++;
+        if (part.type === 'text-delta') throw listenerFailure;
+      },
+    }).catch((error: unknown) => error);
+    if (cleanupFails) {
+      expect(dispatched).toBeInstanceOf(ActivityDispatchError);
+      if (!(dispatched instanceof ActivityDispatchError))
+        throw new Error('expected dispatch failure');
+      expect(dispatched.identity).toEqual(options.identity);
+      expect(dispatched.cause).toBeInstanceOf(AggregateError);
+      if (!(dispatched.cause instanceof AggregateError))
+        throw new Error('expected combined failure');
+      expect(dispatched.cause.cause).toBe(listenerFailure);
+      expect(dispatched.cause.errors).toEqual([listenerFailure, cleanup]);
+    } else {
+      expect(dispatched).toMatchObject({
+        kind: 'unresolved',
+        reason: 'observer_failed',
+        usage: { kind: 'unknown', reason: 'interrupted-before-usage' },
+      });
+    }
+    expect(callbacks).toBe(4);
+  });
+}
+
+for (const [boundary, capability, reason] of [
+  ['client input', tool({ inputSchema: schema }), 'tool_input_required'],
+  [
+    'approval',
+    tool({ inputSchema: schema, needsApproval: true, execute: () => 'unapproved' }),
+    'approval_required',
+  ],
+] as const) {
+  for (const missing of [false, true]) {
+    test(`${boundary} suspension retains ${missing ? 'missing' : 'measured'} terminal usage`, async () => {
+      const counts = usage(120, 30);
+      if (missing) counts.outputTokens.total = undefined;
+      const model = new MockLanguageModelV4({ doStream: toolStep(counts) });
+      const dispatched = await runApiModelTurn(fixture(model, { read: capability }));
+      expect(dispatched).toMatchObject({
+        kind: 'unresolved',
+        reason,
+        usage: missing
+          ? { kind: 'unknown', reason: 'provider-usage-unavailable' }
+          : { kind: 'measured', inputTokens: 120, outputTokens: 30 },
+      });
+      expect(dispatched).not.toHaveProperty('responseMessages');
+      expect(model.doStreamCalls).toHaveLength(1);
+    });
+  }
+  test(`${boundary} suspension without trustworthy terminal cannot retain measured usage`, async () => {
+    const model = new MockLanguageModelV4({
+      doStream: response([
+        ...text('Partial'),
+        { type: 'tool-call', toolCallId: 'read-1', toolName: 'read', input: '{}' },
+      ]),
+    });
+    expect(await runApiModelTurn(fixture(model, { read: capability }))).toMatchObject({
+      kind: 'unresolved',
+      reason: 'provider_incomplete',
+      usage: { kind: 'unknown', reason: 'interrupted-before-usage' },
+    });
+  });
+}

@@ -75,18 +75,22 @@ export async function runApiModelTurn(options: {
   let text = '';
   let terminal: FinishReason | undefined;
   let observerFailed = false;
+  let observerCleanup: { cause: unknown } | undefined;
   const control = { stoppedAtBudget: false, interrupted: false };
   let uncertainty: Uncertainty | undefined;
   let toolFailure: { cause: unknown } | undefined;
   const pendingTools = new Set<string>();
   const steps: LanguageModelUsage[] = [];
   const stopAtBudget = isStepCount(settings.maxSteps);
-  const unresolved = (reason: Uncertainty): Extract<ApiModelDispatch, { kind: 'unresolved' }> => ({
+  const unresolved = (
+    reason: Uncertainty,
+    usage: Usage = { kind: 'unknown', reason: 'interrupted-before-usage' },
+  ): Extract<ApiModelDispatch, { kind: 'unresolved' }> => ({
     kind: 'unresolved',
     identity,
     reason,
     text,
-    usage: { kind: 'unknown', reason: 'interrupted-before-usage' },
+    usage,
   });
   /** Requests local cancellation while keeping an abort exception attached to its originating failure. */
   const abortAfterFailure = (cause: unknown): { cause: unknown; didFail: boolean } => {
@@ -187,7 +191,10 @@ export async function runApiModelTurn(options: {
           // Proof: skipping this request left the listener-failure turn's owned signal unaborted.
           const cancellation = abortAfterFailure(cause);
           // Proof: swallowing failed abort cleanup returned observer uncertainty and lost its combined failure.
-          if (cancellation.didFail) throw cancellation.cause;
+          if (cancellation.didFail) {
+            observerCleanup = { cause: cancellation.cause };
+            throw cancellation.cause;
+          }
         }
       }
     }
@@ -197,14 +204,14 @@ export async function runApiModelTurn(options: {
     const usage = measureUsage(steps);
     // Proof: omitting observer precedence reported interruption instead of observer_failed.
     if (observerFailed) return unresolved('observer_failed');
-    if (uncertainty !== undefined) return unresolved(uncertainty);
+    // Proof: treating approval as an early uncertainty erased known/missing usage and trusted its incomplete terminal.
+    if (uncertainty !== undefined && uncertainty !== 'approval_required')
+      return unresolved(uncertainty);
     // Proof: removing interruption classification changed actual abort-after-dispatch to provider_incomplete.
     if (control.interrupted || signal.aborted) return unresolved('interrupted');
-    // Proof: removing pending-input handling changed a real client-only tool to provider_incomplete.
-    if (pendingTools.size > 0) return unresolved('tool_input_required');
     let finish: TurnOutcome['finish'];
     switch (terminal) {
-      // Proof: deleting the incomplete-terminal return completed partial/other/error SDK streams as end_turn.
+      // Proof: deleting this return completed partial streams or trusted incomplete approval/client-input boundaries.
       case undefined:
       case 'other':
       case 'error':
@@ -220,14 +227,18 @@ export async function runApiModelTurn(options: {
         finish = 'refused';
         break;
       case 'tool-calls':
-        // Proof: removing budget evidence completed tool-calls without an invoked budget stop as max_steps.
-        if (!control.stoppedAtBudget) return unresolved('provider_incomplete');
         finish = 'max_steps';
         break;
       default:
         // Proof: removing rejection completed an impossible trusted finish reason with an undefined finish.
         throw new Error('invalid SDK terminal reason');
     }
+    // Proof: omitting either usage argument lost measured sums and the provider-usage-unavailable reason at actual suspensions.
+    if (uncertainty === 'approval_required') return unresolved('approval_required', usage);
+    if (pendingTools.size > 0) return unresolved('tool_input_required', usage);
+    // Proof: removing budget evidence completed tool-calls without an invoked budget stop as max_steps.
+    if (terminal === 'tool-calls' && !control.stoppedAtBudget)
+      return unresolved('provider_incomplete');
     return {
       kind: 'completed',
       identity,
@@ -235,13 +246,18 @@ export async function runApiModelTurn(options: {
       responseMessages: await streamed.responseMessages,
     };
   } catch (cause) {
-    // Proof: retrying abort for known tool/listener failures nested the cleanup cause; omitting the correlated throw lost identity.
-    const failure =
-      toolFailure !== undefined
-        ? toolFailure.cause
-        : observerFailed
-          ? cause
-          : abortAfterFailure(cause).cause;
-    throw new ActivityDispatchError(identity, failure);
+    // Proof: removing tool priority modeled a local tool's original APICallError as transport uncertainty.
+    if (toolFailure !== undefined) throw new ActivityDispatchError(identity, toolFailure.cause);
+    // Proof: dropping retained listener cleanup returned observer_failed and lost the original plus cleanup aggregate.
+    if (observerCleanup !== undefined)
+      throw new ActivityDispatchError(identity, observerCleanup.cause);
+    // Proof: dropping listener priority reported transport_lost for a rejected reader after the listener threw.
+    if (observerFailed) return unresolved('observer_failed');
+    const cancellation = abortAfterFailure(cause);
+    // Proof: skipping failed reader cleanup propagation lost both causes for API and unexpected stream errors.
+    if (cancellation.didFail) throw new ActivityDispatchError(identity, cancellation.cause);
+    // Proof: removing reader-error classification threw for the real SDK's partially emitted rejected API stream.
+    if (APICallError.isInstance(cause)) return unresolved('transport_lost');
+    throw new ActivityDispatchError(identity, cause);
   }
 }
