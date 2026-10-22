@@ -34,6 +34,9 @@ export const RUN_ENVIRONMENT_ALLOWLIST: ReadonlySet<string> = new Set([
  * (`compute-providers` P8). ssh exits 255 for its own errors; a remote command exiting 255 would
  * look the same, and none of the measuring commands does. A 255 matching none of these throws.
  */
+// Proof: removing each entry in turn failed its case: `connection_refused` and
+// `host_key_mismatch` in `answers unreachable with the ssh cause when the port is closed, without
+// throwing`, the other four in `answers unreachable for every typed transport fault` (2026-10-22).
 const TRANSPORT_FAULTS: readonly (readonly [string, RegExp])[] = [
   ['connection_refused', /Connection refused/],
   ['timeout', /timed out/i],
@@ -218,41 +221,66 @@ class SshHostProvider implements ComputeProvider {
     });
   }
 
+  /**
+   * Runs one measuring ssh. Past the command deadline ssh is killed and the answer is `timedOut`
+   * as soon as it has exited, without waiting for its pipes: a `ProxyCommand` or other descendant
+   * may still hold them open.
+   */
   private async execute(remoteCommand: string): Promise<Execution> {
     const child = this.spawnSsh(remoteCommand);
-    let timedOut = false;
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, this.options.commandDeadlineMs ?? 30_000);
-    try {
-      const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-        child.exited,
-      ]);
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const killed = new Promise<Execution>((resolve) => {
+      deadline = setTimeout(() => {
+        child.kill('SIGKILL');
+        void child.exited.then((exitCode) => {
+          resolve({ exitCode, stdout: '', stderr: '', timedOut: true });
+        });
+      }, this.options.commandDeadlineMs ?? 30_000);
+    });
+    const answered = Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]).then(([stdout, stderr, exitCode]): Execution => {
+      // Proof: dropping this cap made `refuses an answer over 1 MiB` parse the oversized meminfo
+      // (2026-10-22).
       if (stdout.length > MAX_OUTPUT_BYTES) {
         throw new Error(`${remoteCommand} on ${this.host} answered more than 1 MiB`);
       }
-      return { exitCode, stdout, stderr, timedOut };
+      return { exitCode, stdout, stderr, timedOut: false };
+    });
+    // Proof: awaiting only `answered` made `bounds an unreachable reason…` wait out the fixture
+    // dial's descendant `sleep` past the test budget (2026-10-22).
+    try {
+      return await Promise.race([answered, killed]);
     } finally {
       clearTimeout(deadline);
     }
   }
 
   public async observe(binding: ResourceBinding, now: number): Promise<Measurement> {
+    // Runs in use as of `now`, the instant the measurement is stamped with: a run that ends while
+    // the reachability dial is in flight still counted at `now`.
+    // Proof: reading `#activeRuns` after the dial made `counts the runs in use at the stamp, not
+    // after the dial` fail with `usageUnits` 0 instead of 1 (2026-10-22).
+    const runsInUse = this.#activeRuns;
     const command = measuringCommand(binding);
     const execution = await this.execute(command);
     if (execution.timedOut) {
       return {
         kind: 'unreachable',
-        reason: `ssh timeout: no answer from ${this.host} within the command deadline`,
+        reason: `ssh timeout: no answer from ${this.host} within the command deadline`.slice(
+          0,
+          MAX_REASON_LENGTH,
+        ),
         observedAt: now,
       };
     }
     if (execution.exitCode === 255) {
       const diagnostic = firstLine(execution.stderr);
       const fault = TRANSPORT_FAULTS.find(([, pattern]) => pattern.test(execution.stderr));
+      // Proof: answering an unmatched 255 `unreachable` made `throws for an ssh failure that
+      // names no transport fault` resolve instead of rejecting (2026-10-22).
       if (fault === undefined) {
         throw new Error(`ssh to ${this.host} exited 255 without a transport fault: ${diagnostic}`);
       }
@@ -262,6 +290,8 @@ class SshHostProvider implements ComputeProvider {
         observedAt: now,
       };
     }
+    // Proof: dropping this branch made `throws when the remote command fails on a reachable host`
+    // receive the parser's `has no MemTotal line` instead of the remote exit (2026-10-22).
     if (execution.exitCode !== 0) {
       throw new Error(
         `${command} on ${this.host} exited ${String(execution.exitCode)}: ${firstLine(execution.stderr)}`,
@@ -270,7 +300,7 @@ class SshHostProvider implements ComputeProvider {
     // Proof: catching the parse errors below and answering `unreachable` made `throws for
     // /proc/meminfo without MemTotal` and `throws for an unparseable df answer` fail, each
     // resolving to an unreachable measurement instead of rejecting (2026-10-22).
-    const parsed = this.parse(binding, execution.stdout);
+    const parsed = this.parse(binding, execution.stdout, runsInUse);
     return {
       kind: 'measured',
       capacityUnits: parsed.capacity,
@@ -280,7 +310,7 @@ class SshHostProvider implements ComputeProvider {
     };
   }
 
-  private parse(binding: ResourceBinding, stdout: string) {
+  private parse(binding: ResourceBinding, stdout: string, runsInUse: number) {
     switch (binding.measure) {
       case 'memory_gib':
         return parseMemory(this.host, stdout);
@@ -291,8 +321,8 @@ class SshHostProvider implements ComputeProvider {
       case 'agent_slots':
         return {
           capacity: binding.slots ?? 0,
-          usage: this.#activeRuns,
-          lines: `${String(this.#activeRuns)} of ${String(binding.slots ?? 0)} slots in use`,
+          usage: runsInUse,
+          lines: `${String(runsInUse)} of ${String(binding.slots ?? 0)} slots in use`,
         };
     }
   }
@@ -301,6 +331,8 @@ class SshHostProvider implements ComputeProvider {
     const refused = Object.keys(request.environment).find(
       (key) => !RUN_ENVIRONMENT_ALLOWLIST.has(key),
     );
+    // Proof: skipping this refusal made `refuses a run environment key outside the allow-list
+    // before ssh starts` spawn ssh and record an invocation (2026-10-22).
     if (refused !== undefined) {
       return Promise.reject(new Error(`run environment key ${refused} is not allow-listed`));
     }

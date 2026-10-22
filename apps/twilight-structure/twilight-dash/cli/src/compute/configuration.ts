@@ -154,6 +154,8 @@ function readOwnerOnly(path: string): string {
   }
   try {
     const opened = fstatSync(descriptor);
+    // Proof: skipping this check made `refuses a directory config_unreadable…` fail on the raw
+    // `EISDIR` read error escaping as no refusal (2026-10-22).
     if (!opened.isFile()) {
       throw new ConfigurationRefusal('config_unreadable', `${path} is not a regular file`);
     }
@@ -172,6 +174,8 @@ function readOwnerOnly(path: string): string {
       if (next === 0) break;
       count += next;
     }
+    // Proof: dropping this cap made `…and a file over 64 KiB config_malformed` load the file
+    // (2026-10-22).
     if (count > MAX_CONFIGURATION_BYTES) {
       throw new ConfigurationRefusal('config_malformed', `${path} exceeds 64 KiB`);
     }

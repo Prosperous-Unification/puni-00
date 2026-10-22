@@ -21,15 +21,38 @@ const fixture = createSshFixture({
   'nomemtotal.fixture': { meminfo: 'MemFree: 1048576 kB\nMemAvailable: 7340032 kB\n' },
   'nonsense.fixture': { df: 'df: no such thing\n' },
   'broken.fixture': { refuse: 'ssh: something no transport fault names\n' },
+  'slow.fixture': { dialDelay: '0.5' },
+  'timeout.fixture': {
+    refuse: 'ssh: connect to host timeout.fixture port 22: Connection timed out\r\n',
+  },
+  'denied.fixture': { refuse: 'puni1@denied.fixture: Permission denied (publickey).\r\n' },
+  'unresolved.fixture': {
+    refuse: 'ssh: Could not resolve hostname unresolved.fixture: Name or service not known\r\n',
+  },
+  'noroute.fixture': {
+    refuse: 'ssh: connect to host noroute.fixture port 22: No route to host\r\n',
+  },
+  'badnproc.fixture': { cpu: 'many\n3.71 2.10 1.05 2/812 4242\n' },
+  'noloadavg.fixture': { cpu: '8\n' },
+  'headeronly.fixture': {
+    df: 'Filesystem     1024-blocks      Used Available Capacity Mounted on\n',
+  },
+  'overcommitted.fixture': { meminfo: 'MemTotal: 1048576 kB\nMemAvailable: 2097152 kB\n' },
+  'oversized.fixture': { meminfo: `${MEMINFO_15_7}${'x'.repeat(1024 * 1024)}\n` },
+  [`${'l'.repeat(190)}.fixture`]: { dialDelay: '5' },
+  'chatty.fixture': {
+    refuse: `ssh: connect to host chatty.fixture port 22: Connection refused ${'x'.repeat(300)}\r\n`,
+  },
 });
 
 afterAll(() => {
   fixture.close();
 });
 
-async function provider(host: string): Promise<ComputeProvider> {
+async function provider(host: string, commandDeadlineMs?: number): Promise<ComputeProvider> {
   return sshHostAdapter({
     sshExecutable: fixture.sshExecutable,
+    ...(commandDeadlineMs === undefined ? {} : { commandDeadlineMs }),
     environment: { PATH: process.env['PATH'], SSH_AUTH_SOCK: fixture.agentSocket },
   }).open({
     instanceId: `instance-${host}`,
@@ -126,6 +149,70 @@ describe('the ssh_host adapter against the fixture client', () => {
     expect(await rejectionOf(host.observe(memory, NOW))).toContain(
       'cat /proc/meminfo on nonsense.fixture exited 1',
     );
+  });
+
+  test('answers unreachable for every typed transport fault', async () => {
+    for (const [host, cause] of [
+      ['timeout.fixture', 'timeout'],
+      ['denied.fixture', 'authentication_failed'],
+      ['unresolved.fixture', 'name_unresolved'],
+      ['noroute.fixture', 'no_route'],
+    ] as const) {
+      const measurement = await (await provider(host)).observe(memory, NOW);
+      expect(measurement, host).toMatchObject({ kind: 'unreachable', observedAt: NOW });
+      expect(measurement.kind === 'unreachable' ? measurement.reason : '', host).toStartWith(
+        `ssh ${cause}: `,
+      );
+    }
+  });
+
+  test('bounds an unreachable reason to the 200 characters WBS accepts', async () => {
+    const slots: ResourceBinding = { resourceId: 'slots', measure: 'agent_slots', slots: 4 };
+    // A 190-character host whose dial outlasts a 200 ms command deadline: the timeout reason.
+    const timedOut = await (await provider(`${'l'.repeat(190)}.fixture`, 200)).observe(slots, NOW);
+    // A 255 diagnostic longer than 200 characters.
+    const refused = await (await provider('chatty.fixture')).observe(memory, NOW);
+    for (const [measurement, cause] of [
+      [timedOut, 'ssh timeout: '],
+      [refused, 'ssh connection_refused: '],
+    ] as const) {
+      expect(measurement.kind).toBe('unreachable');
+      const reason = measurement.kind === 'unreachable' ? measurement.reason : '';
+      expect(reason).toStartWith(cause);
+      expect(reason).toHaveLength(200);
+    }
+  });
+
+  test('throws for every malformed answer from a reachable host', async () => {
+    const cpu: ResourceBinding = { resourceId: 'cpu', measure: 'cpu_cores' };
+    for (const [host, binding, message] of [
+      ['badnproc.fixture', cpu, 'answered no core count and load'],
+      ['noloadavg.fixture', cpu, 'answered no core count and load'],
+      ['headeronly.fixture', disk, 'answered no parseable data line'],
+      ['overcommitted.fixture', memory, 'states MemAvailable above MemTotal'],
+    ] as const) {
+      expect(await rejectionOf((await provider(host)).observe(binding, NOW)), host).toContain(
+        message,
+      );
+    }
+  });
+
+  test('refuses an answer over 1 MiB', async () => {
+    expect(await rejectionOf((await provider('oversized.fixture')).observe(memory, NOW))).toContain(
+      'answered more than 1 MiB',
+    );
+  });
+
+  test('counts the runs in use at the stamp, not after the dial', async () => {
+    // The dial takes 0.5 s; the run ends within it.
+    const host = await provider('slow.fixture');
+    const handle = await host.run({ command: ['true'], environment: {} }, NOW);
+    const observing = host.observe({ resourceId: 'slots', measure: 'agent_slots', slots: 4 }, NOW);
+    expect(await handle.exited).toEqual({ exitCode: 0, stdout: '' });
+    expect(await observing).toMatchObject({ kind: 'measured', capacityUnits: 4, usageUnits: 1 });
+    expect(
+      await host.observe({ resourceId: 'slots', measure: 'agent_slots', slots: 4 }, NOW),
+    ).toMatchObject({ usageUnits: 0 });
   });
 
   test('run smoke: runs an argv through the same transport with only the allow-listed environment', async () => {

@@ -16,6 +16,8 @@ import { fakeCredential } from './testing/credential';
 import { createSshFixture, MEMINFO_15_7 } from './testing/ssh-fixture';
 
 const CREDENTIAL = fakeCredential();
+/** A cold entrypoint start under load; the in-test kill sits inside it, so exit 1 stays asserted. */
+const ENTRYPOINT_BUDGET_MS = 60_000;
 const SECRET = CREDENTIAL.slice('wbs_mk_'.length);
 
 interface RecordedPut {
@@ -321,6 +323,73 @@ describe('report-capacity against a fake WBS', () => {
     expect(calls).toBe(2);
   });
 
+  test('counts only consecutive report_superseded', async () => {
+    const superseded: Answer = {
+      status: 409,
+      body: { error: 'report_superseded', storedObservedAt: 1_760_000_002_000 },
+    };
+    const unavailable: Answer = { status: 503, body: null };
+    const wbs = fakeWbs([superseded, superseded, unavailable, superseded, superseded, stored]);
+    const exit = await exitOf(
+      runReporter(
+        reporterConfiguration(scriptedProvider().provider),
+        dependencies(wbs.send, 6).deps,
+      ),
+    );
+    expect(exit.message).toBe('test budget: the loop kept going');
+    expect(wbs.puts).toHaveLength(7);
+  });
+
+  test('throws on a 200 that carries no stored report', async () => {
+    const wbs = fakeWbs([{ status: 200, body: { ok: true } }]);
+    const exit = await exitOf(
+      runReporter(reporterConfiguration(scriptedProvider().provider), dependencies(wbs.send).deps),
+    );
+    expect(exit.message).toBe('WBS answered 200 without a stored report for resource h4claw-ram');
+    expect(wbs.puts).toHaveLength(1);
+  });
+
+  test('adds a fixed number of abort listeners whatever the number of ticks', async () => {
+    // Restored in `finally`; each is called with its own receiver.
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const original = AbortSignal.prototype.addEventListener;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const any = AbortSignal.any;
+    let listeners = 0;
+    let composites = 0;
+    AbortSignal.prototype.addEventListener = function (
+      this: AbortSignal,
+      ...args: Parameters<AbortSignal['addEventListener']>
+    ) {
+      if (args[0] === 'abort') listeners += 1;
+      original.apply(this, args);
+    };
+    AbortSignal.any = (signals) => {
+      composites += 1;
+      return any(signals);
+    };
+    try {
+      const counts: number[] = [];
+      for (const ticks of [2, 12]) {
+        listeners = 0;
+        await exitOf(
+          runReporter(
+            reporterConfiguration(scriptedProvider().provider),
+            dependencies(fakeWbs([stored]).send, ticks).deps,
+          ),
+        );
+        counts.push(listeners);
+      }
+      // The stop listener itself is seen, so the count is not vacuously zero.
+      expect(counts[0]).toBeGreaterThan(0);
+      expect(counts[1]).toBe(counts[0]);
+      expect(composites).toBe(0);
+    } finally {
+      AbortSignal.prototype.addEventListener = original;
+      AbortSignal.any = any;
+    }
+  });
+
   test('exits with the provider error when a reachable host answers nonsense', async () => {
     const wbs = fakeWbs([stored]);
     const { provider } = scriptedProvider([
@@ -342,109 +411,113 @@ describe('the report-capacity command', () => {
     rmSync(scratch, { force: true, recursive: true });
   });
 
-  test('runs from the entrypoint, reports through the ssh client on PATH, exits on 401, never prints the key', async () => {
-    const received: RecordedPut[] = [];
-    const server = Bun.serve({
-      port: 0,
-      hostname: '127.0.0.1',
-      fetch: async (request) => {
-        received.push({
-          url: new URL(request.url).pathname,
-          authorization: request.headers.get('authorization'),
-          body: (await request.json()) as unknown,
-        });
-        return received.length === 1
-          ? Response.json(stored.body)
-          : Response.json({ error: 'unknown_identity' }, { status: 401 });
-      },
-    });
-    afterAll(() => {
-      void server.stop(true);
-    });
-    const configPath = join(scratch, 'reporter.json');
-    writeFileSync(
-      configPath,
-      JSON.stringify({
-        schemaVersion: 1,
-        wbsOrigin: `http://127.0.0.1:${String(server.port)}`,
-        credential: CREDENTIAL,
-        cadenceSeconds: 30,
-        instances: [
+  test(
+    'runs from the entrypoint, reports through the ssh client on PATH, exits on 401, never prints the key',
+    async () => {
+      const received: RecordedPut[] = [];
+      const server = Bun.serve({
+        port: 0,
+        hostname: '127.0.0.1',
+        fetch: async (request) => {
+          received.push({
+            url: new URL(request.url).pathname,
+            authorization: request.headers.get('authorization'),
+            body: (await request.json()) as unknown,
+          });
+          return received.length === 1
+            ? Response.json(stored.body)
+            : Response.json({ error: 'unknown_identity' }, { status: 401 });
+        },
+      });
+      afterAll(() => {
+        void server.stop(true);
+      });
+      const configPath = join(scratch, 'reporter.json');
+      writeFileSync(
+        configPath,
+        JSON.stringify({
+          schemaVersion: 1,
+          wbsOrigin: `http://127.0.0.1:${String(server.port)}`,
+          credential: CREDENTIAL,
+          cadenceSeconds: 30,
+          instances: [
+            {
+              instanceId: 'h4claw',
+              kind: 'ssh_host',
+              host: 'h4claw.fixture',
+              sshTransportFile: fixture.transportFile,
+              bindings: [
+                { resourceId: 'h4claw-ram', measure: 'memory_gib' },
+                { resourceId: 'h4claw-slots', measure: 'agent_slots', slots: 4 },
+              ],
+            },
+          ],
+        }),
+      );
+      chmodSync(configPath, 0o600);
+      const child = Bun.spawn({
+        cmd: [
+          process.execPath,
+          join(import.meta.dir, '..', 'entrypoint.ts'),
+          'report-capacity',
+          '--config',
+          configPath,
+        ],
+        env: {
+          PATH: `${fixture.binDirectory}:${process.env['PATH'] ?? ''}`,
+          HOME: scratch,
+          SSH_AUTH_SOCK: fixture.agentSocket,
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      // A reporter that fails to exit is killed rather than left running past the test.
+      const deadline = setTimeout(() => {
+        child.kill();
+      }, ENTRYPOINT_BUDGET_MS - 5_000);
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      clearTimeout(deadline);
+      expect(exitCode).toBe(1);
+      expect(stderr).toBe(
+        'error: refused: instance h4claw resource h4claw-slots: HTTP 401 unknown_identity\n',
+      );
+      expect(received.map((put) => [put.url, put.authorization, put.body])).toEqual([
+        [
+          '/api/compute-providers/h4claw/resources/h4claw-ram/capacity-report',
+          `Bearer ${CREDENTIAL}`,
           {
-            instanceId: 'h4claw',
-            kind: 'ssh_host',
-            host: 'h4claw.fixture',
-            sshTransportFile: fixture.transportFile,
-            bindings: [
-              { resourceId: 'h4claw-ram', measure: 'memory_gib' },
-              { resourceId: 'h4claw-slots', measure: 'agent_slots', slots: 4 },
-            ],
+            observedAt: expect.any(Number) as number,
+            cadenceSeconds: 30,
+            outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8 },
           },
         ],
-      }),
-    );
-    chmodSync(configPath, 0o600);
-    const child = Bun.spawn({
-      cmd: [
-        process.execPath,
-        join(import.meta.dir, '..', 'entrypoint.ts'),
-        'report-capacity',
-        '--config',
-        configPath,
-      ],
-      env: {
-        PATH: `${fixture.binDirectory}:${process.env['PATH'] ?? ''}`,
-        HOME: scratch,
-        SSH_AUTH_SOCK: fixture.agentSocket,
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    // A reporter that fails to exit is killed rather than left running past the test.
-    const deadline = setTimeout(() => {
-      child.kill();
-    }, 20_000);
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
-    clearTimeout(deadline);
-    expect(exitCode).toBe(1);
-    expect(stderr).toBe(
-      'error: refused: instance h4claw resource h4claw-slots: HTTP 401 unknown_identity\n',
-    );
-    expect(received.map((put) => [put.url, put.authorization, put.body])).toEqual([
-      [
-        '/api/compute-providers/h4claw/resources/h4claw-ram/capacity-report',
-        `Bearer ${CREDENTIAL}`,
-        {
-          observedAt: expect.any(Number) as number,
-          cadenceSeconds: 30,
-          outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8 },
-        },
-      ],
-      [
-        '/api/compute-providers/h4claw/resources/h4claw-slots/capacity-report',
-        `Bearer ${CREDENTIAL}`,
-        {
-          observedAt: expect.any(Number) as number,
-          cadenceSeconds: 30,
-          outcome: { kind: 'measured', capacityUnits: 4, usageUnits: 0 },
-        },
-      ],
-    ]);
-    expect(
-      stdout
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line) as unknown),
-    ).toMatchObject([
-      { resourceId: 'h4claw-ram', measurement: 'measured', answer: 'stored' },
-      { resourceId: 'h4claw-slots', measurement: 'measured', answer: 'refused' },
-    ]);
-    expect(`${stdout}${stderr}`).not.toContain(SECRET);
-  });
+        [
+          '/api/compute-providers/h4claw/resources/h4claw-slots/capacity-report',
+          `Bearer ${CREDENTIAL}`,
+          {
+            observedAt: expect.any(Number) as number,
+            cadenceSeconds: 30,
+            outcome: { kind: 'measured', capacityUnits: 4, usageUnits: 0 },
+          },
+        ],
+      ]);
+      expect(
+        stdout
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as unknown),
+      ).toMatchObject([
+        { resourceId: 'h4claw-ram', measurement: 'measured', answer: 'stored' },
+        { resourceId: 'h4claw-slots', measurement: 'measured', answer: 'refused' },
+      ]);
+      expect(`${stdout}${stderr}`).not.toContain(SECRET);
+    },
+    ENTRYPOINT_BUDGET_MS,
+  );
 
   test('refuses a configuration readable by others before any request', () => {
     const configPath = join(scratch, 'shared.json');

@@ -12,6 +12,8 @@ export interface FixtureHost {
   readonly meminfo?: string;
   readonly df?: string;
   readonly cpu?: string;
+  /** Seconds the reachability dial (`true`) takes, to hold an observation open. */
+  readonly dialDelay?: string;
 }
 
 /** A fixture SSH client, its pinned transport and the hosts it answers for. */
@@ -73,7 +75,7 @@ case "$command" in
   'cat /proc/meminfo') exec cat "$root/$host/meminfo" ;;
   "df -kP -- '"*) exec cat "$root/$host/df" ;;
   'nproc && cat /proc/loadavg') exec cat "$root/$host/cpu" ;;
-  true) exit 0 ;;
+  true) if [ -f "$root/$host/dialDelay" ]; then sleep "$(cat "$root/$host/dialDelay")"; fi; exit 0 ;;
   'env -i '*) exec sh -c "$command" ;;
   *) echo "fixture ssh: no answer for $command" >&2; exit 127 ;;
 esac

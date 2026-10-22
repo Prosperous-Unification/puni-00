@@ -132,6 +132,21 @@ describe('loading a reporter configuration', () => {
     expect((await refusalOf(link, {})).reason).toBe('config_unreadable');
   });
 
+  test('refuses a directory config_unreadable and a file over 64 KiB config_malformed', async () => {
+    const directory = mkdtempSync(join(scratch, 'directory-'));
+    expect(await refusalOf(directory, {})).toEqual({
+      reason: 'config_unreadable',
+      message: expect.stringContaining('is not a regular file') as string,
+    });
+    const oversized = writeConfiguration(
+      `${JSON.stringify(configuration())}${' '.repeat(64 * 1024)}`,
+    );
+    expect(await refusalOf(oversized, { docker: recordingAdapter() })).toEqual({
+      reason: 'config_malformed',
+      message: expect.stringContaining('exceeds 64 KiB') as string,
+    });
+  });
+
   test('refuses a group- or world-readable configuration credential_not_owner_only', async () => {
     for (const mode of [0o640, 0o604, 0o660]) {
       const refusal = await refusalOf(writeConfiguration(configuration(), mode), {

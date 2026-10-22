@@ -61,8 +61,8 @@ them. The audit vocabulary is widened by one compatible rebuild
       `credential_not_owner_only`) with the injected clock; no `Date.now` (extend
       `no-ambient-clock.test.ts`). Green: the port and the loader.
 - [x] 2.2 `ssh_host` adapter over the pinned transport of `discovery-ssh-transport`:
-      `memory_gib`, `disk_gib`, `cpu_cores`, `agent_slots`; `run` smoke. Red: the local sshd
-      fixture cases of the spec (measured, port closed, missing `MemTotal`, `df` unparseable
+      `memory_gib`, `disk_gib`, `cpu_cores`, `agent_slots`; `run` smoke. Red: the local SSH
+      fixture cases of the spec (a fixture `ssh` client in the gate; a real sshd in the rehearsal) (measured, port closed, missing `MemTotal`, `df` unparseable
       throws). R5 fault line: catch the parse error and answer `unreachable` and the nonsense
       case passes vacuously; watched, restored, `Proof:`.
 - [x] 2.3 `report-capacity` loop: cadence, after-run ticks, the outcome table of P10, never

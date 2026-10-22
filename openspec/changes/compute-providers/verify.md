@@ -312,3 +312,72 @@ Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-2` with `env 
 - Burokrat `check-indexes working . HEAD`: exit 0; no module index covers a changed file (the
   `store-memory` review debt is unchanged).
 - `bunx openspec validate --all --json`: 269 of 269 passed.
+
+### Slice 2 review (Fable, 2026-10-22, PR #659)
+
+The review found the secrets handling, argv pinning and the P10 table sound. Fixed on the same
+PR:
+
+- S1-1: `observe(agent_slots)` read `#activeRuns` after the reachability dial, so a run ending
+  during the dial raced the count (the run smoke failed 1 run in 4 there; 12 local runs did not
+  reproduce it). `observe` now samples runs in use at its start, the instant it stamps. The
+  fixture gained a `dialDelay` that holds the dial open for 0.5 s, which makes the old race
+  deterministic.
+- S2-1: the entrypoint test's in-test kill sits inside an explicit 60 s test budget
+  (`ENTRYPOINT_BUDGET_MS`), not at 20 s, and still asserts exit 1.
+- S2-2: negatives for `timeout`, `authentication_failed`, `name_unresolved`, `no_route`, a
+  non-numeric `nproc`, a missing loadavg line, a header-only `df` and `MemAvailable` above
+  `MemTotal`.
+- S3-1: no `AbortSignal.any` remains. The request carries `AbortSignal.timeout` alone, with an
+  explicit `stop.aborted` check on failure. Each instance loop adds one `stop` listener that
+  aborts its current sleep controller.
+- S3-2: a `transient` answer resets the `report_superseded` count.
+- S3-4: the timeout reason is cut to 200 characters like the 255 reason. Testing it showed the
+  command deadline waited for ssh's pipes, which a descendant (the fixture's `sleep`, in
+  production a `ProxyCommand`) can hold open. The deadline now answers as soon as the killed
+  ssh exits.
+- S3-7: `Proof:` comments beside the run-environment refusal, the unknown-255 throw and the
+  non-zero remote exit. New negatives for `isFile()`, the 64 KiB configuration cap, the 1 MiB
+  output cap and a malformed `200`.
+- S3-6: `report-capacity` resolves `ssh` on `PATH` before it validates `--config`. Both
+  refusals come before any effect, and the spec says nothing about their order.
+- S3-9: spec, tasks and design now say the gate uses a fixture `ssh` client and a real sshd was
+  only the rehearsal.
+
+| Fault injected (watched 2026-10-22)                                                | Observed failing test                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_slots` usage read from `#activeRuns` after the dial                         | `counts the runs in use at the stamp, not after the dial`                                                                                 |
+| each `TRANSPORT_FAULTS` entry removed in turn                                      | `answers unreachable for every typed transport fault` (four new causes); the closed-port case (`connection_refused`, `host_key_mismatch`) |
+| timeout reason not cut                                                             | `bounds an unreachable reason to the 200 characters WBS accepts` (length 254)                                                             |
+| deadline awaits the pipes (`answered` alone)                                       | the same test, timed out on the descendant `sleep`                                                                                        |
+| unmatched 255 answered `unreachable`                                               | `throws for an ssh failure that names no transport fault`                                                                                 |
+| non-zero remote exit branch dropped                                                | `throws when the remote command fails on a reachable host` (received the parser's `has no MemTotal line`)                                 |
+| run-environment allow-list refusal skipped                                         | `refuses a run environment key outside the allow-list before ssh starts`                                                                  |
+| 1 MiB output cap dropped                                                           | `refuses an answer over 1 MiB`                                                                                                            |
+| `AbortSignal.any([wake.signal, stop])` per sleep, or `[stop, timeout]` per request | `adds a fixed number of abort listeners whatever the number of ticks` (16 composites instead of 0), each                                  |
+| superseded count kept across a transient answer                                    | `counts only consecutive report_superseded` (exited `another_reporter`)                                                                   |
+| any `200` answered `stored`                                                        | `throws on a 200 that carries no stored report`                                                                                           |
+| `isFile()` check skipped                                                           | `refuses a directory config_unreadable…` (raw `EISDIR` escaped)                                                                           |
+| 64 KiB cap dropped                                                                 | `…and a file over 64 KiB config_malformed` (the file loaded)                                                                              |
+
+Recorded, not changed:
+
+- S3-3: an ssh 255 whose diagnostic matches none of the six patterns throws and ends the
+  reporter, as the design requires. Examples are `kex_exchange_identification` and
+  `Connection reset by peer`. A `connection_closed` reason is a candidate for a later slice.
+- S3-5: the command deadline (`setTimeout`) and the request `AbortSignal.timeout` are not on the
+  injected `Monotonic`. The fixture drives the timeout branch with a real 200 ms deadline, not
+  deterministically.
+- S3-8, pre-existing in `tool-fleet` (the coordinator files an issue): the jump's
+  `ProxyCommand=ssh …` lacks `-F none`. The transport and `known_hosts` owner check also stats
+  the path after `readFile`, so it follows symlinks and checks no uid, unlike Dash's
+  `readOwnerOnly`.
+
+Commands after the review fixes (2026-10-22, `env -u CLAUDECODE`):
+
+- `ssh-host.test.ts` six times in a row: 15 pass, 0 fail each run.
+- `provider.test.ts`: 11 pass. `report-capacity.test.ts`: 20 pass.
+- `bunx nx run-many -t lint typecheck -p twilight-dash tool-fleet --skip-nx-cache --parallel=1`:
+  succeeded.
+- `bunx nx run twilight-dash:test --skip-nx-cache`: 2158 pass, 0 fail.
+- `bunx nx run tool-fleet:test --skip-nx-cache`: 589 pass, 0 fail.

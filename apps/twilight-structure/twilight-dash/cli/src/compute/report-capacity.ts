@@ -112,7 +112,11 @@ async function putReport(
         body: reportBody(measurement, configuration.cadenceSeconds),
         // A redirect is refused rather than followed with the credential.
         redirect: 'manual',
-        signal: AbortSignal.any([stop, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
+        // The timeout alone: a composite with the months-long `stop` signal would be retained by
+        // it on every request (Bun keeps `AbortSignal.any` dependents of a live source).
+        // Proof: composing it with `stop` again made `adds a fixed number of abort listeners
+        // whatever the number of ticks` count 16 composites instead of 0 (2026-10-22).
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       }),
     );
   } catch (cause) {
@@ -123,6 +127,8 @@ async function putReport(
   const body = await readJson(response);
   if (response.status === 200) {
     const stored = StoredReport(body);
+    // Proof: answering `stored` for any 200 made `throws on a 200 that carries no stored report`
+    // keep reporting (2026-10-22).
     if (stored instanceof type.errors) {
       throw new Error(
         `WBS answered 200 without a stored report for resource ${binding.resourceId}`,
@@ -162,14 +168,25 @@ async function reportInstance(
   const streaks = new Map<string, BindingStreaks>(
     instance.bindings.map((binding) => [binding.resourceId, { superseded: 0, transient: 0 }]),
   );
+  // One controller per sleep, aborted by a run change or by `stop`; `stop` carries exactly one
+  // listener for the whole loop, whatever the number of ticks.
+  // Proof: composing `AbortSignal.any([wake.signal, stop])` per sleep again made `adds a fixed
+  // number of abort listeners whatever the number of ticks` count 16 composites instead of 0
+  // (2026-10-22).
   let wake = new AbortController();
   const unsubscribe = instance.provider.onRunChange(() => {
     wake.abort();
   });
+  const onStop = (): void => {
+    wake.abort();
+  };
+  stop.addEventListener('abort', onStop, { once: true });
+  // A function, not the property: narrowing would treat `stop.aborted` as fixed across awaits.
+  const stopped = (): boolean => stop.aborted;
   try {
     for (;;) {
       for (const binding of instance.bindings) {
-        if (stop.aborted) return;
+        if (stopped()) return;
         const measurement = await instance.provider.observe(binding, deps.clock.read());
         const answer = await putReport(
           configuration,
@@ -212,6 +229,10 @@ async function reportInstance(
             }
             break;
           case 'transient':
+            // Superseded answers separated by a transient one are not consecutive.
+            // Proof: keeping the count here made `counts only consecutive report_superseded`
+            // exit `another_reporter` (2026-10-22).
+            streak.superseded = 0;
             streak.transient += 1;
             if (streak.transient >= TRANSIENT_LIMIT) {
               throw new ReporterExit(
@@ -226,11 +247,13 @@ async function reportInstance(
             throw new ReporterExit('refused', `${subject}: ${answer.detail}`);
         }
       }
-      if (stop.aborted) return;
-      await deps.sleep(configuration.cadenceSeconds * 1000, AbortSignal.any([wake.signal, stop]));
+      if (stopped()) return;
+      await deps.sleep(configuration.cadenceSeconds * 1000, wake.signal);
+      if (stopped()) return;
       if (wake.signal.aborted) wake = new AbortController();
     }
   } finally {
+    stop.removeEventListener('abort', onStop);
     unsubscribe();
   }
 }
