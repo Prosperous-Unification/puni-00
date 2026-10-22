@@ -32,7 +32,10 @@ const candidate = type({
   },
 });
 const refusals = [
-  { status: 400, schema: responseSchema(type({ error: "'invalid_query'" })) },
+  {
+    status: 400,
+    schema: responseSchema(type({ error: "'invalid_query' | 'invalid_params' | 'invalid_body'" })),
+  },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
   organizationContextRefusal,
