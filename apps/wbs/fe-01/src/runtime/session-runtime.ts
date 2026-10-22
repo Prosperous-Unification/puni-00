@@ -8,6 +8,7 @@ import {
   sameOrganization,
 } from '@/lib/organization-context';
 import type { ProjectStreamDeps } from '@/lib/project-stream';
+import { httpProjectAddressApi, type ProjectAddressApi } from '@/lib/wbs-api';
 import {
   type DirectoryApi,
   httpDirectoryApi,
@@ -372,6 +373,8 @@ export type SessionExit = 'signed-out' | 'fatal' | 'overtaken';
 
 /** What an owner is built from; production passes none of it. */
 export interface SessionOwnerDependencies {
+  /** Read-only addresses over the same credential and organization scope as the project client. */
+  readonly addressClientFor?: (credential: Credential, scope?: ResourceScope) => ProjectAddressApi;
   /** How one runtime is installed. Defaults to {@link installSessionRuntime}. */
   readonly install?: (dependencies: SessionRuntimeDependencies) => RetirableRuntime<SessionRuntime>;
   /** How the directory's client is cut from a credential. Defaults to the real one. */
@@ -407,6 +410,7 @@ export function createSessionOwner({
   install = installSessionRuntime,
   clientFor = httpDirectoryApi,
   projectClientFor = httpProjectApi,
+  addressClientFor = httpProjectAddressApi,
   streamDeps,
   installProject = installProjectRuntime,
   budgetMs = RETIREMENT_BUDGET_MS,
@@ -536,6 +540,7 @@ export function createSessionOwner({
           // `projectClientFor` failed it on `expected [ 'tok', 'tok' ] to deeply equal [ 'tok' ]`.
           const projectSource = projectSourceOver(
             projectClient,
+            addressClientFor(identity.credential, resourceScope),
             streamDeps,
             browserSavedPlanRoutes(streamDeps, resourceScope),
           );

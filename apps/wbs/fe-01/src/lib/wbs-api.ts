@@ -624,6 +624,8 @@ export interface SpanView {
 }
 
 export interface StepView {
+  /** Absent from older observations; null explicitly states that this step has no code. */
+  code?: string | null;
   estimateUnit: EstimateUnit;
   id: string;
   name: string;
@@ -632,11 +634,18 @@ export interface StepView {
 
 export type TypedDependencyType = 'FS' | 'SS' | 'FF';
 
-/** A scope chosen for one end of an authored relationship. */
+/** A scope chosen for one end of a relationship; explicit project coordinates retain stable remote IDs. */
 export type TypedDependencyEndpoint =
-  | { scope: 'whole'; workItemId: string }
-  | { scope: 'node'; stepNodeId: string }
-  | { scope: 'descendant-step'; workItemId: string; stepId: string };
+  | { scope: 'whole'; workItemId: string; projectId?: string; stepId?: never; stepNodeId?: never }
+  | { scope: 'node'; stepNodeId: string; projectId?: string; workItemId?: never; stepId?: never }
+  | { scope: 'node'; workItemId: string; stepId: string; projectId?: string; stepNodeId?: never }
+  | {
+      scope: 'descendant-step';
+      workItemId: string;
+      stepId: string;
+      projectId?: string;
+      stepNodeId?: never;
+    };
 
 /** The explicit relationship returned by a project tree read. */
 export interface TypedDependencyView {
@@ -669,12 +678,15 @@ export interface TypedDependencyView {
  * at 0%` failed (2026-09-27).
  */
 export function stepViewOf(step: {
+  code?: string | null;
   id: string;
   name: string;
   allowancePercent?: number;
   estimateUnit?: EstimateUnit;
 }): StepView {
   return {
+    // Proof: dropping code failed the string/null/absent step-view observation test (2026-10-22).
+    ...(step.code === undefined ? {} : { code: step.code }),
     // Proof: forcing workdays failed step-view.test.ts minute preservation.
     estimateUnit: step.estimateUnit ?? 'workdays',
     id: step.id,
@@ -3105,21 +3117,21 @@ export function depthOf(workItem: WorkItemView): number {
 
 /** Read observations with typed refusals and cancellation; stable-ID writers reauthorize selections. */
 export interface ProjectAddressApi {
-  projects(
+  projects: (
     query: { q?: string; limit?: string; cursor?: string },
     signal?: AbortSignal,
-  ): Promise<ClientReply<typeof discoverAddressProjects>>;
-  candidates(
+  ) => Promise<ClientReply<typeof discoverAddressProjects>>;
+  candidates: (
     projectId: string,
     query: { q?: string; limit?: string; cursor?: string },
     signal?: AbortSignal,
-  ): Promise<ClientReply<typeof discoverAddressCandidates>>;
-  resolve(
+  ) => Promise<ClientReply<typeof discoverAddressCandidates>>;
+  resolve: (
     projectId: string,
     reference: string,
     revision: string,
     signal?: AbortSignal,
-  ): Promise<ClientReply<typeof resolveAddressReference>>;
+  ) => Promise<ClientReply<typeof resolveAddressReference>>;
 }
 /** Uses the shared shape client, including its refusal schemas and AbortSignal contract. */
 export function httpProjectAddressApi(token: string, scope?: ResourceScope): ProjectAddressApi {

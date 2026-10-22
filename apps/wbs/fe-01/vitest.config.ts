@@ -41,6 +41,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      '@wbs/domain/typed-dependency': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/typed-dependency.ts',
+      ),
+      '@wbs/domain/project-address': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/project-address.ts',
+      ),
       '@wbs/domain/step-node': resolve(
         __dirname,
         '../../../libs/wbs/domain/domain/src/step-node.ts',

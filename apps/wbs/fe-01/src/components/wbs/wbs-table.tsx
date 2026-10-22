@@ -1320,6 +1320,9 @@ export function WbsTable({
   const { dependenciesOf, dependOn, depEntriesFor, pickDependency, moveDepHighlight } =
     usePlanDependencies({
       flat,
+      projectId,
+      lookup: project.dependencyLookup,
+      stepNodes,
       pushToast,
       busy: busyWrites,
       commands,
@@ -1704,6 +1707,7 @@ export function WbsTable({
     depLights,
     setOpenMenuRowId,
     depEntriesFor,
+    dependencyLookup: project.dependencyLookup,
     pickDependency,
     moveDepHighlight,
     commitEstimate,
@@ -2610,6 +2614,8 @@ export function WbsTable({
           nothing sticky to hold, because there are no columns to pin.
         */
             <PlanCards
+              projectId={projectId}
+              dependencyLookup={project.dependencyLookup}
               rows={shownRows.map((row) => ({
                 row: row.original,
                 depth: row.depth,
@@ -2699,8 +2705,8 @@ export function WbsTable({
               // `removeDependency` are the paths the table's list and its chip `✕`
               // take, for `rowActions`' bargain, a fifth dimension over.
               dependencyOptions={(row, typed) => depEntriesFor(row, typed)}
-              addDependency={(row, predecessorId) => {
-                return pickDependency(row.id, predecessorId);
+              addDependency={(row, selection, draft) => {
+                return pickDependency(row.id, selection, draft);
               }}
               dropDependency={(row, predecessorId) => {
                 return run((write) =>

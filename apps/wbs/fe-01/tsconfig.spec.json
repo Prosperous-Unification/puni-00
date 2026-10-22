@@ -5,6 +5,8 @@
     "types": ["vitest/globals", "@testing-library/jest-dom", "node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"],
+      "@wbs/domain/typed-dependency": ["../../../libs/wbs/domain/domain/src/typed-dependency.ts"],
+      "@wbs/domain/project-address": ["../../../libs/wbs/domain/domain/src/project-address.ts"],
       "@wbs/domain/step-node": ["../../../libs/wbs/domain/domain/src/step-node.ts"],
       "@wbs/domain/step-reference": ["../../../libs/wbs/domain/domain/src/step-reference.ts"],
       "@wbs/domain/workday": ["../../../libs/wbs/domain/domain/src/workday.ts"],

@@ -26,3 +26,9 @@ it('preserves a present minute unit from the backend', () => {
     'minutes',
   );
 });
+
+it('preserves string, null and absent step code as distinct observations', () => {
+  expect(stepViewOf({ id: 'dev', name: 'Dev', code: 'DEV' })).toHaveProperty('code', 'DEV');
+  expect(stepViewOf({ id: 'dev', name: 'Dev', code: null })).toHaveProperty('code', null);
+  expect(stepViewOf({ id: 'dev', name: 'Dev' })).not.toHaveProperty('code');
+});

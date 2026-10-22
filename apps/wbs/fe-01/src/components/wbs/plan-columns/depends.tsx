@@ -3,8 +3,15 @@ import { useRef, useState } from 'react';
 import type { TypedDependencyEndpoint } from '@/lib/wbs-api';
 
 import { PICKER_PANEL_STYLE } from '../creatable-picker';
-import { REFUSAL_SUFFIX } from '../dep-picker';
-import { DependsCard, dependsLine, statusStripStyle } from '../depends-card';
+import { DependencyOptions } from '../dependency-options';
+import {
+  type DependencySelection,
+  encodeDependencyEndpoint,
+  type EndpointOption,
+  serializeDependencyEndpoint,
+} from '../dependency-selection';
+import { DependsCard, dependsLine } from '../depends-card';
+import { currentDependencyToken, replaceDependencyToken } from '../depends-input';
 import { cellKey } from '../editable-grid';
 import { commandChordIn, escapesAnOpenList } from '../keyboard-bindings';
 import { didLand } from '../live-editing';
@@ -18,12 +25,13 @@ import {
   REFERENCE_SET_STRIP_STYLE,
   useHiddenChips,
 } from '../reference-set-field';
+import { RemoteDependencyEditor } from '../remote-dependency-editor';
+import { buildLocalDependencyEditor } from '../typed-dependency-editor';
 import { dependencyWords, endpointText, TypedDependencyEditor } from '../typed-dependency-editor';
 import { useCardOpenOn } from '../use-card-open-on';
+import { useDependencySearch } from '../use-dependency-search';
 import { column } from './column';
 
-/** What the dependency list keeps clear of the window's right edge, in px. */
-const LIST_EDGE_GAP = 8;
 /**
  * A dependency chip keeps its intrinsic width: its words are a number, and a
  * number cut to `010.…` names nothing (UI review F-058). The shared chip
@@ -68,9 +76,14 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       const [editing, setEditing] = useState<{
         predecessorId: string;
         dependencyId?: string;
+        selection?: DependencySelection;
+        draft?: string;
       } | null>(null);
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [announcement, setAnnouncement] = useState('');
+      // This cell is rendered as a component by the table library.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [adding, setAdding] = useState<ReadonlySet<string>>(() => new Set());
       // The resting line's chip group, measured for what it could not draw.
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const chipLine = useRef<HTMLSpanElement>(null);
@@ -90,20 +103,69 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       const dependsCell = cellKey(row.original.id, 'depends');
       // This cell's picker, or null while it is closed or under another row.
       const picker = row.original.readings.dependencyPicker;
-      const entries = row.original.readings.dependencyEntries;
+      // The table library renders cell as a component; hook order is unconditional.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const search = useDependencySearch({
+        lookup: live.current.dependencyLookup,
+        projectId: live.current.projectId,
+        ownerId: row.original.id,
+        active: picker !== null,
+        typed: picker?.typed ?? '',
+        setTyped: (typed) => {
+          live.current.setDepPicker((current) =>
+            current?.rowId === row.original.id ? { ...current, typed, highlightId: null } : current,
+          );
+        },
+        localEntries: row.original.readings.dependencyEntries,
+      });
+      const entries = search.options;
+      const customize = (option: EndpointOption) => {
+        setEditing({
+          predecessorId: option.selection.endpoint.workItemId,
+          selection: option.selection,
+          draft: picker?.typed ?? '',
+        });
+      };
+      const choose = (option: EndpointOption) => {
+        if (adding.has(option.key)) return;
+        if (picker?.stepId !== undefined) {
+          customize(option);
+          return;
+        }
+        const typed = picker?.typed ?? '';
+        const reference =
+          option.selection.kind === 'remote' ? option.selection.candidate.reference : null;
+        const draft = reference === null ? typed : replaceDependencyToken(typed, reference);
+        live.current.setDepPicker((current) =>
+          current?.rowId === row.original.id ? { ...current, typed: draft } : current,
+        );
+        setAdding((current) => new Set(current).add(option.key));
+        void live.current
+          .pickDependency(row.original.id, option.selection, draft)
+          .then((outcome) => {
+            setAdding((current) => {
+              const next = new Set(current);
+              next.delete(option.key);
+              return next;
+            });
+            setAnnouncement(didLand(outcome) ? 'Dependency added.' : 'Dependency refused.');
+          });
+      };
       // The entries a click or an Enter may actually take. A marked entry
       // is on screen to be read, not to be picked: be-01 would refuse it,
       // and the mark is this cell saying so before the click rather than
       // after it.
-      const pickable = entries.filter((entry) => entry.refusal === undefined);
+      const pickable = entries.filter(
+        (entry) => entry.kind === 'project' || entry.refusal === undefined,
+      );
       // Resolved by id at render, so a highlight whose row has left the
       // list — or has since become one be-01 would refuse — is simply
       // nothing rather than somebody else's row.
       const activeOption =
         picker?.highlightId == null
           ? undefined
-          : pickable.find((entry) => entry.id === picker.highlightId);
-      const open = picker !== null && entries.length > 0;
+          : pickable.find((entry) => entry.key === picker.highlightId);
+      const open = picker !== null;
       const resting = picker === null;
       const hasChips = waitingFor.length > 0 || typedDependencies.length > 0;
       // The chips the resting line could not draw whole, by the same
@@ -669,7 +731,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               aria-expanded={open}
               aria-controls={open ? `dep-options-${row.original.id}` : undefined}
               aria-activedescendant={
-                activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
+                activeOption === undefined ? undefined : `dep-option-${activeOption.key}`
               }
               aria-autocomplete="list"
               aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
@@ -759,10 +821,12 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               }}
               onChange={(e) => {
                 const typed = e.currentTarget.value;
-                // Typing is aiming at the narrowed-to entry; emptying the
-                // cell aims at nothing again.
+                // Only a single token auto-highlights. Earlier tokens must retain list submission.
+                // Proof: removing the token-count guard made `adds every number in one
+                // comma-separated list` miss the 010 dependency; watched 2026-10-22.
                 const first =
-                  typed.trim() === ''
+                  currentDependencyToken(typed).token === '' ||
+                  typed.split(/[,\s]+/).filter(Boolean).length !== 1
                     ? undefined
                     : live.current
                         .depEntriesFor(row.original, typed)
@@ -770,7 +834,14 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 live.current.setDepPicker((current) => ({
                   rowId: row.original.id,
                   typed,
-                  highlightId: first?.id ?? null,
+                  highlightId:
+                    first === undefined
+                      ? null
+                      : encodeDependencyEndpoint({
+                          projectId: live.current.projectId,
+                          workItemId: first.id,
+                          scope: 'whole',
+                        }),
                   // Proof: dropping this retained step made `keeps QA preselected after
                   // typing a predecessor search` receive Whole instead of QA for
                   // both endpoints. Watched 2026-09-28.
@@ -827,7 +898,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     // Proof: without the modifier guards, `Alt+→ and Alt+←
                     // restructure the row from the Depends on cell` left the
                     // row at 020 instead of indenting it to 010.1. Watched 2026-09-28.
-                    setEditing({ predecessorId: activeOption.id });
+                    if (activeOption.kind === 'endpoint') customize(activeOption);
                   }
                   return;
                 }
@@ -868,7 +939,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     // highlight steps over them: a highlight that could stop
                     // on one would be an Enter that does nothing, which is
                     // the click this change exists to prevent.
-                    pickable.map((entry) => entry.id),
+                    pickable.map((entry) => entry.key),
                   );
                   return;
                 }
@@ -891,202 +962,99 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 }
                 if (e.key !== 'Enter') return;
                 e.preventDefault();
+                const typed = picker?.typed ?? e.currentTarget.value;
                 if (activeOption !== undefined) {
-                  void live.current
-                    .pickDependency(row.original.id, activeOption.id)
-                    .then((outcome) => {
-                      setAnnouncement(
-                        didLand(outcome) ? 'Dependency added.' : 'Dependency refused.',
-                      );
-                    });
+                  if (activeOption.kind === 'project') search.chooseProject(activeOption.project);
+                  else choose(activeOption);
                   return;
                 }
                 // No highlight to take — the typed flow: one number or a
                 // separated list of them, exactly as this cell always worked.
-                const typed = picker?.typed ?? e.currentTarget.value;
                 if (typed.trim() === '') return;
-                live.current.dependOn(row.original.id, typed);
-                live.current.setDepPicker((current) =>
-                  current === null ? null : { ...current, typed: '', highlightId: null },
+                live.current.dependOn(
+                  row.original.id,
+                  typed,
+                  search.selectedProject === null
+                    ? undefined
+                    : { project: search.selectedProject, revision: search.revision },
                 );
               }}
             />
           </span>
-          {picker !== null && entries.length > 0 && (
-            <ul
-              role="listbox"
-              id={`dep-options-${row.original.id}`}
-              aria-label={`Work items ${row.original.number} can depend on`}
-              // One preventDefault for the whole list — options included,
-              // by bubbling. A mousedown anywhere here must not take the
-              // input's focus: on an option, blur would close the list
-              // before the click could pick; on the scrollbar, the list
-              // unmounted under the pointer and everything past the fold
-              // was unpickable by mouse (cross review #6).
-              onMouseDown={(e) => {
-                e.preventDefault();
-              }}
-              onBlur={(event) => {
-                if (
-                  event.relatedTarget instanceof HTMLElement &&
-                  (event.currentTarget.contains(event.relatedTarget) ||
-                    event.relatedTarget.closest('.typed-dependency-editor') !== null)
-                )
-                  return;
+          {picker !== null && (
+            <DependencyOptions
+              search={search}
+              onLeave={() => {
                 live.current.setDepPicker(null);
               }}
+              onReturnFocus={() =>
+                document
+                  .querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
+                  ?.focus()
+              }
+              isPending={(key) => adding.has(key)}
+              activeKey={activeOption?.key}
+              onChoose={choose}
+              onCustomize={customize}
+              id={`dep-options-${row.original.id}`}
+              label={`Work items ${row.original.number} can depend on`}
               style={{
-                // {@link PICKER_PANEL_STYLE} and not a copy of it. This
-                // list is the one the four reference cells do **not**
-                // share a component with, and the copy it used to carry
-                // had drifted: no radius, no shadow, no `overflow:
-                // hidden`, so the same gesture drew a flat square list
-                // here and a rounded card three columns over. The tokens
-                // that copy did get right — `--popover` over `#fff`, on a
-                // dark page 1.05:1 measured — are in the shared style now.
                 ...PICKER_PANEL_STYLE,
-                // `--popover-foreground` is this list's own: the reference
-                // panel inherits the cell's colour and reads correctly
-                // doing it, and changing that is not what was asked for.
                 color: 'var(--popover-foreground)',
-                // The table's own popover layer, which is 10 everywhere in
-                // this file. `CreatablePicker` stacks its list at 15 —
-                // that is its surface's number, not this one's.
                 zIndex: 10,
-                // Wider than its own column on purpose, since that column
-                // is 110px: an entry is a work item's number and its name,
-                // and a list as narrow as the box it drops from would show
-                // the number and about four letters. It escapes the cell
-                // either way — see `opensAPopover`.
                 minWidth: DEP_LIST_WIDTH,
               }}
-              // Never past the window's right edge (UI review F-022): the list
-              // opens at its cell's left, and a long name ran it off screen
-              // with the rest of the row unreadable. The room is measured
-              // because the cell's left is a layout fact; a row too long for
-              // it ends in an ellipsis and says itself whole in its `title`.
-              // Proof: this cap's write removed, `keeps the dependency list
-              // inside the window` in `e2e/plan-table-review.spec.ts` failed on
-              // `Expected: <= 1024 · Received: 1234.203125`. Watched 2026-10-13.
-              ref={(list) => {
-                if (list === null) return;
-                const room = window.innerWidth - list.getBoundingClientRect().left - LIST_EDGE_GAP;
-                list.style.maxWidth = `${String(Math.max(DEP_LIST_WIDTH, room))}px`;
-              }}
-            >
-              {entries.map((entry) => (
-                // The ARIA combobox pattern is the boundary that makes this
-                // safe: options are not focusable, and the keyboard drives
-                // them from the input above through aria-activedescendant
-                // (ArrowUp/ArrowDown/Enter/ArrowRight there).
-
-                <li
-                  key={entry.id}
-                  role="presentation"
-                  data-status={entry.status}
-                  // Shown and refused, rather than quietly absent: a row
-                  // that vanishes from the list reads as a bug in the tool,
-                  // and one that says why it cannot be picked teaches the
-                  // shape of the plan.
-                  // The list scrolls; the highlighted entry must be where
-                  // the eye is. jsdom has no scrollIntoView, hence the
-                  // typeof — that boundary is the test environment, not a
-                  // browser this will meet.
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    ...statusStripStyle(entry.status),
-                  }}
-                >
-                  <span
-                    id={`dep-option-${entry.id}`}
-                    role="option"
-                    aria-label={`${entry.number} - ${entry.name}${entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}`}
-                    aria-selected={entry.id === activeOption?.id}
-                    aria-disabled={entry.refusal !== undefined}
-                    tabIndex={-1}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return;
-                      event.preventDefault();
-                      event.currentTarget.click();
-                    }}
-                    ref={(element) => {
-                      if (
-                        entry.id === activeOption?.id &&
-                        element !== null &&
-                        typeof element.scrollIntoView === 'function'
-                      ) {
-                        element.scrollIntoView({ block: 'nearest' });
-                      }
-                    }}
-                    title={`${entry.number} - ${entry.name}${entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}`}
-                    style={{
-                      padding: '2px 6px',
-                      cursor: entry.refusal === undefined ? 'pointer' : 'default',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      minWidth: 0,
-                      flex: '0 1 auto',
-                      color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
-                      // A finished predecessor wears the status strip here as on
-                      // the card (`statusStripStyle`); the border replaces the
-                      // left padding so the text stays where it was.
-                      // No `background` here at all any more. `#e8f0fe` was
-                      // an inline style that outranked the stylesheet's own
-                      // `[data-grid] [role='option'][aria-selected='true']`
-                      // rule — which paints `var(--accent)` and has been
-                      // there all along — so the keyboard's highlight was a
-                      // fixed pale blue while the pointer's followed the
-                      // palette. One rule now answers for both.
-                    }}
-                    onClick={() => {
-                      if (entry.refusal !== undefined) return;
-                      void live.current
-                        .pickDependency(row.original.id, entry.id)
-                        .then((outcome) => {
-                          setAnnouncement(
-                            didLand(outcome) ? 'Dependency added.' : 'Dependency refused.',
-                          );
-                        });
-                    }}
-                  >
-                    {/*
-                        `010 - Strip the hull`, the way the plan is spoken
-                        about: a space alone let a number and a name that starts
-                        with a digit run together. The filter behind the list
-                        already matches either half (`pickerEntries`).
-                      */}
-                    {entry.number} - {entry.name}
-                    {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
-                  </span>
-                  <button
-                    type="button"
-                    className="typed-dependency-customize"
-                    aria-label={`Customize ${entry.number} - ${entry.name}`}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Escape') return;
-                      event.preventDefault();
-                      document
-                        .querySelector<HTMLInputElement>(
-                          `[data-depends-input="${row.original.id}"]`,
-                        )
-                        ?.focus();
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      // Proof: injecting pickDependency here made `opens Customize without writing
-                      // a dependency` fail: the API spy received one Whole→Whole write, expected [].
-                      // Watched 2026-09-27.
-                      setEditing({ predecessorId: entry.id });
-                    }}
-                  />
-                </li>
-              ))}
-            </ul>
+            />
           )}
           {editing !== null &&
             (() => {
+              if (editing.selection?.kind === 'remote') {
+                const draft = editing.draft ?? '';
+                return (
+                  <RemoteDependencyEditor
+                    selection={editing.selection}
+                    lookup={live.current.dependencyLookup}
+                    ownerProjectId={live.current.projectId}
+                    ownerId={row.original.id}
+                    successor={buildLocalDependencyEditor(
+                      live.current.projectId,
+                      row.original,
+                      dependencyRows,
+                      dependencySteps,
+                      picker?.stepId ?? 'whole',
+                    )}
+                    preferredCode={dependencySteps.find((step) => step.id === picker?.stepId)?.code}
+                    onCancel={() => {
+                      setEditing(null);
+                    }}
+                    onSave={(source, target, type) =>
+                      live.current
+                        .run((write) =>
+                          write.perform(['tree'], () =>
+                            live.current.commands.addTypedDependency(
+                              serializeDependencyEndpoint(source, live.current.projectId),
+                              serializeDependencyEndpoint(target, live.current.projectId),
+                              type,
+                            ),
+                          ),
+                        )
+                        .then((outcome) => {
+                          if (didLand(outcome))
+                            live.current.setDepPicker((current) =>
+                              current?.rowId === row.original.id && current.typed === draft
+                                ? {
+                                    ...current,
+                                    typed: currentDependencyToken(draft).prefix,
+                                    highlightId: null,
+                                  }
+                                : current,
+                            );
+                          return outcome;
+                        })
+                    }
+                  />
+                );
+              }
               const dependency = typedDependencies.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
@@ -1135,6 +1103,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               };
               return (
                 <TypedDependencyEditor
+                  projectId={live.current.projectId}
                   // Proof: removing this key made `switching edit targets shows the newly selected relationship scopes` keep Whole instead of Dev; watched 2026-09-28.
                   key={editing.dependencyId ?? `add:${editing.predecessorId}`}
                   predecessor={predecessor}
@@ -1169,6 +1138,16 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         ),
                       )
                       .then((outcome) => {
+                        if (didLand(outcome) && editing.draft !== undefined)
+                          live.current.setDepPicker((current) =>
+                            current?.rowId === row.original.id && current.typed === editing.draft
+                              ? {
+                                  ...current,
+                                  typed: currentDependencyToken(editing.draft).prefix,
+                                  highlightId: null,
+                                }
+                              : current,
+                          );
                         setAnnouncement(
                           didLand(outcome)
                             ? dependency === undefined

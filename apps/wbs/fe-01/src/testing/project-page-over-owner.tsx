@@ -10,6 +10,7 @@ import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
 import { createProjectOwner, type ProjectOwner } from '@/runtime/project-runtime';
 import type { SessionProjects } from '@/runtime/session-runtime';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
 /**
  * The catalog and the project owner a session would hand the page, over one
@@ -27,7 +28,7 @@ export function pageWiring(
   streamDeps?: ProjectStreamDeps,
   savedPlanRoutes: SavedPlanRoutes = NO_SAVED_PLANS,
 ): { catalog: ProjectCatalog; projects: SessionProjects } {
-  const source = projectSourceOver(api, streamDeps, savedPlanRoutes);
+  const source = projectSourceOver(api, createRefusingAddressApi(), streamDeps, savedPlanRoutes);
   return {
     catalog: createProjectCatalog({ routes: api, isCurrent: () => true }),
     projects: {

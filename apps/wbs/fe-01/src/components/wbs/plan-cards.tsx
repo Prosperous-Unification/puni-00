@@ -18,6 +18,7 @@ import type {
   TypedDependencyType,
   TypedDependencyView,
 } from '@/lib/wbs-api';
+import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
 
 import { ActionsMenu, type MenuAction } from './actions-menu';
 import { type AttemptActions, AttemptsSection } from './attempts-section';
@@ -31,7 +32,14 @@ import {
   pickerOptionId,
 } from './creatable-picker';
 import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from './deadline-impossible';
-import { type PickerEntry, REFUSAL_SUFFIX } from './dep-picker';
+import { type PickerEntry } from './dep-picker';
+import { DependencyOptions } from './dependency-options';
+import {
+  type DependencySelection,
+  type EndpointOption,
+  serializeDependencyEndpoint,
+} from './dependency-selection';
+import { currentDependencyToken, replaceDependencyToken } from './depends-input';
 import { minuteCharge, showDuration } from './duration-words';
 import { type CellElement, cellKey } from './editable-grid';
 import { POINTS, showTrio } from './estimate-draft';
@@ -41,12 +49,15 @@ import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
+import { RemoteDependencyEditor } from './remote-dependency-editor';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
 import { StepBlockageSection } from './step-blockage';
 import { nodeReadingOf, type StepNodeReadings, StepReadingInline } from './step-reading';
 import { cardIndentFor } from './table-frame';
+import { buildLocalDependencyEditor } from './typed-dependency-editor';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
+import { useDependencySearch } from './use-dependency-search';
 import type { TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
@@ -112,6 +123,8 @@ export interface DependencyEntry {
 }
 
 export interface PlanCardsProps {
+  projectId: string;
+  dependencyLookup: DependencyLookup;
   /** The rows on screen, in the order and the expansion the table model gives them. */
   rows: readonly CardRow[];
   steps: readonly StepView[];
@@ -222,7 +235,11 @@ export interface PlanCardsProps {
    * would not take it — and the option is locked out until one of those
    * arrives, so a double tap cannot send the same write twice.
    */
-  addDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
+  addDependency: (
+    row: TreeRow,
+    selection: DependencySelection,
+    draft: string,
+  ) => Promise<CommitOutcome>;
   /**
    * Takes one of those waits off again — the table's chip `✕`, in a sheet.
    *
@@ -2019,6 +2036,8 @@ function CardPriorityField({
  * once a value exists cannot set the first one.
  */
 function CardDependsField({
+  projectId,
+  dependencyLookup,
   row,
   waits,
   typedWaits,
@@ -2033,6 +2052,8 @@ function CardDependsField({
   dropDependency,
   foldsWhenEmpty,
 }: {
+  projectId: string;
+  dependencyLookup: DependencyLookup;
   row: TreeRow;
   /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
   foldsWhenEmpty: boolean;
@@ -2054,13 +2075,20 @@ function CardDependsField({
   ) => Promise<CommitOutcome>;
   removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   options: (row: TreeRow, typed: string) => readonly PickerEntry[];
-  addDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
+  addDependency: (
+    row: TreeRow,
+    selection: DependencySelection,
+    draft: string,
+  ) => Promise<CommitOutcome>;
   dropDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
 }) {
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<{ predecessorId: string; dependencyId?: string } | null>(
-    null,
-  );
+  const [editing, setEditing] = useState<{
+    predecessorId: string;
+    dependencyId?: string;
+    selection?: DependencySelection;
+    draft?: string;
+  } | null>(null);
   const triggerRef = useTriggerAboveSheet(open);
   // What has been typed into the search box, cleared on every open and after
   // every pick. Not a draft of a value — nothing here is held back and sent
@@ -2078,7 +2106,16 @@ function CardDependsField({
   // re-read graph has for it.
   const [adding, setAdding] = useState<ReadonlySet<string>>(() => new Set());
   const [removing, setRemoving] = useState<ReadonlySet<string>>(() => new Set());
-  const offered = open ? options(row, typed) : [];
+  const search = useDependencySearch({
+    lookup: dependencyLookup,
+    projectId,
+    ownerId: row.id,
+    active: open,
+    typed,
+    setTyped,
+    localEntries: open ? options(row, currentDependencyToken(typed).token) : [],
+  });
+  const offered = search.options;
 
   const withId = (set: ReadonlySet<string>, id: string): ReadonlySet<string> =>
     new Set(set).add(id);
@@ -2093,12 +2130,17 @@ function CardDependsField({
    * search box cleared only when the write actually landed — a refused tap
    * keeps the box as it was, so the refused row is still there to read.
    */
-  const onAdd = (entry: PickerEntry): void => {
-    if (entry.refusal !== undefined || adding.has(entry.id)) return;
-    setAdding((current) => withId(current, entry.id));
-    void addDependency(row, entry.id).then((outcome) => {
-      setAdding((current) => withoutId(current, entry.id));
-      if (didLand(outcome)) setTyped('');
+  const onAdd = (option: EndpointOption): void => {
+    if (option.refusal !== undefined || adding.has(option.key)) return;
+    const reference =
+      option.selection.kind === 'remote' ? option.selection.candidate.reference : null;
+    const draft = reference === null ? typed : replaceDependencyToken(typed, reference);
+    setTyped(draft);
+    setAdding((current) => withId(current, option.key));
+    void addDependency(row, option.selection, draft).then((outcome) => {
+      setAdding((current) => withoutId(current, option.key));
+      if (didLand(outcome))
+        setTyped((current) => (current === draft ? currentDependencyToken(draft).prefix : current));
     });
   };
 
@@ -2296,6 +2338,36 @@ function CardDependsField({
           )}
           {editing !== null &&
             (() => {
+              if (editing.selection?.kind === 'remote') {
+                const draft = editing.draft ?? '';
+                return (
+                  <RemoteDependencyEditor
+                    selection={editing.selection}
+                    lookup={dependencyLookup}
+                    ownerProjectId={projectId}
+                    ownerId={row.id}
+                    successor={buildLocalDependencyEditor(projectId, row, dependencyRows, steps)}
+                    onCancel={() => {
+                      setEditing(null);
+                    }}
+                    onSave={(source, target, type) => {
+                      if (addTypedDependency === undefined)
+                        throw new Error('Missing typed dependency writer');
+                      return addTypedDependency(
+                        serializeDependencyEndpoint(source, projectId),
+                        serializeDependencyEndpoint(target, projectId),
+                        type,
+                      ).then((outcome) => {
+                        if (didLand(outcome))
+                          setTyped((current) =>
+                            current === draft ? currentDependencyToken(draft).prefix : current,
+                          );
+                        return outcome;
+                      });
+                    }}
+                  />
+                );
+              }
               const dependency = typedWaits.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
@@ -2343,6 +2415,7 @@ function CardDependsField({
                 throw new Error('Missing typed dependency card commands');
               return (
                 <TypedDependencyEditor
+                  projectId={projectId}
                   // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
                   key={editing.dependencyId ?? `add:${editing.predecessorId}`}
                   predecessor={predecessor}
@@ -2354,9 +2427,18 @@ function CardDependsField({
                     setEditing(null);
                   }}
                   onSave={(source, target, type) =>
-                    dependency === undefined
+                    (dependency === undefined
                       ? addTypedDependency(source, target, type)
                       : saveTypedDependency(dependency.id, source, target, type)
+                    ).then((outcome) => {
+                      if (didLand(outcome) && editing.draft !== undefined)
+                        setTyped((current) =>
+                          current === editing.draft
+                            ? currentDependencyToken(current).prefix
+                            : current,
+                        );
+                      return outcome;
+                    })
                   }
                   onRemove={
                     dependency === undefined
@@ -2393,74 +2475,27 @@ function CardDependsField({
               }}
             />
           </label>
-          {offered.length === 0 ? (
+          {offered.length === 0 && search.state === 'local' ? (
             <p data-card-depends-empty className="text-muted-foreground m-0 shrink-0 text-sm">
               {typed.trim() === ''
                 ? 'There is nothing else in this plan to wait for.'
                 : `No other row matches “${typed}”.`}
             </p>
           ) : (
-            <ul
-              aria-label={`Rows ${row.number} could wait for`}
-              // The sheet's one scroll region — the comment on `ModalContent`
-              // above. `min-h-0` is what lets a flex child shrink below its
-              // content height; without it the list still outgrows the surface
-              // and the surface's hidden overflow clips the last rows with no
-              // scroll to reach them.
-              //
-              // `list-none p-0 m-0` on the list and a flex line per row: the
-              // sheet is a portal outside every reset that would have taken
-              // the user agent's disc and indent off, and two block buttons in
-              // a bare `<li>` stacked the › above its own row (F-050 of the
-              // 2026-10-13 phone review). The row is what a thumb aims at, so
-              // it takes the width; the › that customizes it sits after it.
-              //
-              // Proof: with the `<ul>` and `<li>` classes back as they were,
-              // `lays the Depends sheet's rows inline, without bullets (F-050)`
-              // in `e2e/mobile.spec.ts` failed on `a depends row wears a bullet
-              // … Received: "disc"`.
-              className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto p-0"
-            >
-              {offered.map((entry) => (
-                <li key={entry.id} className="flex min-w-0 items-center gap-2">
-                  <button
-                    type="button"
-                    data-card-depends-option={entry.number}
-                    {...(entry.refusal === undefined ? {} : { 'data-refusal': entry.refusal })}
-                    // Shown and refused rather than dropped, which is
-                    // `pickerEntries`' own decision relayed: a row that says,
-                    // before it is tapped, that it contains this one teaches
-                    // more than a row that is simply missing from the list.
-                    // Locked while its own write is in flight, so a double tap
-                    // cannot send the same edge twice — `onAdd` is the guard
-                    // and the `disabled` is the thing a finger hits.
-                    disabled={entry.refusal !== undefined || adding.has(entry.id)}
-                    className={`${TAP} flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
-                    onClick={() => {
-                      onAdd(entry);
-                    }}
-                  >
-                    <span className="font-semibold">{entry.number}</span>
-                    <span className="min-w-0 truncate">{entry.name}</span>
-                    {entry.refusal !== undefined && (
-                      <span className="text-muted-foreground ml-auto shrink-0 text-sm">
-                        — {REFUSAL_SUFFIX[entry.refusal]}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className={`${TAP} min-w-11 shrink-0 rounded-md border px-3`}
-                    aria-label={`Customize ${entry.number} - ${entry.name}`}
-                    onClick={() => {
-                      setEditing({ predecessorId: entry.id });
-                    }}
-                  >
-                    ›
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <DependencyOptions
+              phone
+              search={search}
+              label={`Rows ${row.number} could wait for`}
+              onChoose={onAdd}
+              onCustomize={(option) => {
+                setEditing({
+                  predecessorId: option.selection.endpoint.workItemId,
+                  selection: option.selection,
+                  draft: typed,
+                });
+              }}
+              isPending={(key) => adding.has(key)}
+            />
           )}
         </div>
       </ModalContent>
@@ -2673,6 +2708,8 @@ function CardTrioField({
  * had, not a fourth.
  */
 export function PlanCards({
+  projectId,
+  dependencyLookup,
   rows,
   steps,
   priorityBands,
@@ -3196,6 +3233,8 @@ export function PlanCards({
                 other three do not.
               */}
               <CardDependsField
+                projectId={projectId}
+                dependencyLookup={dependencyLookup}
                 row={row}
                 waits={waits}
                 typedWaits={typedWaits}

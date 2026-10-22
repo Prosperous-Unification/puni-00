@@ -235,6 +235,15 @@
     },
     {
       "file": "src/components/wbs/hover-card-placement.test.ts"
+    },
+    {
+      "file": "src/components/wbs/dependency-draft.test.ts"
+    },
+    {
+      "file": "src/modules/dependency-lookup/dependency-lookup.feature.test.ts"
+    },
+    {
+      "file": "src/runtime/dependency-lookup.test.ts"
     }
   ]
 }

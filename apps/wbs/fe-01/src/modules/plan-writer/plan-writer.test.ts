@@ -331,3 +331,42 @@ it('classifies project abbreviation refusals without throwing', () => {
     expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(problem.refusal.error);
   }
 });
+
+it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
+  'reports dormant external dependency admission from %s without retrying',
+  async (operation) => {
+    const recorded = recordingHost();
+    const writer = createPlanWriter(recorded.host);
+    let requests = 0;
+    const outcome = await writer.run(async (write) => {
+      await write.perform(['tree'], () => {
+        requests += 1;
+        return Promise.reject(
+          new WbsRequestError(
+            operation === 'postApiProjectsByIdCommands'
+              ? {
+                  kind: 'refusal',
+                  operation,
+                  refusal: {
+                    error: 'external_dependencies_inactive',
+                    at: 0,
+                    kind: 'addTypedDependency',
+                  },
+                }
+              : {
+                  kind: 'refusal',
+                  operation,
+                  refusal: { error: 'external_dependencies_inactive', detail: null },
+                },
+          ),
+        );
+      });
+    });
+    expect(outcome).toBe('refused');
+    expect(requests).toBe(1);
+    expect(recorded.rereads).toEqual([]);
+    expect(recorded.refusals).toEqual([
+      { sentence: 'Dependencies between projects are not enabled on this server.' },
+    ]);
+  },
+);

@@ -139,6 +139,7 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
   }
 }
 
+// Proof: omitting external_dependencies_inactive made the real writer dormant-admission test throw (2026-10-22).
 function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -150,6 +151,7 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'insufficient_scope':
     case 'forbidden':
     case 'not_found':
+    case 'external_dependencies_inactive':
     case 'nothing_to_undo':
     case 'stale_undo':
     case 'organization_context_changed':
@@ -481,6 +483,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
       // cases throw `Unexpected response variant: object` instead of reporting
       // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
+    // Proof: omitting this arm made the real writer dormant-admission test throw (2026-10-22).
+    case 'external_dependencies_inactive':
+      return refusal.error;
     // Proof: removing this case failed both sparse command writer cases (2026-10-17).
     case 'referenced_by_step_parallel':
       return refusal.error;
@@ -772,6 +777,8 @@ export const PLAN_REFUSALS: RefusalWords = {
     // `node_done`, reading `That change could not be completed (node_done).`;
     // watched 2026-10-12.
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
+    // Proof: absent sentence made the dormant writer test receive the generic fallback (2026-10-22).
+    external_dependencies_inactive: 'Dependencies between projects are not enabled on this server.',
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',

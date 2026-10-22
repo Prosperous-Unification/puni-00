@@ -531,7 +531,9 @@ describe('dependencies in the table', () => {
       fireEvent.focus(input);
       const customize = await screen.findByRole('button', { name: 'Customize 010 - Strip' });
       fireEvent.keyDown(input, { key: 'ArrowDown' });
-      expect(input.getAttribute('aria-activedescendant')).toBe('dep-option-w1');
+      expect(input.getAttribute('aria-activedescendant')).toBe(
+        'dep-option-["p1","w1","whole",null]',
+      );
       fireEvent.keyDown(input, { key });
       const editor = screen.getByRole('dialog', { name: 'Customize dependency' });
       expect(customize).toBeDefined();
@@ -1749,7 +1751,9 @@ describe('picking dependencies from a list', () => {
     fireEvent.focus(input);
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint.id, 'whole', null])}`,
+    );
 
     // A peer inserts a row between Strip and Sand. By index the highlight
     // would now sit on the newcomer; it must stay on Paint.
@@ -1758,7 +1762,9 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(optionTexts()).toHaveLength(3);
     });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint.id, 'whole', null])}`,
+    );
 
     fireEvent.keyDown(input, { key: 'Enter' });
     // After the insert the rows renumbered: Sand is 030 and Paint 040. The
@@ -1906,11 +1912,15 @@ describe('the picker marks what be-01 would refuse', () => {
     // One press. Down from nothing enters at the top of the list, and the top
     // of this list is refused, so the first thing it may land on is `020`.
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint, 'whole', null])}`,
+    );
 
     // And back up again: still nothing above `020` to reach.
     fireEvent.keyDown(input, { key: 'ArrowUp' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint, 'whole', null])}`,
+    );
   });
 
   itDom('drops a highlight that a peer’s edit has just made a loop', async () => {
@@ -1920,7 +1930,9 @@ describe('the picker marks what be-01 would refuse', () => {
     const { api, sand, paint, notify } = await nested();
     const input = openPicker('010.1');
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint, 'whole', null])}`,
+    );
 
     await api.addDependency(paint, sand);
     notify();

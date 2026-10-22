@@ -1,0 +1,257 @@
+import { parseWorkItemAddress } from '@wbs/domain/project-address';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import type {
+  AddressProject,
+  DependencyLookup,
+  EndpointSearchReply,
+  ProjectDiscoveryReply,
+} from '@/modules/dependency-lookup/contract';
+
+import type { PickerEntry } from './dep-picker';
+import {
+  buildRemoteDependencyOption,
+  type DependencyOption,
+  encodeDependencyEndpoint,
+} from './dependency-selection';
+import { currentDependencyToken, replaceDependencyToken } from './depends-input';
+
+type LookupState =
+  'local' | 'loading' | 'ready' | 'empty' | 'failure' | 'refused' | 'stale' | 'cancelled';
+interface Observation {
+  identity: string;
+  lookup: DependencyLookup;
+  state: LookupState;
+  options: DependencyOption[];
+  cursor: string | null;
+  revision: string | null;
+  message: string;
+}
+
+/** Debounced active-token lookup; every render fences late evidence before any option can be clicked. */
+export function useDependencySearch({
+  lookup,
+  projectId,
+  ownerId,
+  active,
+  typed,
+  setTyped,
+  localEntries,
+  initialProject,
+  expectedRevision,
+}: {
+  initialProject?: AddressProject;
+  expectedRevision?: string;
+  lookup: DependencyLookup;
+  projectId: string;
+  ownerId: string;
+  active: boolean;
+  typed: string;
+  setTyped: (typed: string) => void;
+  localEntries: readonly PickerEntry[];
+}) {
+  const { token } = currentDependencyToken(typed);
+  const [scope, setScope] = useState<{ project: AddressProject; prefix: string } | null>(() =>
+    initialProject === undefined
+      ? null
+      : { project: initialProject, prefix: `${initialProject.abbreviation.toUpperCase()}.` },
+  );
+  const scoped = scope !== null && token.toUpperCase().startsWith(scope.prefix) ? scope : null;
+  const parsed = parseWorkItemAddress(token);
+  const query =
+    scoped === null
+      ? parsed.kind === 'qualified'
+        ? parsed.abbreviation
+        : token
+      : token.slice(scoped.prefix.length);
+  // Proof: bypassing the alphabetic gate sent discovery calls for numeric/local-step inputs in dependency-search.test.tsx (2026-10-22).
+  const eligible = active && (scoped !== null || /^[A-Za-z]/.test(token));
+  const identity = JSON.stringify([
+    projectId,
+    ownerId,
+    active,
+    typed,
+    scoped?.project.projectId ?? null,
+    query.toLowerCase(),
+  ]);
+  const current = useRef({ identity, lookup });
+  current.current = { identity, lookup };
+  const [observation, setObservation] = useState<Observation | null>(null);
+  const [request, setRequest] = useState<{
+    sequence: number;
+    identity: string;
+    cursor: string | null;
+  }>({
+    sequence: 0,
+    identity: '',
+    cursor: null,
+  });
+  const [fatal, setFatal] = useState<{ identity: string; failure: unknown } | null>(null);
+  const selectedProjectId = scoped?.project.projectId ?? null;
+  useEffect(() => {
+    if (scope !== null && scoped === null) setScope(null);
+  }, [scope, scoped]);
+  useEffect(() => {
+    if (!eligible) return;
+    const controller = new AbortController();
+    const cursor = request.identity === identity ? request.cursor : null;
+    const timer = setTimeout(() => {
+      setObservation((previous) => ({
+        identity,
+        lookup,
+        state: 'loading',
+        options:
+          cursor !== null && previous?.identity === identity && previous.lookup === lookup
+            ? previous.options
+            : [],
+        cursor: null,
+        revision: cursor !== null && previous?.identity === identity ? previous.revision : null,
+        message: '',
+      }));
+      const pending =
+        selectedProjectId === null
+          ? lookup.discoverProjects(query, cursor, controller.signal)
+          : lookup.searchEndpoints(selectedProjectId, query, cursor, controller.signal);
+      void pending.then(
+        (reply: ProjectDiscoveryReply | EndpointSearchReply) => {
+          // Proof: removing this response fence erased the newer NEW option after an ignored-abort OLD answer (dependency-search.test.tsx, 2026-10-22).
+          if (
+            current.current.identity !== identity ||
+            current.current.lookup !== lookup ||
+            controller.signal.aborted
+          )
+            return;
+          setObservation((previous): Observation => {
+            const base: Observation = {
+              identity,
+              lookup,
+              state: 'ready',
+              options: [],
+              cursor: null,
+              revision: null,
+              message: '',
+            };
+            if (reply.kind === 'cancelled') return { ...base, state: 'cancelled' };
+            if (reply.kind === 'failure')
+              return { ...base, state: 'failure', message: 'Could not load dependency choices.' };
+            if (reply.kind === 'refusal')
+              return {
+                ...base,
+                state:
+                  reply.status === 409 && reply.body.error === 'stale_address_revision'
+                    ? 'stale'
+                    : 'refused',
+                message: reply.body.error,
+              };
+            let incoming: DependencyOption[];
+            let revision: string | null = null;
+            if ('projects' in reply.body)
+              incoming = reply.body.projects.map((project) => ({
+                kind: 'project',
+                key: JSON.stringify(['project', project.projectId]),
+                project,
+              }));
+            else {
+              // Proof: bypassing project identity accepted Reused address evidence instead of rendering Refresh choices (dependency-search.test.tsx, 2026-10-22).
+              if (
+                reply.body.project.projectId !== selectedProjectId ||
+                reply.body.candidates.some((candidate) => candidate.projectId !== selectedProjectId)
+              )
+                return { ...base, state: 'stale', message: 'Project identity changed.' };
+              revision = reply.body.addressRevision;
+              // Proof: bypassing the initial revision check enabled stale Customize scopes before explicit refresh (remote-dependency-editor.test.tsx, 2026-10-22).
+              if (expectedRevision !== undefined && revision !== expectedRevision)
+                return { ...base, state: 'stale', message: 'Addresses changed; refresh choices.' };
+              // Proof: removing page revision comparison rendered r2 options under the r1 continuation instead of Refresh choices (dependency-search.test.tsx, 2026-10-22).
+              if (cursor !== null && previous?.revision !== revision)
+                return { ...base, state: 'stale', message: 'Addresses changed; refresh choices.' };
+              const { project, addressRevision } = reply.body;
+              incoming = reply.body.candidates.map((candidate) =>
+                buildRemoteDependencyOption(project, addressRevision, candidate),
+              );
+            }
+            const earlier =
+              cursor !== null && previous?.identity === identity && previous.lookup === lookup
+                ? previous.options
+                : [];
+            const options = [
+              ...new Map([...earlier, ...incoming].map((option) => [option.key, option])).values(),
+            ];
+            return {
+              ...base,
+              options,
+              revision,
+              cursor: reply.body.nextCursor,
+              state: options.length === 0 ? 'empty' : 'ready',
+            };
+          });
+        },
+        (failure: unknown) => {
+          // Proof: removing this response fence erased the newer NEW option after an ignored-abort OLD answer (dependency-search.test.tsx, 2026-10-22).
+          if (
+            current.current.identity === identity &&
+            current.current.lookup === lookup &&
+            !controller.signal.aborted
+          )
+            setFatal({ identity, failure });
+        },
+      );
+      // Proof: reducing 200ms to zero sent discovery before the 199ms assertion in dependency-search.test.tsx (2026-10-22).
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      // Proof: omitting abort left the mounted unmount test signal.aborted=false (dependency-search.test.tsx, 2026-10-22).
+      controller.abort();
+    };
+  }, [eligible, identity, lookup, query, selectedProjectId, request, expectedRevision]);
+  if (fatal?.identity === identity) throw fatal.failure;
+  // Proof: removing this render fence left PUNI options clickable immediately after typing OTHER (dependency-search.test.tsx, 2026-10-22).
+  const visible =
+    observation?.identity === identity && observation.lookup === lookup ? observation : null;
+  const local = useMemo<DependencyOption[]>(
+    () =>
+      scoped !== null
+        ? []
+        : localEntries.map((entry) => {
+            const endpoint = { projectId, workItemId: entry.id, scope: 'whole' as const };
+            return {
+              kind: 'endpoint',
+              key: encodeDependencyEndpoint(endpoint),
+              selection: { kind: 'local', endpoint },
+              label: `${entry.number} - ${entry.name}`,
+              detail: entry.name,
+              ...(entry.refusal === undefined ? {} : { refusal: entry.refusal }),
+              status: entry.status,
+            };
+          }),
+    [localEntries, projectId, scoped],
+  );
+  return {
+    options: [...local, ...(eligible ? (visible?.options ?? []) : [])],
+    state: !eligible ? ('local' as const) : (visible?.state ?? ('loading' as const)),
+    message: visible?.message ?? '',
+    more:
+      visible?.cursor == null
+        ? null
+        : () => {
+            setRequest((previous) => ({
+              sequence: previous.sequence + 1,
+              identity,
+              cursor: visible.cursor,
+            }));
+          },
+    retry: () => {
+      setRequest((previous) => ({ sequence: previous.sequence + 1, identity, cursor: null }));
+    },
+    chooseProject(project: AddressProject) {
+      setScope({ project, prefix: `${project.abbreviation.toUpperCase()}.` });
+      setRequest((previous) => ({ sequence: previous.sequence + 1, identity, cursor: null }));
+      setTyped(replaceDependencyToken(typed, `${project.abbreviation}.`));
+    },
+    selectedProject: scoped?.project ?? null,
+    revision: visible?.revision ?? null,
+    complete: visible?.state === 'ready' && visible.cursor === null,
+  };
+}
+
+export type DependencySearch = ReturnType<typeof useDependencySearch>;

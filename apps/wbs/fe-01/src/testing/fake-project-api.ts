@@ -1205,7 +1205,7 @@ export function fakeProjectApi(): ProjectApi & {
       typedDependencies.push({
         id: `dependency-${String(++nextDependencyId)}`,
         predecessor:
-          predecessor.scope === 'node'
+          predecessor.scope === 'node' && predecessor.stepNodeId !== undefined
             ? {
                 ...predecessor,
                 workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
@@ -1213,7 +1213,7 @@ export function fakeProjectApi(): ProjectApi & {
               }
             : predecessor,
         successor:
-          successor.scope === 'node'
+          successor.scope === 'node' && successor.stepNodeId !== undefined
             ? {
                 ...successor,
                 workItemId: successor.stepNodeId.split('.')[1] ?? '',
@@ -1229,7 +1229,7 @@ export function fakeProjectApi(): ProjectApi & {
       const dependency = typedDependencies.find((candidate) => candidate.id === dependencyId);
       if (dependency === undefined) return Promise.reject(new Error('not_found'));
       dependency.predecessor =
-        predecessor.scope === 'node'
+        predecessor.scope === 'node' && predecessor.stepNodeId !== undefined
           ? {
               ...predecessor,
               workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
@@ -1237,7 +1237,7 @@ export function fakeProjectApi(): ProjectApi & {
             }
           : predecessor;
       dependency.successor =
-        successor.scope === 'node'
+        successor.scope === 'node' && successor.stepNodeId !== undefined
           ? {
               ...successor,
               workItemId: successor.stepNodeId.split('.')[1] ?? '',

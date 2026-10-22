@@ -1,3 +1,4 @@
+import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
 import { useEffect, useRef, useState } from 'react';
 
 import type {
@@ -8,6 +9,7 @@ import type {
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
+import { serializeDependencyEndpoint } from './dependency-selection';
 import type { CommitOutcome } from './live-editing';
 import { didLand } from './live-editing';
 import type { TreeRow } from './wbs-rows';
@@ -165,7 +167,65 @@ export function endpointChoices(
   ];
 }
 
+export interface DependencyEndpointChoice {
+  key: string;
+  endpoint: ScopedDependencyEndpoint;
+  label: string;
+  description: string;
+  step: { id: string; name: string; code?: string | null } | null;
+}
+export interface DependencyEndpointEditor {
+  heading: string;
+  preferredKey: string | null;
+  choices: readonly DependencyEndpointChoice[];
+  unavailable: string;
+}
+
+/** Builds local scope choices from the actual hierarchy and this project's own step identities. */
+export function buildLocalDependencyEditor(
+  projectId: string,
+  row: TreeRow,
+  rows: readonly TreeRow[],
+  steps: readonly StepView[],
+  preferredKey = 'whole',
+  availableStepIds?: readonly string[],
+): DependencyEndpointEditor {
+  const parent = rows.some((candidate) => candidate.parentId === row.id);
+  return {
+    heading: `${row.number} · ${row.name}`,
+    preferredKey,
+    unavailable: `${steps.find((step) => step.id === preferredKey)?.name ?? preferredKey} step unavailable for ${row.number}`,
+    choices: endpointChoices(row, rows, steps, availableStepIds).map((choice) => {
+      const step = choice.key === 'whole' ? null : stepOf(steps, choice.key);
+      const scope = parent ? `every leaf under ${row.number}` : row.number;
+      const endpoint: ScopedDependencyEndpoint =
+        step === null
+          ? { projectId, scope: 'whole', workItemId: row.id }
+          : {
+              projectId,
+              scope: parent ? 'descendant-step' : 'node',
+              workItemId: row.id,
+              stepId: step.id,
+            };
+      return {
+        key: choice.key,
+        endpoint,
+        label: choice.label,
+        description:
+          step === null
+            ? scope
+            : parent
+              ? `the ${step.name} step of ${scope}`
+              : `${scope}.${step.name} step`,
+        step,
+      };
+    }),
+  };
+}
+
+/** Compatibility entry for existing local edit targets; the editor itself consumes independent models. */
 export function TypedDependencyEditor({
+  projectId,
   predecessor,
   successor,
   rows,
@@ -177,6 +237,7 @@ export function TypedDependencyEditor({
   onSave,
   onRemove,
 }: {
+  projectId: string;
   predecessor: TreeRow;
   successor: TreeRow;
   rows: readonly TreeRow[];
@@ -194,16 +255,64 @@ export function TypedDependencyEditor({
 }) {
   const initialKey = (endpoint: ReadEndpoint | undefined) =>
     endpoint?.scope === 'whole' ? 'whole' : endpoint?.stepId;
-  // Proof: replacing the preferred step id with its name made `proposes the same step id on both sides` fail with `Unknown dependency step QA`; watched 2026-09-27.
-  const [predecessorKey, setPredecessorKey] = useState(
-    initialKey(dependency?.predecessor) ?? preferredStepId ?? 'whole',
+  return (
+    <ScopedDependencyEditor
+      predecessor={buildLocalDependencyEditor(
+        projectId,
+        predecessor,
+        rows,
+        steps,
+        initialKey(dependency?.predecessor) ?? preferredStepId ?? 'whole',
+        availablePredecessorStepIds,
+      )}
+      successor={buildLocalDependencyEditor(
+        projectId,
+        successor,
+        rows,
+        steps,
+        initialKey(dependency?.successor) ?? preferredStepId ?? 'whole',
+      )}
+      isEditing={dependency !== undefined}
+      initialType={dependency?.type ?? 'FS'}
+      onCancel={onCancel}
+      onSave={(source, target, type) =>
+        onSave(
+          serializeDependencyEndpoint(source, projectId),
+          serializeDependencyEndpoint(target, projectId),
+          type,
+        )
+      }
+      onRemove={onRemove}
+    />
   );
-  const [successorKey, setSuccessorKey] = useState(
-    initialKey(dependency?.successor) ?? preferredStepId ?? 'whole',
-  );
+}
+
+/** Each endpoint owns its identity, choices and unavailable reading; no cross-project row/step lookup occurs. */
+export function ScopedDependencyEditor({
+  predecessor,
+  successor,
+  isEditing = false,
+  initialType = 'FS',
+  onCancel,
+  onSave,
+  onRemove,
+}: {
+  predecessor: DependencyEndpointEditor;
+  successor: DependencyEndpointEditor;
+  isEditing?: boolean;
+  initialType?: string;
+  onCancel: () => void;
+  onSave: (
+    source: ScopedDependencyEndpoint,
+    target: ScopedDependencyEndpoint,
+    type: TypedDependencyType,
+  ) => Promise<CommitOutcome>;
+  onRemove?: () => Promise<CommitOutcome>;
+}) {
+  const [manualPredecessorKey, setManualPredecessorKey] = useState<string | null>(null);
+  const [manualSuccessorKey, setManualSuccessorKey] = useState<string | null>(null);
   const [relationshipType, setRelationshipType] = useState<TypedDependencyType>(() => {
-    if (dependency === undefined) return 'FS';
-    return dependencyTypeOf(dependency.type);
+    return dependencyTypeOf(initialType);
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -233,20 +342,12 @@ export function TypedDependencyEditor({
       element.removeEventListener('keydown', returnToList);
     };
   }, [onCancel]);
-  const predecessors = endpointChoices(predecessor, rows, steps, availablePredecessorStepIds);
-  const successors = endpointChoices(successor, rows, steps);
-  // Proof: substituting the available Dev choice for a missing QA node made `marks a missing predecessor step unavailable` fail: the selector no longer held QA; watched 2026-09-27.
+  const predecessors = predecessor.choices;
+  const successors = successor.choices;
+  const predecessorKey = manualPredecessorKey ?? predecessor.preferredKey;
+  const successorKey = manualSuccessorKey ?? successor.preferredKey;
   const chosenPredecessor = predecessors.find((choice) => choice.key === predecessorKey);
   const chosenSuccessor = successors.find((choice) => choice.key === successorKey);
-  const selectedEndpointWords = (row: TreeRow, key: string): string => {
-    const parent = rows.some((candidate) => candidate.parentId === row.id);
-    const scope = parent ? `every leaf under ${row.number}` : row.number;
-    return key === 'whole'
-      ? scope
-      : parent
-        ? `the ${stepOf(steps, key).name} step of ${scope}`
-        : `${scope}.${stepOf(steps, key).name} step`;
-  };
   const save = async () => {
     if (chosenPredecessor === undefined || chosenSuccessor === undefined) return;
     setBusy(true);
@@ -275,14 +376,14 @@ export function TypedDependencyEditor({
         ← Dependencies
       </button>
       <p>
-        {predecessor.number} · {predecessor.name} → {successor.number} · {successor.name}
+        {predecessor.heading} → {successor.heading}
       </p>
       <label>
         Predecessor
         <select
-          value={predecessorKey}
+          value={predecessorKey ?? ''}
           onChange={(event) => {
-            setPredecessorKey(event.target.value);
+            setManualPredecessorKey(event.target.value);
           }}
         >
           {predecessors.map((choice) => (
@@ -291,9 +392,8 @@ export function TypedDependencyEditor({
             </option>
           ))}
           {chosenPredecessor === undefined && (
-            <option value={predecessorKey} disabled>
-              {steps.find((step) => step.id === predecessorKey)?.name ?? predecessorKey} step
-              unavailable for {predecessor.number}
+            <option value={predecessorKey ?? ''} disabled>
+              {predecessor.unavailable}
             </option>
           )}
         </select>
@@ -301,9 +401,9 @@ export function TypedDependencyEditor({
       <label>
         This work item
         <select
-          value={successorKey}
+          value={successorKey ?? ''}
           onChange={(event) => {
-            setSuccessorKey(event.target.value);
+            setManualSuccessorKey(event.target.value);
           }}
         >
           {successors.map((choice) => (
@@ -327,14 +427,15 @@ export function TypedDependencyEditor({
         </select>
       </label>
       <p>
-        {relationshipName(relationshipType)}: {selectedEndpointWords(successor, successorKey)}{' '}
+        {relationshipName(relationshipType)}:{' '}
+        {chosenSuccessor?.description ?? successor.unavailable}{' '}
         {relationshipType === 'FF' ? 'finishes' : 'starts'} no earlier than{' '}
-        {selectedEndpointWords(predecessor, predecessorKey)}{' '}
+        {chosenPredecessor?.description ?? predecessor.unavailable}{' '}
         {relationshipType === 'SS' ? 'starts' : 'finishes'}.
       </p>
       {message !== '' && <p role="alert">{message}</p>}
       <div className="typed-dependency-actions">
-        {dependency !== undefined && onRemove !== undefined && (
+        {isEditing && onRemove !== undefined && (
           <button
             type="button"
             disabled={busy}
@@ -359,7 +460,7 @@ export function TypedDependencyEditor({
           disabled={busy || chosenPredecessor === undefined || chosenSuccessor === undefined}
           onClick={() => void save()}
         >
-          {dependency === undefined ? 'Add' : 'Save'}
+          {!isEditing ? 'Add' : 'Save'}
         </button>
       </div>
     </div>
