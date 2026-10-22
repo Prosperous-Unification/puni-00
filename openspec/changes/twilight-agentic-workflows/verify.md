@@ -1025,3 +1025,13 @@ Full report, corrected manifest, fault outputs and final commands remain under
 Independent review remains pending. Guarded release and release→new-attempt
 integration remain Task5; mounted routes/read scope/Digest composition remain
 Task6. No full receiver build, exact-SHA host gate or live deployment is claimed.
+
+Independent Task4 review approved spec compliance and task quality at
+`1f1fd61778aebfc25b65c37c260b5038a5e51012`, with no Critical/Important findings.
+The review confirmed ordinary settlement, current-role/credential detachment and
+delegated-parent/session consistency with existing claim semantics. The historical
+Python orchestration deviation remains recorded; no repeated trial is claimed.
+Only Task4 is accepted. Its explicitly cross-referenced guarded-release/new-attempt
+scenario remains in Task5; HTTP composition and final receiver gates remain open.
+Unchanged storage guarantees rely on accepted Task2 evidence, not an independent
+rerun of its complete fault matrix. No coordinator quiescence is established.
