@@ -231,7 +231,8 @@ test('the section tabs fit a phone, whole and apart, at 44px', async ({ page }) 
       };
     });
   });
-  expect(tabs).toHaveLength(6);
+  // Seven sections since compute providers slice 5 added Resources (2026-10-23).
+  expect(tabs).toHaveLength(7);
   // Proof: on main at b0072a456 this failed on `Teams is cut short`: six tabs in
   // one unwrapped row at 375. Watched 2026-10-14.
   for (const tab of tabs) {
