@@ -51,6 +51,16 @@ export * from './http/work-item-shapes';
 export * from './internal';
 export * from './logger';
 export * from './oidc-identity';
+export * from './plan-command-values';
 export * from './principal';
 export * from './runtime-command-values';
+export {
+  canonicalRuntimeRequest,
+  parseCanonicalRuntimeRequest,
+  parseRuntimeAuthorityRequest,
+  parseRuntimeClaimRequest,
+  parseRuntimeLookup,
+  parseRuntimeStateRequest,
+  parseRuntimeWriteRequest,
+} from './runtime-request';
 export * from './ws';

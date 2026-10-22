@@ -21,6 +21,8 @@ The shapes two tiers have to agree about, and the one place each is written.
   the one wire declaration OpenAPI and MCP emission read.
 - **`commands/definitions.ts`** — `commandDefinitions`, the plan and directory
   command catalogue the command batch parses against.
+- **`runtime-request.ts`** — the public runtime payload identity codec and strict request parsers.
+- **`plan-command-values.ts`** — the shared command batch bound.
 - **`auth-methods.ts`** — the sign-in methods WBS offers as direct buttons.
 - **`oidc-identity.ts`** — the identity read from a verified upstream OIDC
   credential, and the WBS scopes.

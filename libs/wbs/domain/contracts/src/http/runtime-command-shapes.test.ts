@@ -149,3 +149,66 @@ test('write receipt ordering reports the exact invalid index after complete fiel
     expect(accepted.value).toBe(valid);
   }
 });
+
+const boundedClaim = {
+  claimId: 'claim',
+  workItemId: 'leaf',
+  stepId: 'dev',
+  parentClaimId: null,
+  execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' },
+};
+for (const length of [0, 200, 201]) {
+  test(
+    'HTTP runtime commands enforce the literal batch boundary at ' + String(length),
+    async () => {
+      const request = {
+        schemaVersion: 1,
+        commandId: 'command',
+        personId: 'person',
+        expectedLedgerId: 'ledger',
+        authority: { ownerId: 'owner', generation: 1 },
+        expectedBasis: 'rb1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        action: {
+          kind: 'write',
+          claim: boundedClaim,
+          commands: Array.from({ length }, () => ({
+            kind: 'setProgress',
+            workItemId: 'leaf',
+            stepId: 'dev',
+            state: 'done',
+          })),
+        },
+      };
+      const checked = await validateSchema(applyRuntimeCommands.body, request);
+      if (length === 200) expect(checked.issues).toBeUndefined();
+      else expect(checked.issues).toBeDefined();
+    },
+  );
+  for (const endpoint of [applyRuntimeCommands, lookupRuntimeReceipt]) {
+    test(
+      endpoint.operationId +
+        ' applied receipts enforce the literal batch boundary at ' +
+        String(length),
+      async () => {
+        const receipt = {
+          schemaVersion: 1,
+          ledgerId: 'ledger',
+          scope: { organizationId: 'org', projectId: 'project', personId: 'person' },
+          commandId: 'command',
+          requestDigest: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          actorId: 'actor',
+          acceptance: {
+            kind: 'write',
+            authority: { ownerId: 'owner', generation: 1 },
+            claim: boundedClaim,
+            basisAfter: 'rb1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            applied: Array.from({ length }, (_, index) => ({ index, kind: 'setProgress' })),
+          },
+        };
+        const checked = await validateSchema(endpoint.responses[0].schema, receipt);
+        if (length === 200) expect(checked.issues).toBeUndefined();
+        else expect(checked.issues).toBeDefined();
+      },
+    );
+  }
+}

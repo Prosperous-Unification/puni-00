@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -37,6 +39,7 @@ test('mounts a real coherent runtime state and retained authority receipt', asyn
 });
 
 import {
+  canonicalRuntimeRequest,
   clientFromShapes,
   fetchTransport,
   type RuntimeClaimRequest,
@@ -786,3 +789,95 @@ test('receipt query rejects duplicate person and pin keys', async () => {
     });
   }
 });
+
+test.each(['authority', 'claim', 'write'] as const)(
+  'public codec identifies the real mounted %s receipt',
+  async (kind) => {
+    if (kind === 'authority') {
+      const { observation, request, receipt } = await acquireAuthority();
+      const { personId: _personId, ...operation } = request;
+      expect(observation.scope).toEqual({ organizationId: 'org-a', projectId, personId: 'person' });
+      expect(receipt.scope).toEqual(observation.scope);
+      expect(receipt.actorId).toBe(h.userId('ada'));
+      expect(receipt.requestDigest).toBe(
+        createHash('sha256')
+          .update(
+            canonicalRuntimeRequest(observation.scope, { ...operation, kind: 'authority' }),
+            'utf8',
+          )
+          .digest('hex'),
+      );
+      return;
+    }
+    const request = await createClaimRequest();
+    const observation = await readState();
+    expect(observation.scope).toEqual({ organizationId: 'org-a', projectId, personId: 'person' });
+    expect(request.action.execution).toEqual({
+      storeId: 'store',
+      runId: 'run',
+      attemptId: 'attempt',
+      sessionId: 'session',
+    });
+    const claimed = await createClient().applyRuntimeCommands({
+      params: { id: projectId },
+      body: request,
+      headers: createHeaders(),
+    });
+    if (claimed.kind !== 'success' || claimed.body.acceptance.kind !== 'claim')
+      throw new Error('claim refused');
+    if (kind === 'claim') {
+      const { personId: _personId, ...operation } = request;
+      expect(claimed.body.scope).toEqual(observation.scope);
+      expect(claimed.body.actorId).toBe(h.userId('ada'));
+      expect(claimed.body.requestDigest).toBe(
+        createHash('sha256')
+          .update(canonicalRuntimeRequest(observation.scope, operation), 'utf8')
+          .digest('hex'),
+      );
+      return;
+    }
+    const write = {
+      ...request,
+      commandId: 'write',
+      expectedBasis: claimed.body.acceptance.basisAfter,
+      action: {
+        kind: 'write' as const,
+        claim: claimed.body.acceptance.claim,
+        commands: [
+          {
+            kind: 'setMeasure' as const,
+            workItemId: 'leaf',
+            stepId: 'dev',
+            metric: 'token_actual' as const,
+            value: 0,
+          },
+          {
+            kind: 'setProgress' as const,
+            workItemId: 'leaf',
+            stepId: 'dev',
+            state: 'done' as const,
+          },
+        ],
+      },
+    };
+    const accepted = await createClient().applyRuntimeCommands({
+      params: { id: projectId },
+      body: write,
+      headers: createHeaders(),
+    });
+    if (accepted.kind !== 'success' || accepted.body.acceptance.kind !== 'write')
+      throw new Error('write refused');
+    const { personId: _personId, ...operation } = write;
+    expect(accepted.body.scope).toEqual(observation.scope);
+    expect(accepted.body.actorId).toBe(h.userId('ada'));
+    expect(accepted.body.acceptance.applied).toEqual([
+      { index: 0, kind: 'setMeasure' },
+      { index: 1, kind: 'setProgress' },
+    ]);
+    expect(accepted.body.requestDigest).toBe(
+      createHash('sha256')
+        .update(canonicalRuntimeRequest(observation.scope, operation), 'utf8')
+        .digest('hex'),
+    );
+  },
+);

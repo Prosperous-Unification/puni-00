@@ -1,5 +1,6 @@
 import { type } from 'arktype';
 
+import { MOST_COMMANDS_IN_A_BATCH } from '../plan-command-values';
 import type {
   AuthorityReceipt,
   ClaimReceipt,
@@ -60,7 +61,12 @@ const action = type({
   stepId: identity,
   parentClaimId: identity.or('null'),
   execution,
-}).or({ kind: '"write"', claim, commands: command.array().atLeastLength(1).atMostLength(200) });
+}).or({
+  kind: '"write"',
+  claim,
+  // Proof: codec-T1-cap changed the shared limit to 201; the literal HTTP 201-command negative accepted.
+  commands: command.array().atLeastLength(1).atMostLength(MOST_COMMANDS_IN_A_BATCH),
+});
 // Proof: P6-05 made the wire pin optional; missing-pin mounted input reached
 // the strict application parser (500), losing the required boundary 400.
 const common = {
@@ -94,7 +100,9 @@ const writeAcceptance = type({
     .atLeastLength(1)
     // Proof: fix1-P02 omitted this bound; 201 applied entries became
     // successful command and lookup replies with every other field valid.
-    .atMostLength(200)
+    // Proof: codec-T1-cap changed the shared limit to 201; independent command/lookup
+    // response negatives both accepted otherwise-valid 201-entry applied arrays.
+    .atMostLength(MOST_COMMANDS_IN_A_BATCH)
     .describe(
       'Ordered applied commands; each index equals its zero-based position. Standard Schema additionally validates this dependent order.',
     ),

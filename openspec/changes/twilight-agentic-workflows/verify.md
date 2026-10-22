@@ -1658,3 +1658,51 @@ Historical receiver5ba now has actual full h4 gate PASS:267OpenSpecchecks, works
 Independent Task1 review approved integration source310ed257bf1786164b5fcdbbc9c00dca6424c63c: no Critical/Important findings. Reviewer read the complete3393-line remerge diff once, checked cut-off admission continuations and two named unchanged risks, matched all49sourcehashes/all10SQLpins and inspected actual sealed forbidden-200 negatives with exact restorations. Existing10OpenSpecwarnings/optionalstrictfailure and stale-memory-undo skip remain explicit deferred minors. Broad final review plus exact combined-SHA host gate/CI are still pending; local approval does not certify separately owned credential cryptography or close S0/S7a.
 
 Integration commit hooks first failed on actual default Node heap exhaustion near4GiB after82.29s; the identical staged candidate passed every unchanged hook with8192MiB capacity in59.55s. No source bytes changed. Executor3ae host workspace subsequently passed180tasks49projects+9dependencies46m6s; remaining host stages are active. Its CI workspace attempt1 failed1h10m51s on the existing browser revocation reader test at the10000ms bound (3081pass,3skip,1fail,1error,63289assertions); original cause of delay is unknown. Exact unchanged focused case passed1test14assertions at the original bound (4.33s case/6.62s total). One failed-workspace retry is running as attempt2; earlier failure is retained, not called flaky or repaired. Twilight CI passed1h4m30s and browser shards passed. Neither executor nor combined aggregate acceptance is claimed.
+
+### Portable runtime request codec — local candidate, 2026-10-22
+
+Planning baseline `922203565e0b05266f09319f3125e560b5f8f24b` extends reviewed
+integration `ebda8a216c73a38050579bdc46f5da927223b3eb`. This packet publishes the
+existing seven-function codec through contracts, keeps the application compatibility
+facade and shares the unchanged 200-command limit with HTTP and ordinary application
+consumers. Root independently matched all ten final source hashes, three unchanged
+protected tests and the moved codec's non-comment body tokens. No SQL or migration changed.
+
+| Dimension    | Bounded evidence / remaining gate                                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completeness | All five implementation slices have evidence; task review, whole-packet review, exact-commit host gate and applicable CI remain open. No task checkbox is closed by this record.                                    |
+| Correctness  | Both added shared-identity/bound requirements have literal-byte, strict decode, detachment, boundary and real mounted receipt coverage. Existing queued-admission tests remain compatible.                          |
+| Coherence    | One moved implementation, explicit facade, contracts-owned primitive, no application import from contracts, no production hashing provider. Digest correspondence grants no permission or authenticated acceptance. |
+
+Actual commands run from the isolated codec tree:
+
+| Command / scope                                                                                                                                           | Actual outcome                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` public codec + HTTP shapes + unchanged application codec + mounted runtime + authority/claim/write + generated MCP document, `--timeout=10000` | 187 pass, 0 fail, 783 assertions, eight files, 69.98s before final static-only fixture/style fixes.                                                                                                              |
+| `bun test` public/HTTP/application/mounted/authority/MCP after those fixes, same timeout                                                                  | 109 pass, 0 fail, 417 assertions, six files, 13.03s.                                                                                                                                                             |
+| `bun test` controller/service ordinary files with the two named 201-command cases only                                                                    | Final 2 pass, 0 fail, 9 assertions, 131 deliberately filtered cases, 2.98s. No complete ordinary suite claimed.                                                                                                  |
+| `bun test --preload ./tools/test/scratch/preload.ts` module-label/effective-policy tests, `--timeout=30000`                                               | 35 pass, 268 assertions, 63.89s; preceded by a real 51-project Nx graph.                                                                                                                                         |
+| Uncached Nx typecheck/lint for contracts, core, backend and MCP                                                                                           | Final applicable targets pass. Initial contracts fixture literal widening and five introduced lint style errors failed, were corrected, and their covering static/test checks passed; no production suppression. |
+| Exact ten-file Prettier, `git diff --check`, normal scoped OpenSpec                                                                                       | Pass; OpenSpec retains exactly ten pre-existing long-requirement warnings, zero errors.                                                                                                                          |
+
+Failure proofs, each from green with exact restoration:
+
+| Check / dependency                          | Injected production fault                                              | Observed negative and restoration                                                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared cap in canonical and HTTP boundaries | Contracts constant 200 → 201                                           | Four independent cases become accepted: canonical write, command body, command receipt and lookup receipt; 27 pass → 23 pass/4 fail → 27 pass. |
+| Ordinary service/controller cap consumption | Same constant fault                                                    | Actual 201-create batch success and HTTP 200 replace required refusal: 2 pass → 0 pass/2 fail → 2 pass. This is forbidden-success evidence.    |
+| Real receiver uses shared canonical encoder | Compatibility facade appends one ASCII space, public encoder unchanged | Three actual successful authority/claim/write receipt digests mismatch the independent public encoding: 3 pass → 0 pass/3 fail → 3 pass.       |
+
+Adjacent Proof comments name these faults. The missing-export TDD RED is setup evidence,
+not semantic proof. Original moved predicate/copy histories are retained without a fresh
+blanket recertification. Fault hashes were recomputed from retained exact source/recipes;
+drivers checked exact restoration before green runs.
+
+Evidence/report live in the packet's ignored `.superpowers/sdd/runtime-request-tasks/`
+workspace while review and gates remain active. Source manifest SHA-256:
+`72a115a5e6f43cd7f189696b405456df84e59d1aa34d14eb45f732f078a4c2d5`.
+Nx color-environment warnings and the ten OpenSpec warnings remain disclosed.
+No complete SQLite repeat was needed for this SQL-free packet. Full host/build/browser/CI
+acceptance is not supplied by these scoped runs. Durable sender intent, full receipt
+correspondence/authentication, preparation/locator/claim/turn ordering, broader I1 and
+S0/S7a/activation remain open. The parent change is not ready to archive.
