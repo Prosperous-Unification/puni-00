@@ -689,6 +689,13 @@ Slice 2 replaces those callers with the capture union and removes the temporary
 dual API. Connected inputs are never reconstructed from final dates or passed
 through the legacy local coordinator. This slice does not complete tasks 7.3/7.4.
 
+As of 2026-10-23, the bounded production-composition packet supersedes the
+installation and coordinator statements above: `buildServices` now installs
+connected reader configuration through owned and borrowed sources, and the
+coordinator consumes detached `optimizationCapture` inputs. Source-owned
+transactional optimizer owners remain installed. This does not activate
+external relationship authoring or admit connected solver work from tree reads.
+
 ### Kubernetes dependency observation transport (task 10.2, B1)
 
 `dependency-capability.ts` owns the shared pure command and closed capability wire decoder; Compose retains its independent invocation/deadline policy. Kubernetes `dependency-observation.ts` owns fresh observation names, DB-free capability manifests, coordinator-generated scratch store manifests and Job/Pod attribution. `kubectlEffects` exposes these through a separate observation interface and preserves rendered manifests; the release state machine does not invoke them as permission.
