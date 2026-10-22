@@ -4506,3 +4506,30 @@ coverage and independently observed post-decode guard mutations are recorded in
 [C3 frontend evidence](evidence/c3-frontend-compare.md). This is the bounded C3
 summary consumer only; connected save/current activation, the remaining immutable
 lifecycle matrix and canonical host gate keep task 8.3 open.
+
+## Task 9.2 — preserve abbreviation drafts during catalog refresh
+
+The mounted General settings refresh cases reproduce a same-project catalog
+refresh discarding an invalid `2PUNI` or conflicted `TAKEN` draft. Before the
+fix both assertions received `FRESH`; the untouched-field control passed.
+GeneralPanel now updates its saved/draft state atomically, preserves dirty drafts
+and refusal visibility, and restores the newest saved `FRESH` value on Escape.
+The existing project-keyed modal lifetime and canonical write behavior remain
+covered by the full modal suite.
+
+| Production fault                                                             | Observed mounted assertion                                                                                                            |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the dirty-draft conditional with unconditional `draft: abbreviation` | Both refresh refusal cases fail: expected `2PUNI`/`TAKEN`, received `FRESH`; clean-refresh control passes. Source restored afterward. |
+
+Focused verification in isolated `/tmp/puni-abbrev-ui`, based on `a0ac30ea7`:
+
+- From `apps/wbs/fe-01`: `bunx vitest run --config vitest.view.config.ts src/components/wbs/project-settings-modal.test.tsx --maxWorkers=1`: 49/49 passed.
+- `bunx tsc -p apps/wbs/fe-01/tsconfig.app.json --noEmit` and matching `tsconfig.spec.json`: exit 0.
+- Changed-file ESLint initially skipped Nx boundary checks because no graph was cached; generated it with `NX_DAEMON=false bunx nx graph --file=/tmp/abbrev-project-graph.json`, then reran lint successfully with no skipped-boundary warning.
+- Vitest reports existing config-loader compatibility warnings. An initial invocation from the repo root collected no files; corrected to the configured frontend cwd. Direct Bun execution failed with a forks-worker startup timeout and no tests; the standard `bunx vitest` invocation produced the recorded results.
+
+This bounded correction does not claim fresh full frontend/browser/build checks,
+CI, host gate, deploy, remote relationship navigation/authoring, activation or
+completion of parent task 9.2. Those checks remain unrun in this packet.
+
+Changed-file Prettier and `git diff --check` passed. `bun node_modules/.bin/openspec validate cross-project-dependencies --json` passed (one valid change, existing long-requirement warnings).

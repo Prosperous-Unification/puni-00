@@ -1109,3 +1109,45 @@ itDom('shows the unavailable catalog observation without inventing an abbreviati
   );
   expect(screen.queryByRole('textbox', { name: 'Project abbreviation' })).toBeNull();
 });
+
+describe('General settings catalog refresh', () => {
+  itDom.each(['invalid', 'conflict'] as const)(
+    'keeps a %s draft and refusal when the same project receives a refreshed abbreviation',
+    async (refusal) => {
+      const setAbbreviation = () => Promise.reject(new Error('abbreviation_taken'));
+      const onChanged = () => Promise.resolve();
+      const view = mounted({
+        general: { abbreviation: 'PUNI', setAbbreviation, onChanged },
+      });
+      open();
+      fireEvent.click(tab('General'));
+      const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+      const draft = refusal === 'invalid' ? '2PUNI' : 'TAKEN';
+      fireEvent.change(field, { target: { value: draft } });
+      fireEvent.blur(field);
+      const sentence = refusal === 'invalid' ? 'Start with a letter' : 'already uses';
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(sentence));
+
+      view.rerender({ general: { abbreviation: 'FRESH', setAbbreviation, onChanged } });
+
+      expect(field).toHaveValue(draft);
+      expect(screen.getByRole('alert')).toHaveTextContent(sentence);
+      expect(screen.getByText(/Saved as FRESH/)).toBeInTheDocument();
+      fireEvent.keyDown(field, { key: 'Escape' });
+      expect(field).toHaveValue('FRESH');
+      expect(screen.queryByRole('alert')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(screen.queryByRole('dialog', { name: 'Project settings' })).toBeNull();
+    },
+  );
+
+  itDom('updates an untouched abbreviation from a same-project catalog refresh', () => {
+    const setAbbreviation = () => Promise.resolve('FRESH');
+    const onChanged = () => Promise.resolve();
+    const view = mounted({ general: { abbreviation: 'PUNI', setAbbreviation, onChanged } });
+    open();
+    fireEvent.click(tab('General'));
+    view.rerender({ general: { abbreviation: 'FRESH', setAbbreviation, onChanged } });
+    expect(screen.getByRole('textbox', { name: 'Project abbreviation' })).toHaveValue('FRESH');
+  });
+});

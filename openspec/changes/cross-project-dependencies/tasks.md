@@ -337,3 +337,10 @@ admission. Independent watched faults and commands are in verify.md. The private
 fixture installs no production reader; buildServices and activation remain dormant.
 Three-project C=8/final6 Retry, browser reconciliation and complete optimizer
 acceptance remain pending. Parent 7.3/7.4/9.2 remain unchecked.
+
+Task 9.2 settings refresh correction (2026-10-22): mounted same-project catalog
+refresh tests now retain invalid/conflicted abbreviation drafts and their refusal,
+update the saved baseline, and restore that latest baseline on Escape. Untouched
+fields still follow refreshes. This extends the already completed abbreviation
+clause only; parent 9.2, remote navigation/authoring and activation remain open.
+See verify.md for the watched dirty-draft guard negative and focused checks.

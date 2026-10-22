@@ -12,7 +12,11 @@ export interface GeneralPanelProps extends SettingsSectionReport {
   onChanged: () => Promise<void>;
 }
 
-/** Edits the persisted project address prefix on blur or Enter; Escape restores it. */
+/**
+ * Edits the persisted project address prefix on blur or Enter.
+ * Catalog refreshes update the saved baseline while preserving a pending draft;
+ * Escape restores the latest saved abbreviation.
+ */
 export function GeneralPanel({
   abbreviation,
   setAbbreviation,
@@ -20,8 +24,8 @@ export function GeneralPanel({
   onDirtyChange,
   onBusyChange,
 }: GeneralPanelProps) {
-  const [saved, setSaved] = useState(abbreviation);
-  const [draft, setDraft] = useState(abbreviation);
+  const [edit, setEdit] = useState({ saved: abbreviation, draft: abbreviation });
+  const { saved, draft } = edit;
   const current = useRef(true);
   useEffect(() => {
     current.current = true;
@@ -30,8 +34,13 @@ export function GeneralPanel({
     };
   }, []);
   useEffect(() => {
-    setSaved(abbreviation);
-    setDraft(abbreviation);
+    setEdit((previous) => ({
+      saved: abbreviation,
+      // Proof: unconditional draft replacement failed both mounted `General
+      // settings catalog refresh` draft/refusal cases: 2PUNI/TAKEN became FRESH.
+      // Watched 2026-10-22 before restoring this dirty-draft guard.
+      draft: previous.draft === previous.saved ? abbreviation : previous.draft,
+    }));
   }, [abbreviation]);
   const dirty = draft !== saved;
   const section = useSettingsSection({
@@ -63,14 +72,13 @@ export function GeneralPanel({
       return;
     }
     if (draft.toUpperCase() === saved) {
-      setDraft(saved);
+      setEdit((previous) => ({ ...previous, draft: saved }));
       section.clear();
       return;
     }
     void section.attempt(async () => {
       const canonical = await setAbbreviation(draft);
-      setSaved(canonical);
-      setDraft(canonical);
+      setEdit({ saved: canonical, draft: canonical });
     });
   }
   return (
@@ -96,7 +104,8 @@ export function GeneralPanel({
           value={draft}
           aria-describedby="project-abbreviation-hint"
           onChange={(event) => {
-            setDraft(event.currentTarget.value);
+            const typed = event.currentTarget.value;
+            setEdit((previous) => ({ ...previous, draft: typed }));
             section.clear();
           }}
           onBlur={apply}
@@ -106,7 +115,7 @@ export function GeneralPanel({
               apply();
             }
             if (event.key === 'Escape' && dirty) {
-              setDraft(saved);
+              setEdit((previous) => ({ ...previous, draft: saved }));
               section.clear();
             }
           }}
