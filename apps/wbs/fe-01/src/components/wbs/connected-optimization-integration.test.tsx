@@ -272,12 +272,12 @@ function serveActions(read: () => unknown) {
     throw new Error(`unexpected connected request ${method} ${path}`);
   });
   const http = httpProjectApi('token');
-  const api = fakeProjectApi();
-  api.tree = (projectId) => http.tree(projectId);
-  api.retryOptimization = (projectId, objective, inputHash) =>
-    http.retryOptimization(projectId, objective, inputHash);
-  api.setOptimizationSettings = (projectId, patch) =>
-    http.setOptimizationSettings(projectId, patch);
+  const api = {
+    ...fakeProjectApi(),
+    tree: http.tree.bind(http),
+    retryOptimization: http.retryOptimization.bind(http),
+    setOptimizationSettings: http.setOptimizationSettings.bind(http),
+  };
   let changed: SubscriptionHandlers['onChange'] = () => {
     throw new Error('missing mounted subscription');
   };
@@ -422,10 +422,13 @@ it.each([1024, 390])(
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
     const transport = serveActions(() => createConnectedOptimizationTree('ready-sibling'));
     render(<WbsTableOverClient projectId="A" projectServices={projectServicesOf(transport.api)} />);
-    await screen.findAllByDisplayValue('a');
-    const cue = screen.getByRole('button', {
-      name: /selected Finish-first schedule remains displayed/,
-    });
+    const rows = await screen.findAllByDisplayValue('a');
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row).toBeEnabled();
+    expect(screen.queryByText(/fake_invalid_response|invalid_response/)).toBeNull();
+    expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
+    const cue = screen.getByRole('button', { name: /is the active schedule/ });
+    expect(cue).toHaveAccessibleName(/selected Finish-first schedule remains displayed/);
     expect(cue).not.toHaveAccessibleName(/Fast is retained/);
     expect(cue.getAttribute('data-fact')).toContain('start 8, finish 9');
     expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');

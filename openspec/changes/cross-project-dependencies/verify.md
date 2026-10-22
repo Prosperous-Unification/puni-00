@@ -4040,13 +4040,13 @@ pending and initial terminal action assertions already passed against the
 production behavior. The following independent runtime faults prove those
 safety assertions can break; each edit was restored before the next:
 
-| Fault injected into production                                                      | Matching mounted test filter  | Observed failure                                                     |
-| ----------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| Add `boundary-infeasible` to `cueReading.retryable`                                 | `suppresses terminal HTTP`    | 2 failures: forbidden Retry Time appears                             |
-| Permit terminal state in `variantRow` ready selection arm                           | `suppresses terminal HTTP`    | 2 failures: terminal menu item loses `aria-disabled=true`            |
-| Drop scope in `httpProjectApi.tree` after decoding                                  | `retains selected ready Time` | 2 failures: selected/scoped retention accessible sentence disappears |
-| Substitute empty slices in `chartReadOf`                                            | `mounts fractional Fast`      | 1 failure: no bar with start 0.2/finish 1.2                          |
-| Read fixed starts from final `placement.combined` in `projectConnectedOptimization` | `retains selected ready Time` | 2 failures: captured C start 8 becomes final 6                       |
+| Fault injected into production                                                      | Matching mounted test filter  | Observed failure                                                                  |
+| ----------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
+| Add `boundary-infeasible` to `cueReading.retryable`                                 | `suppresses terminal HTTP`    | 2 failures: forbidden Retry Time appears                                          |
+| Permit terminal state in `variantRow` ready selection arm                           | `suppresses terminal HTTP`    | 2 failures: terminal menu item loses `aria-disabled=true`                         |
+| Drop scope in `httpProjectApi.tree` after decoding                                  | `retains selected ready Time` | Original run hit `fake_invalid_response`; superseded by plain-adapter proof below |
+| Substitute empty slices in `chartReadOf`                                            | `mounts fractional Fast`      | 1 failure: no bar with start 0.2/finish 1.2                                       |
+| Read fixed starts from final `placement.combined` in `projectConnectedOptimization` | `retains selected ready Time` | 2 failures: captured C start 8 becomes final 6                                    |
 
 Every fault ran the production producer/decoder/mounted integration suite with:
 
@@ -4056,8 +4056,11 @@ TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.tes
 ```
 
 Logs in the same table order: `/tmp/b3-actions-fault-{retry,selection,scope,positions,captured}.log`.
-Each exited 1 with runtime assertion failures, not a typechecking or alternate
-boundary refusal. Adjacent `Proof:` comments name these mounted failures at
+Each exited 1. Review found the original scope fault was intercepted by the
+fake API proxy with `fake_invalid_response`, so that run does **not** prove
+mounted scope forwarding. The other four faults reached their stated mounted
+assertions. The corrected scope proof below replaces that invalid attribution.
+Adjacent `Proof:` comments name the mounted failures at
 selection, Retry, HTTP scope forwarding, chart slice forwarding and core
 captured-position projection. The core and frontend state/identity contracts
 remain unchanged.
@@ -4114,3 +4117,76 @@ The first normal pre-commit rejected a late fixture JSDoc `@param` tag because
 it documented only the second parameter. Replaced the isolated tag with prose
 on the symbol; no signature or behavior changed. This is a failed hook
 observation, not a bypass. The normal hook is rerun for the final commit.
+
+## B3 R5 scope-forwarding proof correction (2026-10-22)
+
+Review identified a real proof-path defect: assigning HTTP methods onto
+`fakeProjectApi()` still invokes that fake's response-validation proxy. The
+original `/tmp/b3-actions-fault-scope.log` contains `fake_invalid_response`;
+its failure cannot establish that missing scope reached presentation. The
+historical table and assertion above are corrected rather than retaining the
+incorrect claim that every fault bypassed alternate boundaries.
+
+`serveActions` now creates a **plain object** by spreading the unrelated fake
+operations and directly binding `tree`, `retryOptimization` and
+`setOptimizationSettings` to the HTTP client. The three selected
+operations do not run through the fake proxy. HTTP decoding still occurs once
+at the real generated-client boundary. The selected-ready sibling cases now
+assert two editable rows, absence of response-error text and the active Time
+pill **before** obtaining the cue by its general active-schedule name and
+asserting the connected retention sentence.
+
+Re-injected exactly one production fault after HTTP decoding: replace the
+forwarded optimization with `{...optimization,scope:undefined}` in
+`httpProjectApi.tree`, leaving the decoded producer response and all other
+branches unchanged. At widths 1024 and 390, both cases reached the accessible
+name assertion after the row/pill assertions passed. The actual name was:
+
+```text
+Finish-first is the active schedule. Priority-first: This captured optimization question cannot fit the fixed positions in other projects. Finish-first: Earlier project deadline by 6 days.
+```
+
+The failed expectation was `/selected Finish-first schedule remains displayed/`.
+This establishes presentation with lost connected scope; it is not a decoder,
+fake response or missing-row failure. Command, from `apps/wbs/fe-01`:
+
+```sh
+TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx -t 'retains selected ready Time' --no-file-parallelism --maxWorkers=1
+```
+
+Observed **2 failed / 21 skipped**, exit 1, log
+`/tmp/b3-scope-plain-fault-final.log` (repeated against the final bound delegates). Restored scope propagation immediately after
+that run; updated the adjacent HTTP `Proof:` comment with this exact path.
+No production guard or behavior is altered by this follow-up. Enabling
+integration remains held for independent proof approval; the isolated branch
+is not production activation.
+
+Final bound-delegate checks: all **23/23** producer integration cases pass
+(`/tmp/b3-scope-plain-green-final.log`), and frontend module/app typecheck
+passes uncached (`/tmp/b3-scope-plain-typecheck-final.log`, 21.6s). Focused
+ESLint initially rejected unbound HTTP method references; binding each method
+to its HTTP owner preserves the plain adapter while satisfying that rule. The
+scope fault was repeated after this change and again failed only the accessible
+retention assertion in both mounted layouts. These corrections alter the test
+composition and proof attribution, not the production response boundary.
+
+Final commands, in addition to the fault command above:
+
+```sh
+# apps/wbs/fe-01:
+TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
+# repo root, Nx environment NX_DAEMON=false NX_ISOLATE_PLUGINS=false:
+bunx nx run wbs-fe-01:typecheck --outputStyle=stream
+bunx eslint apps/wbs/fe-01/src/components/wbs/connected-optimization-integration.test.tsx apps/wbs/fe-01/src/lib/wbs-api.ts
+./node_modules/.bin/openspec validate --all --json
+```
+
+Focused ESLint passes (`/tmp/b3-scope-plain-lint-final.log`); OpenSpec passes
+**268/268** (`/tmp/b3-scope-plain-openspec-final.log`); changed-path formatting
+and `git diff --check` pass.
+
+Full frontend aggregate/lint, core checks, Auckland, browser, canonical host
+and deployment checks are not repeated for this test-adapter/proof correction;
+the preceding packet's results retain their original scope. The normal commit
+hooks run on the four changed files without bypass. B4 and activation limits
+remain unchanged, and enabling integration still needs independent approval.

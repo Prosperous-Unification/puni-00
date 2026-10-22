@@ -304,3 +304,13 @@ schedule slices and captured C replaced with final C. Adjacent proofs and
 commands are in `verify.md`. B4 HTTP 409/replaced-runtime/stale reconciliation,
 browser geometry, production admission and activation remain open; parent
 7.3/7.4/9.2 and full Slice B remain unchecked.
+
+Task 9.2 B3 R5 scope-proof correction (2026-10-22): independent review found
+that the original scope fault was intercepted by fake response validation.
+The action transport now uses a plain composed adapter with direct real HTTP
+tree/Retry/settings delegates and fake operations only for unrelated methods.
+The re-injected post-decode scope fault renders two editable rows and the Time
+pill on table/cards, then fails the specific accessible retention assertion.
+The original proof attribution is corrected in `verify.md`; the adjacent
+production proof names the actual presentation failure. Production enabling
+integration remains held for review approval; parent tasks remain unchecked.

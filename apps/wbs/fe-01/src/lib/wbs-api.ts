@@ -2835,8 +2835,9 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         throw new Error('connected_optimization_project_mismatch');
       const plan: PlanRead = {
         ...read,
-        // Proof: dropping scope here lost the selected-ready retention sentence
-        // in both producer-mounted table/card cases (2026-10-22).
+        // Proof: dropping scope after decode rendered both editable rows and Time
+        // through the plain HTTP adapter, then failed the mounted table/card
+        // accessible retention assertion (b3-scope-plain-fault-final, 2026-10-22).
         ...(optimization === undefined ? {} : { optimization }),
         typedDependencies: dependencyViewsOf(tree, projectId),
         steps: tree.steps.map(stepViewOf),
