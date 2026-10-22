@@ -1215,3 +1215,71 @@ combined activation/fanout suite passed **97/97 tests, 222 assertions**. This is
 fixture compatibility evidence, not production authoring activation. Startup,
 participant fencing, retained-client downgrade protection, activation receipt
 transport, deploy recovery and task 10.1/10.2 completion remain open.
+
+### Task 7.3/7.4 bounded connected durable repository — 2026-10-22
+
+Isolated implementation based on `7efc7c029`; this packet does not complete either task.
+The additive `20261022213000_add_optimization_boundary_certificates` migration retains
+exact-question boundary evidence independently of generation eviction and cache budget
+pruning. Connected envelope-v2 success stays physically separate from local envelope-v1
+interpretation. The repository shares the existing writer fences and adds current input-hash
+correspondence. Diagnostic replacement and certificate insertion share the caller transaction.
+The captured adapter borrows its supplied database snapshot and performs no admission.
+
+Fresh commands and results:
+
+- `bun test` over `connected-optimization-cache.db.test.ts`,
+  `optimization-boundary-certificate-migration.db.test.ts`,
+  `connected-optimization-reader.test.ts`, `connected-question-identity.test.ts`,
+  `connected-durable.test.ts`, `optimized-schedule-cache.db.test.ts`,
+  `optimized-cache.db.test.ts`, `optimized-outcome.db.test.ts`,
+  `optimization-generation.db.test.ts`, and `captured-optimization-reader.db.test.ts`:
+  **179 passed, 0 failed**, 1,391 assertions. The new suites were rerun after mutation restoration.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exit 0.
+- `bun tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261022213000_add_optimization_boundary_certificates/migration.sql`:
+  exit 0.
+- `bunx openspec validate cross-project-dependencies --strict`: valid.
+- Changed TypeScript files were formatted with Prettier. Project lint initially found the
+  barrel export ordering; that was repaired. `NX_DAEMON=false bunx nx run wbs-store-sqlite:lint` then exited 0. The changed-file Prettier check passed.
+
+Watched R5 production-path mutations, each restored before the final green run:
+
+| Injected fault                                                                                          | Command selector on `bun test libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts -t` | Observed refusal of the fault                                                    |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Remove each project/hash/contract/budget predicate independently from either physical lookup            | `lookup`                                                                                                     | Corresponding `isolates ... lookup by ...` assertion failed.                     |
+| Remove the cache objective predicate                                                                    | `strict connected success`                                                                                   | Expected PRI `miss`, received `corrupt`.                                         |
+| Remove the certificate objective predicate                                                              | `retains the fractional`                                                                                     | Fractional retained roundtrip failed.                                            |
+| Remove current-generation inputHash writer fence while holding generation constant                      | `fences changed input hash`                                                                                  | Expected `superseded`, received `stored`.                                        |
+| Bypass the retained certificate source                                                                  | `retains the fractional`                                                                                     | Expected retained terminal after turnover, received miss.                        |
+| Remove certificate/cache conflict refusal                                                               | `cannot mask`                                                                                                | Expected corruption throw was absent.                                            |
+| Remove request identity validation                                                                      | `malformed request`                                                                                          | Invalid quantum/wire/hash/stage request became a miss.                           |
+| Remove decoded project/hash/objective/contract/budget correspondence independently                      | `compares decoded <field>`                                                                                   | Each isolated per-field check passed before removal and failed after removal.    |
+| Remove captured liveness inputHash correspondence                                                       | `different current input hash`                                                                               | Expected idle, received pending.                                                 |
+| Substitute a fresh connection for the supplied snapshot; diagnostic fixture supplied its real file path | `stage selections from the supplied snapshot`                                                                | Isolated and shared cases expected idle after rival publication, received ready. |
+
+Decoded identity checks are redundant with other identity fields and canonical stage
+correspondence: simply removing one initially left all five decoded-field cases green.
+For each diagnostic proof, the other correspondence fields and stage-byte comparison were
+removed temporarily; the remaining single field still refused its coherent wrong envelope.
+Removing that final field admitted it. No diagnostic mutations remain in production or tests.
+Existing codec field-sweep proofs were not repeated; the codec implementation was untouched.
+
+For migration guards, `bun test libs/wbs/adapters/store-sqlite/src/optimization-boundary-certificate-migration.db.test.ts -t 'refuses retained'`
+failed when the retained-row predicate was removed, and `-t 'refuses replaced'` failed when
+schema identity comparison was removed: both accepted destructive rollback unexpectedly.
+Restored tests prove intact empty rollback preserves the preceding full ledger and retained,
+missing, or replaced table rollback refuses without changing that ledger.
+An injected real SQLite insertion trigger also proves diagnostic deletion rolls back when
+certificate insertion aborts; removing the trigger allows the same admitted commit.
+
+Limits and checks not performed: the adapter is not installed in production composition.
+Existing borrowed reader lifetime wrappers were not extended or tested with this new connected
+capability; the tests prove supplied-snapshot visibility, not post-settlement wrapper expiry.
+The nonbinding-deadline certificate variation, complete repository-level quantum/wire identity
+mutation matrix, same-attempt replacement timestamp mutation proof, and terminal duplicate
+conflicting-valid-evidence mutation proof remain unverified here. The shared old writer fences
+have focused stale-owner/epoch/generation/enablement tests and existing regression evidence;
+this packet did not independently remutate every shared old predicate.
+Coordinator admission, terminal event-before-release, Retry, restart, frontend outcomes,
+installed solver handshake, Python/model suites, full CI and host gate are outside this packet.
+Tasks 7.3 and 7.4 remain unchecked and connected runtime capability remains unavailable.

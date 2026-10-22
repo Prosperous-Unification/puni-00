@@ -2654,6 +2654,28 @@ export const optimizedScheduleCache = sqliteTable(
   ],
 );
 
+/** Retained exact-question terminal evidence; generation and live budget cleanup never evict this table. */
+export const optimizationBoundaryCertificate = sqliteTable(
+  'optimization_boundary_certificate',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    inputHash: text('input_hash').notNull(),
+    objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
+    contractVersion: text('contract_version').notNull(),
+    budgetMs: integer('budget_ms').notNull(),
+    certificateJson: text('certificate_json').notNull(),
+    generation: integer('generation').notNull(),
+    attemptToken: text('attempt_token').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.inputHash, t.objective, t.contractVersion, t.budgetMs] }),
+    check('optimization_boundary_certificate_objective', sql`${t.objective} IN ('pri', 'time')`),
+  ],
+);
+
 /**
  * One project's whole plan, copied by value at one instant — the header.
  *
