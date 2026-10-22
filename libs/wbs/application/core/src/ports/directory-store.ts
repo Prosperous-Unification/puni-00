@@ -125,9 +125,14 @@ export interface PersonPatch {
   accountId?: string | null;
 }
 
+/**
+ * `in_use`: the patch would unbind or rebind a person that unrevoked machine
+ * credentials act through (`wbs-machine-credentials` A12), counted.
+ */
 export type PersonWritten =
   | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
-  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' };
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' }
+  | { ok: false; reason: 'in_use'; machineCredentials: number };
 
 /**
  * What a create answered.
@@ -194,6 +199,13 @@ export interface DirectoryUsageRows {
    */
   pinnedCredentials: number;
   /**
+   * How many unrevoked machine credentials are pinned to the person being
+   * removed (`machine_credential.person_id`, `wbs-machine-credentials`); 0 for
+   * a team. Like a pin it refuses an unconfirmed removal `in_use`; a confirmed
+   * removal revokes them, auditing each, and removes them with the person.
+   */
+  machineCredentials: number;
+  /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
    *
@@ -231,6 +243,24 @@ export type DirectoryRemoved =
   | { ok: true; removal: DirectoryRemoval }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
+
+/**
+ * A person removal: {@link DirectoryRemoved}, or `forbidden` when a cascade
+ * would remove machine credentials the caller's {@link MachineCredentialReach}
+ * does not reach (`wbs-machine-credentials` A24).
+ */
+export type PersonRemoved = DirectoryRemoved | { ok: false; reason: 'forbidden' };
+
+/**
+ * Whose machine credentials a person removal may revoke (`wbs-machine-credentials`
+ * A24), the reach `DELETE /api/organization/machine-credentials/:id` has: an
+ * admin every person's, a member only a person bound to their own account,
+ * a delegation or machine credential none.
+ */
+export type MachineCredentialReach =
+  | { readonly kind: 'every' }
+  | { readonly kind: 'own'; readonly accountId: string }
+  | { readonly kind: 'none' };
 
 /**
  * What a resource create answered. **Not idempotent by name**, unlike a team:
@@ -509,7 +539,12 @@ export interface DirectoryStore {
    * written after that caller's own count must refuse the removal rather than
    * be deleted by it.
    */
-  removePerson(personId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
+  removePerson(
+    personId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+    reach: MachineCredentialReach,
+  ): Promise<PersonRemoved>;
   /**
    * The same for a team, and it **nulls the labels itself**:
    * `work_item.service_team_id` carries a foreign key with no `ON DELETE`

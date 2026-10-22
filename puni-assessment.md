@@ -106,7 +106,47 @@ failure can have on others.
 - Code modularity, readable implementation, concise and complete documentation,
   and usable planning, specification, review, and verification artifacts.
 - Coordination and integration of parallel agent work. Evaluate whether more agents
-  increase accepted delivery throughput without increasing failures or rework.
+  increase accepted delivery throughput without increasing failures or rework, using
+  the criteria in Agent swarm organization.
+
+### Agent swarm organization
+
+Assess how the agents that develop and operate PUNI are coordinated, because
+development scalability depends on it: more agents must raise accepted delivery
+throughput without raising failures, rework, cost, review load or operator attention.
+The criteria started from Josh Rosen's
+[Supervisors vs. Swarms](https://x.com/JoshARosen/status/2111110576369737745)
+(2026-10-16) and were revised on 2026-10-22 against the research and benchmarks recorded in
+[the swarm criteria research note](docs/findings/puni-assessment-2026-10-21/swarm-criteria-research.md).
+For each criterion record who decides, where the decision is stored, and what measured
+evidence shows it holds under concurrency.
+
+| Criterion                                  | What the assessment must establish                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture fit to task structure         | For each work type, whether the work decomposes; whether a multi-agent shape is chosen per type against a measured single-agent baseline; whether sequential work stays under centralized or code-driven control.                                                                                  |
+| Delegation and handoffs                    | Whether work moves between agents by delegation with a result returned, by handoff, or by a graph that code advances; whether a change request opens a new revision or a back-edge; whether every agent-to-agent transfer is recorded.                                                             |
+| Locus of control                           | Whether an LLM, application code, or a person chooses the next step; whether the chooser is a bottleneck or a single point of failure; whether a central verification point contains errors; how two coordinators on one store are fenced.                                                         |
+| Sequential and parallel                    | What runs concurrently, what fan-in waits for, how dependencies between branches are expressed, what caps concurrency on each host; and that any claimed gain from parallelism rests on paired runs, repeated seeds, a single-agent control and a reported noise floor.                            |
+| Harness as a measured variable             | Which harness, version, settings and context policy each attempt ran under; whether that identity is pinned and reported with the result; tokens, latency and cost per accepted outcome per model–harness pair; how harness changes are evaluated before adoption.                                 |
+| Context policy                             | The stated budget per activity class, the order of rule-based elision and summarization, what a first attempt, a retry and a reviewer receive, whether originals rather than summaries remain the record, and whether any agent inherits another agent's transcript.                               |
+| Identity and authority                     | Which identity each attempt acts under in WBS, GitHub and the hosts; which credentials its process can reach; whether an injected or compromised agent can exceed the authority delegated to it, measured as unauthorized actions under delegation; whether the delegation chain is auditable.     |
+| Deciding when work is done                 | Who decides that a step and a work item are complete; whether an agent's own finish signal authorizes anything; budgets in tokens, money and agent time per work item and what happens at each cap; whether work is sized or checkpointed under the horizon at which the chosen model is reliable. |
+| Verification                               | Where review, verification and human approval sit in the flow; whether acceptance includes held-out checks the implementing agent never sees; whether reward hacking is detected by construction where possible; whether a second-model review is treated as a weak signal rather than a gate.     |
+| Review capacity and retained understanding | Reviewer load, time from ready to merge, revision requests and revert rate as agents are added; whether automated review replaces or supplements human review; whether the people accountable for the system still understand the code they approve.                                               |
+| Failure observability and attribution      | Whether every agent step, tool call and inter-agent message is traced with identities; whether a failure can be attributed to an agent, step and cause; whether fault injection has shown that the tracing and attribution work.                                                                   |
+
+Prior intent to trace: the Twilight agentic workflows change
+(`openspec/changes/twilight-agentic-workflows`, pull request #601, assumptions
+A1 to A11), ADR 0056, and the WBS project "Agentic workflows — WBS, CTT and portable
+persistence" (dev WBS, id `eeb8e50a-6ee6-49e4-a533-e10b1e29939d`). That plan answers
+the criteria with code-driven control, WBS as the state of the job, isolated
+per-attempt context, and structural verification. It also records four open items
+the assessment must check rather than assume: per-class context policy for retries
+(I1.05), bounds and usage attribution for nested harness subagents (I2.10), worker
+authority scoping with credentials held only by the coordinator (I3.05), and
+work-item-level termination through a revision cap and a token budget (S7a.06).
+Evidence for this capability is the measured delivery metrics in Observability and
+measurement under growing agent concurrency, not the existence of the plan.
 
 ### CI/CD
 

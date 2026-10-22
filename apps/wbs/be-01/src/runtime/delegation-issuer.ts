@@ -101,6 +101,14 @@ export async function signDelegation(
           grant: source.grant,
           upstream_iss: source.upstreamIssuer,
           upstream_sub: source.upstreamSubject,
+          // A consent acting as an agent person (`wbs-machine-credentials`
+          // A20): the verifier admits it only while this credential is live.
+          ...(source.consent === undefined
+            ? {}
+            : {
+                credential_id: source.consent.credentialId,
+                person_id: source.consent.personId,
+              }),
         };
   return new SignJWT({
     org: source.organizationId,

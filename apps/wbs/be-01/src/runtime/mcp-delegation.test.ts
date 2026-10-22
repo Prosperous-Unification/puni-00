@@ -37,6 +37,12 @@ async function authority(now: number) {
     isMember: () => Promise.resolve(true),
     activationState: () => 'activated',
     signingKey: keys.privateKey,
+    consents: {
+      agentsBoundTo: () => Promise.resolve([]),
+      mint: () => Promise.reject(new Error('no consent is minted here')),
+      end: () => Promise.reject(new Error('no consent is ended here')),
+    },
+    consentCredentialOf: () => Promise.resolve(null),
     now: () => now,
   });
 }

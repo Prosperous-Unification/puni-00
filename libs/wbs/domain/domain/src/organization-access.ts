@@ -10,6 +10,13 @@ export interface OrganizationScope {
   readonly organizationId: string;
   readonly userId: string;
   readonly role: OrganizationRole;
+  /**
+   * Present, and true, when the request acts through a delegation or a
+   * machine credential's direct context rather than as the user themself
+   * (`wbs-machine-credentials` A24): such a request never removes a machine
+   * credential, by route or by a person's cascade.
+   */
+  readonly delegated?: true;
 }
 
 /**
