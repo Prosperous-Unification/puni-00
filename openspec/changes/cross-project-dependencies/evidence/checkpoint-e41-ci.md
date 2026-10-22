@@ -31,3 +31,17 @@ Complete CI artifacts were downloaded to `/tmp/puni-e41-ci-artifacts` and the
 readable workspace log to `/tmp/puni-e41-workspace-clean.log`. Raw CI output
 remains available through the linked run. Full green CI, subsequent skipped
 checks, solver image smoke and deployment have not been established.
+
+## Fresh documentation corrections verified
+
+On committed `16d66bb24`, the configured Bun pilot-policy test file with its
+scratch preload and trusted node_modules completed **24 passed, 0 failed,
+430 assertions**. It clones the committed repository, so the correction was
+committed before this check. The former binary-log obstruction is gone and
+the original positive/negative production CLI scenarios execute successfully.
+This focused result does not claim the full Twilight target passed.
+
+`bun test apps/wbs/mcp-01/src/openapi-tools.test.ts` completed **32 passed,
+0 failed, 389 assertions**, including the documented tool-count assertion.
+[Both actual logs](checkpoint-e41-ci-proofs/) are retained with SHA256SUMS.
+Other CI failure corrections remain assigned to the implementation lanes.
