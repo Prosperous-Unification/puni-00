@@ -60,8 +60,13 @@ Run against this laptop's logs before the rules were final, each refusal named i
   targets succeeded for both projects.
 - `bun test src/ledger` in the Dash CLI: 21 pass, 0 fail (64 expect calls).
 - `bun test src/ledger src/no-ambient-clock.test.ts src/cli.test.ts`: 51 pass, 0 fail.
-- `nx run twilight-dash:test --skip-nx-cache`: see the line appended below when the run finishes.
-- Host gate: `bin/h2puni-gate.sh <sha>` on h4claw, appended below.
+- `nx run twilight-dash:test --skip-nx-cache`: 2,133 tests across 58 files, all passed, 681 s
+  (2026-10-22, includes the no-ambient-clock scan and the dispatcher tests).
+- Host gate of record: `bin/h2puni-gate.sh 6e546f9fa1fa870f9783d708938e22c3adca2670` on h4claw
+  (`~/gate-6e546f9f.log`, started 2026-10-22 17:44 UTC after a 30-minute lock refusal with exit 75
+  on the first launch, relaunched with `HEAVY_LOCK_WAIT_SECONDS=10800`): `GATE_EXIT=0`. CI's
+  `gate workspace` job failed twice on the same head on a `wbs-be-01` browser-pair revocation
+  test that times out at 10 s there and passes on the host gate; recorded as a CI flake.
 
 ### 7. The figures for the week to 2026-10-22
 
@@ -101,4 +106,4 @@ than hidden.
 
 ### 8. Implementation signal
 
-Commit range and the host gate line are appended at the end of this file when known.
+Implementation commit `6e546f9fa` (gated); this record is the only later commit on the branch.
