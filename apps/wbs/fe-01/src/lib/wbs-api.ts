@@ -1394,7 +1394,8 @@ export type OptimizationVariantView =
   | { readonly state: 'idle' };
 
 /** The selected schedule and both same-input optimizer states from one plan read. */
-export interface PlanOptimizationView {
+export interface LocalPlanOptimizationView {
+  readonly scope?: never;
   readonly enabled: boolean;
   readonly engine: ScheduleEngineView;
   readonly objective: ScheduleObjectiveView;
@@ -1427,6 +1428,15 @@ export interface PlanOptimizationView {
    */
   readonly sameOrderAsFast: Readonly<Partial<Record<ScheduleObjectiveView, boolean>>>;
 }
+
+/** The captured connected wire view, preserved without reconstructing its question. */
+export type ConnectedPlanOptimizationView = Extract<
+  NonNullable<PlanReadWire['optimization']>,
+  { scope: { kind: 'connected-stage' } }
+>;
+
+/** The selected schedule and captured local or connected optimizer states. */
+export type PlanOptimizationView = LocalPlanOptimizationView | ConnectedPlanOptimizationView;
 
 /**
  * The project's work items, and the event sequence they were read at.
@@ -2807,6 +2817,10 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         }),
       );
       const { optimization, ...read } = tree;
+      // Proof: bypassing URL binding changed the foreign-project API test from
+      // project_mismatch to presentation_unavailable (2026-10-22).
+      if (optimization?.scope !== undefined && optimization.scope.projectId !== projectId)
+        throw new Error('connected_optimization_project_mismatch');
       // Proof: without this guard the public connected pending fixture became a
       // local PlanRead; the API test resolved instead of rejecting (2026-10-22).
       if (optimization?.scope !== undefined)

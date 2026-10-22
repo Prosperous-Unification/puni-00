@@ -203,3 +203,12 @@ checkboxes remain open. Commands, watched producer faults and limits: `verify.md
 - [x] Wire shared recovery admission before maintenance and independently re-resolve SQLite family, rollback image and exact stopped outgoing/replacement-maintenance set before a fresh post-maintenance scan.
 - [x] Add migrated store/CLI conformance, coherent historical refusal, enabled-empty/deceptive-image, source failure/WAL, identity drift, first-install replacement and installed source/built dispatch controls; watch production guard removals fail.
 - [ ] Complete scoped verification, independent review and isolated host gate for the integrated SHA; record limitations in verify.md. Parent 10.1/10.2 remain open.
+
+Task 7.3/7.4 semantic response prerequisite (2026-10-22): the tree endpoint now
+wraps its structural Standard Schema with terminal sibling identity and connected
+display/comparison consistency checks. The JSON descriptor and local compatibility
+remain intact. The frontend binds scope to the requested project and exports the
+local/connected view union, retaining its explicit connected presentation refusal
+until the cue slice lands. Each of eight equalities and five comparison failures
+has a watched generated-client fault; URL binding has a watched API fault.
+Parent 7.3/7.4/9.2 remain incomplete.

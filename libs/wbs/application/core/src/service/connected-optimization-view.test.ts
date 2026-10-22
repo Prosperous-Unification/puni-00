@@ -471,3 +471,126 @@ test.each(['ready', 'pending', 'boundary-infeasible', 'floor'] as const)(
     }
   },
 );
+
+const questionFaults = {
+  projectId: 'other',
+  objective: 'pri',
+  inputHash: 'other',
+  contractVersion: 'other',
+  budgetMs: 101,
+  quantum: 49,
+  wireVersion: 6,
+  stageBytes: 'other',
+};
+for (const [field, altered] of Object.entries(questionFaults)) {
+  test(`connected terminal rejects semantic question mismatch: ${field}`, async () => {
+    const tree = {
+      ...presentConnectedTree(projectConnectedTree(captured('boundary-infeasible'), 'A')),
+      undoable: false,
+      redoable: false,
+    };
+    const optimization = tree.optimization;
+    if (
+      optimization?.scope === undefined ||
+      optimization.variants.time.state !== 'boundary-infeasible'
+    )
+      throw new Error('missing terminal');
+    const terminal = optimization.variants.time;
+    const invalid = {
+      ...tree,
+      optimization: {
+        ...optimization,
+        variants: {
+          ...optimization.variants,
+          time: {
+            ...terminal,
+            certificate: {
+              ...terminal.certificate,
+              question: { ...terminal.certificate.question, [field]: altered },
+            },
+          },
+        },
+      },
+    };
+    const decoded = await clientFromShapes([getWorkItems], () =>
+      Promise.resolve({ kind: 'json', status: 200, body: invalid }),
+    )['getApiProjectsByIdWork-items']({ params: { id: 'A' } });
+    expect(decoded).toMatchObject({ kind: 'failure', failure: { code: 'invalid_response' } });
+    const checked = await validateSchema(getWorkItems.responses[0].schema, invalid);
+    expect(checked.issues).toBeDefined();
+    expect(
+      checked.issues?.some(
+        (issue) =>
+          JSON.stringify(issue.path) ===
+          JSON.stringify(['optimization', 'variants', 'time', 'certificate', 'question', field]),
+      ),
+    ).toBe(true);
+  });
+}
+
+test('connected nonselected terminal objective and unrelated question hash are valid', async () => {
+  const tree = {
+    ...presentConnectedTree(projectConnectedTree(captured('boundary-infeasible'), 'A')),
+    undoable: false,
+    redoable: false,
+  };
+  const optimization = tree.optimization;
+  if (optimization?.scope === undefined) throw new Error('missing scope');
+  const valid = { ...tree, optimization: { ...optimization, objective: 'pri', displayed: 'fast' } };
+  expect((await validateSchema(getWorkItems.responses[0].schema, valid)).issues).toBeUndefined();
+  expect(
+    await clientFromShapes([getWorkItems], () =>
+      Promise.resolve({ kind: 'json', status: 200, body: valid }),
+    )['getApiProjectsByIdWork-items']({ params: { id: 'A' } }),
+  ).toMatchObject({ kind: 'success' });
+});
+
+for (const fault of [
+  'displayed',
+  'ready-finish',
+  'ready-order',
+  'nonready-finish',
+  'nonready-order',
+] as const) {
+  test(`connected comparisons reject semantic mismatch: ${fault}`, async () => {
+    const tree = {
+      ...presentConnectedTree(
+        projectConnectedTree(captured(fault.startsWith('ready') ? 'ready' : 'pending'), 'A'),
+      ),
+      undoable: false,
+      redoable: false,
+    };
+    const optimization = tree.optimization;
+    if (optimization?.scope === undefined) throw new Error('missing scope');
+    const invalid = {
+      ...tree,
+      optimization: {
+        ...optimization,
+        ...(fault === 'displayed' ? { displayed: 'pri' } : {}),
+        finishDays: {
+          ...optimization.finishDays,
+          ...(fault === 'ready-finish'
+            ? { pri: undefined }
+            : fault === 'nonready-finish'
+              ? { pri: 1 }
+              : {}),
+        },
+        sameOrderAsFast: {
+          ...optimization.sameOrderAsFast,
+          ...(fault === 'ready-order'
+            ? { pri: undefined }
+            : fault === 'nonready-order'
+              ? { pri: true }
+              : {}),
+        },
+      },
+    };
+    const body: unknown = JSON.parse(JSON.stringify(invalid));
+    expect(
+      await clientFromShapes([getWorkItems], () =>
+        Promise.resolve({ kind: 'json', status: 200, body }),
+      )['getApiProjectsByIdWork-items']({ params: { id: 'A' } }),
+    ).toMatchObject({ kind: 'failure', failure: { code: 'invalid_response' } });
+    expect((await validateSchema(getWorkItems.responses[0].schema, body)).issues).toBeDefined();
+  });
+}

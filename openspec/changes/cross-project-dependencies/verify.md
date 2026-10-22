@@ -2853,3 +2853,34 @@ The prior full backend lint resource failures are not reclassified as passing;
 this correction uses focused changed-file lint plus the domain lint target.
 
 Project drain refusal and atomic successor cleanup evidence: [task-4-project-drain.md](evidence/task-4-project-drain.md). This bounded packet does not complete task 4.4 or activate external authoring.
+
+### Semantic tree response prerequisite A — 2026-10-22
+
+Isolated clone `/tmp/puni-semantic-wire`, based on `3f665cf15`. Added runtime
+relations only to `getWorkItems`; its structural descriptor remains unchanged.
+`questionHash` is preserved, not equated to input hash or verified as a digest.
+The frontend continues refusing connected presentation pending B.
+
+- Baseline: `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts libs/wbs/domain/contracts/src/http/work-item-response.test.ts libs/wbs/domain/contracts/src/http/schema-shape.test.ts`: 34 passed.
+- Tests first: the producer suite reported 13 failures (eight well-typed question mutations and five comparison mutations accepted). The API suite reported 76 passed/one failed: foreign URL expected `connected_optimization_project_mismatch`, received presentation refusal.
+- Independent runtime faults: for each `projectId`, `objective`, `inputHash`, `contractVersion`, `budgetMs`, `quantum`, `wireVersion`, `stageBytes`, bypassed only that equality in the production wrapper. Ran `bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts -t 'connected terminal rejects semantic question mismatch: <field>'`. Each failed with generated client returning `kind: success` instead of `invalid_response`. Logs `/tmp/puni-semantic-fault-<field>.log`; production restored after every sweep.
+- Independently removed displayed-ready, finish-presence and order-presence checks. Ran the same suite with `-t 'connected comparisons reject semantic mismatch: <fault>'` for `displayed`, `ready-finish`, `ready-order`, `nonready-finish`, `nonready-order`. Each generated client accepted the malformed projected response and the assertion failed. Logs `/tmp/puni-semantic-fault-<fault>.log`.
+- Bypassed only the frontend URL equality. `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000` from fe-01 failed for foreign URL: presentation refusal replaced required project mismatch. Restored production guard. Log `/tmp/puni-semantic-url-fault.log`.
+- Restored green: the three Bun suites passed 48 tests, 390 assertions.
+
+Full host gate, browser, live optimizer activation and CI are unrun in this bounded
+packet. Shared frontend union support is completed by B before integrated frontend
+typecheck can pass; A deliberately keeps the presentation refusal.
+
+Focused verification details:
+
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000` from fe-01: 77 passed.
+- `bunx eslint` over the five changed TypeScript files: passed after replacing an issue-path `join` assertion (Standard Schema path segments may be objects) with precise JSON path equality.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run wbs-contracts:typecheck --outputStyle=stream`: passed.
+- `bunx tsc --build --force libs/wbs/application/core/tsconfig.json`: passed.
+- Broad Nx lint/typecheck attempt was interrupted after socket/recursive-task invocation problems; it is not evidence of a passing broad gate. Single-target contracts typecheck and the configured direct core compiler command above supply focused evidence.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: fails pending B1's connected cue reading/words handling and local-only test fixture annotation. The public union is intentional; this packet must integrate with B1 before claiming frontend typecheck passes.
+- `openspec validate --all --json` after the spec addition: passed (18/18).
+- Strengthened URL fixture to cover pending and a correctly paired terminal certificate for both matching/foreign URL IDs: 79 API tests passed. Bypassing URL binding then failed exactly the two foreign-project cases (pending/terminal), receiving presentation refusal instead of project mismatch; `/tmp/puni-semantic-url-fault-final.log`. Matching IDs pass semantic/contextual validation and reach the deliberately retained presentation refusal.
+- Full contracts lint command `bunx eslint libs/wbs/domain/contracts/src libs/wbs/domain/contracts/solver/src`: passed. A subsequent standalone `nx run wbs-core:typecheck --outputStyle=stream` with daemon/plugin isolation disabled passed both module and core compiler tasks.
+- Normal commit hooks passed lint, format, plaintext secrets, private nesting and author trailers; tool-wiki returned its explicit inactive/noncertified state because the external activation root is not provisioned. Migration/doc-cap hooks had no matching files.

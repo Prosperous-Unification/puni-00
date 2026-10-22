@@ -264,3 +264,36 @@ remains satisfied. A violated boundary SHALL refuse the complete candidate.
 - **GIVEN** a candidate satisfies its quantized constraints but violates a materialized real external FS, SS or FF boundary
 - **WHEN** independent publication validation checks the candidate
 - **THEN** it rejects the candidate and does not publish a partial component update
+
+### Requirement: Connected tree responses bind captured optimization evidence
+
+The tree response runtime validator SHALL bind each terminal objective's question
+project, objective key, input hash, contract version, budget, quantum, wire version
+and canonical stage bytes to their sibling captured optimization fields. A
+nonselected objective MAY carry terminal evidence; its objective SHALL be checked
+against its variant key. Question hash SHALL be preserved independently.
+
+Connected displayed objectives SHALL be ready. Finish and order comparisons SHALL
+both exist exactly for ready objectives. Fast MAY remain displayed with ready
+alternatives. Local response compatibility SHALL remain unchanged. Structural
+JSON Schema SHALL retain its descriptor; these additional runtime relations SHALL
+be enforced by the tree's Standard Schema validator after structural validation.
+The frontend HTTP adapter SHALL bind connected scope to the requested URL project.
+
+#### Scenario: Correctly typed detached evidence contradicts its captured siblings
+
+- **GIVEN** a projected connected terminal tree that passes structural validation
+- **WHEN** any one of those eight question fields differs from its captured sibling
+- **THEN** response validation and generated client decoding refuse the response
+- **AND** the semantic issue identifies the terminal question field path
+
+#### Scenario: Connected arithmetic lacks coherent comparison evidence
+
+- **WHEN** a displayed objective is not ready, a ready objective lacks finish or order, or a nonready objective carries either
+- **THEN** response validation and generated client decoding refuse the response
+
+#### Scenario: Internally consistent scope belongs to a different URL project
+
+- **GIVEN** a connected tree with internally consistent scope and terminal evidence
+- **WHEN** the frontend adapter reads it for a different project ID
+- **THEN** the adapter refuses the project mismatch before presentation

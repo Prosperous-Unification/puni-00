@@ -7,6 +7,7 @@ import { planCommandsBody } from './plan-command-shapes';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
+import { treeResponseSchema } from './tree-response-schema';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
 import { numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
@@ -352,21 +353,23 @@ export const getWorkItems = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(
-        workItemTree.and({
-          undoable: 'boolean',
-          redoable: 'boolean',
-          'addressRevision?': 'string',
-          'stepNodes?': type({
-            id: 'string',
-            workItemId: 'string',
-            stepId: 'string',
-            reference: 'string | null',
-          }).array(),
-          // The zone a step card reads attempt instants in
-          // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
-          'timezone?': 'string',
-        }),
+      schema: treeResponseSchema(
+        responseSchema(
+          workItemTree.and({
+            undoable: 'boolean',
+            redoable: 'boolean',
+            'addressRevision?': 'string',
+            'stepNodes?': type({
+              id: 'string',
+              workItemId: 'string',
+              stepId: 'string',
+              reference: 'string | null',
+            }).array(),
+            // The zone a step card reads attempt instants in
+            // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
+            'timezone?': 'string',
+          }),
+        ),
       ),
     },
   ],

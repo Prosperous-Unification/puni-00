@@ -1997,7 +1997,12 @@ it('keeps the typed boundary Retry refusal through the generated client', async 
   });
 });
 
-it('refuses connected optimization presentation until the scoped cue is installed', async () => {
+it.each([
+  ['p1', 'pending'],
+  ['other', 'pending'],
+  ['p1', 'terminal'],
+  ['other', 'terminal'],
+])('checks URL project before refusing connected presentation: %s %s', async (projectId, state) => {
   const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
   tree.optimization = {
     enabled: true,
@@ -2008,7 +2013,30 @@ it('refuses connected optimization presentation until the scoped cue is installe
     contractVersion: 'test',
     budgetMs: 100,
     displayed: 'fast',
-    variants: { pri: { state: 'pending' }, time: { state: 'pending' } },
+    variants: {
+      pri: { state: 'pending' },
+      time:
+        state === 'pending'
+          ? { state: 'pending' }
+          : {
+              state: 'boundary-infeasible',
+              certificate: {
+                kind: 'boundary-infeasible',
+                question: {
+                  projectId: 'p1',
+                  objective: 'time',
+                  inputHash: 'input',
+                  questionHash: 'separate',
+                  contractVersion: 'test',
+                  budgetMs: 100,
+                  quantum: 48,
+                  wireVersion: 5,
+                  stageBytes: 'captured',
+                },
+                evidence: 'contradictory-bounds',
+              },
+            },
+    },
     finishDays: { fast: 1 },
     sameOrderAsFast: {},
     scope: {
@@ -2026,7 +2054,9 @@ it('refuses connected optimization presentation until the scoped cue is installe
     'fetch',
     vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
   );
-  await expect(httpProjectApi('t').tree('p1')).rejects.toThrow(
-    'connected_optimization_presentation_unavailable',
+  await expect(httpProjectApi('t').tree(projectId)).rejects.toThrow(
+    projectId === 'p1'
+      ? 'connected_optimization_presentation_unavailable'
+      : 'connected_optimization_project_mismatch',
   );
 });
