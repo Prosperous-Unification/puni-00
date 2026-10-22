@@ -411,3 +411,17 @@ Store observation transport SHALL execute the coordinator-generated inventory ag
 - **WHEN** store inspection lacks runtime confirmation of recursive-readonly source access
 - **THEN** the observation refuses before reading task logs
 - **AND** a valid dormant stdout alone cannot substitute for the missing mount evidence
+
+### Requirement: Kubernetes storage prerequisite readbacks are observational
+
+The Kubernetes adapter SHALL provide a bounded read-only storage inspection that binds `wbs-data` PVC UID, bound volume name, PV UID and the PV claim reference to `/data/wbs.sqlite`; reads back the fenced writer policy, stopped backend Deployment and configured suspended Flux unit; inventories Pod PVC references without writer labels; and classifies standard source-owning controller templates. It SHALL refuse live or terminating source consumers, including readers without runtime mount proof, unsuspended backup CronJobs and unknown source controllers. It SHALL retain controller identities and template hashes for comparison across inspections and re-read storage identities before returning. These readbacks SHALL NOT authorize a scan, migration, rollout, controller restoration or rollback, and SHALL NOT be interpreted as a continuously enforced interval or durable controller ownership.
+
+#### Scenario: Unlabeled backup consumer refuses inspection
+
+- **WHEN** an unlabeled live or terminating backup Pod references the source PVC through a main, init or ephemeral container, or a source volume device
+- **THEN** inspection refuses rather than inferring exclusion from the writer label
+
+#### Scenario: Storage or owner replacement refuses repeated inspection
+
+- **WHEN** the PVC/PV, policy, backend, Flux or source-controller identity or template changes between inspections, or storage identity changes during inventory
+- **THEN** repeated inspection refuses and returns no fresh observational evidence

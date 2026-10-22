@@ -56,6 +56,7 @@ import {
   type ReplayCount,
   sealReplayReceipt,
 } from './replay-receipt';
+import { inspectStorageFence, type StorageFenceEffects } from './storage-fence';
 
 /**
  * Every Kubernetes effect the transaction performs. Each call is bounded and either completes
@@ -1193,7 +1194,7 @@ export function parseLease(json: string): ObservedLease & { version: string } {
 /** Real effects over kubectl. Every wait has an explicit ceiling from `settings`. */
 export function kubectlEffects(
   settings: KubectlSettings,
-): ReleaseEffects & ClusterReader & DependencyObservationEffects {
+): ReleaseEffects & ClusterReader & DependencyObservationEffects & StorageFenceEffects {
   const { app, backend } = settings.namespaces;
   const base = [
     settings.kubectl,
@@ -1524,6 +1525,9 @@ export function kubectlEffects(
   const fencedSelector = { matchLabels: { 'puni.dev/writes': 'fenced' } };
 
   return {
+    inspectStorageFence(flux, expected) {
+      return inspectStorageFence({ namespace: backend, flux }, kubectl, expected);
+    },
     observeDependencyBinaries(attempt, candidate, previous) {
       return observeDependencyBinaries(
         { namespace: backend, attempt, timeoutSeconds: settings.jobTimeoutSeconds },
