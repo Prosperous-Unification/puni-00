@@ -99,15 +99,32 @@ describe(MIGRATION, () => {
       .all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
-    // The newer, empty organization limits migration reverses first, in its own transaction.
+    // The newer, empty machine credential and organization limits migrations reverse first.
     expect(
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
-    ).toEqual(before.filter(({ name }) => name !== '20261022120000_add_organization_limits'));
+    ).toEqual(
+      before.filter(
+        ({ name }) =>
+          ![
+            '20261022100000_add_machine_credential',
+            '20261022110000_widen_organization_audit_machine_credentials',
+            '20261022110100_check_machine_credential_id',
+            '20261022120000_scope_trusted_issuer_audience',
+            '20261022130000_add_organization_limits',
+            '20261022130100_widen_organization_audit_organization_limits',
+          ].includes(name),
+      ),
+    );
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      '20261022120000_add_organization_limits',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
       MIGRATION,
     ]);
     expect(db.query("SELECT name FROM sqlite_master WHERE name = 'claim_occupancy'").all()).toEqual(

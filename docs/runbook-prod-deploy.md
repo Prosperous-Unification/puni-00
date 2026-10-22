@@ -115,7 +115,10 @@ The order matters in both directions, because the installed swap bundle checks t
 1. **First** install the new bundle: `bunx nx run tool-remote-scripts:install --execute`. The old bundle's allowlist (`assertTierEnvAllowed`) refuses any key it does not know, so adding the three keys before this blocks every be swap.
 2. **Then**, before the first swap to a release carrying `wbs-organization-limits`, add the three lines to `/home/puni1/wbs/be-01.env`. The new bundle's completeness check (`assertTierEnvComplete`) refuses a file without them.
 
-`20261022120000_add_organization_limits` is additive; its `down.sql` refuses while any organization holds its own row.
+`20261022130000_add_organization_limits` is additive; its `down.sql` refuses while any organization holds its own row.
+`20261022130100_widen_organization_audit_organization_limits` is a compatible rebuild of
+`organization_audit` that keeps every earlier action; its `down.sql` refuses while any
+`organization_limits_changed` row exists.
 
 `AUTH_MODE=local` is refused. The be-01 and gw-01 images set `NODE_ENV=production`, and
 `authModeOf` refuses local mode in production. OIDC is the only mode prod can boot. The swap

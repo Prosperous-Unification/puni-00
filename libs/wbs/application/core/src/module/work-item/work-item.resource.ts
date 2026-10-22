@@ -105,7 +105,7 @@ import type {
   ClaimIdentity,
   ClaimOccupancy,
   ClaimStore,
-  CredentialPair,
+  CredentialPin,
 } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
@@ -3297,7 +3297,7 @@ export class WorkItemService {
     actorId: string,
     input: ClaimInput,
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<WorkItemOutcome<Claimed> | ClaimRefusalOutcome> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -3492,7 +3492,7 @@ export class WorkItemService {
     actorId: string,
     input: ReleaseInput,
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<WorkItemOutcome<null> | ClaimRefusalOutcome> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;

@@ -7,6 +7,8 @@ import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { OWNED_ROOT_KINDS } from '@wbs/store-sqlite/organization-ownership';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
+import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
+
 setDefaultTimeout(30_000);
 
 const cli = new URL('./organization-activation-cli.ts', import.meta.url).pathname;
@@ -14,6 +16,8 @@ const migrations = new URL('../drizzle', import.meta.url).pathname;
 
 let directory: string;
 let path: string;
+/** An mcp-01 store whose credential epoch has advanced, as activation requires. */
+let mcpStore: string;
 
 /** Three users, Dany with a legacy Auth0 pair, and roots of every kind with their links. */
 const FIXTURE = [
@@ -55,6 +59,8 @@ beforeEach(() => {
   path = join(directory, 'plan.db');
   runMigrations(path, migrations);
   sqlite(FIXTURE);
+  mcpStore = join(directory, 'mcp-session.sqlite');
+  writeMcpStoreFixture(mcpStore, 1);
 });
 
 afterEach(() => {
@@ -85,12 +91,16 @@ function count(table: string): number {
   return found.n;
 }
 
-/** Runs the CLI with `DB_PATH` set to `dbPath`, or unset when it is null. */
-function run(args: readonly string[], dbPath: string | null = path) {
+/**
+ * Runs the CLI with `DB_PATH` set to `dbPath`, or unset when it is null, and `--mcp-store`
+ * naming the advanced fixture unless `args` names one or `isWithoutMcpStore`.
+ */
+function run(args: readonly string[], dbPath: string | null = path, isWithoutMcpStore = false) {
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key !== 'DB_PATH'),
   );
-  const spawned = Bun.spawnSync([process.execPath, cli, ...args], {
+  const store = isWithoutMcpStore || args.includes('--mcp-store') ? [] : ['--mcp-store', mcpStore];
+  const spawned = Bun.spawnSync([process.execPath, cli, ...store, ...args], {
     // FORCE_COLOR as Nx sets it in the gate, so terminal styling on either stream fails here.
     env:
       dbPath === null
@@ -376,8 +386,19 @@ describe('organization-activation-cli', () => {
     ]);
   });
 
+  it('refuses without --mcp-store before opening the database', () => {
+    const before = writable();
+
+    const refused = run(APPLY, path, true);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain('--mcp-store');
+    expect(writable()).toEqual(before);
+  });
+
   for (const [label, args, dbPath] of [
     ['no DB_PATH', APPLY, null],
+    ['an empty --mcp-store', ['--mcp-store', '', ...APPLY], undefined],
     ['an empty DB_PATH', APPLY, ''],
     ['no --name', ['--super-admin', 'dany'], undefined],
     ['a blank --name', ['--name', ' ', '--super-admin', 'dany'], undefined],
@@ -400,6 +421,79 @@ describe('organization-activation-cli', () => {
       expect(writable()).toEqual(before);
     });
   }
+
+  it('refuses activation while the MCP epoch is 0, writing nothing', () => {
+    const before = writable();
+    const pending = join(directory, 'pending-mcp.sqlite');
+    writeMcpStoreFixture(pending, 0);
+
+    const refused = run(['--mcp-store', pending, ...APPLY]);
+
+    expect(refused.exitCode).toBe(7);
+    expect(refused.stdout).toBe('');
+    expect(refusalOf(refused.stderr)).toEqual({
+      refusal: 'mcp_epoch_not_advanced',
+      path: pending,
+      reason: 'epoch_0',
+    });
+    expect(writable()).toEqual(before);
+    expect(rows('SELECT * FROM organization_activation')).toEqual(PRE_ACTIVATION);
+  });
+
+  it('rehearses while the MCP epoch is 0, then reports the refusal', () => {
+    const before = writable();
+    const pending = join(directory, 'pending-mcp.sqlite');
+    writeMcpStoreFixture(pending, 0);
+
+    const rehearsed = run(['--mcp-store', pending, '--name', 'default', '--super-admin', 'dany']);
+
+    expect(rehearsed.exitCode).toBe(7);
+    expect(JSON.parse(rehearsed.stdout)).toMatchObject({ mode: 'dry_run', activatedAt: null });
+    expect(refusalOf(rehearsed.stderr)).toMatchObject({ reason: 'epoch_0' });
+    expect(writable()).toEqual(before);
+  });
+
+  it('refuses an absent MCP store, writing nothing', () => {
+    const before = writable();
+    const absent = join(directory, 'absent-mcp.sqlite');
+
+    const refused = run(['--mcp-store', absent, ...APPLY]);
+
+    expect(refused.exitCode).toBe(7);
+    expect(refusalOf(refused.stderr)).toEqual({
+      refusal: 'mcp_epoch_not_advanced',
+      path: absent,
+      reason: 'absent',
+    });
+    expect(existsSync(absent)).toBe(false);
+    expect(writable()).toEqual(before);
+  });
+
+  it('refuses an MCP store without the epoch migration', () => {
+    const before = writable();
+    const baseline = join(directory, 'baseline-mcp.sqlite');
+    const db = openDatabase(baseline);
+    db.run('CREATE TABLE mcp_family (family_id TEXT PRIMARY KEY)');
+    db.close();
+
+    const refused = run(['--mcp-store', baseline, ...APPLY]);
+
+    expect(refused.exitCode).toBe(7);
+    expect(refusalOf(refused.stderr)).toMatchObject({ reason: 'unmigrated' });
+    expect(writable()).toEqual(before);
+  });
+
+  it('throws on a malformed MCP epoch, writing nothing', () => {
+    const before = writable();
+    const malformed = join(directory, 'malformed-mcp.sqlite');
+    writeMcpStoreFixture(malformed, 'one');
+
+    const refused = run(['--mcp-store', malformed, ...APPLY]);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain('MCP credential epoch');
+    expect(writable()).toEqual(before);
+  });
 
   it('refuses a missing database file without creating it', () => {
     const missing = join(directory, 'missing.db');

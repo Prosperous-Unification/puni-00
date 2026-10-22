@@ -1,4 +1,4 @@
-import type { CredentialPair } from '@wbs/contracts';
+import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
@@ -302,7 +302,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome> {
     return this.execute(projectId, actorId, commands, access, credential);
   }
@@ -317,7 +317,7 @@ export class PlanCommandRunner {
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     return this.execute(projectId, actorId, commands, access, credential, prelude);
   }
@@ -380,14 +380,14 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private async execute<R>(
@@ -395,7 +395,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     // This batch's own collector and its own graph over it. Two batches never
@@ -672,7 +672,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);

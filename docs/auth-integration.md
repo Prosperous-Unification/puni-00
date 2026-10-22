@@ -193,8 +193,8 @@ check the emitted group values before chasing a write bug.
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in
 `/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The Okta
-trial expired on 2026-09-22, so its backup ([historical Okta mapping](#historical-okta-mapping))
-is due for deletion.
+trial expired on 2026-09-22 and its backup was deleted on 2026-10-22; only the
+[historical Okta mapping](#historical-okta-mapping) remains.
 
 Prod's swap reads its provider settings from `/home/puni1/wbs/oidc.env` (mode
 600), with the same five-key allowlist. No prod tenant or client is configured
@@ -315,6 +315,20 @@ calls be-01 with a WBS-signed delegation instead
   every MCP delegation until trusted grant-lifecycle evidence exists.
 - Sessions consented before activation stay unbound and are refused after it
   (task 6.5 will revoke them at the cutover).
+- A consent may act as one of the signed-in account's agent persons instead
+  (`openspec/changes/wbs-machine-credentials`, design A20): the organizations
+  answer lists each membership's `agents`, `POST /internal/mcp/credentials`
+  mints the `mcp_consent` machine credential before the code is issued, the
+  delegation then names `credentialId` and is pinned to the agent with `read`
+  and `write` and `member` reach, and `POST /internal/mcp/credentials/ended`
+  (service secret only) is how mcp-01 reports a family it ended so be-01
+  revokes the credential. mcp-01's README, "Consent as an agent person", has
+  the flow.
+- Deploy order: be-01 before mcp-01. This mcp-01 refuses an organizations
+  answer without `agents` (its parser requires it) and calls the two new
+  credential routes, so during a swap the be-01 serving it must already be
+  this release; an mcp-01 started against an older be-01 fails every consent
+  after activation as a deployment defect.
 
 ## Sign-in methods
 
@@ -405,8 +419,8 @@ and secret, and no `AUTH_METHODS`. Do not use the org authorization server if it
 custom audience and the `wbs_groups` claim (in both ID and access tokens) that WBS requires.
 Group values keep the environment prefix: `prod:wbs:*` in production, `dev:wbs:*` in development.
 
-The archived dev values live only in `/home/puni1/wbs-dev/oidc-dev.env.okta.bak` on the
-deployment host (mode 600). Never copy them into the repository, logs, tests, or issue text.
+The archived dev values were deleted from the deployment host on 2026-10-22 after the
+trial expired; no copy exists in the repository, logs, tests or issue text.
 
 ## Local bypass
 

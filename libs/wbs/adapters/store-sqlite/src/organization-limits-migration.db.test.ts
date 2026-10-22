@@ -10,8 +10,10 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const MIGRATION = '20261022120000_add_organization_limits';
-const BASELINE = '20261020130000_add_claim_occupancy';
+const MIGRATION = '20261022130000_add_organization_limits';
+/** The newer audit widening, which reverses first in its own transaction. */
+const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 
 let dir: string;
 let path: string;
@@ -90,14 +92,18 @@ describe(MIGRATION, () => {
   // (7 pass, 1 fail): the rollback dropped the table with its row; watched 2026-10-22.
   it('refuses rollback while an organization holds its own caps, keeping the table and the ledger', () => {
     insert('8', '40', '64');
-    const before = db.query('SELECT * FROM __drizzle_migrations').all();
+    const before = db
+      .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id')
+      .all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/organization limits exist/);
     expect(count()).toBe(1);
-    expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
+    expect(
+      db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
+    ).toEqual(before.filter(({ name }) => name !== LIMITS_AUDIT));
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([LIMITS_AUDIT, MIGRATION]);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),
     ).toEqual([]);

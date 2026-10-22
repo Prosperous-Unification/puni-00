@@ -148,6 +148,24 @@ activation reach be-01 unbound and are refused with `no_active_organization`.
 Unset, mcp-01 forwards the upstream token as before. Contract and deployment
 keys: `docs/auth-integration.md`, "MCP organization delegation".
 
+### Consent as an agent person
+
+When the signed-in account has agent persons bound to it in an organization,
+the choice page (shown then even for one organization) also offers each agent
+(`wbs-machine-credentials` A8, A20). Choosing one records a pending consent in
+the store, asks be-01 (`/internal/mcp/credentials`) to mint an `mcp_consent`
+machine credential issued by the human for that agent, and only then issues
+the code; a refusal answers `access_denied` and no family exists. The family
+and its sessions carry the agent person and the credential; every tool call's
+delegation names the credential, so be-01 pins it to the agent with `read` and
+`write` and the agent acts as a `member`. A credential revoked in WBS ends the
+family's use at its next request (401) and refresh (`invalid_grant`). The other
+way round, a minute-long sweep (`McpOAuthServer.reportEndedConsents`, started
+in `src/main.ts`) reports every consent family mcp-01 ended (revoked, expired,
+retired by the epoch) and every code never exchanged to
+`/internal/mcp/credentials/ended`, keeping each end in the store until be-01
+acknowledges it.
+
 ## Durable sessions and key rotation
 
 mcp-01 owns this store because it is the authorization server that creates,
@@ -172,10 +190,43 @@ Startup migrates the store before serving (`src/store-migrations.ts`). Paired
 recorded with their checksums in `mcp_migration`; an edited or unknown migration
 refuses. An absent path is created; an existing empty, partial or unreadable file
 refuses instead of being reinitialized. A store from before the ledger is adopted
-only when its schema is exactly the first migration's. The store also holds the
-credential epoch; this release starts only at epoch 0. Reverse with
+only when its schema is exactly the first migration's. Reverse with
 `rollbackMcpStore` while mcp-01 is stopped: it refuses while a bound credential
-is still usable or the epoch has advanced.
+is still usable or the epoch has advanced, and (reversing
+`20261022130000_mcp_family_person`) while a consent family acting as an agent
+person has an end be-01 has not acknowledged (`consent_ended_reported_at IS
+NULL`) or a row is left in `mcp_consent_pending`. When it refuses for those:
+end the live consent families with
+`UPDATE mcp_family SET revoked_at = <now in ms> WHERE credential_id IS NOT NULL AND revoked_at IS NULL;`
+on the stopped store, wait out the five-minute code lifetime of any pending
+consent, start mcp-01 once with be-01 reachable (its startup sweep reports every
+end and pending row to `/internal/mcp/credentials/ended`, which revokes those
+credentials in WBS), stop it, and retry the rollback.
+
+### Credential epoch
+
+The store holds a credential epoch: 0 before organization activation, 1 after
+it. This release starts at either and refuses a newer one. At 1 it also needs
+`INTERNAL_AUTH_SECRET`, because every credential must then be bound to an
+organization. A code, session or refresh token is honoured only at the epoch
+the store holds now, which is read on every use. An advance therefore retires
+older credentials in a running process too.
+
+The operator advances it once, with mcp-01 drained, before be-01's activation
+(`docs/runbook-organization-activation.md`, step 2b). be-01's activation CLI reads
+this store (`--mcp-store`) and refuses until the epoch is 1:
+
+```sh
+MCP_STORE_PATH=/data/mcp-session.sqlite bun apps/wbs/mcp-01/src/credential-epoch-cli.ts          # dry run
+MCP_STORE_PATH=/data/mcp-session.sqlite bun apps/wbs/mcp-01/src/credential-epoch-cli.ts --apply
+```
+
+`--apply` revokes every epoch-0 refresh family, deletes its sessions and sets
+epoch 1 in one transaction. The dry run prints the same counts and rolls back.
+At epoch 1 the CLI prints `already_activated` and exits 0. While any process
+has read or written the store through a still-open connection it exits 3 and
+changes nothing (`src/credential-epoch.ts`).
+Epoch 1 is one-way: only a backup of the store file returns to 0.
 
 Rotate either key by moving the old current value to its matching `_PREVIOUS`
 variable, installing a new current value, and restarting mcp-01. New writes use

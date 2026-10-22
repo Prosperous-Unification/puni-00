@@ -51,7 +51,7 @@ and the counted unit is a **Bound claim**.
 
 ## Slice 1 record (2026-10-22, branch `feat/wbs-organization-limits-1`)
 
-Built: migration `20261022120000_add_organization_limits` with its guarded `down.sql`;
+Built: migration `20261022130000_add_organization_limits` with its guarded `down.sql`;
 the three required `ORGANIZATION_DEFAULT_*` variables in `BeConfig`, `BootOptions` and every
 environment file in the repository; `@wbs/domain` `organization-limits.ts` (bounds, shapes,
 `isOrganizationLimit`, `refuseLimit`); `GET /api/organization/limits` (contracts shape, core
@@ -325,6 +325,73 @@ Fresh local results, all with `env -u CLAUDECODE`, on the laptop, after merging
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                            | exit 0                     |
 | `bunx openspec validate --all --json`                                                                                                                                                                  | 267 items, 267 passed      |
 
+## Slice 5 record (2026-10-22, branch `feat/wbs-organization-limits-5`)
+
+Merge of `origin/main` (machine credentials, #625) first, as merge commit `bc12be87e`:
+
+- Both branches had added a be-01 migration stamped `20261022120000`, and the rollback
+  runner refuses a shared stamp (`duplicateMigrationStamps`), so the unmerged
+  `add_organization_limits` moved to `20261022130000_add_organization_limits` (after main's
+  `scope_trusted_issuer_audience`; the plan branch was never deployed). Every migration
+  ledger list in be-01 and store-sqlite tests keeps both sides in timestamp order; main's
+  three rollback-string tests name the newer limits migration first.
+- `refusal.ts` keeps `agent_person_limit`, `capacity_limit` and `person_not_bound`, and the
+  widened `in_use` detail; `boot.db.test.ts` keeps both sides' boot cases.
+- The organization page keeps both slots and reads the caller's role once: `OrganizationPage`
+  calls `useOrganizationRole` and passes the `RoleView` to `LimitsSlot` and
+  `MachineCredentialsSlot` (#646 review). `reads the caller's role once for every slot that
+draws by it` asserts one `GET /api/organization/active`; with the machine credentials slot
+  reading its own role again it failed with 2 requests (28 pass, 1 fail).
+- Merged-tree results before slice 5: the 13-project typechecks succeeded; store-sqlite 1820
+  pass, 1 fail (the limits migration test's baseline, fixed, then 8 pass); be-01 3261 pass,
+  3 fail (main's three rollback-string tests, fixed, then 16 pass); fe-01 `test:unit` 980
+  pass, 1 fail (`playwright-config.test.ts` probe `spawnSync bun ETIMEDOUT` at load average
+  32, passing alone); the organization component suites 16 files, 328 pass.
+
+Built:
+
+- Audit vocabulary: main's `organization_audit` CHECK did not admit the limits action, so
+  `20261022130100_widen_organization_audit_organization_limits` is one more compatible
+  rebuild in the form of `20261022110000`, carrying its vocabulary whole (L13) and adding
+  `organization_limits_changed` / `organization_limits`. Issue #632's trigger allow-list
+  would need this same rebuild to drop the CHECKs, so it stays with #632. `down.sql`
+  refuses while a limits audit row exists and rebuilds through `organization_audit_new`
+  and a rename, so the stored schema text equals the one `20261022110000` left
+  (`applies, reports, and reverses the newest migration` compares it exactly).
+- `OrganizationLimits.inspect`, `set` and `reset` (`@wbs/core` port, SQLite repository):
+  one immediate transaction for the row and its audit row, actor `operator:<os login>`,
+  flat before and after detail, `rehearse` rolling back, `unchanged` writing nothing,
+  `inactive` before activation, `unknown_organization`, `no_row`. The row's `created_by`
+  stays empty (`auditOnOperatorCreate`): it references `users`, and an operator is none.
+  SQLite only: there is no memory twin of `OrganizationLimits`, so no conformance case.
+- `apps/wbs/be-01/src/organization-limits-cli.ts`: `show`, `set`, `reset`, dry run by
+  default and `--apply`; refusals as one JSON line with exit codes 2 malformed, 3
+  inactive, 4 unknown organization, 5 out of bound, 6 no cap, 7 no row; a cap below usage
+  prints a `warning:` line and exits 0. Defaults come from the three
+  `ORGANIZATION_DEFAULT_*` variables through `loadOrganizationDefaultLimits`, which
+  `loadConfig` now also uses. Organizations are named by id; there is no slug column.
+- Operator section in `docs/runbook-organization-activation.md`, routed from `LLM_README.md`;
+  the rebuild named in `docs/runbook-prod-deploy.md`.
+
+Fresh local results, all with `env -u CLAUDECODE`, on the laptop:
+
+| Command                                                                                          | Result                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck,typecheck:module -p` (the 13 WBS projects) `--skip-nx-cache`      | succeeded                                                                                                                                                                                                                                                                           |
+| `bunx nx run-many -t lint -p wbs-be-01,wbs-store-sqlite,wbs-core,tool-git-hooks --skip-nx-cache` | succeeded                                                                                                                                                                                                                                                                           |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                              | 1821 pass, 0 fail, 136 files                                                                                                                                                                                                                                                        |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                     | 3294 pass, 2 fail, 224 files: `applies, reports, and reverses the newest migration` (schema text, fixed in `down.sql`) and `step-blockage-activation-cli` `refuses unreadable database and receipt` (30 s timeout under load); both files and the two new ones then 75 pass, 0 fail |
+| `bun test src/organization-limits-cli.db.test.ts` (be-01)                                        | 28 pass                                                                                                                                                                                                                                                                             |
+| `bun test src/organization-limits-audit-migration.db.test.ts` (be-01)                            | 4 pass                                                                                                                                                                                                                                                                              |
+| `bun test tools/tool-git-hooks/src/hooks/migration-lint.test.ts`                                 | 22 pass                                                                                                                                                                                                                                                                             |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on both new and moved migration files | exit 0                                                                                                                                                                                                                                                                              |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                  | 896 pass, 1 fail, 47 files: `performance-level.test.ts` `refuses missing or malformed Burokrat preflight transport before Playwright` timed out at 30 s under load; alone it passed in 9 s                                                                                          |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`      | exit 0                                                                                                                                                                                                                                                                              |
+| `bunx openspec validate --all --json`                                                            | 268 items, 268 passed                                                                                                                                                                                                                                                               |
+
+Not run: the CLI against dev or prod, the full fe-01 `test` (DOM) target (only the
+organization component suites), any h2puni or h4claw gate.
+
 ## Failure proofs
 
 | Check                                                    | Fault injected                                                                                | Observed failing test                                                                                                                                                                                                                                                         | Result  |
@@ -389,9 +456,15 @@ Fresh local results, all with `env -u CLAUDECODE`, on the laptop, after merging
 | SQLite gauge reads the capacity cap                      | `maxConcurrentClaims` answered as the cap                                                     | SQLite certification `organizationLimits.readCapacityCap:per-resource-except-project`, both race orders and the model, 74 pass 4 fail                                                                                                                                         | watched |
 | memory gauge sums per organization and except project    | resource organization test, excepted-project test, project organization test, each dropped    | memory certification of `organizationLimits.readCapacityCap:per-resource-except-project`, 74 pass 1 fail each                                                                                                                                                                 | watched |
 | fe-01 words the capacity cap                             | `capacity_limit` sentence struck from `PLAN_REFUSALS`                                         | `words the capacity cap rather than naming its code` (`capacity-limit-words.test.ts`), 0 pass 1 fail                                                                                                                                                                          | watched |
-| audit widening rollback guard                            | guard replaced by `CHECK (1)` or trigger dropped                                              | (slice 5)                                                                                                                                                                                                                                                                     | pending |
-| audit in the same transaction                            | audit written outside it                                                                      | (slice 5)                                                                                                                                                                                                                                                                     | pending |
-| `set` starts from the defaults                           | `set` started from zeros                                                                      | (slice 5)                                                                                                                                                                                                                                                                     | pending |
+| audit widening lint guard                                | `CHECK (violations = 0)` replaced by `CHECK (1)` in the rebuild                               | `accepts the organization limits audit rebuild` (`migration-lint.test.ts`) reported `contains destructive statement: DROP TABLE`, 0 pass 1 fail                                                                                                                               | watched |
+| audit widening rollback guard                            | the new-vocabulary filter in `down.sql` replaced by `WHERE 0`                                 | `refuses rollback over one organization limits audit row, keeping it` failed on the narrow table's `CHECK constraint failed: action`, 3 pass 1 fail                                                                                                                           | watched |
+| audit in the same transaction                            | audit appended in its own transaction after the write committed                               | `writes nothing and exits non-zero naming the failure when the audit cannot be written` found the row of 8, 26 pass 2 fail                                                                                                                                                    | watched |
+| `set` starts from the defaults                           | `changedLimits` falling back to 0 instead of the effective caps                               | `writes a complete row from the defaults, audited before and after` and three more, 24 pass 4 fail                                                                                                                                                                            | watched |
+| rehearsal rolls back                                     | the rehearsal's `tx.rollback()` removed                                                       | `rehearses without --apply…` and `rehearses a reset without --apply…`, 26 pass 2 fail                                                                                                                                                                                         | watched |
+| unknown organization refused                             | existence test answering null                                                                 | `refuses an unknown organization, writing nothing` exited 1 instead of 4, 27 pass 1 fail                                                                                                                                                                                      | watched |
+| inactive store refused                                   | activation test removed from `operatorRefusal`                                                | `refuses before activation`, 27 pass 1 fail                                                                                                                                                                                                                                   | watched |
+| below-usage warning                                      | agent-person comparison disabled in `belowUsageWarnings`                                      | `warns, never refuses, when a cap lands below usage`, 27 pass 1 fail                                                                                                                                                                                                          | watched |
+| page reads the role once                                 | `MachineCredentialsSlot` reading its own role again                                           | `reads the caller's role once for every slot that draws by it`: 2 requests, 28 pass 1 fail                                                                                                                                                                                    | watched |
 | panel never shows a stale organization                   | `version !== requestVersion.current` fence removed in `LimitsPanel.refresh`                   | `never shows the previous organization's numbers after a switch` (`limits-panel.test.tsx`): org-a's late 7 of 8 replaced org-b's 1 of 8, 13 pass 1 fail                                                                                                                       | watched |
 | member and viewer send no limits read                    | `LimitsSlot` mounting the panel for every role                                                | `sends no limits request and renders no panel for a member` and `… for a viewer`, 12 pass 2 fail                                                                                                                                                                              | watched |
 | role read failure is a rendered state                    | `LimitsSlot` rendering nothing on a failed role read                                          | `renders a failed role read with retry, and recovers`, 13 pass 1 fail                                                                                                                                                                                                         | watched |
@@ -401,6 +474,28 @@ Fresh local results, all with `env -u CLAUDECODE`, on the laptop, after merging
 | the page composes the panel                              | `LimitsSlot` left out of `OrganizationPage`                                                   | `composes the limits panel for an admin` (`organization-page.test.tsx`), 21 pass 1 fail                                                                                                                                                                                       | watched |
 | batch refusals name the body's numbers                   | `limitSentence` dropped from `refusalSentence`                                                | five cases of `organization-limit-words.test.ts` read the code-only fallback, 1 pass 5 fail                                                                                                                                                                                   | watched |
 | the people page names the agent cap's numbers            | `refusalOf`'s `agent_person_limit` arm never matching                                         | `names the organization’s agent-person cap with the refusal’s own numbers` (`directory-page.test.tsx`), 49 pass 1 fail                                                                                                                                                        | watched |
+
+### Slice 5 review (Fable, 2026-10-22, PR #650)
+
+Verdict: merge into the plan branch as is; one S2 and five S3 recordings.
+
+- S2-1 fixed: tasks 1.4 and 5.2 had been ticked with text still demanding a memory twin and
+  conformance cases for `set`/`reset`; both now say SQLite-only with the CLI db tests as Red.
+- S3-1 recorded: the hoisted `useOrganizationRole` stays mounted while `loss` is non-null, so a
+  late role refusal may replace one loss with another, and a page whose organizations feature
+  is unreachable but whose resource scope is `active` sends one role read it did not before.
+  Both are loss-to-loss or a single harmless read; no test pins them.
+- S3-2 fixed: the CLI module JSDoc names the immediate transaction as the serialization
+  boundary against a live be-01 outside its write turn.
+- S3-3 fixed in words: negative numbers need `--flag=<n>`; `--flag -1` is refused `malformed`
+  (exit 2), not `out_of_bound` (exit 5). Still a typed refusal.
+- S3-4 recorded: the merge commit `bc12be87e` also carries the role-hoist work in
+  `limits-panel.tsx`, its test and the new page test (not conflict files).
+- S3-5 recorded: `audit.test.ts` "every write fills the audit columns" skips inserts spread
+  from `auditOnOperatorCreate`, which itself fills the columns with `createdBy` null; no reader
+  dereferences `organizationLimits.createdBy`.
+- S3-6 recorded: `organization-limits.routes.ts` receives the whole `OrganizationLimits`
+  port, including `set`/`reset`, by design L12; a `Pick<…, 'read'>` would narrow it.
 
 ## Gate output
 

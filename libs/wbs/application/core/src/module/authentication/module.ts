@@ -33,7 +33,12 @@ export const authenticationModule = DiBag.createBuilder()
     authOptions: DiBag.createProvider(
       ({ account }: { account: AuthenticationRequirements['account'] }): AuthServiceOptions => ({
         tokens: account.tokens,
+        machineKeys: {
+          credentials: account.machineCredentials,
+          now: () => account.clock.now(),
+        },
         passwords: account.passwords,
+        ...(account.trustedIssuers === undefined ? {} : { trustedIssuers: account.trustedIssuers }),
         ...(account.oidc === undefined ? {} : { oidc: account.oidc }),
         ...(account.passwordSessions === undefined
           ? {}

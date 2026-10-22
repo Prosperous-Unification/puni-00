@@ -17,6 +17,7 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
+  MachineCredentialReach,
   NamedCatalog,
   Person,
   PersonPatch,
@@ -124,8 +125,16 @@ export type PersonPatchInput = Omit<PersonPatch, 'kind'> & { kind?: string };
  */
 export type RemoveDirectoryOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'not_found' | 'forbidden' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+
+/**
+ * How a scoped person patch answered: `in_use` when it would unbind or rebind
+ * a person unrevoked machine credentials act through, with their count
+ * (`wbs-machine-credentials` A12).
+ */
+export type PersonPatchOutcome =
+  DirectoryOutcome<PersonWithTeams> | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /**
  * How a resource removal answered: `in_use` names the rows that lose a demand
@@ -831,6 +840,10 @@ export class DirectoryService {
       this.clock.stampFor(actorId),
     );
     if (!written.ok) {
+      // Only a binding or kind change of a person with machine credentials is
+      // refused in use, and legacy access precedes every credential.
+      if (written.reason === 'in_use')
+        throw new Error(`person "${personId}" legacy patch was refused in use`);
       // `clean` is defined on this branch — `taken` is the name index refusing,
       // and a patch that named no name cannot have reached it.
       if (written.reason === 'taken' && clean !== undefined) {
@@ -888,13 +901,17 @@ export class DirectoryService {
       if (seen.projects.length > 0 || seen.pinnedCredentials > 0)
         return { ok: false, reason: 'in_use', usage: seen };
     }
+    // Legacy access exists only before activation, when no machine
+    // credential can have been created, so it reaches none.
     const removed = await this.opts.directory.removePerson(
       personId,
       cascade,
       this.clock.stampFor(actorId),
+      { kind: 'none' },
     );
     if (!removed.ok) {
-      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      if (removed.reason === 'not_found' || removed.reason === 'forbidden')
+        return { ok: false, reason: removed.reason };
       // The transaction's own usage, not the fast path's: it is the only one
       // that was still true at the moment the deletes would have run.
       return {
@@ -1315,6 +1332,8 @@ export class DirectoryService {
         if (!written.ok) {
           if (written.reason === 'taken')
             throw new Error(`person "${existing.id}" link patch reported a taken name`);
+          if (written.reason === 'in_use')
+            throw new Error(`person "${existing.id}" link patch was refused in use`);
           // Proof: throwing here made the queued existing-person add test lose unknown_team.
           return { ok: false, reason: written.reason };
         }
@@ -1353,6 +1372,8 @@ export class DirectoryService {
       if (!joined.ok) {
         if (joined.reason === 'taken')
           throw new Error(`person "${id}" link patch reported a taken name`);
+        if (joined.reason === 'in_use')
+          throw new Error(`person "${id}" link patch was refused in use`);
         // Proof: throwing here made the queued new-person link test lose unknown_team.
         return { ok: false, reason: joined.reason };
       }
@@ -1376,7 +1397,7 @@ export class DirectoryService {
     actorId: string,
     patch: PersonPatchInput,
     access: ResourceAccess,
-  ): Promise<DirectoryOutcome<PersonWithTeams>> {
+  ): Promise<PersonPatchOutcome> {
     if (this.opts.standaloneWrite !== undefined)
       return this.opts.standaloneWrite(
         { kind: 'patch-person', personId, teamIds: patch.teamIds, access },
@@ -1444,6 +1465,17 @@ export class DirectoryService {
       if (!written.ok) {
         if (written.reason === 'taken')
           throw new Error(`person "${personId}" patch unexpectedly reported a taken name`);
+        if (written.reason === 'in_use')
+          return {
+            ok: false,
+            reason: 'in_use',
+            usage: {
+              projects: [],
+              members: [],
+              pinnedCredentials: 0,
+              machineCredentials: written.machineCredentials,
+            },
+          };
         // Proof: throwing here made the queued person patch test lose unknown_team.
         return { ok: false, reason: written.reason };
       }
@@ -1480,7 +1512,12 @@ export class DirectoryService {
       people: {
         usageOf: (entry: string) => this.opts.directory.usageOfPerson(entry),
         remove: (entry: string, stamp: WriteStamp) =>
-          this.opts.directory.removePerson(entry, cascade, stamp),
+          this.opts.directory.removePerson(
+            entry,
+            cascade,
+            stamp,
+            access.kind === 'legacy' ? { kind: 'none' } : machineCredentialReachOf(access.scope),
+          ),
         usageIn: directoryUsageOfPerson,
         legacy: () => this.removePerson(id, actorId, cascade),
       },
@@ -1530,6 +1567,7 @@ export class DirectoryService {
     const removed = await removal.remove(id, this.clock.stampFor(actorId));
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      if (removed.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
       return { ok: false, reason: 'in_use', usage: await shown(removed.usage) };
     }
     // Proof: skipping this check made `fails closed on a directory entry a
@@ -1640,4 +1678,17 @@ export class DirectoryService {
 /** Whether anything still names a resource: a demand, a stated capacity or an occupancy. */
 function isResourceInUse(rows: ResourceUsageRows): boolean {
   return rows.demands.length > 0 || rows.capacities.length > 0 || rows.occupancies > 0;
+}
+
+/**
+ * The machine credentials a person removal through `scope` may revoke
+ * (`wbs-machine-credentials` A24): none through a delegation or a machine
+ * credential, every person's for an admin or super-admin, and for anyone else
+ * only a person bound to their own account. The store applies it inside the
+ * removal's transaction.
+ */
+export function machineCredentialReachOf(scope: OrganizationScope): MachineCredentialReach {
+  if (scope.delegated === true) return { kind: 'none' };
+  if (scope.role === 'admin' || scope.role === 'super_admin') return { kind: 'every' };
+  return { kind: 'own', accountId: scope.userId };
 }

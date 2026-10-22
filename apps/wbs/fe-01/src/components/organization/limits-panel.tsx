@@ -6,7 +6,7 @@ import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 
 import { type AccessLoss, lostAccess, READ_ONLY, RELOAD } from './organization-access';
-import { type OrganizationRole, type RoleView, useOrganizationRole } from './organization-role';
+import type { OrganizationRole, RoleView } from './organization-role';
 import {
   ALERT_CLASS,
   CONTROL_HEIGHT,
@@ -66,14 +66,16 @@ export function readsLimits(role: OrganizationRole): boolean {
  * The limits panel once the caller's role is known (`wbs-organization-limits`
  * L14): nothing without organizations or for a member or viewer, who send no
  * limits request at all; a rendered failure with retry when the role cannot be
- * read; the panel for an admin or super-admin.
+ * read; the panel for an admin or super-admin. `role` is the page's one
+ * {@link useOrganizationRole} read, shared with the machine credentials slot.
  */
 export function LimitsSlot({
+  role,
   onAccessLost,
 }: {
+  role: RoleView;
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element | null {
-  const role: RoleView = useOrganizationRole(onAccessLost);
   switch (role.kind) {
     case 'legacy':
     case 'withdrawn':

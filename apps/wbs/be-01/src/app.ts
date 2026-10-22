@@ -25,13 +25,24 @@ import type {
   SharedPeopleRestoreApprovals,
   SpaceStore,
 } from '@wbs/core';
-import type { Scope, UnitOfWork } from '@wbs/core';
-import { clockOf } from '@wbs/core';
+import type {
+  MachineCredentialAdministration,
+  Scope,
+  TrustedIssuerAdministration,
+  TrustedIssuerDiscovery,
+  UnitOfWork,
+} from '@wbs/core';
+import {
+  clockOf,
+  INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
+  INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
+} from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
 import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
+import { machineCredentialRoutes } from '@wbs/core/http/machine-credential.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { organizationLimitsRoutes } from '@wbs/core/http/organization-limits.routes';
@@ -42,6 +53,7 @@ import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { sharedPeopleRestoreRoutes } from '@wbs/core/http/shared-people-restore.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
+import { trustedIssuerRoutes } from '@wbs/core/http/trusted-issuer.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
@@ -109,6 +121,14 @@ import {
 import { type Provisioning, REFUSE_PROVISIONING } from './runtime/provisioning';
 import type { WritingServices } from './services';
 
+/**
+ * Discovery for an app composed without trusted issuers: never reached,
+ * because the inactive administration refuses every registration before it.
+ */
+const UNUSED_DISCOVERY: TrustedIssuerDiscovery = {
+  discover: () => Promise.reject(new Error('trusted issuers are not composed in this app')),
+};
+
 /** A composition without SCIM: no record can be pending, so no sign-in activates one. */
 const NO_PENDING_MEMBERSHIPS: Pick<ScimUsers, 'activate'> = {
   activate: () => Promise.resolve([]),
@@ -120,9 +140,12 @@ const INACTIVE_SESSION_POLICIES: SessionPolicies = {
   set: () => Promise.resolve('inactive'),
 };
 
-/** The limits store of a composition that wires none: the read answers as inactive. */
+/** The limits store of a composition that wires none: every call answers as inactive. */
 const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
   read: () => Promise.resolve('inactive'),
+  inspect: () => Promise.resolve('inactive'),
+  set: () => Promise.resolve('inactive'),
+  reset: () => Promise.resolve('inactive'),
 };
 
 export interface AppOptions {
@@ -196,6 +219,22 @@ export interface AppOptions {
    * Production wires the SQLite stores (`boot.db.test.ts`).
    */
   provisioning?: Provisioning;
+  /**
+   * Machine credential administration (`wbs-machine-credentials`). Absent,
+   * every route answers as before activation; production and the
+   * organization harnesses wire the SQLite store (`boot.db.test.ts`).
+   */
+  machineCredentials?: MachineCredentialAdministration;
+  /**
+   * Trusted issuer administration (`wbs-machine-credentials` A16): the store,
+   * the one discovery fetch at registration, and the configured sign-in
+   * issuer it refuses. Absent, every route answers as before activation.
+   */
+  trustedIssuers?: {
+    readonly administration: TrustedIssuerAdministration;
+    readonly discovery: TrustedIssuerDiscovery;
+    readonly configuredIssuer: () => Promise<string | null>;
+  };
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -511,6 +550,18 @@ export function mountedEndpoints(
       opts.organizations,
       (opts.provisioning ?? REFUSE_PROVISIONING).tokens,
       (opts.provisioning ?? REFUSE_PROVISIONING).clock,
+    ),
+    ...machineCredentialRoutes(
+      opts.organizations,
+      opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
+      opts.clock,
+    ),
+    ...trustedIssuerRoutes(
+      opts.organizations,
+      opts.trustedIssuers?.administration ?? INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
+      opts.trustedIssuers?.discovery ?? UNUSED_DISCOVERY,
+      opts.trustedIssuers?.configuredIssuer ?? (() => Promise.resolve(null)),
+      opts.clock,
     ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),

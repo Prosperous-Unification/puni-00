@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { NO_MACHINE_CREDENTIALS } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, SessionClaims, TokenCodec } from '../../ports/runtime';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
@@ -46,6 +47,7 @@ const requirements = () => {
       passwords: fakePasswords,
       clock: clockOf({ now: () => STAMP_AT, newId: () => 'seeded' }),
       enterprise: NO_PROVEN_CONNECTIONS,
+      machineCredentials: NO_MACHINE_CREDENTIALS,
     },
     now: () => STAMP_AT,
     maxConcurrentLogins: 8,
@@ -107,6 +109,7 @@ const verifierWithoutStore = (): AuthenticationRequirements['account'] => ({
   passwords: fakePasswords,
   clock: clockOf({ now: () => STAMP_AT, newId: () => 'seeded' }),
   enterprise: NO_PROVEN_CONNECTIONS,
+  machineCredentials: NO_MACHINE_CREDENTIALS,
 });
 
 describe('the Authentication module', () => {
@@ -141,6 +144,7 @@ describe('the Authentication module', () => {
         passwords: fakePasswords,
         clock: clockOf({ now: () => STAMP_AT, newId: () => 'seeded' }),
         enterprise: NO_PROVEN_CONNECTIONS,
+        machineCredentials: NO_MACHINE_CREDENTIALS,
       },
       now: () => STAMP_AT,
       maxConcurrentLogins: 8,
