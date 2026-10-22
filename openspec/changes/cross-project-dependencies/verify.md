@@ -4190,3 +4190,87 @@ and deployment checks are not repeated for this test-adapter/proof correction;
 the preceding packet's results retain their original scope. The normal commit
 hooks run on the four changed files without bypass. B4 and activation limits
 remain unchanged, and enabling integration still needs independent approval.
+
+#### Bounded synthetic mounted command acceptance (2026-10-22)
+
+Owned isolated clone `/tmp/puni-mounted-commands`, base `2d42598d3`. Production
+compose still supplies inactive authoring. A named test-only harness option
+replaces only app `writes.batch`'s work-item service, using actual batch stores,
+clock, runtime scheduler in capture mode, current admission, dependency context
+and collector. No route or production activation switch was added. The app still
+constructs the ordinary `PlanCommandRunner`; SQLite topology, journal, fanout
+capture/delivery and connected HTTP tree projection remain installed production
+implementations.
+
+Four mounted scenarios establish this bounded packet:
+
+- Two isolated Fast projects with a restricted readable predecessor: its edit
+  stays 403; the owner authors FS, both endpoints reach revision 1 and the journal
+  retains predecessor revision 0→1. The real HTTP trees show predecessor 0→2 and
+  owner 2→4, with dates Oct 21–22 on the Oct 19 anchor and stable relationship ID.
+  An awaited gateway callback sees committed relationship/journal state through a
+  separate SQLite connection and reacquires the actual non-reentrant writer,
+  proving delivery follows writer release.
+- Local→external→local update, external remove and their undo/redo retain the same
+  relationship ID while moving exactly between local/external storage tables.
+- An external add followed by a missing-row command rolls back every table and
+  publishes nothing. A genuine remote revision edit then makes mounted undo 409
+  stale_undo while preserving relationship/revision/event rows without pushes
+  (the existing controlled stale-history discard remains allowed).
+- Active synthetic authoring still conceals a foreign-organization endpoint with
+  exactly the ordinary 404 not_found command envelope and no table/push changes.
+
+Watched production faults, independently injected and restored:
+
+1. Replace compose's inactive work-item authority with active: existing ordinary
+   mounted dormant batch answers 200 instead of 409 (0 pass/1 fail).
+2. Bypass external expected-revision comparison in WorkItemService history:
+   synthetic mounted stale undo answers 200 instead of 409 (0 pass/1 fail).
+3. Omit external relationships in resolveConnectedGraph: the mounted owner tree
+   starts at 0 and finishes at 2 instead of 2→4 (0 pass/1 fail).
+4. Deliver committed fanout inside commandTransaction immediately after recording
+   but before UoW settlement: the separate reader sees uncommitted state and
+   deliveredCommitted is false (0 pass/1 fail). The callback skips writer reentry
+   on that already-detected defect, avoiding a synthetic deadlock.
+
+Adjacent Proof comments name all four observations. An earlier attempted fault
+sent the ordinary announcement collector before capture; that test stayed green
+because connected invalidation uses committed fanout, so it is explicitly not a
+proof. Fault 4 targets that actual delivery path.
+
+Fresh verification:
+
+- Entire `connected-command-admission.controller.db.test.ts`: **121 pass/0 fail,
+  1710 assertions**. After the final writer-reentry assertion, the focused dormant
+  plus four synthetic mounted cases were rerun (outcome below).
+- `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json --pretty false`: exit 0.
+- Scoped ESLint on both changed TypeScript files: exit 0, no diagnostics after
+  generating the real Nx project graph with `NX_DAEMON=false
+NX_ISOLATE_PLUGINS=false`. Initial default Nx graph/hook-install attempts printed
+  socket permission refusals with exit 0 but performed no graph/hook work; those
+  attempts are not counted as evidence. Explicit main-process reruns created the
+  graph and installed normal lefthook hooks.
+- `./node_modules/.bin/openspec validate --all --json`: **269 passed/0 failed**
+  (251 changes, 18 specs), existing requirement-length warnings.
+- Frozen Bun installation succeeded with `BUN_TMPDIR=/tmp`; its first default-temp
+  attempt failed EROFS and is not counted as a successful install.
+
+Scratch logs: `/tmp/mounted-{revision,dormant,graph,delivery}-fault.log`,
+`/tmp/mounted-controller-final.log`, `/tmp/mounted-focused-final.log`,
+`/tmp/mounted-openspec.log`. Final format/diff and normal hooks follow below.
+
+Tasks 3.2/4.2 remain unchecked. This packet does not cover all endpoint scopes or
+FS/SS/FF combinations, shared capacity, optimizer engines, complete authority and
+history matrices, active MCP parity, operator activation or deployment. No full
+Nx/host gate, h2/h4 gate, build or independent CI secrets/migration scan was run.
+
+After the final writer-reentry assertion, the focused dormant plus four synthetic
+mounted cases returned **5 pass/0 fail, 88 assertions**. Backend spec typecheck
+returned exit 0. Scoped ESLint first caught a no-await async test callback; replacing
+that callback with Promise.resolve returned exit 0 with no diagnostics. Prettier
+checked all five owned files and `git diff --check` returned exit 0.
+
+Normal pre-commit hooks passed format, scoped lint, plaintext-secrets and
+private-nesting. Tool-wiki explicitly reported inactive/uncertified because its
+external activation root is not provisioned. Migration hooks and doc-caps skipped
+because no matching files were staged. No hook was bypassed.

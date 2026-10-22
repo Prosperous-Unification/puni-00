@@ -673,6 +673,7 @@ export class OrganizationHarness {
     now,
     withOptimizer = false,
     syntheticTransferImports,
+    syntheticExternalCommands,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -865,7 +866,36 @@ export class OrganizationHarness {
         commandAccess,
         imports: services.imports,
         uow: services.uow,
-        batch: services.batch,
+        batch:
+          syntheticExternalCommands !== true
+            ? services.batch
+            : (
+                scope,
+                broadcast,
+                admission,
+                dependencies,
+                beforeProjectUpdate,
+                beforeStepRemoval,
+              ) => ({
+                ...services.batch(
+                  scope,
+                  broadcast,
+                  admission,
+                  dependencies,
+                  beforeProjectUpdate,
+                  beforeStepRemoval,
+                ),
+                workItems: new WorkItemService({
+                  ...scope.stores,
+                  clock,
+                  scheduler: services.scheduler,
+                  schedulerMode: 'capture',
+                  admission,
+                  dependencyContext: { kind: 'bound', context: dependencies },
+                  externalDependencyAuthoring: { state: 'active' },
+                  broadcast,
+                }),
+              }),
         announcements: services.announcements,
         committedFanout: services.committedFanout,
       },
@@ -1143,6 +1173,8 @@ export class OrganizationHarness {
 export interface ComposedHarnessOptions {
   /** Builds a separate test-only importer; mounted production imports stay inactive. */
   readonly syntheticTransferImports?: true;
+  /** Replaces only the admitted command WorkItemService; production composition stays inactive. */
+  readonly syntheticExternalCommands?: true;
   readonly sessionBinding?: boolean;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;

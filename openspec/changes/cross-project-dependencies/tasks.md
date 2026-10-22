@@ -314,3 +314,14 @@ pill on table/cards, then fails the specific accessible retention assertion.
 The original proof attribution is corrected in `verify.md`; the adjacent
 production proof names the actual presentation failure. Production enabling
 integration remains held for review approval; parent tasks remain unchecked.
+
+Task 3.2/4.2 bounded mounted command prerequisite (2026-10-22): a test-only active
+batch WorkItemService now crosses the ordinary mounted HTTP runner, real SQLite
+stores/history/connected graph/fanout/tree. Two isolated Fast projects prove a
+restricted readable predecessor remains uneditable, FS placement 0→2 then 2→4,
+committed journal/revisions/delivery, stable local↔external update/remove identity
+through undo/redo, rollback without publication, stale remote-revision refusal and
+foreign organization concealment. Watched dormant, graph-edge and history guard
+faults are in verify.md. Production composition remains inactive; 3.2/4.2 stay
+unchecked pending their complete endpoint/type/authority/history matrix and active
+MCP parity.

@@ -26,14 +26,20 @@ afterEach(async () => {
   await harness.closeComposed();
 });
 
-async function open(pushUrls?: string[]) {
+async function open(
+  pushUrls?: string[],
+  syntheticExternalCommands?: true,
+  onPush?: () => void | Promise<void>,
+) {
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    ...(syntheticExternalCommands === undefined ? {} : { syntheticExternalCommands }),
     ...(pushUrls === undefined
       ? {}
       : {
-          pushFetch: (url) => {
+          pushFetch: async (url) => {
             pushUrls.push(url);
+            await onPush?.();
             return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
           },
         }),
@@ -172,6 +178,7 @@ function effects() {
     }));
 }
 
+// Proof: replacing compose's inactive authoring with active made this mounted control answer 200 instead of 409 (2026-10-22).
 test('mounted external authoring stays dormant and rolls back an earlier successful command', async () => {
   const fixture = await open();
   const before = effects();
@@ -3385,4 +3392,270 @@ test('admitted redo refuses a misowned resulting relationship before storage', a
     detail: 'that relationship would now be refused: not_found.',
   });
   expect(effects()).toEqual(before);
+});
+
+// Proof: omitting external edges in resolveConnectedGraph left the owner at 0→2 instead of 2→4 (2026-10-22).
+// Proof: delivering committed fanout inside commandTransaction before its UoW settled exposed uncommitted state and failed deliveredCommitted (2026-10-22).
+test('synthetic mounted external FS commits stable authority, history and connected placement', async () => {
+  const pushes: string[] = [];
+  let inspectCommit = false;
+  let deliveredCommitted = true;
+  let deliveredAfterRelease = false;
+  const fixture = await open(pushes, true, async () => {
+    if (!inspectCommit) return;
+    // This separate SQLite connection cannot see the command writer's uncommitted rows.
+    deliveredCommitted &&=
+      harness.sqlite.query('SELECT id FROM external_dependency').get() !== null &&
+      harness.sqlite
+        .query("SELECT seq FROM command_journal WHERE preconditions LIKE '%externalRevisions%'")
+        .get() !== null;
+    if (!deliveredCommitted) return;
+    // A delivery inside the command writer turn cannot acquire this non-reentrant writer.
+    await harness
+      .publicWrites()
+      .uow.run(() => Promise.resolve({ commit: false, value: undefined }));
+    deliveredAfterRelease = true;
+  });
+  await harness.register('grace');
+  harness.member('org-a', 'grace', 'member');
+  harness.sqlite
+    .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
+    .run('member', 'org-a', fixture.principal.id);
+  harness.sqlite
+    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
+    .run(harness.userId('grace'), fixture.predecessor.projectId);
+  for (const endpoint of [fixture.predecessor, fixture.owner]) {
+    harness.sqlite
+      .query(
+        "UPDATE project SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
+      )
+      .run(endpoint.projectId);
+    harness.sqlite
+      .query("UPDATE work_item SET readiness='ready' WHERE id=?")
+      .run(endpoint.workItemId);
+    const steps = harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position')
+      .all(endpoint.projectId);
+    for (const step of steps)
+      harness.sqlite
+        .query(
+          'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,1,1,1)',
+        )
+        .run(endpoint.workItemId, step.id);
+  }
+  const before = effects();
+  const forbidden = await fixture.request(
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.predecessor.workItemId,
+          patch: { name: 'Forbidden' },
+        },
+      ],
+    },
+  );
+  expect(forbidden.status).toBe(403);
+  expect(effects()).toEqual(before);
+  pushes.length = 0;
+  inspectCommit = true;
+  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    commands: [{ kind: 'addTypedDependency', ...fixture.input }],
+  });
+  expect(response.status).toBe(200);
+  const relationship = harness.sqlite
+    .query<{ id: string }, []>('SELECT id FROM external_dependency')
+    .get();
+  if (relationship === null) throw new Error('mounted relationship missing');
+  expect(pushes.length).toBeGreaterThan(0);
+  expect(deliveredCommitted).toBe(true);
+  expect(deliveredAfterRelease).toBe(true);
+  const journal = harness.sqlite
+    .query<{ preconditions: string }, [string]>(
+      'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+    )
+    .get(fixture.owner.projectId);
+  if (journal === null) throw new Error('mounted journal missing');
+  expect(JSON.parse(journal.preconditions)).toMatchObject({
+    externalRevisions: {
+      from: [{ ...fixture.predecessor, revision: 0 }],
+      expected: [{ ...fixture.predecessor, revision: 1 }],
+    },
+  });
+  const tree = await fixture.request(
+    `/api/projects/${fixture.owner.projectId}/work-items`,
+    undefined,
+    'GET',
+  );
+  expect(tree.status).toBe(200);
+  expect(await tree.json()).toMatchObject({
+    scheduleError: null,
+    workItems: [
+      {
+        id: fixture.owner.workItemId,
+        revision: 1,
+        schedule: { earliestStart: 2, earliestFinish: 4 },
+        dates: { startsOn: '2026-10-21', endsOn: '2026-10-22' },
+      },
+    ],
+    connectedDependencies: [
+      {
+        id: relationship.id,
+        type: 'FS',
+        predecessor: { endpoint: fixture.input.predecessor, revision: 1 },
+        successor: { endpoint: fixture.input.successor, revision: 1 },
+      },
+    ],
+    undoable: true,
+    redoable: false,
+  });
+  const remoteTree = await fixture.request(
+    `/api/projects/${fixture.predecessor.projectId}/work-items`,
+    undefined,
+    'GET',
+  );
+  expect(remoteTree.status).toBe(200);
+  expect(await remoteTree.json()).toMatchObject({
+    workItems: [
+      { id: fixture.predecessor.workItemId, schedule: { earliestStart: 0, earliestFinish: 2 } },
+    ],
+  });
+});
+
+test('synthetic mounted local external transitions preserve identity through update remove undo redo', async () => {
+  const fixture = await open(undefined, true);
+  const route = `/api/projects/${fixture.owner.projectId}`;
+  const created = await fixture.request(`${route}/commands`, {
+    commands: [
+      { kind: 'createWorkItem', name: 'Local predecessor', ref: 'local' },
+      {
+        kind: 'addTypedDependency',
+        predecessor: { scope: 'whole', workItemRef: 'local' },
+        successor: fixture.input.successor,
+        type: 'FS',
+      },
+    ],
+  });
+  expect(created.status).toBe(200);
+  const local = harness.sqlite.query<{ id: string }, []>('SELECT id FROM typed_dependency').get();
+  if (local === null) throw new Error('mounted local relationship missing');
+  const localRow = harness.sqlite
+    .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Local predecessor'")
+    .get();
+  if (localRow === null) throw new Error('mounted local predecessor missing');
+  const expectOwner = (table: 'typed_dependency' | 'external_dependency') => {
+    expect(harness.sqlite.query<{ id: string }, []>(`SELECT id FROM ${table}`).all()).toEqual([
+      { id: local.id },
+    ]);
+    const absent = table === 'typed_dependency' ? 'external_dependency' : 'typed_dependency';
+    expect(harness.sqlite.query(`SELECT id FROM ${absent}`).all()).toEqual([]);
+  };
+  const walk = async (
+    direction: 'undo' | 'redo',
+    table: 'typed_dependency' | 'external_dependency',
+  ) => {
+    expect((await fixture.request(`${route}/${direction}`)).status).toBe(200);
+    expectOwner(table);
+  };
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [{ kind: 'updateTypedDependency', dependencyId: local.id, ...fixture.input }],
+      })
+    ).status,
+  ).toBe(200);
+  expectOwner('external_dependency');
+  await walk('undo', 'typed_dependency');
+  await walk('redo', 'external_dependency');
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [
+          {
+            kind: 'updateTypedDependency',
+            dependencyId: local.id,
+            predecessor: { scope: 'whole', workItemId: localRow.id },
+            successor: fixture.input.successor,
+            type: 'SS',
+          },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  expectOwner('typed_dependency');
+  await walk('undo', 'external_dependency');
+  await walk('redo', 'typed_dependency');
+  await walk('undo', 'external_dependency');
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [{ kind: 'removeTypedDependency', dependencyId: local.id }],
+      })
+    ).status,
+  ).toBe(200);
+  expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toEqual([]);
+  await walk('undo', 'external_dependency');
+  expect((await fixture.request(`${route}/redo`)).status).toBe(200);
+  expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toEqual([]);
+});
+
+// Proof: bypassing the external expected-revision comparison made this mounted stale undo answer 200 instead of 409 (2026-10-22).
+test('synthetic mounted refusal rolls back external writes before fanout and stale history retains the edge', async () => {
+  const pushes: string[] = [];
+  const fixture = await open(pushes, true);
+  const route = `/api/projects/${fixture.owner.projectId}`;
+  const before = effects();
+  pushes.length = 0;
+  const rejected = await fixture.request(`${route}/commands`, {
+    commands: [
+      { kind: 'addTypedDependency', ...fixture.input },
+      { kind: 'patchWorkItem', workItemId: 'absent-owner-row', patch: { name: 'Never' } },
+    ],
+  });
+  expect(rejected.status).toBe(404);
+  expect(effects()).toEqual(before);
+  expect(pushes).toEqual([]);
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [{ kind: 'addTypedDependency', ...fixture.input }],
+      })
+    ).status,
+  ).toBe(200);
+  const relationships = harness.sqlite.query('SELECT * FROM external_dependency').all();
+  harness.sqlite
+    .query('UPDATE work_item SET revision=revision+1 WHERE id=?')
+    .run(fixture.predecessor.workItemId);
+  const revisions = harness.sqlite.query('SELECT id,revision FROM work_item ORDER BY id').all();
+  const events = harness.sqlite.query('SELECT * FROM event_log ORDER BY subscription,seq').all();
+  pushes.length = 0;
+  const stale = await fixture.request(`${route}/undo`);
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toMatchObject({ error: 'stale_undo' });
+  expect(harness.sqlite.query('SELECT * FROM external_dependency').all()).toEqual(relationships);
+  expect(harness.sqlite.query('SELECT id,revision FROM work_item ORDER BY id').all()).toEqual(
+    revisions,
+  );
+  expect(harness.sqlite.query('SELECT * FROM event_log ORDER BY subscription,seq').all()).toEqual(
+    events,
+  );
+  expect(pushes).toEqual([]);
+});
+
+test('synthetic mounted external authoring conceals foreign organization endpoints before mutation', async () => {
+  const pushes: string[] = [];
+  const fixture = await open(pushes, true);
+  const foreign = await foreignEndpoint();
+  const before = effects();
+  pushes.length = 0;
+  const refused = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    commands: [
+      { kind: 'addTypedDependency', ...fixture.input, predecessor: { ...foreign, scope: 'whole' } },
+    ],
+  });
+  expect(refused.status).toBe(404);
+  expect(await refused.json()).toEqual({ error: 'not_found', at: 0, kind: 'addTypedDependency' });
+  expect(effects()).toEqual(before);
+  expect(pushes).toEqual([]);
 });

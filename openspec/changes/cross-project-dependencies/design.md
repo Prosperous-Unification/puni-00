@@ -712,3 +712,21 @@ The prepared-only codec binds canonical payload bytes and SHA-256 to the transac
 `prepareStorageOwnership` checks current Lease before observation and immediately before its mandatory checkpoint. The checkpoint resolves only when the enclosing authoritative record is durable; the coordinator waits before returning. Tests use fsync, rename and directory fsync. No second production journal is added and the schema-3 release journal is unchanged. `validateStorageOwnership` checks loaded history before any GET, reasserts Lease, and compares fresh original state without replacing the snapshot or token.
 
 Intent: preserve exact original controller history before a later conditional mutation. Outcome: reusable read-only preparation and conservative restart validation. Non-goals: controller patching, suspension/drain/restoration, task admission, scanners, release wiring or recovery changes. Constraint: full B2/B3 release integration must land atomically because existing generic failure routing can attempt schema reversal or old-writer restart. This primitive cannot establish an exclusive or continuously stopped storage interval.
+
+### Bounded synthetic mounted command acceptance (2026-10-22)
+
+`OrganizationHarness.openComposedWith({ syntheticExternalCommands: true })`
+replaces only the app's admitted `writes.batch` work-item service with an active
+instance. It retains the actual batch stores, runtime clock/scheduler in capture
+mode, admission, dependency context and announcement collector. The ordinary app
+constructs its own `PlanCommandRunner`; source live-plan readers, SQLite history,
+connected graph, fanout capture and tree projection remain real. Public services,
+operator activation, production compose and the normal dormant 409 control remain
+unchanged.
+
+This bounded packet covers two isolated Fast projects with a restricted readable
+predecessor, FS placement, committed delivery, relationship identity/revisions,
+local/external update and remove history, rollback, stale replay and foreign
+organization concealment. It does not establish the full 3.2/4.2 command matrix,
+MCP active parity, shared capacity, all endpoint scopes/types, optimizer or rollout
+acceptance. Those parent tasks remain unchecked.
