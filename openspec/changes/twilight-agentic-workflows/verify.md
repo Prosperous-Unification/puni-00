@@ -1229,3 +1229,13 @@ on both success schemas; formatting/diff checks pass. Exact output and four-faul
 byte manifest remain in task-6-evidence/fix1-* and the appended task report.
 Scoped independent re-review is pending. No full124 regression repetition,
 receiver full gate, live call or coordinator recovery claim was made by this fix.
+
+Scoped Task6 fix1 re-review approved I1 at
+`32fa75d8082b498041dbfc937427af3c44540efc`, with no new Critical/Important
+breakage. It checked both awaited Standard Schema boundaries, complete-envelope
+negatives/controls, all four fault logs/restoration records and actual OpenAPI
+metadata. All six receiver slices are now individually accepted. The expected
+regression-log Minor remains for whole-branch triage; full receiver review,
+remaining downstream build/CI and exact-SHA host gate are still pending.
+Commit hooks also passed plaintext-secrets/format/lint in6.14s; no migration
+files applied to this fix and external Tool Wiki activation remains unavailable.
