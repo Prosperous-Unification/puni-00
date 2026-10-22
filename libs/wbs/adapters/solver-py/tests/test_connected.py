@@ -14,6 +14,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from test_model import a_request, a_slice  # noqa: E402
+from test_cli import run_cli  # noqa: E402
 from wbs_solver.solve import SolverConfig, baseline_bound, solve_request  # noqa: E402
 from wbs_solver.validate import RequestRejected, validate_request  # noqa: E402
 
@@ -172,7 +173,9 @@ class ConnectedStage(unittest.TestCase):
 
     def test_unknown_search_is_not_relabelled_boundary_infeasible(self) -> None:
         request = connected_request()
-        request["scope"]["boundaries"] = []
+        # Keep a real active boundary while the search times out. The initial
+        # model remains feasible, so UNKNOWN must not become a boundary proof.
+        request["scope"]["boundaries"].pop(1)
         with mock.patch("wbs_solver.solve._configure") as configure:
             configure.return_value.solve.return_value = cp_model.UNKNOWN
             configure.return_value.wall_time = 0.0
@@ -185,6 +188,78 @@ class ConnectedStage(unittest.TestCase):
         request["scope"]["fixed"][0]["projectId"] = "B"
         with self.assertRaisesRegex(RequestRejected, "foreign fixed"):
             enter(request)
+
+    def test_boundary_endpoints_and_foreign_owner_are_checked_at_cli_boundary(self) -> None:
+        for fault in ("local", "foreign", "owner"):
+            with self.subTest(fault=fault):
+                request = connected_request()
+                boundary = request["scope"]["boundaries"][0]
+                if fault == "local":
+                    boundary["localKey"] = "absent-local"
+                elif fault == "foreign":
+                    boundary["foreignKey"] = "absent-foreign"
+                else:
+                    boundary["foreignProjectId"] = "C"
+                child = run_cli(json.dumps(request).encode())
+                # Proof: removing the boundary endpoint/owner predicate made
+                # the owner subcase return exit 0 and boundary-infeasible.
+                self.assertEqual(child.returncode, 64, child.stderr)
+                self.assertEqual(child.stdout, b"")
+
+    def test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization(self) -> None:
+        for token in ("NaN", "Infinity", "-Infinity", "1e309"):
+            with self.subTest(token=token):
+                raw = json.dumps(connected_request()).replace('"finish": 0.2', f'"finish": {token}', 1)
+                child = run_cli(raw.encode())
+                # Proof: without the recursive finite-value rejection,
+                # NaN/1e309 returned exit 0 with a fabricated terminal.
+                self.assertEqual(child.returncode, 64, child.stderr)
+                self.assertEqual(child.stdout, b"")
+        for token in ("NaN", "Infinity", "-Infinity", "1e309"):
+            with self.subTest(field="occupancy", token=token):
+                request = connected_request()
+                request["scope"]["occupancy"] = [{
+                    "personId": "ana", "projectId": "A", "key": "a", "start": 0, "finish": 0.2,
+                }]
+                prefix, separator, suffix = json.dumps(request).rpartition('"finish": 0.2}')
+                self.assertTrue(separator)
+                raw = prefix + f'"finish": {token}}}' + suffix
+                child = run_cli(raw.encode())
+                self.assertEqual(child.returncode, 64, child.stderr)
+                self.assertEqual(child.stdout, b"")
+        request = connected_request()
+        request["scope"]["fixed"][0]["finish"] = 1e308
+        request["scope"]["occupancy"] = [{
+            "personId": "ana", "projectId": "A", "key": "a", "start": 0, "finish": 1e308,
+        }]
+        child = run_cli(json.dumps(request).encode())
+        self.assertEqual(child.returncode, 64, child.stderr)
+        self.assertEqual(child.stdout, b"")
+        self.assertIn(b"quantization", child.stderr)
+        request["scope"]["fixed"][0]["start"] = 1e307
+        request["scope"]["occupancy"][0]["start"] = 1e307
+        child = run_cli(json.dumps(request).encode())
+        self.assertEqual(child.returncode, 64, child.stderr)
+        self.assertEqual(child.stdout, b"")
+        request["scope"]["fixed"][0]["start"] = 0
+        request["scope"]["occupancy"][0]["start"] = 0
+        request["scope"]["fixed"][0]["finish"] = 10 ** 400
+        request["scope"]["occupancy"][0]["finish"] = 10 ** 400
+        child = run_cli(json.dumps(request).encode())
+        self.assertEqual(child.returncode, 64, child.stderr)
+        self.assertEqual(child.stdout, b"")
+        self.assertIn(b"quantization", child.stderr)
+
+    def test_cli_rejects_bad_declared_feasible_witness_without_traceback(self) -> None:
+        request = connected_request()
+        request["scope"]["boundaries"].pop(1)
+        request["feasibleBaselineOffsets"] = {"b": 0}
+        child = run_cli(json.dumps(request).encode())
+        # Proof: removing the post-parse RequestRejected handler made this
+        # modeled invalid witness exit 1 with a traceback, not exit 64.
+        self.assertEqual(child.returncode, 64, child.stderr)
+        self.assertEqual(child.stdout, b"")
+        self.assertNotIn(b"Traceback", child.stderr)
 
     def test_seed_is_not_promoted_to_a_feasible_baseline_witness(self) -> None:
         request = connected_request()

@@ -489,8 +489,9 @@ def solve_request(
         if row == ROW_STOP_NO_SOLUTION:
             # The budget ran out with nothing found and nothing proved. Fast
             # stays visible.
-            # Proof: relabelling this branch boundary-infeasible made the
-            # connected UNKNOWN solver case fail (271 pass / 1 fail on Nx).
+            # Proof: relabelling only an active-boundary UNKNOWN as
+            # boundary-infeasible made the connected timeout case fail
+            # (276 tests, one failure: boundary-infeasible instead of unknown).
             return {"wireVersion": WIRE_VERSION, "scope": response_scope(request["scope"]), "status": STATUS_UNKNOWN}
 
         if row == ROW_STOP_PUBLISH:

@@ -5,6 +5,7 @@ import { buildConnectedSolverRequestPair } from './build-connected-solver-reques
 import { buildConnectedSolverBoundaries } from './connected-boundaries';
 import { parseConnectedSolverResponse } from './parse-solver-response';
 import { revalidateConnectedSolverResult } from './revalidate-solver-result';
+import { validateConnectedSolverRequest } from './validate-connected-solver-request';
 
 const a = sliceKey('a', null);
 const b = sliceKey('b', null);
@@ -142,7 +143,7 @@ test('SS and FF keep their own conservative start inequalities', () => {
 test('production preparation certifies the contradictory fixed FS window without a feasible baseline', () => {
   const pair = buildConnectedSolverRequestPair(
     stage(),
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -152,7 +153,7 @@ test('production preparation certifies the contradictory fixed FS window without
   if (pair.pri.kind !== 'boundary-infeasible') return;
   expect(pair.pri.evidence).toMatchObject({ key: b, lower: 10, upper: 9 });
   expect(pair.pri.stage).toBeDefined();
-  expect(pair.pri.request.scope.questionHash).toBe('question');
+  expect(pair.pri.request.scope.questionHash).toBe('question-pri');
   expect(pair.pri.request.objective).toBe('pri');
   expect(pair.time.kind).toBe('boundary-infeasible');
   if (pair.time.kind === 'boundary-infeasible') {
@@ -161,12 +162,201 @@ test('production preparation certifies the contradictory fixed FS window without
   }
 });
 
+test('objective-specific full identities refuse crossed responses and survive terminal preparation', () => {
+  const identity = { inputHash: 'input', questionHashes: { pri: 'pri-hash', time: 'time-hash' } };
+  const terminal = buildConnectedSolverRequestPair(stage(), identity, {
+    solverVersion: '0.4.0',
+    budgetMs: 1000,
+  });
+  if (terminal.pri.kind !== 'boundary-infeasible' || terminal.time.kind !== 'boundary-infeasible')
+    throw new Error('expected two terminal requests');
+  expect(terminal.pri.request.scope.questionHash).toBe('pri-hash');
+  expect(terminal.time.request.scope.questionHash).toBe('time-hash');
+  const candidate = stage();
+  (candidate.input.graph.edges as unknown[]).pop();
+  const pair = buildConnectedSolverRequestPair(candidate, identity, {
+    solverVersion: '0.4.0',
+    budgetMs: 1000,
+  });
+  if (pair.pri.kind !== 'request' || pair.time.kind !== 'request')
+    throw new Error('expected two solver requests');
+  for (const [source, target] of [
+    [pair.pri.request, pair.time.request],
+    [pair.time.request, pair.pri.request],
+  ]) {
+    const response = {
+      wireVersion: 5,
+      status: 'unknown',
+      scope: {
+        kind: 'connected-stage',
+        projectId: source.scope.projectId,
+        inputHash: source.scope.inputHash,
+        questionHash: source.scope.questionHash,
+      },
+    };
+    expect(parseConnectedSolverResponse(JSON.stringify(response), target).ok).toBe(false);
+  }
+  expect(() =>
+    buildConnectedSolverRequestPair(
+      candidate,
+      {
+        inputHash: 'input',
+        questionHashes: { pri: 'same', time: 'same' },
+      },
+      { solverVersion: '0.4.0', budgetMs: 1000 },
+    ),
+  ).toThrow();
+});
+
+test('malformed complete requests never become prepared boundary findings', () => {
+  const identity = { inputHash: 'input', questionHashes: { pri: 'pri-hash', time: 'time-hash' } };
+  // Proof: removing complete wire validation makes both malformed requests
+  // return boundary-infeasible; each assertion then fails on the real builder.
+  expect(() =>
+    buildConnectedSolverRequestPair(stage(), identity, {
+      solverVersion: '0.4.0',
+      budgetMs: 0,
+    }),
+  ).toThrow(/budgetMs/);
+  expect(() =>
+    buildConnectedSolverRequestPair({ ...stage(), originOrdinal: 0.5 }, identity, {
+      solverVersion: '0.4.0',
+      budgetMs: 1000,
+    }),
+  ).toThrow(/originOrdinal/);
+});
+
+test('complete connected request validation rejects cross-field corruption before a terminal', () => {
+  const pair = buildConnectedSolverRequestPair(
+    stage(),
+    {
+      inputHash: 'input',
+      questionHashes: { pri: 'pri-hash', time: 'time-hash' },
+    },
+    { solverVersion: '0.4.0', budgetMs: 1000 },
+  );
+  if (pair.pri.kind !== 'boundary-infeasible') throw new Error('expected terminal request');
+  const valid = pair.pri.request;
+  expect(() => {
+    validateConnectedSolverRequest(valid);
+  }).not.toThrow();
+  const corruptions: readonly [(request: typeof valid) => void, RegExp][] = [
+    [
+      (request) => {
+        Object.assign(request, { slices: [...request.slices, request.slices[0]] });
+      },
+      /slice keys repeat/,
+    ],
+    [
+      (request) => {
+        Object.assign(request, { movementReferenceOffsets: {} });
+      },
+      /key on all local/,
+    ],
+    [
+      (request) => {
+        Object.assign(request, { movementReferenceOffsets: { [b]: request.horizonUnits + 1 } });
+      },
+      /out-of-horizon/,
+    ],
+    [
+      (request) => {
+        Object.assign(request, {
+          edges: [{ predecessorKey: 'absent', successorKey: b, type: 'FS' }],
+        });
+      },
+      /edge does not name/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          projects: [...request.scope.projects, request.scope.projects[0]],
+        });
+      },
+      /projects are inconsistent/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          fixed: [{ ...request.scope.fixed[0], projectId: 'B' }, request.scope.fixed[1]],
+        });
+      },
+      /fixed slice has invalid ownership/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          boundaries: [
+            { ...request.scope.boundaries[0], foreignProjectId: 'C' },
+            request.scope.boundaries[1],
+          ],
+        });
+      },
+      /boundary has invalid endpoints/,
+    ],
+    [
+      (request) => {
+        Object.assign(request.scope, {
+          occupancy: [{ personId: 'ana', projectId: 'A', key: a, start: 0, finish: 0.3 }],
+        });
+      },
+      /occupancy does not match/,
+    ],
+    [
+      (request) => {
+        Object.assign(request, { elsewhere: { ana: [[1, 1]] } });
+      },
+      /elsewhere differs/,
+    ],
+  ];
+  const missed: string[] = [];
+  // Proof: bypassing the cross-field validation let duplicate keys, missing
+  // offsets, a foreign-owner mismatch and missing bookings pass the schema.
+  for (const [corrupt, message] of corruptions) {
+    const request = structuredClone(valid);
+    corrupt(request);
+    try {
+      validateConnectedSolverRequest(request);
+      missed.push(`${message.source}: accepted`);
+    } catch (cause) {
+      if (!message.test(String(cause))) missed.push(`${message.source}: ${String(cause)}`);
+    }
+  }
+  expect(missed).toEqual([]);
+});
+
+test('finite unrepresentable incoming, reference and outgoing evidence yields typed horizon failure', () => {
+  const identity = { inputHash: 'input', questionHashes: { pri: 'pri-hash', time: 'time-hash' } };
+  const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
+  const incoming = stage();
+  (incoming.starts as Map<string, number>).set(a, 1e15);
+  (incoming.finishes as Map<string, number>).set(a, 1e15 + 1);
+  expect(buildConnectedSolverRequestPair(incoming, identity, installed).pri).toMatchObject({
+    kind: 'failed',
+    failure: 'horizon-overflow',
+  });
+  const reference = stage();
+  (reference.starts as Map<string, number>).set(b, 1e15);
+  (reference.finishes as Map<string, number>).set(b, 1e15 + 1);
+  expect(buildConnectedSolverRequestPair(reference, identity, installed).pri).toMatchObject({
+    kind: 'failed',
+    failure: 'horizon-overflow',
+  });
+  const outgoing = stage();
+  (outgoing.starts as Map<string, number>).set(c, 1e15);
+  (outgoing.finishes as Map<string, number>).set(c, 1e15 + 1);
+  expect(buildConnectedSolverRequestPair(outgoing, identity, installed).pri).toMatchObject({
+    kind: 'failed',
+    failure: 'horizon-overflow',
+  });
+});
+
 test('production preparation sends local decisions, fixed holders and an untrusted seed separately', () => {
   const candidate = stage();
   (candidate.input.graph.edges as unknown[]).pop();
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -192,7 +382,7 @@ test('connected response parser requires the exact captured question identity', 
   (candidate.input.graph.edges as unknown[]).pop();
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -205,7 +395,7 @@ test('connected response parser requires the exact captured question identity', 
       kind: 'connected-stage',
       projectId: 'B',
       inputHash: 'input',
-      questionHash: 'question',
+      questionHash: 'question-pri',
     },
     status: 'unknown',
   };
@@ -235,7 +425,7 @@ test('connected revalidation refuses a feasible solver placement before an incom
   (candidate.input.graph.edges as unknown[]).pop();
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -266,7 +456,7 @@ test('connected revalidation refuses a feasible solver placement after an outgoi
   (candidate.input.graph.edges as unknown[]).shift();
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -348,7 +538,7 @@ test('connected revalidation refuses a missing boundary or altered foreign holde
   (candidate.input.graph.edges as unknown[]).pop();
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -409,7 +599,7 @@ test('connected preflight includes a remote movement reference in its safe horiz
   (candidate.finishes as Map<string, number>).set(b, 1001);
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -428,7 +618,7 @@ test('connected request names the exact foreign person holder and booking', () =
   (candidate.input.slices[1] as { personId: string | null }).personId = 'ana';
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -439,12 +629,26 @@ test('connected request names the exact foreign person holder and booking', () =
     { personId: 'ana', projectId: 'A', key: a, start: 0, finish: 0.2 },
   ]);
   expect(pair.pri.request.elsewhere).toEqual({ ana: [[0, 10]] });
+  const missingBooking = structuredClone(pair.pri.request);
+  Object.assign(missingBooking, { elsewhere: {} });
+  expect(() => {
+    validateConnectedSolverRequest(missingBooking);
+  }).toThrow(/elsewhere/);
+  const bookingBeyondHorizon = structuredClone(pair.pri.request);
+  Object.assign(bookingBeyondHorizon, {
+    horizonUnits: 9,
+    movementReferenceOffsets: { [b]: 9 },
+    seedOffsets: { [b]: 9 },
+  });
+  expect(() => {
+    validateConnectedSolverRequest(bookingBeyondHorizon);
+  }).toThrow(/booking/);
 });
 
 test('old installed solver cannot prepare a connected wire-5 question', () => {
   const pair = buildConnectedSolverRequestPair(
     stage(),
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.3.0',
       budgetMs: 1000,
@@ -459,7 +663,7 @@ test('connected parser accepts occupancy-proven boundary infeasibility without a
   (candidate.input.graph.edges as unknown[]).pop();
   const pair = buildConnectedSolverRequestPair(
     candidate,
-    { inputHash: 'input', questionHash: 'question' },
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
     {
       solverVersion: '0.4.0',
       budgetMs: 1000,
@@ -479,7 +683,7 @@ test('connected parser accepts occupancy-proven boundary infeasibility without a
           kind: 'connected-stage',
           projectId: 'B',
           inputHash: 'input',
-          questionHash: 'question',
+          questionHash: 'question-pri',
         },
         status: 'boundary-infeasible',
       }),
@@ -494,7 +698,7 @@ test('connected parser accepts occupancy-proven boundary infeasibility without a
           kind: 'connected-stage',
           projectId: 'B',
           inputHash: 'input',
-          questionHash: 'question',
+          questionHash: 'question-pri',
         },
         status: 'boundary-infeasible',
       }),

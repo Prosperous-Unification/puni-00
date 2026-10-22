@@ -9,6 +9,9 @@ import {
 
 import type { SolverBoundary } from './wire-types';
 
+/** Finite boundary arithmetic cannot be represented exactly on the wire. */
+export class ConnectedBoundaryOverflow extends Error {}
+
 /**
  * Project every authoritative cross-project pair into a conservative integer
  * start bound.
@@ -36,7 +39,7 @@ export function buildConnectedSolverBoundaries(
   };
   const checked = (bound: number): number => {
     if (!Number.isSafeInteger(bound))
-      throw new Error('connected boundary exceeds safe integer range');
+      throw new ConnectedBoundaryOverflow('connected boundary exceeds safe integer range');
     return bound;
   };
   const boundaries: SolverBoundary[] = [];

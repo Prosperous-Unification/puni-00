@@ -110,6 +110,17 @@ def _no_duplicate_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return dict(pairs)
 
 
+def _reject_nonfinite(value: Any, path: str = "<root>") -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise RequestRejected(f"nonfinite number at {path}")
+    if isinstance(value, dict):
+        for key, member in value.items():
+            _reject_nonfinite(member, f"{path}/{key}")
+    elif isinstance(value, list):
+        for index, member in enumerate(value):
+            _reject_nonfinite(member, f"{path}/{index}")
+
+
 def parse_request(raw: bytes) -> dict[str, Any]:
     """Bytes to object, refusing anything that is not one JSON object.
 
@@ -126,6 +137,9 @@ def parse_request(raw: bytes) -> dict[str, Any]:
         raise RequestRejected(f"request is not valid JSON: {exc}") from exc
     if not isinstance(parsed, dict):
         raise RequestRejected(f"request must be a JSON object, got {type(parsed).__name__}")
+    # Proof: omitting the walk admitted a valid JSON 1e309 fixed finish and
+    # the installed CLI returned boundary-infeasible instead of exit 64.
+    _reject_nonfinite(parsed)
     return parsed
 
 
@@ -380,6 +394,9 @@ def check_connected_scope(request: dict[str, Any], key_set: set[str]) -> None:
         if entry["start"] > entry["finish"]:
             raise RequestRejected(f"fixed slice {key!r} has reversed placement")
         fixed[key] = entry
+    # Proof: removing only the foreign-owner comparison made the configured
+    # production-CLI endpoint test fail for owner C instead of fixed owner A
+    # (276 tests, one real failure: exit 0 rather than 64).
     for index, boundary in enumerate(scope["boundaries"]):
         foreign = fixed.get(boundary["foreignKey"])
         if boundary["localKey"] not in key_set or foreign is None or foreign["projectId"] != boundary["foreignProjectId"]:
@@ -393,8 +410,17 @@ def check_connected_scope(request: dict[str, Any], key_set: set[str]) -> None:
             raise RequestRejected(f"occupancy[{index}] does not match fixed foreign evidence")
         if holder["start"] >= holder["finish"]:
             raise RequestRejected(f"occupancy[{index}] must have positive duration")
-        start = max(0, math.floor(holder["start"] * request["quantum"]))
-        end = math.ceil(holder["finish"] * request["quantum"])
+        scaled_start = holder["start"] * request["quantum"]
+        scaled_finish = holder["finish"] * request["quantum"]
+        # Proof: removing this guard makes a finite 1e308 occupancy finish
+        # escape as OverflowError instead of the CLI's modeled exit 64.
+        # The range comparison comes first: math.isfinite itself raises on
+        # arbitrarily large finite Python integers decoded from JSON.
+        if (scaled_start > MAX_SAFE_INTEGER or scaled_finish > MAX_SAFE_INTEGER
+                or not math.isfinite(scaled_start) or not math.isfinite(scaled_finish)):
+            raise RequestRejected(f"occupancy[{index}] exceeds the safe quantization range")
+        start = max(0, math.floor(scaled_start))
+        end = math.ceil(scaled_finish)
         occupancy_by_person.setdefault(holder["personId"], []).append((start, end))
     local_people = {slice_["personId"] for slice_ in request["slices"]
                     if slice_["durationUnits"] > 0 and slice_["personId"] is not None}

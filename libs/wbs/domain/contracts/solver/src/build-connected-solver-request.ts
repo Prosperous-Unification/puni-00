@@ -17,14 +17,16 @@ import {
 
 import { buildSolverPools, buildSolverResources } from './build-solver-pools';
 import { buildSolverSlices } from './build-solver-slices';
-import { buildConnectedSolverBoundaries } from './connected-boundaries';
+import { buildConnectedSolverBoundaries, ConnectedBoundaryOverflow } from './connected-boundaries';
 import { quantiseElsewhere } from './quantise-elsewhere';
 import { preflightSolverRequest, type SolverPreflightFailure } from './solver-preflight';
 import { ffStartWeightUnits } from './solver-units';
 import { STAGE_BUDGET_SPLIT } from './stage-budget';
+import { validateConnectedSolverRequest } from './validate-connected-solver-request';
 import {
   type ConnectedSolverRequest,
   SOLVER_WIRE_VERSION,
+  type SolverBoundary,
   type SolverEdge,
   type SolverObjective,
   type SolverOffsetMap,
@@ -47,30 +49,30 @@ export type ConnectedPreparedRequest =
     }
   | { readonly kind: 'failed'; readonly failure: SolverPreflightFailure; readonly detail: string };
 
-/** Both objective variants ask the same captured question and movement origin. */
+/** Objective variants share input but have distinct full question identities. */
 export interface ConnectedSolverRequestPair {
   readonly pri: ConnectedPreparedRequest;
   readonly time: ConnectedPreparedRequest;
 }
 
-/** Build a local decision model from the authoritative reduced graph and fixed foreign placement. */
-export function buildConnectedSolverRequestPair(
+/** Build one objective from the authoritative reduced graph and fixed foreign placement. */
+export function buildConnectedSolverRequest(
   stage: ConnectedOptimizationStage,
   identity: { readonly inputHash: string; readonly questionHash: string },
   installed: { readonly solverVersion: string; readonly budgetMs: number },
-): ConnectedSolverRequestPair {
+  objective: SolverObjective,
+): ConnectedPreparedRequest {
   canonicalConnectedStageInput(stage);
   if (!identity.inputHash || !identity.questionHash)
     throw new Error('connected question identity is absent');
   // Proof: bypassing this installed-version guard prepared a wire-5 request
   // against solver 0.3.0 (12 pass / 1 fail).
   if (installed.solverVersion !== '0.4.0') {
-    const failed: ConnectedPreparedRequest = {
+    return {
       kind: 'failed',
       failure: 'incompatible-solver',
       detail: `solver ${installed.solverVersion} does not accept wire 5; expected 0.4.0`,
     };
-    return { pri: failed, time: failed };
   }
   if (stage.input.order.kind !== 'connected') throw new Error('connected stage has local order');
   const ownership = stage.input.order.projectIdByWorkItem;
@@ -114,7 +116,16 @@ export function buildConnectedSolverRequestPair(
         : { predecessorKey, successorKey, type: edge.type },
     );
   }
-  const boundaries = buildConnectedSolverBoundaries(stage, slices);
+  let boundaries: readonly SolverBoundary[];
+  try {
+    boundaries = buildConnectedSolverBoundaries(stage, slices);
+  } catch (cause) {
+    // Proof: removing this modeled conversion made a finite 1e15-day fixed
+    // placement throw instead of returning horizon-overflow.
+    if (cause instanceof ConnectedBoundaryOverflow)
+      return { kind: 'failed', failure: 'horizon-overflow', detail: cause.message };
+    throw cause;
+  }
   const namedLocalPeople = new Set(
     ownSlices
       .filter((slice) => durationOf(slice) > 0 && slice.personId !== null)
@@ -161,12 +172,11 @@ export function buildConnectedSolverRequestPair(
     bookings.sort((left, right) => left.start - right.start || left.end - right.end);
   const bookings = quantiseElsewhere(elsewhere);
   if (!bookings.ok) {
-    const failed: ConnectedPreparedRequest = {
+    return {
       kind: 'failed',
       failure: bookings.failure,
       detail: bookings.detail,
     };
-    return { pri: failed, time: failed };
   }
   const reference: Record<string, number> = {};
   for (const slice of slices) {
@@ -174,8 +184,15 @@ export function buildConnectedSolverRequestPair(
     if (real === undefined || !Number.isFinite(real))
       throw new Error(`local slice ${slice.key} has no finite start`);
     const offset = Math.round(real * SOLVER_QUANTUM);
-    if (!Number.isSafeInteger(offset) || offset < 0)
-      throw new Error(`local start ${slice.key} has no safe movement reference`);
+    if (offset < 0) throw new Error(`local start ${slice.key} is negative`);
+    // Proof: removing this check made the finite reference-extreme test throw
+    // later in preflight instead of yielding a typed horizon refusal.
+    if (!Number.isSafeInteger(offset))
+      return {
+        kind: 'failed',
+        failure: 'horizon-overflow',
+        detail: `local start ${slice.key} exceeds the safe movement reference range`,
+      };
     reference[slice.key] = offset;
   }
   const movementReferenceOffsets: SolverOffsetMap = reference;
@@ -192,12 +209,11 @@ export function buildConnectedSolverRequestPair(
     true,
   );
   if (!preflight.ok) {
-    const failed: ConnectedPreparedRequest = {
+    return {
       kind: 'failed',
       failure: preflight.failure,
       detail: preflight.detail,
     };
-    return { pri: failed, time: failed };
   }
   const common: Omit<ConnectedSolverRequest, 'objective'> = {
     wireVersion: SOLVER_WIRE_VERSION,
@@ -227,6 +243,11 @@ export function buildConnectedSolverRequestPair(
     feasibleBaselineOffsets: null,
     seedOffsets: movementReferenceOffsets,
   };
+  const request: ConnectedSolverRequest = { ...common, objective };
+  // Proof: removing this receiver-equivalent validation lets budgetMs=0 and
+  // fractional originOrdinal reach a prepared boundary terminal; the two
+  // production preparation negatives observe the malformed request.
+  validateConnectedSolverRequest(request);
   for (const slice of slices) {
     const incoming = boundaries.flatMap((boundary) =>
       boundary.localKey === slice.key && boundary.direction === 'incoming'
@@ -260,25 +281,47 @@ export function buildConnectedSolverRequestPair(
           ),
         ],
       };
-      return {
-        pri: {
-          kind: 'boundary-infeasible',
-          stage,
-          request: { ...common, objective: 'pri' },
-          evidence,
-        },
-        time: {
-          kind: 'boundary-infeasible',
-          stage,
-          request: { ...common, objective: 'time' },
-          evidence,
-        },
-      };
+      return { kind: 'boundary-infeasible', stage, request, evidence };
     }
   }
-  const requestOf = (objective: SolverObjective): ConnectedPreparedRequest => ({
-    kind: 'request',
-    request: { ...common, objective },
-  });
-  return { pri: requestOf('pri'), time: requestOf('time') };
+  return { kind: 'request', request };
+}
+
+/** Prepare both questions with their own full hashes. */
+export function buildConnectedSolverRequestPair(
+  stage: ConnectedOptimizationStage,
+  identity: {
+    readonly inputHash: string;
+    readonly questionHashes: Readonly<Record<SolverObjective, string>>;
+  },
+  installed: { readonly solverVersion: string; readonly budgetMs: number },
+): ConnectedSolverRequestPair {
+  // Proof: disabling distinctness made the objective-identity test's
+  // equal-hash negative prepare two indistinguishable questions.
+  if (
+    !identity.questionHashes.pri ||
+    !identity.questionHashes.time ||
+    identity.questionHashes.pri === identity.questionHashes.time
+  )
+    throw new Error('connected objective question hashes must be distinct and present');
+  return {
+    pri: buildConnectedSolverRequest(
+      stage,
+      {
+        inputHash: identity.inputHash,
+        questionHash: identity.questionHashes.pri,
+      },
+      installed,
+      'pri',
+    ),
+    time: buildConnectedSolverRequest(
+      stage,
+      {
+        inputHash: identity.inputHash,
+        questionHash: identity.questionHashes.time,
+      },
+      installed,
+      'time',
+    ),
+  };
 }

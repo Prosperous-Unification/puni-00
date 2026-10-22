@@ -13,7 +13,7 @@ import {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import { buildConnectedSolverRequestPair } from './build-connected-solver-request';
+import { buildConnectedSolverRequest } from './build-connected-solver-request';
 import { buildSolverEdges } from './build-solver-edges';
 import { quantiseElsewhere } from './quantise-elsewhere';
 import { ffStartWeightUnits } from './solver-units';
@@ -768,15 +768,15 @@ export const revalidateConnectedSolverResult = (
   request: ConnectedSolverRequest,
   response: ConnectedSolverResponse,
 ): RevalidatedSolverResult => {
-  const pair = buildConnectedSolverRequestPair(
+  const prepared = buildConnectedSolverRequest(
     stage,
     {
       inputHash: request.scope.inputHash,
       questionHash: request.scope.questionHash,
     },
     { solverVersion: request.solverVersion, budgetMs: request.budgetMs },
+    request.objective,
   );
-  const prepared = request.objective === 'pri' ? pair.pri : pair.time;
   if (prepared.kind !== 'request')
     return refuse('malformed-request', `connected stage preparation is ${prepared.kind}`);
   // Proof: bypassing this correspondence check accepted an unknown response
