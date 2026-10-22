@@ -57,7 +57,7 @@ export type ParserRefusalCode =
   | 'band_default_must_be_inside_its_own_band'
   | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
   | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef' | 'measureId' | 'measureRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -96,7 +96,19 @@ export type ParserRefusalCode =
   | 'units_required'
   | 'units_must_be_a_whole_number_from_0'
   | 'units_must_be_at_most_1000000000'
-  | 'unitLabel_must_be_at_most_40_characters';
+  | 'unitLabel_must_be_at_most_40_characters'
+  // Measure definitions (`wbs-measure-budgets` D1): a key that is not a
+  // lowercase slug, a unit that is not short text, a kind or scale outside its
+  // vocabulary, a flag that is not a boolean, an order outside its bound, and a
+  // currency not shaped like an ISO 4217 code.
+  | 'key_must_be_a_measure_key'
+  | 'unit_must_be_text'
+  | 'unit_must_be_at_most_40_characters'
+  | 'measureKind_must_be_duration_count_or_money'
+  | 'scale_must_be_integer_or_real'
+  | `${'threePoint' | 'showByDefault' | 'schedulesWork'}_must_be_true_or_false`
+  | 'order_must_be_a_whole_number_from_0_to_1000000'
+  | 'currency_must_be_three_capital_letters';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -231,7 +243,22 @@ export type CommandRefusalCode =
    * organization's cap on the sum over its projects (`wbs-organization-limits`
    * L2, L9); names the resource, cap, the other projects' units and the asked.
    */
-  | 'capacity_limit';
+  | 'capacity_limit'
+  /**
+   * A measure definition write under legacy access while no organization is
+   * marked legacy: definitions belong to an organization (`wbs-measure-budgets`).
+   */
+  | 'organization_required'
+  // Measure definitions (`wbs-measure-budgets` D1, D2), each a 409 naming what
+  // the organization's own definitions refuse.
+  | 'measure_key_taken'
+  | 'measure_key_immutable'
+  | 'measure_shape_immutable'
+  | 'second_scheduling_measure'
+  | 'scheduling_measure_fixed'
+  | 'currency_required'
+  | 'currency_forbidden'
+  | 'measure_in_use';
 
 /** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */
 export interface CapacityLimitRefusalDetail {
@@ -511,10 +538,9 @@ type BareRefusalCode =
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle'
-  // Spaces (`add-spaces`): legacy access with no legacy organization to own a
-  // space; a space name the organization already holds; a project already in
-  // the space; a write addressed to the virtual All projects.
-  | 'organization_required'
+  // Spaces (`add-spaces`): a space name the organization already holds; a
+  // project already in the space; a write addressed to the virtual All
+  // projects. `organization_required` is a shared command code below.
   | 'name_taken'
   | 'already_in_space'
   | 'virtual_space'
@@ -576,7 +602,8 @@ type SharedCommandCode =
   | 'unknown_person'
   | 'agent_person_limit'
   | 'capacity_limit'
-  | 'person_not_bound';
+  | 'person_not_bound'
+  | 'organization_required';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -611,6 +638,11 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
     /** Without a command position from the plan import; with one from a batch. */
     capacity_limit: CapacityLimitRefusalDetail | CommandRefusalDetail['capacity_limit'];
+    /**
+     * Legacy access with no legacy organization: bare from a space, rank or
+     * capacity-mode route; with its command context from a measure batch.
+     */
+    organization_required: undefined | CommandContext;
     /** Naming the person from a machine credential create; with its command context from a batch. */
     person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
     /** Also a trusted issuer that unrevoked machine credentials name (`wbs-machine-credentials` A16). */

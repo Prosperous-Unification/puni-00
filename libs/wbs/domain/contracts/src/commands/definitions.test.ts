@@ -65,6 +65,9 @@ const PINNED_COMMAND_KINDS = [
   'createResource',
   'patchResource',
   'deleteResource',
+  'createMeasure',
+  'patchMeasure',
+  'deleteMeasure',
 ] as const satisfies readonly PlanCommandWire['kind'][];
 
 interface CommandDescriptor {

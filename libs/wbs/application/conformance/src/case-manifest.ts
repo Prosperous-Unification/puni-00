@@ -57,6 +57,10 @@ export const CASE_MANIFEST = {
     'directory.removePerson:pinned-credential',
     'directory.addResource:taken',
     'directory.removeResource:in-use-cascade',
+    'directory.listMeasures:seeded-per-organization',
+    'directory.addMeasure:index-backstop',
+    'directory.patchMeasure:scoped-key-frozen',
+    'directory.removeMeasure:scoped',
   ],
   organizationLimits: [
     'organizationLimits.readAgentPersonCap:organization-scope',

@@ -388,6 +388,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'createResource',
       'patchResource',
       'deleteResource',
+      'createMeasure',
+      'patchMeasure',
+      'deleteMeasure',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
     const emittedCounts = Object.fromEntries(

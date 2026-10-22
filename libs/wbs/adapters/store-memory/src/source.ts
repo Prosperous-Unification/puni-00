@@ -18,6 +18,7 @@ import type { OrganizationLimitValues } from '@wbs/domain';
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import { credentialKey } from './directory-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
+import { seedMemoryOrganization } from './measure-definition-fixture';
 import { bindStores, MemoryState, replaceMap } from './memory-stores';
 import {
   checkedOrganizationLimits,
@@ -201,6 +202,14 @@ export interface MemorySourceFixture {
    * SQLite holds, so the limits gauge sums its stated capacity.
    */
   ownResourceInOrganization(resourceId: string, organizationId: string): void;
+  /**
+   * Adds an organization with its five seeded measure definitions, the
+   * `organization` row and the seed its trigger writes on SQLite
+   * (`wbs-measure-budgets`); `legacy` marks the one legacy access reads.
+   *
+   * @throws when the organization exists or a second would be legacy.
+   */
+  addOrganization(organizationId: string, options: { legacy: boolean }): void;
   /**
    * Writes an organization's own caps, the `organization_limits` row the
    * operator CLI writes on SQLite.
@@ -484,6 +493,13 @@ function openMemorySourceWithSeams(
     },
     pinCredential(issuer, subject, personId) {
       committed.tables.directory.credentialPins.set(credentialKey(issuer, subject), personId);
+    },
+    addOrganization(organizationId, options) {
+      seedMemoryOrganization(
+        committed.tables.directory.measureDefinitions,
+        organizationId,
+        options.legacy,
+      );
     },
     ownProjectInOrganization(projectId, organizationId) {
       committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);

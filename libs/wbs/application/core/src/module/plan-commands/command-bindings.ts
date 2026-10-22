@@ -893,6 +893,53 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind, entity: resource };
     },
+    createMeasure: async (command, context) => {
+      context.assertRefAvailable(command.ref);
+      const measure = context.value(
+        await directory.measures.addWithin(
+          context.actorId,
+          {
+            key: command.key,
+            name: command.name,
+            unit: command.unit,
+            kind: command.measureKind,
+            scale: command.scale,
+            ...(command.threePoint === undefined ? {} : { threePoint: command.threePoint }),
+            ...(command.showByDefault === undefined
+              ? {}
+              : { showByDefault: command.showByDefault }),
+            ...(command.schedulesWork === undefined
+              ? {}
+              : { schedulesWork: command.schedulesWork }),
+            ...(command.order === undefined ? {} : { order: command.order }),
+            ...(command.currency === undefined ? {} : { currency: command.currency }),
+          },
+          context.access,
+        ),
+      );
+      return { ...context.mint(command.ref, measure.id), kind: command.kind, entity: measure };
+    },
+    patchMeasure: async (command, context) => {
+      const measure = context.value(
+        await directory.measures.patchWithin(
+          context.required(command.measureId, command.measureRef),
+          context.actorId,
+          command.patch,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind, entity: measure };
+    },
+    deleteMeasure: async (command, context) => {
+      context.value(
+        await directory.measures.removeWithin(
+          context.required(command.measureId, command.measureRef),
+          context.actorId,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     deleteResource: async (command, context) => {
       context.accept(
         await directory.removeResourceWithin(

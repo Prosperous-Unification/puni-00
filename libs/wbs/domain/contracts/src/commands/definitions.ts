@@ -55,6 +55,7 @@ const tag = { 'tagId?': 'string', 'tagRef?': 'string' } as const;
 const service = { 'serviceId?': 'string', 'serviceRef?': 'string' } as const;
 const workItemType = { 'typeId?': 'string', 'typeRef?': 'string' } as const;
 const resource = { 'resourceId?': 'string', 'resourceRef?': 'string' } as const;
+const measure = { 'measureId?': 'string', 'measureRef?': 'string' } as const;
 // Proof: admitting frozenNumber failed nested structural validation and made its type fixture report TS2578.
 const workItemPatch = type({
   'name?': 'string',
@@ -474,6 +475,52 @@ export const commandDefinitions = {
     scope: 'directory',
     description:
       'Remove a resource from the directory. Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
+  }),
+  createMeasure: defineCommand('createMeasure', {
+    schema: type({
+      kind: "'createMeasure'",
+      ...reference,
+      key: 'string',
+      name: 'string',
+      unit: 'string',
+      measureKind: "'duration' | 'count' | 'money'",
+      scale: "'integer' | 'real'",
+      'threePoint?': 'boolean',
+      'showByDefault?': 'boolean',
+      'schedulesWork?': 'boolean',
+      'order?': 'number',
+      'currency?': 'string | null',
+    }),
+    scope: 'directory',
+    description:
+      'Define a measure for the organization: key is a lowercase slug (letter first, then letters, digits or _, at most 40) that never changes; unit is the label beside every figure; measureKind (duration, count, money) and scale (integer, real) never change; money needs a three-letter currency and nothing else may name one (currency_required, currency_forbidden). threePoint and showByDefault default false; order defaults to after every held definition. Refused measure_key_taken for a key the organization holds and second_scheduling_measure for schedulesWork while time holds it. Under legacy access the legacy organization owns it, refused organization_required when none exists.',
+  }),
+  patchMeasure: defineCommand('patchMeasure', {
+    schema: type({
+      kind: "'patchMeasure'",
+      ...measure,
+      patch: {
+        'key?': 'string',
+        'name?': 'string',
+        'unit?': 'string',
+        'measureKind?': 'string',
+        'scale?': 'string',
+        'threePoint?': 'boolean',
+        'showByDefault?': 'boolean',
+        'schedulesWork?': 'boolean',
+        'order?': 'number',
+        'currency?': 'string | null',
+      },
+    }),
+    scope: 'directory',
+    description:
+      'Change a measure definition: name, unit, threePoint, showByDefault, order or a money measure’s currency. Naming another key is refused measure_key_immutable, another measureKind or scale measure_shape_immutable; schedulesWork true on any but the scheduling measure is refused second_scheduling_measure and false on it scheduling_measure_fixed.',
+  }),
+  deleteMeasure: defineCommand('deleteMeasure', {
+    schema: type({ kind: "'deleteMeasure'", ...measure }),
+    scope: 'directory',
+    description:
+      'Remove a measure definition the organization defined. The five seeded definitions (time, tokens, hours, cost, agent_minutes) and any definition a figure references are refused measure_in_use.',
   }),
 } as const;
 

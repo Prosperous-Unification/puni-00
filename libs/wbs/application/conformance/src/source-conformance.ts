@@ -11,6 +11,7 @@ import { directoryRegistrations } from './stores/directory';
 import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
+import { directoryMeasureRegistrations } from './stores/measure-definitions';
 import { measureRegistrations } from './stores/measures';
 import { organizationLimitRegistrations } from './stores/organization-limits';
 import { planEventRegistrations } from './stores/plan-events';
@@ -414,6 +415,7 @@ export function existingStoreRegistrations(
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),
     ...directoryResourceRegistrations(openers.directory),
+    ...directoryMeasureRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
     ...planEventRegistrations(openers.planEvents),
     ...subtreeRegistrations(openers.subtrees),

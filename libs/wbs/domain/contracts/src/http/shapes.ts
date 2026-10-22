@@ -67,6 +67,7 @@ import {
   mintMcpConsentCredential,
   readMcpAuthority,
 } from './mcp-delegation-shapes';
+import { listMeasures } from './measure-shapes';
 import {
   confirmEmailChallenge,
   createEmailChallenge,
@@ -237,6 +238,7 @@ export const httpShapes = [
   readStartableWork,
   readPersonWork,
   readProjectResources,
+  listMeasures,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

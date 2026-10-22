@@ -13,6 +13,7 @@ import {
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
   CLAIM_IN_USE,
+  CONFORMANCE_MEASURE_ORGANIZATIONS,
   createFaultControl,
   defineFault,
   DELEGATED_CLAIMS,
@@ -26,6 +27,7 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  isMeasureDefinitionCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
@@ -380,6 +382,16 @@ async function openSqliteCase<Family extends ExistingFamily>(
       );
       seeded.db.run(
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${organizationId}, ${DETERMINISTIC_SEED.ownerIds[0]}, 'member', 1)`,
+      );
+    }
+    if (isMeasureDefinitionCase(caseId)) {
+      // The organization trigger seeds each one's five definitions.
+      const { legacy, other } = CONFORMANCE_MEASURE_ORGANIZATIONS;
+      seeded.db.run(
+        sql`INSERT INTO organization (id, name, legacy, created_at) VALUES (${legacy}, ${legacy}, 1, 1)`,
+      );
+      seeded.db.run(
+        sql`INSERT INTO organization (id, name, created_at) VALUES (${other}, ${other}, 1)`,
       );
     }
     if (caseId === 'directory.removePerson:claims-in-use')

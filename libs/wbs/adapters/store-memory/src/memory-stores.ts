@@ -232,6 +232,13 @@ export class MemoryState {
       next.tables.directory.resources.capacities,
     );
     replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
+    // Proof: with this copy removed, `defines, patches and removes a measure,
+    // listing it after the seeded five` (measure-command.test.ts) read no
+    // `gpu_minutes` after its batch committed; watched 2026-10-23.
+    replaceMap(
+      this.tables.directory.measureDefinitions.organizations,
+      next.tables.directory.measureDefinitions.organizations,
+    );
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`

@@ -536,6 +536,30 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_resource':
     case 'exclusive_demand_is_one':
       return refusal.error;
+    // Measure definitions (`wbs-measure-budgets` slice 1): the table sends none
+    // of these until task 4.2, so they arrive only from a batch another client wrote.
+    case 'measureId_must_be_an_id':
+    case 'measureRef_must_be_an_id':
+    case 'key_must_be_a_measure_key':
+    case 'unit_must_be_text':
+    case 'unit_must_be_at_most_40_characters':
+    case 'measureKind_must_be_duration_count_or_money':
+    case 'scale_must_be_integer_or_real':
+    case 'threePoint_must_be_true_or_false':
+    case 'showByDefault_must_be_true_or_false':
+    case 'schedulesWork_must_be_true_or_false':
+    case 'order_must_be_a_whole_number_from_0_to_1000000':
+    case 'currency_must_be_three_capital_letters':
+    case 'organization_required':
+    case 'measure_key_taken':
+    case 'measure_key_immutable':
+    case 'measure_shape_immutable':
+    case 'second_scheduling_measure':
+    case 'scheduling_measure_fixed':
+    case 'currency_required':
+    case 'currency_forbidden':
+    case 'measure_in_use':
+      return refusal.error;
     // The organization limits (`wbs-organization-limits` L9): worded with the
     // body's numbers by `limitSentence` before this code is ever read.
     case 'agent_person_limit':

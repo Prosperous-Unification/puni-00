@@ -10,6 +10,7 @@ import {
   changeSavedPlanCaptureTypedDependencies,
   CLAIM_IN_USE,
   completeSubtreeCopy,
+  CONFORMANCE_MEASURE_ORGANIZATIONS,
   createFaultControl,
   defineFault,
   DELEGATED_CLAIMS,
@@ -24,6 +25,7 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  isMeasureDefinitionCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
@@ -95,6 +97,7 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
+  addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
   pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
@@ -166,6 +169,9 @@ function conformanceMemorySource(
       memberIds: readonly string[],
     ) => {
       fixture.ownPersonInOrganization(personId, organizationId, memberIds);
+    },
+    addOrganization: (organizationId: string, options: { legacy: boolean }) => {
+      fixture.addOrganization(organizationId, options);
     },
     pinCredential: (issuer: string, subject: string, personId: string) => {
       fixture.pinCredential(issuer, subject, personId);
@@ -384,6 +390,10 @@ async function openMemoryCase<Family extends ExistingFamily>(
       seeded.ownPersonInOrganization(OWNED_BINDING.personId, OWNED_BINDING.organizationId, [
         DETERMINISTIC_SEED.ownerIds[0],
       ]);
+    }
+    if (isMeasureDefinitionCase(caseId)) {
+      seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.legacy, { legacy: true });
+      seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.other, { legacy: false });
     }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);

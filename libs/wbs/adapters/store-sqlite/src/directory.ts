@@ -8,6 +8,9 @@ import type {
   ExternalRef,
   ExternalSystem,
   MachineCredentialReach,
+  MeasureAdded,
+  MeasureRemoved,
+  MeasureWritten,
   NamedCatalog,
   OrganizationRenamed,
   PersonAdded,
@@ -34,12 +37,20 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
+import type { MeasureDefinition, MeasureUsage } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
+import {
+  deleteMeasure,
+  insertMeasure,
+  legacyOrganizationOf,
+  listMeasuresIn,
+  updateMeasure,
+} from './measure-definition';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { bumpWorkItems } from './revision';
 import {
@@ -430,6 +441,49 @@ export class DirectoryRepository implements DirectoryStore {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
+
+  legacyOrganizationId(): Promise<string | null> {
+    return Promise.resolve(legacyOrganizationOf(this.db));
+  }
+
+  listMeasures(organizationId: string): Promise<MeasureDefinition[]> {
+    return Promise.resolve(listMeasuresIn(this.db, organizationId));
+  }
+
+  async addMeasure(
+    organizationId: string,
+    toAdd: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureAdded> {
+    return await this.gate.enter(() =>
+      Promise.resolve(insertMeasure(this.db, organizationId, toAdd, stamp)),
+    );
+  }
+
+  async patchMeasure(
+    organizationId: string,
+    next: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureWritten> {
+    return await this.gate.enter(() =>
+      Promise.resolve(updateMeasure(this.db, organizationId, next, stamp)),
+    );
+  }
+
+  /** Nothing references a definition yet (`wbs-measure-budgets` slice 1). */
+  usageOfMeasure(_organizationId: string, _measureId: string): Promise<MeasureUsage> {
+    return Promise.resolve({ references: 0 });
+  }
+
+  async removeMeasure(
+    organizationId: string,
+    measureId: string,
+    _stamp: WriteStamp,
+  ): Promise<MeasureRemoved> {
+    return await this.gate.enter(() =>
+      Promise.resolve(deleteMeasure(this.db, organizationId, measureId)),
+    );
+  }
 
   inspectMissingOwnership(catalog: NamedCatalog, resourceId: string): Promise<void> {
     const { root, side } = CATALOG_TABLES[catalog];

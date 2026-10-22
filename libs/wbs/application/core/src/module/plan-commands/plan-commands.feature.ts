@@ -1,6 +1,6 @@
 import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type { MeasureDefinition, ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -71,6 +71,8 @@ interface CommandEntities {
   patchWorkItemType: WorkItemType;
   createResource: Resource;
   patchResource: Resource;
+  createMeasure: MeasureDefinition;
+  patchMeasure: MeasureDefinition;
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;

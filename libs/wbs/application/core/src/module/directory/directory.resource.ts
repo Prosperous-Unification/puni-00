@@ -49,8 +49,10 @@ import {
   directoryUsageOfWorkItemType,
   type ResourceUsageCounts,
 } from '../../service/directory-usage';
+import { MeasureDefinitions } from './measure-definitions';
 
 export type { DirectoryOutcome, DirectoryRefusal } from '../../ports/directory-outcome';
+export type { MeasureInput, MeasureOutcome, MeasureRefusalReason } from './measure-definitions';
 
 /** How many fresh ids an opaque root name is tried under before a create gives up. */
 const OPAQUE_NAME_ATTEMPTS = 3;
@@ -219,8 +221,20 @@ type NamedRenamed<T> =
 export class DirectoryService {
   private readonly clock: Clock;
 
+  /**
+   * The organization's measure definitions (`wbs-measure-budgets` D1): read by
+   * the list route, written by the `createMeasure`, `patchMeasure` and
+   * `deleteMeasure` directory commands.
+   */
+  readonly measures: MeasureDefinitions;
+
   constructor(private readonly opts: DirectoryServiceOptions) {
     this.clock = opts.clock;
+    this.measures = new MeasureDefinitions({
+      directory: opts.directory,
+      clock: opts.clock,
+      standalone: opts.standaloneWrite !== undefined,
+    });
   }
 
   /**

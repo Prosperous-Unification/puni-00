@@ -1,10 +1,10 @@
 ## 1. Measure definitions and facts
 
-- [ ] 1.1 Migration `add_measure`: directory table, seed of five definitions per organization,
+- [x] 1.1 Migration `add_measure`: directory table, seed of five definitions per organization,
       `down.sql` refuses while any non-seeded definition or referencing row exists — test:
       migration forward and back; negative: drop the guard and the rollback deletes a
       definition with facts; watched.
-- [ ] 1.2 Domain decision and commands `createMeasure`, `patchMeasure`, `deleteMeasure` with
+- [x] 1.2 Domain decision and commands `createMeasure`, `patchMeasure`, `deleteMeasure` with
       typed refusals — test: conformance suite over memory and SQLite; negative: remove the
       `schedulesWork` uniqueness check and two scheduling measures store.
 - [ ] 1.3 `step_measure.measure_id` with back-fill; `setMeasure` by key; `unknown_measure`,

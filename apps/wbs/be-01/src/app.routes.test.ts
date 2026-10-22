@@ -179,6 +179,7 @@ const PUBLIC_OPERATIONS = [
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganization',
   'getApiOrganizationDomains',
@@ -374,6 +375,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthMethods',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganizationMemberships',
   'getApiOrganizationActive',

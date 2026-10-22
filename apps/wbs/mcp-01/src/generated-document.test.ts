@@ -104,6 +104,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'deleteApiSpacesById',
     'deleteApiSpacesByIdProjectsByProjectId',
     'getApiExternal-systems',
+    'getApiMeasures',
     'getApiOnboarding',
     'getApiOrganization',
     'getApiOrganizationDomains',

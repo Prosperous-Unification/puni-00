@@ -6,10 +6,16 @@ import { capacityOf } from '../http/capacity-body';
 import { ladderOf } from '../http/priority-ladder-body';
 import {
   asIdOrNull,
+  asMeasureKey,
+  asMeasureKind,
+  asMeasureScale,
+  asMeasureUnit,
+  asOptionalCurrency,
   asOptionalFlag,
   asOptionalId,
   asOptionalIds,
   asOptionalInstant,
+  asOptionalMeasureOrder,
   asOptionalPriority,
   asOptionalResourceUnits,
   asOptionalRunId,
@@ -450,6 +456,48 @@ export const commandNormalizers = {
       resourceId: asOptionalId(raw.resourceId, 'resourceId'),
       resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
       cascade: asOptionalFlag(raw.cascade, 'cascade'),
+    }),
+  createMeasure: (raw: CommandInput<'createMeasure'>) =>
+    present({
+      kind: 'createMeasure' as const,
+      ...ref(raw),
+      key: asMeasureKey(raw.key),
+      name: asText(raw.name, 'name'),
+      unit: asMeasureUnit(raw.unit),
+      measureKind: asMeasureKind(raw.measureKind),
+      scale: asMeasureScale(raw.scale),
+      threePoint: asOptionalFlag(raw.threePoint, 'threePoint'),
+      showByDefault: asOptionalFlag(raw.showByDefault, 'showByDefault'),
+      schedulesWork: asOptionalFlag(raw.schedulesWork, 'schedulesWork'),
+      order: asOptionalMeasureOrder(raw.order),
+      currency: asOptionalCurrency(raw.currency),
+    }),
+  patchMeasure(raw: CommandInput<'patchMeasure'>) {
+    const patch = raw.patch;
+    assertRecord(patch);
+    return present({
+      kind: 'patchMeasure' as const,
+      measureId: asOptionalId(raw.measureId, 'measureId'),
+      measureRef: asOptionalId(raw.measureRef, 'measureRef'),
+      patch: present({
+        key: patch.key === undefined ? undefined : asMeasureKey(patch.key),
+        name: asOptionalText(patch.name, 'name'),
+        unit: patch.unit === undefined ? undefined : asMeasureUnit(patch.unit),
+        kind: patch.measureKind === undefined ? undefined : asMeasureKind(patch.measureKind),
+        scale: patch.scale === undefined ? undefined : asMeasureScale(patch.scale),
+        threePoint: asOptionalFlag(patch.threePoint, 'threePoint'),
+        showByDefault: asOptionalFlag(patch.showByDefault, 'showByDefault'),
+        schedulesWork: asOptionalFlag(patch.schedulesWork, 'schedulesWork'),
+        order: asOptionalMeasureOrder(patch.order),
+        currency: asOptionalCurrency(patch.currency),
+      }),
+    });
+  },
+  deleteMeasure: (raw: CommandInput<'deleteMeasure'>) =>
+    present({
+      kind: 'deleteMeasure' as const,
+      measureId: asOptionalId(raw.measureId, 'measureId'),
+      measureRef: asOptionalId(raw.measureRef, 'measureRef'),
     }),
 } as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;
 

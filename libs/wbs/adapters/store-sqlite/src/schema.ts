@@ -7,7 +7,9 @@ import {
   HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
+  MEASURE_KINDS,
   MEASURE_METRICS,
+  MEASURE_SCALES,
   ORGANIZATION_ROLES,
   PERSON_KINDS,
   READINESSES,
@@ -3924,3 +3926,61 @@ export const stepParallel = sqliteTable(
     ),
   ],
 );
+
+/**
+ * One organization's measure definitions (`wbs-measure-budgets` D1, D2), the
+ * rows `MeasureDefinition` in `@wbs/domain` reads. Added by
+ * `20261023100000_add_measure`, which seeds the five definitions for every
+ * existing organization and, by its `organization_seed_measures` trigger, for
+ * every organization inserted later; its `measure_key_frozen` trigger keeps
+ * `key` and `organization_id` unchanged, and its `down.sql` refuses while any
+ * definition beyond the seeded keys exists. `order` is quoted by drizzle and
+ * must be quoted in raw SQL.
+ */
+export const measure = sqliteTable(
+  'measure',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    unit: text('unit').notNull(),
+    kind: text('kind', { enum: MEASURE_KINDS }).notNull(),
+    scale: text('scale', { enum: MEASURE_SCALES }).notNull(),
+    threePoint: integer('three_point', { mode: 'boolean' }).notNull(),
+    showByDefault: integer('show_by_default', { mode: 'boolean' }).notNull(),
+    schedulesWork: integer('schedules_work', { mode: 'boolean' }).notNull(),
+    derived: integer('derived', { mode: 'boolean' }).notNull(),
+    order: integer('order').notNull(),
+    currency: text('currency'),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('measure_organization_key').on(t.organizationId, t.key),
+    uniqueIndex('measure_one_scheduling')
+      .on(t.organizationId)
+      .where(sql`${t.schedulesWork} = 1`),
+    check(
+      'measure_key',
+      sql`length(${t.key}) BETWEEN 1 AND 40 AND ${t.key} GLOB '[a-z]*' AND ${t.key} NOT GLOB '*[^a-z0-9_]*'`,
+    ),
+    check('measure_kind', sql`${t.kind} IN ('duration', 'count', 'money')`),
+    check('measure_scale', sql`${t.scale} IN ('integer', 'real')`),
+    check(
+      'measure_flags',
+      sql`${t.threePoint} IN (0, 1) AND ${t.showByDefault} IN (0, 1) AND ${t.schedulesWork} IN (0, 1) AND ${t.derived} IN (0, 1)`,
+    ),
+    check(
+      'measure_order',
+      sql`typeof(${t.order}) = 'integer' AND ${t.order} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'measure_currency',
+      sql`(${t.kind} = 'money') = (${t.currency} IS NOT NULL) AND (${t.currency} IS NULL OR (length(${t.currency}) = 3 AND ${t.currency} NOT GLOB '*[^A-Z]*'))`,
+    ),
+  ],
+);
+
+export type MeasureRow = typeof measure.$inferSelect;
