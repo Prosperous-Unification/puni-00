@@ -755,3 +755,24 @@ sibling/refusal and read-to-writer authority behavior; it does not complete the
 three-project captured C=8 versus final C=6 mounted Retry proof, browser HTTP
 reconciliation, complete optimizer acceptance or tasks 7.3/7.4/9.2. Settings PATCH
 keeps its existing semantics; terminal-setting refusal is not introduced.
+
+### Plan-wide migration rollback admission (bounded task 10.2 prerequisite)
+
+Intent: refuse a migration selection that would remove cross-project dependency
+activation authority before any selected down statement changes the database.
+Outcome: the common `rollbackAppliedRows` seam first resolves every selected row,
+folder and forward hash, then admits the complete name set through the adapter's
+`assertDependencyRollbackAdmitted` on the same native SQLite connection. Selecting
+the activation migration requires the existing strict authority inspector to prove
+DISABLED authority and an empty `external_dependency` table. Missing, unreadable,
+malformed or replaced authority/ledger/triggers refuses. ENABLED authority and
+retained edges require compatible recovery under ADR 0057.
+
+Unrelated selections and no-ops do not inspect activation. Legacy `--to` and
+captured-set restoration converge through this admission; existing independent SQL
+down guards remain. Each admitted migration retains its own transaction, ledger
+deletion and foreign-key-off rebuild behavior, including committed earlier
+reversals and exact-set retry after a later script failure. No blanket transaction
+is added. Non-goals: participant fencing, activation, automatic recovery after
+semantic exposure, Compose/Kubernetes release integration or completion of parent
+tasks 10.1/10.2.

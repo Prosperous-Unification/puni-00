@@ -336,6 +336,29 @@ Activation authority SHALL remain durable after the last live external relations
 - **THEN** activation authority remains and an incapable runtime still refuses to start or downgrade
 - **AND** retained journal, saved-plan and replay obligations are not inferred absent from the live edge count
 
+### Requirement: Migration rollback admits the complete selection before reversal
+
+Both legacy-target and captured-set migration rollback SHALL resolve all selected row names, folders and forward hashes before executing any selected down statement. If the selection removes dependency activation authority, the rollback connection SHALL inspect the exact constrained authority tables, ledger, marker, receipt and admission triggers and require DISABLED authority with no retained external relationship. Missing, unreadable, malformed or replaced trusted state SHALL refuse. ENABLED authority or retained edges SHALL require compatible recovery. Unrelated selections and no-ops SHALL retain their existing behavior without inspecting activation.
+
+#### Scenario: Enabled or corrupt authority has newer selected migrations
+
+- **GIVEN** the rollback selects activation and newer migrations with ENABLED authority, retained edges or invalid trusted authority
+- **WHEN** either rollback entrypoint executes
+- **THEN** it refuses before any selected down statement and preserves the complete schema, ledger and persisted rows
+
+#### Scenario: Older selected metadata differs after application
+
+- **GIVEN** a selected older migration has no recorded name, no folder or a changed forward hash
+- **WHEN** a newer valid migration is selected for reversal with it
+- **THEN** rollback refuses before reversing the newer migration
+
+#### Scenario: Admitted dormant rollback later encounters a script failure
+
+- **GIVEN** the complete selection is admitted and a later down script fails
+- **WHEN** rollback executes each migration
+- **THEN** each successful down and ledger deletion remains committed atomically while the failing migration rolls back
+- **AND** captured-set retry resumes the remaining additions and foreign-key-off rebuild behavior remains available
+
 ### Requirement: Recovery preserves facts after possible semantic exposure
 
 When activation may have committed or later writes cannot be excluded, recovery SHALL retain current store bytes and activation and exposure evidence. Ordinary retry, automatic schema reversal and incompatible downgrade SHALL refuse until an explicitly reviewed compatible recovery is admitted. An eligible dormant rollback with independently verified no-write exposure retains its existing contract.

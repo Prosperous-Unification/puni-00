@@ -21,6 +21,7 @@ import {
   migrationsToRollback,
   readMigrationFolders,
   ROLLBACK_ALL,
+  rollbackAppliedRows,
   rollbackTo,
 } from './migrate-down';
 import { captureAppliedMigrationSet, restoreAppliedMigrationSet } from './migration-set';
@@ -1511,12 +1512,61 @@ describe('rollbackTo, against a real database', () => {
       runMigrations(db.path, FOLDER);
       cpSync(FOLDER, copy, { recursive: true });
       appendFileSync(join(copy, USERS, 'migration.sql'), '\n-- edited after the fact\n');
+      const schemaBefore = schemaObjects(db.path);
+      const rowsBefore = tableRows(db.path);
 
       expect(() => rollbackTo(db.path, copy, INIT)).toThrow(/hash differs/);
       expect(tables(db.path)).toContain('users');
+      expect(schemaObjects(db.path)).toEqual(schemaBefore);
+      expect(tableRows(db.path)).toEqual(rowsBefore);
     } finally {
       db.cleanup();
       rmSync(copy, { recursive: true, force: true });
     }
   });
 });
+
+for (const fault of ['unnamed', 'missing-folder'] as const) {
+  it(`resolves all selected ${fault} metadata before reversing a newer migration`, () => {
+    const fixture = tempDb();
+    const sqlite = openDatabase(fixture.path);
+    try {
+      sqlite.run('CREATE TABLE newer (id INTEGER)');
+      sqlite.run(
+        'CREATE TABLE __drizzle_migrations (id INTEGER, hash TEXT, created_at INTEGER, name TEXT)',
+      );
+      sqlite.run("INSERT INTO __drizzle_migrations VALUES (2,'newer',2,'2_newer')");
+      const older = {
+        id: 1,
+        hash: 'older',
+        created_at: 1,
+        name: fault === 'unnamed' ? null : '1_older',
+      };
+      sqlite.run('INSERT INTO __drizzle_migrations VALUES (?,?,?,?)', [
+        older.id,
+        older.hash,
+        older.created_at,
+        older.name,
+      ]);
+      const beforeSchema = schemaObjects(fixture.path);
+      const beforeRows = tableRows(fixture.path);
+      expect(() =>
+        rollbackAppliedRows(
+          sqlite,
+          new Map([
+            [
+              '2_newer',
+              { name: '2_newer', hash: 'newer', downHash: 'unused', downSql: 'DROP TABLE newer;' },
+            ],
+          ]),
+          [{ id: 2, hash: 'newer', created_at: 2, name: '2_newer' }, older],
+        ),
+      ).toThrow(fault === 'unnamed' ? 'has no name recorded' : 'no longer exists on disk');
+      expect(schemaObjects(fixture.path)).toEqual(beforeSchema);
+      expect(tableRows(fixture.path)).toEqual(beforeRows);
+    } finally {
+      sqlite.close();
+      fixture.cleanup();
+    }
+  });
+}

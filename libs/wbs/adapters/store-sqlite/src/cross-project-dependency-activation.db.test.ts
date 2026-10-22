@@ -9,10 +9,16 @@ import {
   inspectDependencyActivation,
   readDependencyAuthoring,
 } from './cross-project-dependency-activation';
-import { openConnection, SQLiteError } from './db';
+import { assertDependencyRollbackAdmitted } from './cross-project-dependency-rollback';
+import { openConnection, openDatabase, SQLiteError } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import {
+  type AppliedMigration,
+  readMigrationFolders,
+  rollbackAppliedRows,
+  rollbackTo,
+} from './migrate-down';
 import { openSqliteSource } from './source';
 import { TypedDependencyRepository } from './typed-dependency';
 
@@ -81,6 +87,22 @@ function snapshot(): unknown[] {
     'event_sequencer',
   ].map((table) => connection.db.all(`SELECT * FROM ${table}`));
 }
+/** Complete schema, ledger and persisted table rows certifying a refused rollback. */
+function rollbackCertificate(): unknown {
+  const schema = connection.db.all<{ name: string; type: string; sql: string | null }>(
+    'SELECT name,type,sql FROM sqlite_master ORDER BY type,name',
+  );
+  return {
+    schema,
+    tables: schema
+      .filter((entry) => entry.type === 'table')
+      .map(({ name }) => ({
+        name,
+        rows: connection.db.all(`SELECT * FROM "${name.replaceAll('"', '""')}"`),
+      })),
+  };
+}
+
 /** Synthetic persisted authority exercises storage semantics only; it proves no participant fence. */
 function enable(): void {
   connection.db.run(
@@ -185,10 +207,12 @@ it('reads exact enabled receipt and refuses malformed persisted receipt', () => 
 it('refuses enabled-empty rollback without losing authority or ledger', () => {
   enable();
   const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+  const certificate = rollbackCertificate();
   expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow(
     'dependency activation requires compatible recovery',
   );
   expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+  expect(rollbackCertificate()).toEqual(certificate);
   expect(inspectDependencyActivation(connection.db).state).toBe('ENABLED');
 });
 it('rolls dormant authority back without changing local rows', async () => {
@@ -209,6 +233,7 @@ it('refuses preexisting external rows atomically in the real migration runner', 
   await repository.add(link(), { at: 2, by: 'u' });
   const before = snapshot();
   const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+  const certificate = rollbackCertificate();
   let observed: unknown;
   try {
     runMigrations(path, FOLDER);
@@ -218,6 +243,7 @@ it('refuses preexisting external rows atomically in the real migration runner', 
   expect(nativeMessage(observed)).toContain('external dependencies precede activation authority');
   expect(snapshot()).toEqual(before);
   expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+  expect(rollbackCertificate()).toEqual(certificate);
   expect(
     connection.db.all(
       "SELECT name FROM sqlite_master WHERE name='cross_project_dependency_activation'",
@@ -280,8 +306,10 @@ for (const fault of [
   it(`rollback refuses corrupt authority without changing ledger: ${fault}`, () => {
     for (const statement of fault.split(';')) connection.db.run(statement);
     const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+    const certificate = rollbackCertificate();
     expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow();
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+    expect(rollbackCertificate()).toEqual(certificate);
   });
 }
 
@@ -297,8 +325,10 @@ for (const table of [
     if (!table.endsWith('_receipt'))
       connection.db.run(`INSERT INTO ${table} VALUES (1,'DISABLED')`);
     const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+    const certificate = rollbackCertificate();
     expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow();
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+    expect(rollbackCertificate()).toEqual(certificate);
   });
 }
 
@@ -333,9 +363,11 @@ it('refuses dormant rollback with retained external rows and preserves the full 
   connection.db.run('DELETE FROM cross_project_dependency_activation_receipt');
   const before = snapshot();
   const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+  const certificate = rollbackCertificate();
   expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow();
   expect(snapshot()).toEqual(before);
   expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+  expect(rollbackCertificate()).toEqual(certificate);
 });
 
 it('rolls back earlier command writes through the real source unit of work', async () => {
@@ -405,3 +437,79 @@ for (const version of ['1.0', '1e0']) {
     expect(await repository.listByProject('b')).toEqual([]);
   });
 }
+
+for (const action of ['insert', 'update', 'delete']) {
+  it(`rollback refuses missing ${action} trigger before newer downs`, () => {
+    connection.db.run(`DROP TRIGGER external_dependency_admit_${action}`);
+    const certificate = rollbackCertificate();
+    expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow(
+      'invalid dependency activation triggers',
+    );
+    expect(rollbackCertificate()).toEqual(certificate);
+  });
+}
+
+it('rollback refuses missing activation ledger before newer downs', () => {
+  const folders = new Map(readMigrationFolders(FOLDER).map((folder) => [folder.name, folder]));
+  const selected = connection.db.all<AppliedMigration>(
+    `SELECT * FROM __drizzle_migrations WHERE name >= '${MIGRATION}' ORDER BY created_at DESC`,
+  );
+  expect(selected.some(({ name }) => name === MIGRATION)).toBe(true);
+  connection.db.run(`DELETE FROM __drizzle_migrations WHERE name='${MIGRATION}'`);
+  const certificate = rollbackCertificate();
+  const native = openDatabase(path);
+  try {
+    expect(() => rollbackAppliedRows(native, folders, selected)).toThrow(
+      'missing dependency activation migration',
+    );
+  } finally {
+    native.close();
+  }
+  expect(rollbackCertificate()).toEqual(certificate);
+});
+
+it('unrelated newer rollback and no-op do not inspect enabled authority', () => {
+  enable();
+  const newer = connection.db
+    .all<{ name: string }>('SELECT name FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1')
+    .at(0);
+  if (newer === undefined) throw new Error('missing newest fixture migration');
+  expect(rollbackTo(path, FOLDER, newer.name)).toEqual([]);
+  const reversed = rollbackTo(path, FOLDER, MIGRATION);
+  expect(reversed.length).toBeGreaterThan(0);
+  expect(inspectDependencyActivation(connection.db).state).toBe('ENABLED');
+});
+
+it('rollback admission refuses unreadable native connection', () => {
+  const closed = openDatabase(path);
+  closed.close();
+  expect(() => {
+    assertDependencyRollbackAdmitted(closed, [MIGRATION]);
+  }).toThrow();
+  expect(() => {
+    assertDependencyRollbackAdmitted(closed, []);
+  }).not.toThrow();
+  expect(() => {
+    assertDependencyRollbackAdmitted(closed, ['unrelated']);
+  }).not.toThrow();
+});
+
+it('independent SQL down guard refuses enabled authority without runner admission', () => {
+  enable();
+  const certificate = rollbackCertificate();
+  const activation = readMigrationFolders(FOLDER).find(({ name }) => name === MIGRATION);
+  if (activation === undefined) throw new Error('missing activation migration fixture');
+  const native = openDatabase(path);
+  try {
+    native.run('BEGIN');
+    expect(() => {
+      for (const statement of activation.downSql.split('--> statement-breakpoint')) {
+        if (statement.trim() !== '') native.run(statement.trim());
+      }
+    }).toThrow('dependency activation requires compatible recovery');
+  } finally {
+    native.run('ROLLBACK');
+    native.close();
+  }
+  expect(rollbackCertificate()).toEqual(certificate);
+});

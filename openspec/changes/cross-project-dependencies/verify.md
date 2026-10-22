@@ -4756,3 +4756,90 @@ repair. Astra independently approved the bounded packet after 54/54
 history/lifecycle tests (969 assertions), changed-file lint, typecheck and
 format. Full backend lint exited 1 without diagnostics on three attempts, so
 it is not verified by scoped lint. Task 4.4 and full delivery gates remain open.
+
+### Plan-wide activation rollback admission (2026-10-23)
+
+This bounded adapter prerequisite implements the Astra High P1 ruling at the
+shared legacy/exact-set rollback seam. It does not close tasks 10.1/10.2 or grant
+semantic rollback/deployment permission. Tests use synthetic authority receipts;
+they establish persisted-store refusal, not compatible participant fencing.
+
+Baseline TDD: `bun test libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts apps/wbs/be-01/src/controller/claim-limit.controller.db.test.ts --timeout=10000`
+observed **87 pass / 10 fail**. Every original rollback negative remains, now with
+complete SQLite schema, ledger and all-table-row certificates. Actual digest-pinned
+`--capture-file` refusal and an older edited forward-hash certificate each failed
+before implementation. Additional controls cover missing triggers, missing ledger,
+closed native connection, admitted dormant rollback, enabled no-op/unrelated
+selections and unnamed/missing-folder metadata before a newer reversal.
+
+A new missing-ledger test initially compared a folder stamp with epoch-millisecond
+`created_at` and selected no rows. That failed observation is not proof of ledger
+inspection. The corrected fixture selects by migration name and asserts activation
+membership before deleting the ledger row; the corrected restored case passes.
+
+Watched production faults, independently restored after each:
+
+| Fault                                                                                 | Observed assertion                                                                            |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Omit admission; move admission after the down loop; pass only the first selected name | Each produces 14 failed activation refusal/certificate cases; no-op/unrelated controls pass   |
+| Bypass ENABLED refusal                                                                | Enabled-empty rollback changes its full migration ledger before SQL refusal                   |
+| Bypass retained-edge refusal                                                          | Dormant retained-edge rollback changes its ledger before SQL refusal                          |
+| Bypass the existing strict authority inspector                                        | 12 corrupt authority/schema/trigger/ledger refusal or certificate failures                    |
+| Restore per-row forward-hash checking                                                 | Older edited migration refuses after a newer reversal; complete schema certificate fails      |
+| Restore all metadata resolution inside the per-migration loop                         | Three unnamed/missing-folder/hash cases fail complete schema certificates                     |
+| Replace SQL guard insertion with `VALUES (1)`                                         | Direct SQL down test, without runner admission, fails the compatible-recovery throw assertion |
+
+Local logs: `/tmp/dependency-preflight-{initial-red,certificate-red,cli-red,hash-red}.log`,
+`/tmp/dependency-preflight-fault-{omitted,late,first-only,enabled,edges,inspector,metadata,per-row-metadata,sql-guard}.log`.
+Adjacent `Proof:` comments identify these exact boundaries. The independent SQL
+proof adds only a comment to `down.sql`; forward migration bytes remain unchanged.
+
+The inspector validates activation migration membership/count; this change does
+not introduce a global migration-ledger schema validator. All selected forward
+hashes still pass the shared migration runner's complete-selection metadata
+preflight, and captured-set callers retain their existing full identity checks.
+
+Limits: dependencies were reused through a local `node_modules` symlink; a fresh
+frozen install, full repository test/build/secrets gate, canonical h2puni/h4claw
+gate, live deployment and participant-fencing rehearsal are not claimed by this
+bounded change. The parent release tasks remain open.
+
+Restored scoped checks (exit 0):
+
+- `bun test libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts apps/wbs/be-01/src/controller/claim-limit.controller.db.test.ts --timeout=60000`: **126 pass / 0 fail, 436 assertions**. This includes complete rollback/unwind and FK-off rebuild migration chains.
+- `bun test apps/wbs/be-01/src/migration-cli.db.test.ts -t 'capture-file .*activation|rolls back a failed down|restores a partial forward' --timeout=60000`: **4 pass / 0 fail, 32 assertions**. Both actual capture-file semantic paths and unchanged generic partial-progress/retry behavior pass.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:typecheck` and `... nx run wbs-be-01:typecheck`: both pass (the backend also executes its module prerequisite).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:lint`: uncached full adapter lint passes; `bunx eslint apps/wbs/be-01/src/migration-cli.db.test.ts` passes.
+- `./node_modules/.bin/openspec validate --all --json`: all items pass.
+
+Initial lint failed on four new test typing/void-expression violations and nullable
+error interpolation after preflight extraction. These were corrected with a named
+type import, block callbacks and the already-narrowed selected name; fresh full
+adapter lint and scoped backend lint then passed. Initial combined green attempts
+with the empty selected-ledger fixture failed and remain failed observations.
+Logs: `/tmp/dependency-preflight-{final-db-controls,final-cli-controls,final-types,be-types,final-lint,cli-lint,openspec}.log`.
+
+Normal staged `lefthook run pre-commit` passed lint, format, migration lint,
+plaintext secrets and private nesting. The Tool Wiki hook reported `inactive`,
+`certified:false` because the external activation root is not provisioned; this
+is no Tool Wiki certification claim. Website migration lint and doc caps skipped
+because no staged paths matched their configured scopes.
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all`
+passed (exit 0; `/tmp/dependency-preflight-format-all.log`). The final prose
+additions were also formatted with Prettier and covered by normal commit hooks.
+
+The complete four-file focused run passed **179/179 tests, 907 assertions**
+(`bun test libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts apps/wbs/be-01/src/migration-cli.db.test.ts apps/wbs/be-01/src/controller/claim-limit.controller.db.test.ts --timeout=60000`,
+`/tmp/dependency-preflight-final-tests.log`). That invocation loaded the CLI file
+before its final dormant capture-file case was added; the final four-case CLI
+control run above covers that added case, enabled refusal and both generic retry
+contracts. The final backend typecheck was rerun after that test extension and
+passed (`/tmp/dependency-preflight-final-be-types.log`).
+
+Astra independently approved the bounded selection-admission packet after a
+fresh **180/180 tests and 913 assertions** across the final four files,
+uncached adapter lint, backend and store typechecks and same-native-connection
+probe. The reviewer inspected all nine watched mutation receipts without
+reinjection. Admission is a one-time check, not a fenced transaction across
+all down scripts; deployment must still exclude incompatible participants.

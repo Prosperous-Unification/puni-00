@@ -381,3 +381,10 @@ reviewed transaction-level proofs. Fresh scoped audit passed 46/46 tests;
 [graph closure](evidence/task-4-graph-closure.md) and
 [hand-down correction](evidence/task-4-incident-handdown-review.md) close the
 older provisional gaps. Tasks 3.2, 4.2, 4.4 and activation remain open.
+
+### Plan-wide activation rollback admission (bounded part of 10.2)
+
+- [x] Preserve the ten real migration-runner refusal regressions; add complete schema/ledger/table-row certificates, actual capture-file refusal and dormant/no-op/unrelated controls.
+- [x] Resolve all selected row names/folders/forward hashes, then inspect complete-selection dormant/no-edge authority on the native rollback connection before any down statement; preserve per-migration retry and rebuild contracts.
+- [x] Watch omitted/late/first-only admission, enabled/edge/inspector bypasses, delayed metadata checks and independent SQL down-guard bypasses fail; restore each guard and record adjacent proof evidence.
+- [ ] Finish bounded verification and independent review; parent tasks 10.1/10.2 remain unchecked.

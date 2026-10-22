@@ -4,6 +4,7 @@ SELECT id,receipt FROM cross_project_dependency_activation_receipt LIMIT 0;
 --> statement-breakpoint
 CREATE TEMP TABLE dependency_activation_rollback_guard (allowed INTEGER CONSTRAINT "dependency activation requires compatible recovery" CHECK (allowed = 1));
 --> statement-breakpoint
+-- Proof: replacing this guard insertion with VALUES (1) made the independent SQL down enabled-authority test fail to throw (2026-10-23); runner admission was not invoked.
 -- Proof: allowing ENABLED with its receipt lost enabled-empty authority; omitting the edge predicate erased dormant retained rows; omitting each schema comparison erased its replacement table (2026-10-22).
 INSERT INTO dependency_activation_rollback_guard SELECT CASE WHEN
  (SELECT count(*) FROM cross_project_dependency_activation) = 1
