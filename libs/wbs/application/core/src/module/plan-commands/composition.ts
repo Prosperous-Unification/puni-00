@@ -345,6 +345,7 @@ async function authorizeRuntimeScope(
     access,
     credential,
     listClaims: () => scope.stores.claims.listByProject(projectId),
+    findClaim: (claimId) => scope.stores.claims.findById(projectId, claimId),
     observe: async () => {
       const project = await scope.stores.projects.findInOrganization(projectId, organizationId);
       // Proof: F09 removed this diagnostic; the broken borrowed-read test received null dereference instead.

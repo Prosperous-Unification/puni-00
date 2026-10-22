@@ -140,7 +140,9 @@ export type RuntimeReply<T> =
         | 'runtime_generation_conflict'
         | 'runtime_command_conflict'
         | 'runtime_ledger_mismatch'
-        | 'runtime_receipt_not_found';
+        | 'runtime_receipt_not_found'
+        | 'runtime_command_target_mismatch'
+        | 'runtime_command_not_supported';
     }>;
 
 export type AuthorityReceipt = RuntimeReceipt &
@@ -244,3 +246,9 @@ export type RuntimeClaimRequest = RuntimeCommandRequest &
   Readonly<{
     action: Extract<RuntimeAction, { kind: 'claim' }>;
   }>;
+
+/** Restricted claimed batch, accepted atomically with its retained receipt. */
+export type RuntimeWriteRequest = RuntimeCommandRequest &
+  Readonly<{ action: Extract<RuntimeAction, { kind: 'write' }> }>;
+export type WriteReceipt = RuntimeReceipt &
+  Readonly<{ acceptance: Extract<RuntimeReceipt['acceptance'], { kind: 'write' }> }>;

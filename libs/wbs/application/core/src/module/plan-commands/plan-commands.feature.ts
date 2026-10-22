@@ -5,6 +5,8 @@ import {
   credentialPairOf,
   type RuntimeClaimRequest,
   type RuntimeReply,
+  type RuntimeWriteRequest,
+  type WriteReceipt,
 } from '@wbs/contracts';
 import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
@@ -27,6 +29,7 @@ import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-acc
 import type { Broadcaster } from '../../ports/project-event';
 import type { Digest } from '../../ports/runtime';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
+import { normalizeCommand } from '../../service/command-normalizers';
 import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { ResourceCapacityOutcome } from '../capacity/capacity.resource';
@@ -45,10 +48,12 @@ import type {
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { crossingRefusal, type PlainReason, refuseForeignReferences } from './command-references';
 import type { PlanCommandServices } from './plan-command-graph';
-import type { PendingRuntimeClaim } from './runtime-claim';
+import type { RuntimeAdmission } from './runtime-authority';
 import { prepareRuntimeClaim } from './runtime-claim';
-import { parseRuntimeClaimRequest } from './runtime-request';
+import type { PendingRuntimeCommands, RuntimeMutationReceipt } from './runtime-command';
+import { parseRuntimeClaimRequest, parseRuntimeWriteRequest } from './runtime-request';
 import type { RuntimeContext } from './runtime-state';
+import { prepareRuntimeWrite } from './runtime-write';
 
 export type { PlanCommandServices } from './plan-command-graph';
 
@@ -216,11 +221,11 @@ export interface PreludeRefusal<R> {
 }
 
 interface RuntimeExecutionReply {
-  runtime: RuntimeReply<ClaimReceipt>;
+  runtime: RuntimeReply<RuntimeMutationReceipt>;
 }
-type RuntimeClaimPrelude = (
+type RuntimeCommandsPrelude = (
   scope: CommandAdmission,
-) => Promise<RuntimeExecutionReply | PendingRuntimeClaim>;
+) => Promise<RuntimeExecutionReply | PendingRuntimeCommands>;
 
 export interface PlanCommandRunnerOptions {
   /** Required host hash capability for runtime mutation; ordinary callers may omit it. */
@@ -324,17 +329,7 @@ export class PlanCommandRunner {
     candidate: RuntimeClaimRequest,
   ): Promise<RuntimeReply<ClaimReceipt>> {
     const request = parseRuntimeClaimRequest(candidate);
-    const digest = this.opts.digest;
-    // Proof (diagnostic): P4-12 omission changed the missing-capability negative to an incidental digest.sha256 TypeError.
-    if (digest === undefined) throw new Error('runtime command digest is missing');
-    // Proof: P4-10 omission let the production read-only request accept.
-    if (!context.actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
-    // Proof (diagnostic): P4-11 omission changed the legacy typed-refusal test to a scope.organizationId TypeError.
-    if (context.access.kind === 'legacy') return { ok: false, reason: 'runtime_scope_unavailable' };
-    const { projectId, personId } = context;
-    const actorId = context.actor.id;
-    const organizationId = context.access.scope.organizationId;
-    const credential = credentialPairOf(context.actor.authentication);
+    const personId = context.personId;
     const command: PlanCommand = {
       kind: 'claimWorkItem',
       workItemId: request.action.workItemId,
@@ -345,10 +340,61 @@ export class PlanCommandRunner {
         ? {}
         : { parentClaim: request.action.parentClaimId }),
     };
+
+    const reply = await this.runRuntimeCommands(context, [command], (admitted, digest) =>
+      prepareRuntimeClaim(admitted, request, digest),
+    );
+    if (!reply.ok) return reply;
+    if (reply.value.acceptance.kind !== 'claim')
+      throw new Error('runtime claim receipt kind mismatch');
+    return { ok: true, value: { ...reply.value, acceptance: reply.value.acceptance } };
+  }
+
+  /** Applies one exact claimed batch atomically with its retained acceptance. */
+  async writeRuntime(
+    context: RuntimeContext,
+    candidate: RuntimeWriteRequest,
+  ): Promise<RuntimeReply<WriteReceipt>> {
+    const request = parseRuntimeWriteRequest(candidate);
+    // Proof (semantic boundary): P5-35/48 bypassed normalization; invalid refs reached typed ordinary unknown_system instead of throwing before admission.
+    const commands = request.action.commands.map((command) =>
+      normalizeCommand(command.kind, { ...command }),
+    );
+    const reply = await this.runRuntimeCommands(context, commands, (admitted, digest) =>
+      prepareRuntimeWrite(admitted, request, digest),
+    );
+    if (!reply.ok) return reply;
+    if (reply.value.acceptance.kind !== 'write')
+      throw new Error('runtime write receipt kind mismatch');
+    return { ok: true, value: { ...reply.value, acceptance: reply.value.acceptance } };
+  }
+
+  /** Shared runtime admission snapshots identity before the existing command transaction queues. */
+  private async runRuntimeCommands(
+    context: RuntimeContext,
+    commands: readonly PlanCommand[],
+    prepare: (
+      admitted: RuntimeAdmission,
+      digest: Digest,
+    ) => Promise<RuntimeReply<RuntimeMutationReceipt> | PendingRuntimeCommands>,
+  ): Promise<RuntimeReply<RuntimeMutationReceipt>> {
+    const digest = this.opts.digest;
+    // Proof (diagnostic): P4-12/P5-40 omission changed the missing-capability negative to an incidental digest.sha256 TypeError.
+    if (digest === undefined) throw new Error('runtime command digest is missing');
+    // Proof: P4-10/P5-38 omission let the production read-only request accept.
+    if (!context.actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
+    // Proof (diagnostic): P4-11/P5-39 omission changed the legacy typed-refusal test to a scope.organizationId TypeError.
+    if (context.access.kind === 'legacy') return { ok: false, reason: 'runtime_scope_unavailable' };
+    const { projectId, personId } = context;
+    // Proof: P5-37 read the caller's actor again inside admission; the queued request lost its original authorized identity.
+    const actorId = context.actor.id;
+    const organizationId = context.access.scope.organizationId;
+    const credential = credentialPairOf(context.actor.authentication);
+
     const outcome = await this.execute(
       projectId,
       actorId,
-      [command],
+      commands,
       context.access,
       credential,
       undefined,
@@ -361,12 +407,12 @@ export class PlanCommandRunner {
           credential,
         });
         if ('ok' in admitted) return { runtime: admitted };
-        const prepared = await prepareRuntimeClaim(admitted, request, digest);
+        const prepared = await prepare(admitted, digest);
         return 'ok' in prepared ? { runtime: prepared } : prepared;
       },
     );
     if ('runtime' in outcome) return outcome.runtime;
-    if (outcome.ok) throw new Error('runtime claim completed without acceptance');
+    if (outcome.ok) throw new Error('runtime command completed without acceptance');
     if ('refusal' in outcome) return { ok: false, reason: outcome.refusal };
     return outcome;
   }
@@ -461,7 +507,7 @@ export class PlanCommandRunner {
     access: ResourceAccess,
     credential: CredentialPair | null,
     prelude: undefined,
-    runtime: RuntimeClaimPrelude,
+    runtime: RuntimeCommandsPrelude,
   ): Promise<ScopedBatchOutcome | RuntimeExecutionReply>;
   private async execute<R>(
     projectId: string | null,
@@ -470,7 +516,7 @@ export class PlanCommandRunner {
     access: ResourceAccess,
     credential: CredentialPair | null,
     prelude?: BatchPrelude<R>,
-    runtime?: RuntimeClaimPrelude,
+    runtime?: RuntimeCommandsPrelude,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R> | RuntimeExecutionReply> {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
@@ -478,7 +524,7 @@ export class PlanCommandRunner {
     // the same AnnouncementCollector for two batches at its identity assertion.
     const collector = new AnnouncementCollector(this.opts.announcements);
     interface RuntimeApplied {
-      runtimeApplied: ClaimReceipt;
+      runtimeApplied: RuntimeMutationReceipt;
       collected: Collected<AppliedCommand[]>;
     }
     type Applied =
@@ -494,9 +540,9 @@ export class PlanCommandRunner {
       .run<Applied>(
         async (scope): Promise<CommandDecision<Applied>> => {
           const prepared = runtime === undefined ? null : await runtime(scope);
-          // Proof: P4-24 ran ordinary admission here before replay; the production replay hit its forbidden capture and failed.
+          // Proof: P4-24/P5-47 ran ordinary admission before this replay return and hit forbidden capture; P5-36 omission only hit the later branch TypeError.
           if (prepared !== null && 'runtime' in prepared) return { commit: false, value: prepared };
-          // Proof: P4-09 substituted incoming access; `uses the freshly resolved role` refused person_not_bound.
+          // Proof: P4-09/P5-44 substituted incoming access; fresh-admin unbound-person claim/release refused person_not_bound.
           const commandAccess = prepared === null ? access : prepared.admitted.access;
           const commandCredential = prepared === null ? credential : prepared.admitted.credential;
           if (commandAccess.kind === 'scoped') {
@@ -601,10 +647,7 @@ export class PlanCommandRunner {
             // which is one `if`, because the collector is this batch's alone.
             if ('ok' in applied) return { commit: false, value: applied };
             if (prepared !== null) {
-              const claim = applied.result.at(0);
-              if (claim?.kind !== 'claimWorkItem')
-                throw new Error('runtime claim application reply is missing');
-              const accepted = await prepared.finishClaim(claim.alreadyHeld);
+              const accepted = await prepared.finishCommands(applied.result);
               if ('ok' in accepted) return { commit: false, value: { runtime: accepted } };
               return { commit: true, value: { runtimeApplied: accepted, collected: applied } };
             }

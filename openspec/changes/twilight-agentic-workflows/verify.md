@@ -1035,3 +1035,71 @@ Only Task4 is accepted. Its explicitly cross-referenced guarded-release/new-atte
 scenario remains in Task5; HTTP composition and final receiver gates remain open.
 Unchanged storage guarantees rely on accepted Task2 evidence, not an independent
 rerun of its complete fault matrix. No coordinator quiescence is established.
+
+### Receiver Task5 — exact claimed write candidate
+
+`writeRuntime` applies the restricted batch through the existing transaction,
+ordinary admission, apply/journal and committed fanout path. Shared claim/write
+preflight keeps current authorization, ledger pin and canonical accepted replay
+before ordinary effects. Fresh writes require the exact live claim, immutable
+runtime binding, current owner/generation and current complete basis. Release is
+one exact person/step and last. Ordinary normalizers compile the detached request;
+canonical identity retains the original payload, including omitted ref names.
+Unknown usage omits measurement and preserves the existing value; explicit zero
+is a valid measurement. No executor quiescence is inferred.
+
+Fresh covering commands:
+
+```sh
+env -u NO_COLOR bun test ./apps/wbs/be-01/src/controller/runtime-write.db.test.ts ./apps/wbs/be-01/src/controller/runtime-claim.db.test.ts ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/external-ref.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts ./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts --timeout=30000
+env -u NO_COLOR NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-be-01 --skip-nx-cache
+```
+
+Observed: 256 tests/1125 assertions across12 files passed in54.59s; all12 scoped
+lint/typecheck tasks passed uncached in2m14s. After the final exactly restored
+faults and comment-only evidence corrections, the affected write/canonical suites
+passed71 tests/288 assertions in9.36s. Source formatting and diff checks passed.
+The covering/static run preceded only those restored trials and comments; it is
+not described as a later run. Initial corrected feature RED was30 failures at
+missing writeRuntime. Fixture, type and lint iterations remain in the report;
+subsequent coverage additions are not claimed as initially failing TDD cases.
+
+R5:48 numbered fault trials produced watched failures, with exact source bytes
+restored after each and aggregate GREEN afterward, not48 immediate RED/GREEN
+pairs or48 independent guards. All orchestration used Bun. Trials cover live and
+immutable identities, target/step/release breadth/order, pin, owner, generation,
+basis, payload equality, final basis, receipt INSERT, detachment, current scopes
+and role propagation, strict parsing and canonical ref order. Their actual
+outcomes matter: release-person and the initial wrong-step cases reached ordinary
+not_claimed_by; normalization bypass reached typed unknown_system; missing-digest,
+legacy and wrong-action omissions exposed incidental TypeErrors. Removing replay's
+early return alone also only produced TypeError. The additional valid-before-return
+admission fault reached the actual forbidden fanout capture. These diagnostic,
+classification and ordering trials are not unsafe-acceptance claims.
+
+The stronger live-guard fault used A's retained valid binding, a fresh grant/basis
+and actual replacement B: the stale release deleted B. The independent wrong-step
+fault used another genuinely held step and accepted its release. With guards
+restored, A guarded release then B's new attempt receives a new claim ID; stale A
+cannot touch B, and both bindings remain immutable. A competing holder between
+release and retry receives ordinary eligibility/holder semantics without automatic
+reclamation. The original role-propagation trial survived because measurement did
+not consume that role; it is excluded. The strengthened exact-release case exposed
+an erroneous person_not_bound refusal for a freshly authorized admin. One ambiguous
+mutation anchor was rejected before editing; corrected trials then ran.
+
+A real late receipt INSERT trigger verifies staged progress, measure, refs,
+release, journal and binding before aborting; complete persisted snapshots and
+fanout observations roll back. Postcommit announcement loss followed by actual
+source close/reopen allows lookup and exact replay without new capture or mutation.
+The inherited Task3 reference-order Minor now compares equal command counts and
+has an independent sorting-fault negative; independent review remains required.
+
+Full commands, failures, precise classifications and restoration records remain
+in `.superpowers/sdd/receiver-tasks/task-5-report.md` and `task-5-evidence/`, with
+`manifest-authoritative.json` superseding early broad labels. Root OpenSpec validation passed one change, zero errors and10 existing warnings.
+Task5 independent review is pending at this candidate. Mounted routes,
+shared client, boot readiness, full receiver build and exact-SHA host gate remain
+Task6/final integration. No live deployment, durable coordinator integration or
+physical worker quiescence is claimed. No new migration or secret was added;
+separate migration/secrets scans were not run by the worker.

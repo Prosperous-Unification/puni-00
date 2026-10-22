@@ -97,6 +97,8 @@ Runtime claim/write composition extends the existing command transaction with na
 
 The existing ordinary-only `createPlanCommandRunner(source)` composition remains valid. An optional second `Digest` dependency enables the fully implemented runtime operation; calling that operation without the required capability throws a named diagnostic, with no default hash or unsupported placeholder. Runtime HTTP composition must inject the real digest before mounting routes. Derive the closed command refusal reason/index/kind/detail shape from the existing shared refusal registry so ordinary holder/resource details survive without importing HTTP controllers into the runner or duplicating the core refusal union.
 
+Claim and write share one conditional preflight and receipt persistence capability. Keep operation-specific immutable binding/live-claim/target checks separate, with a precise claim/write receipt union at the existing runner's post-apply hook. Borrow exact claim lookup from the admitted ClaimStore rather than opening another transaction or exposing raw stores. Strict malformed/unsupported request shapes remain boundary errors; well-shaped commands with the wrong target or release ordering return the declared runtime refusals.
+
 ## Transactional storage and lifecycle
 
 Use `core/ports/runtime-command-store.ts` with SQL-free operations:

@@ -4,6 +4,7 @@ import type {
   RuntimeOperation,
   RuntimePlanCommand,
   RuntimeScope,
+  RuntimeWriteRequest,
 } from '@wbs/contracts';
 import { type } from 'arktype';
 
@@ -267,5 +268,32 @@ export function parseRuntimeClaimRequest(candidate: unknown): RuntimeClaimReques
     authority: { ...request.authority },
     // Proof: P4-14 omitted the execution copy; the queued-identity production test threw on the changed session.
     action: { ...request.action, execution: { ...request.action.execution } },
+  };
+}
+
+/** Validates and deeply detaches a claimed batch synchronously before queued admission. */
+export function parseRuntimeWriteRequest(candidate: unknown): RuntimeWriteRequest {
+  // Proof (ordering): P5-43 bypassed this parser; malformed inputs entered UoW turns before the canonical backstop.
+  const request = operationShape.assert(candidate);
+  // Proof (diagnostic): P5-46 omitted this guard; wrong-action rejection became an incidental missing-claim TypeError.
+  if ('kind' in request || request.action.kind !== 'write')
+    throw new Error('runtime write action is required');
+  // Proof: P5-29–34 omitted authority/claim/execution/ref/step/command copies separately; queued caller mutation broke original acceptance/replay.
+  return {
+    ...request,
+    authority: { ...request.authority },
+    action: {
+      ...request.action,
+      claim: { ...request.action.claim, execution: { ...request.action.claim.execution } },
+      commands: request.action.commands.map((command) => {
+        if (command.kind === 'patchWorkItem')
+          return {
+            ...command,
+            patch: { externalRefs: command.patch.externalRefs.map((ref) => ({ ...ref })) },
+          };
+        if (command.kind === 'releaseWorkItem') return { ...command, steps: [...command.steps] };
+        return { ...command };
+      }),
+    },
   };
 }

@@ -47,6 +47,7 @@ export interface RuntimeAdmission {
   readonly credential: CredentialPair | null;
   observe(): Promise<RuntimeObservation>;
   listClaims(): Promise<Claim[]>;
+  findClaim(claimId: string): Promise<Claim | null>;
 }
 
 export type RuntimeDecision<T> =
@@ -67,8 +68,10 @@ function matchesScope(left: RuntimeScope, right: RuntimeScope): boolean {
     left.personId === right.personId
   );
 }
-function matchesClaim(left: RuntimeClaim, right: RuntimeClaim): boolean {
+/** Exact immutable target/execution equality for both binding admission and trusted receipt correspondence. */
+export function matchesRuntimeClaim(left: RuntimeClaim, right: RuntimeClaim): boolean {
   return (
+    // Proof: P5-08–15 omitted each comparison; the isolated corrupt borrowed-binding production request accepted.
     left.claimId === right.claimId &&
     left.workItemId === right.workItemId &&
     left.stepId === right.stepId &&
@@ -280,7 +283,7 @@ function matchesAcceptance(request: RuntimeOperation, receipt: RuntimeReceipt): 
     return false;
   const action = request.action;
   if (action.kind === 'claim')
-    return matchesClaim(
+    return matchesRuntimeClaim(
       {
         claimId: accepted.claim.claimId,
         workItemId: action.workItemId,
@@ -292,7 +295,7 @@ function matchesAcceptance(request: RuntimeOperation, receipt: RuntimeReceipt): 
     );
   return (
     accepted.kind === 'write' &&
-    matchesClaim(action.claim, accepted.claim) &&
+    matchesRuntimeClaim(action.claim, accepted.claim) &&
     accepted.applied.length === action.commands.length &&
     accepted.applied.every(
       (command, index) => command.index === index && command.kind === action.commands[index]?.kind,

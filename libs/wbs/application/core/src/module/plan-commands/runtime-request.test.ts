@@ -102,6 +102,7 @@ describe('canonical runtime request', () => {
               workItemId: 'leaf',
               patch: { externalRefs: [...refs].reverse() },
             },
+            ...write.action.commands,
           ],
         },
       }),

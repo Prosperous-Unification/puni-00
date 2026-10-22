@@ -148,7 +148,7 @@ NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t type
 
 ### Task 5: Exact claimed mutation batches — S0.06
 
-**Files:** Extend the same conditional runner; create `apps/wbs/be-01/src/controller/runtime-write.db.test.ts`; extend SQLite `runtime-command.db.test.ts`, shared restricted command values and canonical-envelope coverage. Avoid unrelated command refactors.
+**Files:** Extend the same conditional runner and borrowed runtime composition/authority; extract shared claim/write preflight and receipt persistence into `core/module/plan-commands/runtime-command.ts`, retain claim-specific checks in `runtime-claim.ts`, and add exact write checks in `runtime-write.ts`. Create `apps/wbs/be-01/src/controller/runtime-write.db.test.ts`; extend SQLite `runtime-command.db.test.ts`, shared restricted command values and canonical-envelope coverage. Avoid unrelated command refactors.
 
 **Interfaces:** Produce `writeRuntime(context, request):Promise<RuntimeReply<WriteReceipt>>`, request `{schemaVersion:1,commandId,expectedLedgerId,authority,expectedBasis,action:{kind:'write',claim,commands}}`. `commands` is the strict subset described in design: same-step setProgress, token_actual setMeasure, externalRefs-only patch, same-person/step release last. Success acceptance is `{kind:'write',authority,claim,basisAfter,applied:readonly {index,kind}[]}` in the immutable receipt. Consume Tasks1–4; no new engine/credential/pin persistence port.
 
