@@ -3030,9 +3030,11 @@ Nine independent watched fault receipts are retained under
 They distinguish early admission failure from later graph/working-plan/publication
 defense: no unsafe committed success is inferred when a redundant guard still
 refuses. Moving the same current-authority resolution before the held writer
-changes both qualified-lookup races from HTTP403 to the forbidden fan-out
-tripwire's HTTP500. The real writer enqueue signal prevents mere request
-authentication from being mistaken for queue admission.
+changes queued membership's HTTP403 error from `not_a_member` to `forbidden`,
+proving the current-authority refusal contract. Only native revocation reaches
+the forbidden fan-out tripwire's HTTP500 instead of HTTP403. The real writer
+enqueue signal prevents mere request authentication from being mistaken for
+queue admission.
 
 Verification from the isolated `a31f8b5c8`-based proof checkout:
 
