@@ -341,6 +341,10 @@ test('retryable API transport failure uses exactly one SDK dispatch and leaks no
     usage: { kind: 'unknown', reason: 'interrupted-before-usage' },
   });
   expect(model.doStreamCalls).toHaveLength(1);
+  const errors = options.parts.filter((part) => part.type === 'error');
+  expect(errors).toHaveLength(1);
+  expect(errors[0]?.errorText).toBeString();
+  expect(errors[0]?.errorText).not.toBe('');
   expect(JSON.stringify(options.parts)).not.toContain('secret');
 });
 

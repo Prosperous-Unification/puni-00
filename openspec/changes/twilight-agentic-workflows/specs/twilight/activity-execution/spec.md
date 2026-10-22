@@ -88,6 +88,12 @@ The API-model adapter SHALL use selected tools, retained instructions, maxOutput
 - **WHEN** the installed mock model throws a retryable SDK API-call error after turn dispatch begins
 - **THEN** the real SDK driver reports transport uncertainty and invokes the model only once
 
+#### Scenario: A modeled SDK error part reaches the live UI stream
+
+- **WHEN** the installed SDK emits an API-call error part during the observed stream
+- **THEN** the driver returns transport uncertainty and delivers the SDK-converted sanitized error chunk to the originating listener without private error text
+- **AND** a rejected reader preserves only the parts actually emitted before rejection; it does not fabricate a replacement error chunk
+
 #### Scenario: Transport fails after partial streamed output
 
 - **WHEN** the installed model stream emits text and then rejects with an SDK API-call error

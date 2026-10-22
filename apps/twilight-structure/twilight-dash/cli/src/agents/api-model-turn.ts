@@ -171,7 +171,8 @@ export async function runApiModelTurn(options: {
               uncertainty = 'approval_required';
               break;
             case 'error':
-              // Proof: bypassing either SDK classifier changed transport/empty-stream uncertainty into a thrown dispatch error.
+              // Proof (API): removal lost the sanitized SDK error UI chunk while transport uncertainty remained unchanged.
+              // Proof (NoOutput): original removal changed empty-stream uncertainty into a thrown dispatch error.
               if (APICallError.isInstance(part.error)) uncertainty = 'transport_lost';
               else if (NoOutputGeneratedError.isInstance(part.error))
                 uncertainty = 'provider_incomplete';
