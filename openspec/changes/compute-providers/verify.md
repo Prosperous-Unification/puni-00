@@ -185,3 +185,31 @@ provider members after the limits ones.
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `organization_limits_changed` dropped from the forward action CHECK                | `admits the three new actions and the kind, …` and `rolls back over outgoing-release rows, keeping them and the organization limits vocabulary` (`CHECK constraint failed: action`) |
 | `organization_limits_changed` dropped from the restored action CHECK in `down.sql` | `restores the table, index and triggers the organization limits rebuild left, byte for byte` (schema text differs) and the blue/green rollback test                                 |
+
+Commands run on the merged tree (2026-10-22, `env -u CLAUDECODE`):
+
+- 13-project `typecheck` + `typecheck:module`, `--skip-nx-cache`: succeeded.
+- `wbs-store-sqlite:test`: 1821 pass, 0 fail (after adding the compute pair to
+  `organization-limits-migration.db.test.ts`).
+- `wbs-be-01:test`: 3334 pass, 3 skip, 0 fail.
+- Burokrat `check-indexes working . HEAD`: exit 0. Migration lint on `130000`, `130100`,
+  `140000`, `140100` (`migration.sql` and `down.sql`): exit 0; `migration-lint.test.ts` 23 pass.
+- `bunx openspec validate --all --json`: 269 of 269.
+- NOT run to completion: the full `tool-devsync:test`; the harness stopped it when the laptop
+  ran out of memory. CI on PR #658 is the first full run; owed locally or on a gate before the
+  plan merges to main.
+
+Review (Fable, 2026-10-22, PR #658): the merge is a clean union (every conflict-free file equals
+the automatic three-way result; the four conflicted source files carry exactly both sides'
+hunks), the `140100` restore body is byte-identical to `130100`'s modulo the TEMP guard names,
+and the byte-for-byte test fails on a one-token trigger drift and on a dropped index. Recorded:
+
+- The `140100/migration.sql` hash changed in this merge, and rollback refuses a migration whose
+  on-disk hash differs from the applied one. No database ever applied the pre-merge `140100`:
+  slice 1 lived only on its feature branch and this plan branch, dev deploys `main` only, and
+  dev's ledger tail on 2026-10-22 was `20261022130100_widen_organization_audit_organization_limits`.
+- Blue/green read exposure, pre-existing for every audit widening: the outgoing be-01's audit
+  reader (`organization-audit-log.ts`) throws on a row whose action or kind it does not know, so
+  a `compute_provider_*` row written by the incoming release makes the outgoing release's audit
+  list read fail until the swap completes. Writes are unaffected in both directions. Belongs with
+  issue #632.
