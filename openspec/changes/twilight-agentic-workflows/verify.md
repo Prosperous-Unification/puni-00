@@ -924,3 +924,9 @@ fault/restoration logs are in the binding ledger's task-2-report.md and
 task-2-evidence/fix-round-1. Root inspected the full report, source diff, actual
 failed/restored logs and final check output. Scoped re-review is pending;
 Task 2 and parent acceptance remain open.
+
+Scoped re-review of ebc2eba28..5b007a33d closed both I1 and I2 with no new
+breakage. Root read the complete report and accepts Task 2's six slice boxes.
+This accepts static byte snapshots and real loading only; Task 3 CLI, parent
+1.1–1.2, broader I1 governance and runtime retention remain open. Full packet
+review and integration checks remain required after Task 3.
