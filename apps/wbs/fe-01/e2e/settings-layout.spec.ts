@@ -178,6 +178,7 @@ for (const viewport of [
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]) {
       await dialog.getByRole('tab', { name: section }).click();
       await expect(dialog.getByRole('tab', { name: section })).toHaveAttribute(

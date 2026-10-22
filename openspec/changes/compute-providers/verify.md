@@ -565,3 +565,147 @@ Commands after the review fixes (2026-10-23, `env -u CLAUDECODE`):
 - `bunx nx run-many -t lint typecheck -p twilight-dash --skip-nx-cache --parallel=1`: succeeded.
 - `bunx nx run twilight-dash:test --skip-nx-cache`: exit 0, 2178 pass, 0 fail.
 - `bunx openspec validate --all --json`: 269 of 269 passed.
+
+### Slice 5: fe-01 panel, resources section, refusal copy (2026-10-23)
+
+Branch `feat/compute-providers-5` from `feat/compute-providers-3` at `6b0d580fa`. Implemented
+tasks 5.1 and 5.2; 5.3 (the directory row chip) is not done. No be-01 change.
+
+What landed:
+
+- `components/organization/compute-providers-panel.tsx`: `ComputeProvidersSlot` takes the page's
+  one `useOrganizationRole` read, like `LimitsSlot` and `MachineCredentialsSlot`. An admin or a
+  super-admin gets the panel. A member or a viewer gets nothing and sends no request. A failed
+  role read renders with a retry. The panel lists each instance with its kind, locator and
+  resource count. It registers (the kind select is the contract's four kinds), renames or
+  relocates (only the changed fields are sent; an unchanged edit sends nothing), and removes.
+  A removal is confirmed once. An `in_use` refusal is then shown as a second confirmation that
+  names every resource from the body, and only that one sends `?cascade=true`. The panel
+  renders loading, empty and a failure with retry. A `forbidden` read renders no panel.
+  Refusals are worded in `compute-provider-refusal.ts`.
+- `components/wbs/resources-panel.tsx`: a seventh project settings section, **Resources**. It
+  reads `GET /api/projects/:id/resources` each time its tab is shown, never while it is hidden.
+  An admin also gets `GET /api/organization/compute-providers`. Each resource shows its
+  declared number or `Unstated`. An admin gets a select naming each instance and its kind, which
+  sends `patchResource.patch.providerId` through the directory commands. A member, whose
+  instances read is `forbidden`, sees "Fulfilled by a compute provider" with no picker and no
+  adopt. The report is read by `readReport` on the section's own clock, which ticks every 30 s.
+  Adopt is offered to an admin on a fresh measurement that differs from the declared number. It
+  sends one `setResourceCapacity` and rereads the plan. Its Undo sends the previous units back,
+  or `null` when the capacity was unstated.
+- `lib/compute-provider-words.ts`: kind names, locator hints, `inUseSentence` (names from the
+  body), and `readReport`. `readReport` gives `no_report`, `measured`, `unreachable` or `stale`,
+  with the stale boundary named ("Dash reports every 5 min; a report is stale after 15 min
+  (3 × cadence)"). The state comes from the domain's `capacityReportStateOf` through a new
+  fe-01 alias `@wbs/domain/compute-provider`, added to the four fe-01 tsconfigs, `vite.config.ts`,
+  `vitest.config.ts` and `vite-config.test.ts`.
+- `plan-refusal.ts`: sentences for `unknown_provider` and `provider_not_in_organization`. Also
+  `batchRefusalSentence`, which words a refused batch body for a surface that reads the reply
+  rather than catching `WbsRequestError`; the limit sentences keep the body's numbers and name
+  the resource. The `in_use` naming resources is the provider removal's (an organization route),
+  so its words are `inUseSentence`, not a `PLAN_REFUSALS` entry.
+- `testing/live-application.tsx`: the plan tests' `render` now also mounts a legacy
+  `OrganizationResourcesProvider`, as `app.tsx` always does, because the settings modal holds a
+  section that reads through it. Tab lists in `project-settings-modal.test.tsx`,
+  `plan-toolbar.test.tsx`, `e2e/project-settings.spec.ts` and `e2e/settings-layout.spec.ts`
+  gained `Resources`.
+
+Assumed in this slice (each overrulable, named for Dany):
+
+- **Undo is a compensating write.** P7 calls the adopt "journalled, undoable", but
+  `setResourceCapacity` is not journalled ("Not journalled, like setCapacity"). The plan's Undo
+  cannot take it back, so the section's own Undo writes the previous statement back, or clears
+  it to unstated. The plan's Undo stack is untouched.
+- **Admin is read off the instances list.** Only an admin may list instances (P2). The section
+  shows the picker and Adopt where that read succeeds and treats `forbidden` as a member or a
+  viewer. Adopt is therefore admin-only in the UI, as P7 says, while be-01 still admits
+  `setResourceCapacity` from any project writer.
+- **A member sees the reference unnamed.** The resources read carries `providerId` only, so a
+  member cannot see which host fulfils a resource. Naming it needs a be-01 change: carry
+  `provider: { kind, name }` on the read. Not made here.
+- **Adopt only on a fresh measurement.** A stale or unreachable report offers no Adopt, and
+  neither does a measurement equal to the declared number.
+- **The directory row chip is not built (task 5.3).** The directory page lists no resources and
+  no read lists the directory's resources outside a project; both are `wbs-resources` 1.5.
+- **Slice 5 went ahead before `wbs-resources` 1.5**, which task 0.1 names as a prerequisite. The
+  Resources section is the part of 1.5 this change needs (read-only declared capacity, provider
+  reference, report, adopt). 1.5 still owes declared-capacity editing and the row's Resources
+  cell.
+
+R5 proofs, each fault injected by script, the named test watched failing, the file restored
+(2026-10-23, `env -u CLAUDECODE`):
+
+| Check                                                | Injected fault                                                  | Observed failing test                                                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| a missing report is never a number (task 5.2 line)   | `readReport(undefined)` answered as a `measured 0` report       | `renders no report yet, and no number, for a resource with no report`; `never reads a missing report as a number`    |
+| stale at exactly 3 × cadence                         | the domain's `>` made `>=`                                      | `is measured at exactly three cadences and stale one millisecond past, naming the boundary` (`stale` for `measured`) |
+| impossible report outcome reaches the Error Boundary | the outcome switch's default answered `no_report`               | `routes an impossible report outcome to the Error Boundary`; `throws on an outcome the contract does not have`       |
+| impossible kind reaches the Error Boundary           | `providerKindName` default answered `''`                        | `routes an impossible kind to the Error Boundary`                                                                    |
+| a register refusal never renders as success          | the refusal arm closed the dialog, said `Registered` and reread | `renders name_taken / forbidden / invalid_body on register and keeps the draft, never as success` (all three)        |
+| `name_taken` words                                   | answered with the `unknown_provider` sentence                   | `renders name_taken on register and keeps the draft, never as success`                                               |
+| `in_use` becomes the cascade confirmation            | `in_use` sent to the plain sentence                             | `names the referencing resources and removes them only with cascade`                                                 |
+| removal admission                                    | `isPending` check removed                                       | `serializes a double-clicked removal` (two DELETEs)                                                                  |
+| `forbidden` read renders no panel                    | treated as a failure                                            | `renders no panel when the read answers forbidden`                                                                   |
+| previous organization's list fenced                  | generation fence removed                                        | `never shows the previous organization's providers after a switch`                                                   |
+| slot by role                                         | panel rendered for every role                                   | `sends no providers request and renders no panel for a member` and `… for a viewer`                                  |
+| failed role read rendered                            | slot rendered nothing on `failure`                              | `renders a failed role read with retry, and recovers`                                                                |
+| page composes the slot                               | slot omitted                                                    | `composes the compute providers panel for an admin`                                                                  |
+| a member's `forbidden` instances read is not shown   | `forbidden` read as unavailable                                 | `shows a member each reference unnamed, with no picker and no adopt`                                                 |
+| a refused adopt never renders as adopted             | refusal answered `true` (landed)                                | `says a refused adopt in place and offers no undo`                                                                   |
+| adopt lands once                                     | the write admission removed                                     | `adopts once however often it is clicked, and undo restores the declared number` (two commands)                      |
+| provider reference refusal words                     | `unknown_provider` entry struck                                 | `words both provider reference refusals: unknown_provider` (fallback carried the code)                               |
+
+Eye review (Chromium 1280 and 375 wide against vite and a real be-01: `BootedBrowserProcess`
+over a migrated, activated SQLite. Seeded through the routes: four instances, five resources,
+three capacities. Reports were inserted by SQL with ages relative to now). Screenshots are in the
+coordinator's scratch directory `providers-shots/`. Page errors: none. Horizontal overflow: 0 px
+in every shot. Seen and changed:
+
+- `01-panel-populated-1280`, `06-panel-populated-375`: the first rows were tall (locator, count
+  and buttons stacked). They now put locator · count on one line, with the actions on the right
+  from `sm`.
+- `02-panel-edit-1280`, `03-panel-remove-confirm-1280`, `04-panel-in-use-1280`,
+  `07-panel-in-use-375`: the edit form and both confirmations sit inside the row. The cascade
+  button names the count ("Remove and clear 2 references").
+- `05-register-name-taken-1280`: the refusal is under the fields and the draft is kept.
+- `08-panel-empty-1280`: fine. `09-panel-failure-1280`: the alert stood below its Retry, so it
+  now comes first.
+- `10-resources-admin-1280`, `13-resources-admin-375`: the first cut showed a kind chip and the
+  name beside a select that said the same thing, so an admin now sees one labelled select.
+  Stale used the destructive colour as unreachable did. It now reads in the foreground colour in
+  the dashed box, and only unreachable is red. The intro now says a reference is the directory's,
+  shared by every project.
+- `11-resources-adopted-1280`, `12-resources-undone-1280`: adopt and undo went through the real
+  be-01. Declared moved 12 → 15 GB and back to 12; the undone shot is byte-identical to the
+  first.
+- `14-resources-member-1280`: the first cut drew an unnamed "Compute provider" chip, which read
+  as a label. It now says "Fulfilled by a compute provider". A member's `/organization` showed
+  no providers panel (0 regions).
+- On a phone the settings tabs are three per row (F-053), so the seventh tab, `Resources`,
+  stands alone on a third row. Left as is.
+
+Commands (2026-10-23, `/home/df/wd/puni/wt-compute-providers-5`, `env -u CLAUDECODE`):
+
+- `bunx nx run wbs-fe-01:typecheck --skip-nx-cache`: succeeded.
+- `NODE_OPTIONS=--max-old-space-size=8192 bunx nx run wbs-fe-01:lint --skip-nx-cache`: succeeded.
+- `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`: 81 files, 992 tests passed. This includes
+  the two new DOM-free suites registered in `vitest.node-suites.json`; `src/test-tiers.test.ts`
+  passed 6 of 6.
+- The organization DOM suites (`vitest run src/components/organization`, one worker): 17 files,
+  351 tests passed.
+- `resources-panel.test.tsx` 17 pass. Before the last eye-review edits, which changed only the
+  resources row markup, `project-settings-modal.test.tsx`, `settings-busy.test.tsx`,
+  `plan-toolbar.test.tsx` and `plan-cards.test.tsx` passed: 233 tests.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0. No new file lies under a module index. The only review debt is
+  `libs/wbs/adapters/store-memory/src/README.md`, which was already there.
+- `bunx openspec validate --all --json`: 269 of 269 passed.
+
+Not run or not finished:
+
+- The full `wbs-fe-01:test` target (every DOM suite in UTC, then the Auckland zoned run). Claude
+  Code stopped it for low memory on the laptop after its `test:unit` dependency had passed. The
+  DOM suites this slice touches are listed above; CI runs the rest.
+- `tool-devsync:test` was not run.
+- The e2e specs whose tab lists gained `Resources` (`project-settings.spec.ts`,
+  `settings-layout.spec.ts`) were not run locally; CI's `pixels` job runs them.

@@ -80,6 +80,44 @@ describe('organization page', () => {
     expect(await within(panel).findByText('7 of 8')).toBeDefined();
   });
 
+  it('composes the compute providers panel for an admin', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/compute-providers': [
+        () =>
+          answer(200, {
+            computeProviders: [
+              {
+                id: 'cp-1',
+                kind: 'ssh_host',
+                name: 'h4claw',
+                locator: 'puni1@h4claw',
+                createdAt: NOW,
+                createdBy: 'u1',
+                resources: 2,
+              },
+            ],
+          }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <OrganizationPage nav={<nav />} account={<span />} userId="u1" />
+      </OrganizationResourcesProvider>,
+    );
+    const panel = await screen.findByRole('region', { name: 'Compute providers' });
+    expect(await within(panel).findByText('puni1@h4claw')).toBeDefined();
+  });
+
   it('composes company sign-in setup on the organization page', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
