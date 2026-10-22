@@ -322,7 +322,14 @@ test('borrowed service claim sees staged remote completion and collects its norm
   write(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('executor','org-a','Executor')",
   );
-  const source = openSqliteSource({ dbPath: path }).bindLivePlans({
+  const source = openSqliteSource({
+    dbPath: path,
+    organizationDefaultLimits: {
+      maxAgentPersons: 50,
+      maxConcurrentClaims: 200,
+      maxCapacityUnitsPerResource: 10_000,
+    },
+  }).bindLivePlans({
     schedulerOf: () => {
       throw new Error('claim must not invoke scheduler');
     },

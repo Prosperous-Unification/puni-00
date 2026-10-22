@@ -1,3 +1,4 @@
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -14,6 +15,7 @@ beforeEach(async () => {
   harness.member('execution-org', 'ada', 'admin');
   harness.bind('ada', 'execution-org');
   harness.activate();
+  seedDependencyAuthority(harness.databasePath());
   const create = async (name: string) => {
     const answer = await harness.call('ada', 'POST', '/api/projects', { name });
     expect(answer.status).toBe(200);
