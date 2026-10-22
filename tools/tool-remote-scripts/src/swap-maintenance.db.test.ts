@@ -69,6 +69,13 @@ for (const fault of ['none', 'migration-interruption'] as const) {
       let stopped = false;
       let booted = false;
       const command = (args: string[]): string => {
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return JSON.stringify({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: [],
+          });
         if (args[0] === 'image' && args[3] === '{{json .}}')
           return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;

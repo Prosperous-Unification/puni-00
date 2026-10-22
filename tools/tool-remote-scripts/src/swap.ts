@@ -35,6 +35,7 @@ import {
   backendWorkingDirectory,
   maintenanceConfig,
 } from './lib/backend-maintenance';
+import { probeDependencyCapabilities } from './lib/dependency-preflight';
 import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
@@ -1239,7 +1240,9 @@ export async function inspectBackendWriters(
 
 /**
  * Read-only admission proof before candidate boot or attended recovery. Both colours and every known
- * writer must be stopped. The candidate independently inventories the database;
+ * writer must be stopped. Independently observes exact candidate/previous dependency
+ * capabilities without DB access; these observations grant no dependency store admission.
+ * The candidate independently inventories the database;
  * both candidate and previous digest must independently understand every stored vocabulary,
  * including fact kinds and journal capabilities, before maintenance or migration.
  * Null predecessor is reserved for a proven first installation: no managed backend writer,
@@ -1278,6 +1281,8 @@ export async function checkBackendRecovery(
     ],
     resolveMount,
   );
+  // Proof: removing this probe failed both standalone malformed-image refusals (2026-10-22).
+  await probeDependencyCapabilities(candidateImage, previousImage, runDocker);
   const writers = await inspectBackendWriters(
     runDocker,
     expectedDatabase,
@@ -1700,6 +1705,12 @@ export async function execute(
           if (from === null && writers.size !== 0)
             throw new Error('unowned backend writer exists; explicit recovery required');
           const rollback = outgoingId === null ? null : await readWriterImage(outgoingId, io.sh);
+          // Proof: bypassing this probe reached durable stop on either malformed image and failed no-stop negatives (2026-10-22).
+          await probeDependencyCapabilities(
+            image,
+            rollback === null ? null : rollback.image,
+            io.sh,
+          );
           writerIntent = {
             candidate: image,
             rollback,
@@ -2352,7 +2363,7 @@ async function main(): Promise<void> {
       await checkBackendRecovery(previous, candidate, argOf('database-path'), sh, realpath);
     });
     console.log(
-      '[swap-be] recovery vocabulary proof passed; writers remain stopped; interruption markers retained',
+      '[swap-be] recovery dependency capability and vocabulary observations passed; writers remain stopped; interruption markers retained',
     );
     return;
   }

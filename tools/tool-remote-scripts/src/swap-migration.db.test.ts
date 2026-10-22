@@ -228,6 +228,15 @@ describe('Compose migration command adapter', () => {
         }),
       healthGate: () => Promise.reject(new Error('candidate health failure')),
       sh: async (args) => {
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-runtime',
+              version: 1,
+              role: 'backend',
+              semantics: [],
+            }),
+          );
         if (args[0] === 'image' && args[3] === '{{json .}}')
           return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;

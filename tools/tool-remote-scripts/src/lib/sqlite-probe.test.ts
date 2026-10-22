@@ -55,6 +55,13 @@ for (const mode of ['clean', 'wal', 'wal-and-shm'] as const) {
         image,
         '/data/wbs.db',
         async (args) => {
+          if (args.includes('src/dependency-capabilities-cli.ts'))
+            return JSON.stringify({
+              protocol: 'wbs-dependency-runtime',
+              version: 1,
+              role: 'backend',
+              semantics: [],
+            });
           if (args[0] === 'ps') return '';
           if (!args.some((argument) => argument.includes("from 'bun:sqlite'"))) return '["SS"]';
           if (!args.some((argument) => argument.includes('typed_dependency GROUP BY type')))

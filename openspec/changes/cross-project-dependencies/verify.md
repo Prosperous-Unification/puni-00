@@ -1597,3 +1597,78 @@ same-question certificate admission suppression; connected outcome DTOs and fina
 runtime composition remain required. No frontend/import/CLI, schema or migration
 changes. Installed solver handshake, Python/model suites, full CI/build, host
 gate, deployment and external-authoring activation were not run in this packet.
+
+## Compose binary capability prerequisite — 2026-10-22
+
+This bounded task-10.2 prerequisite adds binary observations only. Task 10.2
+remains unchecked. It does **not** prove strict DISABLED/no-edge authority,
+participant fencing, semantic downgrade safety, dependency activation, Kubernetes
+admission or a completed rollout. Existing automatic recovery policy is unchanged.
+
+Production paths: ordinary Compose `preflight-green` probes independently resolved
+candidate/rollback digests before stop intent; shared `checkBackendRecovery` probes
+again before stored-vocabulary admission. First installation probes candidate only.
+The coordinator's infra-owned decoder requires exact backend protocol/version/role,
+closed keys and known unique semantics. The image-local executable runs with no
+mount or DB_PATH injection and no network, under a shared 15-second pair deadline.
+Missing, unreadable, failed, stalled and malformed observations throw. Explicit
+empty support is an observation and never store admission.
+
+TDD RED: `bun test tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts`
+against an empty-observation stub produced 29 failures. Ordinary execute negatives
+were added before call-site wiring and failed twice because the old path continued
+instead of refusing. Retained outputs:
+[adapter RED](evidence/compose-binary-prerequisite/adapter-red.log.txt) and
+[execute RED](evidence/compose-binary-prerequisite/execute-red.log.txt).
+
+Watched R5 faults used the exact production helper or ordinary/shared recovery
+routes, restoring production source after every fault. All named experiments
+exited 1 with their behavior assertions failing; exit status alone was not used
+as proof. The command for helper faults was
+`bun test tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts`.
+Call-site faults used
+`bun test tools/tool-remote-scripts/src/swap-writer-barrier.test.ts --test-name-pattern 'dependency capability refusal|standalone recovery refuses malformed|ordinary swap independently probes'`.
+
+| Injected fault                                                                                           | Observed failed assertion                                                                                              |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Remove protocol, version, backend-role, exact-key, known-semantic and duplicate predicates independently | Each corresponding malformed subprocess transport was wrongly accepted, separately for candidate and rollback          |
+| Omit candidate probe; omit rollback probe; substitute candidate image in rollback command                | Independent exact-image traces and asymmetric malformed-image refusals failed                                          |
+| Add database mount; inject DB_PATH                                                                       | Exact DB-free command assertion failed                                                                                 |
+| Replace shared deadline with a fresh 15-second deadline                                                  | Delayed subprocess resolved instead of the requested 30-ms deadline refusal                                            |
+| Omit candidate digest validation                                                                         | Mutable-reference test reached Docker instead of refusing its pin                                                      |
+| Convert caught CLI/transport failure to empty support                                                    | Actual missing and unreadable module imports, nonzero exit, malformed JSON and other malformed transport were accepted |
+| Omit ordinary preflight probe                                                                            | Either malformed image reached writer stop; no-stop and independent pair-trace assertions failed                       |
+| Omit shared recovery probe                                                                               | Both standalone malformed-image refusals and ordinary four-observation trace failed                                    |
+
+[Watched fault output](evidence/compose-binary-prerequisite/mutations.log.txt) and
+[failed-CLI/default and restored-baseline call-site experiments](evidence/compose-binary-prerequisite/extra-mutations.log.txt).
+Unreadability used a real mode-000 module with effective UID 1000, asserted nonroot;
+absence used a distinct nonexistent module. Positive controls included the actual
+backend capability executable with no DB_PATH and supported/explicit-empty
+subprocess payloads. No product import exception was widened.
+
+Verification commands and scope:
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile --offline`: passed. The initial install without BUN_TMPDIR encountered a read-only temporary directory; no lockfile change.
+- Final focused command: `bun test tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/swap-maintenance.db.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts tools/tool-remote-scripts/src/lib/sqlite-probe.test.ts`: 209 passed, 0 failed. Existing migration/maintenance fixtures explicitly answer the new capability command; the SQLite clean/retained-WAL recovery adapter preserves its source-family assertions.
+- `bun test apps/wbs/be-01/src/dependency-capabilities-cli.test.ts apps/wbs/be-01/src/dependency-activation-cli.db.test.ts`: 24 passed, 0 failed.
+- Scoped uncached Nx `tool-remote-scripts:lint`, `:typecheck` and `:build`: passed with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; default Nx worker/daemon sockets were sandbox-denied. Initial lint/typecheck findings were fixed and rerun green.
+- `./node_modules/.bin/openspec validate --all --json`: passed.
+- Changed-file Prettier check and `git diff --check`: passed before final verification.
+
+The first complete remote-script source run had 814 passed, 2 skipped and 11 failed:
+eight Unix-socket fixture failures in the restricted sandbox and three new adapter
+issues (relative backend CLI path and standalone image-inspect handling), subsequently
+fixed. The permitted complete rerun of `bun test src --preload ../test/scratch/preload.ts --timeout=10000` from `tools/tool-remote-scripts` finished **824 passed, 2 skipped, 1 failed** (274.85 seconds). The remaining failure was existing `src/lib/docker.test.ts` test `boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative`, which exceeded 10 seconds. That test sequentially launches two actual backend configuration subprocesses; it does not invoke dependency-preflight code. Its exact isolated rerun with `--test-name-pattern 'boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative'` passed under the same 10-second budget in 7.78 seconds (1 passed, 127 filtered out). Timing varies; the timeout's root cause was not established and no unrelated test or budget was changed. The broad suite is **not claimed green**.
+
+The two existing skips are managed-solver exceptional cleanup with real Docker: timer-setup failure for a merely created container, and removal after a container has already stopped. [Final verification output excerpts](evidence/compose-binary-prerequisite/verification.log.txt) retain command outcomes and the timeout/isolated-rerun observations.
+
+Deferred/unverified: coordinator-owned SQLite authority scanner and its migration,
+schema, trigger, receipt, retained-edge, unreadability and WAL fault matrix; real
+stopped-store mutations before maintenance and after maintenance/pre-exposure;
+installed source/built `swap --check-backend-recovery` dispatch; backend runtime
+startup regressions beyond CLI conformance; Docker/Caddy/backend-recreation rehearsal;
+full h2/h4 host gate; CI/secrets/migration full gate; activation, Kubernetes integration,
+production deployment and independent implementation review. These are not claims
+of this prerequisite. Ordinary/shared admission tests execute production functions
+with controlled Docker adapters, not a real image daemon or installed host.

@@ -597,4 +597,26 @@ strict `inspectDependencyActivation`; it does not reinterpret missing older
 schema as dormant authority. SQLite may create WAL coordination sidecars while
 opening a read-only database; inspection grants no database write authority.
 These observations do not prove participant exclusion and do not activate
-production authoring. Deploy consumption and activation remain later slices.
+production authoring. The bounded Compose prerequisite now consumes binary observations only; stopped-store admission and activation remain later slices.
+
+### Bounded Compose binary capability prerequisite
+
+Intent: refuse a backend transition before durable stop intent when either the
+candidate or retained rollback image cannot execute the exact dependency capability
+protocol. Bind each observation to its independently invoked digest and preserve
+existing attended recovery after stop intent. This slice grants no store,
+participant-fencing, activation or semantic downgrade admission.
+
+Infrastructure owns a narrow closed backend wire decoder because infra imports
+cannot cross the WBS product boundary. Candidate and nonnull rollback run their
+image-local argument-free CLI without mounts, DB_PATH, network or application
+startup, under one finite Docker deadline. Explicit empty support is accepted as
+an observation; absent, failed, timed-out or malformed CLI refuses. The ordinary
+pre-stop path and the shared standalone recovery admission both invoke the pair.
+First installation invokes only the candidate.
+
+Task 10.2 remains unchecked. The coordinator-owned strict DISABLED/no-edge scanner,
+ledger/schema/trigger validation, stopped pre-maintenance and fresh stopped
+post-maintenance/pre-exposure observations, historical compatibility limits,
+complete participant fencing and all Kubernetes work remain unimplemented in this
+slice. Binary observations alone cannot establish that an ENABLED store is safe.

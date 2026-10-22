@@ -606,6 +606,24 @@ Preparation (both image probes and prior receipt inspection) and activation (ide
 
 A failed command, failed intent publication/readback, identity drift, or missing/malformed activation readback leaves completion uncertain. An activation marker by itself also blocks ordinary retry; the executor does not generate a replacement attempt over retained evidence. Preserve all host intents, pinned image/database/container identities, snapshots and current database bytes. Keep application writers stopped, the inert maintenance identity retained, and automation paused until an attended recovery decides how to reconcile the exact receipt. Preserve `be-writer-activation.json` alongside all existing stop, maintenance, migration and exposure markers, including any markers whose writes may have completed before an interruption. Record the exact attempted activationId, receipt fields, maintenance/container/image identities, canonical database path and migration-capture hash. Read-only inspection through the retained capable image can establish current authority, but it grants no authority to clear markers, restart writers, expose applications or roll back. Recovery is attended; no automatic activation-resume or deactivation operation exists. Never infer DISABLED from a transport failure, restart an incompatible writer, or automatically reverse the migration after an activation attempt.
 
+## Dependency binary capability prerequisite
+
+Compose independently runs the exact candidate and retained rollback backend
+images' `src/dependency-capabilities-cli.ts` before recording writer stop intent,
+and repeats those observations through backend recovery admission. The probes are
+DB-free, use `--pull never --network none`, and share a 15-second deadline. Missing,
+unreadable, failing, stalled or malformed CLI refuses; an older image lacking the
+CLI cannot be used as either candidate or rollback. First installation probes only
+the candidate. Explicit empty semantics is a valid binary observation.
+
+This prerequisite does not admit an ENABLED dependency store or prove participant
+exclusion. The coordinator-owned strict DISABLED/no-edge scan and fresh stopped
+post-maintenance/pre-exposure admission remain pending task 10.2. Do not infer
+dependency rollout or downgrade safety from a successful swap or recovery check.
+No dependency activation, schema reversal, snapshot restore, writer restart or
+marker clearance is added. A refusal after durable stop intent follows the
+[attended recovery procedure](#backend-writer-barrier-recovery) below.
+
 ## Backend writer barrier recovery
 
 Every Compose `be` swap has an attended outage window. Before stopping a writer, the executor checks registry/pull, environment, existing SQLite integrity and ledger, Caddy/exposure state and effective merged Compose configuration. The candidate's image/name must match, its network aliases may name only its own colour, and published ports, dependencies, external links and unresolved env files refuse. A private resolved JSON snapshot preserves exactly the checked environment and mounts. Startup uses that snapshot with `--force-recreate --no-deps --pull never`; an unchanged stopped idle container must never be restarted with a dynamically retained `be-01.internal` alias.

@@ -102,6 +102,10 @@ export function bundleFilesFor(root: string): BundleFile[] {
 }
 
 export { writeAtomic } from './atomic';
+export {
+  type DependencyCapabilityObservation,
+  probeDependencyCapabilities,
+} from './dependency-preflight';
 export { withLock } from './lock';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 export {

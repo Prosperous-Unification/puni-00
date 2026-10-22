@@ -108,6 +108,15 @@ async function fixture(
     writePhase: () => Promise.resolve(),
     writeAtomic: () => Promise.resolve(),
     sh: async (args) => {
+      if (args.includes('src/dependency-capabilities-cli.ts'))
+        return Promise.resolve(
+          JSON.stringify({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: [],
+          }),
+        );
       if (args.includes('printenv')) return '/data/wbs.db';
       if (args.includes('src/backup-db-cli.ts'))
         return JSON.stringify({ path: args.at(-1), migrations: ['baseline'] });
@@ -445,6 +454,15 @@ test('recovery refuses old replay capability before any writer restart', async (
   await refuses(
     checkBackendRecovery(previousImage, image, '/data/wbs.db', (args) => {
       commands.push(args);
+      if (args.includes('src/dependency-capabilities-cli.ts'))
+        return Promise.resolve(
+          JSON.stringify({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: [],
+          }),
+        );
       if (args[0] === 'ps') return Promise.resolve('');
       return Promise.resolve(
         args.some((argument) => argument.includes('move_progress_v1'))
@@ -455,7 +473,9 @@ test('recovery refuses old replay capability before any writer restart', async (
     'recovery image cannot read',
   );
   expect(commands.some((args) => args[0] === 'start' || args[0] === 'stop')).toBe(false);
-  for (const args of commands.filter((args) => args[0] === 'run')) {
+  for (const args of commands.filter(
+    (args) => args[0] === 'run' && !args.includes('src/dependency-capabilities-cli.ts'),
+  )) {
     expect(args).toContain('none');
     expect(args).toContain(
       `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
@@ -531,6 +551,15 @@ test('complete backend plan commits only after health, vocabulary recheck, and p
       return Promise.resolve();
     },
     sh: (args) => {
+      if (args.includes('src/dependency-capabilities-cli.ts'))
+        return Promise.resolve(
+          JSON.stringify({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: [],
+          }),
+        );
       if (args.includes('printenv')) return Promise.resolve('/data/wbs.db');
       if (args.includes('src/migrate-status-cli.ts')) {
         const flag = (name: string) =>
@@ -1136,6 +1165,15 @@ test('failed app exposure publication keeps completed migration evidence and ref
     execute(attempt.plan, image, 'deadbeef', {
       ...attempt.io,
       sh: async (args) => {
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-runtime',
+              version: 1,
+              role: 'backend',
+              semantics: [],
+            }),
+          );
         const output = await original(args);
         if (args.includes('src/migrate-cli.ts'))
           await mkdir(join(attempt.root, 'be-writer-exposure.json'));
@@ -1282,6 +1320,15 @@ for (const incompatible of ['candidate', 'rollback'] as const) {
     await refuses(
       checkBackendRecovery(previous, image, '/data/wbs.db', (args) => {
         commands.push(args);
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-runtime',
+              version: 1,
+              role: 'backend',
+              semantics: [],
+            }),
+          );
         if (args[0] === 'ps') return Promise.resolve('');
         if (args.some((argument) => argument.includes('SELECT payload,inverse,preconditions')))
           return Promise.resolve('[{"kind":"step_blockage_activation_v1","count":1}]');
@@ -1549,6 +1596,15 @@ for (const vocabulary of storedVocabularies) {
       const commands: string[][] = [];
       attempt.io.sh = async (args) => {
         commands.push(args);
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-runtime',
+              version: 1,
+              role: 'backend',
+              semantics: [],
+            }),
+          );
         if (args[0] === 'run' && args.some((argument) => argument.includes(vocabulary.inventory)))
           return JSON.stringify([{ [vocabulary.key]: vocabulary.kind, count: 1 }]);
         if (
@@ -1966,4 +2022,94 @@ for (const fault of [
     },
     5000,
   );
+}
+
+for (const badImage of [image, previousImage]) {
+  test(`dependency capability refusal for ${badImage} precedes durable writer stop`, async () => {
+    const f = await fixture();
+    const commands: string[][] = [];
+    const runDocker = f.io.sh;
+    f.io.sh = async (args, signal) => {
+      commands.push(args);
+      if (args.includes('src/dependency-capabilities-cli.ts'))
+        return JSON.stringify(
+          args.includes(badImage)
+            ? {}
+            : {
+                protocol: 'wbs-dependency-runtime',
+                version: 1,
+                role: 'backend',
+                semantics: [],
+              },
+        );
+      return runDocker(args, signal);
+    };
+    await refuses(execute(f.plan, image, 'capability', f.io), 'dependency capability');
+    expect(commands.some((args) => args[0] === 'stop')).toBe(false);
+    expect(f.isBlueRunning()).toBe(true);
+    await rejects(readFile(join(f.root, 'be-writer-stop.json')), /ENOENT/);
+  });
+}
+
+test('ordinary swap independently probes both exact backend images before stop and during admission', async () => {
+  const f = await fixture();
+  const commands: string[][] = [];
+  const runDocker = f.io.sh;
+  f.io.sh = (args, signal) => {
+    commands.push(args);
+    return runDocker(args, signal);
+  };
+  await execute(f.plan, image, 'capability', f.io);
+  const probes = commands.filter((args) => args.includes('src/dependency-capabilities-cli.ts'));
+  expect(probes.map((args) => args[8])).toEqual([image, previousImage, image, previousImage]);
+  for (const args of probes) {
+    expect(args).toEqual([
+      'run',
+      '--rm',
+      '--pull',
+      'never',
+      '--network',
+      'none',
+      '--entrypoint',
+      'bun',
+      args[8],
+      'run',
+      'src/dependency-capabilities-cli.ts',
+    ]);
+  }
+  expect(commands.indexOf(probes[1])).toBeLessThan(
+    commands.findIndex((args) => args[0] === 'stop'),
+  );
+});
+
+for (const badImage of [image, previousImage]) {
+  test(`standalone recovery refuses malformed dependency capability from ${badImage} without writer mutation`, async () => {
+    const commands: string[][] = [];
+    await refuses(
+      checkBackendRecovery(previousImage, image, '/data/wbs.db', (args) => {
+        commands.push(args);
+        if (args[0] === 'image') return Promise.resolve(image);
+        if (!args.includes('src/dependency-capabilities-cli.ts'))
+          throw new Error('unexpected subsequent command');
+        return Promise.resolve(
+          JSON.stringify(
+            args.includes(badImage)
+              ? {}
+              : {
+                  protocol: 'wbs-dependency-runtime',
+                  version: 1,
+                  role: 'backend',
+                  semantics: [],
+                },
+          ),
+        );
+      }),
+      'dependency capability',
+    );
+    expect(
+      commands.every(
+        (args) => args[0] === 'image' || args.includes('src/dependency-capabilities-cli.ts'),
+      ),
+    ).toBe(true);
+  });
 }

@@ -345,3 +345,27 @@ The backend SHALL advertise immutable binary dependency support through a DB-fre
 
 - **WHEN** the inspection executable encounters an absent database, read denial, missing authority ledger or corrupt authority
 - **THEN** it refuses without creating or repairing database content
+
+### Requirement: Compose observes both exact backend binary capabilities before stopping
+
+Compose SHALL independently invoke the candidate and nonnull retained rollback
+backend image's dependency capability executable before durable writer stop intent
+and through shared backend recovery admission. Each image SHALL be pinned by digest.
+The pair SHALL share a finite deadline and execute without a database mount,
+DB_PATH injection, network access or application startup. The coordinator SHALL
+require the exact backend protocol/version/role/key set and known unique semantics.
+Explicit empty support SHALL be accepted only as a binary observation; this SHALL
+NOT prove store admission, participant exclusion or activation permission.
+
+#### Scenario: Either image cannot supply an observation
+
+- **GIVEN** the candidate or retained rollback executable is missing, unreadable, failed, stalled or returns malformed capability transport
+- **WHEN** ordinary Compose preflight runs
+- **THEN** it refuses before writer stop intent and leaves the outgoing writer serving
+- **AND** shared standalone recovery admission refuses the same malformed binary observation without restarting writers or clearing markers
+
+#### Scenario: Independent dormant binary observations
+
+- **GIVEN** both exact image executables return valid backend observations with explicit empty semantics
+- **WHEN** ordinary Compose preflight runs
+- **THEN** it continues through existing admission boundaries without activating dependency authoring or changing automatic rollback behavior
