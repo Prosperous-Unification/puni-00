@@ -99,15 +99,20 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       leaf under the same run adds nothing, two claims in one batch at 39 of 40 refuse the
       second. R5 fault: move the check before `already_claimed` and the "plan's reasons
       first" case reddens; count rows and the second-step case refuses; watched.
-- [x] 3.2 Race: `claim-race.db.test.ts` gains the 39-of-40 case, two accounts, two leaves,
-      both orders; exactly one applied, the loser `claim_limit` with `current: 40`. R5 fault:
-      replace `source.uow` with a unit of work over the open gate and both land (the
-      precedent proof of 2026-10-19), restored; watched.
+- [x] 3.2 Race: the 39-of-40 case, two accounts, two leaves, both orders; exactly one
+      applied, the loser `claim_limit` with `current: 40`. Built in
+      `libs/wbs/adapters/store-sqlite/src/claim-limit-race.db.test.ts` (not
+      `claim-race.db.test.ts`), beside a fast-check model with the cap as invariant. R5
+      faults, watched: a count read before the batches queued lands both (41 of 40); a unit
+      of work over the open gate fails the queued `BEGIN IMMEDIATE` ("cannot start a
+      transaction within a transaction"), as the 2026-10-19 precedent did.
 - [x] 3.3 Undo and redo: a redo of a claim and an undo of a release re-check and answer
-      `stale_undo` with detail `claim_limit: cap n, current n`; claims moving on a split or a
-      promotion are not re-checked — Red: the journal replay cases in `claim-race.db.test.ts`
-      and the hand-down case at the cap. R5 fault: skip the re-check on redo and a redo at the
-      cap lands the forty-first; watched.
+      `stale_undo` with detail `claim_limit: cap n, current n.`; claims moving on a split or a
+      promotion are not re-checked — Red: the replay cases (redo of a claim, undo of a
+      release, undo of a delete) and the hand-down case at the cap, built in
+      `apps/wbs/be-01/src/controller/claim-limit.controller.db.test.ts` (not
+      `claim-race.db.test.ts`). R5 fault: skip the re-check in the `add_claims` replay and
+      all three replays put the claim back over the cap; watched.
 - [x] 3.4 Refusal shape `claim_limit` in `@wbs/contracts`, position in the batch, status 409
       like `already_claimed`; MCP batch description — Red: the shape tests and the emit diff.
 - [x] 3.5 Measure: time of `countBoundClaims` on a store with 1,000 claims over 200 leaves,

@@ -173,8 +173,8 @@ export class CommandContext {
         });
       case 'claim_limit':
         // Proof: with both numbers replaced by 0 here, `refuses the forty-first
-        // bound claim` and four more cases of claim-limit.controller.db.test.ts
-        // named cap 0, current 0 (7 pass, 5 fail); watched 2026-10-22.
+        // bound claim` and five more cases of claim-limit.controller.db.test.ts
+        // named cap 0, current 0 (7 pass, 6 fail); watched 2026-10-22.
         return this.refuse({
           reason: outcome.reason,
           detail: { cap: outcome.cap, current: outcome.current },

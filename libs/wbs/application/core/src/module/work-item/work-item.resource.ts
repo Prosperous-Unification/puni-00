@@ -3402,10 +3402,11 @@ export class WorkItemService {
     // Proof, each watched 2026-10-22 in claim-limit.controller.db.test.ts:
     // with this check moved above `decideClaim`, `answers the plan’s reasons
     // before the cap` and `refuses inside another’s subtree first…` answered
-    // claim_limit (9 pass, 3 fail); with every claim counted as adding one,
-    // `claims a second step of a held leaf at the cap` was refused (11 pass,
+    // claim_limit (10 pass, 3 fail); with every claim counted as adding one,
+    // `claims a second step of a held leaf at the cap` was refused (12 pass,
     // 1 fail); with the check removed, `refuses the forty-first bound claim`
-    // and four more were applied (7 pass, 5 fail).
+    // and five more were applied, the second run of one person among them
+    // (7 pass, 6 fail).
     const addsBoundClaim = !near.some(
       (each) =>
         each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
@@ -3590,7 +3591,7 @@ export class WorkItemService {
    *
    * Proof, each watched 2026-10-22: with legacy access answered as a cap of 0,
    * `claims past any cap with no organization to own one`
-   * (claim-limit.controller.db.test.ts) was refused (11 pass, 1 fail); with the gauge answering
+   * (claim-limit.controller.db.test.ts) was refused (12 pass, 1 fail); with the gauge answering
    * the count it read first for every later batch (a count read outside the
    * turn), `lands exactly one of two claims racing for the last place`
    * (claim-limit-race.db.test.ts) landed both, 41 of 40.
@@ -7413,8 +7414,9 @@ export class WorkItemService {
         // does (L9); a split's `move_claims` keeps its triples and is not here.
         // Proof, each watched 2026-10-22 in claim-limit.controller.db.test.ts:
         // with this re-check skipped, `refuses a redo of a claim once another
-        // took the last place` and `refuses an undo of a release once another
-        // took the freed place` put the claim back over the cap (10 pass, 2 fail).
+        // took the last place`, `refuses an undo of a release once another
+        // took the freed place` and `refuses an undo of a delete once another
+        // took the freed place` put the claim back over the cap (10 pass, 3 fail).
         const adding = await this.boundClaimsAdded(projectId, command.claims);
         if (adding > 0) {
           const crossed = await this.refuseBoundClaims(access, adding);

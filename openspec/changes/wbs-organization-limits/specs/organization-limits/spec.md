@@ -153,7 +153,7 @@ of a release SHALL re-check it and, refused, answer `stale_undo` whose detail be
 
 - **WHEN** `codex` released a leaf, another agent then took the freed slot of 40, and the
   release is undone
-- **THEN** the undo is refused `stale_undo` with detail `claim_limit: cap 40, current 40`
+- **THEN** the undo is refused `stale_undo` with detail `claim_limit: cap 40, current 40.`
   and the leaf stays released
 
 #### Scenario: A second step of a held leaf adds no bound claim

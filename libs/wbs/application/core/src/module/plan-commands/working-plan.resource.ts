@@ -485,14 +485,18 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return retainedDirectory;
     },
-    // A claim reads its organization's cap in this same transaction
+    // A claim, a directory command and a capacity statement in a project batch
+    // read the organization's cap in this same transaction
     // (`wbs-organization-limits` L10); the gauge keeps no rows to retain.
-    // Proof: with this getter left out, every activated claim of
-    // claim-limit.controller.db.test.ts threw "a bound claim was added under
-    // scoped access without organization limits" (1 pass, 11 fail); watched 2026-10-22.
-    // A capacity statement reads the same getter: with it left out, every
-    // activated statement case of capacity-limit.controller.db.test.ts threw
-    // (2 pass, 9 fail); watched 2026-10-22.
+    // Proof, each watched 2026-10-22 with this getter left out: every activated
+    // claim of claim-limit.controller.db.test.ts threw "a bound claim was added
+    // under scoped access without organization limits" (1 pass, 11 fail); `promotes
+    // inside a project batch under the cap and refuses it at the cap`
+    // (agent-person-limit.controller.db.test.ts) answered 500 "an agent person
+    // was added under scoped access without organization limits" (13 pass, 1 fail);
+    // every activated statement case of capacity-limit.controller.db.test.ts
+    // answered 500 "a resource capacity was stated under scoped access without
+    // organization limits" (2 pass, 9 fail).
     get organizationLimits() {
       assertOpen();
       return scope.stores.organizationLimits;
