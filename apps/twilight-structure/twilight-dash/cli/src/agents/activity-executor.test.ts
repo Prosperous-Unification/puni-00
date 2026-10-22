@@ -6,6 +6,7 @@ import {
 } from '@twilight-burokrat/contracts';
 import { expect, test } from 'bun:test';
 
+import * as legacy from '../runs/record-codecs';
 import {
   attemptId,
   decisionId,
@@ -14,6 +15,8 @@ import {
   ownerId,
   runId,
 } from '../runs/record-codecs';
+import * as values from '../runs/value-codecs';
+import * as facade from './activity-executor';
 import {
   ActivityDispatchError,
   type ExecutorLocator,
@@ -23,6 +26,7 @@ import {
   snapshotTurnRequest,
   type TurnRequest,
 } from './activity-executor';
+import * as portable from './execution-codecs';
 
 function preparation() {
   return {
@@ -201,4 +205,17 @@ test('dispatch error refuses corrupted correlation keys and owner epochs', () =>
     expect(() => {
       new ActivityDispatchError(corrupt, new Error('cause'));
     }).toThrow();
+});
+
+test('legacy facades retain exact scalar codec parser snapshot and dispatch constructor identities', () => {
+  for (const [name, value] of Object.entries(values))
+    expect(Reflect.get(legacy, name), name).toBe(value);
+  expect(facade.ActivityDispatchError).toBe(portable.ActivityDispatchError);
+  expect(facade.snapshotPreparation).toBe(portable.snapshotPreparation);
+  expect(facade.snapshotExecutorLocator).toBe(portable.snapshotExecutorLocator);
+  expect(facade.snapshotTurnRequest).toBe(portable.snapshotTurnRequest);
+  expect(facade.snapshotTurnReply).toBe(portable.snapshotTurnReply);
+  expect(portable.snapshotPreparation(preparation())).toEqual(snapshotPreparation(preparation()));
+  expect(portable.snapshotExecutorLocator(locator())).toEqual(snapshotExecutorLocator(locator()));
+  expect(portable.snapshotTurnRequest(request())).toEqual(snapshotTurnRequest(request()));
 });

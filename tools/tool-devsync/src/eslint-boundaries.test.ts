@@ -250,7 +250,7 @@ describe('the effective production and test boundaries', () => {
       return report.messages.map((message) => message.ruleId);
     }
     for (const path of [
-      'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/execution-records.ts',
       'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.test.ts',
       'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.ts',
       'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.test.ts',
@@ -275,13 +275,22 @@ describe('the effective production and test boundaries', () => {
       expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
       const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
       expect(withoutLocalAlias).toEqual(peerOptions);
+      const source = await readFile(join(workspace, path), 'utf8');
       expect(
-        importsAlias(await readFile(join(workspace, path), 'utf8'), '@twilight-burokrat/contracts'),
+        importsAlias(source, '@twilight-burokrat/contracts'),
         `live contracts consumer ${path}`,
       ).toBe(true);
+      const [actual] = await lint.lintText(source, { filePath: path });
+      expect(actual.fatalErrorCount).toBe(0);
+      expect(
+        actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
+      ).toEqual([]);
     }
     for (const path of [
       peer,
+      'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/execution-codecs.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/value-codecs.ts',
       'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-turn.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/plan-ownership.ts',
       'apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts',

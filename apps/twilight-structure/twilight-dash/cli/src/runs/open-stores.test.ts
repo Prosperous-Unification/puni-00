@@ -261,29 +261,34 @@ function portableImports(path: string): string[] {
   return dependencies;
 }
 test('portable ports and core records exclude adapter dependencies structurally', () => {
-  const allowed = new Set([
-    './records',
-    './record-codecs',
-    '@shared/validation',
-    '@twilight-burokrat/contracts',
-  ]);
+  // Proof: D01R/D02R/D03R injected records/live-port/aggregate edges into each new owner, and D04R restored the runtime aggregate edge; this structural test named each forbidden path and failed.
+  const allowed: Readonly<Record<string, readonly string[]>> = {
+    'run-store.ts': ['./records', './runtime-records'],
+    'artifact-store.ts': ['./records'],
+    'records.ts': ['./record-codecs'],
+    'record-codecs.ts': ['@shared/validation', '@twilight-burokrat/contracts', './value-codecs'],
+    'runtime-records.ts': ['./records', '@wbs/contracts'],
+    'runtime-codecs.ts': [
+      'node:crypto',
+      '@shared/validation',
+      '@wbs/contracts',
+      './value-codecs',
+      './runtime-records',
+    ],
+    'value-codecs.ts': ['@shared/validation'],
+    '../agents/execution-records.ts': ['@twilight-burokrat/contracts', '../runs/records'],
+    '../agents/execution-codecs.ts': [
+      '@shared/validation',
+      '../runs/value-codecs',
+      './execution-records',
+    ],
+  };
   // Proof: F66 injecting './sqlite/run-store' into actual runtime-records.ts named that forbidden dependency here; exact restoration passed.
-  const violations = [
-    'run-store.ts',
-    'artifact-store.ts',
-    'records.ts',
-    'record-codecs.ts',
-    'runtime-records.ts',
-  ]
-    .flatMap((path) => portableImports(path).map((dependency) => ({ path, dependency })))
-    .filter(
-      ({ path, dependency }) =>
-        !(
-          allowed.has(dependency) ||
-          (path === 'run-store.ts' && dependency === './runtime-records') ||
-          (path === 'runtime-records.ts' && dependency === '@wbs/contracts')
-        ),
-    );
+  const violations = Object.entries(allowed).flatMap(([path, dependencies]) =>
+    portableImports(path)
+      .filter((dependency) => !dependencies.includes(dependency))
+      .map((dependency) => ({ path, dependency })),
+  );
   // Proof: eight real port-source injections (provider/path/schema imports, export, import type, dynamic/computed import and require) each named the forbidden dependency here.
   expect(violations).toEqual([]);
 });

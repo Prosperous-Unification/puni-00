@@ -3,13 +3,6 @@ import { createHash } from 'node:crypto';
 import { parseOrThrow, type } from '@shared/validation';
 import { matchesRuntimeScope, parseCanonicalRuntimeRequest } from '@wbs/contracts';
 
-import {
-  artifactDigest,
-  ArtifactDigestCodec,
-  ArtifactRefCodec,
-  OwnerIdCodec,
-  OwnershipCodec,
-} from './record-codecs';
 import type {
   RuntimeAcceptance,
   RuntimeAcceptanceInput,
@@ -18,10 +11,17 @@ import type {
   RuntimePin,
   RuntimeScope,
 } from './runtime-records';
+import {
+  artifactDigest,
+  ArtifactDigestCodec,
+  ArtifactRefCodec,
+  Integer,
+  OwnerIdCodec,
+  OwnershipCodec,
+  Positive,
+} from './value-codecs';
 
 const identity = type('string > 0');
-const integer = type('number.integer >= 0').atMost(Number.MAX_SAFE_INTEGER);
-const positive = integer.atLeast(1);
 const scopeCodec = type({
   organizationId: identity,
   projectId: identity,
@@ -34,22 +34,22 @@ const pinCodec = type({ version: '1', scope: scopeCodec, ledgerId: identity }).o
 const guardCodec = type({
   ownership: OwnershipCodec,
   scope: scopeCodec,
-  expectedRevision: integer,
+  expectedRevision: Integer,
 }).onDeepUndeclaredKey('reject');
 const intentCodec = type({
   version: '1',
   commandId: identity,
   canonicalRequest: identity,
   requestDigest: ArtifactDigestCodec,
-  localOwner: { ownerId: OwnerIdCodec, epoch: positive },
-  stagedRevision: positive,
+  localOwner: { ownerId: OwnerIdCodec, epoch: Positive },
+  stagedRevision: Positive,
 }).onDeepUndeclaredKey('reject');
 const acceptanceCodec = type({
   version: '1',
   commandId: identity,
   requestDigest: ArtifactDigestCodec,
   evidence: ArtifactRefCodec,
-  acceptedRevision: positive,
+  acceptedRevision: Positive,
 }).onDeepUndeclaredKey('reject');
 const inputCodec = type({ intent: intentCodec, evidence: ArtifactRefCodec }).onDeepUndeclaredKey(
   'reject',

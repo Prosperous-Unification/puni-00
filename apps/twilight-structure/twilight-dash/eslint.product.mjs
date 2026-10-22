@@ -136,7 +136,8 @@ export default ({
     },
     {
       files: [
-        'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.ts',
+        // Proof: P01 removed this consumer; the Dash executor effective-policy admission failed.
+        'apps/twilight-structure/twilight-dash/cli/src/agents/execution-records.ts',
         'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.test.ts',
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.ts',
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.test.ts',
@@ -144,6 +145,7 @@ export default ({
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-adapter.ts',
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-adapter.test.ts',
       ],
+      // Proof: P02R/P03R valid judge/relative widening failed their exact denials; P04 admitting execution-codecs.ts failed its peer denial in the Dash executor effective-policy test.
       // Proof: the Dash executor effective-policy test loaded valid faults, then failed contracts
       // admission on removal, judge/relative denials on alias/relative widening, and the
       // unlisted no-ambient-clock.test.ts denial on path widening (2/4/8/50 assertions).

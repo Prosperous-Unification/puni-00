@@ -2206,3 +2206,43 @@ the same11 long-requirement warnings. Exact seven-file Prettier check and git di
 --check exited0. No implementation tests were run for this documentation adoption.
 Fresh WBS project read still requires MCP authentication; remote claims/status were
 not read or updated. Reconnect is already pending; local work continues.
+
+### Portable execution values and complete reply snapshots
+
+Task1 extracts original scalar codec instances and portable executor values from the live
+port. Original facade/constructor identities remain, runtime codecs consume the common leaf,
+and complete TurnReply snapshots validate correlation, variants, usage and nested immutable
+own copies without freezing callers. Exact source policy moves one Burokrat consumer; no
+Attempt/RunStore version, SQL, dispatch or adapter behavior change.
+
+The final agent invocation passed99tests/787Bunexpects. Final storage failed192pass/1timeout;
+the exact physical-reference child case passed separately with its unchanged15s limit.
+Final policy failed39pass/1timeout, and that exact case also timed out alone at its unchanged
+30s limit. Standalone timing diagnostics completed all37operations/64assertions; an authorized
+official Bun run with observational ESLint timings passed1test/64assertions under the original
+30s limit. Its33ESLint calls matched the diagnostic sequence/source hashes. Original causes
+remain unknown.193distinct storage and40policy cases passed across invocations; the combined
+failed commands remain failed. No test source, assertions or limits were changed for timing.
+
+Four uncached targets passed: Dash lint/typecheck and tool-devsync lint/typecheck. Exact
+changed-file format/diff and scoped OpenSpec passed. Expected SDK diagnostics, color warnings,
+three unused-disable warnings in unchanged files and11 inherited requirement-length warnings
+remain disclosed. No full-package/backend/browser/build/host/CI repetition.
+
+Of67retained fault trials,39isolated intended assertion failures are accepted and28original
+trials remain unproved: one masked payload,21overlapping codec trials,4dependency setup/overlap
+trials and2invalid policy-loader trials. Corrected distinct sequential captures demonstrate
+the new guards/consumption edges with exact restoration; adjacent Proof comments cite them.
+The overlap, original failures and coarse invalid driver labels remain preserved.
+
+After explicit worker release, root independently Bun-audited11797source/mode identities,
+full HEAD/branch/status/staging and raw index, plus all146raw log pairs and67fault triplets.
+All11793staged identities match immutable planning BASE656607d97; only7authorized tracked
+files differ and4new source files exist.11786other tracked blobs/modes, including original
+SQL/records/RunStore, are unchanged. Raw indexSHA256cc481ca74219afc340aab14c0fb473df46dd467d8bbe47cede6d72691a522c79
+is stable.248output hashes were recorded originally;22early invocation pairs are inventoried
+now without a retroactive sealing claim. Original report and all raw evidence remain intact.
+
+Independent task reviews, coherent Attempt2/claim/history/format3 implementation and whole
+phase acceptance remain pending. This source commit closes no local or parent checkbox and
+certifies no external ordering, exact write/release, full gate, main integration or deployment.
