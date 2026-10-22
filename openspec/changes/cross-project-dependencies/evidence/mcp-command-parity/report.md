@@ -9,7 +9,8 @@ in `apps/wbs/be-01/src/testing/mcp-command-parity-backend.ts`. The successful MC
 case asserts the exact generated POST URL, method, bearer/content-type headers
 and serialized command body before forwarding. The child announces readiness
 only after migrated seeding and authenticated warmup, has a 15-second readiness
-deadline, and every case awaits graceful SIGTERM cleanup with exit code zero.
+deadline, and ordinary cases await graceful SIGTERM cleanup with exit code zero.
+The lifecycle follow-up below also tests reported failure exits.
 
 The backend validates a real API key created by the existing `addAgentPerson` /
 `issueApiKey` fixtures. Direct HTTP uses the same key and actor. MCP additionally
@@ -86,3 +87,43 @@ It does not complete the endpoint/type matrix, update/remove/history matrix,
 active delegation/OAuth, production admission, activation, full integration
 review or canonical host gate. Production authority remains inactive. Task 3.2
 and the shared verify record are left for integration by the parent owner.
+
+## Review follow-up: fixture lifetime (2026-10-23)
+
+Independent review reproduced a child leak when `readDocument` threw after backend
+readiness. The original setup catch covered only the readiness loop; later setup
+and a rejected client close could escape without terminating the child. Two new
+regressions were run against that implementation and both failed: the child still
+had null exit/signal status. Emergency test cleanup force-killed and reaped those
+children after recording the failure.
+
+The fixture now owns cleanup immediately after spawn across readiness, JSON decode,
+tool derivation, server creation and connection. All acquired client/server closes
+settle independently; acquired transports close in finally; backend termination and
+reaping run in the innermost finally even when resource cleanup rejects. Setup and
+cleanup errors remain visible together. The backend receives SIGTERM, has one
+second to exit, then receives SIGKILL and gets one more second to reap. Forced
+termination is reported as failure even after successful reaping. Repeated close
+calls share the same cleanup promise.
+
+Three regressions inspect real child exit/signal status and `process.kill(pid, 0)`
+rejection. Setup-read failure and simultaneous client/server close failures also
+prove both real SDK transports reject sends with `Not connected`. A deliberately
+withheld graceful stop proves forced termination, completed reaping and explicit
+failure reporting. The tests retain emergency reaping so their own red runs do
+not leave children behind.
+
+Individual temporary fixture mutations were watched and restored:
+
+| Removed protection                 | Observed negative                                                                                   |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Outer setup cleanup                | Setup document failure leaves child live: 0 pass / 1 fail.                                          |
+| Explicit transport-finally release | Setup and resource-close failure sends resolve instead of rejecting: 0 pass / 2 fail.               |
+| Child-finally shutdown/reap        | Both failure tests see live child status: 0 pass / 2 fail.                                          |
+| SIGKILL fallback                   | Forced-exit test reaches the reap deadline rather than reported completed SIGKILL: 0 pass / 1 fail. |
+
+The strengthened focused lifecycle packet passed 3 tests / 15 assertions after
+restoration. These changes affect test-fixture ownership only; production code,
+activation and the bounded parity claims are unchanged.
+
+Follow-up verification: configured MCP suite passed 533 tests / 0 failures / 3014 assertions across 22 files; configured MCP lint and forced MCP typecheck passed. The earlier backend typecheck remains applicable because the backend fixture did not change. Canonical host gate and integration verification remain parent-owned.
