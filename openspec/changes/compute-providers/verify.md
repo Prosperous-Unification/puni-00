@@ -522,3 +522,5 @@ Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-3` with `env 
 - `bun test src/controller/compute-provider.controller.db.test.ts` (be-01): 27 pass, 0 fail.
 - `bun test src/eslint-boundaries.test.ts` (tool-devsync): 28 pass, 0 fail.
 - `bunx openspec validate --all --json`: 269 of 269 passed.
+- Burokrat `check-indexes working . HEAD` after the commit: exit 0, 39 indexes, none covering a
+  changed file; the only review debt is the existing `store-memory` one (48 entries, limit 40).
