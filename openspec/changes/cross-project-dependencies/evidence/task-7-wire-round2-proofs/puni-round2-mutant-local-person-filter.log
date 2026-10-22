@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+851 |       },
+852 |     ],
+853 |   });
+854 |   expect(() => {
+855 |     validateConnectedSolverRequest(foreignOnly);
+856 |   }).not.toThrow();
+               ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "connected elsewhere person set differs from foreign occupancy"
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:856:10)
+(fail) connected request names the exact foreign person holder and booking [6.52ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [189.00ms]

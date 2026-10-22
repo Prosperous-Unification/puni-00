@@ -2846,7 +2846,7 @@ Received value: {
 253 |     if (placed.earliestStart !== stage.starts.get(key)) {
 254 |       throw new ScheduleInvalidOptimizedStartError(key, 'foreign start changed');
                                                                                      ^
-ScheduleInvalidOptimizedStartError: optimized start for c  is invalid: foreign start changed
+ScheduleInvalidOptimizedStartError: optimized start for c\u0000 is invalid: foreign start changed
       at guardConnectedPublication (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.ts:254:80)
       at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:414:25)
 (fail) connected publication guard > uses an earlier accepted replacement as the later rank stage baseline [0.58ms]

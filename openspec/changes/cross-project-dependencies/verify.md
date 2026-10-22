@@ -558,3 +558,26 @@ mutation is not claimed as a separate proof of each predicate.
 Original Sol is correcting both findings in the same isolated source checkout.
 `05a5b85d5` and `388fb5410` remain unintegrated; full7.1–7.4 and backend/runtime,
 activation and delivery gates remain incomplete.
+
+## Tasks 7.1–7.2 — approved wire integrated, compatibility still open
+
+[Round 2 evidence](evidence/task-7-wire-round2.md) records independent approval,
+exact source integration through `bb8bd4922`, contracts518/Python276/probes15,
+actual built local and connected calls, and the bounded P3 raw-union follow-up.
+Root ran all six contracts/domain test/typecheck/lint targets uncached on the
+integrated source; all passed. Active backend fixtures and runtime remain open.
+
+## Task 9.1 — first frontend review rejected
+
+[Independent frontend review](evidence/task-9-autocomplete-review.md) records
+six findings and fresh View335/1, Node26, six failed behavioral probes and one
+passing real HTTP probe. Author336green is superseded. Original Sol is fixing
+all six; source remains unintegrated and no full UI checkbox is closed.
+
+## Pushed checkpoint e41 — CI failed, corrections assigned
+
+[Terminal CI findings](evidence/checkpoint-e41-ci.md) record green browser shards
+and failed workspace/Twilight test targets. Root preserved two binary evidence
+logs as readable escapes plus byte-identical Base64 originals. Fixture and
+classification corrections are assigned to the active Sol lanes. No final
+CI, host gate, image smoke or deployment success is claimed.

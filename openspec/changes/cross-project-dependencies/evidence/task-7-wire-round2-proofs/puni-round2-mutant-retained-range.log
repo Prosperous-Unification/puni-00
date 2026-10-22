@@ -1,0 +1,335 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+481 |   };
+482 |   const pair = buildConnectedSolverRequestPair(candidate, identity, {
+483 |     solverVersion: '0.4.0',
+484 |     budgetMs: 1000,
+485 |   });
+486 |   expect(pair.pri).toMatchObject({ kind: 'failed', failure: 'horizon-overflow' });
+                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "failure": "horizon-overflow",
+-   "kind": "failed",
++   "evidence": {
++     "contributors": [
++       "floor:0",
++       "horizon:58",
++       "ab:incoming:10",
++       "bc:outgoing:9",
++     ],
++     "key": "b\u0000",
++     "kind": "contradictory-bounds",
++     "lower": 10,
++     "upper": 9,
++   },
++   "kind": "boundary-infeasible",
++   "request": {
++     "budgetMs": 1000,
++     "contractVersion": "18+0.4.0",
++     "edges": [],
++     "elsewhere": {},
++     "feasibleBaselineOffsets": null,
++     "horizonUnits": 58,
++     "movementReferenceOffsets": {
++       "b\u0000": 10,
++     },
++     "objective": "pri",
++     "pools": {},
++     "quantum": 48,
++     "resources": {},
++     "scope": {
++       "boundaries": [
++         {
++           "direction": "incoming",
++           "foreignKey": "a\u0000",
++           "foreignProjectId": "A",
++           "localKey": "b\u0000",
++           "minimumStartUnits": 10,
++           "relationshipId": "ab",
++           "type": "FS",
++         },
++         {
++           "direction": "outgoing",
++           "foreignKey": "c\u0000",
++           "foreignProjectId": "C",
++           "localKey": "b\u0000",
++           "maximumStartUnits": 9,
++           "relationshipId": "bc",
++           "type": "FS",
++         },
++       ],
++       "fixed": [
++         {
++           "finish": 0.2,
++           "key": "a\u0000",
++           "projectId": "A",
++           "start": 0,
++         },
++         {
++           "finish": 1000000000000001.2,
++           "key": "c\u0000",
++           "projectId": "C",
++           "start": 1.2,
++         },
++       ],
++       "inputHash": "input",
++       "kind": "connected-stage",
++       "occupancy": [
++         {
++           "finish": 1000000000000001.2,
++           "key": "c\u0000",
++           "personId": "foreign-only-person",
++           "projectId": "C",
++           "start": 1.2,
++         },
++       ],
++       "originOrdinal": 0,
++       "projectId": "B",
++       "projects": [
++         {
++           "anchorOrdinal": 0,
++           "projectId": "A",
++           "rank": 0,
++         },
++         {
++           "anchorOrdinal": 0,
++           "projectId": "B",
++           "rank": 1,
++         },
++         {
++           "anchorOrdinal": 0,
++           "projectId": "C",
++           "rank": 2,
++         },
++       ],
++       "questionHash": "question-pri",
++     },
++     "seedOffsets": {
++       "b\u0000": 10,
++     },
++     "slices": [
++       {
++         "deadlineUnits": null,
++         "demands": [],
++         "durationUnits": 48,
++         "key": "b\u0000",
++         "notBeforeUnits": 0,
++         "personId": null,
++         "poolIds": [],
++         "priorityWeight": 1,
++         "width": 1,
++         "workItemIsMilestone": false,
++         "workItemKey": "b",
++       },
++     ],
++     "solverVersion": "0.4.0",
++     "stageBudgetSplit": [
++       0.6,
++       0.25,
++       0.15,
++     ],
++     "wireVersion": 5,
++   },
++   "stage": {
++     "finishes": 
++ Map {
++       "a\u0000" => 0.2,
++       "b\u0000" => 1.2,
++       "c\u0000" => 1000000000000001.2,
++     }
++ ,
++     "input": {
++       "deadlines": Map {},
++       "elsewhere": Map {},
++       "graph": {
++         "edges": [
++           {
++             "predecessor": {
++               "at": 0,
++               "leafId": "a",
++             },
++             "provenance": "authored",
++             "relationshipId": "ab",
++             "successor": {
++               "at": 0,
++               "leafId": "b",
++             },
++             "type": "FS",
++           },
++           {
++             "predecessor": {
++               "at": 0,
++               "leafId": "b",
++             },
++             "provenance": "authored",
++             "relationshipId": "bc",
++             "successor": {
++               "at": 0,
++               "leafId": "c",
++             },
++             "type": "FS",
++           },
++         ],
++         "nodes": [
++           {
++             "at": 0,
++             "kind": "boundary",
++             "workItemId": "a",
++           },
++           {
++             "at": 0,
++             "kind": "boundary",
++             "workItemId": "b",
++           },
++           {
++             "at": 0,
++             "kind": "boundary",
++             "workItemId": "c",
++           },
++         ],
++       },
++       "notBefore": Map {},
++       "order": {
++         "kind": "connected",
++         "projectIdByWorkItem": 
++ Map {
++           "a" => "A",
++           "b" => "B",
++           "c" => "C",
++         }
++ ,
++         "rankByProject": 
++ Map {
++           "A" => 0,
++           "B" => 1,
++           "C" => 2,
++         }
++ ,
++       },
++       "poolSizes": Map {},
++       "resourceCapacities": Map {},
++       "rows": [
++         {
++           "frozenNumber": null,
++           "id": "a",
++           "parentId": null,
++           "position": 0,
++           "priority": 0,
++         },
++         {
++           "frozenNumber": null,
++           "id": "b",
++           "parentId": null,
++           "position": 1,
++           "priority": 0,
++         },
++         {
++           "frozenNumber": null,
++           "id": "c",
++           "parentId": null,
++           "position": 2,
++           "priority": 0,
++         },
++       ],
++       "slices": [
++         {
++           "days": 0.2,
++           "personId": null,
++           "poolIds": [],
++           "stepId": null,
++           "width": 1,
++           "workItemId": "a",
++         },
++         {
++           "days": 1,
++           "personId": null,
++           "poolIds": [],
++           "stepId": null,
++           "width": 1,
++           "workItemId": "b",
++         },
++         {
++           "days": 1000000000000000,
++           "personId": "foreign-only-person",
++           "poolIds": [],
++           "stepId": null,
++           "width": 1,
++           "workItemId": "c",
++         },
++       ],
++     },
++     "kind": "connected-stage",
++     "mode": "shared",
++     "originOrdinal": 0,
++     "projectId": "B",
++     "projects": [
++       {
++         "anchorOrdinal": 0,
++         "projectId": "A",
++         "rank": 0,
++       },
++       {
++         "anchorOrdinal": 0,
++         "projectId": "B",
++         "rank": 1,
++       },
++       {
++         "anchorOrdinal": 0,
++         "projectId": "C",
++         "rank": 2,
++       },
++     ],
++     "relationships": [
++       {
++         "id": "ab",
++         "predecessor": {
++           "projectId": "A",
++           "scope": "whole",
++           "workItemId": "a",
++         },
++         "successor": {
++           "projectId": "B",
++           "scope": "whole",
++           "workItemId": "b",
++         },
++         "type": "FS",
++       },
++       {
++         "id": "bc",
++         "predecessor": {
++           "projectId": "B",
++           "scope": "whole",
++           "workItemId": "b",
++         },
++         "successor": {
++           "projectId": "C",
++           "scope": "whole",
++           "workItemId": "c",
++         },
++         "type": "FS",
++       },
++     ],
++     "starts": 
++ Map {
++       "a\u0000" => 0,
++       "b\u0000" => 0.2,
++       "c\u0000" => 1.2,
++     }
++ ,
++   },
+  }
+
+- Expected  - 2
++ Received  + 307
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:486:20)
+(fail) foreign-only retained occupancy overflows before the 10/9 terminal is classified [5.95ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [199.00ms]

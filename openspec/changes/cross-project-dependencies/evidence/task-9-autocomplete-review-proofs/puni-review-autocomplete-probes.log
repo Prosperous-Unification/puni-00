@@ -1,0 +1,2299 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (../../../../puni-autocomplete-review-probes/review.vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-autocomplete-review-probes
+
+ ❯ autocomplete.test.tsx (14 tests | 6 failed | 7 skipped) 6707ms
+   × REVIEW switching remote Customize follows the newly selected stable project 2636ms
+   × REVIEW remote Customize returns keyboard focus to its dependency input 715ms
+   × REVIEW a selected stable project stays pinned after a trailing comma 462ms
+   × REVIEW local Customize retains previous mixed tokens after successful Add 302ms
+   × REVIEW switching same-abbreviation remote Customize never offers the previous project endpoint 1527ms
+   × REVIEW current lookup cancellation is visible in the actual field 379ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  autocomplete.test.tsx > REVIEW switching remote Customize follows the newly selected stable project
+AssertionError: expected true to be false // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col"[39m
+        [33mdata-project-id[39m=[32m"p1"[39m
+        [33mdata-slice-count[39m=[32m"2"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33maria-busy[39m=[32m"false"[39m
+          [33maria-label[39m=[32m"Plan"[39m
+          [33mclass[39m=[32m"mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"[39m
+          [33mdata-toolbar[39m=[32m"true"[39m
+          [33mrole[39m=[32m"toolbar"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mstyle[39m=[32m"position: relative; display: inline-block;"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-haspopup[39m=[32m"menu"[39m
+              [33maria-label[39m=[32m"Freeze #"[39m
+              [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+              [33mdata-hint[39m=[32m"Freeze the numbering as it stands, or release every frozen row"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0mFreeze #[0m
+            [36m</button>[39m
+          [36m</span>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+            [33mdata-takes-the-focus[39m=[32m""[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mAdd work item[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Collapse all"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+            [33mdata-hint[39m=[32m"Close every branch"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"1em"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 4l5 5 5-5"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 20l5-5 5 5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Expand all"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+            [33mdata-hint[39m=[32m"Open every branch"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mfocusable[39m=[32m"false"[39m
+              [33mheight[39m=[32m"1em"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"1em"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 9l5-5 5 5"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M7 15l5 5 5-5"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Arrange by schedule"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+            [33mdata-hint[39m=[32m"Put every sibling in the order its bar starts"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mfill...
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ autocomplete.test.tsx:265:103
+    263|   fireEvent.click(await screen.findByRole('option', {name: 'Project OT…
+    264|   fireEvent.click(await screen.findByRole('button', {name: 'Customize …
+    265|   await waitFor(() => expect(screen.getByRole<HTMLButtonElement>('butt…
+       |                                                                                                       ^
+    266|   fireEvent.click(screen.getByRole('button', {name: /^Add$/}));
+    267|   await waitFor(() => expect(add).toHaveBeenCalledWith('p1', expect.ob…
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  autocomplete.test.tsx > REVIEW remote Customize returns keyboard focus to its dependency input
+AssertionError: expected <body><div>…(1)</div>
+…(1)</body> to be <input …(10)></input> // Object.is equality
+
+- Expected
++ Received
+
++ <body>
++   <div>
++     <section
++       class="flex min-h-0 flex-1 flex-col"
++       data-project-id="p1"
++       data-slice-count="2"
++     >
++       <div
++         aria-busy="false"
++         aria-label="Plan"
++         class="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
++         data-toolbar="true"
++         role="toolbar"
++       >
++         <span
++           style="position: relative; display: inline-block;"
++         >
++           <button
++             aria-expanded="false"
++             aria-haspopup="menu"
++             aria-label="Freeze #"
++             class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
++             data-hint="Freeze the numbering as it stands, or release every frozen row"
++             type="button"
++           >
++             Freeze #
++           </button>
++         </span>
++         <button
++           class="inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"
++           data-takes-the-focus=""
++           type="button"
++         >
++           Add work item
++         </button>
++         <button
++           aria-label="Collapse all"
++           class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++           data-hint="Close every branch"
++           type="button"
++         >
++           <svg
++             aria-hidden="true"
++             fill="none"
++             focusable="false"
++             height="1em"
++             stroke="currentColor"
++             stroke-linecap="round"
++             stroke-linejoin="round"
++             stroke-width="2"
++             viewBox="0 0 24 24"
++             width="1em"
++           >
++             <path
++               d="M7 4l5 5 5-5"
++             />
++             <path
++               d="M7 20l5-5 5 5"
++             />
++           </svg>
++         </button>
++         <button
++           aria-label="Expand all"
++           class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++           data-hint="Open every branch"
++           type="button"
++         >
++           <svg
++             aria-hidden="true"
++             fill="none"
++             focusable="false"
++             height="1em"
++             stroke="currentColor"
++             stroke-linecap="round"
++             stroke-linejoin="round"
++             stroke-width="2"
++             viewBox="0 0 24 24"
++             width="1em"
++           >
++             <path
++               d="M7 9l5-5 5 5"
++             />
++             <path
++               d="M7 15l5 5 5-5"
++             />
++           </svg>
++         </button>
++         <button
++           aria-label="Arrange by schedule"
++           class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++           data-hint="Put every sibling in the order its bar starts"
++           type="button"
++         >
++           <svg
++             aria-hidden="true"
++             fill="none"
++             focusable="false"
++             height="1em"
++             stroke="currentColor"
++             stroke-linecap="round"
++             stroke-linejoin="round"
++             stroke-width="2"
++             viewBox="0 0 24 24"
++             width="1em"
++           >
++             <path
++               d="M3 6h8M8 12h9M13 18h8"
++             />
++           </svg>
++         </button>
++         <button
++           aria-pressed="false"
++           class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
++           data-hint="Draw the schedule under the plan"
++           type="button"
++         >
++           Gantt
++         </button>
++         <button
++           aria-expanded="false"
++           aria-haspopup="dialog"
++           aria-label="Project settings"
++           class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++           data-hint="Teams, priorities and steps of this project"
++           data-state="closed"
++           type="button"
++         >
++           <svg
++             aria-hidden="true"
++             fill="none"
++             focusable="false"
++             height="1em"
++             stroke="currentColor"
++             stroke-linecap="round"
++             stroke-linejoin="round"
++             stroke-width="2"
++             viewBox="0 0 24 24"
++             width="1em"
++           >
++             <circle
++               cx="12"
++               cy="12"
++               r="3"
++             />
++             <path
++               d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M4.9 19.1l2.2-2.2M16.9 7.1l2.2-2.2"
++             />
++           </svg>
++         </button>
++         <span
++           class="relative inline-flex shrink-0"
++         >
++           <input
++             aria-label="Find"
++             class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 w-32 text-xs"
++             data-hint="Show work items whose name contains this, with the rows above and below them"
++             placeholder="Find…"
++             size="14"
++             value=""
++           />
++         </span>
++         <details
++           class="relative"
++           data-dismissible=""
++           data-facets="true"
++         >
++           <summary
++             class="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
++             data-hint="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
++           >
++             Filters
++           </summary>
++           <div
++             class="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
++             data-facet-panel="true"
++           >
++             <fieldset
++               class="mb-2 border-0 p-0"
++               data-facet-group="state"
++             >
++               <legend
++                 class="text-muted-foreground mb-1 text-xs font-semibold"
++               >
++                 State
++               </legend>
++               <label
++                 class="flex min-h-6 items-center gap-1.5"
++               >
++                 <input
++                   aria-label="Unestimated only"
++                   type="checkbox"
++                 />
++                 <span>
++                   Unestimated
++                 </span>
++               </label>
++               <label
++                 class="flex min-h-6 items-center gap-1.5"
++               >
++                 <input
++                   aria-label="Critical path only"
++                   type="checkbox"
++                 />
++                 <span>
++                   On the critical path
++                 </span>
++               </label>
++             </fieldset>
++             <fieldset
++               class="mb-2 border-0 p-0"
++               data-facet-group="mismatch"
++             >
++               <legend
++                 class="text-muted-foreground mb-1 text-xs font-semibold"
++               >
++                 Mismatch
++               </legend>
++               <label
++                 class="flex min-h-6 items-center gap-1.5 text-muted-foreground"
++                 data-fact="No team owns a service yet — set that on the team rows in the directory."
++               >
+                  <input
++                   aria-describedby="facet-why-built-by-non-owner-only"
++                   aria-label="Built by non-owner only"
++                   disabled=""
++                   type="checkbox"
++                 />
++                 <span>
++                   Built by non-owner
++                 </span>
++                 <span
++                   class="sr-only"
++                   id="facet-why-built-by-non-owner-only"
++                 >
++                   No team owns a service yet — set that on the team rows in the directory.
++                 </span>
++               </label>
++               <label
++                 class="flex min-h-6 items-center gap-1.5 text-muted-foreground"
++                 data-fact="Nobody belongs to a team yet — set that on the people in the directory."
++               >
++                 <input
++                   aria-describedby="facet-why-assigned-outside-the-team-only"
++                   aria-label="Assigned outside the team only"
++                   disabled=""
++                   type="checkbox"
++                 />
++                 <span>
++                   Assigned outside the team
++                 </span>
++                 <span
++                   class="sr-only"
++                   id="facet-why-assigned-outside-the-team-only"
++                 >
++                   Nobody belongs to a team yet — set that on the people in the directory.
++                 </span>
++               </label>
++             </fieldset>
++           </div>
++         </details>
++         <details
++           class="relative"
++           data-dismissible=""
++           data-saved-views="true"
++         >
++           <summary
++             class="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
++             data-hint="Name the current filter, or pick one already named"
++           >
++             Views
++           </summary>
++           <div
++             class="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-64 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
++             data-saved-views-panel="true"
++           >
++             <form
++               class="mb-2 flex gap-1.5"
++             >
++               <input
++                 aria-label="Name this view"
++                 class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 flex-1 text-xs"
++                 placeholder="Name this view…"
++                 value=""
++               />
++               <button
++                 class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
++                 data-fact="Nothing is filtered — there is no view to name"
++                 disabled=""
++                 type="submit"
++               >
++                 Save
++               </button>
++             </form>
++             <p
++               class="text-muted-foreground text-xs"
++             >
++               No saved views yet.
++             </p>
++           </div>
++         </details>
++         <details
++           class="relative"
++           data-columns="true"
++           data-dismissible=""
++         >
++           <summary
++             class="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
++             data-hint="Choose which columns are on the table. Number, Name and the row's controls always are."
++           >
++             Columns
++           </summary>
++           <div
++             class="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
++             data-columns-panel="true"
++           >
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-refs"
++             >
++               <input
++                 id="_r_a_-refs"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Links
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-status"
++             >
++               <input
++                 id="_r_a_-status"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Status
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-depends"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-depends"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Depends on
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-priority"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-priority"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Priority
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-team"
++             >
++               <input
++                 id="_r_a_-team"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Teams
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-tag"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-tag"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Tags
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-service"
++             >
++               <input
++                 id="_r_a_-service"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Services
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-type"
++             >
++               <input
++                 id="_r_a_-type"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Types
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-in-parallel"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-in-parallel"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 People at once
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-step-dev"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-step-dev"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Dev
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-step-qa"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-step-qa"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 QA
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-final-total"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-final-total"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Days
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-not-before"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-not-before"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Not before
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-deadline"
++             >
++               <input
++                 id="_r_a_-deadline"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Deadline
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-fact-start"
++             >
++               <input
++                 id="_r_a_-fact-start"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Fact start
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-fact-end"
++             >
++               <input
++                 id="_r_a_-fact-end"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Fact end
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-start"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-start"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Start
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-finish"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-finish"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 End
++               </span>
++             </label>
++             <label
++               class="flex min-h-6 items-center gap-1.5"
++               for="_r_a_-float"
++             >
++               <input
++                 checked=""
++                 id="_r_a_-float"
++                 type="checkbox"
++               />
++               <span
++                 class="truncate"
++               >
++                 Slack
++               </span>
++             </label>
++           </div>
++         </details>
++         <span
++           class="relative inline-flex"
++         >
++           <button
++             class="inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"
++             data-fact="2 missing Dev, 2 missing QA"
++             data-takes-the-focus=""
++             type="button"
++           >
++             2
++              unestimated
++           </button>
++           <span
++             aria-atomic="true"
++             aria-live="polite"
++             class="sr-only"
++             data-gap-notice="true"
++           />
++         </span>
++         <div
++           aria-label="Whole plan"
++           class="ml-auto flex shrink-0 items-center gap-1.5"
++           data-toolbar-end="true"
++           role="group"
++         >
++           <button
++             aria-label="Undo"
++             class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++             data-hint="Undo your last change to this plan (Ctrl/⌘ + Z)"
++             disabled=""
++             type="button"
++           >
++             ↶
++           </button>
++           <button
++             aria-label="Redo"
++             class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++             data-hint="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
++             disabled=""
++             type="button"
++           >
++             ↷
++           </button>
++           <button
++             aria-label="Keyboard shortcuts"
++             class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"
++             data-hint="Keyboard shortcuts (?)"
++             data-takes-the-focus=""
++             type="button"
++           >
++             <svg
++               aria-hidden="true"
++               fill="none"
++               focusable="false"
++               height="1em"
++               stroke="currentColor"
++               stroke-linecap="round"
++               stroke-linejoin="round"
++               stroke-width="2"
++               viewBox="0 0 24 24"
++               width="1em"
++             >
++               <rect
++                 height="12"
++                 rx="2"
++                 width="20"
++                 x="2"
++                 y="6"
++               />
++               <path
++                 d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"
++               />
++             </svg>
++           </button>
++           <details
++             class="relative"
++             data-dismissible=""
++             data-export="true"
++           >
++             <summary
++               class="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs whitespace-nowrap select-none"
++               data-hint="Copy, download, or import the plan as Markdown, Mermaid, CSV, JSON, or what is on screen"
++             >
++               Export / Import
++             </summary>
++             <div
++               class="bg-popover absolute z-50 mt-1 flex w-56 flex-col items-stretch rounded-md border p-1 shadow-md"
++               data-export-panel="true"
++             >
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Copy the whole plan as a Markdown table, with a header saying how to read it"
++                 type="button"
++               >
++                 Copy as Markdown
++               </button>
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
++                 type="button"
++               >
++                 Copy as Mermaid
++               </button>
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Download the whole plan as a CSV, with a header saying how to read it"
++                 type="button"
++               >
++                 Download CSV
++               </button>
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
++                 type="button"
++               >
++                 Download as Markdown
++               </button>
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-export-chart-svg="true"
++                 data-hint="Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
++                 type="button"
++               >
++                 Download chart as SVG
++               </button>
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
++                 type="button"
++               >
++                 Download what’s on screen
++               </button>
++               <button
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Download the complete versioned plan archive as JSON"
++                 type="button"
++               >
++                 Download JSON
++               </button>
++               <div
++                 class="bg-border my-1 h-px shrink-0"
++                 role="separator"
++               />
++               <label
++                 aria-disabled="false"
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-import-file="true"
++               >
++                 Import JSON
++                 <input
++                   accept="application/json"
++                   aria-label="Import JSON"
++                   class="sr-only"
++                   type="file"
++                 />
++               </label>
++               <button
++                 aria-expanded="false"
++                 aria-haspopup="dialog"
++                 class="inline-flex shrink-0 items-center gap-2 border-0 bg-transparent whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs w-full justify-start font-normal"
++                 data-hint="Connect an AI client to WBS and import an existing project through it"
++                 data-state="closed"
++                 type="button"
++               >
++                 Import with AI
++               </button>
++               <div
++                 class="bg-border my-1 h-px shrink-0"
++                 role="separator"
++               />
++               <label
++                 class="flex items-center justify-between gap-1 px-3 text-xs"
++               >
++                 Mermaid lanes
++                 <select
++                   class="border-input bg-background h-8 rounded-md border px-2 text-xs"
++                   data-hint="What the two Mermaid exports group their bars into — the plan's outline, the step a bar is estimated under, or whoever is on it"
++                 >
++                   <option
++                     value="outline"
++                   >
++                     outline
++                   </option>
++                   <option
++                     value="step"
++                   >
++                     step
++                   </option>
++                   <option
++                     value="assignee"
++                   >
++                     assignee
++                   </option>
++                 </select>
++               </label>
++             </div>
++           </details>
++           <div
++             aria-label="Schedule"
++             class="flex shrink-0 items-center gap-1.5"
++             data-schedule="true"
++             role="group"
++           >
++             <label
++               class="flex items-center gap-1 text-sm"
++               data-start-field="true"
++             >
++               Starts
++               <span
++                 class="group relative inline-flex"
++                 data-start-box="true"
++               >
++                 <input
++                   aria-label="Project start date"
++                   class="border-input bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
++                   type="date"
++                   value=""
++                 />
++                 <span
++                   aria-hidden="true"
++                   class="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm group-focus-within:hidden text-muted-foreground"
++                   data-start-day="true"
++                 >
++                   No start date
++                 </span>
++               </span>
++             </label>
++             <label
++               class="flex items-center gap-1 text-sm"
++             >
++               Plan with
++               <select
++                 aria-label="Final estimate"
++                 class="border-input bg-background h-8 rounded-md border px-2 text-sm"
++               >
++                 <option
++                   value="pert"
++                 >
++                   PERT
++                 </option>
++                 <option
++                   value="optimistic"
++                 >
++                   optimistic
++                 </option>
++                 <option
++                   value="realistic"
++                 >
++                   realistic
++                 </option>
++                 <option
++                   value="pessimistic"
++                 >
++                   pessimistic
++                 </option>
++               </select>
++             </label>
++           </div>
++         </div>
++       </div>
++       <div
++         data-table-frame="true"
++         style="overflow: auto; flex: 0 1 auto; min-height: 20rem; padding-bottom: var(--plan-table-tail, 13rem); position: relative;"
++       >
++         <table
++           aria-rowcount="3"
++           data-grid="true"
++           style="border-collapse: separate; border-spacing: 0px; table-layout: fixed; width: min(100%, 1360px); min-width: 1140px;"
++         >
++           <colgroup>
++             <col
++               style="width: 16px;"
++             />
++             <col
++               style="width: 68px;"
++             />
++             <col />
++             <col
++               style="width: 84px;"
++             />
++             <col
++               style="width: 44px;"
++             />
++             <col
++               style="width: 120px;"
++             />
++             <col
++               style="width: 32px;"
++             />
++             <col
++               style="width: 104px;"
++             />
++             <col
++               style="width: 104px;"
++             />
++             <col
++               style="width: 44px;"
++             />
++             <col
++               style="width: 60px;"
++             />
++             <col
++               style="width: 84px;"
++             />
++             <col
++               style="width: 84px;"
++             />
++             <col
++               style="width: 56px;"
++             />
++             <col
++               style="width: 40px;"
++             />
++           </colgroup>
++           <thead>
++             <tr>
++               <th
++                 data-column="drag"
++                 data-hint="Drag a row to move it in the outline. Where a row sits decides its number, which parent adds it up, and the team, services and tags it inherits while its own are blank."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); left: 0px; width: 16px;"
++               >
++                 <span
++                   aria-label="Reorder"
++                 />
++                 <span
++                   aria-label="Resize drag"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize drag"
++                   data-resize-handle="drag"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 aria-label="Number"
++                 data-column="number"
++                 data-hint="This row’s place in the outline. A row indented under another is part of it: the parent’s days and dates are its children’s, added up. A locked number is one the plan was published under and it no longer moves."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); left: 16px; width: 68px;"
++               >
++                 <span>
++                   #
++                 </span>
++                 <span
++                   aria-label="Resize Number"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize Number"
++                   data-resize-handle="number"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="name"
++                 data-hint="What this work item is called — what the waiting sentences, the chart and every export call it, and where its notes are typed. It moves no dates."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 4; background: var(--cell-bg, var(--muted)); min-width: 200px; left: 84px;"
++               >
++                 Name
++                 <span
++                   aria-label="Resize Name"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize Name"
++                   data-resize-handle="name"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="depends"
++                 data-hint="The rows this one waits for. It starts after each named row’s first estimated step rather than after that row finishes, so pushing a row you depend on pushes this one too. Search by name, or type numbers — 010, 020."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 Depends on
++                 <span
++                   aria-label="Resize Depends on"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize Depends on"
++                   data-resize-handle="depends"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="priority"
++                 data-hint="How important this work is: 1 upward, smaller first. It decides who gets a shared person first — never who skips their dependencies."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span>
++                   Priority
++                 </span>
++                 <span
++                   aria-label="Resize priority"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize priority"
++                   data-resize-handle="priority"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="tag"
++                 data-hint="Labels to narrow the plan by — the table, the chart and the cards filter to them together. Blank inherits the tags above. Tags move no dates."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 Tags
++                 <span
++                   aria-label="Resize Tags"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize Tags"
++                   data-resize-handle="tag"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 aria-label="People at once"
++                 data-column="in-parallel"
++                 data-hint="How many people may work on this item at once. Blank means one at a time. It compresses the item’s own effort across that many of its team’s people — never past the team’s size, and never where somebody is named on the work."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <svg
++                   aria-hidden="true"
++                   fill="none"
++                   focusable="false"
++                   height="14"
++                   stroke="currentColor"
++                   stroke-linecap="round"
++                   stroke-linejoin="round"
++                   stroke-width="2"
++                   viewBox="0 0 24 24"
++                   width="14"
++                 >
++                   <path
++                     d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
++                   />
++                   <circle
++                     cx="9"
++                     cy="7"
++                     r="4"
++                   />
++                   <path
++                     d="M23 21v-2a4 4 0 0 0-3-3.87"
++                   />
++                   <path
++                     d="M16 3.13a4 4 0 0 1 0 7.75"
++                   />
++                 </svg>
++                 <span
++                   aria-label="Resize People at once"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize People at once"
++                   data-resize-handle="in-parallel"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="step-dev-final"
++                 data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <button
++                   aria-expanded="false"
++                   aria-label="Unfold Dev estimates"
++                   data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark. Click to show the three points; the table may scroll sideways."
++                   style="font: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
++                   type="button"
++                 >
++                   ▸
++                    
++                   Dev
++                 </button>
++                 <span
++                   aria-label="Resize step-dev-final"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize step-dev-final"
++                   data-resize-handle="step-dev-final"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="step-qa-final"
++                 data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <button
++                   aria-expanded="false"
++                   aria-label="Unfold QA estimates"
++                   data-hint="This step’s days for the work item, from its three points. Steps on one item run in order, so this one waits for the step before it. The mark in a cell’s corner is that step’s reading — hover the cell for it in words, or press ? for every mark. Click to show the three points; the table may scroll sideways."
++                   style="font: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
++                   type="button"
++                 >
++                   ▸
++                    
++                   QA
++                 </button>
++                 <span
++                   aria-label="Resize step-qa-final"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize step-qa-final"
++                   data-resize-handle="step-qa-final"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="final-total"
++                 data-hint="Every step’s final figure for this work item, added up — and the length of its bar. Computed: change an estimate, or how many work on it at once, and this moves with it."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span>
++                   Days
++                 </span>
++                 <span
++                   aria-label="Resize final-total"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize final-total"
++                   data-resize-handle="final-total"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="not-before"
++                 data-hint="The earliest day this work item may start. It is a floor and not a date: its dependencies and its team can still push it later, never earlier."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span>
++                   Not before
++                 </span>
++                 <span
++                   aria-label="Resize not-before"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize not-before"
++                   data-resize-handle="not-before"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="start"
++                 data-hint="Computed, not typed: this work item’s earliest start, worked out from its dependencies, its earliest start and when its team has people free. In days from the start of the plan until the project has a start date."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span>
++                   Start
++                 </span>
++                 <span
++                   aria-label="Resize start"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize start"
++                   data-resize-handle="start"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="finish"
++                 data-hint="Computed, not typed: this work item’s earliest finish, worked out from its dependencies, its earliest start and when its team has people free. In days from the start of the plan until the project has a start date."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span>
++                   End
++                 </span>
++                 <span
++                   aria-label="Resize finish"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize finish"
++                   data-resize-handle="finish"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="float"
++                 data-hint="Days this work item can slip before the plan’s end moves. A row marked critical has none: it is what sets the plan’s finish."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span>
++                   Slack
++                 </span>
++                 <span
++                   aria-label="Resize float"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize float"
++                   data-resize-handle="float"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++               <th
++                 data-column="actions"
++                 data-hint="Duplicate this row, or delete it and every row under it. A row whose number is locked must be unfrozen before it can be deleted."
++                 scope="col"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; top: 0px; z-index: 3; background: var(--cell-bg, var(--muted));"
++               >
++                 <span
++                   aria-label="Row actions"
++                 />
++                 <span
++                   aria-label="Resize actions"
++                   aria-orientation="vertical"
++                   data-hint="Drag to resize actions"
++                   data-resize-handle="actions"
++                   role="separator"
++                   style="position: absolute; top: 0px; right: 0px; bottom: 0px; width: 6px; cursor: col-resize; touch-action: none; user-select: none;"
++                 />
++               </th>
++             </tr>
++           </thead>
++           <tbody>
++             <tr
++               aria-rowindex="2"
++               data-frozen="false"
++               data-row-id="w1"
++               data-row-parity="odd"
++               data-row-status="unknown"
++             >
++               <td
++                 data-column="drag"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 0px; width: 16px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
++               >
++                 <span
++                   aria-describedby="strip-word-w1"
++                   aria-label="Reorder 010"
++                   data-hint="Drag to move this row"
++                   draggable="true"
++                   role="button"
++                   style="cursor: grab;"
++                   tabindex="-1"
++                 >
++                   ⠿
++                 </span>
++                 <span
++                   class="sr-only"
++                   id="strip-word-w1"
++                 >
++                   Status: Unknown
++                 </span>
++               </td>
++               <td
++                 data-column="number"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 16px; width: 68px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
++               >
++                 <span
++                   style="padding-left: 0px; white-space: nowrap;"
++                 >
++                   <span
++                     data-caret-gutter="true"
++                     style="display: inline-block; width: 12px;"
++                   />
++                   <span
++                     data-number="true"
++                   >
++                     010
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="name"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; min-width: 200px; position: sticky; left: 84px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
++               >
++                 <span
++                   style="position: relative; display: block; max-width: 100%; padding-left: 0px;"
++                 >
++                   <span
++                     style="position: relative; display: block; min-width: 0px;"
++                   >
++                     <textarea
++                       aria-label="Name of 010"
++                       data-cell="w1::name"
++                       data-name-input="w1"
++                       data-rendered-at-rest=""
++                       rows="1"
++                       style="width: 100%; box-sizing: border-box; font: inherit; height: 0px; max-height: none; overflow-y: hidden;"
++                     >
++                       Puni local title
++                     </textarea>
++                     <span
++                       aria-hidden="true"
++                       data-cell-rendered="w1::name"
++                     >
++                       Puni local title
++                     </span>
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="depends"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: block; max-width: 100%;"
++                 >
++                   <span
++                     aria-live="polite"
++                     class="sr-only"
++                   />
++                   <span
++                     data-depends-strip="w1"
++                     data-reference-strip=""
++                     style="display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; min-width: 0px; white-space: nowrap; overflow: hidden; direction: ltr;"
++                   >
++                     <button
++                       aria-label="Make 010 wait for something"
++                       class="shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"
++                       data-dep-add="w1"
++                       data-reference-add=""
++                       style="flex-shrink: 0;"
++                       tabindex="-1"
++                       type="button"
++                     >
++                       +
++                     </button>
++                     <input
++                       aria-autocomplete="list"
++                       aria-expanded="false"
++                       aria-label="Add a dependency to 010"
++                       data-cell="w1::depends"
++                       data-depends-input="w1"
++                       placeholder="search"
++                       role="combobox"
++                       style="width: 100%; min-width: 0px; box-sizing: border-box; flex: 1 1 0%;"
++                       value=""
++                     />
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="priority"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: block; min-width: 0px;"
++                 >
++                   <input
++                     aria-autocomplete="list"
++                     aria-expanded="false"
++                     aria-label="Priority for 010"
++                     data-cell="w1::priority"
++                     data-hint="How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said."
++                     data-priority="w1"
++                     inputmode="numeric"
++                     role="combobox"
++                     style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right; padding-left: 8px;"
++                     value=""
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="tag"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   data-reference-anchor=""
++                   style="position: relative; display: flex; align-items: center; flex: 1 1 0%; min-width: 0px; min-height: 24px;"
++                 >
++                   <span
++                     data-reference-set="tag"
++                     data-reference-strip=""
++                     style="display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0px; flex: 1 1 0%; overflow: hidden;"
++                   >
++                     <button
++                       aria-label="Add a tag to 010"
++                       class="shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"
++                       data-reference-add=""
++                       tabindex="-1"
++                       type="button"
++                     >
++                       +
++                     </button>
++                     <span
++                       data-reference-chips=""
++                       style="display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; column-gap: 3px; row-gap: 18px; max-height: 18px; min-width: 0px; max-width: 100%; overflow: hidden;"
++                     />
++                     <span
++                       data-reference-search=""
++                       style="flex: 1 1 0%; min-width: 0px;"
++                     >
++                       <span
++                         style="position: relative; display: flex; max-width: 100%; min-width: 0px;"
++                       >
++                         <input
++                           aria-autocomplete="list"
++                           aria-expanded="false"
++                           aria-label="Tags for 010"
++                           data-cell="w1::tag"
++                           placeholder="search"
++                           role="combobox"
++                           style="font: inherit; flex: 1 1 0%; min-width: 0px; width: auto;"
++                           value=""
++                         />
++                       </span>
++                     </span>
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="in-parallel"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <input
++                   aria-label="People at once for 010"
++                   data-cell="w1::in-parallel"
++                   data-hint="How many people may work on this item at once. Blank means one at a time."
++                   data-in-parallel="w1"
++                   inputmode="numeric"
++                   style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right;"
++                   value=""
++                 />
++               </td>
++               <td
++                 data-column="step-dev-final"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   data-final="step-dev"
++                   style="position: relative; display: flex; align-items: baseline; max-width: 100%; min-width: 0px; font-weight: 600; padding-right: 10px;"
++                 >
++                   <input
+                      aria-autocomplete="list"
++                     aria-expanded="false"
++                     aria-invalid="false"
++                     aria-label="Dev estimate for 010"
++                     data-cell="w1::step-dev-final"
++                     placeholder="o/r/p"
++                     role="combobox"
++                     style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"
++                     value=""
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="step-qa-final"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   data-final="step-qa"
++                   style="position: relative; display: flex; align-items: baseline; max-width: 100%; min-width: 0px; font-weight: 600; padding-right: 10px;"
++                 >
++                   <input
++                     aria-autocomplete="list"
++                     aria-expanded="false"
++                     aria-invalid="false"
++                     aria-label="QA estimate for 010"
++                     data-cell="w1::step-qa-final"
++                     placeholder="o/r/p"
++                     role="combobox"
++                     style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"
++                     value=""
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="final-total"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <span
++                   data-final-total="true"
++                   style="font-weight: 600;"
++                 >
++                   0
++                 </span>
++               </td>
++               <td
++                 data-column="not-before"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: block;"
++                 >
++                   <input
++                     aria-label="Earliest start for 010"
++                     data-cell="w1::not-before"
++                     data-fact="Set the project start date first — without one there are no dates to constrain."
++                     data-not-before="w1"
++                     disabled=""
++                     style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; cursor: not-allowed;"
++                     value="—"
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="start"
++                 data-start-said="Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; cursor: help;"
++                 tabindex="0"
++               >
++                 <span
++                   style="position: relative; display: block;"
++                 >
++                   <span
++                     data-start="true"
++                     style="text-decoration: underline dotted;"
++                   >
++                     day 0
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="finish"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <span
++                   data-fact="No estimate yet: the ? marks an end worked out without one, so it will move once somebody estimates. — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."
++                   data-finish="true"
++                 >
++                   day 0
++                    ?
++                 </span>
++               </td>
++               <td
++                 data-column="float"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <span
++                   data-critical="true"
++                   data-fact="On the critical path: any delay here moves the whole plan’s finish."
++                   data-float="true"
++                 >
++                   critical
++                 </span>
++               </td>
++               <td
++                 data-column="actions"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: inline-block;"
++                 >
++                   <button
++                     aria-expanded="false"
++                     aria-haspopup="menu"
++                     aria-label="Actions for 010"
++                     data-hint="Row actions"
++                     style="font: inherit; padding: 0px 4px;"
++                     type="button"
++                   >
++                     ⋯
++                   </button>
++                 </span>
++               </td>
++             </tr>
++             <tr
++               aria-rowindex="3"
++               data-frozen="false"
++               data-row-id="w2"
++               data-row-parity="even"
++               data-row-status="unknown"
++             >
++               <td
++                 data-column="drag"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 0px; width: 16px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
++               >
++                 <span
++                   aria-describedby="strip-word-w2"
++                   aria-label="Reorder 020"
++                   data-hint="Drag to move this row"
++                   draggable="true"
++                   role="button"
++                   style="cursor: grab;"
++                   tabindex="-1"
++                 >
++                   ⠿
++                 </span>
++                 <span
++                   class="sr-only"
++                   id="strip-word-w2"
++                 >
++                   Status: Unknown
++                 </span>
++               </td>
++               <td
++                 data-column="number"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip; position: sticky; left: 16px; width: 68px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
++               >
++                 <span
++                   style="padding-left: 0px; white-space: nowrap;"
++                 >
++                   <span
++                     data-caret-gutter="true"
++                     style="display: inline-block; width: 12px;"
++                   />
++                   <span
++                     data-number="true"
++                   >
++                     020
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="name"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; min-width: 200px; position: sticky; left: 84px; background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)), var(--cell-bg, var(--background)); z-index: 1;"
++               >
++                 <span
++                   style="position: relative; display: block; max-width: 100%; padding-left: 0px;"
++                 >
++                   <span
++                     style="position: relative; display: block; min-width: 0px;"
++                   >
++                     <textarea
++                       aria-label="Name of 020"
++                       data-cell="w2::name"
++                       data-name-input="w2"
++                       data-rendered-at-rest=""
++                       rows="1"
++                       style="width: 100%; box-sizing: border-box; font: inherit; height: 0px; max-height: none; overflow-y: hidden;"
++                     >
++                       Successor
++                     </textarea>
++                     <span
++                       aria-hidden="true"
++                       data-cell-rendered="w2::name"
++                     >
++                       Successor
++                     </span>
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="depends"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: block; max-width: 100%;"
++                 >
++                   <span
++                     aria-live="polite"
++                     class="sr-only"
++                   />
++                   <span
++                     data-depends-strip="w2"
++                     data-reference-strip=""
++                     style="display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; min-width: 0px; white-space: nowrap; overflow: hidden; direction: ltr;"
++                   >
++                     <button
++                       aria-label="Make 020 wait for something"
++                       class="shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"
++                       data-dep-add="w2"
++                       data-reference-add=""
++                       style="flex-shrink: 0;"
++                       tabindex="-1"
++                       type="button"
++                     >
++                       +
++                     </button>
++                     <input
++                       aria-autocomplete="list"
+                        aria-controls="dep-options-w2"
+                        aria-expanded="true"
+                        aria-label="Add a dependency to 020"
+                        data-cell="w2::depends"
+                        data-depends-input="w2"
+                        placeholder="search"
+                        role="combobox"
+                        style="width: 100%; min-width: 0px; box-sizing: border-box;"
+                        value="010, PUNI."
+                      />
++                   </span>
++                   <ul
++                     aria-label="Work items 020 can depend on"
++                     id="dep-options-w2"
++                     role="listbox"
++                     style="position: absolute; top: 100%; left: 0px; margin: 0px; padding: 0px; list-style: none; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--popover-shadow); overflow: hidden; max-height: 200px; overflow-y: auto; color: var(--popover-foreground); z-index: 10; min-width: 260px; max-width: 1016px;"
++                   >
++                     <li
++                       role="presentation"
++                       style="display: flex; align-items: center;"
++                     >
++                       <span
++                         aria-disabled="false"
++                         aria-label="PUNI.080.s1-dev - Remote build"
++                         aria-selected="false"
++                         id="dep-option-[\"remote\",\"remote-row\",\"node\",\"remote-dev\"]"
++                         role="option"
++                         style="padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0px; flex: 0 1 auto; cursor: pointer;"
++                         tabindex="-1"
++                       >
++                         PUNI.080.s1-dev - Remote build
++                       </span>
++                       <button
++                         aria-label="Customize PUNI.080.s1-dev - Remote build"
++                         class="typed-dependency-customize"
++                         type="button"
++                       />
++                     </li>
++                   </ul>
++                 </span>
++               </td>
++               <td
++                 data-column="priority"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: block; min-width: 0px;"
++                 >
++                   <input
++                     aria-autocomplete="list"
++                     aria-expanded="false"
++                     aria-label="Priority for 020"
++                     data-cell="w2::priority"
++                     data-hint="How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said."
++                     data-priority="w2"
++                     inputmode="numeric"
++                     role="combobox"
++                     style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right; padding-left: 8px;"
++                     value=""
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="tag"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   data-reference-anchor=""
++                   style="position: relative; display: flex; align-items: center; flex: 1 1 0%; min-width: 0px; min-height: 24px;"
++                 >
++                   <span
++                     data-reference-set="tag"
++                     data-reference-strip=""
++                     style="display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0px; flex: 1 1 0%; overflow: hidden;"
++                   >
++                     <button
++                       aria-label="Add a tag to 020"
++                       class="shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground"
++                       data-reference-add=""
++                       tabindex="-1"
++                       type="button"
++                     >
++                       +
++                     </button>
++                     <span
++                       data-reference-chips=""
++                       style="display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; column-gap: 3px; row-gap: 18px; max-height: 18px; min-width: 0px; max-width: 100%; overflow: hidden;"
++                     />
++                     <span
++                       data-reference-search=""
++                       style="flex: 1 1 0%; min-width: 0px;"
++                     >
++                       <span
++                         style="position: relative; display: flex; max-width: 100%; min-width: 0px;"
++                       >
++                         <input
++                           aria-autocomplete="list"
++                           aria-expanded="false"
++                           aria-label="Tags for 020"
++                           data-cell="w2::tag"
++                           placeholder="search"
++                           role="combobox"
++                           style="font: inherit; flex: 1 1 0%; min-width: 0px; width: auto;"
++                           value=""
++                         />
++                       </span>
++                     </span>
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="in-parallel"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <input
++                   aria-label="People at once for 020"
++                   data-cell="w2::in-parallel"
++                   data-hint="How many people may work on this item at once. Blank means one at a time."
++                   data-in-parallel="w2"
++                   inputmode="numeric"
++                   style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; text-align: right;"
++                   value=""
++                 />
++               </td>
++               <td
++                 data-column="step-dev-final"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   data-final="step-dev"
++                   style="position: relative; display: flex; align-items: baseline; max-width: 100%; min-width: 0px; font-weight: 600; padding-right: 10px;"
++                 >
++                   <input
++                     aria-autocomplete="list"
++                     aria-expanded="false"
++                     aria-invalid="false"
++                     aria-label="Dev estimate for 020"
++                     data-cell="w2::step-dev-final"
++                     placeholder="o/r/p"
++                     role="combobox"
++                     style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"
++                     value=""
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="step-qa-final"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   data-final="step-qa"
++                   style="position: relative; display: flex; align-items: baseline; max-width: 100%; min-width: 0px; font-weight: 600; padding-right: 10px;"
++                 >
++                   <input
++                     aria-autocomplete="list"
++                     aria-expanded="false"
++                     aria-invalid="false"
++                     aria-label="QA estimate for 020"
++                     data-cell="w2::step-qa-final"
++                     placeholder="o/r/p"
++                     role="combobox"
++                     style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: 10px; font-weight: 400; color: var(--muted-foreground); text-overflow: ellipsis;"
++                     value=""
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="final-total"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <span
++                   data-final-total="true"
++                   style="font-weight: 600;"
++                 >
++                   0
++                 </span>
++               </td>
++               <td
++                 data-column="not-before"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: block;"
++                 >
++                   <input
++                     aria-label="Earliest start for 020"
++                     data-cell="w2::not-before"
++                     data-fact="Set the project start date first — without one there are no dates to constrain."
++                     data-not-before="w2"
++                     disabled=""
++                     style="width: 100%; box-sizing: border-box; font: inherit; background: transparent; border: medium; cursor: not-allowed;"
++                     value="—"
++                   />
++                 </span>
++               </td>
++               <td
++                 data-column="start"
++                 data-start-said="Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible; cursor: help;"
++                 tabindex="0"
++               >
++                 <span
++                   style="position: relative; display: block;"
++                 >
++                   <span
++                     data-start="true"
++                     style="text-decoration: underline dotted;"
++                   >
++                     day 0
++                   </span>
++                 </span>
++               </td>
++               <td
++                 data-column="finish"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <span
++                   data-fact="No estimate yet: the ? marks an end worked out without one, so it will move once somebody estimates. — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date."
++                   data-finish="true"
++                 >
++                   day 0
++                    ?
++                 </span>
++               </td>
++               <td
++                 data-column="float"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: clip;"
++               >
++                 <span
++                   data-critical="true"
++                   data-fact="On the critical path: any delay here moves the whole plan’s finish."
++                   data-float="true"
++                 >
++                   critical
++                 </span>
++               </td>
++               <td
++                 data-column="actions"
++                 style="box-sizing: border-box; padding: 1px 4px; vertical-align: top; overflow: visible;"
++               >
++                 <span
++                   style="position: relative; display: inline-block;"
++                 >
++                   <button
++                     aria-expanded="false"
++                     aria-haspopup="menu"
++                     aria-label="Actions for 020"
++                     data-hint="Row actions"
++                     style="font: inherit; padding: 0px 4px;"
++                     type="button"
++                   >
++                     ⋯
++                   </button>
++                 </span>
++               </td>
++             </tr>
++           </tbody>
++         </table>
++       </div>
++     </section>
++   </div>
++   <div
++     aria-live="polite"
++     class="pointer-events-auto fixed right-4 bottom-4 z-(--layer-toast) flex max-w-[30em] flex-col gap-2 font-sans"
++     data-toasts="true"
++   />
++ </body>
+
+ ❯ autocomplete.test.tsx:276:34
+    274|   fireEvent.click(await screen.findByRole('button', {name:'Customize P…
+    275|   fireEvent.click(screen.getByRole('button', {name:'Back to dependency…
+    276|   expect(document.activeElement).toBe(box);
+       |                                  ^
+    277|   expect(box.value).toBe('010, PUNI.');
+    278| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  autocomplete.test.tsx > REVIEW a selected stable project stays pinned after a trailing comma
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', ObjectContaining{…}, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+  [
+    "p1",
+-   ObjectContaining {
+-     "projectId": "remote",
++   {
++     "projectId": "reused-project",
++     "scope": "node",
++     "stepId": "remote-dev",
++     "workItemId": "remote-row",
+    },
+-   Anything,
++   {
++     "scope": "whole",
++     "workItemId": "w2",
++   },
+    "FS",
+  ]
+
+
+Number of calls: 1
+
+ ❯ autocomplete.test.tsx:292:15
+    290|   fireEvent.keyDown(box, {key:'Enter'});
+    291|   await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
+    292|   expect(add).toHaveBeenCalledWith('p1',expect.objectContaining({proje…
+       |               ^
+    293|   expect(routes.projects).toHaveBeenCalledTimes(1);
+    294| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  autocomplete.test.tsx > REVIEW local Customize retains previous mixed tokens after successful Add
+AssertionError: expected '' to be '999, ' // Object.is equality
+
+- Expected
++ Received
+
+- 999, 
+
+ ❯ autocomplete.test.tsx:303:21
+    301|   await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
+    302|   await waitFor(() => expect(screen.queryByRole('dialog', {name:'Custo…
+    303|   expect(box.value).toBe('999, ');
+       |                     ^
+    304| });
+    305|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  autocomplete.test.tsx > REVIEW switching same-abbreviation remote Customize never offers the previous project endpoint
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', ObjectContaining{…}, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+  [
+    "p1",
+-   ObjectContaining {
+-     "projectId": "other",
++   {
++     "projectId": "remote",
++     "scope": "node",
++     "stepId": "remote-dev",
++     "workItemId": "remote-row",
+    },
+-   Anything,
++   {
++     "scope": "whole",
++     "workItemId": "w2",
++   },
+    "FS",
+  ]
+
+
+Number of calls: 1
+
+ ❯ autocomplete.test.tsx:325:15
+    323|   fireEvent.click(screen.getByRole('button',{name:/^Add$/}));
+    324|   await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
+    325|   expect(add).toHaveBeenCalledWith('p1',expect.objectContaining({proje…
+       |               ^
+    326| });
+    327|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  autocomplete.test.tsx > REVIEW current lookup cancellation is visible in the actual field
+TestingLibraryElementError: Unable to find an element with the text: /cancelled/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"flex min-h-0 flex-1 flex-col"[39m
+      [33mdata-project-id[39m=[32m"p1"[39m
+      [33mdata-slice-count[39m=[32m"2"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33maria-busy[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Plan"[39m
+        [33mclass[39m=[32m"mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"[39m
+        [33mdata-toolbar[39m=[32m"true"[39m
+        [33mrole[39m=[32m"toolbar"[39m
+      [36m>[39m
+        [36m<span[39m
+          [33mstyle[39m=[32m"position: relative; display: inline-block;"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-expanded[39m=[32m"false"[39m
+            [33maria-haspopup[39m=[32m"menu"[39m
+            [33maria-label[39m=[32m"Freeze #"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs"[39m
+            [33mdata-hint[39m=[32m"Freeze the numbering as it stands, or release every frozen row"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFreeze #[0m
+          [36m</button>[39m
+        [36m</span>[39m
+        [36m<button[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+          [33mdata-takes-the-focus[39m=[32m""[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [0mAdd work item[0m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Collapse all"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+          [33mdata-hint[39m=[32m"Close every branch"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"1em"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 4l5 5 5-5"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 20l5-5 5 5"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Expand all"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+          [33mdata-hint[39m=[32m"Open every branch"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"1em"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 9l5-5 5 5"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 15l5 5 5-5"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"Arrange by schedule"[39m
+          [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 w-8 p-0"[39m
+          [33mdata-hint[39m=[32m"Put every sibling in the order its bar starts"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mheight[39m=[32m"1em"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+    ...
+ ❯ Object.getElementError ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ autocomplete.test.tsx:335:17
+    333|   await waitFor(() => expect(routes.projects).toHaveBeenCalledTimes(1)…
+    334|   await waitFor(() => expect(screen.queryByText('Loading dependency ch…
+    335|   expect(screen.getByText(/cancelled/i)).toBeDefined();
+       |                 ^
+    336| });
+    337|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 1 passed | 7 skipped (14)
+   Start at  01:30:34
+   Duration  11.97s (tests 56%, import 27%, transform 12%, environment 3%)
+

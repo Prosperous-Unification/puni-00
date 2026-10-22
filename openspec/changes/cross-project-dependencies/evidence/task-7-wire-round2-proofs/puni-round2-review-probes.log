@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/bundled-solver-runtime.test.ts:
+(pass) release-style Bun artifact runs existing local and connected solver callers [852.71ms]
+
+../puni-wire-round1-review-probes/artifact.test.ts:
+(pass) existing local solver revalidator loads directly from source [502.80ms]
+
+(pass) existing local solver revalidator loads from Bun release-style bundle [485.06ms]
+
+../puni-round2-complete-request.test.ts:
+(pass) reviewer long foreign-only stage is refused before a terminal and exact retained bytes are refused by installed CLI [1305.30ms]
+
+../puni-wire-round1-review-probes/seams.test.ts:
+(pass) different objectives must not share a full question identity [6.88ms]
+(pass) malformed budget must not produce a prepared boundary terminal [1.08ms]
+(pass) fractional origin must not produce a prepared boundary terminal [1.24ms]
+nonfinite token NaN exit 64 stdout  stderr wbs-solver: nonfinite number at <root>/scope/fixed/0/finish
+
+nonfinite token 1e309 exit 64 stdout  stderr wbs-solver: nonfinite number at <root>/scope/fixed/0/finish
+
+(pass) installed receiver rejects nonfinite foreign placement [1393.93ms]
+invalid budget exit 64 stderr wbs-solver: request does not satisfy #/$defs/request: budgetMs: 0 is less than the minimum of 1
+
+invalid origin exit 64 stderr wbs-solver: request does not satisfy #/$defs/request: scope/originOrdinal: 0.5 is not of type 'integer'
+
+(pass) installed receiver independently rejects malformed terminal requests [1195.16ms]
+overflow-float exit 64 stdout  stderr wbs-solver: nonfinite number at <root>/scope/fixed/0/finish
+
+(pass) installed receiver rejects exponent-overflow foreign placement [514.90ms]
+bad-witness exit 64 stdout  stderr wbs-solver: declared feasibleBaselineOffsets violate the full model
+
+(pass) installed CLI classifies invalid declared witness as bad request [636.41ms]
+(pass) finite unrepresentable connected horizon is a typed preflight failure [1.75ms]
+
+../puni-round1-installed.test.ts:
+(pass) installed 0.4.0 classifies valid terminal and invalid witness [1210.63ms]
+(pass) installed 0.4.0 refuses nonfinite fixed and occupancy evidence [3859.75ms]
+(pass) installed 0.4.0 refuses finite quantization overflow [877.81ms]
+
+ 15 pass
+ 0 fail
+ 68 expect() calls
+Ran 15 tests across 5 files. [13.38s]

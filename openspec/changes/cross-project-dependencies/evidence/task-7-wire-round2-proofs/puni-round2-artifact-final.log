@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/bundled-solver-runtime.test.ts:
+(pass) release-style Bun artifact runs existing local and connected solver callers [611.75ms]
+
+../puni-wire-round1-review-probes/artifact.test.ts:
+(pass) existing local solver revalidator loads directly from source [269.22ms]
+
+(pass) existing local solver revalidator loads from Bun release-style bundle [222.81ms]
+
+ 3 pass
+ 0 fail
+ 10 expect() calls
+Ran 3 tests across 2 files. [1116.00ms]

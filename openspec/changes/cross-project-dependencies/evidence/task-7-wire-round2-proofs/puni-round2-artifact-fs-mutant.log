@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/bundled-solver-runtime.test.ts:
+16156 | var STAGE_BUDGET_SPLIT = [0.6, 0.25, 0.15];
+16157 | var SUM_TOLERANCE = 2 ** -40;
+16158 | 
+16159 | // ../puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts
+16160 | var import__2020 = __toESM(require__2020(), 1);
+16161 | var schema2 = JSON.parse(readFileSync(new URL("../solver-wire.v5.json", import.meta.url), "utf8"));
+                                             ^
+ENOENT: no such file or directory, open '/tmp/solver-wire.v5.json'
+    path: "/tmp/solver-wire.v5.json",
+ syscall: "open",
+   errno: -2,
+    code: "ENOENT"
+
+      at /tmp/wbs-solver-bundle-ecRVQZ/solver-entry.js:16161:38
+note: missing sourcemaps for /tmp/wbs-solver-bundle-ecRVQZ/solver-entry.js
+note: consider bundling with '--sourcemap' to get unminified traces
+
+Bun v1.4.2 (Linux x64)
+21 |     expect(build.exitCode).toBe(0);
+22 |     const fromBundle = Bun.spawnSync(['bun', bundle], { cwd: directory });
+23 |     if (fromBundle.exitCode !== 0) process.stderr.write(fromBundle.stderr.toString());
+24 |     // Proof: replacing the normative JSON import with a runtime
+25 |     // import.meta.url filesystem read made this artifact exit 1 with ENOENT.
+26 |     expect(fromBundle.exitCode).toBe(0);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/bundled-solver-runtime.test.ts:26:33)
+(fail) release-style Bun artifact runs existing local and connected solver callers [348.37ms]
+
+ 0 pass
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [362.00ms]
