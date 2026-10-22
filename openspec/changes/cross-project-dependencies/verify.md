@@ -766,3 +766,13 @@ dormant. After three-way integration with the live packet, the real SQLite
 focus passed 136/136 (1,630 assertions), and uncached configured
 core/contracts/backend Nx typechecks plus module-check dependencies passed.
 The final CI/host gate remains pending.
+
+## Task 3.2 — scoped MCP/HTTP transport parity packet
+
+The [reviewed parity packet](evidence/task-3-mcp-parity-integration.md) is integrated
+as `4644ed62e`. Its booted generated-MCP and direct-HTTP command comparison
+passes with the same dormant 409, and the generated schema exposes both
+project endpoint IDs. Integrated MCP tests passed 17/17 (62 assertions) and
+the MCP spec TypeScript check passed. The reviewer independently watched two
+transport/schema faults fail the selected tests. Mounted positive authoring and
+full task 3.2 remain open; the final CI/host gate is pending.
