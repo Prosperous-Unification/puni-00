@@ -2165,3 +2165,26 @@ credential, dispatch or coordinator change. No full Burokrat/package/backend/
 RunStore/browser/build/host/CI repeat; later cohesive review and exact-SHA canonical
 gate/applicable CI remain required. Independent task/final phase reviews and local
 task checkbox acceptance remain pending. Parent6a.3 stays open.
+
+### Bounded retained-binding source-phase acceptance
+
+Independent task review approved implementation/spec behavior and code quality.
+Its Important historical-process finding received explicit root disposition:
+Python use remains rejected as noncompliant, with all disclosures and raw gaps
+preserved; technical source acceptance is based on independent Bun audits rather
+than a retroactive process waiver.
+
+Final complete bounded review approved0aec439bd..58bde16e8:2commits,16paths,
+85754bytes/1777package lines. The dispatch mistakenly described14paths; the reviewer
+read all16 and found no omitted part. No actionable code finding or final fix wave
+was requested. Both reviews independently inspected retained raw evidence; the
+task reviewer also rehashed all138fault bodies.
+
+Only the five local binding-recovery implementation items are now closed.
+Their closure records bounded behavior and scoped verification acceptance; it
+does not certify historical process compliance. Parent6a.3 remains open for
+revocation and provenance-aware re-pinning, and parent5.6/cohesive execution
+ordering, final branch review, exact-SHA canonical host gate and applicable CI
+remain open. Deferred warning noise and limits stay visible. No source changed
+after the approved58bde16e8; this acceptance commit is metadata only. No main
+integration, deployment, cleanup or independent helper release occurred.

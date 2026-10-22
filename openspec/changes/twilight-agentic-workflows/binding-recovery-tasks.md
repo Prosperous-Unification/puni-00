@@ -10,6 +10,10 @@
 
 **Spec:** [binding recovery design](binding-recovery-design.md), [intent](binding-recovery-intent.md), [workflow binding](specs/twilight/workflow-binding/spec.md).
 
+Local checkbox acceptance records implemented behavior and scoped verification.
+Historical Python noncompliance remains rejected and disclosed in verify; closure
+does not certify process compliance or parent/cohesive operational readiness.
+
 ## Global Constraints
 
 - Work only in native de55/feat/agentic-durable-execution, starting from0aec439bdc22d46618ffc442408f9063a62ec4d5 plus root planning commit. Bun/Nx only, login:false. One implementation writer. No main/user checkout, CTT or other owner's tenant/auth/credential/limits/provider/activation work.
@@ -93,13 +97,13 @@ if (canonicalJson(accepted.snapshot) !== manifest.canonicalBinding)
   throw new Error('retained binding acceptance does not match manifest');
 ```
 
-- [ ] 1.1 Read actual owners/callers/tests and capture semantic RED before implementation.
+- [x] 1.1 Read actual owners/callers/tests and capture semantic RED before implementation.
       Decoder tests include a complete small tool/human binding, nested unused-class
       paths, unsupported/absent version, closed envelope/descriptor, invalid SHA/path,
       duplicate/unsorted/missing/extra descriptors, non-JSON/accessor/sparse/decorated
       input and caller detachment/deep freeze. Keep full project-step checks in their
       owner; prove invalid step set/reference coverage refuses before artifact IO.
-- [ ] 1.2 Implement the minimal decoder and manifest reader. Shared real-provider tests
+- [x] 1.2 Implement the minimal decoder and manifest reader. Shared real-provider tests
       cover valid static selection, tool-only no-prompt acceptance, all unused paths,
       distinct paths sharing bytes, repeated identical artifact refs, wrong-metadata
       duplicate after a valid ref, extra undeclared prompt ref, missing/corrupt retained
@@ -109,7 +113,7 @@ if (canonicalJson(accepted.snapshot) !== manifest.canonicalBinding)
       Add real SQLite close/reopen recovery after editing original binding/prompt files;
       assert selection remains tied to retained original bytes/digest, including BOM.
       Do not call the file loader from readManifestBinding.
-- [ ] 1.3 Prove asynchronous snapshot and immutable return behavior with a held real
+- [x] 1.3 Prove asynchronous snapshot and immutable return behavior with a held real
       artifact read and mutable port replies/buffers. Mutating caller manifest nested
       refs/settings while awaiting must not change selected content. Mutating a prior
       returned prompt buffer during a later await must not change acceptance. Caller
@@ -117,14 +121,14 @@ if (canonicalJson(accepted.snapshot) !== manifest.canonicalBinding)
       credential refs and accepted settings/prompts are deeply frozen and detached.
       Add exact product override and effective-policy tests, preserving old two-path
       storage allowlist. Use the actual source lint consumer, not policy-array-only tests.
-- [ ] 1.4 From restored green, inject isolated faults into genuinely new guards and new
+- [x] 1.4 From restored green, inject isolated faults into genuinely new guards and new
       decode/check/accept/read/verify/canonical/snapshot/freeze/policy consumption edges.
       Use otherwise-valid inputs to expose guard removal rather than duplicate backstops;
       diagnostic-code changes may prove classification only. Retain masked trials
       without a proof claim, exact file restoration in finally and restored green.
       Add adjacent Proof comments naming injected fault and observed test. Reused
       unchanged validators need no blanket guard sweep.
-- [ ] 1.5 Format and run final focused new/neighbor source tests once under source hold,
+- [x] 1.5 Format and run final focused new/neighbor source tests once under source hold,
       with complete before/after source/index/HEAD/status evidence. Neighbor coverage is
       existing Burokrat workflow-binding.test.ts, Dash artifact-store.test.ts and
       sqlite/artifact-store.db.test.ts. Run all four actual devsync suites:
