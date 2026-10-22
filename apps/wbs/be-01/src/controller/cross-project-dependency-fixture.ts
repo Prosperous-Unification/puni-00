@@ -17,10 +17,20 @@ let afterRequestResolve: (() => void) | undefined;
 export async function closeFixture() {
   await harness.closeComposed();
 }
-export async function openFixture() {
+export async function openFixture(options?: {
+  syntheticExternalCommands?: true;
+  pushes?: string[];
+}) {
   afterRequestResolve = undefined;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    ...(options?.syntheticExternalCommands === undefined
+      ? {}
+      : { syntheticExternalCommands: options.syntheticExternalCommands }),
+    pushFetch: (request) => {
+      options?.pushes?.push(request);
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
     afterResolve: () => afterRequestResolve?.(),
   });
   // Synthetic stored authority permits historical external edges in this fixture; production authoring stays inactive.

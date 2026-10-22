@@ -4407,3 +4407,91 @@ pre-commit execution passed format, lint, plaintext-secrets and private-nesting.
 Tool-wiki reported inactive/uncertified because its external activation root is
 not provisioned. Migration/website-migration and doc-caps hooks skipped because no
 matching files were staged. No hook was bypassed.
+
+### 2026-10-22 bounded synthetic mounted successor lifecycle (task 4.4 remains open)
+
+The lifecycle fixture now optionally forwards the existing
+`syntheticExternalCommands: true` harness option; ordinary callers retain dormant
+external authoring. The tested relationships are authored through mounted HTTP,
+using Ada's real selected-organization session. Ada is a member owning successor
+project B; Grace owns restricted predecessor project A in the same organization.
+No production behavior changed.
+
+The healthy mounted case adds two independent incoming external relationships
+(from A and another project), one local relationship to B's doomed successor,
+and an unrelated external relationship to another B row. An attempted ordinary
+Ada edit to restricted A is 403 with no table changes. Deleting B's successor
+removes exactly its three relationships, increments all three surviving
+prerequisite revisions, and records remote revisions in B's journal. Mounted
+undo restores the same work-item and relationship identities; redo removes them
+again, with the same journal entry changing undone 0→1→0. Remote journals remain
+unchanged; the unrelated relationship, including its audit fields, remains
+byte-for-byte intact. The test activates the existing test-only step-blockage
+fixture because deletion replay includes its governed snapshot even when empty;
+an initial run without that fixture correctly returned 409
+step_blockage_inactive. Restored relationships are compared by authored identity,
+endpoints and type; this packet does not assert restoration of their audit times.
+
+The refusal case authors A→B, deletes B's successor through HTTP, then has Grace
+select org-a through `/api/organization/active` and legally delete now-unreferenced
+A's predecessor through HTTP. Ada's mounted undo returns exactly HTTP 404
+`{ error: 'not_found' }` before restoring B. Every application table, including
+both journals, and the recorded push list remains unchanged; history is not
+consumed.
+
+Watched production faults, each restored before final verification:
+
+1. Omit `removedTyped` from cascade deletion's inverse restoration in
+   WorkItemService: healthy mounted undo returns 404 instead of 200 (0 pass/1
+   fail). The production file was restored unchanged.
+2. Remove the surviving-endpoint `bumpWorkItems` in SQLite typed-dependency
+   `removeAllFor`: the mounted deletion leaves all three watched prerequisite
+   revisions unchanged instead of incrementing once (0 pass/1 fail).
+3. Bypass history's external endpoint checks alone: the refusal test remains
+   green because its external revision read independently detects the destroyed
+   predecessor. This is not an independent proof of that first consumer.
+4. Additionally replace history's external `readRevisions` with the journal's
+   expected revisions: mounted undo returns 409 stale_undo with "that
+   relationship would now be refused: not_found." instead of the required 404
+   not_found (0 pass/1 fail). This proves the combined early-read boundary and
+   exact non-consuming refusal, not unsafe restoration success. Both redundant
+   consumers were restored unchanged.
+
+Adjacent test Proof comments record these observed outcomes. Scratch logs are
+`/tmp/lifecycle-{inverse,bump,endpoint-only,endpoint-both}-fault.log`.
+
+Fresh checks in the isolated `/tmp/puni-mounted-lifecycle` clone based on
+3757ad13c:
+
+- Full lifecycle, history and connected-command-admission controller suites:
+  **168 pass/0 fail, 2481 assertions** (`/tmp/lifecycle-suite.log`). Final
+  lifecycle/history rerun after normalizing the expected remote revision order
+  is recorded below.
+- Backend spec typecheck: `bunx tsc --noEmit -p
+apps/wbs/be-01/tsconfig.spec.json --pretty false`, exit 0.
+- Scoped ESLint on the three changed TypeScript files: exit 0, no diagnostics.
+  The real Nx project graph was generated with `NX_DAEMON=false
+NX_ISOLATE_PLUGINS=false`; normal tool-git-hooks installation succeeded.
+- `./node_modules/.bin/openspec validate --all --json`: **269 passed/0 failed**
+  (251 changes, 18 specs), existing warnings.
+- Frozen Bun install checked **1801 installs across 1648 packages, no changes**
+  with `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-mounted-bun-cache`.
+  The clone uses the existing workspace node_modules via symlink. The first
+  install attempt without a writable cache returned EROFS and is not success
+  evidence.
+
+Task 4.4 remains unchecked. This bounded packet does not complete the lifecycle,
+authority, endpoint-scope or compensation matrices, project deletion,
+organization movement, MCP parity or rollout. No activation command, deployment,
+full Nx/host gate, h2/h4 gate, build or independent CI secrets/migration scan was
+run. Normal commit hooks and final formatting evidence follow below.
+
+The final lifecycle/history rerun returned **47 pass/0 fail, 770 assertions**
+(`/tmp/lifecycle-history-final.log`). Prettier checked all four changed files and
+`git diff --check` returned exit 0.
+
+Normal pre-commit hooks passed scoped lint, format, plaintext-secrets and
+private-nesting. Tool-wiki explicitly returned inactive/uncertified because its
+external activation root is not provisioned. Migration hooks and doc-caps skipped
+because no matching files were staged. Prepare-commit-msg and commit-msg hooks
+passed; no hook was bypassed.

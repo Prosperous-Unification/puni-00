@@ -1,10 +1,12 @@
 import type { PlanTransactionalStores, StoredTypedDependency } from '@wbs/core';
 import { grantAdmission } from '@wbs/core';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
+import { readPreconditions } from '@wbs/core/service/compensating';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { openDrizzle } from '@wbs/store-sqlite/db';
 import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, expect, test } from 'bun:test';
 
 import {
@@ -874,4 +876,182 @@ test('incident pending-state read cannot return after its observation closes', a
   expect(failure).toBeInstanceOf(Error);
   expect(failure instanceof Error ? failure.message : '').toContain('closed');
   expect(readTables()).toEqual(before);
+});
+
+// Proof: omitting inverse typed restoration made this mounted undo return 404 instead of 200 (2026-10-22).
+// Proof: removing SQLite removeAllFor's surviving-endpoint bump left all three prerequisite revisions unchanged (2026-10-22).
+test('synthetic mounted successor deletion removes only owned links and restores exact identities through undo redo', async () => {
+  const fixture = await openFixture({ syntheticExternalCommands: true });
+  activateTestStepBlockages(harness.databasePath());
+  await harness.register('grace');
+  harness.member('org-a', 'grace', 'member');
+  harness.sqlite
+    .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
+    .run('member', 'org-a', fixture.principal.id);
+  harness.sqlite
+    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
+    .run(harness.userId('grace'), fixture.predecessor.projectId);
+  const route = `/api/projects/${fixture.owner.projectId}`;
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [
+          { kind: 'createWorkItem', name: 'Local prerequisite' },
+          { kind: 'createWorkItem', name: 'Unrelated successor' },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const readId = (name: string) => {
+    const row = harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE name=?')
+      .get(name);
+    if (row === null) throw new Error('mounted row missing');
+    return row.id;
+  };
+  const local = {
+    projectId: fixture.owner.projectId,
+    workItemId: readId('Local prerequisite'),
+    scope: 'whole' as const,
+  };
+  const unrelated = {
+    projectId: fixture.owner.projectId,
+    workItemId: readId('Unrelated successor'),
+    scope: 'whole' as const,
+  };
+  const remote = { ...fixture.predecessor, scope: 'whole' as const };
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [
+          {
+            kind: 'addTypedDependency',
+            predecessor: remote,
+            successor: fixture.input.successor,
+            type: 'FS',
+          },
+          {
+            kind: 'addTypedDependency',
+            predecessor: { ...fixture.successor, scope: 'whole' },
+            successor: fixture.input.successor,
+            type: 'SS',
+          },
+          {
+            kind: 'addTypedDependency',
+            predecessor: local,
+            successor: fixture.input.successor,
+            type: 'FF',
+          },
+          { kind: 'addTypedDependency', predecessor: remote, successor: unrelated, type: 'FS' },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const readLinks = () => ({
+    external: harness.sqlite
+      .query<{ id: string; successor_work_item_id: string }, []>(
+        'SELECT id,predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id,type FROM external_dependency ORDER BY id',
+      )
+      .all(),
+    local: harness.sqlite
+      .query(
+        'SELECT id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type FROM typed_dependency ORDER BY id',
+      )
+      .all(),
+  });
+  const before = readLinks();
+  const readUnrelated = () =>
+    harness.sqlite
+      .query('SELECT * FROM external_dependency WHERE successor_work_item_id=?')
+      .get(unrelated.workItemId);
+  const unrelatedBefore = readUnrelated();
+  expect(before.external).toHaveLength(3);
+  expect(before.local).toHaveLength(1);
+  const remoteHistory = harness.sqlite
+    .query('SELECT * FROM command_journal WHERE project_id!=? ORDER BY id')
+    .all(fixture.owner.projectId);
+  const readRevision = (id: string) => {
+    const row = harness.sqlite
+      .query<{ revision: number }, [string]>('SELECT revision FROM work_item WHERE id=?')
+      .get(id);
+    if (row === null) throw new Error('mounted endpoint missing');
+    return row.revision;
+  };
+  const watched = [fixture.predecessor.workItemId, fixture.successor.workItemId, local.workItemId];
+  const revisions = watched.map(readRevision);
+  const readJournal = () => {
+    const entry = harness.sqlite
+      .query<{ id: string; undone: number; preconditions: string }, [string]>(
+        'SELECT id,undone,preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      )
+      .get(fixture.owner.projectId);
+    if (entry === null) throw new Error('mounted journal missing');
+    return entry;
+  };
+  const forbiddenBefore = readTables();
+  expect(
+    (
+      await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.predecessor.workItemId,
+            patch: { name: 'Forbidden' },
+          },
+        ],
+      })
+    ).status,
+  ).toBe(403);
+  expect(readTables()).toEqual(forbiddenBefore);
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [
+          { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'cascade' },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const deleted = readLinks();
+  expect(readUnrelated()).toEqual(unrelatedBefore);
+  expect(deleted.external).toEqual(
+    before.external.filter(
+      (relationship) => relationship.successor_work_item_id === unrelated.workItemId,
+    ),
+  );
+  expect(deleted.local).toEqual([]);
+  expect(
+    harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(fixture.owner.workItemId),
+  ).toBeNull();
+  expect(watched.map(readRevision)).toEqual(revisions.map((revision) => revision + 1));
+  const journal = readJournal();
+  expect(journal.undone).toBe(0);
+  const expectedRevisions = [
+    { ...fixture.predecessor, revision: revisions[0] + 1 },
+    { ...fixture.successor, revision: revisions[1] + 1 },
+  ].sort((left, right) => left.projectId.localeCompare(right.projectId));
+  expect(
+    readPreconditions(JSON.parse(journal.preconditions) as unknown)
+      .externalRevisions?.expected.slice()
+      .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+  ).toEqual(expectedRevisions);
+  const undoResponse = await fixture.request(`${route}/undo`);
+  expect(undoResponse.status).toBe(200);
+  expect(readLinks()).toEqual(before);
+  expect(readUnrelated()).toEqual(unrelatedBefore);
+  expect(
+    harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(fixture.owner.workItemId),
+  ).toEqual({ id: fixture.owner.workItemId });
+  expect(readJournal()).toMatchObject({ id: journal.id, undone: 1 });
+  expect(watched.map(readRevision)).toEqual(revisions.map((revision) => revision + 2));
+  expect((await fixture.request(`${route}/redo`)).status).toBe(200);
+  expect(readLinks()).toEqual(deleted);
+  expect(readUnrelated()).toEqual(unrelatedBefore);
+  expect(readJournal()).toMatchObject({ id: journal.id, undone: 0 });
+  expect(watched.map(readRevision)).toEqual(revisions.map((revision) => revision + 3));
+  expect(
+    harness.sqlite
+      .query('SELECT * FROM command_journal WHERE project_id!=? ORDER BY id')
+      .all(fixture.owner.projectId),
+  ).toEqual(remoteHistory);
 });

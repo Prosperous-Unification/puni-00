@@ -674,3 +674,86 @@ for (const delivery of ['unreadable-project', 'missing-row', 'foreign-row'] as c
     expect(refused).toMatchObject({ ok: false, reason: 'not_found' });
     expect(readTables()).toEqual(before);
   });
+
+// Proof: bypassing both history endpoint reads and external revision reads changed this mounted refusal from 404 not_found to 409 stale_undo (2026-10-22).
+// Bypassing endpoint reads alone remained green because revision reads independently detect the missing predecessor.
+test('synthetic mounted undo refuses a legally destroyed predecessor before restoring the successor or consuming history', async () => {
+  const pushes: string[] = [];
+  const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
+  await harness.register('grace');
+  harness.member('org-a', 'grace', 'member');
+  harness.sqlite
+    .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
+    .run('member', 'org-a', fixture.principal.id);
+  harness.sqlite
+    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
+    .run(harness.userId('grace'), fixture.predecessor.projectId);
+  const selected = await harness.request('/api/organization/active', {
+    method: 'POST',
+    headers: {
+      origin: 'http://localhost',
+      authorization: `Bearer ${harness.token('grace')}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ organizationId: 'org-a' }),
+  });
+  expect(selected.status).toBe(200);
+  const cookie = selected.headers.get('set-cookie')?.split(';')[0];
+  if (cookie === undefined) throw new Error('mounted Grace binding missing');
+  const route = `/api/projects/${fixture.owner.projectId}`;
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [{ kind: 'addTypedDependency', ...fixture.input }],
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await fixture.request(`${route}/commands`, {
+        commands: [
+          { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'cascade' },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  expect(harness.sqlite.query('SELECT * FROM external_dependency').all()).toEqual([]);
+  const destroyed = await harness.request(
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        authorization: `Bearer ${harness.token('grace')}`,
+        cookie,
+        'X-WBS-Expected-Organization': 'org-a',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        commands: [
+          {
+            kind: 'deleteWorkItem',
+            workItemId: fixture.predecessor.workItemId,
+            strategy: 'cascade',
+          },
+        ],
+      }),
+    },
+  );
+  expect(destroyed.status).toBe(200);
+  expect(
+    harness.sqlite
+      .query('SELECT id FROM work_item WHERE id IN (?,?)')
+      .all(fixture.predecessor.workItemId, fixture.owner.workItemId),
+  ).toEqual([]);
+  const before = readTables();
+  const beforePushes = [...pushes];
+  const refused = await fixture.request(`${route}/undo`);
+  const body: unknown = await refused.json();
+  expect({ status: refused.status, body }).toEqual({
+    status: 404,
+    body: { error: 'not_found' },
+  });
+  expect(readTables()).toEqual(before);
+  expect(pushes).toEqual(beforePushes);
+});
