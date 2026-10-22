@@ -1708,3 +1708,62 @@ correspondence/authentication, preparation/locator/claim/turn ordering, broader 
 S0/S7a/activation remain open. The parent change is not ready to archive.
 
 Independent scoped spec/quality review approved source `8c70ed715b833e5647425a0f15919754245357b3` with no Critical/Important findings. All ten source hashes, three protected tests, moved body tokens and actual fault/restoration outputs were independently checked. Exactly local slices1.1–1.4 are complete;1.5, parent5.3, whole-packet review and exact-head host/CI acceptance remain open. Minor color-environment and ten baseline OpenSpec warnings are carried to whole-packet triage.
+
+### Portable runtime receipt correspondence — local candidate, 2026-10-22
+
+Planning baseline `eb8898cdcef522144a91b261227b70f442aeccb5` extends reviewed
+codec `e7c2e9a25e21a01cd3184e607c7659bca3f33354`. This packet publishes three
+synchronous predicates over boundary-validated values and an independently computed
+request digest. It moves one scope/claim/acceptance implementation and makes the
+receiver consume it. Root independently matched all six final source hashes, three
+unchanged protected files and all three moved non-comment comparison bodies against
+the planning baseline. No SQL, stored bytes or credential implementation changes.
+
+| Dimension    | Bounded evidence / remaining gate                                                                                                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completeness | All five local implementation slices have evidence. Independent task/whole-packet review and exact-head host gate/applicable CI remain open; all five local checkboxes remain open at this record.                                                                  |
+| Correctness  | Authority/claim/ordered-write correspondence, independent metadata/acceptance negatives, nonmutation and actual mounted receipt coverage pass. Fresh claim ID and actor account are not predicted from request scope; valid resulting basis may remain unchanged.   |
+| Coherence    | Contracts owns the sole moved comparisons; application keeps its old claim compatibility export. Earlier strict decode, storage/ledger/digest checks, errors and ordering remain. Content correspondence establishes neither authentication nor current permission. |
+
+The final behavior command was:
+
+```sh
+bun test libs/wbs/domain/contracts/src/runtime-request.test.ts libs/wbs/domain/contracts/src/runtime-receipt.test.ts libs/wbs/domain/contracts/src/http/runtime-command-shapes.test.ts libs/wbs/domain/contracts/src/http/runtime-command-client.test.ts libs/wbs/domain/contracts/src/http/client.test.ts libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts apps/wbs/be-01/src/controller/runtime-command.controller.db.test.ts apps/wbs/be-01/src/controller/runtime-authority.db.test.ts apps/wbs/be-01/src/controller/runtime-claim.db.test.ts apps/wbs/be-01/src/controller/runtime-write.db.test.ts apps/wbs/mcp-01/src/generated-document.test.ts --timeout=10000
+```
+
+Actual final output: 292 pass, 0 fail, 1023 assertions across eleven files, 23.65s
+Bun / 23.743s driver, exit 0. Untouched baseline was 127 pass / 494 assertions across
+four files, 52.42s Bun. Missing-export RED was setup only. A temporary permissive
+implementation gave semantic RED: 5 pass / 31 fail / 41 assertions, exit 1.
+
+| Command / scope                                                                                                                                                                                | Actual outcome                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Real Nx project graph, then `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/module-labels.test.ts tools/tool-devsync/src/eslint-boundaries.test.ts --timeout=30000` | Graph exit 0; policy 35 pass / 268 assertions, 49.23s Bun / 49.605s driver, exit 0.                                                                         |
+| `bunx nx run-many -t typecheck lint --projects=wbs-contracts,wbs-core,wbs-be-01,wbs-mcp-01 --skip-nx-cache --parallel=2`                                                                       | Initial run exit 1 in 162.871s: nine successful targets, contracts lint rejected the new barrel member order. Only that order was fixed.                    |
+| `bunx nx run-many -t typecheck lint --projects=wbs-contracts --skip-nx-cache --parallel=2 --output-style=static` after correction                                                              | Both corrected contracts targets pass, 21.644s, exit 0; full eleven-file behavior command above reran afterward. No blanket initial static pass is claimed. |
+| `bunx prettier --check` on exactly six owned paths; `git --no-optional-locks diff --check`                                                                                                     | Final passes, 0.415s / 0.008s, exit 0.                                                                                                                      |
+| `bunx openspec validate twilight-agentic-workflows --json`                                                                                                                                     | One valid change, ten existing long-requirement warnings, zero errors, 1.099s, exit 0. Color environment warnings are retained separately.                  |
+
+Fresh R5 observations, each from green with exact source restoration:
+
+| Injected production fault                                         | Observed semantic failure / restored green                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omit each scope organization/project/person comparison separately | Each independent public receipt negative changes from false to true: 1 pass → 1 fail → 1 pass, exits 0/1/0. This is public predicate mismatch admission, not an HTTP/authentication proof.                                                                                                     |
+| Omit ledger, command ID or digest comparison separately           | Each corresponding public negative receives true: 1 pass → 1 fail → 1 pass, exits 0/1/0.                                                                                                                                                                                                       |
+| Bypass only the receiver's final shared receipt predicate call    | Unchanged real SQLite retained owner/generation/kind cases: 3 pass / 9 assertions → 3 fail / 3 assertions → 3 pass / 9 assertions. Actual acquisition replay wrongly resolves. The first rejection assertion stops execution before the later lookup; no additional lookup failure is claimed. |
+| Make shared claim comparison return true                          | Unchanged real SQLite borrowed-binding cases: 9 pass / 36 assertions → 1 pass / 8 fail / 28 assertions → 9 pass / 36 assertions. Eight present mismatches return actual `ok: true` write receipts; absent binding remains refused.                                                             |
+
+All eight distinct original/mutated/restored source identities and complete execution
+logs were retained and independently audited. Adjacent Proof comments name those
+faults. Existing moved comparison clauses retain their historical proof scope; this
+does not freshly recertify every unchanged guard. The initial receiver fault driver's
+post-observation validator searched the wrong error substring and itself failed
+after three actual semantic failures and exact restoration/green. Corrected validation
+read those retained logs without a redundant fault rerun; both driver versions and
+the error remain recorded.
+
+No complete SQLite/storage or ordinary suite was repeated. Exact candidate host/CI,
+latest-main organization-limit integration, authenticated transport, trusted sender
+artifact decoding, durable intent/history, host ordering, I1/S0/S7a and activation
+remain open. The parent change is not ready to archive. All earlier packet acceptance
+records remain historical; they do not certify this candidate.

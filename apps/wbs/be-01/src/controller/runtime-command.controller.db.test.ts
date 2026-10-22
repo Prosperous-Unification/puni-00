@@ -42,6 +42,7 @@ import {
   canonicalRuntimeRequest,
   clientFromShapes,
   fetchTransport,
+  matchesRuntimeReceipt,
   type RuntimeClaimRequest,
   runtimeCommandShapes,
   type RuntimeReceipt,
@@ -807,6 +808,19 @@ test.each(['authority', 'claim', 'write'] as const)(
           )
           .digest('hex'),
       );
+      expect(
+        matchesRuntimeReceipt(
+          observation.scope,
+          { ...operation, kind: 'authority' },
+          createHash('sha256')
+            .update(
+              canonicalRuntimeRequest(observation.scope, { ...operation, kind: 'authority' }),
+              'utf8',
+            )
+            .digest('hex'),
+          receipt,
+        ),
+      ).toBe(true);
       return;
     }
     const request = await createClaimRequest();
@@ -834,6 +848,16 @@ test.each(['authority', 'claim', 'write'] as const)(
           .update(canonicalRuntimeRequest(observation.scope, operation), 'utf8')
           .digest('hex'),
       );
+      expect(
+        matchesRuntimeReceipt(
+          observation.scope,
+          operation,
+          createHash('sha256')
+            .update(canonicalRuntimeRequest(observation.scope, operation), 'utf8')
+            .digest('hex'),
+          claimed.body,
+        ),
+      ).toBe(true);
       return;
     }
     const write = {
@@ -879,5 +903,15 @@ test.each(['authority', 'claim', 'write'] as const)(
         .update(canonicalRuntimeRequest(observation.scope, operation), 'utf8')
         .digest('hex'),
     );
+    expect(
+      matchesRuntimeReceipt(
+        observation.scope,
+        operation,
+        createHash('sha256')
+          .update(canonicalRuntimeRequest(observation.scope, operation), 'utf8')
+          .digest('hex'),
+        accepted.body,
+      ),
+    ).toBe(true);
   },
 );

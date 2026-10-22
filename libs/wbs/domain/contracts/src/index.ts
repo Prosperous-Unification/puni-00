@@ -54,6 +54,7 @@ export * from './oidc-identity';
 export * from './plan-command-values';
 export * from './principal';
 export * from './runtime-command-values';
+export { matchesRuntimeClaim, matchesRuntimeReceipt, matchesRuntimeScope } from './runtime-receipt';
 export {
   canonicalRuntimeRequest,
   parseCanonicalRuntimeRequest,

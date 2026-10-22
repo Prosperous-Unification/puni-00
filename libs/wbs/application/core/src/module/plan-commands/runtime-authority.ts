@@ -2,17 +2,18 @@ import type {
   AuthorityReceipt,
   CredentialPin,
   RuntimeAuthorityRequest,
-  RuntimeClaim,
   RuntimeClaimInventory,
   RuntimeObservation,
-  RuntimeOperation,
   RuntimeReadRefusal,
   RuntimeReceipt,
   RuntimeReply,
   RuntimeScope,
   RuntimeState as RuntimeStateValue,
 } from '@wbs/contracts';
+import { matchesRuntimeReceipt, matchesRuntimeScope } from '@wbs/contracts';
 import type { Claim } from '@wbs/domain';
+
+export { matchesRuntimeClaim } from '@wbs/contracts';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
@@ -57,28 +58,6 @@ export interface RuntimeTransaction {
     context: RuntimeContext,
     act: (admitted: RuntimeAdmission) => Promise<RuntimeDecision<T>>,
   ): Promise<T | RuntimeReadRefusal>;
-}
-
-function matchesScope(left: RuntimeScope, right: RuntimeScope): boolean {
-  return (
-    left.organizationId === right.organizationId &&
-    left.projectId === right.projectId &&
-    left.personId === right.personId
-  );
-}
-/** Exact immutable target/execution equality for both binding admission and trusted receipt correspondence. */
-export function matchesRuntimeClaim(left: RuntimeClaim, right: RuntimeClaim): boolean {
-  return (
-    // Proof: P5-08–15 omitted each comparison; the isolated corrupt borrowed-binding production request accepted.
-    left.claimId === right.claimId &&
-    left.workItemId === right.workItemId &&
-    left.stepId === right.stepId &&
-    left.parentClaimId === right.parentClaimId &&
-    left.execution.storeId === right.execution.storeId &&
-    left.execution.runId === right.execution.runId &&
-    left.execution.attemptId === right.execution.attemptId &&
-    left.execution.sessionId === right.execution.sessionId
-  );
 }
 
 /**
@@ -250,51 +229,14 @@ export async function verifyRuntimeAcceptance(
   if (
     request.expectedLedgerId !== ledgerId ||
     request.commandId !== stored.commandId ||
-    !matchesScope(canonical.scope, stored.scope)
+    !matchesRuntimeScope(canonical.scope, stored.scope)
   )
     throw new Error('runtime canonical receipt identity mismatch');
   // Proof: P3-07 removed this comparison; otherwise-consistent wrong-digest acquisition resolved.
   if ((await digest.sha256(stored.canonicalRequest)) !== stored.requestDigest)
     throw new Error('runtime canonical request digest mismatch');
   // Proof: P3-10 removed this check; corrupted authority and final claim/write receipt fixtures resolved.
-  if (!matchesAcceptance(request, stored.receipt))
+  // Proof: bypassing this shared call made retained owner/generation/kind corruption resolve in the real receiver.
+  if (!matchesRuntimeReceipt(canonical.scope, request, stored.requestDigest, stored.receipt))
     throw new Error('runtime request acceptance mismatch');
-}
-
-function matchesAcceptance(request: RuntimeOperation, receipt: RuntimeReceipt): boolean {
-  const accepted = receipt.acceptance;
-  if ('kind' in request)
-    return (
-      accepted.kind === 'authority' &&
-      accepted.authority.ownerId === request.ownerId &&
-      accepted.authority.generation ===
-        (request.expectedGeneration === null ? 1 : request.expectedGeneration + 1)
-    );
-  if (
-    accepted.kind === 'authority' ||
-    accepted.kind !== request.action.kind ||
-    accepted.authority.ownerId !== request.authority.ownerId ||
-    accepted.authority.generation !== request.authority.generation
-  )
-    return false;
-  const action = request.action;
-  if (action.kind === 'claim')
-    return matchesRuntimeClaim(
-      {
-        claimId: accepted.claim.claimId,
-        workItemId: action.workItemId,
-        stepId: action.stepId,
-        parentClaimId: action.parentClaimId,
-        execution: action.execution,
-      },
-      accepted.claim,
-    );
-  return (
-    accepted.kind === 'write' &&
-    matchesRuntimeClaim(action.claim, accepted.claim) &&
-    accepted.applied.length === action.commands.length &&
-    accepted.applied.every(
-      (command, index) => command.index === index && command.kind === action.commands[index]?.kind,
-    )
-  );
 }
