@@ -68,7 +68,7 @@ functions. Reuse permitsMutation/isCurrentOwner/assertClock/addInteger and exist
 provider transaction patterns. No public generic transaction/patch callback. Authority
 request owner label stays independent of localOwner provenance. No raw HTTP client.
 
-- [ ] 1.1 Read actual callers/tests/schema/ownership and shared HTTP validators before
+- [x] 1.1 Read actual callers/tests/schema/ownership and shared HTTP validators before
       behavior edits. Add failing semantic cases in the shared suite, not a second
       memory domain implementation. Test never-pinned scope before any run; immutable
       pin/ledger conflict; strict canonical authority bytes; unsupported claim/write;
@@ -76,7 +76,7 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       command; stale/expired/foreign owner before corrupt targets; scope/ledger mismatch;
       no run/attempt/reservation effects; caller mutation and detached replies. Record
       setup/compile failures separately from semantic RED.
-- [ ] 1.2 Implement memory and SQLite using the same pure rules. Prove current owner A
+- [x] 1.2 Implement memory and SQLite using the same pure rules. Prove current owner A
       stages with a differently named receiver owner, B takes over, B records A's exact
       acceptance as history with grant null, B stages/accepts its own acquisition and
       maps only B's epoch. Replay A's intent/acceptance with old revisions returns the
@@ -87,7 +87,7 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       Compare current-epoch intent labels with the same admitted OwnershipStatus;
       prove real read/reopen corruption refusal while retaining valid receiver/local
       label differences, expiry and takeover. Older labels have no independent ledger.
-- [ ] 1.3 Build schema2 from unchanged0001 plus additive0002. Pin complete ordered
+- [x] 1.3 Build schema2 from unchanged0001 plus additive0002. Pin complete ordered
       name/forward/down bundle with FORMAT_HASH and required run_format counts. Derive
       full physical schema, including empty new tables. Build a genuine format1 fixture
       from original0001 and first hashes; open must reject before mode changes and leave
@@ -100,7 +100,7 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       fail-fast trimmed-statement caller. Required schema2 run_meta is checked before
       DROP. Whole-script Bun execution is not this contract. Real transaction abort and separate-process before/after
       COMMIT/reopen must prove atomic row/revision/count changes. No power-loss claim.
-- [ ] 1.4 Implement verified artifact acceptance/read. Snapshot guard/intent/ref before
+- [x] 1.4 Implement verified artifact acceptance/read. Snapshot guard/intent/ref before
       awaits, use actual ArtifactStore bytes, strict UTF-8/JSON and complete shared schema,
       then complete shared correspondence with independent SHA256. Reject absence,
       unreadability/corruption, malformed known fields/dependent-order wire bodies and valid
@@ -109,7 +109,7 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       ignoring added wire fields with a positive real-artifact compatibility case;
       local retained records remain strict. No async validation inside SQLite or new
       authentication/current-authority inference. Keep raw port preconditions explicit.
-- [ ] 1.5 From restored green, observe isolated faults for each genuinely changed
+- [x] 1.5 From restored green, observe isolated faults for each genuinely changed
       safety check/dependency: new owner gate, identity/duplicate comparison, pending
       serialization, scope revision/reconstruction/marker/keys, old-epoch mapping,
       artifact-read/schema/matcher consumption, full-format/empty-schema validation,
@@ -118,7 +118,7 @@ request owner label stays independent of localOwner provenance. No raw HTTP clie
       do not mask proof. Record actual failure strength, original/mutant/restored hashes,
       raw logs and failed driver trials; restore exactly in finally and add adjacent
       truthful Proof. Do not claim every existing reused predicate newly certified.
-- [ ] 1.6 Prepare real Nx graph with payload/metadata paths distinct. Run policy files
+- [x] 1.6 Prepare real Nx graph with payload/metadata paths distinct. Run policy files
       module-labels/eslint-boundaries/product-constraints/workspace-projects, relevant
       uncached twilight-dash/tool-devsync typecheck/lint, focused new shared/artifact/
       format/race cases plus existing affected RunStore coverage, exact changed-file
