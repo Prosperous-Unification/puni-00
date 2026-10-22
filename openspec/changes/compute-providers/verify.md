@@ -118,6 +118,7 @@ Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-1` with `env 
 - `bunx nx run wbs-be-01:test --skip-nx-cache`: exit 0, 3249 pass, 0 fail.
 - `bunx nx run-many -t test -p wbs-domain,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-store-memory,wbs-conformance,tool-git-hooks --skip-nx-cache`: each succeeded; `wbs-mcp-01:test` succeeded after its two shape-document fixtures gained the new paths.
 - `bunx nx run-many -t lint -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-conformance,wbs-be-01,wbs-mcp-01,wbs-fe-01,tool-git-hooks --skip-nx-cache`: each succeeded (fe-01 after one `no-fallthrough` fix, rerun alone).
+- `bunx nx run tool-devsync:test --skip-nx-cache` (full): exit 0, 894 pass, 0 fail.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`: exit 0.
 - `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit 0; no new file lies under a module index (only `libs/wbs/adapters/store-memory/src/README.md` reports review debt, unchanged).
 - `bunx openspec validate --all --json`: 268 of 268 passed.
