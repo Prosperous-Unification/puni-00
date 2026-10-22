@@ -3234,3 +3234,70 @@ five-file command above includes the existing `build-solver-request.test.ts`.
 prepare-commit-msg and commit-msg hooks. The bounded commit uses those hooks.
 Independent review is delegated to the parent after its current review slot frees;
 this packet does not represent a review or a gate approval of B3 enablement.
+
+### B4 connected Retry reconciliation (2026-10-22)
+
+This packet extends the real mounted table/project-runtime/writer tests over an
+internal connected `fakeProjectApi` fixture. It does not exercise the public
+HTTP decoder or claim producer fixture coverage; those belong to B3. Q1 failed
+and corrupt each reconcile Q2 failed, corrupt, ready and boundary-infeasible.
+The held authoritative read keeps Q1's status and captured boundary; only Q2
+supplies the new boundary, certificate and Retry hash. Ready/terminal cases
+reopen and stream-refetch without issuing another Retry. Replacement API runtime
+and same-API project transitions reject late refusal toast/read/state writes.
+Writer tests also cover delayed replacement/withdrawal and busy ownership while
+the covering tree read remains held. Stream refresh failure, rather than a
+rendered stale prop, suppresses ready comparisons, finish/order figures and
+suggestions, retains captured facts/certificate with stale wording, and then
+accepts a fresh retryable authoritative Q3 question with a changed hash and fixed
+boundary, without the old certificate. The explicit next Retry sends `q3`.
+
+Watched production-path fault: temporarily add a catch to the actual table Retry
+command which manufactures `boundary-infeasible` plus a certificate from the
+old captured question before rethrowing the typed terminal 409. Run from
+`apps/wbs/fe-01`:
+
+```sh
+TZ=UTC bunx vitest run src/components/wbs/optimization-retry-reconciliation.test.tsx -t 'a connected Q1 failed terminal Retry refusal reconciles Q2 failed only through its tree' --no-file-parallelism --maxWorkers=1
+```
+
+Observed **1 failed / 11 skipped**, exit 1. The held-read assertion expected
+`Optimization unavailable` but received `Priority-first: This captured
+optimization question cannot fit the fixed positions in other projects` before
+Q2 arrived. This is the intended runtime failure, not a typecheck or another
+guard. The temporary mutation was removed; the adjacent table Retry `Proof:`
+comment records it. Log: `/tmp/puni-b4-optimistic-one-red.log`. An earlier whole
+file fault run failed eight held-read matrix cases; it also contaminated the
+shared old fixture in a replacement test, so the independent single-case run
+above is the claimed proof.
+
+Bounded verification commands and final outcomes are recorded below after
+restoration. The clone borrows the existing workspace `node_modules` by symlink;
+no fresh frozen dependency installation is claimed. Browser HintLayer/focus/
+phone geometry, the full frontend gate, canonical isolated host gate, required
+CI checks, live connected solver/Retry authority and session-owner integration
+are unrun in this packet. Writer withdrawal is covered, but is not a mounted
+session-transition claim. Public authoring remains dormant. Parent 7.3/7.4/9.2
+remain incomplete.
+
+Restored green (all exit 0):
+
+```sh
+# cwd apps/wbs/fe-01: 12 mounted tests passed, none skipped
+TZ=UTC bunx vitest run src/components/wbs/optimization-retry-reconciliation.test.tsx --no-file-parallelism --maxWorkers=1
+# cwd repository: selective configured unit target, 25 writer tests passed
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:test:unit --args='src/modules/plan-writer/plan-writer.test.ts'
+bunx eslint apps/wbs/fe-01/src/components/wbs/optimization-retry-reconciliation.test.tsx apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+bunx tsc --build --force apps/wbs/fe-01/tsconfig.json
+./node_modules/.bin/openspec validate --all --json
+git diff --check
+```
+
+OpenSpec passed 268/268, including 250 specs and 18 changes. The direct frontend
+typecheck did not run Nx's separate module prerequisite. The lint check covered
+only the three changed TS/TSX files; it is not the full frontend lint gate.
+Initial Nx without sandbox-safe daemon/plugin flags printed socket errors and
+returned zero without running a target, so is not counted. Final logs are
+`/tmp/puni-b4-{mounted,writer,lint,typecheck,openspec}-final.log`. Existing Vite
+native-config advisory warnings remain. Normal lefthook hooks were installed
+before committing; hooks were not bypassed.

@@ -2471,6 +2471,8 @@ export function WbsTable({
           );
         }}
         onRetry={(objective, inputHash) => {
+          // Proof: fabricating terminal state from a Retry refusal made the held Q1 failed→Q2 failed
+          // connected reconciliation test announce “cannot fit” before its tree arrived (2026-10-22).
           void run((write) =>
             write.perform(['tree'], () => commands.retryOptimization(objective, inputHash)),
           );

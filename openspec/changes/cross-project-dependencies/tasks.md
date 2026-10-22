@@ -237,3 +237,13 @@ B3: real `httpProjectApi.tree` → `WbsTableOverClient` table/cards, retained re
 dates/bars/spans, terminal HTTP actions, unavailable reads and mounted stale/refetch
 proofs remain pending. The frontend connected refusal remains in place. Parent
 7.3/7.4/9.2, B3 enablement, B4, remaining B5 and activation remain unchecked.
+
+Task 9.2 B4 bounded reconciliation (2026-10-22): internal connected fake-API
+mounted cases now cover held Q1 failed/corrupt → Q2 failed/corrupt/ready/terminal,
+current hash and captured scope/certificate, reopen/refetch terminal action
+absence, replacement runtime/project late-refusal fencing, and actual stream
+refresh failure followed by a fresh retryable tree. Writer tests cover delayed
+owner replacement/withdrawal and busy lifetime during reconciliation. A watched
+optimistic-terminal production fault fails before the held authoritative tree
+arrives; verify.md records its exact assertion and the public HTTP/session/gate
+limits. This bounded packet leaves parent 7.3/7.4/9.2 unchecked.

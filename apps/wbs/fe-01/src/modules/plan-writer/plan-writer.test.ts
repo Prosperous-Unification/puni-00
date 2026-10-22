@@ -483,3 +483,83 @@ it('reports a deleting project without retry or reread', async () => {
     { sentence: 'This project is being deleted. Nothing was changed.' },
   ]);
 });
+
+it.each(['replacement', 'withdrawn'] as const)(
+  'a delayed terminal Retry refusal is fenced after its feed owner is %s',
+  async (retirement) => {
+    const recorded = recordingHost();
+    let owner: PlanRefresh | null = fakeFeedOwner();
+    const writer = createPlanWriter({ ...recorded.host, readRefreshOwner: () => owner });
+    let rejectRetry: () => void = () => {
+      throw new Error('No pending Retry');
+    };
+    const pending = writer.run(async (write) => {
+      await write.perform(['directory'], () => Promise.resolve());
+      await write.perform(
+        ['tree'],
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectRetry = () => {
+              reject(
+                new WbsRequestError({
+                  kind: 'refusal',
+                  operation: 'postApiProjectsByIdOptimizationRetry',
+                  refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+                }),
+              );
+            };
+          }),
+      );
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    owner = retirement === 'replacement' ? fakeFeedOwner() : null;
+    rejectRetry();
+    expect(await pending).toBe('refused');
+    expect(recorded.refusals).toEqual([]);
+    expect(recorded.rereads).toEqual([]);
+    expect(recorded.busyChanges).toEqual([true, false]);
+  },
+);
+
+it('a terminal Retry refusal waits for authoritative reconciliation before releasing busy', async () => {
+  const recorded = recordingHost();
+  let finishRead: (installed: boolean) => void = () => {
+    throw new Error('No reconciliation read');
+  };
+  const writer = createPlanWriter({
+    ...recorded.host,
+    rereadResources: (resources) => {
+      recorded.rereads.push(resources);
+      return new Promise<boolean>((resolve) => {
+        finishRead = resolve;
+      });
+    },
+  });
+  let settled = false;
+  const pending = writer
+    .run(async (write) => {
+      await write.perform(['tree'], () =>
+        Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdOptimizationRetry',
+            refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+          }),
+        ),
+      );
+    })
+    .then((outcome) => {
+      settled = true;
+      return outcome;
+    });
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(recorded.rereads).toEqual([['tree']]);
+  expect(settled).toBe(false);
+  expect(recorded.busyChanges).toEqual([true]);
+  finishRead(true);
+  expect(await pending).toBe('refused');
+  expect(recorded.busyChanges).toEqual([true, false]);
+});
