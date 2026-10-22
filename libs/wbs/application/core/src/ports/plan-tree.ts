@@ -10,6 +10,7 @@ import type {
   PertWeights,
   PriorityBand,
   ScheduledSlice,
+  ScheduleError,
 } from '@wbs/domain';
 
 import type { ConnectedTreeDependency } from '../service/connected-tree';
@@ -45,7 +46,7 @@ export interface IdentifiedSlice extends ScheduledSlice {
 }
 
 /** Why a project has no dates, when it has none. `null` is the ordinary case. */
-export type ScheduleError = 'calendar_range' | 'cycle' | null;
+export type { ScheduleError } from '@wbs/domain';
 
 export interface PlanOptimization {
   readonly enabled: boolean;
@@ -83,7 +84,8 @@ export interface PlanOptimization {
   readonly sameOrderAsFast: Readonly<Partial<Record<Project['scheduleObjective'], boolean>>>;
 }
 
-/** A successful project-tree read, excluding absence and engine refusal. */
+/** A successful project-tree read, including connected placement refusal.
+ * Standalone local engine refusal remains outside this contract. */
 export interface PlanTree {
   workItems: NumberedWorkItem[];
   /** Authored incident connected links with captured endpoint navigation evidence. */

@@ -9000,9 +9000,9 @@ function projectSharedTree(
 
 /** Present one captured connected member without local scheduling or further IO. */
 function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
-  const { reads, metadata, placement } = projection;
-  if (placement.kind !== 'scheduled')
-    throw new Error(`connected tree placement ${placement.kind} is unsupported`);
+  // Proof: restoring the old nonscheduled refusal made the mounted calendar,
+  // optimized-refusal and postcommit edit/claim cases return 500 (2026-10-22).
+  const { reads, metadata } = projection;
   const people = new Set(reads.assignments.map((assignment) => assignment.personId));
   const tree = projectTree(
     {
@@ -9030,6 +9030,10 @@ function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
     },
     projection,
   );
+  // Proof: removing this final-availability guard made the mounted shared
+  // calendar-range case retain abandoned foreign holder labels (2026-10-22).
+  if (tree.scheduleError !== null)
+    return { ...tree, connectedDependencies: [...projection.dependencies] };
   // Proof: disabling this transfer reproduced the mounted visible-row Gantt
   // dangling-predecessor failure; removing only the catalog below reproduced
   // Gantt's missing-holder-label failure (2026-10-22).
@@ -9265,7 +9269,25 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   );
   let optimization: PlanOptimization | undefined;
   let timing = new Map<string, Scheduled>();
-  let scheduleError: ScheduleError = scheduling.kind === 'unavailable' ? scheduling.reason : null;
+  const placement = scheduling.kind === 'connected' ? scheduling.placement : scheduling;
+  let scheduleError: ScheduleError;
+  switch (placement.kind) {
+    case 'scheduled':
+      scheduleError = null;
+      break;
+    case 'unavailable':
+      scheduleError = placement.reason;
+      break;
+    case 'dependency_calendar_missing':
+      scheduleError = placement;
+      break;
+    case 'engine_unavailable':
+      scheduleError =
+        scheduling.kind === 'connected' && scheduling.placement.kind === 'engine_unavailable'
+          ? scheduling.placement
+          : null;
+      break;
+  }
   /**
    * How many work items are waiting for a person rather than for the plan.
    *
@@ -9286,7 +9308,10 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
    */
   let scheduledSlices: IdentifiedSlice[] = [];
   try {
-    if (scheduling.kind !== 'unavailable') {
+    if (
+      scheduling.kind !== 'unavailable' &&
+      (scheduling.kind !== 'connected' || scheduling.placement.kind === 'scheduled')
+    ) {
       // Proof: replacing this selection with schedule(canonical.input's local
       // arguments) made the mounted full/paged/detail test read 0→2.5 instead
       // of 1.5→4 across distinct anchors (2026-10-22).
@@ -9410,6 +9435,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     else if (err instanceof CalendarRangeError) scheduleError = 'calendar_range';
     else throw err;
   }
+  const connectedUnavailable = scheduling.kind === 'connected' && scheduleError !== null;
   const waitingFor = new Map<string, string[]>();
   for (const found of edges) {
     waitingFor.set(found.successorId, [
@@ -9504,10 +9530,16 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // Proof: the placeholder kept here made `lets a successor start at day
       // zero…` fail on a zero-length schedule where `null` was owed; watched
       // 2026-09-29.
-      schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
-      dates: scheduledIds.has(row.id)
-        ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
-        : null,
+      // Proof: removing connectedUnavailable from this guard made both mounted
+      // unavailable tree cases expose a zero-offset placeholder (2026-10-22).
+      schedule:
+        !connectedUnavailable && scheduledIds.has(row.id)
+          ? (timing.get(row.id) ?? UNSCHEDULED)
+          : null,
+      dates:
+        !connectedUnavailable && scheduledIds.has(row.id)
+          ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+          : null,
     }))
     // **Tree order, not the number string** (ADR 0023). The two agreed for as
     // long as a frozen work item could not move — `deriveNumbers` built

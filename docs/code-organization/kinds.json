@@ -276,6 +276,24 @@
       "kind": "support",
       "disposition": "shared schedule slicing leaf used by graph guards and schedule preparation",
       "rationale": "slicesOf converts stored row and estimate facts into canonical domain slices; this leaf prevents the work-item resource and connected preparation from importing each other"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-optimization.ts",
+      "kind": "support",
+      "disposition": "shared connected optimization preparation and publication support for live and saved-plan schedules",
+      "rationale": "Builds and validates detached connected optimization stages, restores project-local schedules and selects captured publication decisions without owning a store or solver process"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-readiness.ts",
+      "kind": "support",
+      "disposition": "shared connected execution evidence support for work-item reads and attempt admission",
+      "rationale": "Derives statuses, node readings, eligibility and predecessor evidence from captured connected members without reading stores"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-tree.ts",
+      "kind": "support",
+      "disposition": "shared connected owner tree projection support for work-item reads",
+      "rationale": "Projects captured connected placement, readiness, dependency endpoint evidence and foreign holder labels into one owner tree without exposing remote rows"
     }
   ]
 }

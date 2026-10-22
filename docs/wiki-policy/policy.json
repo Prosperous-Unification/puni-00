@@ -5699,6 +5699,37 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.dependency-lookup",
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/dependency-lookup"
+      },
+      "creationRevision": "67a80399326e9861c0cdc9f598f9823cd08f8e8d",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "fea7e35cd457573ef729aa582c50179e2208a4fe",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/contract.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "d5dd4596f5c4c35b5a4982adc5b5f1cc5fcbb425",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/dependency-lookup.feature.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "33e49090494cacb504dfd32da5116041aaeb9820",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/dependency-lookup.feature.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "311a04c648adddaa9e880b7d0c317515bfd13f60",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/tsconfig.json"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

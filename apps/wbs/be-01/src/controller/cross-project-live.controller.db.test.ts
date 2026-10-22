@@ -585,3 +585,181 @@ test('nonassigning remote governed claim commits before durable announcement del
       .get(`project:${target.projectId}`)?.message,
   ).toContain('tree_replaced');
 });
+
+test('mounted unavailable calendar tree retains incident links readiness and null forecasts', async () => {
+  const { remote, target } = await open();
+  harness.sqlite.query('UPDATE project SET start_date=NULL WHERE id=?').run(remote.projectId);
+  harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+  harness.sqlite
+    .query('INSERT INTO step_blockage(work_item_id,step_id,blocked_at) VALUES (?,?,123)')
+    .run(remote.workItemId, remote.stepId);
+  const label = harness.sqlite
+    .query<{ abbreviation: string; name: string }, [string]>(
+      'SELECT a.abbreviation,p.name FROM project p JOIN project_abbreviation a ON a.project_id=p.id WHERE p.id=?',
+    )
+    .get(remote.projectId);
+  if (label === null) throw new Error('missing remote label');
+  for (const endpoint of [target, remote]) {
+    const tree = await harness.call(
+      'ada',
+      'GET',
+      `/api/projects/${endpoint.projectId}/work-items?full=true`,
+    );
+    expect(tree.status).toBe(200);
+    expect(tree.body).toMatchObject({
+      scheduleError: {
+        kind: 'dependency_calendar_missing',
+        projects: [{ projectId: remote.projectId, ...label }],
+      },
+      slices: [],
+      waitingForPerson: 0,
+      waitingForCapacity: 0,
+      workItems: [{ id: endpoint.workItemId, schedule: null, dates: null }],
+      connectedDependencies: [{ id: 'remote-fs' }],
+    });
+    if (endpoint === target)
+      expect(tree.body).toMatchObject({
+        workItems: [
+          {
+            nodeReadings: { [target.stepId]: 'blocked_by_proxy' },
+            blockageCauses: {
+              [target.stepId]: [{ kind: 'step', nodeId: formatStepNodeId(remote) }],
+            },
+          },
+        ],
+      });
+  }
+  for (const path of [
+    `work-item-rows?fields=schedule&limit=1`,
+    `work-items/${target.workItemId}`,
+  ]) {
+    const answer = await harness.call('ada', 'GET', `/api/projects/${target.projectId}/${path}`);
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject(
+      path.startsWith('work-item-rows')
+        ? { rows: [{ schedule: null }] }
+        : { workItem: { schedule: null, dates: null } },
+    );
+  }
+});
+
+test.each([false, true])(
+  'mounted connected optimized refusal is an inspectable tree without Fast dates (adapter %s)',
+  async (withOptimizer) => {
+    const { target } = await open({ withOptimizer });
+    harness.sqlite
+      .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
+      .run(target.projectId);
+    const tree = await harness.call(
+      'ada',
+      'GET',
+      `/api/projects/${target.projectId}/work-items?full=true`,
+    );
+    expect(tree.status).toBe(200);
+    expect(tree.body).toMatchObject({
+      scheduleError: {
+        kind: 'engine_unavailable',
+        engine: 'optimized',
+        projects: [target.projectId],
+        reason: withOptimizer ? 'connected_optimization_not_supported' : 'adapter_missing',
+      },
+      slices: [],
+      workItems: [{ id: target.workItemId, schedule: null, dates: null }],
+      connectedDependencies: [{ id: 'remote-fs' }],
+    });
+    expect(tree.body).not.toHaveProperty('optimization');
+  },
+);
+
+test('mounted calendar unavailable edit and eligible claim commit and publish current rows', async () => {
+  const { remote, target } = await open();
+  harness.sqlite.query('UPDATE project SET start_date=NULL WHERE id=?').run(remote.projectId);
+  const edited = await harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
+    commands: [{ kind: 'createWorkItem', name: 'Inspectable edit' }],
+  });
+  expect(edited.status).toBe(200);
+  const latestEvent = () => {
+    const event = harness.sqlite
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription=? ORDER BY seq DESC LIMIT 1',
+      )
+      .get(`project:${target.projectId}`);
+    if (event === null) throw new Error('missing published tree');
+    const message: unknown = JSON.parse(event.message);
+    return message;
+  };
+  expect(latestEvent()).toMatchObject({ type: 'tree_replaced' });
+  expect(latestEvent()).toHaveProperty(
+    'workItems',
+    expect.arrayContaining([
+      expect.objectContaining({ id: target.workItemId, schedule: null, dates: null }),
+      expect.objectContaining({ name: 'Inspectable edit', schedule: null, dates: null }),
+    ]),
+  );
+  harness.sqlite
+    .query("INSERT INTO person(id,name,kind,account_id) VALUES ('worker','Worker','agent',?)")
+    .run(harness.userId('ada'));
+  harness.sqlite
+    .query(
+      "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('worker','org-a','Local worker')",
+    )
+    .run();
+  harness.sqlite
+    .query(
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT ?,id,'done',1 FROM step WHERE project_id=?",
+    )
+    .run(remote.workItemId, remote.projectId);
+  const claimed = await harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
+    commands: [
+      {
+        kind: 'claimWorkItem',
+        workItemId: target.workItemId,
+        steps: [target.stepId],
+        personId: 'worker',
+        runId: 'unavailable-run',
+        assign: false,
+      },
+    ],
+  });
+  expect(claimed.status).toBe(200);
+  expect(
+    harness.sqlite.query('SELECT run_id FROM claim WHERE work_item_id=?').get(target.workItemId),
+  ).toEqual({ run_id: 'unavailable-run' });
+  expect(latestEvent()).toMatchObject({ type: 'tree_replaced' });
+  expect(latestEvent()).toHaveProperty(
+    'workItems',
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: target.workItemId,
+        schedule: null,
+        dates: null,
+        progress: { [target.stepId]: 'in_progress' },
+      }),
+      expect.objectContaining({ name: 'Inspectable edit', schedule: null, dates: null }),
+    ]),
+  );
+});
+
+test('mounted shared connected calendar range leaves no partial forecast display', async () => {
+  const { remote, target } = await open();
+  shareAna(remote, target);
+  harness.sqlite
+    .query('UPDATE estimate SET optimistic=100000000,realistic=100000000,pessimistic=100000000')
+    .run();
+  const tree = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-items?full=true`,
+  );
+  expect(tree.status).toBe(200);
+  expect(tree.body).toMatchObject({
+    scheduleError: 'calendar_range',
+    slices: [],
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    workItems: [{ id: target.workItemId, schedule: null, dates: null }],
+  });
+  expect(tree.body).not.toHaveProperty('optimization');
+  expect(tree.body).not.toHaveProperty('elsewhereHolders');
+  expect(tree.body).not.toHaveProperty('resourceLabels');
+});

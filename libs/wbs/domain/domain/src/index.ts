@@ -178,6 +178,7 @@ export * from './execution-eligibility';
 export * from './resource';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
+export type * from './schedule-error';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';
