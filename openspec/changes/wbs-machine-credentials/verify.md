@@ -242,6 +242,57 @@ removed, and the test watched passing again (2026-10-22).
 | `boot.ts` administration binding                               | removed                                       | `boot.db.test.ts` `serves machine credential administration from the shared database once activated`     | throws: not wired                           |
 | domain `machine-credential.ts` secret expiry (slice 1's check) | predicate → `true`                            | `keeps the id, admits both secrets for 24 hours, then only the new one`                                  | rotated key 200 at T0 + 25 h                |
 
+## Slice 2 review (Fable, 2026-10-22): merge after fixes, fixed
+
+- **S2-1:** a name such as `a|b`, `samlp|acme|carol`, `wbs_mk_fleet` or 64 hex characters
+  reached `appendOrganizationAudit`'s secret guard through the audit detail, causing an unmodeled
+  500 on create, rotate, revoke and a person's cascade. Fixed: no audit detail carries the
+  name, and the create route refuses such a name `400 invalid_body` by the guard's own
+  predicate (`isSecretShaped`, moved to `@wbs/core` and shared), so the guard stays a
+  programming-fault guard. With the name out of the detail, removing the boundary check
+  stores the credential (201) rather than answering 500. That 201 is the observed negative.
+- **S2-2/S2-3 (A24, assumed by the coordinator):** a member's cascade over another account's
+  agent, and a machine key's cascade over its own person, each revoked a credential. Fixed:
+  `removePerson` takes a `MachineCredentialReach` (`machineCredentialReachOf`: an admin
+  reaches every person, a member a person bound to their own account, and a delegated scope
+  none). The SQLite store applies it in the removal's transaction, else `forbidden`. A
+  delegated request is known by the new optional `OrganizationScope.delegated`, which
+  `resolve` sets for every delegation and machine context. No audit row names an acting
+  credential, because every delegated cascade and revoke is refused before anything is written.
+  The mounted cascade is proven for a machine key. An MCP delegation's cascade is not mounted
+  (the delegation-capable harness has no directory command runner) and rests on the same
+  `delegated` flag, set from `principal.delegation` for both.
+- **S3-1:** `patchPerson { kind }` on an agent with a live credential is refused `in_use`.
+- **S3-2:** tasks.md 2.4's negative now names the domain predicate the proof broke. The
+  machine-key route test is named for what it runs, and an MCP delegation route test is added.
+- **S3-3:** the own-account predicate throws instead of widening when `and()` answers nothing.
+  That state cannot be produced (two conditions always build one), so it has no observed
+  negative; it is an unexpected-nullish throw, as the failure policy asks.
+- **Recorded:**
+  - `name_taken` is organization-wide, so a member can probe whether a name is held, as the
+    spec states.
+  - The audit vocabulary CHECK needs a table rebuild on every growth. Follow-up: #632,
+    "organization_audit: trigger-enforced vocabulary instead of CHECK rebuilds".
+  - The reviewer judged this slice's rebuild acceptable and blue/green-safe: one write
+    transaction under the runner's foreign-keys-off protocol, with every outgoing action kept.
+
+| Check (file)                                      | Fault injected    | Test that observed the failure                                                                                                | Result                 |
+| ------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `machine-credential.routes.ts` secret-shaped name | check removed     | `refuses a name shaped like a secret or a subject, storing nothing`                                                           | 201, credential stored |
+| `directory.ts` `removePerson` reach refusal       | removed           | `refuses a member's cascade over another account's agent's credential`, `refuses a machine key's cascade over its own person` | 2 fail: 200, revoked   |
+| `organization-access.ts` `delegated` scope flag   | removed           | `refuses a machine key's cascade over its own person`                                                                         | 200, revoked           |
+| `directory.ts` `patchPerson` kind comparison      | `rekinds = false` | `refuses turning an agent with a live machine credential into a person`                                                       | 200, kind changed      |
+| `directory.ts` `patchPerson` account comparison   | `rebinds = false` | `refuses unbinding or rebinding a person a live machine credential acts through`                                              | 200, unbound           |
+| `machine-credential.routes.ts` delegation guard   | removed           | `refuses an MCP delegation every credential route`                                                                            | delegation's list 200  |
+
+Fresh results after the fixes (`CLAUDECODE` unset):
+
+- `bunx nx run wbs-be-01:test --skip-nx-cache`: 3143 pass, 3 skip, 0 fail across 215 files (897 s). `machine-credential-admin.controller.db.test.ts`: 30 pass.
+- `wbs-be-01:typecheck` and `wbs-be-01:lint`: exit 0. `eslint` and `prettier` on every changed file: clean.
+- Libraries: contracts 495 pass; store-memory 193 pass, the directory conformance suite included; core directory, plan-commands, http, authentication, boundary and compose tests 251 pass across 39 files; the 35 touched store-sqlite tests 651 pass; domain `machine-credential.test.ts` 15 pass.
+- Burokrat `check-indexes working . HEAD` and `check-root-migration`: exit 0. The fixes add no new file.
+- `bunx openspec validate --all --json`: 266 of 266 passed.
+
 ## Gate output
 
 Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all

@@ -276,6 +276,19 @@ cannot rebind a person through `patchPerson` (`403 forbidden`). Why: the slice 1
 reproduced a key pinned to an admin-bound person rebinding its own person to a
 super-admin's account and then acting as that super-admin.
 
+**A24. A person's cascade reaches only the credentials its caller could revoke (assumed by
+the coordinator, 2026-10-22, from the slice 2 review; for Dany to confirm).** A
+`deletePerson … cascade: true` that would revoke machine credentials needs the reach
+`DELETE /api/organization/machine-credentials/:id` has on each of them. An admin or
+super-admin may cascade. A member may cascade only a person bound to their own account. A
+delegation or a machine credential (A23) may not. Otherwise the batch is refused `forbidden`
+and nothing is removed or revoked. Without a cascade the removal stays `in_use`. A `patchPerson`
+that changes the kind of a person with a live credential is refused `in_use`, like an unbind.
+Why: the review reproduced a member cascading another account's agent, and a machine key
+cascading its own person, each revoking a credential it could not have revoked by its route.
+Because every delegation and machine principal is refused, no cascade or revoke audit row is
+ever written by one, so the detail carries no acting credential id.
+
 **A22. API key format (Dany, 2026-10-22).** The key is `wbs_mk_<credential id>.<secret>`,
 sent as `Authorization: Bearer`: the id selects the credential by primary key, the secret's
 SHA-256 digest is compared in constant time against that credential's live secrets (two

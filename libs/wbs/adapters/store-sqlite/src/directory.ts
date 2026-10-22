@@ -7,11 +7,13 @@ import type {
   DirectoryUsageRows,
   ExternalRef,
   ExternalSystem,
+  MachineCredentialReach,
   NamedCatalog,
   OrganizationRenamed,
   PersonAdded,
   PersonInsert,
   PersonPatch,
+  PersonRemoved,
   PersonWithTeams,
   PersonWritten,
   Resource,
@@ -319,7 +321,6 @@ function liveMachineCredentialsOf(reader: Reader, personId: string) {
       id: machineCredential.id,
       organizationId: machineCredential.organizationId,
       source: machineCredential.source,
-      name: machineCredential.name,
       issuedBy: machineCredential.issuedBy,
       issuer: machineCredential.issuer,
     })
@@ -1409,18 +1410,23 @@ export class DirectoryRepository implements DirectoryStore {
           }
           if (typeof patch.accountId === 'string' && !accountMayBind(tx, personId, patch.accountId))
             return { ok: false, reason: 'unknown_account' };
-          if (patch.accountId !== undefined) {
-            const bound = tx
-              .select({ accountId: person.accountId })
+          if (patch.accountId !== undefined || patch.kind !== undefined) {
+            const current = tx
+              .select({ accountId: person.accountId, kind: person.kind })
               .from(person)
               .where(eq(person.id, personId))
               .get();
+            if (current === undefined) throw new Error(`person "${personId}" vanished mid-patch`);
             const machines = liveMachineCredentialsOf(tx, personId).length;
-            // Proof: with this refusal removed, `refuses unbinding or rebinding
-            // a person a live machine credential acts through` in
+            // Proof: with the account comparison removed, `refuses unbinding or
+            // rebinding a person a live machine credential acts through` in
             // `machine-credential-admin.controller.db.test.ts` unbound the
-            // person; watched 2026-10-22.
-            if (bound?.accountId !== patch.accountId && machines > 0)
+            // person; with the kind comparison removed, `refuses turning an
+            // agent with a live machine credential into a person` changed its
+            // kind (200); watched 2026-10-22.
+            const rebinds = patch.accountId !== undefined && patch.accountId !== current.accountId;
+            const rekinds = patch.kind !== undefined && patch.kind !== current.kind;
+            if ((rebinds || rekinds) && machines > 0)
               return { ok: false, reason: 'in_use', machineCredentials: machines };
           }
           // One `set`, not one per field: two updates would be two revisions of
@@ -1884,7 +1890,8 @@ export class DirectoryRepository implements DirectoryStore {
     personId: string,
     cascade: boolean,
     stamp: WriteStamp,
-  ): Promise<DirectoryRemoved> {
+    reach: MachineCredentialReach,
+  ): Promise<PersonRemoved> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx) => {
@@ -1919,6 +1926,13 @@ export class DirectoryRepository implements DirectoryStore {
             usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
           };
         }
+        // Proof: with this refusal removed, `refuses a member's cascade over
+        // another account's agent's credential` and `refuses a machine key's
+        // cascade over its own person` in
+        // `machine-credential-admin.controller.db.test.ts` removed the person
+        // and revoked the credentials (200); watched 2026-10-22.
+        if (machines.length > 0 && !reachesPerson(tx, personId, reach))
+          return { ok: false, reason: 'forbidden' };
         const projectIds = this.projectsReaching(tx, personId);
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
         // Delegated claims under these go with them: `parent_claim_id` cascades.
@@ -2353,7 +2367,6 @@ function removeMachineCredentialsOf(
       detail: {
         source: machine.source,
         personId,
-        name: machine.name,
         issuedBy: machine.issuedBy,
         issuer: machine.issuer,
         cascade: true,
@@ -2371,4 +2384,20 @@ function removeMachineCredentialsOf(
     .where(inArray(machineCredentialSecret.credentialId, credentialIds))
     .run();
   tx.delete(machineCredential).where(inArray(machineCredential.id, credentialIds)).run();
+}
+
+/**
+ * Whether `reach` covers `personId`'s machine credentials
+ * (`wbs-machine-credentials` A24): `own` only while the person is bound to
+ * that account now.
+ */
+function reachesPerson(tx: Transaction, personId: string, reach: MachineCredentialReach): boolean {
+  if (reach.kind === 'every') return true;
+  if (reach.kind === 'none') return false;
+  const bound = tx
+    .select({ accountId: person.accountId })
+    .from(person)
+    .where(eq(person.id, personId))
+    .get();
+  return bound?.accountId === reach.accountId;
 }

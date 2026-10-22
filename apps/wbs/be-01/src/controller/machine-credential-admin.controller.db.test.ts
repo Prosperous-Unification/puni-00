@@ -5,6 +5,7 @@ import { exportJWK, generateKeyPair } from 'jose';
 
 import { addAgentPerson } from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { delegationFor, mapUpstream } from '../testing/scim-fixture';
 
 const PATH = '/api/organization/machine-credentials';
 const HOUR = 60 * 60 * 1000;
@@ -140,12 +141,13 @@ describe('creating an API key', () => {
       actor_id: h.userId('dany'),
       subject_id: created.id,
     });
-    expect(JSON.parse(audit[0]?.detail ?? '{}')).toMatchObject({
+    const detail = JSON.parse(audit[0]?.detail ?? '{}') as Record<string, unknown>;
+    expect(detail).toMatchObject({
       source: 'api_key',
       personId: 'claire',
-      name: 'claire',
       issuedBy: h.userId('dany'),
     });
+    expect(detail).not.toHaveProperty('name');
     for (const serialized of [JSON.stringify(list.body), JSON.stringify(audit)]) {
       expect(serialized).not.toContain(secret);
       expect(serialized).not.toContain(digest);
@@ -224,6 +226,20 @@ describe('creating an API key', () => {
     });
     expect((await h.call('dany', 'DELETE', `${PATH}/${first.id}`)).status).toBe(204);
     expect((await create('dany', 'mems-agent', 'fleet')).answer.status).toBe(201);
+  });
+
+  // Proof: with the route's `isSecretShaped` check removed, each name was
+  // stored (201); watched 2026-10-22.
+  it('refuses a name shaped like a secret or a subject, storing nothing', async () => {
+    for (const name of ['a|b', 'samlp|acme|carol', 'wbs_mk_fleet', 'ab'.repeat(32)])
+      expect(
+        await h.call('dany', 'POST', PATH, { source: 'api_key', name, personId: 'claire' }),
+      ).toEqual({
+        status: 400,
+        body: { error: 'invalid_body' },
+      });
+    expect(credentialCount()).toBe(0);
+    expect(auditRows()).toEqual([]);
   });
 
   it('refuses a body that names another source or an out-of-range name', async () => {
@@ -434,9 +450,9 @@ describe('who may administer', () => {
   });
 
   // Proof: with the delegation guard dropped from the routes'
-  // `sessionOrganization`, this answered a machine key's list 200; watched
-  // 2026-10-22.
-  it('refuses a machine key and a delegation every credential route', async () => {
+  // `sessionOrganization`, this answered a machine key's list 200, and the
+  // MCP delegation case below its list 200 too; watched 2026-10-22.
+  it('refuses a machine key every credential route', async () => {
     const created = await create('dany', 'claire');
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
@@ -450,6 +466,38 @@ describe('who may administer', () => {
       });
     expect(credentialCount()).toBe(1);
     expect(rows('SELECT id FROM machine_credential_secret')).toHaveLength(1);
+  });
+
+  it('refuses an MCP delegation every credential route', async () => {
+    const created = await create('dany', 'claire');
+    h.close();
+    const keys = await generateKeyPair('RS256');
+    h = OrganizationHarness.open({ delegationKey: keys.publicKey });
+    await h.register('dany');
+    h.organization('org-a');
+    h.member('org-a', 'dany', 'super_admin');
+    h.bind('dany', 'org-a');
+    h.activate();
+    addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
+    const own = await create('dany', 'claire');
+    expect(own.answer.status).toBe(201);
+    mapUpstream(h, 'dany', 'sub-dany');
+    const delegation = () => delegationFor(h, keys.privateKey, 'dany', 'org-a', 'sub-dany');
+    for (const [method, path, body] of [
+      ['GET', PATH, undefined],
+      ['POST', PATH, { source: 'api_key', name: 'x', personId: 'claire' }],
+      ['POST', `${PATH}/${own.id}/rotate`, undefined],
+      ['DELETE', `${PATH}/${own.id}`, undefined],
+    ] as const)
+      expect(await h.callWith(await delegation(), method, path, body)).toEqual({
+        status: 403,
+        body: { error: 'insufficient_scope' },
+      });
+    // This harness mounts no directory command runner; a delegation's cascade
+    // is refused by the same `delegated` scope flag the machine key's case
+    // proves.
+    expect(credentialCount()).toBe(1);
+    expect(created.id).not.toBe(own.id);
   });
 
   it('answers every credential route no_active_organization before activation', async () => {
@@ -540,5 +588,50 @@ describe("a credential's person", () => {
       (await directory({ kind: 'patchPerson', personId: 'claire', patch: { accountId: null } }))
         .status,
     ).toBe(200);
+  });
+
+  it('refuses turning an agent with a live machine credential into a person', async () => {
+    const created = await create('dany', 'claire');
+    expect(
+      await directory({ kind: 'patchPerson', personId: 'claire', patch: { kind: 'person' } }),
+    ).toEqual({
+      status: 409,
+      body: {
+        error: 'in_use',
+        at: 0,
+        kind: 'patchPerson',
+        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+      },
+    });
+    expect(rows("SELECT kind FROM person WHERE id = 'claire'")).toEqual([{ kind: 'agent' }]);
+    expect((await h.callWith(created.key, 'GET', '/api/projects')).status).toBe(200);
+  });
+
+  const cascade = (personId: string) => ({
+    commands: [{ kind: 'deletePerson', personId, cascade: true }],
+  });
+  const FORBIDDEN = { status: 403, body: { error: 'forbidden', at: 0, kind: 'deletePerson' } };
+
+  it("refuses a member's cascade over another account's agent's credential", async () => {
+    const strangers = await create('dany', 'claire');
+    expect(await h.call('mem', 'POST', '/api/directory/commands', cascade('claire'))).toEqual(
+      FORBIDDEN,
+    );
+    expect(credentialCount()).toBe(1);
+    expect(auditRows().map((row) => row.action)).toEqual(['machine_credential_created']);
+    expect((await h.callWith(strangers.key, 'GET', '/api/projects')).status).toBe(200);
+    await create('mem', 'mems-agent');
+    expect(
+      (await h.call('mem', 'POST', '/api/directory/commands', cascade('mems-agent'))).status,
+    ).toBe(200);
+  });
+
+  it("refuses a machine key's cascade over its own person", async () => {
+    const created = await create('dany', 'claire');
+    expect(
+      await h.callWith(created.key, 'POST', '/api/directory/commands', cascade('claire')),
+    ).toEqual(FORBIDDEN);
+    expect(credentialCount()).toBe(1);
+    expect((await h.callWith(created.key, 'GET', '/api/projects')).status).toBe(200);
   });
 });
