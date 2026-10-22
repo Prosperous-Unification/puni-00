@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+2845 |     if (defect === 'wrong-identity') {
+2846 |       expect(redone).toBeInstanceOf(Error);
+2847 |       expect(redone instanceof Error ? redone.message : redone).toBe(
+2848 |         'endpoint row identity mismatch',
+2849 |       );
+2850 |     } else expect(redone).toMatchObject({ ok: false, reason: 'not_found', detail: null });
+                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "detail": null,
+-   "ok": false,
+-   "reason": "not_found",
++   "ok": true,
++   "value": {
++     "detail": null,
++     "done": "2 changes",
++   },
+  }
+
+- Expected  - 3
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-incident-completion-review-copy/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:2850:27)
+(fail) external redo revalidates foreign-project delivery and rolls back an earlier successful action [378.16ms]
+
+ 0 pass
+ 103 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [2.46s]

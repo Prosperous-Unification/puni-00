@@ -776,3 +776,21 @@ project endpoint IDs. Integrated MCP tests passed 17/17 (62 assertions) and
 the MCP spec TypeScript check passed. The reviewer independently watched two
 transport/schema faults fail the selected tests. Mounted positive authoring and
 full task 3.2 remain open; the final CI/host gate is pending.
+
+## Task 4.4 — bounded replay and endpoint-authority proof packet
+
+The reviewed test-only packet `7a3a8f696` is integrated. Its [independent
+review](evidence/task-4-incident-replay-review/puni-incident-completion-review.md),
+[complete focused log](evidence/task-4-incident-replay-review/puni-incident-completion-review-full.log)
+and [reproducible fault runner](evidence/task-4-incident-replay-review/puni-incident-completion-review-mutations.txt)
+record 104 passing real SQLite controller tests and 1,487 assertions; the
+integrated exact file also passed 104/104. The new cycle fixture changes only
+unguarded remote endpoints, refuses replay and rolls back a preceding write;
+the row-owner and row-identity fault probes admit unsafe replay when their
+checks are removed. The typed-graph-only fault changes the refusal detail but
+does not admit the cycle; removing both graph protections does. The scoped-read
+fault changes a modeled refusal to a later throw, so it proves refusal ordering.
+The reviewer confirmed the new adjacent Proof comments state only those
+observed outcomes. The independent final-graph-only and writer-time-access
+faults leave these new tests green. First-child hand-down, compound replay and
+full independent graph/access proof remain open, as does the final CI/host gate.
