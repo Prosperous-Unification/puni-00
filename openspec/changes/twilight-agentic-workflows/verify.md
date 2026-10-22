@@ -783,3 +783,45 @@ parent: an attempted atomic notes/progress update refused `rolled_up`, and rerea
 no note/status change. Progress must be recorded on its actual schema/CLI children. Their
 broader sandbox/cwd, approval/budget, retry/context and retained-manifest requirements are
 explicit remaining work; the static subset does not complete I1.01 or I1 overall.
+
+### 2026-10-22 — binding Task 1 candidate: strict shape, coverage and selection
+
+Implemented only static decoding, complete per-type step coverage and checked class
+selection in the four planned contract files. Prompt-byte acceptance, YAML/IO, CLI,
+retention and execution remain later work. No acceptance digest or runtime authority
+is produced by this slice. Independent task review remains pending.
+
+Focused command: `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-binding.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000`.
+Setup red was a missing module (not guard evidence); exported scaffolding then produced
+65 failing behavior tests. Final restored source passes 79 tests with 114 assertions,
+zero failures, in326ms. Self-review first observed and corrected array-subclass admission,
+sparse-step refusal classification and deterministic raw-JSON error ordering.
+
+Uncached checks both exited0: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache` (1.4s) and the same invocation with
+`twilight-burokrat:lint:source` (19.1s). Initial typecheck/lint attempts failed on new
+index-signature access, interface style and redundant conditions; those were corrected
+before these final runs. Lint retains the ambient NO_COLOR/FORCE_COLOR warning.
+Four-file Prettier check and `git diff --check` pass.
+
+R5 evidence:55 distinct production faults,55 failed filtered runs and55 successful
+restored runs (110 filtered invocations). The JSON summary has55 unique IDs. Exact
+patches, argv and logs live at `/tmp/puni-binding-task1/proof-<fault>.{diff,command.json,fault.log,restored.log}`;
+`proof-summary.json` indexes them. This is not55 independent unsafe-admission claims:
+version/executor/bare-model and some selection/project-step faults change the required
+named refusal while another guard still rejects. The fraction proof removes both
+integer defenses; the whole JSON-boundary proof observes accessor admission and does
+not independently certify each cycle/symbol subexpression. Setup failures are excluded.
+
+Root inspected the complete report and summary, final checks and four exact fault/restoration
+pairs. In the strong coverage proof, bypassing only unknown-step rejection accepted `qa`.
+Removing document detachment froze caller settings, making a required successful
+`Reflect.set` returnfalse. Separately removing deep freezing made returned nested settings
+mutable. A complete duplicate project-step set also proves actual admission without the
+uniqueness check. Adjacent Proof comments distinguish these outcomes from classification
+and combined faults; the full evidence remains available for independent review.
+
+Logs and full report: `/tmp/puni-binding-task1/` and the task ledger's `task-1-report.md`.
+No full host gate, broader Burokrat suite/build, live service, migration or runtime integration
+check was run for this slice. Storage gate evidence applies to its separate candidate only.
+Task1 checklist and parent1.1–1.2 remain unchecked; this subset does not complete broader
+WBS I1.01 sandbox/cwd/approval/budget/retry/retained-revision/context requirements.
