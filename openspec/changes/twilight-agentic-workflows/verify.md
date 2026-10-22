@@ -908,3 +908,10 @@ Root inspected all twelve mutation-summary entries and representative exact scop
 attempt-uniqueness and acceptance-key failure output. No full receiver gate,
 broad backend/application/HTTP suite or live deployment was run in this fix round.
 The corrected candidate still requires scoped independent re-review.
+
+Scoped re-review of `360dc8bb9..070035ede` found I1/I2/M1 addressed with no new
+Critical/Important findings. Task2 is accepted at
+`070035ede8f4d665f98d0fcac97f71ead92bfc21`; only its checklist is checked.
+Canonical-request semantic/digest correspondence, current-authorized application
+replay and accepted-operation lifecycle fixtures remain Task3 work. Parent
+receiver/bridge completion and final integration gates remain open.
