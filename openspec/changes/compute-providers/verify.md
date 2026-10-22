@@ -295,3 +295,20 @@ Not run or not verified:
   observed against a real host here.
 - SIGTERM: the reporter holds no state to flush and ends with the process; no handler is
   installed.
+
+Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-2` with `env -u CLAUDECODE`:
+
+- `bunx nx run-many -t lint typecheck -p twilight-dash tool-fleet --skip-nx-cache --parallel=1`:
+  succeeded (4 tasks).
+- `bunx nx run twilight-dash:test --skip-nx-cache`: exit 0, 2147 pass, 0 fail (before the two
+  `sleepUnlessInterrupted` cases; `report-capacity.test.ts` alone afterwards: 17 pass, 0 fail).
+- `bunx nx run twilight-dash:build --skip-nx-cache`: succeeded (observation launcher only; the
+  bundle does not reach `src/compute`).
+- `bunx nx run tool-fleet:test --skip-nx-cache`: exit 0, 589 pass, 0 fail.
+- `bunx nx run tool-devsync:test --skip-nx-cache` (full): exit 0, 898 pass, 0 fail, after the
+  slice commit (an earlier run before committing failed only the index checker's
+  untracked-path refusal and, once, `names a discovered module missing tsconfig.json`, which
+  passed alone and in the full rerun).
+- Burokrat `check-indexes working . HEAD`: exit 0; no module index covers a changed file (the
+  `store-memory` review debt is unchanged).
+- `bunx openspec validate --all --json`: 269 of 269 passed.
