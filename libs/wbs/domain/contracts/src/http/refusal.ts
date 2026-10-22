@@ -322,6 +322,7 @@ export interface Quota {
  */
 export type Integrity = { savedPlanId: string } & (
   | { reason: 'body_missing'; body: 'input' | 'schedule' }
+  | { reason: 'body_invalid'; body: 'input' | 'schedule'; path: string; code: string }
   | { reason: 'body_hash_mismatch'; body: 'input' | 'schedule'; stored: string; recomputed: string }
   | {
       reason: 'schedule_input_mismatch';

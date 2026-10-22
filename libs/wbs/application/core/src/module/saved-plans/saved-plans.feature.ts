@@ -11,6 +11,7 @@ import {
   PlanInputVersionError,
   type PlanScheduleValue,
   type PlanSide,
+  readSavedPlanInput,
   type SavedPlanQuota,
   type SavedPlanQuotaRefusal,
   type Schedule,
@@ -670,15 +671,18 @@ export class SavedPlanService {
 /**
  * A verified read, as a comparison side (task 7.3b).
  *
- * The bytes are parsed here and **nowhere else**: {@link SavedPlanService.read}
- * hands over the stored bytes unparsed on purpose, so the one place that turns
- * them into values is the one place that also runs them forward through
- * {@link normalisePlanInputForward}. Splitting those two apart is how a body
- * comes to be diffed at its stored shape against a reader that has moved on.
+ * The resource verifies new-format semantics without rewriting stored bytes.
+ * This projection decodes input9 with its captured context and retains the legacy
+ * forward normalizer for older bodies. Neither path consults live foreign facts.
  */
 function planSideOfRead(plan: SavedPlanRead): PlanSide {
   return {
-    input: normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
+    // Proof: always using the legacy decoder returned 422 for the mounted complete
+    // connected self-comparison (use-legacy-comparison-reader.log.txt).
+    input:
+      plan.input.schemaVersion === 9
+        ? readSavedPlanInput(JSON.parse(plan.input.bytes), 9)
+        : normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
     schedule: plan.schedule.present
       ? {
           present: true,

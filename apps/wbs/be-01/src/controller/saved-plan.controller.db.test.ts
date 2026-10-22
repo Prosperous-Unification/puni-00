@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { bodySha256 } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { defaultSavedPlanName } from '@wbs/domain';
@@ -20,7 +21,7 @@ import type { SavedPlanWrite } from '../repository/saved-plan';
 import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
-import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
+import { bunPasswordHasher, joseTokenCodec, nodeDigest } from '../runtime/bun-runtime';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -50,6 +51,7 @@ import { refusingProjectAddressSearch } from '../testing/project-address-search-
 import { projectRow, testProjectService } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { savedConnectedHistoryFixture } from '../testing/saved-connected-history-fixture';
 import { savedPlanServiceOn, testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
@@ -91,6 +93,21 @@ describe('the saved-plan routes', () => {
    * request.
    */
   let writes: ReturnType<typeof testWrites>;
+
+  /** Seeds access policy through the real store; project-command behavior has its own suites. */
+  const restrictProject = async () => {
+    const policy = openConnection(path);
+    try {
+      const restricted = await new ProjectRepository(policy.db, OPEN).update(
+        projectId,
+        { restricted: true },
+        { at: 1, by: 'fixture' },
+      );
+      expect(restricted).toMatchObject({ restricted: true });
+    } finally {
+      policy.close();
+    }
+  };
 
   /**
    * One authenticated request. `headers` is set rather than merged: every
@@ -518,6 +535,238 @@ describe('the saved-plan routes', () => {
     expect(Array.isArray(diff.schedule)).toBe(true);
   });
 
+  /** Injects intact v9/v2 bytes through SQL because current writers deliberately remain v8/v1. */
+  const replaceSavedBodies = async (
+    id: string,
+    inputBytes: string,
+    scheduleBytes: string | null,
+  ) => {
+    const inputHash = await bodySha256(nodeDigest, inputBytes);
+    const scheduleHash =
+      scheduleBytes === null ? null : await bodySha256(nodeDigest, scheduleBytes);
+    const quote = (text: string | null) =>
+      text === null ? 'NULL' : `'${text.replaceAll("'", "''")}'`;
+    const historical = openConnection(path);
+    try {
+      historical.db.run(`UPDATE saved_plan SET input_schema_version = 9,
+        input_sha256 = ${quote(inputHash)}, input_bytes = ${String(new TextEncoder().encode(inputBytes).length)},
+        schedule_schema_version = ${scheduleBytes === null ? 'NULL' : '2'},
+        schedule_sha256 = ${quote(scheduleHash)}, schedule_input_sha256 = ${quote(scheduleBytes === null ? null : inputHash)},
+        schedule_bytes = ${scheduleBytes === null ? 'NULL' : String(new TextEncoder().encode(scheduleBytes).length)},
+        scheduler_algorithm_id = ${quote(scheduleBytes === null ? null : 'connected-selection-v1:retired')},
+        schedule_absent_reason = ${quote(scheduleBytes === null ? 'unavailable' : null)} WHERE id = ${quote(id)}`);
+      historical.db.run(
+        `UPDATE saved_plan_body SET bytes = ${quote(inputBytes)} WHERE saved_plan_id = ${quote(id)} AND kind = 'input'`,
+      );
+      if (scheduleBytes === null)
+        historical.db.run(
+          `DELETE FROM saved_plan_body WHERE saved_plan_id = ${quote(id)} AND kind = 'schedule'`,
+        );
+      else
+        historical.db.run(
+          `UPDATE saved_plan_body SET bytes = ${quote(scheduleBytes)} WHERE saved_plan_id = ${quote(id)} AND kind = 'schedule'`,
+        );
+    } finally {
+      historical.close();
+    }
+  };
+
+  it('reads complete connected history as exact stored bytes and compares it without live foreign projects', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    const inputBytes = JSON.stringify(captured.input);
+    const scheduleBytes = JSON.stringify(captured.schedule);
+    await replaceSavedBodies(id, inputBytes, scheduleBytes);
+    const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      savedPlan: {
+        input: { bytes: inputBytes },
+        schedule: { body: { bytes: scheduleBytes } },
+      },
+    });
+    const compared = await as(
+      tokens['ada'],
+      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${id}`,
+    );
+    expect(compared.status).toBe(200);
+    expect(await compared.json()).toEqual({ diff: { input: [], schedule: [] } });
+
+    const renamedId = await savedIdOf(await save('ada'));
+    const renamed = savedConnectedHistoryFixture(projectId);
+    if (renamed.input.dependencyHistory.kind !== 'connected')
+      throw new Error('fixture requires connected context');
+    Reflect.set(renamed.input.dependencyHistory.projects[1], 'name', 'Beta at a later capture');
+    await replaceSavedBodies(renamedId, JSON.stringify(renamed.input), scheduleBytes);
+    const changed = await as(
+      tokens['ada'],
+      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${renamedId}`,
+    );
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toMatchObject({
+      diff: { input: [{ path: 'dependencyHistory.projects' }], schedule: [] },
+    });
+  });
+
+  it.each([
+    [
+      'input context',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.deleteProperty(captured.input, 'dependencyHistory');
+      },
+    ],
+    [
+      'external project label',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        if (captured.input.dependencyHistory.kind !== 'connected')
+          throw new Error('fixture requires connected context');
+        Reflect.deleteProperty(captured.input.dependencyHistory.projects[1], 'name');
+      },
+    ],
+    [
+      'graph ownership',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        if (captured.input.dependencyHistory.kind !== 'connected')
+          throw new Error('fixture requires connected context');
+        Reflect.set(captured.input.dependencyHistory, 'ownership', []);
+      },
+    ],
+    [
+      'stage packet',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.deleteProperty(captured.schedule.connection.stages[0], 'stageBytes');
+      },
+    ],
+    [
+      'candidate question',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        const variants = captured.schedule.connection.stages[0].variants;
+        if (variants?.time.state !== 'ready')
+          throw new Error('fixture requires ready time candidate');
+        Reflect.set(variants.time.candidate.question, 'stageBytes', '{}');
+      },
+    ],
+    [
+      'target membership',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.deleteProperty(captured.schedule.slices, 'a\u0000design');
+      },
+    ],
+    [
+      'target placement',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        captured.schedule.workItems.a.earliestStart = 1000;
+      },
+    ],
+    [
+      'body version',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        captured.schedule.version = 1;
+      },
+    ],
+    [
+      'local input with connected schedule',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'dependencyHistory', { kind: 'local' });
+      },
+    ],
+  ] as const)(
+    'refuses correctly hashed malformed %s on read and either comparison side',
+    async (_fault, body, inject) => {
+      const id = await savedIdOf(await save('ada'));
+      const healthyId = await savedIdOf(await save('ada'));
+      const captured = savedConnectedHistoryFixture(projectId);
+      inject(captured);
+      await replaceSavedBodies(
+        id,
+        JSON.stringify(captured.input),
+        JSON.stringify(captured.schedule),
+      );
+      const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+      expect(response.status).toBe(422);
+      const refused = (await response.json()) as { refusal: { code: string; path: string } };
+      expect(refused).toMatchObject({
+        error: 'corrupt',
+        refusal: {
+          reason: 'body_invalid',
+          savedPlanId: id,
+          body,
+          code: refused.refusal.code,
+          path: refused.refusal.path,
+        },
+      });
+      expect(refused.refusal.code.length).toBeGreaterThan(0);
+      expect(refused.refusal.path.startsWith('$')).toBe(true);
+      for (const [left, right] of [
+        [id, healthyId],
+        [healthyId, id],
+      ]) {
+        const compared = await as(
+          tokens['ada'],
+          `/api/projects/${projectId}/saved-plans/compare?left=${left}&right=${right}`,
+        );
+        expect(compared.status).toBe(422);
+        expect(await compared.json()).toEqual({
+          error: 'corrupt',
+          savedPlanId: id,
+          refusal: refused.refusal,
+        });
+      }
+    },
+  );
+
+  it.each(['input', 'schedule'] as const)(
+    'refuses correctly hashed invalid %s JSON before returning bytes',
+    async (body) => {
+      const id = await savedIdOf(await save('ada'));
+      const captured = savedConnectedHistoryFixture(projectId);
+      await replaceSavedBodies(
+        id,
+        body === 'input' ? '{' : JSON.stringify(captured.input),
+        body === 'schedule' ? '{' : JSON.stringify(captured.schedule),
+      );
+      const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({
+        error: 'corrupt',
+        refusal: { reason: 'body_invalid', savedPlanId: id, body, path: '$', code: 'json' },
+      });
+    },
+  );
+
+  it('requires selected evidence but reads an explicitly unavailable connected capture without dates', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null);
+    const missing = await as(tokens['ada'], `/api/saved-plans/${id}`);
+    expect(missing.status).toBe(422);
+    expect(await missing.json()).toMatchObject({
+      error: 'corrupt',
+      refusal: { reason: 'body_invalid', body: 'schedule', code: 'placement_state' },
+    });
+    if (captured.input.dependencyHistory.kind !== 'connected')
+      throw new Error('fixture requires connected context');
+    Reflect.set(captured.input.dependencyHistory, 'placementState', {
+      kind: 'unavailable',
+      reason: 'cycle',
+    });
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null);
+    const unavailable = await as(tokens['ada'], `/api/saved-plans/${id}`);
+    expect(unavailable.status).toBe(200);
+    expect(await unavailable.json()).toMatchObject({
+      savedPlan: { schedule: { present: false, absentReason: 'unavailable' } },
+    });
+  });
+
   /**
    * The cross-project refusal, and the reason the compare route may carry a
    * project id at all.
@@ -660,7 +909,7 @@ describe('the saved-plan routes', () => {
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
       // Proof: omitting schema8 in the production501 payload failed this exact reply (2026-10-17).
-      supported: [1, 2, 3, 4, 5, 6, 7, 8],
+      supported: [1, 2, 3, 4, 5, 6, 7, 8, 9],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
@@ -793,11 +1042,7 @@ describe('the saved-plan routes', () => {
           const toDelete = await savedIdOf(await save('ada', 'the delete target'));
 
           if (column === 'restricted') {
-            const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
-              method: 'PATCH',
-              body: JSON.stringify({ restricted: true }),
-            });
-            expect(restricted.status).toBe(200);
+            await restrictProject();
           }
 
           // Collected into one object and compared whole, so a wrong rule
@@ -879,11 +1124,7 @@ describe('the saved-plan routes', () => {
      * 403 has changed no list.
      */
     it('says nothing when the save is refused', async () => {
-      const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ restricted: true }),
-      });
-      expect(restricted.status).toBe(200);
+      await restrictProject();
       broadcast.published.length = 0;
 
       expect((await save('mallory')).status).toBe(403);
@@ -1236,10 +1477,38 @@ test('mounted stored-response validation requires creator and schedule fields bu
   expect(await response.json()).toEqual({ savedPlan: enriched });
 });
 
+test('mounted malformed-history refusal requires its path and code on read and compare', async () => {
+  const refusal = {
+    reason: 'body_invalid',
+    savedPlanId: 's',
+    body: 'input',
+    path: '$.dependencyHistory',
+    code: 'shape',
+  } as const;
+  const f = fixture();
+  for (const field of ['path', 'code']) {
+    const incomplete = { ...refusal };
+    Reflect.deleteProperty(incomplete, field);
+    f.read.mockResolvedValueOnce({ outcome: 'corrupt', refusal: incomplete });
+    expect((await f.call('/api/saved-plans/s')).status).toBe(500);
+    f.compare.mockResolvedValueOnce({ outcome: 'corrupt', savedPlanId: 's', refusal: incomplete });
+    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=current')).status).toBe(
+      500,
+    );
+  }
+});
+
 test('mounted integrity variants retain their distinct operational details', async () => {
   const f = fixture();
   const refusals = [
     { reason: 'body_missing', savedPlanId: 's', body: 'input' },
+    {
+      reason: 'body_invalid',
+      savedPlanId: 's',
+      body: 'schedule',
+      path: '$.stages',
+      code: 'stage_identity',
+    },
     {
       reason: 'body_hash_mismatch',
       savedPlanId: 's',

@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/saved-plan-current.db.test.ts:
+(pass) projecting the live plan as a comparison side > produces the same input bytes the save path stores [350.33ms]
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+(pass) the saved-plan routes > reads complete connected history as exact stored bytes and compares it without live foreign projects [998.54ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed candidate question on read and either comparison side [1413.33ms]
+
+ 3 pass
+ 65 filtered out
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 2 files. [9.45s]

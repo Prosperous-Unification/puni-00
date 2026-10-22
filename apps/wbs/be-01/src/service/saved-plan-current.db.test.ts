@@ -203,7 +203,9 @@ describe('projecting the live plan as a comparison side', () => {
 
     const side = await service('sp-2').projectCurrentPlan('p1');
 
-    expect(serialiseCanonicalPlanInput(side!.input)).toBe(
+    if (side?.input.schemaVersion !== 8)
+      throw new Error('current capture must retain the active v8 writer');
+    expect(serialiseCanonicalPlanInput(side.input)).toBe(
       saved.outcome === 'saved' ? saved.record.input.bytes : '',
     );
   });

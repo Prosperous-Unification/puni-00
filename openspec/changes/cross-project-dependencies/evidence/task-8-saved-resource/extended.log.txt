@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+(pass) the saved-plan routes > reads complete connected history as exact stored bytes and compares it without live foreign projects [2616.72ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed input context on read and either comparison side [1851.63ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed external project label on read and either comparison side [2743.06ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed graph ownership on read and either comparison side [1861.84ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed stage packet on read and either comparison side [1158.63ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed candidate question on read and either comparison side [1167.25ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target membership on read and either comparison side [777.11ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target placement on read and either comparison side [1294.49ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed body version on read and either comparison side [1816.08ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed local input with connected schedule on read and either comparison side [1655.41ms]
+(pass) the saved-plan routes > refuses correctly hashed invalid input JSON before returning bytes [783.17ms]
+(pass) the saved-plan routes > refuses correctly hashed invalid schedule JSON before returning bytes [653.64ms]
+(pass) the saved-plan routes > requires selected evidence but reads an explicitly unavailable connected capture without dates [580.68ms]
+{"level":"error","time":1792689305080,"service":"be-01","err":{"occurrence_id":"AE_TQVYH72HFC8FZNC3W0T1R8M6D9","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiSaved-plansById returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689305082,"service":"be-01","err":{"occurrence_id":"AE_XYFXJ83PNH28SV135NHET2B4WT","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiProjectsByIdSaved-plansCompare returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689305083,"service":"be-01","err":{"occurrence_id":"AE_MDJWYSD8XG676H19BHQ5R02ET5","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiSaved-plansById returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689305084,"service":"be-01","err":{"occurrence_id":"AE_07X20S5ZJMZ18E2KTCQQKZ8EPJ","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiProjectsByIdSaved-plansCompare returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted malformed-history refusal requires its path and code on read and compare [21.49ms]
+(pass) mounted integrity variants retain their distinct operational details [17.37ms]
+
+ 15 pass
+ 43 filtered out
+ 0 fail
+ 98 expect() calls
+Ran 15 tests across 1 file. [33.30s]

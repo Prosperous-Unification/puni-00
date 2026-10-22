@@ -2684,3 +2684,106 @@ Additional restored checks:
   0 failed, 507 assertions**. Changed-file format and `git diff --check` pass.
   No full build, host gate, browser E2E, installed solver or full CI/migration/
   secrets gate was run here; normal commit hooks still apply.
+
+### Saved history resource integration (2026-10-22)
+
+This bounded packet adopts the Slice 2 readers in the production saved resource;
+it does not complete task 8.3 or the connected save/current slice. The resource
+first verifies stored body hashes and schedule-input linkage, then validates new
+v9/v2 structure, captured ownership, stage questions, cross-body meaning and
+selected target placement. Failures return `body_invalid` with saved plan, body,
+path and code through both direct read and either saved comparison side. Stored
+bytes and hashes are returned unchanged. Legacy v1–v8/v1 resource treatment,
+unknown-version refusal and default v8 normalization remain unchanged.
+
+Saved comparison input now admits v9 explicitly while older input keeps its
+legacy normalizer. A mounted connected self-comparison succeeds, and changing a
+captured external project name produces a `dependencyHistory.projects`
+difference. These tests never create the fixture's foreign project in SQLite;
+reading and comparing complete history succeeds without that live dependency.
+This is stored-record inspection evidence, not evidence of production connected
+capture. Mixed v8/v9 comparisons remain readable but can report format/context
+differences: this packet does not normalize both sides to semantic v9 equivalence. Tests install complete bodies through deliberate SQL fault fixtures;
+active writers remain input8/schedule1.
+
+Mounted SQLite cases cover missing context/external label/graph ownership/stage
+packet/target membership, mismatched candidate question, altered target offset,
+body/header version mismatch and connected schedule against local input. Every
+malformed case checks direct read and both comparison positions. Separate cases
+cover malformed JSON for either body, missing selected schedule, and legitimate
+explicitly unavailable context with no schedule. HTTP response validation rejects
+malformed `body_invalid` refusals missing path or code.
+
+The initial mounted run failed 9/9 before resource/comparison wiring: malformed
+records incorrectly returned 200, and the complete v9 self-comparison returned
+422 through the legacy normalizer. Six watched production-path faults failed
+with the following observations, then were restored:
+
+| Fault                                | Observed mounted failure                                       |
+| ------------------------------------ | -------------------------------------------------------------- |
+| Omit resource semantic validation    | Nine malformed-history cases return 200 instead of 422         |
+| Omit target evidence validation      | Missing target membership and altered target offset return 200 |
+| Omit cross-body validation           | Local input with connected schedule returns 200                |
+| Make refusal path optional           | Malformed direct/compare refusal returns 422 instead of 500    |
+| Make refusal code optional           | Malformed direct/compare refusal returns 422 instead of 500    |
+| Always use legacy comparison decoder | Complete connected self-comparison returns 422 instead of 200  |
+
+Exact outputs are under `evidence/task-8-saved-resource/`. Adjacent `Proof:`
+comments name those injected faults. Earlier Slice 2 primitive checks without
+matching mounted fault injection remain provisional; this packet does not claim
+that every historical-codec safety check has its final production proof.
+
+The first full focused run found six existing controller-fixture failures.
+Running the original controller source from `92d75f32b` reproduced all six
+(`baseline-controller.log.txt`): its unsupported-version expectation omitted the
+already supported input9, and restriction setup through an unrelated project
+PATCH used a counting unit of work whose missing dependency stores throw. The
+expectation now includes 9; saved-route permission/broadcast tests seed restriction
+through the real project repository, leaving all six route assertions intact.
+
+Final focused regression command:
+
+```sh
+bun test libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts libs/wbs/application/core/src/module/saved-plans/module.test.ts libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts apps/wbs/be-01/src/service/saved-plan-read.db.test.ts apps/wbs/be-01/src/service/saved-plan-schedule-body.db.test.ts apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts apps/wbs/be-01/src/controller/saved-plan-organization.controller.db.test.ts
+```
+
+Observed **298 passed / 0 failed / 1,091 assertions**, including the restored
+six baseline controller failures. Expected error logs in refusal/rollback tests
+are deliberate injected boundary failures. OpenSpec command
+`./node_modules/.bin/openspec validate --all --json` passed **268/268**.
+
+Scoped uncached Nx command:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck,lint -p wbs-domain wbs-core wbs-contracts wbs-be-01 --parallel=1 --skip-nx-cache --output-style=static
+```
+
+Domain, core and contracts lint/typecheck plus module prerequisites passed. The
+backend typecheck exposed one existing current-plan test that serialized a
+`PlanSide` without proving its now-versioned input was 8. That test now explicitly
+requires the still-active v8 current writer; its focused run passed **10/10**.
+The backend uncached typecheck then passed. Backend lint first exited nonzero
+without an actionable diagnostic; a retry capped at 2 GiB diagnosed JavaScript
+heap exhaustion. The same uncached Nx lint target with an 8 GiB heap also exited nonzero
+without diagnostics (`backend-full-lint.log.txt`). Full backend lint therefore
+**did not pass**; its remaining failure is unverified beyond the observed resource
+exhaustion on the 2 GiB retry. A diagnostic-only direct ESLint debug run was
+cancelled after that heap exhaustion was established. Scoped lint of the three changed backend files with a 2 GiB heap also
+exited nonzero without diagnostics (`backend-scoped-lint.log.txt`); no backend
+lint success is claimed. The full backend target remains for the integrator's
+canonical host gate.
+
+Normal pre-commit initially found two `prefer-optional-chain` errors in new test
+guards. Both were converted to equivalent optional-chain guards; their three
+focused tests passed. The final normal commit reruns changed-file lint, format,
+plaintext-secrets, private-nesting and the tool-wiki entrypoint. Tool-wiki reports
+`inactive` because no external activation root is provisioned; that output is
+not a content certification.
+
+Not verified by this packet: connected save/current writer and transaction/cache
+capture lifecycle, whole external rename/delete lifecycle after a production
+connected save, rendered side provenance, live deployment, semantic activation,
+semantic mixed-format comparison equivalence, full build/secrets/migration CI
+and canonical h2puni/h4claw host gate. No optimizer
+or Kubernetes files are changed. Dependencies come from the existing installed
+workspace through a node_modules symlink; no fresh frozen install is claimed.

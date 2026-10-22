@@ -63,6 +63,15 @@ const integrity = type({
     storedVersion: 'number',
     readerVersion: 'number',
     versionReason: "'from-the-future' | 'no-upgrade-path' | 'not-a-version'",
+  })
+  .or({
+    reason: "'body_invalid'",
+    savedPlanId: 'string',
+    body: "'input' | 'schedule'",
+    // Proof: making path or code optional returned 422 instead of 500 for malformed
+    // refusals on mounted read/compare (optional-refusal-{path,code}.log.txt).
+    path: 'string',
+    code: 'string',
   });
 const commonRefusals = [
   { status: 400, schema: responseSchema(type({ error: "'invalid_params'" })) },

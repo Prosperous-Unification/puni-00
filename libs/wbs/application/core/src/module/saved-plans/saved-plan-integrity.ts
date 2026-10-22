@@ -29,6 +29,7 @@ export function bodyByteLength(bytes: string): number {
  * produce a plan the product calls saved and nobody ever saved.
  */
 export type SavedPlanIntegrityRefusal =
+  | SavedPlanBodyInvalid
   | {
       readonly reason: 'body_missing';
       readonly savedPlanId: string;
@@ -223,7 +224,7 @@ export function assertKnownBodyVersion(
   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
 }
 
-/** Shape refusal reserved for the new reader; runtime and HTTP unions adopt it during Slice 4. */
+/** Intact bytes whose required captured structure or cross-body evidence is invalid. */
 export interface SavedPlanBodyInvalid {
   readonly reason: 'body_invalid';
   readonly savedPlanId: string;
@@ -234,14 +235,14 @@ export interface SavedPlanBodyInvalid {
 
 /**
  * Semantic validation after hash/link checks. Legacy bodies retain their historical readers.
- * This helper is deliberately unwired until immutable resource reads adopt the new formats.
+ * The resource invokes this only after stored hashes and schedule linkage have passed.
  */
 export function verifySavedPlanBodies(
   savedPlanId: string,
   projectId: string,
   input: { readonly version: number; readonly bytes: string },
   schedule: { readonly version: number; readonly bytes: string } | null,
-): SavedPlanIntegrityRefusal | SavedPlanBodyInvalid | null {
+): SavedPlanIntegrityRefusal | null {
   assertKnownBodyVersion(savedPlanId, 'input', input.version, SUPPORTED_INPUT_BODY_VERSIONS);
   if (schedule !== null)
     assertKnownBodyVersion(
@@ -264,10 +265,14 @@ export function verifySavedPlanBodies(
       throw new SavedHistoryError('connected_schedule_version', '$.version');
     const connected =
       schedule?.version === 2 ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes)) : null;
+    // Proof: bypassing cross-body validation returned 200 for the mounted local-input/
+    // connected-schedule fault (omit-cross-body-validation.log.txt).
     validateSavedConnectedHistory(
       parsed.dependencyHistory,
       connected === null ? null : connected.connection,
     );
+    // Proof: bypassing target validation returned 200 for missing target membership and
+    // altered target placement in the mounted DB suite (omit-target-validation.log.txt).
     if (connected !== null && parsed.dependencyHistory.kind === 'connected')
       validateSavedConnectedTarget(parsed.dependencyHistory, connected, parsed.project.startDate);
     return null;
