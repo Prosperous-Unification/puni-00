@@ -691,6 +691,7 @@ describe('readMigrationFolders', () => {
       '20261022120000_scope_trusted_issuer_audience',
       '20261022210000_add_project_abbreviations',
       '20261022211000_add_external_dependencies',
+      '20261022212000_add_cross_project_dependency_activation',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -766,7 +767,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261022211000_add_external_dependencies');
+      expect(originalNames.at(-1)).toBe('20261022212000_add_cross_project_dependency_activation');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -885,11 +886,13 @@ describe('rollbackTo, against a real database', () => {
         '20261022120000_scope_trusted_issuer_audience',
         '20261022210000_add_project_abbreviations',
         '20261022211000_add_external_dependencies',
+        '20261022212000_add_cross_project_dependency_activation',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261022120000_scope_trusted_issuer_audience',
@@ -1084,6 +1087,7 @@ describe('rollbackTo, against a real database', () => {
         '20261022120000_scope_trusted_issuer_audience',
         '20261022210000_add_project_abbreviations',
         '20261022211000_add_external_dependencies',
+        '20261022212000_add_cross_project_dependency_activation',
       ]);
     } finally {
       db.cleanup();
@@ -1155,6 +1159,7 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261022120000_scope_trusted_issuer_audience',
@@ -1286,6 +1291,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261022120000_scope_trusted_issuer_audience',
@@ -1402,6 +1408,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261022120000_scope_trusted_issuer_audience',

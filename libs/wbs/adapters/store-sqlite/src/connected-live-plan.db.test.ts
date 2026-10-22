@@ -17,6 +17,7 @@ import { createLivePlanStore } from './chain-snapshot';
 import { openConnection, openDatabase, openReadOnlyConnection } from './db';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { openSqliteSource } from './source';
+import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
 
 let folder: string;
@@ -36,6 +37,7 @@ function write(statement: string) {
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'connected-live-'));
   path = await openSpaceDatabase(folder);
+  seedDependencyAuthority(path);
   write("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   write(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",

@@ -22,6 +22,8 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-external-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  // Historical storage contract predates semantic admission; never used by application boot.
+  rollbackTo(path, FOLDER, MIGRATION);
   const sqlite = openDatabase(path);
   try {
     sqlite.run(
@@ -245,6 +247,8 @@ it('down refuses external rows and preserves local rows and their audit when emp
   expect(rollbackTo(path, FOLDER, baseline.name)).toEqual([MIGRATION]);
   expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
   runMigrations(path, FOLDER);
+  // Historical storage contract predates semantic admission; never used by application boot.
+  rollbackTo(path, FOLDER, MIGRATION);
   expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
   expect(await repo.listByProject('b')).toEqual([local]);
 });

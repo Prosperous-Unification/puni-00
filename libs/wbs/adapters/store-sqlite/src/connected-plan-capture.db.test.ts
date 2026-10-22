@@ -16,6 +16,7 @@ import { ProjectRankRepository } from './project-rank';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
+import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
@@ -33,6 +34,7 @@ function write(statement: string): void {
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'connected-capture-'));
   path = await openSpaceDatabase(folder);
+  seedDependencyAuthority(path);
   write("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   write(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",

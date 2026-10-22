@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261022120000_scope_trusted_issuer_audience',
@@ -409,6 +410,8 @@ describe('the optimizer migration', () => {
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
+            name !== 'cross_project_dependency_activation' &&
+            name !== 'cross_project_dependency_activation_receipt' &&
             name !== 'external_dependency' &&
             name !== 'project_abbreviation' &&
             name !== 'project_abbreviation_counter' &&

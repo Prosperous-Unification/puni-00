@@ -13,6 +13,7 @@ export * from './command-access';
 export * from './command-journal';
 export * from './consent-credential';
 export * from './constraint';
+export * from './cross-project-dependency-activation';
 export * from './db';
 export * from './delegation-use';
 export * from './dependency';

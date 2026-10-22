@@ -305,7 +305,9 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261022211000_add_external_dependencies');
+    expect(baselineLedger.at(-1)?.name).toBe(
+      '20261022212000_add_cross_project_dependency_activation',
+    );
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1151,7 +1153,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
           name !== '20261022210000_add_project_abbreviations' &&
-          name !== '20261022211000_add_external_dependencies',
+          name !== '20261022211000_add_external_dependencies' &&
+          name !== '20261022212000_add_cross_project_dependency_activation',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1213,7 +1216,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
           name !== '20261022210000_add_project_abbreviations' &&
-          name !== '20261022211000_add_external_dependencies',
+          name !== '20261022211000_add_external_dependencies' &&
+          name !== '20261022212000_add_cross_project_dependency_activation',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1249,7 +1253,9 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022211000_add_external_dependencies');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
+      '20261022212000_add_cross_project_dependency_activation',
+    );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 
