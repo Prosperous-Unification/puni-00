@@ -850,7 +850,7 @@ describe('the import', () => {
       expect(await pending).toEqual(
         refusal === 'corrupt'
           ? { status: 500, body: 'Internal Server Error' }
-          : { status: 403, body: { error: 'forbidden' } },
+          : { status: 403, body: { error: refusal === 'removed' ? 'not_a_member' : 'forbidden' } },
       );
       expect(captures).toBe(0);
       expect(h.sqlite.query('SELECT id FROM project').all()).toEqual([]);

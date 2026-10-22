@@ -26,6 +26,7 @@ import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import type { ImportService } from '@wbs/core/module/plan-import/plan-import.feature';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
@@ -221,6 +222,7 @@ export class OrganizationHarness {
       cookie: string,
     ) => Promise<AuthenticatedUser>,
     private readonly composedWrites?: RecoveryWriteBoundary,
+    private readonly composedImports?: ImportService,
   ) {}
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
@@ -311,6 +313,12 @@ export class OrganizationHarness {
   publicCommands(): PlanCommandRunner {
     if (this.composedCommands === undefined) throw new Error('composed commands are absent');
     return this.composedCommands;
+  }
+
+  /** The actual import service installed beside the mounted HTTP route. */
+  publicImports(): ImportService {
+    if (this.composedImports === undefined) throw new Error('composed imports are absent');
+    return this.composedImports;
   }
 
   /** Actual process writer boundary for direct admission integration tests. */
@@ -907,6 +915,7 @@ export class OrganizationHarness {
         announcements: services.announcements,
         committedFanout: services.committedFanout,
       },
+      services.imports,
     );
     harness.federated = provider !== undefined;
     return harness;

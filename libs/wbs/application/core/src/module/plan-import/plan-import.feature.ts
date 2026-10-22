@@ -1,9 +1,10 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
-import { attemptOf, canWriteInOrganization } from '@wbs/domain';
+import { attemptOf } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
-import type { ResourceAccess } from '../../ports/organization-access';
+import type { CommandCaller } from '../../ports/command-access';
+import type { RefusedOrganizationAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
 import type { ImportDependencyRefusal, ImportTransaction } from './imported-plan.resource';
@@ -60,6 +61,8 @@ export interface ImportForbidden {
 
 export type ImportOutcome =
   | ImportAdmission
+  | RefusedOrganizationAccess
+  | { readonly ok: false; readonly error: 'insufficient_scope' }
   | ImportSourceRefusal
   | ImportForbidden
   | Extract<ImportPreparation, { ok: false }>;
@@ -156,7 +159,10 @@ export class ImportService {
   constructor(private readonly opts: ImportServiceOptions) {}
 
   /**
-   * Imports a plan document as a new project through the caller's access.
+   * Imports a plan document using retained caller evidence and current writer authority.
+   * The mapped transaction supplies current access for every callback operation.
+   * Persisted binding freshness does not reverify API secret rotation or
+   * upstream/delegation expiry; production external authoring remains inactive.
    * Under scoped access the project is the organization's, every directory
    * name resolves among the organization's own entries under their local
    * names and anything missing is created there, a solution reference is left
@@ -169,26 +175,19 @@ export class ImportService {
    * `import-export-organization.controller.db.test.ts` create a second
    * `Release` tag instead of resolving A's own; watched 2026-09-27.
    */
-  async import(
-    document: PlanDocumentImport,
-    actorId: string,
-    access: ResourceAccess,
-  ): Promise<ImportOutcome> {
-    // Proof: skipping this refusal made `refuses a viewer's import` in
-    // `import-export-organization.controller.db.test.ts` answer 201;
-    // watched 2026-09-27.
-    if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
-      return { ok: false, code: 'forbidden', path: '', detail: null };
-    }
+  async import(document: PlanDocumentImport, caller: CommandCaller): Promise<ImportOutcome> {
+    // Proof: omitting this guard let the direct read-scope integration import enter the writer and commit (2026-10-22).
+    if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
+      return { ok: false, error: 'insufficient_scope' };
+    const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
     const preparation = prepareImport(document, this.opts.scheduler);
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
     const admitted = await this.opts.transaction.run<AdmittedImportOutcome>(
-      actorId,
-      access,
+      caller,
       { ok: false, code: 'forbidden', path: '', detail: null },
       collector,
-      async ({ writes, services: graph }) => {
+      async ({ writes, services: graph }, access) => {
         const external = preparation.value.externalDependencies.at(0);
         if (external !== undefined) {
           const dormant = writes.checkExternalAuthoring(external.path);

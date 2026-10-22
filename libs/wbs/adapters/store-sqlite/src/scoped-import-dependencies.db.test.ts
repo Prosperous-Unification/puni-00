@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import type { DocumentV11TypedDependency, PlanDocumentImport } from '@wbs/contracts';
 import { type Broadcaster, type Scope, servicesOver } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
+import * as importedPlans from '@wbs/core/module/plan-import/imported-plan.resource';
 import { ImportedPlanResource } from '@wbs/core/module/plan-import/imported-plan.resource';
 import { clockOf } from '@wbs/core/ports/clock';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
-import { LEGACY_ACCESS } from '@wbs/core/ports/organization-access';
 import * as dependencyContexts from '@wbs/core/service/dependency-context';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
@@ -22,7 +22,11 @@ import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
+import { SqliteCommandAccess } from './command-access';
+import { openDatabase } from './db';
+import { MachineCredentialRepository } from './machine-credential';
 import { runMigrations } from './migrate';
+import { SqliteOrganizationAccess } from './organization-access';
 import { ProjectRepository } from './project';
 import { openSqliteSource, type SqliteSource } from './source';
 import { seedDependencyAuthority } from './testing/dependency-activation';
@@ -32,6 +36,7 @@ import { WorkItemRepository } from './work-item';
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ACTOR = 'importer';
 const STAMP = { at: 1_757_851_200_000, by: ACTOR };
+const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const ACCESS = {
   kind: 'scoped',
   scope: { organizationId: 'org-a', userId: ACTOR, role: 'member' },
@@ -151,6 +156,7 @@ async function harness(authoring: unknown = { state: 'active' }) {
     },
     onFanoutCapture: (organizationId) => {
       captures.push(organizationId);
+      statements.push('-- import capture');
     },
   });
   opened.push({ sqlite, directory });
@@ -215,6 +221,15 @@ async function harness(authoring: unknown = { state: 'active' }) {
   let next = 0;
   const clock = clockOf({ now: () => STAMP.at, newId: () => `import-${String(++next)}` });
   const requirements = {
+    commandAccess: new SqliteCommandAccess(
+      sqlite.db,
+      new SqliteOrganizationAccess(
+        sqlite.db,
+        () => Promise.resolve('org-a'),
+        () => STAMP.at,
+      ),
+      new MachineCredentialRepository(sqlite.db, sqlite.gate),
+    ),
     clock,
     scheduler: fastScheduler,
     uow: source.uow,
@@ -243,6 +258,7 @@ async function harness(authoring: unknown = { state: 'active' }) {
   };
   return {
     sqlite,
+    path,
     source,
     captures,
     statements,
@@ -261,7 +277,11 @@ async function assertRefused(
 ) {
   const before = snapshotTables(fixture.sqlite);
   const beforeStatements = fixture.statements.length;
-  expect(await fixture.imports().import(document, ACTOR, ACCESS)).toMatchObject({
+  expect(
+    await fixture
+      .imports()
+      .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS }),
+  ).toMatchObject({
     ok: false,
     ...expected,
   });
@@ -296,9 +316,11 @@ describe('scoped import dependency admission', () => {
       const original = await fixture.source.stores.workItems.listByProject('remote');
       const projectBefore = await fixture.source.stores.projects.findById('remote');
       const stepsBefore = await fixture.source.stores.projects.stepsOf('remote');
-      const imported = await fixture.imports().import(document, ACTOR, ACCESS);
+      const imported = await fixture
+        .imports()
+        .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
       expect(imported.ok).toBe(true);
-      if (!imported.ok) throw new Error(`import refused: ${imported.code}`);
+      if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
       const stored = await fixture.source.stores.typedDependencies.listByProject(
         imported.projectId,
       );
@@ -384,7 +406,9 @@ describe('scoped import dependency admission', () => {
         destination: { scope: 'whole', projectId: 'remote', workItemId: 'remote-parent' },
       },
     ];
-    const imported = await fixture.imports().import(document, ACTOR, ACCESS);
+    const imported = await fixture
+      .imports()
+      .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
     expect(imported.ok).toBe(true);
     if (!imported.ok) throw new Error('mapped import refused');
     expect(
@@ -425,7 +449,9 @@ describe('scoped import dependency admission', () => {
         destination: { scope: 'whole', projectId: 'import-1', workItemId: 'import-4' },
       },
     ];
-    const imported = await fixture.imports().import(document, ACTOR, ACCESS);
+    const imported = await fixture
+      .imports()
+      .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
     expect(imported.ok).toBe(true);
     if (!imported.ok) throw new Error('allocated local mapping refused');
     expect(imported.projectId).toBe('import-1');
@@ -482,13 +508,14 @@ describe('scoped import dependency admission', () => {
     });
   });
 
-  it('keeps active capability with legacy access dormant before writes', async () => {
+  it('refuses explicit legacy after activation before active authoring', async () => {
     const fixture = await harness();
     const before = snapshotTables(fixture.sqlite);
-    expect(await fixture.imports().import(documentFixture(), ACTOR, LEGACY_ACCESS)).toMatchObject({
+    expect(
+      await fixture.imports().import(documentFixture(), { kind: 'legacy', actorId: ACTOR }),
+    ).toMatchObject({
       ok: false,
-      code: 'external_dependencies_inactive',
-      path: 'typedDependencies[1]',
+      refusal: 'no_active_organization',
     });
     expect(snapshotTables(fixture.sqlite)).toEqual(before);
     expect(fixture.announcements.published).toEqual([]);
@@ -530,6 +557,150 @@ async function failureOf(pending: Promise<unknown>): Promise<Error> {
 }
 
 describe('scoped import transaction lifetime and effects', () => {
+  it('forwards fresh access to capture, callback, resource and dependency context in the admitted writer', async () => {
+    const fixture = await harness();
+    const expected = { ...ACCESS, scope: { ...ACCESS.scope, role: 'super_admin' as const } };
+    const observations: unknown[] = [];
+    const Resource = ImportedPlanResource;
+    // Bun wraps constructors at runtime; its mockImplementation type only accepts callables.
+    (
+      spyOn(importedPlans, 'ImportedPlanResource') as unknown as {
+        mockImplementation: (
+          construct: (...args: ConstructorParameters<typeof Resource>) => ImportedPlanResource,
+        ) => unknown;
+      }
+    ).mockImplementation((...args: ConstructorParameters<typeof Resource>) => {
+      observations.push(args[1].access);
+      return new Resource(...args);
+    });
+    const contextFor = dependencyContexts.createDependencyContext;
+    spyOn(dependencyContexts, 'createDependencyContext').mockImplementation((...args) => {
+      observations.push(args[1].access);
+      return contextFor(...args);
+    });
+    const create = Reflect.get(Resource.prototype, 'createProject');
+    spyOn(Resource.prototype, 'createProject').mockImplementation(function (
+      this: ImportedPlanResource,
+      ...args
+    ) {
+      observations.push(args[3]);
+      return create.apply(this, args);
+    });
+    const requirements = fixture.requirements;
+    const start = fixture.statements.length;
+    const imports = createImportService({
+      ...requirements,
+      uow: {
+        run: (act) =>
+          requirements.uow.run(async (scope) => {
+            const capture = scope.fanoutCapture;
+            if (capture?.authorizeImport === undefined)
+              throw new Error('fixture lacks import capture');
+            const authorize = capture.authorizeImport.bind(capture);
+            return act({
+              ...scope,
+              fanoutCapture: {
+                ...capture,
+                authorizeImport: (actor, access) => {
+                  observations.push(access);
+                  return authorize(actor, access);
+                },
+              },
+            });
+          }),
+      },
+    });
+    expect(
+      await imports.import(documentFixture(), {
+        kind: 'human',
+        principal: PRINCIPAL,
+        expectedAccess: expected,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(observations.length).toBeGreaterThanOrEqual(4);
+    expect(observations.every((access) => JSON.stringify(access) === JSON.stringify(ACCESS))).toBe(
+      true,
+    );
+    const statements = fixture.statements.slice(start);
+    const begin = statements.findIndex((statement) => /^begin immediate/i.test(statement));
+    const membership = statements.findIndex((statement) =>
+      /select.*organization_membership/i.test(statement),
+    );
+    const insert = statements.findIndex((statement) => /^insert into "project"/i.test(statement));
+    expect(begin).toBeGreaterThanOrEqual(0);
+    expect(membership).toBeGreaterThan(begin);
+    expect(insert).toBeGreaterThan(membership);
+  });
+
+  it('reads machine authority after BEGIN and observes second-connection revocation before active endpoint admission', async () => {
+    const fixture = await harness();
+    fixture.sqlite.db.run(
+      sql`INSERT INTO person (id,name,kind,account_id) VALUES ('agent','Agent','agent',${ACTOR})`,
+    );
+    fixture.sqlite.db.run(
+      sql`INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('agent','org-a','Agent')`,
+    );
+    const credentialId = crypto.randomUUID();
+    fixture.sqlite.db.run(
+      sql`INSERT INTO machine_credential (id,organization_id,person_id,issued_by,source,name,created_at,created_by) VALUES (${credentialId},'org-a','agent',${ACTOR},'api_key','Agent',1,${ACTOR})`,
+    );
+    const principal = {
+      ...PRINCIPAL,
+      authentication: { kind: 'machine' as const, credentialId, personId: 'agent' },
+      delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' as const },
+    };
+    const caller = { kind: 'human' as const, principal, expectedAccess: ACCESS };
+    const start = fixture.statements.length;
+    expect(await fixture.imports().import(documentFixture(), caller)).toMatchObject({ ok: true });
+    const statements = fixture.statements.slice(start);
+    const begin = statements.findIndex((statement) => /^begin immediate/i.test(statement));
+    const credential = statements.findIndex((statement) =>
+      /select.*from "machine_credential"/i.test(statement),
+    );
+    const member = statements.findIndex((statement) =>
+      /select.*organization_membership/i.test(statement),
+    );
+    const capture = statements.indexOf('-- import capture');
+    expect(begin).toBeGreaterThanOrEqual(0);
+    expect(credential).toBeGreaterThan(begin);
+    expect(member).toBeGreaterThan(credential);
+    expect(capture).toBeGreaterThan(member);
+    const admitted = deferred();
+    const release = deferred();
+    const attempted = deferred();
+    const held = fixture.sqlite.gate.enter(async () => {
+      admitted.release();
+      await release.promise;
+    });
+    await admitted.promise;
+    const imports = createImportService({
+      ...fixture.requirements,
+      uow: {
+        run: (act) => {
+          attempted.release();
+          return fixture.requirements.uow.run(act);
+        },
+      },
+    });
+    const pending = imports.import(documentFixture(), caller);
+    await attempted.promise;
+    const peer = openDatabase(fixture.path);
+    try {
+      peer.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [credentialId]);
+      const before = snapshotTables(fixture.sqlite);
+      const captures = fixture.captures.length;
+      release.release();
+      await held;
+      expect(await pending).toEqual({ ok: false, refusal: 'organization_context_changed' });
+      expect(snapshotTables(fixture.sqlite)).toEqual(before);
+      expect(fixture.captures.length).toBe(captures);
+    } finally {
+      release.release();
+      await held;
+      peer.close();
+    }
+  });
+
   it('requires the authoring capability even for an otherwise complete source', async () => {
     const fixture = await harness();
     const requirements = { ...fixture.requirements, externalDependencies: undefined };
@@ -553,10 +724,12 @@ describe('scoped import transaction lifetime and effects', () => {
       return { commit: true, value: undefined };
     });
     await admitted.promise;
-    const importing = fixture.imports().import(documentFixture(), ACTOR, ACCESS);
+    const importing = fixture
+      .imports()
+      .import(documentFixture(), { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
     release.release();
     await holding;
-    expect(await importing).toEqual({ ok: false, code: 'forbidden', path: '', detail: null });
+    expect(await importing).toEqual({ ok: false, refusal: 'not_a_member' });
     if (before === undefined) throw new Error('queued writer did not capture its revoked state');
     expect(snapshotTables(fixture.sqlite)).toEqual(before);
     expect(fixture.captures).toEqual([]);
@@ -575,7 +748,9 @@ describe('scoped import transaction lifetime and effects', () => {
       { ...external, id: 'ss', type: 'SS' },
       { ...external, id: 'ff', type: 'FF' },
     );
-    const imported = await fixture.imports().import(document, ACTOR, ACCESS);
+    const imported = await fixture
+      .imports()
+      .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
     expect(imported.ok).toBe(true);
     if (!imported.ok) throw new Error('mixed import refused');
     expect(
@@ -685,7 +860,11 @@ describe('scoped import transaction lifetime and effects', () => {
     spyOn(ImportedPlanResource.prototype, 'checkExternalAuthoring').mockImplementationOnce(
       () => null,
     );
-    const failure = await failureOf(fixture.imports().import(documentFixture(), ACTOR, ACCESS));
+    const failure = await failureOf(
+      fixture
+        .imports()
+        .import(documentFixture(), { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS }),
+    );
     expect(failure.message).toContain('bypassed authoring admission');
     expect(snapshotTables(fixture.sqlite)).toEqual(before);
     expect(fixture.announcements.published).toEqual([]);
@@ -734,7 +913,9 @@ describe('scoped import transaction lifetime and effects', () => {
       const successor = document.workItems.at(1);
       if (successor === undefined) throw new Error('populated fixture lost its successor');
       successor.dependsOn = ['row-a'];
-      const importing = fixture.imports().import(document, ACTOR, ACCESS);
+      const importing = fixture
+        .imports()
+        .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
       if (fault === 'relationship-throw')
         expect((await failureOf(importing)).message).toBe('after actual external write');
       else
@@ -755,8 +936,8 @@ describe('scoped import transaction lifetime and effects', () => {
       const fixture = await harness();
       let retained: ImportedPlanResource | undefined;
       const contexts: ReturnType<typeof dependencyContexts.createDependencyContext>[] = [];
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      const create = ImportedPlanResource.prototype.createProject;
+
+      const create = Reflect.get(ImportedPlanResource.prototype, 'createProject');
       spyOn(ImportedPlanResource.prototype, 'createProject').mockImplementation(function (
         this: ImportedPlanResource,
         ...args
@@ -783,7 +964,9 @@ describe('scoped import transaction lifetime and effects', () => {
         spyOn(WorkItemRepository.prototype, 'patch').mockRejectedValue(
           new Error('selected settlement throw'),
         );
-      const importing = fixture.imports().import(document, ACTOR, ACCESS);
+      const importing = fixture
+        .imports()
+        .import(document, { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
       if (settlement === 'throw')
         expect((await failureOf(importing)).message).toBe('selected settlement throw');
       else expect((await importing).ok).toBe(settlement === 'success');
@@ -833,7 +1016,9 @@ describe('scoped import transaction lifetime and effects', () => {
       );
       return opened;
     });
-    const importing = fixture.imports().import(documentFixture(), ACTOR, ACCESS);
+    const importing = fixture
+      .imports()
+      .import(documentFixture(), { kind: 'human', principal: PRINCIPAL, expectedAccess: ACCESS });
     await paused.promise;
     expect((await importing).ok).toBe(true);
     release.release();
@@ -875,7 +1060,15 @@ describe('scoped import transaction lifetime and effects', () => {
         );
       });
       expect(
-        (await failureOf(fixture.imports().import(documentFixture(), ACTOR, ACCESS))).message,
+        (
+          await failureOf(
+            fixture.imports().import(documentFixture(), {
+              kind: 'human',
+              principal: PRINCIPAL,
+              expectedAccess: ACCESS,
+            }),
+          )
+        ).message,
       ).toBe(
         fault === 'relationship-owner' || fault === 'successor-owner'
           ? 'import relationship owner mismatch'

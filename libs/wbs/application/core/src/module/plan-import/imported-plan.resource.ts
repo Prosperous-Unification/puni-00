@@ -1,12 +1,14 @@
 import { findTypedEndpointDefect, type PriorityBand, type StoredStepBlockage } from '@wbs/domain';
 
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
+import type { CommandCaller } from '../../ports/command-access';
 import type { DependencyContext } from '../../ports/dependency-context';
 import {
   type ExternalDependencyAuthoring,
   permitsExternalDependencies,
 } from '../../ports/external-dependency-authoring';
 import type { ImportDirectory } from '../../ports/import-directory';
+import type { RefusedOrganizationAccess } from '../../ports/organization-access';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { NewProject } from '../../ports/project-values';
@@ -42,19 +44,20 @@ export interface ImportedPlan {
 }
 
 /**
- * A mapped import transaction: scoped calls recheck current authority on the
- * borrowed writer before capture, record shared consequences with successful
- * writes, then deliver committed rows after release. Legacy calls retain the
- * existing raw path. Only composition supplies the source and graph factory.
+ * Resolves retained caller evidence on the borrowed writer before opening any
+ * resource, graph or observation. The callback receives current resolved access;
+ * expected access only pins context and identity. Scoped calls record shared
+ * consequences with successful writes and deliver committed rows after release.
+ * Explicit legacy calls require durable pre-activation. Only composition supplies
+ * the authority resolver, source and graph factory.
  */
 export interface ImportTransaction {
   run<T>(
-    actorId: string,
-    access: ResourceAccess,
+    caller: CommandCaller,
     forbidden: T,
     broadcast: Broadcaster,
-    act: (plan: ImportedPlan) => Promise<ImportDecision<T>>,
-  ): Promise<T>;
+    act: (plan: ImportedPlan, access: ResourceAccess) => Promise<ImportDecision<T>>,
+  ): Promise<T | RefusedOrganizationAccess>;
 }
 
 /** The labels a created row receives once every directory entry it names exists. */

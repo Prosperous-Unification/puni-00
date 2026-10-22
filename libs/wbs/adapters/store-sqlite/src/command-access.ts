@@ -27,7 +27,7 @@ export class SqliteCommandAccess implements CommandAccess {
 
   async resolve(caller: CommandCaller): Promise<OrganizationAccessResolution> {
     if (caller.kind === 'legacy') {
-      // Proof: forcing pre-activation admitted the explicit legacy runner after durable activation (current-authority HTTP suite).
+      // Proof: forcing pre-activation admitted explicit legacy runners and direct imports after durable activation (command/import-current-authority suites, 2026-10-22).
       return readOrganizationActivation(this.db) === 'pre_activation'
         ? { ok: true, access: { kind: 'legacy' } }
         : { ok: false, refusal: 'no_active_organization' };
@@ -42,6 +42,9 @@ export class SqliteCommandAccess implements CommandAccess {
       // `direct runner refuses current credential` cases (2026-10-22). Null/unbound
       // account has its own negative; bypassing the read failed all four
       // `throws on trusted credential` cases (absent/unreadable table, malformed source/time).
+      // Proof: import-path missing/context bypasses lost modeled conflicts through nullish dereference;
+      // independently bypassing revoked/person/account/unbound/org/source/family/audience predicates
+      // failed real import refusals, and bypassing this entire read lost absent-table throws (2026-10-22).
       if (credential === null || context === undefined)
         return { ok: false, refusal: 'organization_context_changed' };
       if (
@@ -63,6 +66,7 @@ export class SqliteCommandAccess implements CommandAccess {
     const expected = caller.expectedAccess;
     const current = resolved.access;
     // Proof: independently bypassing kind, organization and expected user equality made their direct-runner context assertions receive ok:true.
+    // Proof: the same independent comparisons fail the direct import context cases (2026-10-22).
     // The current user check is defensive redundancy: SqliteOrganizationAccess derives it from the principal.
     if (
       current.kind !== expected.kind ||

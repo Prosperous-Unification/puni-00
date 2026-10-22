@@ -8,10 +8,10 @@ import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { clockOf } from '@wbs/core/ports/clock';
 import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
-import { LEGACY_ACCESS } from '@wbs/core/ports/organization-access';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -192,6 +192,7 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
   };
   const announcements = recordingBroadcaster();
   const imports = createImportService({
+    commandAccess: localCommandAccess,
     externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
     clock,
     scheduler: fastScheduler,
@@ -221,10 +222,10 @@ describe('SQLite import relationship allocation and atomicity', () => {
   it('allocates every relationship before the first insert and persists remapped endpoint scopes', async () => {
     const fixture = await harness();
     const document = documentFixture();
-    const imported = await fixture.imports.import(document, ACTOR, LEGACY_ACCESS);
+    const imported = await fixture.imports.import(document, { kind: 'legacy', actorId: ACTOR });
     expect(imported.ok).toBe(true);
     if (!imported.ok)
-      throw new Error(`import refused: ${imported.path}/${String(imported.detail)}`);
+      throw new Error(`import refused: ${JSON.stringify(imported)}/${JSON.stringify(imported)}`);
     expect(new Set(fixture.allocationCounts).size).toBe(1);
     expect(fixture.allocationCounts).toHaveLength(3);
     const stored = await fixture.source.stores.typedDependencies.listByProject(imported.projectId);
@@ -256,7 +257,7 @@ describe('SQLite import relationship allocation and atomicity', () => {
       fixture.announcements.published.some(({ event }) => event.type === 'tree_replaced'),
     ).toBe(true);
     const original = JSON.stringify({ stored, rows, steps });
-    const copied = await fixture.imports.import(document, ACTOR, LEGACY_ACCESS);
+    const copied = await fixture.imports.import(document, { kind: 'legacy', actorId: ACTOR });
     expect(copied.ok).toBe(true);
     expect(
       JSON.stringify({
@@ -273,7 +274,7 @@ describe('SQLite import relationship allocation and atomicity', () => {
     const before = snapshotTables(fixture.path);
     const writerBefore = snapshotWriter(fixture.source);
     const failure: unknown = await fixture.imports
-      .import(documentFixture(), ACTOR, LEGACY_ACCESS)
+      .import(documentFixture(), { kind: 'legacy', actorId: ACTOR })
       .catch((cause: unknown) => cause);
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toMatchObject({
@@ -290,7 +291,9 @@ describe('SQLite import relationship allocation and atomicity', () => {
     const fixture = await harness('label-refusal');
     const before = snapshotTables(fixture.path);
     const writerBefore = snapshotWriter(fixture.source);
-    expect(await fixture.imports.import(documentFixture(), ACTOR, LEGACY_ACCESS)).toMatchObject({
+    expect(
+      await fixture.imports.import(documentFixture(), { kind: 'legacy', actorId: ACTOR }),
+    ).toMatchObject({
       ok: false,
       code: 'source_refused',
       path: 'workItems[0]',

@@ -2067,3 +2067,51 @@ Commit hooks are installed and run without bypass. Full host gate/CI, full build
 solver Python tests, frontend tests/browser, external authoring, deployment,
 coordinator terminal publication/Retry/queue/restart and production connected
 installation remain unverified or out of scope. No claim here completes 7.3/7.4.
+
+### Current-principal import admission — 2026-10-22
+
+Bounded slice based on `1e901393d69d91a60c759095f3231560c2461583`, implemented in an isolated clone. `ImportService.import` requires `CommandCaller`; HTTP retains the complete authenticated principal. Production composition supplies its existing process-bound `CommandAccess`. Import resolves authority after writer admission and `BEGIN IMMEDIATE`, before resource/graph/capture creation, and uses returned access in capture, callback, resource and dependency context. Explicit legacy callers require durable pre-activation; direct read scope refuses before the writer. Task 8.1 remains unchecked and production still supplies `INACTIVE_EXTERNAL_DEPENDENCIES`.
+
+Observed integration coverage includes mounted/direct queued browser credential revocation and exact binding expiry, removed membership, viewer demotion, changed session policy and enforced SSO; complete modeled status/bodies; direct context kind/organization/user conflicts; explicit and queued-across-activation legacy refusal; mounted queued machine revocation; direct persisted machine/consent absent/revoked/person/account/unbound/organization/source/context/family/audience cases and unchanged controls. Consent principals follow the existing synthetic persisted-authority integration convention, not mounted MCP authentication. The real importer observes current machine member authority plus its delegation marker despite expected super-admin. Refusals compare sorted snapshots of every non-SQLite internal table after deliberate authority changes and assert unchanged capture/push counts.
+
+The active synthetic SQLite fixture records `BEGIN IMMEDIATE` before credential/member SELECTs, before fanout capture and project insertion. A separate pragma-checked connection revokes the retained machine credential while the process coordinator is held without a transaction; the queued import sees the new committed row and refuses before active endpoint admission. Independent fresh-access observations cover the borrowed authorize hook, feature project-creation callback, private resource constructor and dependency context. Missing/unreadable authority relations and malformed activation/member/policy/browser-revocation/credential state throw without effects. Unreadable activation is a table with missing required columns, distinct from an absent table. Existing rollback/fanout/escaped-capability suites are retained.
+
+R5 faults were injected independently, watched fail, restored, then checked green. The original after-resolve-only queue signal did not catch moving resolution early; the tests now also wait for the actual pre-admission UoW attempt, and that fault fails. No capture-throw tripwire is needed for the local unsafe-success observations.
+
+| Injected fault                                                                                                            | Observed negative                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Synthesize principal from ID/scopes                                                                                       | Exact route authentication/delegation/binding preservation fails                                                                              |
+| Substitute expected access for resolver; move resolver before writer                                                      | Queued revoked browser import returns 201 instead of 403                                                                                      |
+| Admit explicit legacy after activation                                                                                    | Real direct import loses `no_active_organization`                                                                                             |
+| Independently bind expected access in callback, resource or context                                                       | Fresh-access observations see expected super-admin instead of current member                                                                  |
+| Remove write-scope guard                                                                                                  | Direct reader enters writer and commits                                                                                                       |
+| Bypass borrowed write-role rejection                                                                                      | Queued viewer import returns 201                                                                                                              |
+| Independently bypass revoked/person/account/unbound/organization/machine-source/consent-source/family/audience predicates | Corresponding real import loses its precise context refusal                                                                                   |
+| Remove missing-credential or missing-context predicate                                                                    | Nullish dereference replaces the modeled conflict; this is exception evidence, not unsafe-success evidence                                    |
+| Independently bypass expected kind/organization/user equality                                                             | Direct context mismatch is admitted; current-user comparison remains redundant with the real organization adapter                             |
+| Skip credential read                                                                                                      | Absent credential table no longer throws                                                                                                      |
+| Collapse resolver refusal into forbidden                                                                                  | Exact removed-member response is lost                                                                                                         |
+| Replace production inactive capability with active                                                                        | Both mounted dormancy cases (with/without synthetic storage authority) return endpoint 400 instead of inactive 409; no external-success claim |
+
+The 25 initial independent fault logs and summary are retained for this session in `/tmp/import-faults/`; production dormancy and skipping the browser revocation read add two separate logs (27 independent faults total). Adjacent `Proof:` comments name the observed checks. Source mutation restorations were inspected. These proofs do not establish selected API-secret rotation/expiry, current upstream verifier/JWKS or delegation expiry, or independently current remote MCP family state: retained principal evidence has no such verifier material.
+
+Verification commands observed:
+
+- The plan's 13-file focused Bun command with `--timeout=30000`: **441 pass, 0 fail, 2,130 assertions**, including unchanged command-authority, rollback, import performance and module-boundary suites. Four later trusted-state corruption cases independently pass (32 assertions); the complete final import-authority file is rerun below.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck --projects=wbs-core,wbs-store-sqlite,wbs-be-01 --skipNxCache --outputStyle=static`: all three projects and both module checks pass. A final be-01 typecheck after added corruption tests also passes.
+- The corresponding configured uncached `lint` targets with `--parallel=1`: all three pass. Final be-01 lint after the additional tests is recorded below.
+- `./node_modules/.bin/openspec validate cross-project-dependencies --json`: valid; `openspec validate --all --json`: **268/268 valid** (250 changes, 18 specs). Existing validation warnings are not certification.
+- Exact changed-file Prettier write/check and `git diff --check`; normal installed lefthook commit checks are recorded below.
+
+Session logs: `/tmp/import-focused-green.log`, `/tmp/import-malformed-green.log`, `/tmp/import-types-final.log`, `/tmp/import-typebe-last.log`, `/tmp/import-lint-final.log`, `/tmp/import-openspec-all.log`.
+
+Dependencies were reused through the existing workspace `node_modules`; no fresh frozen install was run. Full h2/h4 host gate, full-repository CI/build/browser checks, deployment and mounted successful external activation were not run by this bounded implementation. No push was requested. Tool Wiki remains inactive/not certified where reported by the normal hook; no new boundary exemption was added.
+
+Final supplement: the complete final `import-current-authority.controller.db.test.ts`
+passes **64/64 tests, 501 assertions** after the revocation-read fault restoration
+(`/tmp/import-authority-last.log`). Final configured uncached be-01 lint passes
+(`/tmp/import-lintbe-last.log`). Exact changed-file Prettier check and
+`git diff --check` pass. Normal commit hooks passed: staged ESLint, Prettier, plaintext-secrets,
+private-nesting, inactive Tool Wiki validation and agent trailers. Migration/doc-cap
+commands skipped by their configured file globs. No host gate or release-readiness
+claim is made by this packet.

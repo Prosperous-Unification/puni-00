@@ -17,6 +17,9 @@ export function installPlanImport(requirements: PlanImportRequirements): PlanImp
   const bag = DiBag.createBuilder()
     .withInstalledModules([planImportModule])
     .withServices({
+      commandAccess: DiBag.createProvider(() => requirements.commandAccess, {
+        factoryReturnKind: 'sync-value',
+      }),
       externalDependencies: DiBag.createProvider(() => requirements.externalDependencies, {
         factoryReturnKind: 'sync-value',
       }),

@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   clockOf,
-  LEGACY_ACCESS,
   prepareImport,
   servicesOver,
   type TransactionalStores,
@@ -16,6 +15,7 @@ import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { expect, test } from 'bun:test';
@@ -122,6 +122,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     const clock = clockOf({ now: () => stamp.at, newId: () => crypto.randomUUID() });
     const announcements = recordingBroadcaster();
     const imports = createImportService({
+      commandAccess: localCommandAccess,
       externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
       clock,
       scheduler: fastScheduler,
@@ -137,11 +138,11 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
         }),
     });
 
-    const outcome = await imports.import(document, ACTOR, LEGACY_ACCESS);
+    const outcome = await imports.import(document, { kind: 'legacy', actorId: ACTOR });
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);
-    if (!outcome.ok) throw new Error(`measurement import refused at ${outcome.path}`);
+    if (!outcome.ok) throw new Error(`measurement import refused at ${JSON.stringify(outcome)}`);
     expect(outcome.rows).toBe(ROWS);
     expect(await stores.workItems.listByProject(outcome.projectId)).toHaveLength(ROWS);
     expect(queuedTag.name).toBe('Queued ordinary write');

@@ -69,3 +69,25 @@ An imported project's abbreviation SHALL use the destination organization's allo
 - **WHEN** another destination project holds the abbreviation carried by an imported plan
 - **THEN** import uses destination allocation/conflict rules
 - **AND** it does not rename or overwrite the existing project
+
+#### Scenario: Import revalidates its retained principal in the writer
+
+- **GIVEN** HTTP or a direct importer retains an authenticated principal and expected organization context while waiting for the process writer
+- **WHEN** browser binding is revoked or expires, membership is removed, write role is lost, enforced SSO or session policy changes, or persisted machine/consent credential binding changes
+- **THEN** import resolves current authority in its admitted writer transaction before observation, directory reads, endpoint admission or writes
+- **AND** authority refusals preserve the organization resolver's complete modeled status and body, without import effects
+- **AND** expected access pins context and identity while current access supplies every import resource and callback's authority
+
+#### Scenario: Direct import cannot lend write scope or legacy authority
+
+- **GIVEN** a direct caller lacks write scope or explicitly requests legacy admission after durable organization activation
+- **WHEN** it imports a valid local document
+- **THEN** read scope refuses before entering the writer and legacy admission refuses from the current durable activation marker
+- **AND** malformed or unreadable trusted authority state throws and rolls back rather than reopening legacy access
+
+#### Scenario: Persisted principal admission does not activate external production imports
+
+- **GIVEN** production composition supplies inactive external dependency authoring, including when synthetic dependency storage authority exists
+- **WHEN** an authorized caller imports external declarations
+- **THEN** it receives the existing inactive-authoring conflict without writes
+- **AND** current principal admission remains required before the external-authoring decision

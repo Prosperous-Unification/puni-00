@@ -78,6 +78,7 @@ export class SqliteBrowserCredentialRevocations {
       // credential in the cross-connection test look revoked; watched
       // 2026-10-01. Returning false without reading made the mounted old
       // pair answer 200, and the missing-table test lose its 500.
+      // Proof: skipping this read also lost the direct import malformed-revocation throw (2026-10-22).
       const rows = this.db.all<StoredRevocation>(sql`SELECT expires_at, revoked_at
         FROM browser_credential_revocations
         WHERE kind = ${key.kind} AND user_id = ${key.userId}

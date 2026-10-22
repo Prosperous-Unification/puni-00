@@ -1,10 +1,11 @@
 import type { Clock } from '../../ports/clock';
+import type { CommandAccess, CommandCaller } from '../../ports/command-access';
 import { NO_ADMISSION } from '../../ports/edit-admission';
 import {
   type ExternalDependencyAuthoring,
   permitsExternalDependencies,
 } from '../../ports/external-dependency-authoring';
-import type { ResourceAccess } from '../../ports/organization-access';
+import type { RefusedOrganizationAccess, ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
 import type { UnitOfWork } from '../../ports/unit-of-work';
@@ -28,6 +29,8 @@ import { ImportService } from './plan-import.feature';
 
 /** Source capabilities used only while composing the import service. */
 export interface PlanImportSource {
+  /** Current persisted authority over this source's admitted writer, including explicit legacy callers. */
+  commandAccess: CommandAccess;
   clock: Clock;
   /** Production binds inactive explicitly; synthetic storage authority alone never activates imports. */
   externalDependencies: ExternalDependencyAuthoring;
@@ -40,25 +43,31 @@ export interface PlanImportSource {
 
 function importTransaction(
   uow: UnitOfWork,
+  commandAccess: CommandAccess,
   graphOver: ImportGraphFactory,
   externalDependencies: ExternalDependencyAuthoring,
   delivery?: CommittedFanoutDelivery,
 ): ImportTransaction {
   return {
     run: async <T>(
-      actorId: string,
-      access: ResourceAccess,
+      caller: CommandCaller,
       forbidden: T,
       broadcast: Broadcaster,
-      act: (plan: ImportedPlan) => Promise<ImportDecision<T>>,
-    ): Promise<T> => {
+      act: (plan: ImportedPlan, access: ResourceAccess) => Promise<ImportDecision<T>>,
+    ): Promise<T | RefusedOrganizationAccess> => {
       const settled = await uow.run<{
-        value: T;
+        value: T | RefusedOrganizationAccess;
         delivery: {
           events: readonly CommittedProjectEvent[];
           transport: CommittedFanoutDelivery;
         } | null;
       }>(async (scope) => {
+        // Proof: expected-access substitution and resolution before writer admission each admitted a queued revoked browser import (import-current-authority suite, 2026-10-22).
+        const resolved = await commandAccess.resolve(caller);
+        // Proof: collapsing this refusal into forbidden lost the exact queued removed-member body (2026-10-22).
+        if (!resolved.ok) return { commit: false, value: { value: resolved, delivery: null } };
+        const access = resolved.access;
+        const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
         let observationOpen = true;
         const assertActive = () => {
           // Proof: omitting observation expiry failed retained-resource success/refusal/throw cases in scoped-import-dependencies.db.test.ts (2026-10-22).
@@ -67,6 +76,7 @@ function importTransaction(
         let dependencies: OpenDependencyContext | undefined;
         const writes = new ImportedPlanResource(scope, {
           actorId,
+          // Proof: independently binding expected access here, in the dependency context or callback failed the SQLite fresh-access observation (2026-10-22).
           access,
           externalDependencies,
           assertActive,
@@ -89,10 +99,13 @@ function importTransaction(
         });
         try {
           if (access.kind === 'legacy') {
-            const decision = await act({
-              writes,
-              services: graphOver(scope, broadcast),
-            });
+            const decision = await act(
+              {
+                writes,
+                services: graphOver(scope, broadcast),
+              },
+              access,
+            );
             return {
               commit: decision.commit,
               value: { value: decision.value, delivery: null },
@@ -109,10 +122,13 @@ function importTransaction(
           if (!authority.ok)
             return { commit: false as const, value: { value: forbidden, delivery: null } };
           const before = await capture.capture(access.scope.organizationId);
-          const decision = await act({
-            writes,
-            services: graphOver(scope, broadcast),
-          });
+          const decision = await act(
+            {
+              writes,
+              services: graphOver(scope, broadcast),
+            },
+            access,
+          );
           if (!decision.commit)
             return { commit: false as const, value: { value: decision.value, delivery: null } };
           const after = await capture.capture(access.scope.organizationId);
@@ -147,6 +163,7 @@ export function createImportService(source: PlanImportSource): ImportService {
     announcements: source.announcements,
     transaction: importTransaction(
       source.uow,
+      source.commandAccess,
       source.batchServices,
       source.externalDependencies,
       source.committedFanout,

@@ -484,12 +484,24 @@ observation on every settlement, captures durable consequences inside the writer
 and delivers them only after release.
 
 Production import supplies inactive authoring explicitly, independently of the
-persisted storage marker. Actor ID plus `ResourceAccess` can recheck membership
-and cap the current role but cannot revalidate session/machine/consent bindings.
-Before activation, HTTP/module callers must carry `CommandCaller` and resolve
-current access through `CommandAccess` on the borrowed writer. Test-only active
-capability plus synthetic persisted authority proves transaction semantics,
-never public activation or current-principal parity.
+persisted storage marker. Every import carries explicit `CommandCaller` evidence.
+Composition resolves `CommandAccess` after writer admission and `BEGIN IMMEDIATE`,
+before resource construction, capture, directory access or endpoint admission;
+the returned current access supplies callback, resource and dependency context.
+Expected access pins context and identity and supplies no current write authority.
+The existing process resolver rereads browser binding/revocation, membership and
+credential policy and the persisted machine/consent credential/person binding.
+Read-only direct principals refuse before writer admission; explicit legacy
+callers require durable pre-activation. Modeled resolver refusals retain their
+complete wire bodies; trusted state failures throw and roll back.
+
+Retained evidence does not identify a selected API secret or carry upstream JWT
+or delegation verifier expiry, and the local consent credential family column
+is not independently current remote MCP family state. Those verifier and rotation
+limits remain outside this slice. Test-only active capability plus synthetic
+persisted authority proves transaction semantics, never public activation.
+Export/schedule/boundary evidence, copy/history rollout, participant activation
+and a mounted successful external import remain task 8.1 debts.
 
 ### D8. Picker and implementation boundaries
 
