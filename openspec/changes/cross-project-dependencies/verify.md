@@ -794,3 +794,13 @@ The reviewer confirmed the new adjacent Proof comments state only those
 observed outcomes. The independent final-graph-only and writer-time-access
 faults leave these new tests green. First-child hand-down, compound replay and
 full independent graph/access proof remain open, as does the final CI/host gate.
+
+## Task 9 settings browser regression — dynamic tab count
+
+The new General settings tab made the old six-tab border assertion fail in
+[CI shard 4](evidence/task-9-settings-tab-ci.md) at `833ceff80` (107 passed,
+2 failed in the shard). The corrected test checks every rendered tab; the exact
+light/dark Playwright cases passed 2/2 locally. Replacing the production tab
+class `border-0` with `border-2` made the light case fail at the corrected
+assertion, and the source was restored. Fresh full CI for this correction is
+pending.
