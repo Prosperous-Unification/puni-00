@@ -120,6 +120,18 @@ test('refuses an unusable root', () => {
     'repositoryRoot',
   );
 });
+test('names a permission-denied root at its own boundary and preserves its IO cause', () => {
+  if (process.getuid?.() === 0) throw new Error('file-mode proof requires non-root');
+  chmodSync(root, 0);
+  try {
+    expect(() => readFileSync(binding)).toThrow();
+    const refusal = expectRefusal(read, 'binding_unreadable', 'repositoryRoot');
+    expect(refusal.cause).toBeInstanceOf(Error);
+    expect(refusal.cause).toMatchObject({ code: 'EACCES', path: root });
+  } finally {
+    chmodSync(root, 0o700);
+  }
+});
 test('refuses a prompt directory', () => {
   rmSync(prompt);
   mkdirSync(prompt);

@@ -901,3 +901,26 @@ No CLI, full package test/build, full host gate, live service, runtime authority
 spending or retention integration was exercised by this slice. Host gate evidence
 for storage42681 applies only to that separate candidate. Hostile filesystem races,
 atomic checkout and concurrent SharedArrayBuffer writers are not claimed.
+
+### 2026-10-22 — binding Task 2 review fixes
+
+Independent review found two Important issues: a permission-denied root reported
+the binding filename instead of repositoryRoot, and loader/acceptance duplicated
+the declared prompt-set rule. The fix checks actual root traversal capability
+inside the root error boundary, preserving EACCES as cause, and shares one narrow
+listBindingPromptPaths helper without changing filtering/deduplication/sorting.
+
+A real chmod(0) regression ran as uid 1000 and failed against the original code.
+Removing only the new X_OK check reproduced the wrong-path failure; restoring it
+passed the focused suite. This is one distinct source fault, one failed invocation
+and one restored green invocation; the original pre-fix regression is separate.
+Earlier 39 mutation trials were not repeated or recertified.
+
+Final restored checks: 130 binding tests pass with 257 assertions in 379 ms;
+7 canonical tests pass with 12 assertions; fresh uncached typecheck (1.5 s),
+source lint (19.9 s), eight-file formatting and git diff --check pass.
+The inherited color warning remains visible. Full fix report and exact
+fault/restoration logs are in the binding ledger's task-2-report.md and
+task-2-evidence/fix-round-1. Root inspected the full report, source diff, actual
+failed/restored logs and final check output. Scoped re-review is pending;
+Task 2 and parent acceptance remain open.

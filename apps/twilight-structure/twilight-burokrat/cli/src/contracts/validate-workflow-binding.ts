@@ -4,6 +4,7 @@ import {
   type Binding,
   type CheckedBinding,
   type ClassSelection,
+  listBindingPromptPaths,
   type PromptSnapshot,
   type PromptSource,
   type SelectedActivity,
@@ -168,13 +169,7 @@ export function acceptWorkflowBinding(
   checked: CheckedBinding,
   prompts: readonly PromptSource[],
 ): ValidatedBinding {
-  const paths = [
-    ...new Set(
-      Object.values(checked.binding.classes).flatMap((settings) =>
-        settings.executor === 'tool' ? [] : [settings.prompt],
-      ),
-    ),
-  ].sort();
+  const paths = listBindingPromptPaths(checked.binding);
   // Proof: bypassing this set check accepted duplicate/extra sources and omitted unused
   // prompts in the source-refusal and unused-class prompt tests.
   if (

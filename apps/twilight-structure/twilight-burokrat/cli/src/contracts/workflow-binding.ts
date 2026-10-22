@@ -42,6 +42,16 @@ export interface Binding {
   readonly types: Readonly<Record<string, Readonly<Record<string, { readonly class: string }>>>>;
   readonly classes: Readonly<Record<string, ActivityClass>>;
 }
+/** Lists the sorted unique prompt paths of every declared class, including unused classes. */
+export function listBindingPromptPaths(binding: Binding): readonly string[] {
+  return [
+    ...new Set(
+      Object.values(binding.classes).flatMap((settings) =>
+        settings.executor === 'tool' ? [] : [settings.prompt],
+      ),
+    ),
+  ].sort();
+}
 /** Exact step coverage and class references only; no prompt acceptance or digest. */
 export interface CheckedBinding {
   readonly binding: Binding;

@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { accessSync, constants, readFileSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { isAlias, isNode, isPair, isScalar, parseAllDocuments, visit } from 'yaml';
@@ -6,6 +6,7 @@ import { isAlias, isNode, isPair, isScalar, parseAllDocuments, visit } from 'yam
 import { acceptWorkflowBinding, checkWorkflowBinding } from './contracts/validate-workflow-binding';
 import {
   decodeWorkflowBinding,
+  listBindingPromptPaths,
   type ValidatedBinding,
   WorkflowBindingError,
 } from './contracts/workflow-binding';
@@ -102,6 +103,9 @@ export function readWorkflowBinding(
     root = realpathSync(repositoryRoot);
     // Proof: bypassing this check lost repositoryRoot classification for a file-as-root.
     if (!statSync(root).isDirectory()) throw new Error('repository root must be a directory');
+    // Proof: bypassing X_OK made the real chmod(0) root regression report the binding
+    // filename instead of repositoryRoot; restoring this check preserved its EACCES cause.
+    accessSync(root, constants.X_OK);
   } catch (cause) {
     throw new WorkflowBindingError(
       'binding_unreadable',
@@ -121,13 +125,7 @@ export function readWorkflowBinding(
     decodeWorkflowBinding(decodeYaml(bytes, file)),
     projectSteps,
   );
-  const paths = [
-    ...new Set(
-      Object.values(checked.binding.classes).flatMap((settings) =>
-        settings.executor === 'tool' ? [] : [settings.prompt],
-      ),
-    ),
-  ].sort();
+  const paths = listBindingPromptPaths(checked.binding);
   const prompts = paths.map((path) => {
     // Proof: anchoring at the binding directory broke `anchors prompt to root, not binding directory`.
     const physical = readBoundary(() => realpathSync(resolve(root, path)), 'prompt', path);
