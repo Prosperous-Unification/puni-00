@@ -1,0 +1,5 @@
+bun test ./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts ./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts
+bunx --no-install tsc --build --force apps/wbs/be-01/tsconfig.json
+bunx --no-install eslint --fix apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts libs/wbs/application/core/src/service/incident-node-transition.ts
+bunx --no-install prettier --write <changed TS, report and summary JSON>
+git diff --check

@@ -223,10 +223,12 @@ export function createIncidentNodeTransition(
       if (receipts.length > 0) {
         const conflict = await graph.findEndpointConflict(projectId);
         assertAuthority(projectId, actorId);
+        // Proof: bypassing only this decision admitted returned node_on_parent and committed changed tables in the real SQLite final-result test, 2026-10-22.
         if (conflict !== null) return { ok: false, reason: conflict.reason };
         // Proof: skipping this genuine final read admitted the injected delivery failure; moving it before restore observed three missing external IDs, 2026-10-22.
         const cycle = await graph.findCycle(projectId);
         assertAuthority(projectId, actorId);
+        // Proof: bypassing only this decision admitted a returned cycle and committed changed tables in the real SQLite final-result test, 2026-10-22.
         if (cycle !== null)
           return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
         if (retention.kind === 'owner') {

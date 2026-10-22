@@ -425,6 +425,87 @@ for (const fault of [
     }
   });
 
+for (const finding of ['node_on_parent', 'cycle', 'self_node'] as const)
+  test(`incident final graph result refuses ${finding} atomically with held announcements`, async () => {
+    const fixture = await seedIncidents();
+    const before = readTables();
+    let observedStores: PlanTransactionalStores | undefined;
+    let finalReads = 0;
+    const assertRestored = async (projectId: string) => {
+      finalReads++;
+      if (observedStores === undefined) throw new Error('fixture staged stores absent');
+      expect(
+        (await observedStores.typedDependencies.listIncident([projectId]))
+          .filter(
+            (relationship) =>
+              relationship.predecessor.projectId !== relationship.successor.projectId,
+          )
+          .map(({ id }) => id)
+          .sort(),
+      ).toEqual(
+        fixture.links
+          .filter(
+            (relationship) =>
+              relationship.predecessor.projectId !== relationship.successor.projectId,
+          )
+          .map(({ id }) => id)
+          .sort(),
+      );
+    };
+    // Saved methods retain their real graph receiver via .call(this).
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const originalConflict = DependencyGraphGuard.prototype.findEndpointConflict;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const originalCycle = DependencyGraphGuard.prototype.findCycle;
+    if (finding === 'node_on_parent')
+      DependencyGraphGuard.prototype.findEndpointConflict = async function (projectId, change) {
+        const conflict = await originalConflict.call(this, projectId, change);
+        if (change !== undefined) return conflict;
+        await assertRestored(projectId);
+        return { reason: 'node_on_parent', dependencyIds: ['incoming'] };
+      };
+    else
+      DependencyGraphGuard.prototype.findCycle = async function (projectId, change) {
+        const cycle = await originalCycle.call(this, projectId, change);
+        if (change !== undefined) return cycle;
+        await assertRestored(projectId);
+        return { kind: finding, relationshipIds: ['incoming'] };
+      };
+    try {
+      // runSemantic checks the held broadcaster remains empty even when the command refuses.
+      const outcome = await runSemantic(
+        fixture,
+        async (service) => {
+          const patched = await service.patch(fixture.ancestor, fixture.principal.id, {
+            notes: 'preceding patch must roll back',
+          });
+          if (!patched.ok) return patched;
+          return service.create(fixture.owner.projectId, fixture.principal.id, {
+            parentId: fixture.owner.workItemId,
+            afterId: null,
+            name: 'Returned graph finding must refuse',
+          });
+        },
+        (stores) => {
+          observedStores = stores;
+          return stores;
+        },
+      );
+      expect({
+        outcome,
+        changed: JSON.stringify(readTables()) !== JSON.stringify(before),
+      }).toMatchObject({
+        outcome: { ok: false, reason: finding },
+        changed: false,
+      });
+      expect(finalReads).toBe(1);
+      expect(readTables()).toEqual(before);
+    } finally {
+      DependencyGraphGuard.prototype.findEndpointConflict = originalConflict;
+      DependencyGraphGuard.prototype.findCycle = originalCycle;
+    }
+  });
+
 test('incident transition refuses delivery after its genuine retained refresh resumes across graph closure', async () => {
   const fixture = await openFixture();
   const boundary = harness.publicWrites();
