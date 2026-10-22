@@ -36,6 +36,25 @@ describe('plaintext-secrets.scan', () => {
     expect(hit?.finding).toMatch(/AWS/);
   });
 
+  // Proof: with the `wbs_mk_` pattern made unmatchable, this scan returned null;
+  // watched 2026-10-22.
+  it('detects a WBS API key, and not its documented shape', async () => {
+    const d = await scratchAsync('hooks-');
+    const f = join(d, 'fleet.env');
+    // Assembled at runtime for the reason the AWS fixture above is.
+    const plantedKey = [
+      'wbs_mk_',
+      '0f8fad5b-d9cb-469f-a165-70867728950e',
+      '.',
+      'Q'.repeat(43),
+    ].join('');
+    await writeFile(f, `WBS_API_KEY=${plantedKey}\n`, 'utf8');
+    expect((await scan(f))?.finding).toBe('WBS API key (wbs_mk_)');
+    const shape = join(d, 'shape.md');
+    await writeFile(shape, 'Format: `wbs_mk_<credential id>.<secret>`\n', 'utf8');
+    expect(await scan(shape)).toBeNull();
+  });
+
   it('returns null for clean files', async () => {
     const d = await scratchAsync('hooks-');
     const f = join(d, 'clean.env');

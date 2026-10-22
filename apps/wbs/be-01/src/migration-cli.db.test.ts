@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261020130000_add_claim_occupancy');
+    expect(baselineLedger.at(-1)?.name).toBe('20261022100000_add_machine_credential');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1146,7 +1146,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261019130000_add_person_account' &&
           name !== '20261019130100_add_external_identity_person' &&
           name !== '20261020120000_add_resources' &&
-          name !== '20261020130000_add_claim_occupancy',
+          name !== '20261020130000_add_claim_occupancy' &&
+          name !== '20261022100000_add_machine_credential',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1198,9 +1199,13 @@ describe('migration deploy entrypoints', () => {
     const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('resources exist');
-    // The newer, empty claim occupancy migration reverses first.
+    // The newer, empty claim occupancy and machine credential migrations reverse first.
     expect(migrationLedgerAt(dbPath)).toEqual(
-      ledger.filter(({ name }) => name !== '20261020130000_add_claim_occupancy'),
+      ledger.filter(
+        ({ name }) =>
+          name !== '20261020130000_add_claim_occupancy' &&
+          name !== '20261022100000_add_machine_credential',
+      ),
     );
     const after = openDatabase(dbPath);
     try {
@@ -1235,7 +1240,7 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261020130000_add_claim_occupancy');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022100000_add_machine_credential');
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

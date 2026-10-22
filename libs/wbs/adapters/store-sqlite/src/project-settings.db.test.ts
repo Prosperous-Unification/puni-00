@@ -202,6 +202,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261022100000_add_machine_credential',
         '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
@@ -276,6 +277,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261022100000_add_machine_credential',
         '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
@@ -392,6 +394,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261022100000_add_machine_credential',
         '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',

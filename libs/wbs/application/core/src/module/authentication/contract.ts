@@ -2,6 +2,7 @@ import type { CredentialAuthentication, DelegationAudience, WbsScope } from '@wb
 
 import type { Clock } from '../../ports/clock';
 import type { EnterpriseConnections } from '../../ports/enterprise-connections';
+import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
 import type { AuthService, AuthServiceOptions } from './authentication.feature';
 import type { LoginThrottle } from './login-throttle';
@@ -20,11 +21,18 @@ import type { LoginThrottle } from './login-throttle';
  * exactly rather than widening it to depend on the whole `Clock` port.
  */
 export interface AuthenticationRequirements {
-  readonly account: Omit<AuthServiceOptions, 'account'> & {
+  readonly account: Omit<AuthServiceOptions, 'account' | 'machineKeys'> & {
     readonly users: UserStore & OidcIdentityStore;
     readonly clock: Clock;
     /** Which enterprise connections are proven, for enterprise email trust (D4). */
     readonly enterprise: Pick<EnterpriseConnections, 'provenFor'>;
+    /**
+     * The machine credentials `wbs_mk_` API keys are verified against
+     * (`wbs-machine-credentials` A13). Required here, unlike on
+     * {@link AuthServiceOptions}: a host cannot install authentication that
+     * would throw on the first API key.
+     */
+    readonly machineCredentials: MachineCredentials;
   };
   readonly now: () => number;
   readonly maxConcurrentLogins: number;

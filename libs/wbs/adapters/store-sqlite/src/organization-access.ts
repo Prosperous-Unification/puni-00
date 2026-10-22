@@ -5,6 +5,7 @@ import {
   type OrganizationAccess,
   type OrganizationAccessResolution,
   type OrganizationPrincipal,
+  organizationRoleOf,
   subjectPrefixOf,
 } from '@wbs/core';
 import { ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
@@ -159,9 +160,16 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
       )
         return { ok: false, refusal: 'organization_context_changed' };
     }
+    // A machine credential acts as a member at most (A23).
+    // Proof: with the stored role answered unchanged, `refuses patchPerson to
+    // an admin-bound key`, `refuses an admin-bound key a person bound to
+    // another account` and `gives a super-admin-bound key no claim-admin
+    // bypass` in `machine-credential.controller.db.test.ts` failed; watched
+    // 2026-10-22.
+    const role = organizationRoleOf(read.role, principal.authentication);
     return {
       ok: true,
-      access: { kind: 'scoped', scope: { organizationId, userId, role: read.role } },
+      access: { kind: 'scoped', scope: { organizationId, userId, role } },
     };
   }
 }

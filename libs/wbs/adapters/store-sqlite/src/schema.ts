@@ -3454,6 +3454,106 @@ export const organizationScimToken = sqliteTable(
 
 export type OrganizationScimTokenRow = typeof organizationScimToken.$inferSelect;
 
+/** Where a machine credential's proof comes from (`wbs-machine-credentials` A3, A8, A21). */
+export const MACHINE_CREDENTIAL_SOURCES = ['api_key', 'oidc', 'mcp_consent'] as const;
+
+/**
+ * An OIDC issuer one organization trusts for its headless machines
+ * (`wbs-machine-credentials` A16): `jwks_uri` is the one discovered at
+ * registration. Added by `20261022100000_add_machine_credential`.
+ */
+export const organizationTrustedIssuer = sqliteTable(
+  'organization_trusted_issuer',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    issuer: text('issuer').notNull(),
+    jwksUri: text('jwks_uri').notNull(),
+    defaultAudience: text('default_audience'),
+    ssoConnectionId: text('sso_connection_id').references(() => organizationSsoConnection.id),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_trusted_issuer_issuer').on(t.organizationId, t.issuer),
+    index('organization_trusted_issuer_by_issuer').on(t.issuer),
+  ],
+);
+
+/**
+ * One **Machine credential** (`wbs-machine-credentials` A9): an organization's
+ * record pinned to one person, recording the account that issued it. Which of
+ * the pair, trusted issuer and family columns are set is fixed by `source`
+ * (the migration's `machine_credential_source_columns` CHECK). The id is a
+ * lowercase UUID because an API key carries it in the clear (A22). Added by
+ * `20261022100000_add_machine_credential`, whose `down.sql` refuses while any
+ * row exists.
+ */
+export const machineCredential = sqliteTable(
+  'machine_credential',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id),
+    issuedBy: text('issued_by')
+      .notNull()
+      .references(() => users.id),
+    source: text('source', { enum: MACHINE_CREDENTIAL_SOURCES }).notNull(),
+    name: text('name').notNull(),
+    issuer: text('issuer'),
+    subject: text('subject'),
+    audience: text('audience'),
+    trustedIssuerId: text('trusted_issuer_id').references(() => organizationTrustedIssuer.id),
+    mcpFamilyId: text('mcp_family_id'),
+    /** Written at most once a minute per credential (A13); never audited. */
+    lastUsedAt: integer('last_used_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('machine_credential_pair')
+      .on(t.issuer, t.subject)
+      .where(sql`${t.source} = 'oidc'`),
+    uniqueIndex('machine_credential_family')
+      .on(t.mcpFamilyId)
+      .where(sql`${t.mcpFamilyId} IS NOT NULL`),
+    uniqueIndex('machine_credential_live_name')
+      .on(t.organizationId, t.name)
+      .where(sql`${t.revokedAt} IS NULL`),
+    index('machine_credential_organization').on(t.organizationId),
+    index('machine_credential_person').on(t.personId),
+  ],
+);
+
+export type MachineCredentialRow = typeof machineCredential.$inferSelect;
+
+/**
+ * Only the SHA-256 digest of one API-key secret of a machine credential; a
+ * rotation holds two, the older with its `expires_at` (A11, A15). Read only
+ * through `credential_id` (A22): nothing looks a digest up.
+ */
+export const machineCredentialSecret = sqliteTable(
+  'machine_credential_secret',
+  {
+    id: text('id').primaryKey(),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => machineCredential.id),
+    digest: text('digest').notNull(),
+    expiresAt: integer('expires_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [index('machine_credential_secret_credential').on(t.credentialId)],
+);
+
 /**
  * One SCIM `User` of one organization. Active and unbound is a pending
  * membership; the local user and the upstream pair are bound together.

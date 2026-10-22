@@ -136,7 +136,8 @@ reference `users`; a synthetic actor would reach every one of them. For a member
 credential the issuer and the bound account coincide; for an admin-issued one they differ,
 and only the bound account's reach, capped, is what the token gets (A5, A7). Why capped: A5
 says a token never gains an issuer's rights; the cap is the mechanism, not a per-credential
-role.
+role. Scopes alone do not cap a role: the claim-admin bypass, `patchPerson` binding and
+project-edit checks read the organization role, so A23 caps that too.
 
 **A13. Verification path order.** For a request with `Authorization: Bearer <token>` and
 no cookie:
@@ -262,6 +263,17 @@ then I don't want to do M2M as well; I need a self-serving setup where I use the
 that I try to build." The sources are `api_key`, `oidc` and `mcp_consent`; an application in
 PUNI's Auth0 tenant is not a way in, today's operator-linked path is not migrated (A18), and
 PUNI's fleets dogfood the self-serve offering as the first tenant.
+
+**A23. Machine principals are members of their organization (assumed by the
+coordinator, 2026-10-22, from the slice 1 review; for Dany to confirm).** Whatever
+role the bound account holds, a machine principal acts in its credential's organization
+as a `member` (a `viewer` account's machine stays a viewer). Its scopes are `read` and
+`write`, and it never administers. `resolve` caps the role it answers
+(`organizationRoleOf`, beside `machinePrincipalOf`). So a key of a super-admin's agent has
+no claim-admin bypass (`person_not_bound` for a person bound to another account) and
+cannot rebind a person through `patchPerson` (`403 forbidden`). Why: the slice 1 review
+reproduced a key pinned to an admin-bound person rebinding its own person to a
+super-admin's account and then acting as that super-admin.
 
 **A22. API key format (Dany, 2026-10-22).** The key is `wbs_mk_<credential id>.<secret>`,
 sent as `Authorization: Bearer`: the id selects the credential by primary key, the secret's

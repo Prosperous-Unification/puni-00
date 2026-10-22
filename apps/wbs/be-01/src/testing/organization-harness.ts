@@ -31,6 +31,7 @@ import {
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
@@ -353,6 +354,7 @@ export class OrganizationHarness {
       users,
       identities: users,
       enterprise: new EnterpriseConnectionRepository(db, gate),
+      machineKeys: { credentials: new MachineCredentialRepository(db, gate), now },
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
       ...(upstreamCredential === undefined

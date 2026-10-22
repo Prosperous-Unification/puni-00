@@ -5,30 +5,31 @@
       outside the credential rules) and A20 (how a consent credential is minted, carried
       and ended). Slice 1 may proceed on A9, A13, A14 and A15; slice 2 waits for A12; slice
       3 waits for A20; slice 5 waits for A16. A21 (no Auth0 source, no link migration) is
-      Dany's and fixed.
+      Dany's and fixed. A23 (machine principals are members, from the slice 1 review) is
+      the coordinator's assumption and waits for his confirmation.
 
 ## 1. Schema and the verification path, API keys first
 
-- [ ] 1.1 Migration `add_machine_credential`: `machine_credential`,
+- [x] 1.1 Migration `add_machine_credential`: `machine_credential`,
       `machine_credential_secret`, `organization_trusted_issuer` with the per-source CHECKs,
       the partial unique pair index, the unique digest, indexes by organization and person,
       the `issued_by` and `mcp_family_id` columns,
       and a `down.sql` refusing while any credential or trusted issuer exists — test:
       `machine-credential-migration.db.test.ts` forward, back and the refusal with one row;
       negative: drop the guard and the rollback silently deletes credentials; watched.
-- [ ] 1.2 Red: `machine-credential.test.ts` in `@wbs/domain` for the pure admission decision
+- [x] 1.2 Red: `machine-credential.test.ts` in `@wbs/domain` for the pure admission decision
       over a presented token kind (`api_key` id and secret, trusted-issuer pair,
       delegation with a credential), the matching rows, now, revocation and secret expiry: answer the principal
       (account, capped scopes, organization, pin) or `unknown_identity` — test: one case per
       refusal and per source, a property that a revoked credential is never admitted
       whatever its secrets' expiries, and the two-organizations-one-issuer case.
-- [ ] 1.3 Green: store port `MachineCredentials` (SQLite and memory, conformance suite):
+- [x] 1.3 Green: store port `MachineCredentials` (SQLite and memory, conformance suite):
       `byId` with its live secrets, `byPair`, `touchLastUsed` (coarse to 60 s); the
       constant-time digest comparison in `@wbs/domain`. Negatives: remove the
       `revoked_at IS NULL` predicate from `byId` and the revoked-key case passes; compare
       with `===` and the timing proof (`oauth-timing-safe.proof.ts` precedent) reddens;
       watched, restored, `Proof:` adjacent.
-- [ ] 1.4 Verification path step 1 (A13, A22) in `middleware/authenticated.ts` and
+- [x] 1.4 Verification path step 1 (A13, A22) in `middleware/authenticated.ts` and
       `authentication.feature.ts`: `wbs_mk_<id>.<secret>` is parsed once at the boundary,
       routes to `byId` and never to the JWT verifier, a malformed key or a secret under
       another credential's id is `unknown_identity`, a key in a custom header is
@@ -38,16 +39,25 @@
       `GET /api/organization/members` answers `403 insufficient_scope`; negative: let a
       `wbs_mk_` token fall through to the JWT verifier and the mounted test observes a JWT
       parse error instead of `unknown_identity`; watched.
-- [ ] 1.5 Credential rules (A10): a machine principal passes enforced SSO and the session
+- [x] 1.5 Credential rules (A10): a machine principal passes enforced SSO and the session
       policy — test: `organization-credential-rules.controller.db.test.ts` admits a machine
       key under an enforcing organization and under a session policy; negative: feed the
       machine principal through the upstream rule and the enforcing case answers
       `sso_required`; watched.
-- [ ] 1.6 Claim pin and account: the admitted principal's `pinnedPersonId` reaches
+- [x] 1.6 Claim pin and account: the admitted principal's `pinnedPersonId` reaches
       `decideClaim`, `person.account_id` is the actor — test: the claims controller test
       with a machine key: accepted for the pinned person and a delegated claim under its
       subtree claim, `credential_not_for_person` otherwise; negative: drop the pin from the
       principal and the cross-person claim passes; watched.
+
+Slice 1 as built (2026-10-22, PR into `plan/wbs-machine-credentials`): A22 replaces the
+digest lookup with `findById` on the credential id the key carries, then a constant-time
+comparison against that credential's secrets; the revocation and expiry checks therefore
+live in the pure decision (1.2), which is where their negatives were watched, not in a
+store predicate (1.3). Not built in slice 1: the memory twin and conformance suite of the
+port (the SQLite port is the only one, as for `ProvisioningTokens`), and `byPair`, which
+slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secrets` hook
+(4.2) landed here because A22 changed the key's shape. See `verify.md`.
 
 ## 2. Admin routes and audit
 
@@ -81,7 +91,13 @@
       `in_use` and cascade; `patchPerson` unbind/rebind refused `in_use` — test: the
       directory conformance cases updated and the rebind case added; negative: skip the
       usage read on `patchPerson` and a bound person with a live credential is unbound;
-      watched.
+      watched. Since A23 (slice 1 review) a machine principal cannot `patchPerson` at all,
+      so this guard covers human admins; it is no longer the only guard against a key
+      rebinding its own person.
+      Slice 2 must also mint every credential id with `crypto.randomUUID()`:
+      `parseMachineKey` accepts only the lowercase UUID shape, while the table's id CHECK
+      admits any 36 characters of `[0-9a-f-]`. Slice 2 may tighten that CHECK in its own
+      migration.
 - [ ] 2.6 Last use: `touchLastUsed` once per minute per credential in the request path,
       listed as `lastUsedAt` — test: two requests twenty seconds apart write once;
       negative: make the write swallow its error and the "store read-only" case answers 200
@@ -158,6 +174,11 @@
       `invalid_token` with zero fetches, JWKS 503 refused; negative: let a stranger `iss`
       reach the configured verifier and the zero-fetch case fetches; watched. Property:
       two organizations trusting one URL never admit each other's subjects.
+- [ ] 5.2a Recorded by the slice 1 review: no constraint ties
+      `machine_credential.organization_id` to its `organization_trusted_issuer`'s
+      organization. 5.2's verifier selects the trusted issuer within the credential's
+      organization, or 5.3 adds a composite foreign key. Either way a test refuses a
+      credential pointing at another organization's trusted issuer.
 - [ ] 5.3 Create for `source: 'oidc'` (`trustedIssuerId`, `subject`, `audience`,
       `unknown_trusted_issuer`, `subject_taken`); `rotation_at_issuer` — test: the admin
       controller test cases; negative: drop the organization predicate from the trusted
