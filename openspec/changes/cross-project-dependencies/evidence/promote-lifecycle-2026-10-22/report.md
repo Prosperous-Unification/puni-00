@@ -70,7 +70,7 @@ observed an unsafe successful stale replay. Existing redundant guards remain int
 - Final lifecycle file: `bun test apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts --timeout 10000`: **24 pass, 0 fail, 433 assertions** ([receipt](promote-full.log)).
 - `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json`: exit 0.
 - Changed-file `bunx eslint`: exit 0, including module-boundary checks after graph generation.
-- Prettier checked all four changed TypeScript/Markdown files; `git diff --check`: exit 0.
+- Prettier checked all four changed TypeScript/Markdown files. The scoped source/report `git diff --check` exited 0; the full committed packet check exits 2 solely on trailing spaces retained in the raw `commit-hooks.log` transcript (lines 7, 10, 12, 14, 18, 30 and 38).
 - Normal commit hooks passed lint, format, plaintext-secrets, private-nesting, prepare-commit-msg and commit-msg ([receipt](commit-hooks.log)). Tool-wiki explicitly returned inactive/uncertified because no external activation root is provisioned. Migration and doc-cap hooks skipped because no matching files were staged. No hooks were bypassed.
 
 The initial Nx graph attempt could not use sandbox sockets and produced no graph.

@@ -4698,3 +4698,10 @@ stale remote-edit refusal with existing history pruning, and direct outgoing
 predecessor typed refusal. Existing behavior passed; only test coverage and
 observed Proof comments were added. Task 4.4, production external authoring and
 host/CI acceptance remain open.
+
+Astra independently approved the bounded promotion packet after a fresh
+24/24 lifecycle run (433 assertions), 1/1 dormant-authoring control (11
+assertions), backend TypeScript, changed-file ESLint and Prettier. The reviewer
+inspected the five fault receipts without reinjecting them. Full packet
+`git diff --check` reports only trailing whitespace in the preserved raw hook
+transcript; the source/report diff passes. This does not close task 4.4.
