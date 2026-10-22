@@ -146,6 +146,7 @@ describe('executeRelease', () => {
     expect(mutations).toEqual([
       'observeCluster',
       'admitBackendImages',
+      'observeDependencyBinaries',
       'suspendFlux',
       'closeWrites',
       'drainGateway',

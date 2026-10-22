@@ -628,6 +628,17 @@ unreadable, failing, stalled or malformed CLI refuses; an older image lacking th
 CLI cannot be used as either candidate or rollback. First installation probes only
 the candidate. Explicit empty semantics is a valid binary observation.
 
+The Kubernetes release coordinator now runs both exact backend image capability
+executables after F6 admission, before Flux suspension or writer interruption.
+Every resumed forward or rollback execution refreshes admission and runs two new
+Job/Pod-attributed probes, even for equal image digests. Missing, unreadable,
+failing, malformed or timed-out output refuses with the existing journal and
+serving state retained; no generic rollback, schema, tier or controller cleanup
+runs. Lease claim/renewal and F6 admission are the only coordination changes before
+refusal. Inspect the retained journal and observation artifacts in the configured
+state directory; these observations grant no recovery or activation permission.
+Kubernetes dependency store admission and semantic exposure remain open work.
+
 After every known writer is stopped, shared recovery admission runs the coordinator's
 strict dependency inventory against a private SQLite main/WAL/journal copy. The
 source bind is recursively readonly/private. Neither image's activation inspector
@@ -651,7 +662,7 @@ interruption evidence under the [attended recovery procedure](#backend-writer-ba
 Standalone inspection grants no restart or marker clearance authority.
 
 Task 10.2 remains open for complete semantic participant exclusion, activation and
-Kubernetes integration. Writer inventory permits readonly readers and does not
+Kubernetes semantic admission. Writer inventory permits readonly readers and does not
 fence gateway/MCP/browser participation; a successful dormant observation grants no
 dependency rollout, activation or downgrade permission.
 

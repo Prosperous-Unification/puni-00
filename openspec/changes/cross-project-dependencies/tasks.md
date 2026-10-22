@@ -448,3 +448,12 @@ cases use destination-owned step identity and prove actual input focus and URL
 consumption with unrelated parameters retained. Page-owned project selection is
 covered separately. Parent 9.2 remains unchecked; this does not claim activation
 or the remaining unavailable/Retry/transfer work. See verify.md.
+
+### Kubernetes release binary preflight (bounded task 10.2 prerequisite)
+
+- [x] Write and watch mounted executor/file-journal/kubectl-adapter failures for missing dispatch, independent equal-digest roles, exact distinct-image association and retained-only refusal before serving interruption.
+- [x] Consume the existing DB-free binary observation port after F6 admission and before protected effects; refresh admission and evidence for every resumed forward/rollback execution while preserving journal/controller/serving state on refusal.
+- [x] Prove missing/unreadable/malformed/deadline failures for both roles, Lease loss, omitted resume dispatch/admission, rollback exemption, candidate substitution, early journal advancement and generic rollback routing; add adjacent production Proof comments.
+- [x] Repair sticky heartbeat loss after successful binary observation and later renewal; prove fresh and interrupted-resume refusal before journal normalization or protected effects, including watched omission.
+- [x] Record final configured test/lint/typecheck/build and format/OpenSpec results in [verify-k8s-binary-preflight.md](verify-k8s-binary-preflight.md).
+- [ ] Complete independent review and isolated host gate on the integrated SHA. Parent 10.1/10.2, semantic admission, activation, participant exclusion and recovery remain open.

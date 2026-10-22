@@ -698,11 +698,11 @@ external relationship authoring or admit connected solver work from tree reads.
 
 ### Kubernetes dependency observation transport (task 10.2, B1)
 
-`dependency-capability.ts` owns the shared pure command and closed capability wire decoder; Compose retains its independent invocation/deadline policy. Kubernetes `dependency-observation.ts` owns fresh observation names, DB-free capability manifests, coordinator-generated scratch store manifests and Job/Pod attribution. `kubectlEffects` exposes these through a separate observation interface and preserves rendered manifests; the release state machine does not invoke them as permission.
+`dependency-capability.ts` owns the shared pure command and closed capability wire decoder; Compose retains its independent invocation/deadline policy. Kubernetes `dependency-observation.ts` owns fresh observation names, DB-free capability manifests, coordinator-generated scratch store manifests and Job/Pod attribution. `kubectlEffects` exposes these through an observation interface and preserves rendered manifests. The bounded release binary prerequisite below consumes binary observations without treating them as semantic permission; store observation remains separate.
 
 The effective Pod spec is compared as a closed security boundary, allowing only a `serviceAccount` alias equal to the pinned `serviceAccountName` and a nonempty scheduler-assigned `nodeName` beyond the pinned manifest. Kubernetes generated controller/job labels and selector must agree with the created Job UID. Store observations require `recursiveReadOnly: Enabled` in runtime container mount status as well as the requested mount; unsupported runtimes refuse. Actual cluster API defaulting and mount enforcement remain to be rehearsed during the B2/B3 integration. Local API fixtures establish refusal behavior and emitted-command tests establish scanner source invariance, not live runtime admission.
 
-B2 must independently establish and retain the stopped-storage/PVC-identity interval. B3 must integrate durable admissions, exposure intent and conservative recovery classification together. B1 does not change migration, rollout, rollback, journal, activation or participant-fencing behavior; tasks 10.1 and 10.2 remain open.
+B2 must independently establish and retain the stopped-storage/PVC-identity interval. B3 must integrate durable admissions, exposure intent and conservative recovery classification together. B1 transport alone does not change migration, rollout, rollback, journal, activation or participant-fencing behavior; tasks 10.1 and 10.2 remain open.
 
 ### Kubernetes storage readback prerequisite (task 10.2, B2a)
 
@@ -860,3 +860,31 @@ is reconciled only through the same UID/session with the marker present. The mar
 is a conservative journal-retention latch, not a transactional fence against
 privileged API actors. Full storage-interval and semantic participant exclusion
 remain B2/B3 integration work.
+
+### Kubernetes release binary prerequisite (bounded task 10.2)
+
+Intent: detect an absent or unusable image-owned dependency capability executable
+before disrupting serving, including on a resumed transaction. This is the bounded
+consumption of B1 transport; it does not activate semantic admission. No store
+scan, participant exclusion, activation, exposure or recovery classification is
+added, and parent 10.1/10.2 remain open.
+
+`ReleaseEffects` includes only the existing binary observation port from the
+separate dependency observation interface. `executeRelease` refreshes F6 admission
+and invokes both exact backend images once per coordinator execution, after
+admission and before its first protected effect. A fresh transaction uses the
+existing admission step; a resumed transaction writes/readbacks admission again.
+The per-process Lease holder identifies the invocation, while the adapter creates
+independent nonce-named candidate/previous Jobs even for equal image digests.
+Existing Job/Pod UID, image, command and completion validation remains the boundary.
+Explicit empty semantics is accepted as observation only.
+
+The barrier runs outside generic step-failure handling. Failure propagates with
+no schema rollback, tier work, source-controller work, Lease cleanup or serving
+interruption. Interrupted-state journal normalization waits until this barrier
+passes, retaining exact durable bytes on refusal. Lease claim/takeover, heartbeat
+and renewal still enforce coordinator ownership; successful observations are
+followed by a Lease renewal and sticky heartbeat-loss refusal before journal normalization or protected effects. A later successful renewal never clears prior heartbeat loss. Evidence is per execution,
+not a persisted authorization receipt. A subsequent invocation probes both images
+again before forward completion or rollback work. Evidence/Job artifacts remain
+available for inspection without automatic cleanup.

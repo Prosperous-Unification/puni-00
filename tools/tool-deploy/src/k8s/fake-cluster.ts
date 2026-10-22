@@ -1,5 +1,6 @@
 import type { ControllerTarget } from './controller-adapter';
 import type { ControllerAuthority, ControllerLifecycle } from './controller-lifecycle';
+import type { DependencyBinaryObservation } from './dependency-observation';
 import type { ReleaseEffects } from './execute';
 import type { JournalRecord, ReleaseJournal } from './journal';
 import { sealMigrationCapture, sha256Of } from './migration-capture';
@@ -245,6 +246,31 @@ export class FakeCluster implements ReleaseEffects {
     this.enter('admitBackendImages');
     this.approved = [...images];
     return Promise.resolve();
+  }
+  observeDependencyBinaries(
+    attempt: string,
+    candidate: string,
+    previous: string,
+  ): Promise<readonly DependencyBinaryObservation[]> {
+    this.enter('observeDependencyBinaries');
+    const observations: DependencyBinaryObservation[] = [candidate, previous].map(
+      (image, index) => {
+        this.admit(image);
+        return {
+          evidence: {
+            observationId: `${attempt}-${String(index)}`,
+            namespace: 'wbs-solver',
+            jobName: `${attempt}-${String(index)}`,
+            jobUid: `job-${String(index)}`,
+            podUid: `pod-${String(index)}`,
+            image,
+            commandSha256: sha256Of('capability command'),
+          },
+          capability: { image, semantics: [] },
+        };
+      },
+    );
+    return Promise.resolve(observations);
   }
   suspendFlux() {
     this.enter('suspendFlux');

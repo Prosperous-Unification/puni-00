@@ -5170,3 +5170,10 @@ authoring rollback control passed **1/1**, 13 assertions
 (`/tmp/puni-integrated-backend-dormant-test.log`); all **271/271** OpenSpec
 items validated (`/tmp/puni-openspec-after-backend-capability.json`). This
 does not turn the advertised empty semantic set into an authoring permit.
+
+## Kubernetes release binary preflight (2026-10-23)
+
+The bounded coordinator dispatch, mounted file-journal/kubectl tests, nine watched
+production faults, configured checks and limits are recorded in
+[verify-k8s-binary-preflight.md](verify-k8s-binary-preflight.md). This prerequisite
+accepts binary observations only; parent 10.1/10.2 and semantic admission remain open.

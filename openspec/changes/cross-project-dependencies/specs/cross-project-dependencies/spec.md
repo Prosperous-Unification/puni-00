@@ -476,6 +476,24 @@ Store observation transport SHALL execute the coordinator-generated inventory ag
 - **THEN** the observation refuses before reading task logs
 - **AND** a valid dormant stdout alone cannot substitute for the missing mount evidence
 
+### Requirement: Kubernetes release observes both backend binaries before protected effects
+
+Every release coordinator execution SHALL independently invoke the candidate and retained previous backend images' DB-free dependency capability executable after current F6 image admission and before Flux suspension, write closure, writer stop or controller effects. Resumed forward and rollback executions SHALL refresh F6 admission and obtain fresh observations before their first protected effect, including schema work, tier restoration, writer reopening and Lease cleanup. Any heartbeat loss observed during the prerequisite SHALL remain a refusal even if a later renewal succeeds; the coordinator SHALL check that sticky loss before journal normalization or protected effects. Previously recorded history SHALL NOT substitute for either invocation. Equal digests SHALL still cause two separately attributed invocations through the exact Job/Pod/image/command observation transport.
+
+Missing, unreadable, failed, stalled or malformed capability output from either image SHALL refuse without entering generic rollback, schema work, tier restoration, controller cleanup or Lease release. Refusal SHALL preserve the existing serving state and durable journal position; acquiring or renewing the existing release Lease and refreshing F6 admission remain required coordination effects. Successful explicit empty semantics SHALL count only as an observation, granting no store, semantic compatibility, activation, exclusion or recovery permission. The coordinator SHALL NOT invoke dependency store inspection as part of this binary prerequisite.
+
+#### Scenario: Retained binary fails while current release serves
+
+- **WHEN** the exact candidate executable returns valid explicit empty semantics but the independently invoked retained executable is absent, unreadable, malformed or late
+- **THEN** the release refuses before Flux suspension, write closure or writer stop
+- **AND** it retains the Lease and images-admitted intent without schema, tier or cleanup effects
+
+#### Scenario: Interrupted forward or rollback execution repeats binary observations
+
+- **WHEN** a coordinator resumes forward completion, an interrupted release requiring rollback, or an existing rollback phase
+- **THEN** it refreshes admission and invokes both exact images in fresh separately attributed Jobs before protected effects
+- **AND** failed retained observation preserves the exact preexisting journal bytes, controller histories and serving state without generic rollback or cleanup
+
 ### Requirement: Kubernetes storage prerequisite readbacks are observational
 
 The Kubernetes adapter SHALL provide a bounded read-only storage inspection that binds `wbs-data` PVC UID, bound volume name, PV UID and the PV claim reference to `/data/wbs.sqlite`; reads back the fenced writer policy, stopped backend Deployment and configured suspended Flux unit; inventories Pod PVC references without writer labels; and classifies standard source-owning controller templates. It SHALL refuse live or terminating source consumers, including readers without runtime mount proof, unsuspended backup CronJobs and unknown source controllers. It SHALL retain controller identities and template hashes for comparison across inspections and re-read storage identities before returning. These readbacks SHALL NOT authorize a scan, migration, rollout, controller restoration or rollback, and SHALL NOT be interpreted as a continuously enforced interval or durable controller ownership.

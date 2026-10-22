@@ -64,7 +64,8 @@ import { inspectStorageFence, type StorageFenceEffects } from './storage-fence';
  * Every Kubernetes effect the transaction performs. Each call is bounded and either completes
  * its observable postcondition or throws; none of them decides what happens next.
  */
-export interface ReleaseEffects extends ControllerEffects {
+export interface ReleaseEffects
+  extends ControllerEffects, Pick<DependencyObservationEffects, 'observeDependencyBinaries'> {
   observeCluster(request: ReleaseRequest): Promise<ObservedCluster>;
   /** The release Lease with its optimistic-concurrency version, or `null` when absent. */
   readLease(): Promise<(ObservedLease & { version: string }) | null>;
@@ -492,6 +493,11 @@ const PARKED_PHASES: ReadonlySet<string> = new Set([
  * {@link LeaseLostError} with nothing journaled, like a crash. Terminal parking stops the
  * heartbeat and drains pending renewals before persisting the parked annotation; a failed
  * pending renewal throws instead of parking a Lease whose ownership is no longer proven.
+ *
+ * Every invocation refreshes F6 admission and independently observes both backend binaries
+ * before its first protected effect, including resumed forward and rollback work. Explicit
+ * empty semantics is observational only. Refusal propagates without rollback, controller
+ * cleanup or journal advancement; it does not authorize dependency exposure or recovery.
  */
 export async function executeRelease(
   request: ReleaseRequest,
@@ -562,7 +568,11 @@ export async function executeRelease(
   // Proof: recording before claiming let `refuses to resume a transaction whose live
   // coordinator still renews the Lease` overwrite the live coordinator's journal.
   if (state.phase !== 'requested') await claim();
-  if (state.phase !== 'requested' && history.at(-1)?.phase !== state.phase) record(state);
+  // Proof: early normalization changed durable writes-closed history on the mounted resume refusal.
+  let mustRecordResume = state.phase !== 'requested' && history.at(-1)?.phase !== state.phase;
+  let hasImageAdmission = false;
+  // Proof: treating resumed history as observed failed all three mounted resume refusals.
+  let hasBinaryObservation = false;
 
   // One Lease write at a time: a heartbeat and a pre-step renewal racing each other read the
   // same resourceVersion, and the loser's Conflict looked like a lost Lease.
@@ -584,6 +594,10 @@ export async function executeRelease(
       },
     );
     return next;
+  };
+  const assertHeartbeat = (step: StepKind): void => {
+    if (held.lost !== null)
+      throw new LeaseLostError(`Lease lost before ${step}: ${messageOf(held.lost)}`);
   };
   let journalRequired = false;
   const controllerAuthority = (direction: 'forward' | 'rollback'): ControllerAuthority => ({
@@ -727,6 +741,38 @@ export async function executeRelease(
           throw new LeaseLostError(`Lease lost before ${step.kind}: ${messageOf(e)}`);
         }
       }
+      // Proof: omitting dispatch or exempting rollback failed mounted retained-only and rollback-started refusals.
+      // Moving this barrier into the step catch entered generic rollback on missing previous CLI.
+      if (
+        !hasBinaryObservation &&
+        !['validate', 'acquire-lease', 'persist-intent', 'admit-images'].includes(step.kind)
+      ) {
+        if (!hasImageAdmission) {
+          // Proof: omitting resumed admission failed all three resumes at actual Job creation.
+          await effects.admitBackendImages(admittedBackendImages(request));
+          hasImageAdmission = true;
+        }
+        await effects.observeDependencyBinaries(
+          holder,
+          request.release.images.backend,
+          // Proof: candidate substitution failed the mounted distinct-image capability attribution.
+          state.previous.images.backend,
+        );
+        try {
+          // Proof: omitting renewal failed the mounted Lease-loss refusal before protected effects.
+          await serialRenew();
+        } catch (cause) {
+          throw new LeaseLostError(`Lease lost during binary preflight: ${messageOf(cause)}`);
+        }
+        hasBinaryObservation = true;
+      }
+      // Proof: omitting sticky loss refusal let mounted heartbeat faults suspend Flux or stop
+      // the resumed writer after binary observations and a later successful renewal.
+      assertHeartbeat(step.kind);
+      if (mustRecordResume) {
+        record(state);
+        mustRecordResume = false;
+      }
       log(`[k3s-release ${state.releaseId}] ${step.kind}`);
       let outcome: StepOutcome;
       const releasing = step.kind === 'release-lease' || step.kind === 'rollback-release-lease';
@@ -739,6 +785,7 @@ export async function executeRelease(
         assertStepReplay(step.kind, request, state);
         await controllerBarrier(step.kind);
         outcome = await perform(step, request, state, effects, { claim, holder });
+        if (step.kind === 'admit-images') hasImageAdmission = true;
       } catch (e: unknown) {
         if (releasing) held.value = true;
         // Nothing is durable before intent: validation and Lease failures change no state.
