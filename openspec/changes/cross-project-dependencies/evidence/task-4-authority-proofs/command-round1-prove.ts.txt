@@ -1,0 +1,19 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+const cwd='/tmp/puni-cross-command-authority';
+for (const fault of [
+ {name:'shared-admit-write-scope',path:'libs/wbs/application/core/src/module/plan-commands/admitted-write.ts',pattern:'direct (project update|bare step removal) refuses read-only scope'},
+ {name:'recovery-write-scope',path:'libs/wbs/application/core/src/http/recovery-write.ts',pattern:'direct recovery write refuses read-only scope'},
+]) {
+ const path=`${cwd}/${fault.path}`;
+ const original=readFileSync(path,'utf8');
+ const guard="if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };";
+ if(!original.includes(guard))throw new Error(`guard absent: ${fault.name}`);
+ try {
+  writeFileSync(path,original.replace(guard,''));
+  const execution=Bun.spawnSync(['bun','test','./apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts','-t',fault.pattern],{cwd,stdout:'pipe',stderr:'pipe'});
+  const output=new TextDecoder().decode(execution.stdout)+new TextDecoder().decode(execution.stderr);
+  writeFileSync(`/tmp/command-round1-proof-${fault.name}.log`,output);
+  if(execution.exitCode!==1||!output.includes('expect(received).toEqual(expected)')||!output.includes('+   "ok": true')) throw new Error(`expected successful-write assertion failure was not observed: ${fault.name}\n${output}`);
+  console.log(`${fault.name}: watched ${output.split('\n').filter(line=>line.startsWith('(fail)')).join(' | ')}; exit ${execution.exitCode}`);
+ } finally {writeFileSync(path,original);}
+}

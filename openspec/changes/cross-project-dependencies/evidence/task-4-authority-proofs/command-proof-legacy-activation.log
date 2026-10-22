@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+127 | });
+128 | 
+129 | test('explicit legacy runner refuses after durable activation', async () => {
+130 |   const fixture = await open();
+131 |   const before = effects();
+132 |   expect(await harness.publicCommands().run(fixture.projectId, harness.userId('ada'), [])).toEqual({ ok: false, refusal: 'no_active_organization' });
+                                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "no_active_organization",
++   "ok": true,
++   "redoable": false,
++   "results": [],
++   "undoable": true,
+  }
+
+- Expected  - 2
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:132:92)
+(fail) explicit legacy runner refuses after durable activation [303.83ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.35s]

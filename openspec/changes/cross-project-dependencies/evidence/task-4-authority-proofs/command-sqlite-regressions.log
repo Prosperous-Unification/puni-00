@@ -1,0 +1,236 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/claim-occupancy-race.db.test.ts:
+(pass) two fleets claim two leaves that do not both fit > admits one of two concurrent claims over capacity, the other refused resources_exhausted (account-f first) [671.16ms]
+(pass) two fleets claim two leaves that do not both fit > admits one of two concurrent claims over capacity, the other refused resources_exhausted (account-g first) [353.28ms]
+
+libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts:
+(pass) claim occupancy on the memory store > acquires the declared demand and reads it per project and per resource [62.37ms]
+(pass) claim occupancy on the memory store > refuses the ninth claim on 32 GB naming the eight holders [120.41ms]
+(pass) claim occupancy on the memory store > shares one occupancy between two steps and frees it on the last release only [72.28ms]
+(pass) claim occupancy on the memory store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 8) [36.39ms]
+(pass) claim occupancy on the memory store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 6) [30.30ms]
+(pass) claim occupancy on the memory store > refuses a later claim asking for less than its leaf holds [28.86ms]
+(pass) claim occupancy on the memory store > holds what resources asks above the declared demand, and refuses asking less [33.74ms]
+(pass) claim occupancy on the memory store > assigns the claimant and holds the asked units when a claim names both assign and resources [27.79ms]
+(pass) claim occupancy on the memory store > refuses resources naming an absent resource, or more than one unit of an exclusive one [16.64ms]
+(pass) claim occupancy on the memory store > applies a claim on a resource whose capacity the project never stated [32.40ms]
+(pass) claim occupancy on the memory store > undo of a claim takes its occupancy; redo re-acquires it [51.13ms]
+(pass) claim occupancy on the memory store > redo of a claim is refused resources_exhausted once another leaf took the units [46.74ms]
+(pass) claim occupancy on the memory store > undo of a release re-acquires the units [38.61ms]
+(pass) claim occupancy on the memory store > undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits [73.03ms]
+(pass) claim occupancy on the memory store > hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo [106.62ms]
+(pass) claim occupancy on the memory store > hands the last child’s demand back up when its delete promotes the parent, and back on undo [136.50ms]
+(pass) claim occupancy on the memory store > hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo [143.98ms]
+(pass) claim occupancy on the memory store > hands up the largest units any former leaf of a deleted last branch demanded [89.31ms]
+(pass) claim occupancy on the memory store > clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo [131.07ms]
+(pass) claim occupancy on the memory store > refuses deleting a resource a claim holds, counting it, and cascades on confirmation [67.45ms]
+(pass) claim occupancy on the memory store > leaves the canonical schedule input unchanged by a claim that occupies units [85.63ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > undo of a delete puts the demands back exactly; redo takes them again [77.84ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > undo of a cascading delete puts every row’s demands back [84.89ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete whose demanded resource was deleted since [51.53ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > duplicate copies the demands with the subtree; undo takes the copies, redo brings them back [99.72ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > undo of a delete puts the claims and their occupancy back; redo takes them again [76.45ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete resources_exhausted once another leaf took the units [89.60ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > undo of a promoting delete puts back the subtree claim and the claims delegated under it [61.94ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent [92.87ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses a promoting delete whose claims sit on two former leaves, naming every holder [41.19ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses a promoting delete handing claims up to a parent that holds its own subtree claim [42.14ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once the claim it was delegated under was released [61.55ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once a step its claims and progress name was removed [26.90ms]
+(pass) demands and claims through delete, undo and duplicate on the memory store > refuses an undo of a delete once the claimant was removed from the directory [26.23ms]
+(pass) claim occupancy on the sqlite store > acquires the declared demand and reads it per project and per resource [245.20ms]
+(pass) claim occupancy on the sqlite store > refuses the ninth claim on 32 GB naming the eight holders [294.31ms]
+(pass) claim occupancy on the sqlite store > shares one occupancy between two steps and frees it on the last release only [206.11ms]
+(pass) claim occupancy on the sqlite store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 8) [257.11ms]
+(pass) claim occupancy on the sqlite store > expands a held leaf's units on a later claim's ask, or refuses it (capacity 6) [543.39ms]
+(pass) claim occupancy on the sqlite store > refuses a later claim asking for less than its leaf holds [390.87ms]
+(pass) claim occupancy on the sqlite store > holds what resources asks above the declared demand, and refuses asking less [177.70ms]
+(pass) claim occupancy on the sqlite store > assigns the claimant and holds the asked units when a claim names both assign and resources [315.81ms]
+(pass) claim occupancy on the sqlite store > refuses resources naming an absent resource, or more than one unit of an exclusive one [204.74ms]
+(pass) claim occupancy on the sqlite store > applies a claim on a resource whose capacity the project never stated [210.74ms]
+(pass) claim occupancy on the sqlite store > undo of a claim takes its occupancy; redo re-acquires it [229.78ms]
+(pass) claim occupancy on the sqlite store > redo of a claim is refused resources_exhausted once another leaf took the units [185.29ms]
+(pass) claim occupancy on the sqlite store > undo of a release re-acquires the units [189.38ms]
+(pass) claim occupancy on the sqlite store > undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits [254.18ms]
+(pass) claim occupancy on the sqlite store > hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo [243.88ms]
+(pass) claim occupancy on the sqlite store > hands the last child’s demand back up when its delete promotes the parent, and back on undo [230.34ms]
+(pass) claim occupancy on the sqlite store > hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo [196.31ms]
+(pass) claim occupancy on the sqlite store > hands up the largest units any former leaf of a deleted last branch demanded [203.64ms]
+(pass) claim occupancy on the sqlite store > clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo [163.51ms]
+(pass) claim occupancy on the sqlite store > refuses deleting a resource a claim holds, counting it, and cascades on confirmation [160.81ms]
+(pass) claim occupancy on the sqlite store > leaves the canonical schedule input unchanged by a claim that occupies units [190.42ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > undo of a delete puts the demands back exactly; redo takes them again [282.26ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > undo of a cascading delete puts every row’s demands back [249.05ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete whose demanded resource was deleted since [168.96ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > duplicate copies the demands with the subtree; undo takes the copies, redo brings them back [355.77ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > undo of a delete puts the claims and their occupancy back; redo takes them again [248.32ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete resources_exhausted once another leaf took the units [174.02ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > undo of a promoting delete puts back the subtree claim and the claims delegated under it [191.32ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent [212.30ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses a promoting delete whose claims sit on two former leaves, naming every holder [150.77ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses a promoting delete handing claims up to a parent that holds its own subtree claim [215.51ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once the claim it was delegated under was released [346.70ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once a step its claims and progress name was removed [252.34ms]
+(pass) demands and claims through delete, undo and duplicate on the sqlite store > refuses an undo of a delete once the claimant was removed from the directory [184.55ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-credential-rules.db.test.ts:
+(pass) the organization access credential facts > reads the credential rules in the membership query [91.25ms]
+(pass) the organization access credential facts > applies the policy it read at the injected clock [101.05ms]
+(pass) the organization access credential facts > throws on a lifecycle belonging to another user [135.70ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-activation.db.test.ts:
+(pass) readOrganizationActivation > reads the seeded marker as pre-activation [72.11ms]
+(pass) readOrganizationActivation > reads an activated marker [172.81ms]
+(pass) readOrganizationActivation > refuses an absent marker table [233.40ms]
+(pass) readOrganizationActivation > refuses an unreadable database [83.89ms]
+(pass) readOrganizationActivation > refuses an unreadable marker table [86.50ms]
+(pass) readOrganizationActivation > refuses a malformed marker with no row [195.33ms]
+(pass) readOrganizationActivation > refuses a malformed marker with an unknown state [214.28ms]
+(pass) readOrganizationActivation > refuses a malformed marker with activation without a time [122.40ms]
+(pass) readOrganizationActivation > refuses a malformed marker with a time before activation [147.34ms]
+(pass) readOrganizationActivation > refuses a malformed marker with a second row [141.61ms]
+(pass) readOrganizationActivation > refuses a malformed marker with a text time [81.24ms]
+(pass) readOrganizationActivation > refuses a malformed marker with a wrong singleton [86.02ms]
+(pass) organization activation marker schema > refuses an unknown state [101.29ms]
+(pass) organization activation marker schema > refuses activation without a time [156.62ms]
+(pass) organization activation marker schema > refuses a second row [78.03ms]
+(pass) organization activation marker schema > refuses a text time [70.81ms]
+(pass) organization activation marker schema > refuses a wrong singleton [90.54ms]
+(pass) organization activation marker schema > keeps an activated marker permanent against reset [77.76ms]
+(pass) organization activation marker schema > keeps an activated marker permanent against timestamp change [81.00ms]
+(pass) organization activation marker schema > keeps an activated marker permanent against delete [152.42ms]
+(pass) organization activation marker schema > keeps an activated marker permanent against replacement [91.38ms]
+(pass) organization activation marker schema > keeps an activated marker permanent against upsert [135.95ms]
+(pass) organization activation marker schema > stays activated after every second-organization row is deleted [76.40ms]
+208 |     });
+209 |     expect(withDb(readOrganizationActivation)).toBe('activated');
+210 |   });
+211 | 
+212 |   it('rolls back before activation and reapplies with a fresh seed', () => {
+213 |     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+                                                                   ^
+error: expect(received).toEqual(expected)
+
+  [
++   "20261022211000_add_external_dependencies",
+    "20261022210000_add_project_abbreviations",
+    "20261020130000_add_claim_occupancy",
+    "20261020120000_add_resources",
+    "20261019130100_add_external_identity_person",
+    "20261019130000_add_person_account",
+    "20261019120000_add_claim",
+    "20261015110000_add_step_node_parallelism",
+    "20261015100000_add_step_blockage_activation_receipt",
+    "20261014140000_add_step_blockage_activation",
+    "20261014130000_add_shared_people_restore_receipts",
+    "20261014120000_add_shared_people_restore_approvals",
+    "20261013140000_add_step_node_blockages",
+    "20261012130000_add_step_estimate_unit",
+    "20261012120000_add_step_node_attempts",
+    "20261012090200_widen_organization_audit",
+    "20261012090100_add_browser_auth_times",
+    "20261012090000_add_enterprise_sso_records",
+    "20261011200000_add_shared_people_audit",
+    "20261011120000_add_browser_auth_lifecycle",
+    "20261005110000_add_shared_people",
+    "20261001010000_add_browser_credential_revocations",
+    "20260929180000_add_project_rank",
+    "20260929100000_add_spaces",
+    "20260928200000_add_work_item_status_facts",
+    "20260928040000_add_email_challenge",
+    "20260928030000_add_delegation_use",
+    "20260928020000_add_email_verification",
+    "20260928010000_add_project_solution",
+    "20260927220000_add_organization_audit",
+    "20260927213000_add_typed_dependency",
+    "20260927200000_freeze_organization_ownership",
+    "20260927190000_add_organization_bridge",
+    "20260927180000_add_organization_activation",
+    "20260927170000_add_step_allowance",
+    "20260927150000_add_step_code",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/adapters/store-sqlite/src/organization-activation.db.test.ts:213:62)
+(fail) organization activation marker schema > rolls back before activation and reapplies with a fresh seed [175.23ms]
+(pass) organization activation marker schema > refuses rollback across an activated marker and changes nothing [221.93ms]
+(pass) organization activation marker schema > refuses rollback across a missing row and changes nothing [213.49ms]
+(pass) organization activation marker schema > refuses rollback across a wrong singleton and changes nothing [210.71ms]
+(pass) organization activation marker schema > refuses rollback across an unknown state and changes nothing [209.57ms]
+(pass) organization activation marker schema > refuses rollback across a time before activation and changes nothing [248.91ms]
+(pass) organization activation marker schema > refuses rollback across a second row and changes nothing [317.31ms]
+
+libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts:
+(pass) the write coordinator > does not roll a route write back with a batch it never belonged to [156.63ms]
+(pass) the write coordinator > makes every public transactional store wait for the batch's turn [250.83ms]
+
+libs/wbs/adapters/store-sqlite/src/working-plan-order.db.test.ts:
+(pass) refuses then runs another SQLite batch without leaked values [228.72ms]
+(pass) uses an ordinary SQLite write between batches as the next before-image [214.85ms]
+(pass) keeps SQLite satellite order authoritative after a WorkingPlan patch refresh [192.49ms]
+(pass) keeps SQLite dependency order authoritative after a WorkingPlan add [84.60ms]
+(pass) advances SQLite assignment and directory cascades before the next runner command [109.90ms]
+(pass) rolls back a successful directory write when its retained reload fails [104.94ms]
+(pass) places every new subtree row and value group in SQLite authoritative order [102.87ms]
+(pass) keeps SQLite work-item order authoritative immediately after a runner insert [112.05ms]
+(pass) refreshes a dependency survivor before the next runner command and preserves undo [112.91ms]
+(pass) keeps every SQLite value group in source order after runner sets populate an earlier group [117.61ms]
+
+libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts:
+(pass) two fleets claim the same step > admits exactly one, the other refused naming the winner (account-f first) [118.95ms]
+(pass) two fleets claim the same step > admits exactly one, the other refused naming the winner (account-g first) [152.37ms]
+(pass) a claim on SQLite > refuses an undo of a subtree claim that would take a delegated claim it never wrote [144.83ms]
+(pass) a claim on SQLite > moves the revision by one and records one entry for a claim that states progress [96.11ms]
+(pass) a claim on SQLite > refuses an undo of a claim after the holder’s leaf moved on [122.05ms]
+(pass) a claim on SQLite > refuses a redo of a claim after the leaf moved on [105.37ms]
+(pass) a claim on SQLite > hands a claimed leaf’s claim to its first child, fencing and releasable there, and back on undo [141.00ms]
+(pass) a claim on SQLite > undoes a release and redoes a claim journalled before claim occupancy [118.06ms]
+(pass) a claim on SQLite > refuses a redo of a claim once another holder took the step [101.16ms]
+
+libs/wbs/adapters/store-sqlite/src/browser-credential-revocations.db.test.ts:
+(pass) revokes exactly one credential durably across connections and preserves its first record [79.46ms]
+(pass) missing, malformed or unreadable authority fails rather than answering unrevoked [149.23ms]
+(pass) failed write is not acknowledged [108.72ms]
+(pass) an unreadable read over an intact revocation table throws instead of defaulting to unrevoked [150.81ms]
+(pass) malformed verified-key input cannot be treated as an absent revocation [167.39ms]
+(pass) rollback refuses even an expired row and preserves its ledger; empty rollback succeeds [332.61ms]
+
+libs/wbs/adapters/store-sqlite/src/assignee-commands.db.test.ts:
+(pass) assignSubtree on the memory store > assigns Review on all five leaves in one entry, and undo restores the two that existed [20.45ms]
+(pass) assignSubtree on the memory store > clears the step on every leaf with null, and undo puts each back [14.11ms]
+(pass) assignSubtree on the memory store > assigns the item itself when it is a leaf [13.59ms]
+(pass) assignSubtree on the memory store > refuses unknown_step and unknown_person as setAssignee does, writing nothing [11.78ms]
+(pass) assignSubtree on the memory store, beyond the batch > answers unknown_step from the service itself, before any write [9.82ms]
+(skip) assignSubtree on the memory store, beyond the batch > refuses a stale undo once another account changed one of its leaves
+(pass) claimWorkItem with assign on the memory store > assigns the claimant to the steps it claims, and undo removes both [14.42ms]
+(pass) assignSubtree on the sqlite store > assigns Review on all five leaves in one entry, and undo restores the two that existed [280.86ms]
+(pass) assignSubtree on the sqlite store > clears the step on every leaf with null, and undo puts each back [209.79ms]
+(pass) assignSubtree on the sqlite store > assigns the item itself when it is a leaf [219.80ms]
+(pass) assignSubtree on the sqlite store > refuses unknown_step and unknown_person as setAssignee does, writing nothing [151.25ms]
+(pass) assignSubtree on the sqlite store, beyond the batch > answers unknown_step from the service itself, before any write [169.99ms]
+(pass) assignSubtree on the sqlite store, beyond the batch > refuses a stale undo once another account changed one of its leaves [335.92ms]
+(pass) claimWorkItem with assign on the sqlite store > assigns the claimant to the steps it claims, and undo removes both [186.32ms]
+
+libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts:
+(pass) the SQLite unit of work > (a) makes none of a refused batch observable [174.96ms]
+(pass) the SQLite unit of work > (b) makes none of a batch that threw observable, and rethrows [138.11ms]
+(pass) the SQLite unit of work > (c) makes all of a committed batch observable [97.39ms]
+(pass) the SQLite unit of work > (h) lets a scope store write without waiting for the turn its batch holds [74.38ms]
+(pass) the SQLite unit of work > (k) runs the repair after the rollback, over the surviving state [87.38ms]
+(pass) the SQLite unit of work > (k) lets a failing repair surface as itself, with no second rollback [115.58ms]
+
+1 tests skipped:
+(skip) assignSubtree on the memory store, beyond the batch > refuses a stale undo once another account changed one of its leaves
+
+
+1 tests failed:
+(fail) organization activation marker schema > rolls back before activation and reapplies with a fresh seed [175.23ms]
+
+ 148 pass
+ 1 skip
+ 1 fail
+ 651 expect() calls
+Ran 150 tests across 10 files. [26.04s]

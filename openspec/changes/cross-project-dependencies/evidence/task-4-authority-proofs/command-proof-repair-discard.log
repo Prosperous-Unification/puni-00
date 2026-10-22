@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/compose.test.ts:
+492 | 
+493 |     expect(await runner.undo(project.project.id, 'owner')).toMatchObject({
+494 |       ok: false,
+495 |       reason: 'stale_undo',
+496 |     });
+497 |     expect(await runner.undo(project.project.id, 'owner')).toMatchObject({
+                                                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "detail": "a work item this change touched has been deleted since then.",
++   "entryId": "id-5",
+    "ok": false,
+-   "reason": "nothing_to_undo",
++   "reason": "stale_undo",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-command-authority/libs/wbs/application/core/src/compose.test.ts:497:60)
+(fail) composeServices > discards a stale journal entry through the fresh repair scope [33.75ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.09s]

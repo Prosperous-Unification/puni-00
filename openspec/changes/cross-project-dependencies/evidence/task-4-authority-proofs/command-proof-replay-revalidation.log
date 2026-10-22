@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+100 |       const before = effects();
+101 |       release();
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:105:33)
+(fail) current command authority on the process writer > undo refuses queued revocation before any command effects [316.97ms]
+100 |       const before = effects();
+101 |       release();
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:105:33)
+(fail) current command authority on the process writer > redo refuses queued revocation before any command effects [255.40ms]
+
+ 0 pass
+ 43 filtered out
+ 2 fail
+ 9 expect() calls
+Ran 2 tests across 1 file. [2.67s]

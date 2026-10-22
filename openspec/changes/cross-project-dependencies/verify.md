@@ -411,3 +411,88 @@ errors for shared-space/timeline/project-list responses; restored bodies passed.
 This closes browser fixture follow-up `6d57e884-c640-42d5-a32b-2c7d237f6855`, not the
 full browser shard or final CI. Old failed checkpoint evidence remains a failure;
 current candidate full CI, exact-SHA host gate and deployment are still required.
+
+## Task 3.1 — lookup refusal declaration follow-up
+
+Commit `205df84a4` corrects the shared lookup 400 enum. The existing global GET
+shape invariant failed on the unmodified integrated source (2 pass / 1 fail);
+the correction declares `invalid_query`, `invalid_params` and `invalid_body`.
+Current mounted lookup bindings still normalize failures to `invalid_query`.
+This aligns the generic adapter vocabulary and declaration invariant; it does
+not claim that mounted lookup now emits additional codes or accepts more input.
+
+[Report](evidence/task-3-lookup-refusal.md), [Astra approval](evidence/task-3-lookup-refusal-review.md)
+and [logs](evidence/task-3-lookup-refusal-proofs/) record root's 23 focused tests /
+175 assertions, actual uncached contracts test/lint/typecheck (495 tests /
+1,541 assertions), and the reviewer's independent 62-test and 23-test runs.
+Only follow-up leaf `2684d59b-fd17-4b17-aa8d-eab46349cea8` is complete.
+
+## Task 4.2 — current command authority foundation
+
+Original `eb3d6c2a7` and correction `26c836326` integrated as `d1d258552`
+and `3363bac03`. [Implementation](evidence/task-4-authority.md),
+[initial review](evidence/task-4-authority-review.md), [correction](evidence/task-4-authority-round1.md),
+[Astra re-review](evidence/task-4-authority-round1-review.md) and
+[proofs](evidence/task-4-authority-proofs/) preserve attribution and limits.
+
+Authenticated runner and direct writes now carry the actual principal and
+revalidate current organization authority inside the same writer transaction,
+before audit, endpoint reads, capture or writes. Both mounted and composed
+runners receive the real resolver; boot shares the verifier, connection and
+clock. Explicit legacy wrappers refuse after activation. Repair discards only
+through a fresh journal scope.
+
+Astra found a P2 in direct project/step and recovery writes: their scope check
+was missing even though the runner refused read-only credentials. Both guards
+now precede UoW admission. Three real SQLite negatives watched successful writes
+before the fix, and each guard bypass independently failed the selected refusal
+assertion after the fix. They verify unchanged UoW/capture/push counters and
+full tables, including audit/history/events. The unchanged vulnerability probe
+now fails its old expectation; only the separate corrected expectation passes.
+Its Bun tsconfig-override diagnostic is retained, not disguised as a clean run.
+
+Original author and review checks are in the reports. Root's combined real
+integration passed **154 tests / 747 assertions / eight files**: the correction's
+six-file suite plus connected and saved capture. Actual uncached Nx core/module,
+SQLite and backend/module typechecks passed (five tasks). Normal original/fix
+commit hooks passed; Tool Wiki remained inactive/uncertified.
+
+Only authority leaf `8b8d1ddc-4284-4b23-a3fa-b127015c0dec` is complete. Full 4.2
+remains open. Endpoint evidence, graph/structural admission, remote typed-link
+history and mounted negatives continue under leaf
+`6088cd5b-50d3-472a-b302-cd14a44546cc` in a new isolated worktree based on
+`3363bac03`. External production authoring remains dormant until real connected
+readers/fanout and activation are implemented.
+
+## Task 7.3 — domain publication replay foundation
+
+Commit `05f696369` integrates two exact reviewed files and four named public
+exports. [Implementation](evidence/task-7-publication.md),
+[Astra approval](evidence/task-7-publication-review.md) and
+[proofs](evidence/task-7-publication-proofs/) record the real replay boundary.
+The captured baseline is validated exactly through the authoritative engine;
+local candidate pins replay the complete component, preserving exact foreign
+starts and finishes. Candidate deadlines and dense priority scores are local;
+ties select optimized. Baseline lateness and infeasible movement origins retain
+their explicitly permitted semantics.
+
+Author full domain: 1,374 pass, one existing performance skip. Astra independently
+passed 200 relevant tests plus three additional probes. Its 16 mutations produced
+14 semantic failures, one diagnostic failure and one redundant survivor. Foreign
+finish equality is retained but is not claimed independently mutation-killable
+under deterministic replay and exact foreign starts. The combined removal allows
+drift. No fake scheduling callback establishes these proofs.
+
+Root combined publication, canonical stage, resolved scheduler and guard run:
+**172 tests / 284 assertions / four files**, actual uncached domain lint/types
+passed. The first integration command named a nonexistent stage test and collected
+only three files (76 passes); the corrected four-file command is the counted
+combined result. The initial barrel export ordering lint failure was corrected
+mechanically, then both targets passed. These failed/incomplete checks remain in
+the evidence rather than being counted as complete verification.
+
+Only domain leaf `b6e1ccd6-8579-48fe-ab68-fa8893b4e31b` is complete. All full
+7.1–7.4 checkboxes remain open for wire/Python, runtime stages, certificates,
+persistence, retry and publication consumers. Fresh main `d504c9eae` (MCP client
+persistence PR #622) merged cleanly as `3a9c23030`; this is not final gate evidence.
+Full CI, exact-SHA host gate, browser feature coverage and delivery remain open.

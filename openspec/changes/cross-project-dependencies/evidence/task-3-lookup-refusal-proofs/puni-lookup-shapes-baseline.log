@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+src/http/infrastructure-shapes.test.ts:
+(pass) declares public health JSON and Prometheus text without request input [2.10ms]
+69 | 
+70 | test('every GET shape declares the adapter invalid-body refusal as a 400', async () => {
+71 |   for (const shape of httpShapes) {
+72 |     if (shape.method !== 'GET') continue;
+73 |     const declared = await declaresInvalidBody(shape);
+74 |     expect({ operationId: shape.operationId, declared }).toEqual({
+                                                              ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "declared": true,
++   "declared": false,
+    "operationId": "getApiProjectAddressesProjects",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/domain/contracts/src/http/infrastructure-shapes.test.ts:74:58)
+(fail) every GET shape declares the adapter invalid-body refusal as a 400 [3.16ms]
+(pass) health distinguishes ready, migration and dependency states while retaining commit metadata [0.76ms]
+
+ 2 pass
+ 1 fail
+ 60 expect() calls
+Ran 3 tests across 1 file. [1.84s]
