@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
-import { isOrganizationLimit, refuseLimit } from './organization-limits';
+import { isOrganizationLimit, refuseCapacityStatement, refuseLimit } from './organization-limits';
 
 describe('refuseLimit', () => {
   it('admits an acquisition under the cap', () => {
@@ -70,5 +70,48 @@ describe('isOrganizationLimit', () => {
     for (const value of [0, 1, 8, 1_000_000]) expect(isOrganizationLimit(value)).toBe(true);
     for (const value of [-1, 1.5, 1_000_001, Number.NaN, Number.POSITIVE_INFINITY])
       expect(isOrganizationLimit(value)).toBe(false);
+  });
+});
+
+describe('refuseCapacityStatement', () => {
+  const ram = (declared: number, held: number, asked: number, cap = 64) =>
+    refuseCapacityStatement({ resourceId: 'ram', cap, declared, held, asked });
+
+  it('refuses a statement whose other projects plus the asked cross the cap, naming all four', () => {
+    expect(ram(48, 0, 32)).toEqual({ resourceId: 'ram', cap: 64, declared: 48, asked: 32 });
+    expect(ram(48, 0, 16)).toBeNull();
+  });
+
+  it('replaces the project’s own units rather than counting them twice', () => {
+    // The project states 48 alone; raising to 64 reaches the cap exactly.
+    expect(ram(0, 48, 64)).toBeNull();
+    expect(ram(0, 48, 65)).toEqual({ resourceId: 'ram', cap: 64, declared: 0, asked: 65 });
+  });
+
+  it('never refuses restating or lowering, even above a lowered cap', () => {
+    expect(ram(0, 48, 48, 32)).toBeNull();
+    expect(ram(0, 48, 40, 32)).toBeNull();
+    expect(ram(100, 0, 0, 32)).toBeNull();
+    expect(ram(0, 48, 49, 32)).toEqual({ resourceId: 'ram', cap: 32, declared: 0, asked: 49 });
+  });
+
+  it('refuses exactly a raise past the cap, as a property', () => {
+    fc.assert(
+      fc.property(
+        fc.nat(200),
+        fc.nat(200),
+        fc.nat(200),
+        fc.nat(200),
+        (cap, declared, held, asked) => {
+          const refused = ram(declared, held, asked, cap) !== null;
+          expect(refused).toBe(asked > held && declared + asked > cap);
+        },
+      ),
+    );
+  });
+
+  it('throws on units that are not whole', () => {
+    expect(() => ram(0, -1, 4)).toThrow('whole units');
+    expect(() => ram(0, 0, 1.5)).toThrow('whole units');
   });
 });

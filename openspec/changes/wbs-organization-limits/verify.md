@@ -226,6 +226,60 @@ format check. Not observable: the claim cap through the memory batch runner, whi
 scoped claim path; the memory twin is held to SQLite at the gauge port by the conformance
 cases instead.
 
+## Slice 4 record (2026-10-22, branch `feat/wbs-organization-limits-4`)
+
+Built: `capacity_limit { resourceId, cap, declared, asked }` on `setResourceCapacity` when a
+non-null statement raises the project's own units of a resource and the units the
+organization's other projects state plus the asked exceed `maxCapacityUnitsPerResource`.
+The decision is `refuseCapacityStatement` in `@wbs/domain`; the sum is the gauge's new
+`readCapacityCap(organizationId, resourceId, exceptProjectId)` (SQLite over
+`sumStatedCapacity`, memory twin over the staged tables), read in the batch's
+`BEGIN IMMEDIATE` through the working plan's catalog, which already passes the gauge
+through. `CapacityService.setForResource` takes the caller's access; legacy access reads
+nothing. The plan import checks every capacity it states before writing any, against all
+the organization's existing projects (its own project is new and states nothing), and
+refuses whole with the import arm. Contracts gain both 409 arms with type tests; the MCP
+`setResourceCapacity` description names the refusal; fe-01 words it in `PLAN_REFUSALS`
+(numbers in slice 6) and in the import sentence with the body's numbers. The memory source
+gains `ownResourceInOrganization`; both sources certify
+`organizationLimits.readCapacityCap:per-resource-except-project`.
+
+Review fixes (2026-10-22, after the Fable review of PR #644): the "Lowering is never
+refused" scenario now runs 48 again, 40, then 41 refused, the order the code and
+`applies lowering and restating under a cap lowered below them` support (that case refuses
+49 after 40, the same raise); design.md L9 and the spec say the import counts every existing
+project, its own being new. Every be-01 fault in the proof table below was re-watched
+against the 12-case `capacity-limit.controller.db.test.ts` and its counts updated, in the
+table and in the adjacent `Proof:` comments.
+
+Not applicable: undo and redo of a capacity statement. `setResourceCapacity` is not
+journalled (its description says so), so nothing replays it; `journals no statement, so no
+undo or redo can put one back past the cap` watches that. Deviation from 4.2 as written: no
+import replaces a project, so "a re-import of the same project at 64 of 64 is applied" holds
+only once the exported source stops stating its 64; with the source still stating, the
+re-import is refused `declared: 64, asked: 64`.
+
+Fresh local results, all with `env -u CLAUDECODE`, on the laptop, after merging slice 3's
+review fixes at `4c88f9ea2`:
+
+| Command                                                                                                                                                                                               | Result                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                                                                          | 3125 pass, 3 skip, 0 fail, 215 files           |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                                                                                                                                   | 1821 pass, 1 skip, 0 fail, 136 files           |
+| `bunx nx run <p>:test --skip-nx-cache` for wbs-domain, -contracts, -core, -store-memory, -conformance                                                                                                 | 1199 (1 skip), 495, 1153, 193, 35 pass; 0 fail |
+| `bun test` in `apps/wbs/mcp-01`                                                                                                                                                                       | 460 pass, 0 fail                               |
+| `bunx vitest run` on `capacity-limit-words`, `claim-limit-words`, `plan-import-words`, `plan-read-and-write`, `attempt-actions` (fe-01)                                                               | 114 pass                                       |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                                                                                                       | 897 pass, 0 fail, 47 files                     |
+| `bunx nx run-many -t typecheck,typecheck:module` over wbs-core, -store-sqlite, -contracts, -store-memory, -domain, -conformance, -auth, -gw-01, -mcp-01, -realtime, -runtime-portable, -be-01, -fe-01 | succeeded                                      |
+| `bunx nx run-many -t lint` over wbs-core, -store-sqlite, -contracts, -store-memory, -domain, -conformance, -be-01, -fe-01, -mcp-01                                                                    | succeeded                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                           | exit 0 (store-memory index review debt 48/40)  |
+| `bunx openspec validate --all --json`                                                                                                                                                                 | 267 items, 267 passed                          |
+
+Not run: the host gate, any browser level, the rest of fe-01's suite, the workspace-wide
+format check, the coordinator-bypass sabotage of the capacity race (the stale-sum sabotage
+is the one watched). Not observable: the capacity cap through the memory batch runner, which
+has no scoped path; the memory twin is held to SQLite at the gauge port instead.
+
 ## Failure proofs
 
 | Check                                                    | Fault injected                                                                                | Observed failing test                                                                                                                                                                                                                                                         | Result  |
@@ -275,9 +329,21 @@ cases instead.
 | memory gauge counts agents only                          | kind test dropped                                                                             | memory certification, A read 3 agents, 74 pass 1 fail                                                                                                                                                                                                                         | watched |
 | redo and undo re-check the claim cap                     | re-check skipped in the `add_claims` replay                                                   | `refuses a redo of a claim once another took the last place`, `refuses an undo of a release…`, `refuses an undo of a delete once another took the freed place` put the claim back, 10 pass 3 fail                                                                             | watched |
 | fe-01 words the claim cap                                | `claim_limit` sentence struck from `PLAN_REFUSALS`                                            | `words the claim cap rather than naming its code` (`claim-limit-words.test.ts`) read the fallback, 0 pass 1 fail                                                                                                                                                              | watched |
-| `declared` excludes the own project                      | own units included                                                                            | (slice 4)                                                                                                                                                                                                                                                                     | pending |
-| per-resource sum                                         | per-resource predicate dropped                                                                | (slice 4)                                                                                                                                                                                                                                                                     | pending |
-| re-import excludes the replaced project                  | replaced project counted                                                                      | (slice 4)                                                                                                                                                                                                                                                                     | pending |
+| `declared` excludes the own project                      | another project excepted in the own project's place                                           | `raises a project’s own statement within the cap, its own units not counted` and three more (`capacity-limit.controller.db.test.ts`) refused, 8 pass 4 fail                                                                                                                   | watched |
+| per-resource sum                                         | resource predicate dropped from `sumStatedCapacity`                                           | `sums each resource on its own`: 64 of `h2puni ram` refused one `worktrees`, 11 pass 1 fail                                                                                                                                                                                   | watched |
+| import counts the other projects (amended)               | the other projects' sum read as 0 in the import                                               | `refuses an import that would state past the cap beside another project, the export’s source among them` admitted, 11 pass 1 fail                                                                                                                                             | watched |
+| the capacity check                                       | check removed from `setForResource`                                                           | `refuses a statement past the cap…` and five more applied, 6 pass 6 fail                                                                                                                                                                                                      | watched |
+| restating and lowering never refuse                      | raise test dropped from `refuseCapacityStatement`                                             | domain `never refuses restating or lowering…` and the property, 11 pass 2 fail; `applies lowering and restating under a cap lowered below them` and one more, 10 pass 2 fail                                                                                                  | watched |
+| own units replaced, not counted twice                    | `held` added to `declared` in `refuseCapacityStatement`                                       | `replaces the project’s own units rather than counting them twice` and the property, 11 pass 2 fail                                                                                                                                                                           | watched |
+| capacity cap: legacy uncapped                            | legacy answered as a refusal                                                                  | `states past any cap with no organization to own one` refused, 11 pass 1 fail                                                                                                                                                                                                 | watched |
+| capacity refusal names its numbers                       | `declared` replaced by 0 in the binding                                                       | four refusal cases named declared 0, 8 pass 4 fail                                                                                                                                                                                                                            | watched |
+| capacity refusal shapes declared                         | batch arm removed; then the import arm's code replaced                                        | 500 "returned an undeclared refusal": 6 pass 6 fail; 10 pass 2 fail                                                                                                                                                                                                           | watched |
+| import capacity check                                    | check removed from the import                                                                 | both import refusals admitted, 10 pass 2 fail                                                                                                                                                                                                                                 | watched |
+| capacity service carries the gauge                       | spread removed in `servicesOver`; in the capacity module; the working-plan getter left out    | every activated statement case answered 500 "a resource capacity was stated under scoped access without organization limits", 2 pass 10 fail each                                                                                                                             | watched |
+| capacity race: sum read in the turn                      | gauge answering the sums read before the batches queued                                       | both orders of `lands exactly one of two statements of 40 under 64` landed both, 80 of 64; the model failed `toBeLessThanOrEqual(64)` after 23 runs; 0 pass 3 fail                                                                                                            | watched |
+| SQLite gauge reads the capacity cap                      | `maxConcurrentClaims` answered as the cap                                                     | SQLite certification `organizationLimits.readCapacityCap:per-resource-except-project`, both race orders and the model, 74 pass 4 fail                                                                                                                                         | watched |
+| memory gauge sums per organization and except project    | resource organization test, excepted-project test, project organization test, each dropped    | memory certification of `organizationLimits.readCapacityCap:per-resource-except-project`, 74 pass 1 fail each                                                                                                                                                                 | watched |
+| fe-01 words the capacity cap                             | `capacity_limit` sentence struck from `PLAN_REFUSALS`                                         | `words the capacity cap rather than naming its code` (`capacity-limit-words.test.ts`), 0 pass 1 fail                                                                                                                                                                          | watched |
 | audit widening rollback guard                            | guard replaced by `CHECK (1)` or trigger dropped                                              | (slice 5)                                                                                                                                                                                                                                                                     | pending |
 | audit in the same transaction                            | audit written outside it                                                                      | (slice 5)                                                                                                                                                                                                                                                                     | pending |
 | `set` starts from the defaults                           | `set` started from zeros                                                                      | (slice 5)                                                                                                                                                                                                                                                                     | pending |

@@ -225,7 +225,21 @@ export type CommandRefusalCode =
    * allows (`wbs-organization-limits` L9), checked after every other claim
    * refusal; names the cap and the bound claims held.
    */
-  | 'claim_limit';
+  | 'claim_limit'
+  /**
+   * `setResourceCapacity` raising a project's units of a resource past the
+   * organization's cap on the sum over its projects (`wbs-organization-limits`
+   * L2, L9); names the resource, cap, the other projects' units and the asked.
+   */
+  | 'capacity_limit';
+
+/** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */
+export interface CapacityLimitRefusalDetail {
+  resourceId: string;
+  cap: number;
+  declared: number;
+  asked: number;
+}
 
 /** What a refused claim names: the organization's cap on bound claims and how many it holds. */
 export interface ClaimLimitRefusalDetail {
@@ -391,7 +405,9 @@ export type CommandRefusalDetail = {
                               ? LimitRefusalDetail
                               : C extends 'claim_limit'
                                 ? ClaimLimitRefusalDetail
-                                : Record<never, never>);
+                                : C extends 'capacity_limit'
+                                  ? CapacityLimitRefusalDetail
+                                  : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -525,7 +541,8 @@ type SharedCommandCode =
   | 'already_claimed'
   | 'unknown_team'
   | 'unknown_person'
-  | 'agent_person_limit';
+  | 'agent_person_limit'
+  | 'capacity_limit';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -558,6 +575,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
     /** Without a command position from the plan import; with one from a batch. */
     agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
+    /** Without a command position from the plan import; with one from a batch. */
+    capacity_limit: CapacityLimitRefusalDetail | CommandRefusalDetail['capacity_limit'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };

@@ -1,5 +1,10 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
-import { attemptOf, canWriteInOrganization, type LimitCrossed } from '@wbs/domain';
+import {
+  attemptOf,
+  canWriteInOrganization,
+  type CapacityLimitCrossed,
+  type LimitCrossed,
+} from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
@@ -58,7 +63,13 @@ export interface ImportForbidden {
  * allows (`wbs-organization-limits` L9): `added` is every agent the import
  * would create, counted once, and nothing is written.
  */
-export type ImportLimitRefusal = { ok: false; code: 'agent_person_limit' } & LimitCrossed;
+export type ImportLimitRefusal =
+  | ({ ok: false; code: 'agent_person_limit' } & LimitCrossed)
+  /**
+   * A capacity the import would state crosses the organization's cap on that
+   * resource (L9): the first such, in the file's order; nothing is written.
+   */
+  | ({ ok: false; code: 'capacity_limit' } & CapacityLimitCrossed);
 
 export type ImportOutcome =
   | ImportAdmission
@@ -401,13 +412,27 @@ export class ImportService {
             throw new Error(`prepared capacity team mapping disappeared: ${capacity.teamFileId}`);
           await writes.setCapacity(projectId, teamId, capacity.size, stamp);
         }
-        for (const stated of prepared.resourceCapacities)
-          await writes.setResourceCapacity(
-            projectId,
-            resolvedId(resourcesByFileId, stated.resourceFileId, 'capacity resource'),
-            stated.units,
-            stamp,
-          );
+        // Every capacity against the cap before any is written, and the import
+        // whole: a refusal rolls back the project and directory entries
+        // written above (L9). A file states each resource at most once.
+        // Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts:
+        // with this check removed, `refuses an import stating past the cap,
+        // writing nothing` and the import beside another project were
+        // admitted (10 pass, 2 fail); with the other projects' sum read as 0 in
+        // `refuseCapacityWithin`, `refuses an import that would state past the
+        // cap beside another project, the export’s source among them` was
+        // admitted (11 pass, 1 fail).
+        const capacities = prepared.resourceCapacities.map((stated) => ({
+          resourceId: resolvedId(resourcesByFileId, stated.resourceFileId, 'capacity resource'),
+          units: stated.units,
+        }));
+        for (const { resourceId, units } of capacities) {
+          const crossed = await writes.refuseCapacityWithin(access, projectId, resourceId, units);
+          if (crossed !== null)
+            return { commit: false, value: { ok: false, code: 'capacity_limit', ...crossed } };
+        }
+        for (const { resourceId, units } of capacities)
+          await writes.setResourceCapacity(projectId, resourceId, units, stamp);
         for (const marker of prepared.calendarMarkers) {
           await writes.createCalendarMarker({
             id: this.opts.clock.newId(),

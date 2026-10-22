@@ -23,6 +23,18 @@ function refusal(outcome: Extract<ImportOutcome, { ok: false }>): ImportRefusalR
         added: outcome.added,
       },
     };
+  if (outcome.code === 'capacity_limit')
+    return {
+      ok: false,
+      status: 409,
+      body: {
+        error: outcome.code,
+        resourceId: outcome.resourceId,
+        cap: outcome.cap,
+        declared: outcome.declared,
+        asked: outcome.asked,
+      },
+    };
   if (outcome.code === 'engine_unavailable' || outcome.code === 'source_refused') {
     return {
       ok: false,

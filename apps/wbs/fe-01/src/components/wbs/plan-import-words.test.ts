@@ -195,6 +195,22 @@ describe('importRefusalSentence', () => {
     );
   });
 
+  it('names the capacity cap with the refusal’s own numbers', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({
+          error: 'capacity_limit',
+          resourceId: 'ram',
+          cap: 64,
+          declared: 48,
+          asked: 32,
+        }),
+      ),
+    ).toBe(
+      'Organization limit: this plan would state 32 units of a resource your other projects already state 48 of, past the cap of 64, so nothing was imported.',
+    );
+  });
+
   it('falls back to a sentence that names nothing internal', () => {
     for (const message of [
       'http_502',

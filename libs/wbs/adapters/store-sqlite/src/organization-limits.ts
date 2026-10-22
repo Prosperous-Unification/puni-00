@@ -166,13 +166,17 @@ export function readCapacityUsage(
  * The units of `resourceId` the organization's projects other than
  * `exceptProjectId` state, summed; 0 when none does, and 0 for a resource the
  * organization does not own. What a capacity write to `exceptProjectId` adds
- * its own units to (L9, used from slice 4). Reads exactly the rows
+ * its own units to (L9), read by {@link OrganizationLimitGaugeRepository.readCapacityCap}. Reads exactly the rows
  * {@link readCapacityUsage} sums, less the excluded project's: both require the
  * project and the resource to be the organization's (L16).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
  * resource's organization predicate failed `never sums a resource the
  * organization does not own` (12 pass, 1 fail).
+ *
+ * Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts: dropping
+ * the resource predicate failed `sums each resource on its own`, another
+ * resource's 64 refusing one unit of `worktrees` (11 pass, 1 fail).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
  * excluded project's predicate failed `sums another project’s units, never the
@@ -299,6 +303,23 @@ export class OrganizationLimitGaugeRepository implements OrganizationLimitGauge 
     return {
       cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits.maxConcurrentClaims,
       current: countBoundClaims(this.db, organizationId),
+    };
+  }
+
+  // Proof: answering `maxConcurrentClaims` as the cap here failed the SQLite
+  // certification's `organizationLimits.readCapacityCap:per-resource-except-project`,
+  // both orders of capacity-limit-race.db.test.ts and its model (74 pass, 4 fail);
+  // watched 2026-10-22.
+  async readCapacityCap(
+    organizationId: string,
+    resourceId: string,
+    exceptProjectId: string,
+  ): Promise<CapReading> {
+    await Promise.resolve();
+    return {
+      cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits
+        .maxCapacityUnitsPerResource,
+      current: sumStatedCapacity(this.db, organizationId, resourceId, exceptProjectId),
     };
   }
 }

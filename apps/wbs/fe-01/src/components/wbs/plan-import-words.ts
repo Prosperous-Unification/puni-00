@@ -110,6 +110,9 @@ function refusalWords(refusal: PlanImportRefusal): string {
     case 'agent_person_limit':
       // The numbers are the refusal's own (`wbs-organization-limits` L14).
       return `Organization limit: this plan would add ${String(refusal.added)} agent persons to the ${String(refusal.current)} of ${String(refusal.cap)} the organization holds, so nothing was imported.`;
+    case 'capacity_limit':
+      // The numbers are the refusal's own (`wbs-organization-limits` L14).
+      return `Organization limit: this plan would state ${String(refusal.asked)} units of a resource your other projects already state ${String(refusal.declared)} of, past the cap of ${String(refusal.cap)}, so nothing was imported.`;
     default:
       return unreachable(refusal);
   }

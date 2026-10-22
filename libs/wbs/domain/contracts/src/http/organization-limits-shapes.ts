@@ -17,6 +17,17 @@ export const limitCrossed = { cap: 'number', current: 'number', added: 'number' 
  */
 export const claimLimitCrossed = { cap: 'number', current: 'number' } as const;
 
+/**
+ * What `capacity_limit` carries beside its code (L2, L9): the resource, the
+ * cap, the units the organization's other projects state and the units asked.
+ */
+export const capacityLimitCrossed = {
+  resourceId: 'string',
+  cap: 'number',
+  declared: 'number',
+  asked: 'number',
+} as const;
+
 /** The three caps (`wbs-organization-limits` L1), each a whole number from 0 to 1,000,000. */
 const organizationLimitValues = type({
   maxAgentPersons: 'number',

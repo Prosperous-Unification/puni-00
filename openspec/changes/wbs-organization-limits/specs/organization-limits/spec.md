@@ -169,7 +169,8 @@ of a release SHALL re-check it and, refused, answer `stale_undo` whose detail be
 resource over the organization's other projects) and `asked` when `declared + units` exceeds
 `maxCapacityUnitsPerResource`, with nothing written. Clearing (`null`) or lowering SHALL
 never be refused. The plan import SHALL check every capacity it would write the same way,
-excluding the project it imports into from `declared`, and refuse the whole import. Team
+against every existing project of the organization (the import's own project is new and
+states nothing), and refuse the whole import. Team
 capacities (`setCapacity`) SHALL NOT be counted or capped.
 
 #### Scenario: Two projects share 64 units
@@ -182,8 +183,8 @@ capacities (`setCapacity`) SHALL NOT be counted or capped.
 #### Scenario: Lowering is never refused
 
 - **WHEN** A's cap was lowered to 32 while P states 48 GB
-- **THEN** P setting 40 GB is applied, P setting 48 GB again is applied, and P setting 49 GB
-  is refused `capacity_limit` with `declared: 0, asked: 49`
+- **THEN** P setting 48 GB again is applied, P setting 40 GB is applied, and P setting 41 GB
+  is refused `capacity_limit` with `declared: 0, asked: 41`
 
 #### Scenario: Another resource is another sum
 

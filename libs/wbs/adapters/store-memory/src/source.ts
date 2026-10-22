@@ -197,6 +197,11 @@ export interface MemorySourceFixture {
    */
   ownProjectInOrganization(projectId: string, organizationId: string): void;
   /**
+   * Gives a resource an owning organization, the `resource_organization` row
+   * SQLite holds, so the limits gauge sums its stated capacity.
+   */
+  ownResourceInOrganization(resourceId: string, organizationId: string): void;
+  /**
    * Writes an organization's own caps, the `organization_limits` row the
    * operator CLI writes on SQLite.
    *
@@ -482,6 +487,9 @@ function openMemorySourceWithSeams(
     },
     ownProjectInOrganization(projectId, organizationId) {
       committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);
+    },
+    ownResourceInOrganization(resourceId, organizationId) {
+      committed.tables.directory.organizationOf.set(resourceId, organizationId);
     },
     setOrganizationLimits(organizationId, caps) {
       committed.tables.organizationLimits.caps.set(

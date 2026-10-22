@@ -538,6 +538,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // The claim cap: worded in PLAN_REFUSALS; the copy naming the numbers is slice 6.
     case 'claim_limit':
       return refusal.error;
+    // The capacity cap: worded in PLAN_REFUSALS; the copy naming the numbers is slice 6.
+    case 'capacity_limit':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -786,6 +789,13 @@ export const PLAN_REFUSALS: RefusalWords = {
     // `claim_limit`; watched 2026-10-22.
     claim_limit:
       'Organization limit: your organization already holds as many concurrent claims as it may. Release a claim first. Nothing was changed.',
+    // The organization's cap on stated units per resource (`wbs-organization-limits`
+    // L2, L9); the numbers stay on the wire until slice 6 words them.
+    // Proof: with this entry struck, `words the capacity cap rather than naming
+    // its code` (capacity-limit-words.test.ts) read the fallback carrying
+    // `capacity_limit`; watched 2026-10-22.
+    capacity_limit:
+      'Organization limit: your projects together would state more units of that resource than your organization may. Lower another project’s capacity first. Nothing was changed.',
     children_claimed:
       'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:

@@ -68,6 +68,7 @@ describe('the migrated existing store kits', () => {
       'projectRanks.orderIn:scoped-move',
       'organizationLimits.readAgentPersonCap:organization-scope',
       'organizationLimits.readConcurrentClaimCap:bound-triples',
+      'organizationLimits.readCapacityCap:per-resource-except-project',
       'users.create:unique-name',
       'users.find:identity',
       'users.resolveOidcIdentity:issuer-subject',

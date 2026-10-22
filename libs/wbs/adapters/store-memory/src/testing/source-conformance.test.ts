@@ -894,6 +894,9 @@ async function openMemoryLimitsCase(
         ownProject: (projectId, organizationId) => {
           fixture.ownProjectInOrganization(projectId, organizationId);
         },
+        ownResource: (resourceId, organizationId) => {
+          fixture.ownResourceInOrganization(resourceId, organizationId);
+        },
         setCaps: (organizationId, caps) => {
           fixture.setOrganizationLimits(organizationId, caps);
         },

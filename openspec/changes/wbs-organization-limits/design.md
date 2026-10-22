@@ -133,8 +133,9 @@ tool count moves by one), like `getApiOrganizationSession-policy`.
 - `capacity_limit { resourceId, cap, declared, asked }` on `setResourceCapacity { units }`
   with non-null `units` when `declared + units > cap`, `declared` being the sum over the
   organization's **other** projects; clearing (`null`) or lowering never refuses; the plan
-  import checks every capacity it would write the same way, against the sum excluding the
-  project being imported into (a re-import replaces its own). `createResource` is not
+  import checks every capacity it would write the same way, against every existing
+  project of the organization (every import mints a new project, which states nothing, so
+  re-importing an export counts its still-stating source). `createResource` is not
   capped (L1).
 
 All three are command refusals at the command's position in the batch, status 409 like
