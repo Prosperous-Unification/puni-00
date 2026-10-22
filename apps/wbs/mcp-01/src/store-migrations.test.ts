@@ -847,6 +847,33 @@ describe('MCP family-person migration', () => {
     forward.close();
   });
 
+  it('lists ended consents earliest end first, within the limit', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    for (const familyId of ['first-made', 'second-made']) {
+      store.recordPendingConsent(familyId, `credential-${familyId}`, NOW + 60_000);
+      store.createFamily(
+        {
+          ...familyInput(familyId, BOUND),
+          consent: { personId: 'p-claire', credentialId: `credential-${familyId}` },
+        },
+        `session-${familyId}`,
+        NOW + 60_000,
+        `refresh-${familyId}`,
+        NOW,
+      );
+    }
+    store.revokeFamily('second-made', NOW + 1);
+    store.revokeFamily('first-made', NOW + 2);
+    store.recordPendingConsent('pending', 'credential-pending', NOW);
+    expect(store.endedConsents(NOW + 3, 10).map((ended) => ended.familyId)).toEqual([
+      'pending',
+      'second-made',
+      'first-made',
+    ]);
+    expect(store.endedConsents(NOW + 3, 1).map((ended) => ended.familyId)).toEqual(['pending']);
+    store.close();
+  });
+
   it('refuses to roll back while a consent is pending', () => {
     const path = storePath();
     const store = new McpSessionStore(path, [KEY]);

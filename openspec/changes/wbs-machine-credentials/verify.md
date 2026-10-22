@@ -574,9 +574,6 @@ both):
 | sweep scheduled at startup                                   | schedule call removed                         | `schedules the consent end report and reports its failure`                                                                                                           |
 | sweep failure line redacted                                  | redaction built with `[]`                     | same test (`boundary-secret` in the line)                                                                                                                            |
 
-No negative, stated: the consent comparison in `matchesRefreshAuthority` (no reader path
-substitutes a consent; the store trigger keeps it immutable).
-
 Unverified or skipped:
 
 - No live dev consent (task 3.5): no Google sign-in at the dev consent page, no `claire` claim,
@@ -586,9 +583,10 @@ Unverified or skipped:
   browser session; the route's own tests are slice 2's.
 - The sweep's one-minute cadence is a `setInterval` in `main.ts`; the tests drive the sweep by
   hand.
-- `credential-epoch-cli.ts > refuses without MCP_STORE_PATH or with unknown arguments` fails in
-  this worktree only because `bun run tools/dev/setup.ts` writes `apps/wbs/mcp-01/.env` with
-  `MCP_STORE_PATH`, which Bun loads into the CLI child; with that file moved aside it passes.
+- `credential-epoch-cli.ts > refuses without MCP_STORE_PATH or with unknown arguments` failed in
+  this worktree because `bun run tools/dev/setup.ts` writes `apps/wbs/mcp-01/.env` with
+  `MCP_STORE_PATH`, which Bun loaded into the CLI child; the review follow-up spawns it in a
+  scratch `cwd`, and it passes with the file present.
 
 ## Gate output
 

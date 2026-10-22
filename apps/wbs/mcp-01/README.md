@@ -192,7 +192,16 @@ refuses. An absent path is created; an existing empty, partial or unreadable fil
 refuses instead of being reinitialized. A store from before the ledger is adopted
 only when its schema is exactly the first migration's. Reverse with
 `rollbackMcpStore` while mcp-01 is stopped: it refuses while a bound credential
-is still usable or the epoch has advanced.
+is still usable or the epoch has advanced, and (reversing
+`20261022130000_mcp_family_person`) while a consent family acting as an agent
+person has an end be-01 has not acknowledged (`consent_ended_reported_at IS
+NULL`) or a row is left in `mcp_consent_pending`. When it refuses for those:
+end the live consent families with
+`UPDATE mcp_family SET revoked_at = <now in ms> WHERE credential_id IS NOT NULL AND revoked_at IS NULL;`
+on the stopped store, wait out the five-minute code lifetime of any pending
+consent, start mcp-01 once with be-01 reachable (its startup sweep reports every
+end and pending row to `/internal/mcp/credentials/ended`, which revokes those
+credentials in WBS), stop it, and retry the rollback.
 
 ### Credential epoch
 

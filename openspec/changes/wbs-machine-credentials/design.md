@@ -257,8 +257,9 @@ is a later cleanup change, once no release reads it.
   `{ kind: 'consent', issuer, subject, credentialId, personId }`: the credential rules read its
   upstream pair as they read an upstream delegation's (A10), the claim pin reads its person,
   and A23's role cap treats it as a machine.
-  `POST /internal/mcp/authority` answers `revoked` for a revoked or unbound credential, so
-  mcp-01 ends the family and refuses refresh, as it does for a removed member today.
+  `POST /internal/mcp/authority` answers `denied` for a revoked or unbound credential; for a
+  consent family mcp-01 then revokes the family at once (so its end is reported) and refuses
+  the request and every refresh.
 - _End._ Revoking the credential (from the people page, the organization panel, or a
   person's removal cascade) sets `revoked_at` and writes `machine_credential_revoked`; the
   next tool call's delegation request and the next authority reread refuse, and the family
@@ -271,8 +272,9 @@ is a later cleanup change, once no release reads it.
   mcp-01's main does it once a minute, because expiry and an epoch advance are no event any
   process observes. be-01 revokes only the credential naming that family, audited with actor
   `mcp-01`. Why not on read: be-01 cannot ask mcp-01 anything, and mcp-01 alone knows its
-  families. A family whose credential WBS revoked first is refused on every use (as a removed
-  member's) and reported, as `already_revoked`, once it ends in mcp-01.
+  families. A family whose credential WBS revoked first is revoked by mcp-01 at its next
+  request or refresh (the authority read or the delegation answers the revocation), and
+  reported as `already_revoked` at the next sweep. mcp-01 also sweeps once at startup.
 - _Why a credential row and not only a family column._ Revoke, list, last-used and audit
   are then one surface for all four sources, which is what A8 asks ("same table/lifecycle").
   The family stays the secret holder; be-01 holds no refresh token.

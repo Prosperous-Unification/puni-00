@@ -255,7 +255,13 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 async function runCli(path: string | undefined, args: readonly string[] = []) {
   const env: Record<string, string> = { PATH: process.env['PATH'] ?? '' };
   if (path !== undefined) env['MCP_STORE_PATH'] = path;
-  const child = Bun.spawn(['bun', CLI, ...args], { env, stdout: 'pipe', stderr: 'pipe' });
+  // A scratch cwd: Bun loads `.env` from the working directory, and a developer's
+  // `apps/wbs/mcp-01/.env` (written by `tools/dev/setup.ts`) would set MCP_STORE_PATH.
+  // Proof: 2026-10-22, with the worktree's cwd and that file present, `refuses without
+  // MCP_STORE_PATH or with unknown arguments` failed (SQLITE_CANTOPEN instead of the usage error).
+  const cwd = mkdtempSync(join(tmpdir(), 'mcp-credential-epoch-cli-'));
+  roots.push(cwd);
+  const child = Bun.spawn(['bun', CLI, ...args], { cwd, env, stdout: 'pipe', stderr: 'pipe' });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),

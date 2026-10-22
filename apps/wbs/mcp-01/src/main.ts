@@ -99,9 +99,7 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
   // reports its failure` (main.test.ts) find `boundary-secret` in the failure line.
   const redactSweepFailure = createFailureRedaction(secrets);
   let sweeping = false;
-  // Proof: 2026-10-22, not scheduling this sweep made `schedules the consent end report and
-  // reports its failure` (main.test.ts) find no sweep to run.
-  (deps.scheduleConsentEndReports ?? everyConsentEndInterval)(async () => {
+  const sweepConsentEnds = async (): Promise<void> => {
     if (sweeping) return;
     sweeping = true;
     try {
@@ -114,7 +112,14 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     } finally {
       sweeping = false;
     }
-  });
+  };
+  // Proof: 2026-10-22, not scheduling this sweep made `schedules the consent end report and
+  // reports its failure` (main.test.ts) find no sweep to run.
+  (deps.scheduleConsentEndReports ?? everyConsentEndInterval)(sweepConsentEnds);
+  // Ends left by the previous process (an epoch advance, expiries while stopped) reach be-01 at
+  // start, not a minute later. Its failures are handled inside, as the interval's are.
+  // Proof: 2026-10-22, without this call `sweeps once at startup` (main.test.ts) saw no report.
+  void sweepConsentEnds();
   const verifier =
     config.MCP_AUTH_MODE === 'standalone'
       ? oauth

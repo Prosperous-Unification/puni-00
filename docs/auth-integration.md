@@ -324,6 +324,11 @@ calls be-01 with a WBS-signed delegation instead
   (service secret only) is how mcp-01 reports a family it ended so be-01
   revokes the credential. mcp-01's README, "Consent as an agent person", has
   the flow.
+- Deploy order: be-01 before mcp-01. This mcp-01 refuses an organizations
+  answer without `agents` (its parser requires it) and calls the two new
+  credential routes, so during a swap the be-01 serving it must already be
+  this release; an mcp-01 started against an older be-01 fails every consent
+  after activation as a deployment defect.
 
 ## Sign-in methods
 

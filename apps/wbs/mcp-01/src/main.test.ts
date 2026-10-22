@@ -320,23 +320,15 @@ test.each([
   expect(failureLines[0]).not.toContain('boundary-secret');
 });
 
-test('schedules the consent end report and reports its failure', async () => {
+/** Starts the application with `reportEndedConsents` and a hand-driven schedule. */
+function startWithSweeps(reportEndedConsents: () => Promise<number>) {
   const sweeps: (() => Promise<void>)[] = [];
   const lines: string[] = [];
-  let reports = 0;
   startMcpApplication({
     loadConfig: () => CONFIG,
     readDocument: () => ({ paths: {} }),
     toolsFromDocument: () => [READ],
-    mcpOAuthFromEnv: () => ({
-      ...oauthFixture(),
-      reportEndedConsents: () => {
-        reports += 1;
-        return reports === 1
-          ? Promise.resolve(2)
-          : Promise.reject(new Error('be-01 answered unmodeled mcp-user:boundary-secret'));
-      },
-    }),
+    mcpOAuthFromEnv: () => ({ ...oauthFixture(), reportEndedConsents }),
     startHttpServer: () => ({ port: 3313 }),
     createLogger: (options) =>
       createLogger({ ...options, destination: { write: (chunk) => void lines.push(chunk) } }),
@@ -344,14 +336,37 @@ test('schedules the consent end report and reports its failure', async () => {
       sweeps.push(sweep);
     },
   });
+  return { sweeps, lines };
+}
+
+test('sweeps once at startup', async () => {
+  let reports = 0;
+  startWithSweeps(() => {
+    reports += 1;
+    return Promise.resolve(0);
+  });
+  await Bun.sleep(0);
+  expect(reports).toBe(1);
+});
+
+test('schedules the consent end report and reports its failure', async () => {
+  let reports = 0;
+  const { sweeps, lines } = startWithSweeps(() => {
+    reports += 1;
+    // The startup sweep and the first scheduled one succeed; the next fails.
+    return reports <= 2
+      ? Promise.resolve(2)
+      : Promise.reject(new Error('be-01 answered unmodeled mcp-user:boundary-secret'));
+  });
+  await Bun.sleep(0);
   expect(sweeps).toHaveLength(1);
   const sweep = sweeps.at(0);
   if (sweep === undefined) throw new Error('no sweep was scheduled');
   await sweep();
-  expect(reports).toBe(1);
+  expect(reports).toBe(2);
   expect(lines.filter((line) => line.includes('MCP consent end report failed'))).toEqual([]);
   await sweep();
-  expect(reports).toBe(2);
+  expect(reports).toBe(3);
   const failed = lines.filter((line) => line.includes('MCP consent end report failed'));
   expect(failed).toHaveLength(1);
   expect(failed[0]).not.toContain('boundary-secret');

@@ -36,8 +36,8 @@ export type McpRefreshAuthorityReader = (authority: McpRefreshAuthority) => Prom
  * Compares all immutable authority fields; provider rotation changes none of them.
  * Proof: 2026-10-13, omitting each of the eight comparisons separately made all three
  * corresponding `checks substituted <field>` production-path negatives release credentials.
- * The consent comparison has no negative: the reader passes the caller's consent through and
- * nothing substitutes it; the store's immutability trigger keeps a family's consent fixed.
+ * Proof: 2026-10-22, with the two consent comparisons removed, `refuses an authority whose
+ * consent credential differs from the family` (refresh-authority.test.ts) matched.
  */
 export function matchesRefreshAuthority(
   authority: McpRefreshAuthority,

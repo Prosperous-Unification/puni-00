@@ -183,8 +183,8 @@ Slice 3 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, base `412c
   credential at every use (A13 step 4), and a consent principal's `authentication` is a new
   kind `consent` (pin, credential rules and A23 cap read it). A delegation refusal is
   `403 credential_revoked`, read by mcp-01 as an ended family. The authority read answers
-  `denied` for a revoked credential and, as for a removed member, mcp-01 then refuses every
-  use and refresh without revoking the family itself.
+  `denied` for a revoked credential, and mcp-01 then revokes a consent family at once (a
+  human's own family is still kept on denial, as before) and refuses every use and refresh.
 - Added beyond 3.1–3.4 (brief deliverables 2 and 3): the mcp-01 → be-01 end report,
   `POST /internal/mcp/credentials/ended`, swept once a minute from mcp-01's main
   (`McpOAuthServer.reportEndedConsents`), durable until acknowledged; it covers the epoch CLI

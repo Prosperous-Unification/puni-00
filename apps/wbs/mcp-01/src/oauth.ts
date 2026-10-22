@@ -1264,8 +1264,16 @@ export class McpOAuthServer implements McpOAuthHandler {
     });
     if (admission.outcome === 'unavailable')
       throw new UpstreamRefreshUnavailable('MCP organization refresh authority is unavailable');
-    if (admission.outcome === 'denied')
+    if (admission.outcome === 'denied') {
+      // A consent family's credential is revoked, unbound or its human left: that never comes
+      // back, so the family ends now and the sweep reports it, instead of lingering unrevoked.
+      // A human's own family is kept, as before.
+      // Proof: 2026-10-22, without this revocation `revoking the consent in WBS ends the
+      // session: 401, and refresh is refused` (organization-delegation.boot.test.ts) reported 0
+      // ended families instead of 2.
+      if (family.consent !== undefined) this.store.revokeFamily(family.familyId, this.now());
       throw new UpstreamRefreshRefused('MCP organization refresh authority refused');
+    }
     if (!matchesRefreshAuthority(admission.authority, family))
       throw new UpstreamRefreshRefused('MCP organization refresh authority changed');
     const refusal = credentialRuleRefusal(

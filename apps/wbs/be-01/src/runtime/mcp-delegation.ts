@@ -48,6 +48,14 @@ export interface McpConsentRequest {
   readonly client: string;
 }
 
+/**
+ * be-01's answer to a consent credential mint (A20): `minted` with the credential id mcp-01
+ * chose, or why not. `invalid_body` is judged after the token (a malformed id, family or client
+ * label); `binding_changed` means the token proves another account than `userId`;
+ * `person_not_bound` that the person is not an agent of the organization bound to that
+ * account; `not_a_member` that the account is no current member; `inactive` before activation
+ * or without a delegation key pair.
+ */
 export type McpConsentOutcome =
   | { readonly kind: 'minted'; readonly credentialId: string }
   | {
@@ -61,8 +69,11 @@ export type McpConsentOutcome =
         | 'not_a_member';
     };
 
-/** A consent credential id: the lowercase UUID every machine credential id is (A22). */
-const CREDENTIAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * A consent credential id: the lowercase UUID every machine credential id is (A22). The one
+ * owner of this shape for the internal MCP routes.
+ */
+export const CREDENTIAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The client label a consent credential's name carries: a host, never free text. */
 const CLIENT_LABEL = /^[A-Za-z0-9.:[\]-]{1,64}$/;

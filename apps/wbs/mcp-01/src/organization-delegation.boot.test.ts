@@ -497,9 +497,9 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(next.status).toBe(401);
     // The second family learns it on its own next call.
     expect((await tool(sessions['claireSecond'] ?? '', 'getApiProjects', {})).status).toBe(401);
-    // be-01 refused both families' authority, as for a removed member, so mcp-01 keeps them
-    // unrevoked and refuses each use; their ends are already held by be-01, and the sweep reports
-    // them (as already revoked) once they expire. Nothing is reported now.
+    // be-01 denied both families' authority, so mcp-01 revoked each at that request; the sweep
+    // reports both now (be-01 answers already_revoked), and then nothing.
+    expect(await oauth.reportEndedConsents()).toBe(2);
     expect(await oauth.reportEndedConsents()).toBe(0);
   });
 

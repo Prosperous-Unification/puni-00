@@ -9,7 +9,7 @@ import {
 import { organizationRefusal } from '@wbs/core/http/organization-refusal';
 
 import { bind } from '../http/endpoint';
-import type { McpDelegationAuthority } from '../runtime/mcp-delegation';
+import { CREDENTIAL_ID, type McpDelegationAuthority } from '../runtime/mcp-delegation';
 
 /**
  * The mcp-01 delegation routes. The internal identity policy has already
@@ -77,6 +77,7 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
       }
     }),
     bind(endMcpConsentCredential, async ({ body }) => {
+      // The id shape is {@link CREDENTIAL_ID}'s, the one owner of it.
       if (!CREDENTIAL_ID.test(body.credentialId) || body.family === '')
         return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
       const outcome = await authority.endConsent(body.credentialId, body.family);
@@ -176,9 +177,6 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
     }),
   ] as const;
 }
-
-/** A consent credential id: the lowercase UUID every machine credential id is (A22). */
-const CREDENTIAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * The one upstream token mcp-01 presents. A cookie beside it makes the

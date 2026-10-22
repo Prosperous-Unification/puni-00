@@ -233,7 +233,8 @@ export class McpSessionStore {
   /**
    * Consent credentials whose family has ended at `now` (revoked, idle or absolutely expired, or
    * of an older epoch than the durable one) or whose pending code expired unexchanged, and whose
-   * end be-01 has not acknowledged; at most `limit`, oldest family first.
+   * end be-01 has not acknowledged; at most `limit`, earliest end first: a family by its
+   * revocation time, else its earlier expiry; a pending consent by its code's expiry.
    */
   // Proof: 2026-10-22, dropping the epoch comparison made `reports a consent family retired by
   // the epoch advance, or by another writer` (credential-epoch.test.ts) report nothing for the
@@ -242,12 +243,16 @@ export class McpSessionStore {
   endedConsents(now: number, limit: number): EndedConsent[] {
     return this.db
       .query<{ family_id: string; credential_id: string }, [number, number, number, number]>(
-        `SELECT family_id, credential_id FROM mcp_family
+        `SELECT family_id, credential_id,
+            COALESCE(revoked_at, MIN(idle_expires_at, absolute_expires_at)) AS ended_at
+          FROM mcp_family
           WHERE credential_id IS NOT NULL AND consent_ended_reported_at IS NULL
             AND (revoked_at IS NOT NULL OR idle_expires_at <= ? OR absolute_expires_at <= ?
               OR credential_epoch IS NOT ${DURABLE_EPOCH})
         UNION ALL
-        SELECT family_id, credential_id FROM mcp_consent_pending WHERE expires_at <= ?
+        SELECT family_id, credential_id, expires_at AS ended_at
+          FROM mcp_consent_pending WHERE expires_at <= ?
+        ORDER BY ended_at, family_id
         LIMIT ?`,
       )
       .all(now, now, now, limit)
