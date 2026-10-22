@@ -38,6 +38,7 @@ import {
   type FamilyRecord,
   McpRefreshFamilyCorrupt,
   McpSessionStore,
+  type RegisteredClient,
 } from './session-store';
 import {
   DelegationRefused,
@@ -86,15 +87,6 @@ type CallbackError =
   | 'temporarily_unavailable'
   | 'unauthorized_client'
   | 'unsupported_response_type';
-
-interface ClientRecord {
-  proven: boolean;
-  promotionReserved: boolean;
-  redirectUris: readonly string[];
-  source: string;
-  expiresAt: number;
-  unprovenExpiresAt: number;
-}
 
 export interface McpAuthorizationGrant {
   clientId: string;
@@ -181,9 +173,23 @@ export interface OAuthRouteEvidence {
   registration_grant_types?: readonly string[];
 }
 
-/** In-memory public-client registration plus the browser half of the fronting AS. */
-export class InMemoryMcpOAuth implements McpOAuthHandler {
-  private readonly clients = new Map<string, ClientRecord>();
+/**
+ * The OAuth authorization server fronting the upstream IdP: public-client registration, the
+ * browser half of consent, and code and refresh exchange. Registered clients, refresh families
+ * and sessions live in the {@link McpSessionStore}, so a client keeps its `client_id` across a
+ * restart; codes, pending logins, organization choices and reauthentication markers are short
+ * lived and stay in this process.
+ */
+export class McpOAuthServer implements McpOAuthHandler {
+  /**
+   * Clients whose promotion to proven is reserved while their code exchange signs a token; they
+   * count against the proven per-source cap. Held in memory, not stored: a reservation lives only
+   * across one exchange's awaits, and a stored one would outlive a process that died
+   * mid-exchange, refusing that client's every later exchange with 429 until it expired. A
+   * second process sharing the store (blue and green mid-swap) does not see these reservations,
+   * so the proven cap can be exceeded by the exchanges in flight in the other process.
+   */
+  private readonly promotionReservations = new Set<string>();
   private readonly grants = new Map<string, McpAuthorizationGrant>();
   private readonly selections = new Map<string, PendingSelection>();
   private readonly organizations: OrganizationAuthority | undefined;
@@ -472,10 +478,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     try {
       body = await request.json();
     } catch {
-      return oauthError('invalid_client_metadata');
+      return protocolError('invalid_client_metadata');
     }
     if (!isObject(body) || body['token_endpoint_auth_method'] !== 'none') {
-      return oauthError('invalid_client_metadata');
+      return protocolError('invalid_client_metadata');
     }
     const requestedRedirects: unknown = body['redirect_uris'];
     if (
@@ -486,7 +492,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       // callback carries …` cases then present, null to planted error_uri (`Received: 201`) (oauth.test.ts).
       requestedRedirects.some(isMalformedRedirect)
     ) {
-      return oauthError('invalid_redirect_uri');
+      return protocolError('invalid_redirect_uri');
     }
     // RFC 7591 §3.2.1: a well-formed but unlisted callback is dropped, and the response names
     // only what was registered; authorization still demands one of these exact strings.
@@ -496,38 +502,36 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     // Proof: on 2026-09-27, dropping this check failed `refuses a list whose every callback is
     // unlisted` and every `refuses the near-miss callback` case (`Received: 201`) (oauth.test.ts).
     if (redirectUris.length === 0) {
-      return oauthError('invalid_redirect_uri');
+      return protocolError('invalid_redirect_uri');
     }
     this.cleanup();
     const source = sourceOf(request);
-    const sourceClients = [...this.clients.values()].filter(
-      (client) => client.source === source && !client.proven && !client.promotionReserved,
-    );
-    const provenSourceClients = [...this.clients.values()].filter(
-      (client) => client.source === source && (client.proven || client.promotionReserved),
-    );
-    if (
-      this.clients.size >= this.clientLimit ||
-      sourceClients.length >= this.clientSourceLimit ||
-      provenSourceClients.length >= this.provenClientSourceLimit
-    ) {
-      return oauthError('temporarily_unavailable', undefined, 429);
-    }
     const issuedAt = this.now();
-    const expiresAt = issuedAt + this.clientTtlMs;
-    const clientId = this.random();
-    this.clients.set(clientId, {
-      proven: false,
-      promotionReserved: false,
-      redirectUris,
+    const client = this.store.admitClient(
       source,
-      expiresAt,
-      unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
-    });
+      issuedAt,
+      ({ total, fromSource }) => {
+        const provenFromSource = fromSource.filter((candidate) => this.countsAsProven(candidate));
+        return (
+          total < this.clientLimit &&
+          fromSource.length - provenFromSource.length < this.clientSourceLimit &&
+          provenFromSource.length < this.provenClientSourceLimit
+        );
+      },
+      () => ({
+        clientId: this.random(),
+        source,
+        redirectUris,
+        proven: false,
+        expiresAt: issuedAt + this.clientTtlMs,
+        unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
+      }),
+    );
+    if (client === null) return protocolError('temporarily_unavailable', undefined, 429);
     return Response.json(
       {
-        client_id: clientId,
-        client_id_expires_at: Math.floor(expiresAt / 1000),
+        client_id: client.clientId,
+        client_id_expires_at: Math.floor(client.expiresAt / 1000),
         client_id_issued_at: Math.floor(issuedAt / 1000),
         grant_types: ['authorization_code', 'refresh_token'],
         redirect_uris: redirectUris,
@@ -543,7 +547,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const redirectUri = params.get('redirect_uri') ?? '';
     const challenge = params.get('code_challenge') ?? '';
     this.cleanup();
-    const client = this.clients.get(clientId);
+    const client = this.store.client(clientId, this.now());
     const scope = params.get('scope') ?? 'wbs:read';
     const scopes = scope.split(' ').filter(Boolean);
     const state = params.get('state');
@@ -556,14 +560,38 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       params.get('code_challenge_method') !== 'S256' ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(challenge) ||
       scopes.length === 0 ||
-      scopes.some((value) => !SCOPES.has(value)) ||
-      !client?.redirectUris.includes(redirectUri)
+      scopes.some((value) => !SCOPES.has(value))
     ) {
-      return oauthError('invalid_request');
+      return protocolError('invalid_request');
     }
+    // Proof: 2026-10-21, answering `invalid_request` here made `answers invalid_client with a
+    // re-register hint for an unknown client_id` and `answers invalid_client once an unproven
+    // client expires across a restart` fail (oauth.test.ts); answering `invalid_client` for the
+    // malformed-request branch above made `keeps the request error for a malformed
+    // authorization of a registered client` fail.
+    // RFC 6749 §4.1.2.1 forbids redirecting for an unknown client, so this answers the browser
+    // directly. `invalid_client` is the token-endpoint code (RFC 6749 §5.2), reused here because
+    // no redirect is allowed; whether a client re-registers on seeing it is unobserved.
+    if (client === null) {
+      return protocolError(
+        'invalid_client',
+        undefined,
+        400,
+        'client_id is not registered or has expired; register the client again and restart authorization',
+      );
+    }
+    // Proof: 2026-10-21, answering `invalid_client` here failed `registers a public client and
+    // refuses an unregistered redirect URI` and `authorizes only a URI registered to that client,
+    // even when it is allowlisted` (oauth.test.ts): a known client's bad redirect stays a request error.
+    // A stored client outlives restarts, so its redirect is re-checked against today's allowlist:
+    // a callback removed from HOSTED_REDIRECTS stops authorizing at the next deploy.
+    // Proof: 2026-10-21, dropping `isListedRedirect` here made `refuses a stored redirect that is
+    // no longer on the allowlist` (oauth.test.ts) answer 302 instead of 400 invalid_request.
+    if (!client.redirectUris.includes(redirectUri) || !isListedRedirect(redirectUri))
+      return protocolError('invalid_request');
 
     if (!client.proven && this.now() + GRANT_TTL_MS * 2 > client.unprovenExpiresAt) {
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
     }
 
     const browserBinding = this.random();
@@ -578,12 +606,16 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       state: state ?? undefined,
     });
     if (saved === 'capacity') {
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
     }
     const activeFlowExpiry = Math.max(client.expiresAt, this.now() + GRANT_TTL_MS * 2);
-    client.expiresAt = client.proven
-      ? activeFlowExpiry
-      : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
+    // Proof: 2026-10-21, skipping this write failed `keeps an unproven client alive through its
+    // active authorization flow` and `keeps the absolute unproven lifetime an authorization
+    // extension stored before the restart` (oauth.test.ts) with 400 instead of 200/302.
+    this.store.extendClient(
+      clientId,
+      client.proven ? activeFlowExpiry : Math.min(activeFlowExpiry, client.unprovenExpiresAt),
+    );
     const reauthMarker = this.takeReauthMarker(cookieOf(request, REAUTH_COOKIE));
     let location: URL;
     try {
@@ -611,11 +643,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async callback(request: Request, url: URL): Promise<Response> {
     const binding = cookieOf(request, COOKIE);
     const state = url.searchParams.get('state');
-    if (binding === undefined) return oauthError('invalid_request', clearCookie());
+    if (binding === undefined) return protocolError('invalid_request', clearCookie());
     const pending = this.pendingAuthorizations.consume(binding, state ?? '');
-    if (pending.outcome === 'state_mismatch') return oauthError('invalid_request');
+    if (pending.outcome === 'state_mismatch') return protocolError('invalid_request');
     if (pending.outcome === 'missing' || pending.outcome === 'expired') {
-      return oauthError('invalid_request', clearCookie());
+      return protocolError('invalid_request', clearCookie());
     }
 
     const providerError = url.searchParams.get('error');
@@ -693,7 +725,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.cleanup();
     if (this.selections.size >= this.grantLimit) {
       await this.revokeRefreshToken(tokens.refreshToken);
-      return oauthError('temporarily_unavailable', clearCookie(), 429);
+      return protocolError('temporarily_unavailable', clearCookie(), 429);
     }
     const selectionId = this.random();
     this.selections.set(selectionId, {
@@ -730,7 +762,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       presented === undefined ||
       !equalSecrets(presented, selectionId)
     )
-      return oauthError('invalid_request', clearSelectCookie());
+      return protocolError('invalid_request', clearSelectCookie());
     this.selections.delete(selectionId);
     const chosen = selection.memberships.find(
       (membership) => membership.organizationId === organizationId,
@@ -766,7 +798,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.cleanup();
     if (this.grants.size >= this.grantLimit) {
       await this.revokeRefreshToken(fields.upstreamRefreshToken);
-      return oauthError('temporarily_unavailable', clearing, 429);
+      return protocolError('temporarily_unavailable', clearing, 429);
     }
     const code = this.random();
     this.grants.set(code, {
@@ -849,12 +881,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const code = stringField(form, 'code');
     this.cleanup();
     const grant = code === undefined ? undefined : this.grants.get(code);
-    const client = grant === undefined ? undefined : this.clients.get(grant.clientId);
+    const client = grant === undefined ? null : this.store.client(grant.clientId, this.now());
     const verifier = stringField(form, 'code_verifier');
     if (
       code === undefined ||
       grant === undefined ||
-      client === undefined ||
+      client === null ||
       grant.expiresAt <= this.now() ||
       form.get('grant_type') !== 'authorization_code' ||
       stringField(form, 'client_id') !== grant.clientId ||
@@ -866,22 +898,26 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       challengeOf(verifier) !== grant.codeChallenge
     ) {
       if (code !== undefined) this.grants.delete(code);
-      return oauthError('invalid_grant');
+      return protocolError('invalid_grant');
     }
 
     const now = this.now();
     if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
 
     let reservedPromotion = false;
     if (!client.proven) {
-      const provenSourceClients = [...this.clients.values()].filter(
-        (candidate) =>
-          candidate.source === client.source && (candidate.proven || candidate.promotionReserved),
-      );
-      if (client.promotionReserved || provenSourceClients.length >= this.provenClientSourceLimit)
-        return oauthError('temporarily_unavailable', undefined, 429);
-      client.promotionReserved = true;
+      const provenFromSource = this.store
+        .clientsFromSource(client.source, now)
+        .filter((candidate) => this.countsAsProven(candidate));
+      if (
+        this.promotionReservations.has(client.clientId) ||
+        provenFromSource.length >= this.provenClientSourceLimit
+      )
+        return protocolError('temporarily_unavailable', undefined, 429);
+      // Proof: 2026-10-21, not adding the reservation failed `reserves proven-source capacity
+      // across concurrent token signing` (oauth.test.ts): both exchanges promoted.
+      this.promotionReservations.add(client.clientId);
       reservedPromotion = true;
     }
 
@@ -922,14 +958,15 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         familyId,
         expiresAt,
       );
-      client.proven = true;
-      client.promotionReserved = false;
-      client.expiresAt = now + this.activeClientTtlMs;
+      // Proof: 2026-10-21, skipping this write failed `promotes a client only after a successful
+      // token exchange` and `keeps a promoted client proven and counted across the restart`.
+      this.store.promoteClient(client.clientId, now + this.activeClientTtlMs);
+      this.promotionReservations.delete(client.clientId);
       return tokenResponse(token, refreshToken, grant.scope, expiresAt - now);
     } catch (error) {
       this.store.revokeFamily(familyId, now);
       this.grants.set(code, grant);
-      if (reservedPromotion) client.promotionReserved = false;
+      if (reservedPromotion) this.promotionReservations.delete(client.clientId);
       throw error;
     }
   }
@@ -937,12 +974,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async refreshGrant(form: FormData): Promise<Response> {
     const refreshToken = stringField(form, 'refresh_token');
     const clientId = stringField(form, 'client_id');
-    if (refreshToken === undefined || clientId === undefined) return oauthError('invalid_grant');
+    if (refreshToken === undefined || clientId === undefined) return protocolError('invalid_grant');
     const requestedScope = form.get('scope');
     // Proof: on 2026-09-27, reading scope through stringField failed `refuses a refresh whose scope
     // is not text`: a multipart file scope was treated as omitted, not 400 (oauth.test.ts).
     if (requestedScope !== null && typeof requestedScope !== 'string')
-      return oauthError('invalid_request');
+      return protocolError('invalid_request');
     const now = this.now();
     const expiresAt = now + this.accessTtlMs;
     let prepared: ReturnType<McpSessionStore['prepareRefresh']>;
@@ -953,24 +990,24 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       // any other store failure propagates rather than posing as a refused credential.
       // Proof: on 2026-09-27, a catch-all here failed `surfaces a store failure during refresh
       // instead of refusing the grant`: a closed store answered 400 invalid_grant (oauth.test.ts).
-      if (cause instanceof McpRefreshFamilyCorrupt) return oauthError('invalid_grant');
+      if (cause instanceof McpRefreshFamilyCorrupt) return protocolError('invalid_grant');
       throw cause;
     }
     // The token is judged before capacity, so a replay revokes its family even when full.
     // Proof: on 2026-09-27, checking capacity first failed `ends the family on replay even when
     // sessions are at capacity` with 429 (oauth.test.ts).
-    if (prepared.outcome !== 'ok') return oauthError('invalid_grant');
+    if (prepared.outcome !== 'ok') return protocolError('invalid_grant');
     const scope = narrowScope(
       prepared.family.scope,
       requestedScope === null || requestedScope === '' ? undefined : requestedScope,
     );
     // Proof: on 2026-09-27, ignoring the requested scope failed `refuses a refresh that asks for
     // more than the family holds` (200, not 400) and the subset-narrowing test (oauth.test.ts).
-    if (scope === undefined) return oauthError('invalid_scope');
+    if (scope === undefined) return protocolError('invalid_scope');
     if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
     const boundedExpiresAt = Math.min(expiresAt, prepared.family.absoluteExpiresAt);
-    if (boundedExpiresAt <= now) return oauthError('invalid_grant');
+    if (boundedExpiresAt <= now) return protocolError('invalid_grant');
     const successor = this.random();
     const jti = this.random();
     try {
@@ -991,13 +1028,13 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         now + REFRESH_IDLE_MS,
         now,
       );
-      if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
+      if (consumed.outcome !== 'ok') return protocolError('invalid_grant');
       return tokenResponse(token, successor, scope, boundedExpiresAt - now);
     } catch (cause) {
       if (cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt)
-        return oauthError('invalid_grant');
+        return protocolError('invalid_grant');
       if (cause instanceof UpstreamRefreshUnavailable)
-        return oauthError('temporarily_unavailable', undefined, 503);
+        return protocolError('temporarily_unavailable', undefined, 503);
       // Proof: mapping unexpected reader defects to outages failed `trusted reader defect`
       // on the token-endpoint path, 2026-10-13; unexpected trusted state must propagate.
       throw cause;
@@ -1316,12 +1353,17 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     ];
   }
 
+  /** Proven, or reserved to become proven by an exchange in flight in this process. */
+  private countsAsProven(client: RegisteredClient): boolean {
+    return client.proven || this.promotionReservations.has(client.clientId);
+  }
+
   private cleanup(): void {
     const now = this.now();
     this.pendingAuthorizations.cleanupExpired();
-    for (const [clientId, client] of this.clients) {
-      if (client.expiresAt <= now) this.clients.delete(clientId);
-    }
+    // Proof: 2026-10-21, dropping this sweep failed `deletes an expired client from the store
+    // when the next request sweeps` (oauth.test.ts): the expired row stayed stored.
+    this.store.deleteExpiredClients(now);
     for (const [code, grant] of this.grants) {
       if (grant.expiresAt <= now) this.grants.delete(code);
     }
@@ -1339,14 +1381,14 @@ export function mcpOAuthFromEnv(
   env: Readonly<Record<string, string | undefined>>,
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
   fetchImpl?: FetchLike,
-): InMemoryMcpOAuth {
+): McpOAuthServer {
   const secret = config.INTERNAL_AUTH_SECRET;
   let client: BrowserOidcClient | undefined;
   const get = () => (client ??= browserOidcClientFromEnv(env, { allowMissingAccessExpiry: true }));
   let upstreamVerifier: TokenVerifier | undefined;
   const verifyUpstream = (token: string) =>
     (upstreamVerifier ??= oidcTokenVerifierFromEnv(env)).verify(token);
-  return new InMemoryMcpOAuth(
+  return new McpOAuthServer(
     config,
     {
       authorizationUrl: (input) => get().authorizationUrl(input),
@@ -1712,9 +1754,14 @@ function redirect(location: string, setCookie: string | readonly string[]): Resp
   return new Response(null, { headers, status: 302 });
 }
 
-function oauthError(error: string, setCookie?: string, status = 400): Response {
+function protocolError(
+  error: string,
+  setCookie?: string,
+  status = 400,
+  description?: string,
+): Response {
   return Response.json(
-    { error },
+    description === undefined ? { error } : { error, error_description: description },
     { headers: setCookie === undefined ? undefined : { 'set-cookie': setCookie }, status },
   );
 }
