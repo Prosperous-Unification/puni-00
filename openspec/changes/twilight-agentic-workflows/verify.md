@@ -721,3 +721,38 @@ After integrating current main at `69cbf4f7f`, root repeated the supplementary s
 all 194 tracked SQL paths passed migration lint and all 11,590 tracked paths passed the
 plaintext-secrets scan, both exit 0 without diagnostics. These scans precede the fix above;
 its changed files are covered by staged hooks, while full CI/host acceptance remains pending.
+
+### 2026-10-22 — final review closed; first aggregate gate found an ADR collision
+
+Scoped final re-review of `69cbf4f7f..a4de3b5b3` closed both Important findings above
+and found no new breakage. It inspected the twelve capacity/open fault diffs and the
+strongest seven request-snapshot faults with their RED/restored GREEN logs. No additional
+broad test run was represented as reviewer evidence.
+
+The clean isolated h2 gate printed
+`h2puni gate: running on a4de3b5b313a6c3b3df6edce325f9284b78f22bc` under the
+canonical heavy lock. Frozen install, all 267 OpenSpec validations and format passed.
+During its first Nx batch, `tool-devsync:test` reported 894 pass, one fail and 3,165
+assertions in 733.67s: `ADR numbers are unique and contiguous from 0001` observed two
+ADRs numbered 0056. The full run is therefore not acceptance evidence. At this record's
+commit, the first batch is still draining; later Twilight and solver-smoke stages have
+not run. Full log: `/tmp/puni-agentic-gate-a4de3b5b3.log`. The external Tool Wiki
+activation marker was inactive/not-certified; no certification is claimed.
+
+The planning merge introduced this change's proposed activities ADR0056 while main
+already held UI-kit ADR0056. `git ls-tree` at main `d504c9eae` and a fresh GitHub main
+ADR listing confirmed that main owns the UI-kit number and has no ADR0057. Root renamed
+only this change's ADR to0057 and updated its own proposal/design references. ADR bytes,
+runtime code and tests are unchanged; the existing numbering guard remains intact.
+
+- Before correction, `bun test --preload ./tools/test/scratch/preload.ts ./tools/tool-devsync/src/adr-index.test.ts`: zero pass, one fail with duplicate56 versus expected57.
+- After correction and staging the rename, `bun test --preload ./tools/test/scratch/preload.ts ./tools/tool-devsync/src/adr-index.test.ts ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`: 16 pass, zero fail, 21 assertions, 15.21s.
+- The first broader local attempt before staging was not green: ten pass/six fail. Five failures read the old path from Git's index; the production index-checker case could not write temporary Git objects under the sandbox. Staging the intended rename and running with the required Git write permission produced the passing result above. No check was weakened.
+- Prettier for the renamed ADR and two updated documents, and `git diff --check`: exit0.
+- `openspec validate twilight-agentic-workflows --json`: one valid change, zero failures, the same seven long-requirement warnings.
+
+Local logs: `/tmp/puni-agentic-adr-green.log` (failed unstaged/sandbox run),
+`/tmp/puni-agentic-adr-staged-green.log` and `/tmp/puni-agentic-adr-openspec.json`.
+The corrected committed SHA still requires a complete new host gate; parent6a.1–6a.2
+and Task5's final acceptance checkbox remain unchecked. No live bridge, coordinator,
+second durable provider or deployment acceptance follows from these checks.
