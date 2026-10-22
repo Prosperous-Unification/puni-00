@@ -55,17 +55,17 @@ them. The audit vocabulary is widened by one compatible rebuild
 
 ## 2. Dash: provider port, SSH-host adapter, reporter; h2puni and h4claw into dev
 
-- [ ] 2.1 Red: `compute/provider.test.ts` for the `ComputeProvider` union, binding
+- [x] 2.1 Red: `compute/provider.test.ts` for the `ComputeProvider` union, binding
       validation (`unsupported_measure`, `provider_kind_not_available`,
       `provider_not_implemented`), config load (`config_absent`, `config_malformed`,
       `credential_not_owner_only`) with the injected clock; no `Date.now` (extend
       `no-ambient-clock.test.ts`). Green: the port and the loader.
-- [ ] 2.2 `ssh_host` adapter over the pinned transport of `discovery-ssh-transport`:
+- [x] 2.2 `ssh_host` adapter over the pinned transport of `discovery-ssh-transport`:
       `memory_gib`, `disk_gib`, `cpu_cores`, `agent_slots`; `run` smoke. Red: the local sshd
       fixture cases of the spec (measured, port closed, missing `MemTotal`, `df` unparseable
       throws). R5 fault line: catch the parse error and answer `unreachable` and the nonsense
       case passes vacuously; watched, restored, `Proof:`.
-- [ ] 2.3 `report-capacity` loop: cadence, after-run ticks, the outcome table of P10, never
+- [x] 2.3 `report-capacity` loop: cadence, after-run ticks, the outcome table of P10, never
       prints the credential. Red: a fake WBS asserting one `PUT` per binding per tick with
       `cadenceSeconds`, the three-superseded exit, the `401` exit, the single `5xx` retry.
       R5 fault line: turn the `401` exit into a logged continue and the revoked-credential

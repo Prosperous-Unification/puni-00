@@ -213,3 +213,84 @@ and the byte-for-byte test fails on a one-token trigger drift and on a dropped i
   a `compute_provider_*` row written by the incoming release makes the outgoing release's audit
   list read fail until the swap completes. Writes are unaffected in both directions. Belongs with
   issue #632.
+
+### Slice 2: Dash provider port, `ssh_host` adapter, `report-capacity` (2026-10-22)
+
+Branch `feat/compute-providers-2` from `chore/compute-providers-merge-main` at `8c8e96363`.
+Implemented tasks 2.1 to 2.3; task 2.4 (operator steps, first stored reports from dev) is open.
+
+What landed:
+
+- `apps/twilight-structure/twilight-dash/cli/src/compute/`: `provider.ts` (the P8 port, plus
+  `onRunChange` for the after-run tick), `configuration.ts` (`loadReporterConfiguration`, the
+  refusals, `WbsCredential`), `ssh-host.ts` (the adapter), `report-capacity.ts` (the loop and
+  the command), wired into `runDash` as `report-capacity`.
+- `tools/tool-fleet/src/ssh-transport.ts` gains `renderRemoteCommandArguments` (`-F none`, the
+  strict options, the jump's `ProxyCommand`, `ConnectTimeout`, `--`); Dash reaches it and
+  `readSshTransport` only through `@tools/fleet-ssh-transport` (`ssh-transport-facade.ts`),
+  allowed for `compute/**` alone in `eslint.product.mjs`.
+- Dash CLI README section `report-capacity` (configuration shape and outcomes);
+  `docs/infra/gate-hosts.md` points at it and at task 2.4.
+
+Assumed in this slice (each overrulable):
+
+- The configuration names the credential inline (`credential`, a `wbs_mk_` key only; no OIDC
+  token source) and reuses fleet discovery's transport file per instance (`sshTransportFile`).
+- In-gate SSH cases run against a fixture `ssh` client (`compute/testing/ssh-fixture.ts`), not an
+  sshd: no sshd ships on the laptop or in CI, and the transport has no non-default port. The
+  real client against a real sshd is the rehearsal below.
+- `cpu_cores` usage is the one-minute load floored and capped at the core count; `agent_slots`
+  dials `true` so an unreachable host reports `unreachable`, and its usage counts the runs this
+  process started (0 for the reporter today).
+- `name_unresolved` and `no_route` join the four P8 transport faults as `unreachable`.
+- `docker` and `kubernetes` are refused `provider_not_implemented` until slices 3 and 4.
+- Any `4xx` or redirect ends the loop (P10 names `401`, `403`, `404`, `409 provider_mismatch`;
+  `400 invalid_body` and `observedAt_in_future` are treated the same). `5xx` and a transport
+  fault to WBS retry once on the next tick, per binding, then exit `wbs_unavailable`.
+- `wbsOrigin` must be `https:` or loopback `http:`.
+
+R5 proofs, each fault injected into production source, the named test watched failing, the
+source restored:
+
+| Check                                       | Injected fault                                            | Observed failing test                                                                                                              |
+| ------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| unparseable answer throws (2.2)             | parse error caught and answered `unreachable`             | `throws for /proc/meminfo without MemTotal` and `throws for an unparseable df answer` (promise resolved)                           |
+| `401` and every other refusal exit (2.3)    | refusal turned into a logged `break`                      | `exits on 401 and sends nothing further` (`test budget: the loop kept going`), the five `exits at once` cases, the entrypoint case |
+| credential never echoed                     | `parseSecretsOrThrow` replaced by `parseOrThrow`          | `never echoes a malformed credential or a well-formed one` (summary quoted the key)                                                |
+| owner-only configuration                    | mode and owner check skipped                              | `refuses a group- or world-readable configuration credential_not_owner_only`                                                       |
+| absent distinct from unreadable             | `ENOENT` branch never taken                               | `refuses an absent configuration config_absent` (received `config_unreadable`)                                                     |
+| plain HTTP only on loopback                 | protocol check off                                        | `refuses a plain-HTTP origin that is not loopback`                                                                                 |
+| `puni_pool` refused by name                 | the pool branch never taken                               | `refuses a pool instance provider_kind_not_available before any adapter opens`                                                     |
+| measures checked before opening             | `unsupported` check off                                   | `refuses a measure the adapter lacks unsupported_measure before opening it`                                                        |
+| no `Date.now` in `src/compute`              | `Date.now()` appended to `compute/report-capacity.ts`     | `only clock.ts reads the wall clock` (`+ "compute/report-capacity.ts"`)                                                            |
+| remote-command host cannot be an ssh option | refusal removed in `renderRemoteCommandArguments`         | `refuses a command host that ssh could read as an option`                                                                          |
+| compute reaches only the transport facade   | override widened to `^@tools/fleet`; override scoped away | `Dash compute reaches only the SSH transport facade` at the exact allow-list assertion, both times                                 |
+
+Rehearsal against a real sshd (2026-10-22, scratch scripts outside the repository): two
+disposable `alpine:3` containers, one running OpenSSH (`172.17.0.3`, user `puni1`, the key only
+in a throwaway `ssh-agent`), one with nothing on port 22 (`172.17.0.4`); `/usr/bin/ssh`, the
+production `sshHostAdapter` and `readSshTransport` with an owner-only `known_hosts`. Both
+containers and the agent were removed afterwards.
+
+| Case                                           | Result                                                                                                                                                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memory_gib`                                   | `measured`, `capacityUnits: 30`, `usageUnits: 29`, evidence `MemTotal: 32449024 kB; MemAvailable: 1608956 kB`                                                                |
+| `disk_gib /tmp`, `cpu_cores`, `agent_slots: 4` | `measured` 459/352, 24/24 (load 33.29 capped), 4/0                                                                                                                           |
+| `disk_gib /absent`                             | threw `df -kP -- '/absent' on 172.17.0.3 exited 1: df: /absent: can't find mount point`                                                                                      |
+| `run uname -n`                                 | `{"exitCode":0,"stdout":"5269ec277ab9\n"}` (the container's host name)                                                                                                       |
+| closed port                                    | `unreachable`, `ssh connection_refused: ssh: connect to host 172.17.0.4 port 22: Connection refused`                                                                         |
+| `known_hosts` pinning another key              | `unreachable`, `ssh host_key_mismatch: No ED25519 host key is known for 172.17.0.3 and you have requested strict checking.`                                                  |
+| the whole command, fake WBS on loopback        | four `PUT`s with the configured bearer; the fourth answered `401`; exit 1, `error: refused: instance h4claw resource slots: HTTP 401 unknown_identity`; the key in no output |
+
+The first real run showed ssh ending its diagnostics with `\r\n`; the adapter now trims the
+line, and the fixture's refusals carry `\r\n`.
+
+Not run or not verified:
+
+- Task 2.4: no instance is registered on dev and no report is stored there; the first stored
+  reports for h2puni and h4claw are owed with it.
+- A `MemTotal`-less or nonsense `df` from a real host: fixture only.
+- The `timeout` and `authentication_failed` causes: classified from ssh's diagnostics, not
+  observed against a real host here.
+- SIGTERM: the reporter holds no state to flush and ends with the process; no handler is
+  installed.

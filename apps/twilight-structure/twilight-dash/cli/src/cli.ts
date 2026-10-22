@@ -11,6 +11,8 @@ import {
 import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import type { Monotonic, WallClock } from './clock';
+import { reportCapacityCommand, sleepUnlessInterrupted } from './compute/report-capacity';
+import { sshHostAdapter } from './compute/ssh-host';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
 
 const enrollmentFlags = [
@@ -50,7 +52,9 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
  * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store;
  * `render-observation-units` through the observation unit renderer; and `run-activation-checks`
  * through the stateless check runner, which spawns each check with {@link spawnCheck}.
- * `record-progress` and `record-progress-v2` record explicit operator assertions. Every other command refuses before any effect.
+ * `record-progress` and `record-progress-v2` record explicit operator assertions.
+ * `report-capacity` runs the compute providers' capacity reporter until it exits. Every other
+ * command refuses before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -110,6 +114,22 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
       execute: spawnCheck,
       write: (text) => deps.stdout.write(text),
     });
+    return;
+  }
+  // The reporter loads its whole configuration before any connection or request.
+  if (command === 'report-capacity') {
+    const sshExecutable = Bun.which('ssh', { PATH: process.env['PATH'] ?? '' });
+    if (sshExecutable === null) throw new Error('report-capacity needs ssh on PATH');
+    await reportCapacityCommand(
+      argumentsAfterCommand,
+      { ssh_host: sshHostAdapter({ sshExecutable, environment: process.env }) },
+      {
+        clock: deps.clock,
+        send: (request) => fetch(request),
+        sleep: sleepUnlessInterrupted,
+        write: (text) => deps.stdout.write(text),
+      },
+    );
     return;
   }
   if (command === 'render-observation-units') {

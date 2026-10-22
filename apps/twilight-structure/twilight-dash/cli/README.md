@@ -1,7 +1,7 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes eleven local commands:
+and exposes twelve local commands:
 
 | Command                                                                                                                          | What it does                                                                                                                                                                                     |
 | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -14,6 +14,7 @@ and exposes eleven local commands:
 | `bootstrap-observation`, `migrate-observation`                                                                                   | create or migrate the observation store; see [observation store](#observation-store)                                                                                                             |
 | `plan-enrollment`                                                                                                                | delegates enrollment planning to the existing fleet CLI; see [`plan-enrollment`](#plan-enrollment)                                                                                               |
 | `record-progress`, `record-progress-v2`                                                                                          | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
+| `report-capacity --config <owner-only file>`                                                                                     | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
 
 ## Activation controller
 
@@ -156,3 +157,65 @@ Navigator `admit-progress` requires this version and an independently supplied
 `--accepted-reference`; its proposed batch is admitted only relative to that caller selection.
 Digests do not authenticate records or establish current WBS freshness. `record-progress`
 continues producing schema 1 for the existing conversion workflow.
+
+## `report-capacity`
+
+Measures the resources a tenant's hosts fulfil and reports each to WBS as a capacity report
+(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)):
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts report-capacity --config /path/to/reporter.json
+```
+
+The configuration is the binding; WBS holds only the provider instance id on the resource. It
+must be a regular file owned by the running user with mode `0600`, because it holds the
+credential:
+
+```json
+{
+  "schemaVersion": 1,
+  "wbsOrigin": "https://wbs.example",
+  "credential": "<wbs_mk_ API key of an agent person>",
+  "cadenceSeconds": 300,
+  "instances": [
+    {
+      "instanceId": "<WBS compute provider id>",
+      "kind": "ssh_host",
+      "host": "h4claw",
+      "sshTransportFile": "/home/puni1/.puni/fleet/ops/ssh-transport.json",
+      "bindings": [
+        { "resourceId": "<WBS resource id>", "measure": "memory_gib" },
+        { "resourceId": "<WBS resource id>", "measure": "disk_gib", "path": "/tmp" },
+        { "resourceId": "<WBS resource id>", "measure": "cpu_cores" },
+        { "resourceId": "<WBS resource id>", "measure": "agent_slots", "slots": 4 }
+      ]
+    }
+  ]
+}
+```
+
+- `wbsOrigin` is an origin only: `https:`, or `http:` on loopback. `cadenceSeconds` defaults to
+  300 (30 to 86,400). A resource is bound once in the whole file.
+- `ssh_host` reaches `host` through the `sshTransportFile` that fleet discovery uses
+  ([`readSshTransport`](../../../../tools/tool-fleet/src/ssh-transport.ts)): the remote user, an
+  owner-only `known_hosts` pinning `host`, and the agent in `SSH_AUTH_SOCK`. `ssh` must be on
+  `PATH`. Measures: `memory_gib` (`/proc/meminfo` `MemTotal`, in use = total minus
+  `MemAvailable`), `disk_gib` (`df -kP <path>` 1024-blocks and used), `cpu_cores` (`nproc`, in
+  use = one-minute load, floored and capped), `agent_slots` (`slots`, in use = runs this process
+  started; it reports 0 until a caller runs agents through the port). All are floored to whole
+  units.
+- Loading refuses before any connection: `config_absent`, `config_unreadable`,
+  `credential_not_owner_only`, `config_malformed` (naming field paths, never values),
+  `provider_kind_not_available` (`puni_pool`), `provider_not_implemented` (`docker` and
+  `kubernetes` in this slice), `unsupported_measure`, and the SSH transport's own refusals.
+
+Each tick observes every binding and `PUT`s one report per binding with `cadenceSeconds`; a tick
+runs every cadence and right after a run starts or ends. Each report prints one JSON line on
+stdout (instance, resource, `observedAt`, outcome, evidence or reason, WBS's answer). An
+unreachable host (connection refused, timeout, host-key mismatch, authentication failure, name
+or route fault) is reported as `unreachable`; any other answer the adapter cannot parse ends the
+command with that error. The command exits 1 with one `error:` line on: three consecutive
+`report_superseded` on one binding (`another_reporter`), any `4xx` or redirect (`refused`, with
+the status and WBS's error code), or a `5xx` or transport fault to WBS that repeats on the retry
+one cadence later (`wbs_unavailable`). The credential appears only in the `Authorization`
+header; no output, refusal or error carries it.

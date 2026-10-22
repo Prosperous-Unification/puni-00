@@ -263,6 +263,35 @@ describe('the effective production and test boundaries', () => {
     }
   }, 30_000);
 
+  it('Dash compute reaches only the SSH transport facade', async () => {
+    const computePath = 'apps/twilight-structure/twilight-dash/cli/src/compute/ssh-host.ts';
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const computeOptions = boundaryOf(await lint.calculateConfigForFile(computePath))[1];
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peerPath))[1];
+    if (!isRecord(computeOptions) || !isRecord(peerOptions)) {
+      throw new Error('Dash compute boundary options are malformed');
+    }
+    // Proof: widening the compute override to `['^@tools/fleet']`, and scoping it to a directory
+    // that does not exist, each failed this test at the exact allow-list assertion (2026-10-22).
+    expect(computeOptions['allow']).toEqual(['^@tools/fleet-ssh-transport$']);
+    expect({ ...computeOptions, allow: [] }).toEqual(peerOptions);
+    expect(
+      await ruleIds(computePath, "import { readSshTransport } from '@tools/fleet-ssh-transport';"),
+    ).not.toContain('@nx/enforce-module-boundaries');
+    for (const specifier of [
+      '@tools/fleet-plan',
+      '@tools/deploy-contract',
+      '../../../../../../tools/tool-fleet/src/ssh-transport',
+    ]) {
+      expect(await ruleIds(computePath, `await import('${specifier}');`), specifier).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
+    expect(
+      await ruleIds(peerPath, "import { readSshTransport } from '@tools/fleet-ssh-transport';"),
+    ).toContain('@nx/enforce-module-boundaries');
+  }, 30_000);
+
   it('keeps Dash authority test helpers out of production modules', async () => {
     const helperImport = "import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';";
     // Proof: removing Dash's production `@typescript-eslint/no-restricted-imports` override let
