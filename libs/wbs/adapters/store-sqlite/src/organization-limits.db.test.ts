@@ -139,6 +139,14 @@ describe('effective limits', () => {
     expect(readEffectiveLimits(open(), 'org-b', DEFAULTS).source).toBe('default');
   });
 
+  it('refuses absent deployment defaults, naming them', () => {
+    // An untyped caller is the only way to reach this; the cast is that caller.
+    const absent = undefined as unknown as typeof DEFAULTS;
+    expect(() => new OrganizationLimitsRepository(open(), absent)).toThrow(
+      'organization limits of the deployment default are missing',
+    );
+  });
+
   it('refuses deployment defaults outside the bounds', () => {
     expect(
       () => new OrganizationLimitsRepository(open(), { ...DEFAULTS, maxConcurrentClaims: -1 }),
