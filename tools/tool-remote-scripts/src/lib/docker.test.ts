@@ -1130,6 +1130,9 @@ describe('deriveTierSecrets', () => {
         DB_PATH: '/data/wbs.db',
         AUTH_MODE: 'oidc',
         BROWSER_SESSION_AUTHORITY: 'disabled',
+        ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+        ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+        ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
         ...derived,
       }),
     ).not.toHaveProperty('summary');
@@ -1163,7 +1166,7 @@ describe('assertTierEnvAllowed', () => {
     expect(() => {
       assertTierEnvAllowed(
         'be',
-        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nBROWSER_SESSION_AUTHORITY=enabled\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n',
+        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nBROWSER_SESSION_AUTHORITY=enabled\nORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50\nORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200\nORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n',
       );
     }).not.toThrow();
   });
@@ -1289,6 +1292,9 @@ describe('assertTierEnvComplete against the release configuration', () => {
       DB_PATH: '/data/wbs.db',
       BROWSER_SESSION_AUTHORITY: 'disabled',
       AUTH_METHODS: 'google,email',
+      ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+      ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+      ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '0',
     },
     gw: { PORT: '3200', LOG_LEVEL: 'error', BE_URL: 'http://be-01.internal:3100' },
   } as const;
@@ -1413,6 +1419,11 @@ describe('assertTierEnvComplete against the release configuration', () => {
                 ['SOLVER_BUDGET_MS', ''],
                 ['SOLVER_SEARCH_WORKERS', '0'],
                 ['SOLVER_MEMORY_LIMIT_MB', 'lots'],
+                ['ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS', '1000001'],
+                ['ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS', '-1'],
+                ['ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS', '0100'],
+                ['ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE', '1.5'],
+                ['ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE', ''],
               ] as [string, string][])
             : // Only gw derives JWT_SIGNING_KEY_PREVIOUS (SECRET_KEYS).
               ([
@@ -1684,6 +1695,9 @@ it('boots local backend configuration from the rendered environment and keeps OI
       JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
       AUTH_MODE: mode,
       BROWSER_SESSION_AUTHORITY: 'disabled',
+      ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+      ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+      ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
       NODE_ENV: 'development',
       ...service.environment,
       AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',

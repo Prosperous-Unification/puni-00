@@ -14,6 +14,10 @@ configMapGenerator:
     literals:
       - AUTH_MODE=oidc
       - BROWSER_SESSION_AUTHORITY=disabled
+      # Required by be-01 with no default (wbs-organization-limits L7).
+      - ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50
+      - ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200
+      - ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000
       # Sign-in buttons stay off until organization activation (social-sign-in).
       - AUTH_METHODS=none
       - AUTH_REDIRECT_URI=https://wbs-staging.bulletpoints.club/api/auth/okta/callback

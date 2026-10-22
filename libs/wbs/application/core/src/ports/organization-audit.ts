@@ -24,6 +24,7 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'machine_credential_revoked',
   'trusted_issuer_registered',
   'trusted_issuer_removed',
+  'organization_limits_changed',
   'compute_provider_registered',
   'compute_provider_updated',
   'compute_provider_removed',
@@ -40,6 +41,7 @@ export type OrganizationAuditSubjectKind =
   | 'session_policy'
   | 'machine_credential'
   | 'trusted_issuer'
+  | 'organization_limits'
   | 'compute_provider';
 
 /**

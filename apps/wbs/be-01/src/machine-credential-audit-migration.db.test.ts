@@ -13,9 +13,12 @@ const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
 const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
-/** The two compute-provider migrations newer than the audience scope, newest first. */
+/** The two compute-provider migrations newer than the organization limits, newest first. */
 const COMPUTE_PROVIDERS =
   '20261022140100_widen_organization_audit_compute_providers, 20261022140000_add_resource_provider';
+/** The organization limits migrations, which reverse after the compute providers. */
+const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
+const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -122,7 +125,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${COMPUTE_PROVIDERS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
+      `rolled back: ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
     );
     expect(auditRows(dbPath)).toEqual([
       { action: 'restricted_project_recovery', subject_kind: 'project' },

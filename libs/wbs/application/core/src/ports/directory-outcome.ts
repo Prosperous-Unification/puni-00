@@ -1,3 +1,5 @@
+import type { LimitCrossed } from '@wbs/domain';
+
 /**
  * Why a directory write was refused. Every one is a state of the directory or
  * of the request, never a fault: the controller turns each into a 4xx.
@@ -39,4 +41,10 @@ export type DirectoryRefusal =
 export type DirectoryOutcome<T> =
   | { ok: true; value: T }
   | { ok: false; reason: DirectoryRefusal }
-  | { ok: false; reason: 'taken'; name: string };
+  | { ok: false; reason: 'taken'; name: string }
+  /**
+   * One more agent person than the organization's cap allows
+   * (`wbs-organization-limits` L9): the cap, what it held and what the write
+   * would have added, read inside the write's transaction.
+   */
+  | ({ ok: false; reason: 'agent_person_limit' } & LimitCrossed);

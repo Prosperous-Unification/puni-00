@@ -13,6 +13,11 @@
 -- still admitted, an unknown action or kind still refused, the append-only
 -- triggers created again on the new table.
 --
+-- It lands after `20261022130100_widen_organization_audit_organization_limits`
+-- and carries that rebuild's vocabulary whole (`wbs-organization-limits`
+-- design L13: the second lander carries the first's), so the limits CLI's
+-- `organization_limits_changed` / `organization_limits` rows stay admitted.
+--
 -- Proof, observed 2026-10-22: replacing the `CHECK (violations = 0)` guard
 -- below with `CHECK (1)` made `migration-lint.test.ts` `accepts the compute
 -- provider audit rebuild` report `contains destructive statement: DROP TABLE`.
@@ -40,6 +45,7 @@ CREATE TABLE `organization_audit_new` (
 		'machine_credential_revoked',
 		'trusted_issuer_registered',
 		'trusted_issuer_removed',
+		'organization_limits_changed',
 		'compute_provider_registered',
 		'compute_provider_updated',
 		'compute_provider_removed'
@@ -52,6 +58,7 @@ CREATE TABLE `organization_audit_new` (
 		'session_policy',
 		'machine_credential',
 		'trusted_issuer',
+		'organization_limits',
 		'compute_provider'
 	)),
 	`subject_id` text NOT NULL,

@@ -26,6 +26,7 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
   PINNED_CREDENTIAL,
@@ -36,6 +37,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
   sourceConformanceRegistrations,
@@ -72,6 +74,7 @@ import { asc, eq, sql } from 'drizzle-orm';
 
 import type { SqliteLateWriteEvidence } from '../late-write-seam';
 import { runMigrations } from '../migrate';
+import { OrganizationLimitGaugeRepository } from '../organization-limits';
 import { SavedPlanCaptureRepository } from '../saved-plan-capture';
 import {
   actual as actualTable,
@@ -760,6 +763,48 @@ async function seedSubtreeRecords(source: SqliteSource): Promise<void> {
     await source.stores.dependencies.add(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
 }
 
+/**
+ * The gauge the scopes a unit of work admits carry, over the seeded source's
+ * own connection: the public catalog carries none (L10).
+ */
+async function openSqliteLimitsCase(
+  caseId: CaseId,
+): Promise<CaseFixture<TransactionalStores['organizationLimits']>> {
+  const { source, directory } = await seedSqliteSource(openSqliteSource, (seeded) =>
+    seedOrganizationLimits(seeded.stores, {
+      organization: (id) => {
+        seeded.db.run(
+          sql`INSERT INTO organization (id, name, created_at) VALUES (${id}, ${id}, 1)`,
+        );
+      },
+      ownPerson: (personId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${personId}, ${organizationId}, ${personId})`,
+        );
+      },
+      ownProject: (projectId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${organizationId})`,
+        );
+      },
+      ownResource: (resourceId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${resourceId})`,
+        );
+      },
+      setCaps: (organizationId, caps) => {
+        seeded.db.run(
+          sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES (${organizationId}, ${caps.maxAgentPersons}, ${caps.maxConcurrentClaims}, ${caps.maxCapacityUnitsPerResource}, 1)`,
+        );
+      },
+    }),
+  );
+  return {
+    ...sqliteFixture(source, directory, 'organizationLimits', caseId),
+    port: new OrganizationLimitGaugeRepository(source.db, LIMITS_FIXTURE.defaults),
+  };
+}
+
 const openers: ExistingStoreOpeners = {
   livePlans: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
@@ -800,6 +845,7 @@ const openers: ExistingStoreOpeners = {
     }
     return sqliteFixture(source, directory, 'projectRanks', caseId);
   },
+  organizationLimits: openSqliteLimitsCase,
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   resourceCapacity: (caseId) => openSqliteCase('resourceCapacity', caseId),
@@ -842,6 +888,11 @@ const declaration: SourceDeclaration = {
           throw new Error('unexpected live plan case');
         return openers.livePlans(caseId);
       },
+    },
+    organizationLimits: {
+      kind: 'offered',
+      gaps: [],
+      open: openSqliteLimitsCase,
     },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     projectRanks: {

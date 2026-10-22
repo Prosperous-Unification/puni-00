@@ -5,10 +5,11 @@
 -- its CHECK while any row of a compute-provider action or subject kind
 -- exists, and the runner reverts this script and its ledger row in one
 -- transaction. Otherwise the table is rebuilt with the vocabulary
--- `20261022110000_widen_organization_audit_machine_credentials` gave it,
--- keeping every row and the append-only triggers. The narrow table is built
--- as `organization_audit_new` and renamed, as the forward script built it, so
--- the restored schema is byte-identical to the one before.
+-- `20261022130100_widen_organization_audit_organization_limits` gave it,
+-- keeping every row (organization limits rows included) and the append-only
+-- triggers. The narrow table is built as `organization_audit_new` and
+-- renamed, as that migration built it, so the restored schema is
+-- byte-identical to the one it left.
 --
 -- Proof, observed 2026-10-22 in `resource-provider-migration.db.test.ts`:
 -- the compute-provider filter replaced by `WHERE 0` made `refuses rollback
@@ -55,7 +56,8 @@ CREATE TABLE `organization_audit_new` (
 		'machine_credential_rotated',
 		'machine_credential_revoked',
 		'trusted_issuer_registered',
-		'trusted_issuer_removed'
+		'trusted_issuer_removed',
+		'organization_limits_changed'
 	)),
 	`subject_kind` text NOT NULL CHECK (`subject_kind` IN (
 		'project',
@@ -64,7 +66,8 @@ CREATE TABLE `organization_audit_new` (
 		'scim_user',
 		'session_policy',
 		'machine_credential',
-		'trusted_issuer'
+		'trusted_issuer',
+		'organization_limits'
 	)),
 	`subject_id` text NOT NULL,
 	`detail` text NOT NULL,

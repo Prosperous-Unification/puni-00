@@ -44,6 +44,7 @@ export * from './organization';
 export * from './organization-access';
 export * from './organization-activation';
 export * from './organization-audit-log';
+export * from './organization-limits';
 export * from './organization-ownership';
 export * from './organization-selection';
 export * from './organization-selection-preview';

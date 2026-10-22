@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
-const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
+const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
 const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_providers';
 const roots: string[] = [];
@@ -50,6 +50,35 @@ function count(dbPath: string, sql: string): number {
   } finally {
     sqlite.close();
   }
+}
+
+/**
+ * The stored `sqlite_master` text of `organization_audit`, its indexes and its
+ * triggers; the primary key's automatic index stores no text.
+ */
+function auditSchemaOf(dbPath: string): { type: string; name: string; sql: string | null }[] {
+  const sqlite = openDatabase(dbPath);
+  try {
+    return sqlite
+      .query<{ type: string; name: string; sql: string | null }, []>(
+        "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = 'organization_audit' ORDER BY type, name",
+      )
+      .all();
+  } finally {
+    sqlite.close();
+  }
+}
+
+/** A store migrated only through `LIMITS_AUDIT`: the schema the compute-provider migrations find. */
+function limitsOnlyStore(): string {
+  const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-baseline-'));
+  roots.push(root);
+  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING])
+    rmSync(join(root, 'drizzle', name), { recursive: true });
+  const dbPath = join(root, 'plan.db');
+  runMigrations(dbPath, join(root, 'drizzle'));
+  return dbPath;
 }
 
 function columnsOf(dbPath: string, table: string): string[] {
@@ -144,10 +173,10 @@ describe(RESOURCE_PROVIDER, () => {
 
   it('rolls back an empty change and comes forward again', async () => {
     const { root, dbPath } = migratedStore();
-    const down = await rollBack(root, dbPath, AUDIENCE_SCOPE);
+    const down = await rollBack(root, dbPath, LIMITS_AUDIT);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}`);
+    expect(down.stdout).toContain(`rolled back: ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`);
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);
     runMigrations(dbPath, join(root, 'drizzle'));
@@ -160,7 +189,7 @@ describe(RESOURCE_PROVIDER, () => {
   it('refuses rollback over one referencing resource, keeping it', async () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, [instance('h4claw', 'h4claw'), "UPDATE resource SET provider_id = 'h4claw'"]);
-    const down = await rollBack(root, dbPath, AUDIENCE_SCOPE);
+    const down = await rollBack(root, dbPath, LIMITS_AUDIT);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain(
       '2 compute provider instances, resource references or capacity reports exist',
@@ -175,6 +204,9 @@ describe(RESOURCE_PROVIDER, () => {
 
 /** The audit vocabulary widening for compute providers (`compute-providers` task 1.4). */
 describe(AUDIT_WIDENING, () => {
+  // Proof: `organization_limits_changed` dropped from the forward script's
+  // action CHECK made this fail with `CHECK constraint failed` on `a6`;
+  // watched 2026-10-22.
   it('admits the three new actions and the kind, and the outgoing release keeps writing', () => {
     const { dbPath } = migratedStore();
     run(dbPath, [
@@ -183,8 +215,10 @@ describe(AUDIT_WIDENING, () => {
       audit('a3', 'compute_provider_removed', 'compute_provider'),
       audit('a4', 'machine_credential_created', 'machine_credential'),
       audit('a5', 'restricted_project_recovery', 'project'),
+      // The outgoing release carries the organization limits CLI (`LIMITS_AUDIT`).
+      audit('a6', 'organization_limits_changed', 'organization_limits'),
     ]);
-    expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(5);
+    expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(6);
     expect(() => {
       run(dbPath, [audit('x1', 'compute_provider_dialled', 'compute_provider')]);
     }).toThrow(/CHECK/);
@@ -193,20 +227,47 @@ describe(AUDIT_WIDENING, () => {
     }).toThrow(/append-only/);
   });
 
-  it('rolls back over outgoing-release rows, keeping them and the machine credential vocabulary', async () => {
+  it('rolls back over outgoing-release rows, keeping them and the organization limits vocabulary', async () => {
     const { root, dbPath } = migratedStore();
-    run(dbPath, [audit('a4', 'machine_credential_created', 'machine_credential')]);
+    run(dbPath, [
+      audit('a4', 'machine_credential_created', 'machine_credential'),
+      audit('a6', 'organization_limits_changed', 'organization_limits'),
+    ]);
     const down = await rollBack(root, dbPath, RESOURCE_PROVIDER);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(1);
-    run(dbPath, [audit('a5', 'trusted_issuer_registered', 'trusted_issuer')]);
+    expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(2);
+    // The outgoing release keeps writing its limits changes after the rollback.
+    run(dbPath, [
+      audit('a5', 'trusted_issuer_registered', 'trusted_issuer'),
+      audit('a7', 'organization_limits_changed', 'organization_limits'),
+    ]);
     expect(() => {
       run(dbPath, [audit('a1', 'compute_provider_registered', 'compute_provider')]);
     }).toThrow(/CHECK/);
     expect(() => {
       run(dbPath, ['DELETE FROM organization_audit']);
     }).toThrow(/append-only/);
+  }, 60_000);
+
+  // Proof: `organization_limits_changed` dropped from the restored action
+  // CHECK in `down.sql` made this fail on the differing table text; watched
+  // 2026-10-22.
+  it('restores the table, index and triggers the organization limits rebuild left, byte for byte', async () => {
+    const baseline = auditSchemaOf(limitsOnlyStore());
+    expect(baseline.map(({ type, name }) => `${type} ${name}`)).toEqual([
+      'index organization_audit_organization_created',
+      'index sqlite_autoindex_organization_audit_1',
+      'table organization_audit',
+      'trigger organization_audit_no_delete',
+      'trigger organization_audit_no_update',
+    ]);
+    const { root, dbPath } = migratedStore();
+    expect(auditSchemaOf(dbPath)).not.toEqual(baseline);
+    const down = await rollBack(root, dbPath, LIMITS_AUDIT);
+    expect(down.stderr).toBe('');
+    expect(down.exitCode).toBe(0);
+    expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
 
   // Proof: the compute-provider filter in `down.sql` replaced by `WHERE 0`

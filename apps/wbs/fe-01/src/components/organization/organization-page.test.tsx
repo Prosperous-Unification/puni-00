@@ -46,6 +46,40 @@ function renderPage() {
 }
 
 describe('organization page', () => {
+  it('composes the limits panel for an admin', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/limits': [
+        () =>
+          answer(200, {
+            source: 'default',
+            limits: {
+              maxAgentPersons: 8,
+              maxConcurrentClaims: 200,
+              maxCapacityUnitsPerResource: 64,
+            },
+            usage: { agentPersons: 7, concurrentClaims: 12, capacityUnits: [] },
+          }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <OrganizationPage nav={<nav />} account={<span />} userId="u1" />
+      </OrganizationResourcesProvider>,
+    );
+    const panel = await screen.findByRole('region', { name: 'Organization limits' });
+    expect(await within(panel).findByText('7 of 8')).toBeDefined();
+  });
+
   it('composes company sign-in setup on the organization page', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
@@ -424,6 +458,37 @@ describe('machine credentials on the organization page', () => {
     const region = await screen.findByRole('region', { name: 'Machine credentials' });
     expect(await within(region).findByRole('region', { name: 'Trusted issuers' })).toBeDefined();
     await within(region).findByText('No trusted issuers yet.');
+  });
+
+  it("reads the caller's role once for every slot that draws by it", async () => {
+    const sent = stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
+      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/people': [() => answer(200, { people: [] })],
+      'GET /api/organization/limits': [
+        () =>
+          answer(200, {
+            source: 'default',
+            limits: {
+              maxAgentPersons: 8,
+              maxConcurrentClaims: 200,
+              maxCapacityUnitsPerResource: 64,
+            },
+            usage: { agentPersons: 7, concurrentClaims: 12, capacityUnits: [] },
+          }),
+      ],
+    });
+    renderActive();
+    expect(await screen.findByRole('region', { name: 'Machine credentials' })).toBeDefined();
+    const limits = await screen.findByRole('region', { name: 'Organization limits' });
+    await within(limits).findByText('7 of 8');
+    expect(sent.filter((request) => request.route === 'GET /api/organization/active')).toHaveLength(
+      1,
+    );
   });
 
   it('gives the page up when the active organization is another one', async () => {
