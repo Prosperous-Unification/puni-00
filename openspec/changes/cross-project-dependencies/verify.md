@@ -1503,3 +1503,29 @@ No migration/schema change: migration lint was not rerun for this correction.
 Full CI, host gate, production composition, borrowed lifetime integration,
 coordinator admission/Retry/restart and terminal event/release remain outside
 this correction and unverified here.
+
+### Task 10.1 bounded read-only observation transport — 2026-10-22
+
+The [runtime observation packet](evidence/runtime-readonly-20261022/README.md)
+adds an exact decoded runtime-capability parser, one shared frozen DB-free
+backend advertisement, an argument-free capability executable and a strictly
+read-only existing-database `inspect` executable. Semantics stay empty and
+production authoring stays dormant. Tasks 10.1 and 10.2 remain unchecked.
+
+The three focused parser/CLI suites passed 70/70 with 118 assertions; the
+existing startup suite passed 8/8 with 32 assertions after a scoped escalation
+for its health listener (sandbox EPERM initially). Targeted forced TypeScript
+builds, ESLint with a generated Nx graph, Prettier and all-change OpenSpec
+validation passed. Fifteen watched production faults cover six parser checks,
+DB/migration-free capability, immutable empty support, capability/inspection
+arguments, explicit DB_PATH, absent-file creation, real attempted SQL writes and
+strict authority delegation. The writable mutation actually created the
+forbidden table, and constant DISABLED admitted all ten corruption negatives.
+
+Unreadability was tested with chmod 000 under uid 1000; no root-permission proof
+is claimed. SQLite may create WAL coordination sidecars while reading; tests
+prove unchanged persistent main-database bytes and rejected schema mutation.
+The packet records red starts, corrected single-statement corruption fixtures,
+commands, output and limits. No host/full gate, build, browser, CI-only checks,
+deployment consumer, participant proof, activation or deploy ran. This bounded
+slice is not task 10 completion or release readiness.

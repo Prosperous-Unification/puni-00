@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+37 |   const connection = openReadOnlyConnection(path);
+38 |   let expected;
+39 |   try { expected = inspectDependencyActivation(connection.db); } finally { connection.close(); }
+40 |   const before = snapshot(path);
+41 |   const execution = inspect(path);
+42 |   expect(execution.exitCode).toBe(0);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:42:30)
+(fail) reads DISABLED authority without mutation [105.59ms]
+37 |   const connection = openReadOnlyConnection(path);
+38 |   let expected;
+39 |   try { expected = inspectDependencyActivation(connection.db); } finally { connection.close(); }
+40 |   const before = snapshot(path);
+41 |   const execution = inspect(path);
+42 |   expect(execution.exitCode).toBe(0);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:42:30)
+(fail) reads ENABLED empty authority without mutation [94.41ms]
+(pass) refuses arguments [] [77.07ms]
+(pass) refuses arguments ["activate"] [78.10ms]
+(pass) refuses arguments ["remove"] [80.64ms]
+(pass) refuses arguments ["inspect","extra"] [82.91ms]
+(pass) requires explicit nonempty DB_PATH undefined [6.59ms]
+(pass) requires explicit nonempty DB_PATH  [6.84ms]
+(pass) requires explicit nonempty DB_PATH   [10.03ms]
+(pass) refuses an absent database without creating it [10.42ms]
+(pass) refuses an unreadable database without mutation [75.44ms]
+(pass) refuses corrupt authority without mutation: DELETE FROM cross_project_dependency_activation [83.29ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation_receipt [77.85ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE __drizzle_migrations [90.86ms]
+(pass) refuses corrupt authority without mutation: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation' [78.69ms]
+(pass) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED' [85.52ms]
+(pass) refuses corrupt authority without mutation: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [77.67ms]
+(pass) refuses corrupt authority without mutation: DROP TRIGGER external_dependency_admit_update [80.67ms]
+
+ 16 pass
+ 2 fail
+ 38 expect() calls
+Ran 18 tests across 1 file. [3.48s]

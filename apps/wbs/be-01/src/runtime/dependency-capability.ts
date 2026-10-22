@@ -2,13 +2,7 @@ import type { DependencyRuntimeCapability } from '@wbs/contracts';
 import { inspectDependencyActivation } from '@wbs/store-sqlite';
 import type { Drizzle } from '@wbs/store-sqlite/db';
 
-/** Complete connected semantics are still unadvertised; configuration cannot grant support. */
-export const BACKEND_DEPENDENCY_CAPABILITY: DependencyRuntimeCapability = Object.freeze({
-  protocol: 'wbs-dependency-runtime',
-  version: 1,
-  role: 'backend',
-  semantics: Object.freeze([]),
-});
+export { BACKEND_DEPENDENCY_CAPABILITY } from './dependency-support';
 
 /**
  * Refuses unreadable or inconsistent authority before service creation. Enabled

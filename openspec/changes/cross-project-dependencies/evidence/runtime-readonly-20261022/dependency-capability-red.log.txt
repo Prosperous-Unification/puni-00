@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-capabilities-cli.test.ts:
+13 |   try {
+14 |     const execution = Bun.spawnSync([process.execPath, CLI], {
+15 |       cwd: directory,
+16 |       env: { PATH: process.env.PATH, CROSS_PROJECT_DEPENDENCIES: 'enabled', DEPENDENCY_ACTIVATION: 'ENABLED' },
+17 |     });
+18 |     expect(execution.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-capabilities-cli.test.ts:18:32)
+(fail) advertises frozen empty support without database configuration or migrations [13.85ms]
+(pass) refuses capability arguments [8.22ms]
+
+ 1 pass
+ 1 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [2.69s]

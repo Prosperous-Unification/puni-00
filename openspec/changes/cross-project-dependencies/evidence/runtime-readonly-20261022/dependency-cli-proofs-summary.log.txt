@@ -1,0 +1,1 @@
+[('parser-protocol', 1), ('parser-version', 1), ('parser-role', 1), ('parser-keyset', 1), ('parser-semantics', 1), ('parser-duplicate', 1), ('cap-args', 1), ('cap-db', 1), ('cap-migrations', 1), ('cap-support', 1), ('inspect-args', 1), ('inspect-path', 1), ('inspect-create', 1), ('inspect-writable', 1)]
