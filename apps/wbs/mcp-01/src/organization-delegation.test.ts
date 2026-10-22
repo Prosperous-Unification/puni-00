@@ -520,7 +520,8 @@ describe('MCP organization binding', () => {
     stub.now += 300_000;
     expect(await oauth.reportEndedConsents()).toBe(1);
     const mint = recorded.mints.at(0)?.request;
-    expect(recorded.ends).toEqual([{ credentialId: mint?.credentialId, familyId: mint?.family }]);
+    if (mint === undefined) throw new Error('no mint');
+    expect(recorded.ends).toEqual([{ credentialId: mint.credentialId, familyId: mint.family }]);
     expect(await oauth.reportEndedConsents()).toBe(0);
     // The code itself is expired as well; it never becomes a family.
     const code = new URL(chosen.headers.get('location') ?? '').searchParams.get('code') ?? '';
