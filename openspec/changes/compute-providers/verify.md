@@ -264,6 +264,7 @@ source restored:
 | measures checked before opening             | `unsupported` check off                                   | `refuses a measure the adapter lacks unsupported_measure before opening it`                                                        |
 | no `Date.now` in `src/compute`              | `Date.now()` appended to `compute/report-capacity.ts`     | `only clock.ts reads the wall clock` (`+ "compute/report-capacity.ts"`)                                                            |
 | remote-command host cannot be an ssh option | refusal removed in `renderRemoteCommandArguments`         | `refuses a command host that ssh could read as an option`                                                                          |
+| the cadence sleep wakes on a run change     | the abort listener dropped from `sleepUnlessInterrupted`  | `resolves when the interrupt aborts, long before the timer` (timed out)                                                            |
 | compute reaches only the transport facade   | override widened to `^@tools/fleet`; override scoped away | `Dash compute reaches only the SSH transport facade` at the exact allow-list assertion, both times                                 |
 
 Rehearsal against a real sshd (2026-10-22, scratch scripts outside the repository): two

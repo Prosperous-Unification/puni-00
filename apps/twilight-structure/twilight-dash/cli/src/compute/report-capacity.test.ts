@@ -6,7 +6,12 @@ import { afterAll, describe, expect, test } from 'bun:test';
 
 import { type ReporterConfiguration, WbsCredential } from './configuration';
 import type { ComputeProvider, Measurement, ResourceBinding } from './provider';
-import { type ReporterDependencies, ReporterExit, runReporter } from './report-capacity';
+import {
+  type ReporterDependencies,
+  ReporterExit,
+  runReporter,
+  sleepUnlessInterrupted,
+} from './report-capacity';
 import { fakeCredential } from './testing/credential';
 import { createSshFixture, MEMINFO_15_7 } from './testing/ssh-fixture';
 
@@ -462,5 +467,25 @@ describe('the report-capacity command', () => {
     expect(stderr).toStartWith('error: credential_not_owner_only: ');
     expect(stderr).not.toContain(SECRET);
     expect(execution.stdout.toString('utf8')).toBe('');
+  });
+});
+
+describe('sleepUnlessInterrupted', () => {
+  test('resolves when the interrupt aborts, long before the timer', async () => {
+    const interrupt = new AbortController();
+    let settled = false;
+    const sleeping = sleepUnlessInterrupted(3_600_000, interrupt.signal).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    interrupt.abort();
+    await sleeping;
+    expect(settled).toBe(true);
+  });
+
+  test('resolves at once for an interrupt already aborted, and on its timer otherwise', async () => {
+    await sleepUnlessInterrupted(3_600_000, AbortSignal.abort());
+    await sleepUnlessInterrupted(5, new AbortController().signal);
   });
 });

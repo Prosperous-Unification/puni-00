@@ -277,6 +277,8 @@ export function sleepUnlessInterrupted(
       clearTimeout(timer);
       resolve();
     }
+    // Proof: dropping this listener made `resolves when the interrupt aborts, long before the
+    // timer` time out (2026-10-22).
     interrupt.addEventListener('abort', wake, { once: true });
   });
 }
