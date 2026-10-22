@@ -206,3 +206,64 @@ test.each(['engine', 'cycle', 'range'] as const)(
     expect(history.relationships).toHaveLength(3);
   },
 );
+
+// Proof: omitting team/resource identity restoration exposed encoded IDs in the actual public bindings (slice-d-fault-binding-restoration.log, slice-d-fault-resource-restoration.log).
+test.each(['team', 'resource'] as const)(
+  'retains real %s capacity binding in public and encoded history placements',
+  async (kind) => {
+    const captured = await captureSavedConnectedFixture('isolated', {
+      seed: (client) => {
+        client.run("DELETE FROM external_dependency WHERE id IN ('ba','hb')");
+        client.run(
+          "INSERT INTO work_item(id,project_id,position,name) VALUES('c','a1',30,'Contending work')",
+        );
+        client.run(
+          "INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES('c','design',1,1,1),('c','test',1,1,1)",
+        );
+        if (kind === 'team') {
+          client.run("INSERT INTO service_team(id,name) VALUES('pool','Pool')");
+          client.run(
+            "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES('pool','org-a','Pool')",
+          );
+          client.run(
+            "INSERT INTO work_item_team(work_item_id,team_id) VALUES('a','pool'),('c','pool')",
+          );
+          client.run(
+            "INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES('a1','pool',1)",
+          );
+        } else {
+          client.run(
+            "INSERT INTO resource(id,name,kind,unit_label) VALUES('pool','Pool','exclusive','units')",
+          );
+          client.run(
+            "INSERT INTO resource_organization(resource_id,organization_id,name) VALUES('pool','org-a','Pool')",
+          );
+          client.run(
+            "INSERT INTO work_item_resource_demand(work_item_id,resource_id,units) VALUES('a','pool',1),('c','pool',1)",
+          );
+          client.run(
+            "INSERT INTO project_resource_capacity(project_id,resource_id,units) VALUES('a1','pool',1)",
+          );
+        }
+      },
+    });
+    const prepared = captureConnectedHistory(captured, 'a1');
+    if (!prepared.schedule.present) throw new Error('capacity schedule expected');
+    const body = prepared.schedule.body;
+    const key = sliceKey('a', 'design');
+    for (const placement of [body, body.connection.baseline, body.connection.composite]) {
+      const slice = placement.slices[key];
+      expect(slice.boundBy).toBe('capacity');
+      expect(slice.capacityPredecessorIds.length).toBeGreaterThan(0);
+      expect(slice.earliestStart).toBeGreaterThan(0);
+      expect(slice.capacityTeamId).toBe(kind === 'team' ? 'pool' : null);
+      expect(slice.capacityResource).toEqual(
+        kind === 'resource' ? { resourceId: 'pool', units: 1 } : undefined,
+      );
+    }
+    expect(body.connection.stages[0].stageBytes).toContain(
+      JSON.stringify(JSON.stringify([kind, 'a1', 'pool'])),
+    );
+    expect(serializeSavedConnectedScheduleBody(body)).toContain('capacityPredecessorIds');
+  },
+);

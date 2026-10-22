@@ -391,8 +391,6 @@ export function composeServices(
             const captured = await source.stores.livePlans?.read(projectId, access);
             if (captured === undefined)
               throw new Error('installed shared saved-plan capture lost its live-plan store');
-            if (captured.kind === 'connected')
-              throw new Error('connected saved-plan capture is unsupported');
             // Proof: injecting process-scheduler live mode here for an enabled optimized
             // target failed the mounted S4 no-write assertion: a generation and cache rows appeared.
             return captured.kind === 'shared' ? captured.chain : captured;

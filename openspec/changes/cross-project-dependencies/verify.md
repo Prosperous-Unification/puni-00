@@ -4533,3 +4533,103 @@ CI, host gate, deploy, remote relationship navigation/authoring, activation or
 completion of parent task 9.2. Those checks remain unrun in this packet.
 
 Changed-file Prettier and `git diff --check` passed. `bun node_modules/.bin/openspec validate cross-project-dependencies --json` passed (one valid change, existing long-requirement warnings).
+
+### Task 8.3 Slice D bounded connected writer/current (2026-10-22)
+
+Isolated clone `/tmp/puni-connected-save-d`, based on `a0ac30ea7`. The mounted
+connected POST test first failed with HTTP 500 from compose's explicit
+`connected saved-plan capture is unsupported` guard. The installed feature now
+accepts that existing detached observation. `captureSchedulePlan` converts and
+serializes it once for saving and current comparison; digest work and persistence
+follow closure. Legacy input8/schedule1 retain their existing serializers.
+No schema migration is required. External authoring remains dormant.
+
+The new controller suite mounts real production composition over a migrated
+synthetic-authority SQLite store. It proves input9/schedule2 persistence,
+saved/current equality with frozen connected provenance, one read and one
+conversion/serialization for current/current after connection closure, viewer
+demotion at capture close refused by the immediate writer, and schedule-insert
+failure rolling back both header and input. Delivery observes committed rows and
+occurs once. Enabled optimized capture without explicit connected configuration
+records `unavailable` and writes no generation/cache rows.
+
+The separately installed SavedPlans module uses the actual configured SQLite
+live store in both isolated and shared modes. Its four real cache-ready cases
+pin chosen optimized versus quantisation-floor baseline, input/body hashes and
+link, exact saved/current bodies, later stage's captured foreign positions,
+no target-only recapture, and successful historical read after cache eviction.
+Cache rows are removed only after the save's live observation closes, before
+conversion/hashing; the saved observation stays ready. A missing required foreign
+readiness status throws before either table receives a row. Existing coherent
+within-snapshot cache-selection proofs remain in the earlier B2 packet.
+
+The added migrated capacity fixtures force actual waits in separate team and
+resource cases: target body and encoded component baseline/composite retain
+`boundBy:capacity`, nonempty predecessor IDs, positive start, original team or
+resource identity and units. This extends B2 beyond merely finding names in
+stage input bytes; it does not cover every optimized-decision contention shape.
+
+Watched faults were injected separately and restored before final checks. Scratch
+logs are `/tmp/slice-d-fault-<name>.log`:
+
+| Fault name           | Injected production fault                   | Observed failure                                                         |
+| -------------------- | ------------------------------------------- | ------------------------------------------------------------------------ |
+| current-recapture    | Remove current/current reuse                | Two read connections instead of one                                      |
+| writer-authority     | Skip scoped writer admission                | Viewer-demoted save incorrectly returns 201                              |
+| write-transaction    | Omit immediate writer begin                 | Header/input remain after injected schedule failure                      |
+| announcement-repeat  | Publish saved_plans_changed twice           | Once-only announcement assertion fails                                   |
+| selected-baseline    | Encode baseline as final composite          | Two selected optimized cases fail retained stage validation              |
+| binding-restoration  | Omit team reverse identity restoration      | Actual public capacityTeamId is encoded                                  |
+| resource-restoration | Omit resource reverse identity restoration  | Actual public capacityResource.resourceId is encoded                     |
+| capture-twice        | Invoke live callback twice                  | Post-close cache eviction changes the second observation; equality fails |
+| solver-admission     | Invoke live scheduler during connected save | optimization_generation becomes nonempty                                 |
+
+Each mutation command exited 1 with the named assertion/semantic failure;
+`Proof:` comments are adjacent to the new tests or connected capture branch.
+The expected schedule-insert fault emits the endpoint's structured error log.
+The fixture's first attempt at publishing a failed cache row violated its payload
+constraint; the final test uses valid cache eviction instead. That failed setup
+is not used as feature evidence.
+
+Scoped verification and remaining limits are recorded below before the review
+checkpoint. Task 8.3 remains open: production connected optimizer configuration,
+all historical lifecycle/failure matrices, full optimized-decision capacity
+coverage, broader browser/API acceptance, independent review and the canonical
+exact-SHA host gate are not established by this packet. No production activation,
+push, deployment or full repository gate was performed.
+
+Fresh scoped checks:
+
+- `bun test` on the new connected converter/writer/controller suites plus the
+  existing current, schedule, organization controller and module suites:
+  **69 pass, 0 fail, 354 assertions**, `/tmp/slice-d-final-regression.log`.
+- `bun test libs/wbs/application/core/src/module/saved-plans
+apps/wbs/be-01/src/service/saved-plan-atomicity.db.test.ts
+apps/wbs/be-01/src/service/saved-plan-schedule-body.db.test.ts`:
+  **68 pass, 0 fail, 208 assertions**, `/tmp/slice-d-extra-regression.log`.
+- `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json --pretty false`:
+  exit 0, `/tmp/slice-d-final-typecheck.log`.
+- Scoped ESLint on all six changed TypeScript files: exit 0, no diagnostics,
+  `/tmp/slice-d-final-lint.log`. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false
+bunx nx show projects` first built the real graph; the initial graph-less lint
+  attempt was superseded and is not complete boundary-check evidence.
+- `node_modules/.bin/openspec validate --all --json`: **269 passed, 0 failed**
+  (251 changes, 18 specs), `/tmp/slice-d-final-openspec.log`.
+- Existing workspace dependencies are reused via a node_modules symlink; no
+  frozen reinstall is claimed. Normal Lefthook installation succeeded in this
+  isolated clone. Formatting, diff and commit-hook receipts follow.
+
+No broader frontend/browser/solver tests, standalone production build, full Nx
+repository gate, CI secrets/migration scan or h2/h4 gate ran in this packet.
+
+The moved legacy calendar-range absence branch was also independently removed:
+`maps a calendar-range plan to infeasible` threw on null instead of returning the
+modeled absent schedule (exit 1, `/tmp/slice-d-fault-calendar-range.log`). Its
+adjacent Proof comment was carried onto the shared serialization boundary.
+
+Prettier checked all eight changed files and `git diff --check` passed. Normal
+pre-commit hooks passed scoped lint, format, plaintext-secrets and private-nesting;
+prepare-commit-msg and commit-msg passed. Tool-wiki explicitly returned
+inactive/uncertified because its external activation root is not provisioned.
+Migration hooks and doc-caps skipped because no matching files were staged.
+No hooks were bypassed. Receipt: `/tmp/slice-d-commit.log`.

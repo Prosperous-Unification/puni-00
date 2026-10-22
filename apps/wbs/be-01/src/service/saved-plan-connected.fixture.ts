@@ -23,6 +23,11 @@ interface CaptureFixtureOptions {
     path: string,
     read: () => Promise<Extract<LivePlanRead, { kind: 'connected' }>>,
   ) => Promise<void>;
+  readonly consume?: (
+    captured: Extract<LivePlanRead, { kind: 'connected' }>,
+    path: string,
+    read: () => Promise<Extract<LivePlanRead, { kind: 'connected' }>>,
+  ) => Promise<void>;
   readonly scheduler?: Scheduler;
   readonly connected?: {
     readonly solverVersion: string;
@@ -87,17 +92,24 @@ export async function captureSavedConnectedFixture(
       return observed;
     };
     await options.prepare?.(path, read);
-    return await read();
+    const captured = await read();
+    await options.consume?.(captured, path, read);
+    return captured;
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
 }
 
 /** Real durable cache rows, captured in execution order; Fast keeps its ready candidate unselected. */
-export function captureMixedFixture(mode: 'isolated' | 'shared', floor: boolean) {
+export function captureMixedFixture(
+  mode: 'isolated' | 'shared',
+  floor: boolean,
+  consume?: CaptureFixtureOptions['consume'],
+) {
   const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
   return captureSavedConnectedFixture(mode, {
     connected: installed,
+    ...(consume === undefined ? {} : { consume }),
     seed: (client) => {
       client.run("DELETE FROM external_dependency WHERE id IN ('ba','hb')");
       client.run("UPDATE external_dependency SET type='SS' WHERE id='ab'");

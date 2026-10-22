@@ -344,3 +344,16 @@ update the saved baseline, and restore that latest baseline on Escape. Untouched
 fields still follow refreshes. This extends the already completed abbreviation
 clause only; parent 9.2, remote navigation/authoring and activation remain open.
 See verify.md for the watched dirty-draft guard negative and focused checks.
+
+Task 8.3 Slice D bounded writer/current packet (2026-10-22): connected observations
+now pass the installed save/current seam and share one serialized capture. Mounted
+Fast save persists input9/schedule2 and equals current; configured installed-module
+isolated/shared ready selection retains optimized versus quantisation-floor baseline
+and earlier foreign boundaries after cache eviction. Real migrated contention pins
+team/resource placement bindings. Target writer reauthorization, atomic rollback,
+current/current reuse, post-close conversion/serialization, no solver admission and
+once-after-commit announcement have focused negatives and watched faults in verify.md.
+Production connected optimizer configuration remains absent and explicitly unavailable;
+external authoring remains dormant. Full immutable lifecycle, all failure/evidence
+matrices, production optimizer integration, independent review and canonical host gate
+remain open; task 8.3 is not complete.
