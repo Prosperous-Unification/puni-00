@@ -809,3 +809,11 @@ errors remain. Full host gate, build, CI secrets checks and live acceptance were
 not run for this repair packet. Changed-file lint is recorded separately by the
 integration review; the repository's lazy-loaded core boundary rule can report
 existing static imports once an Nx project graph is present.
+
+The [independent Astra review](evidence/restricted-project-role-ceiling-review.md)
+approved this bounded repair without an introduced finding. Its fresh relevant
+runs passed 156 tests; unchanged-base probes reproduced the three prerequisite
+failures, two scheduling type errors and ten static-import lint findings. On
+the combined feature/main branch, all eight mounted machine restricted-project
+role-ceiling cases passed (28 assertions), including ordinary creator success.
+Full CI and the exact-SHA host gate remain pending.
