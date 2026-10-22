@@ -173,10 +173,34 @@ Startup migrates the store before serving (`src/store-migrations.ts`). Paired
 recorded with their checksums in `mcp_migration`; an edited or unknown migration
 refuses. An absent path is created; an existing empty, partial or unreadable file
 refuses instead of being reinitialized. A store from before the ledger is adopted
-only when its schema is exactly the first migration's. The store also holds the
-credential epoch; this release starts only at epoch 0. Reverse with
+only when its schema is exactly the first migration's. Reverse with
 `rollbackMcpStore` while mcp-01 is stopped: it refuses while a bound credential
 is still usable or the epoch has advanced.
+
+### Credential epoch
+
+The store holds a credential epoch: 0 before organization activation, 1 after
+it. This release starts at either and refuses a newer one. At 1 it also needs
+`INTERNAL_AUTH_SECRET`, because every credential must then be bound to an
+organization. A code, session or refresh token is honoured only at the epoch
+the store holds now, which is read on every use. An advance therefore retires
+older credentials in a running process too.
+
+The operator advances it once, with mcp-01 drained, before be-01's activation
+(`docs/runbook-organization-activation.md`, step 2b). be-01's activation CLI reads
+this store (`--mcp-store`) and refuses until the epoch is 1:
+
+```sh
+MCP_STORE_PATH=/data/mcp-session.sqlite bun apps/wbs/mcp-01/src/credential-epoch-cli.ts          # dry run
+MCP_STORE_PATH=/data/mcp-session.sqlite bun apps/wbs/mcp-01/src/credential-epoch-cli.ts --apply
+```
+
+`--apply` revokes every epoch-0 refresh family, deletes its sessions and sets
+epoch 1 in one transaction. The dry run prints the same counts and rolls back.
+At epoch 1 the CLI prints `already_activated` and exits 0. While any process
+has read or written the store through a still-open connection it exits 3 and
+changes nothing (`src/credential-epoch.ts`).
+Epoch 1 is one-way: only a backup of the store file returns to 0.
 
 Rotate either key by moving the old current value to its matching `_PREVIOUS`
 variable, installing a new current value, and restarting mcp-01. New writes use
