@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [99.59ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [3852.96ms]
+(pass) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [177.62ms]
+(pass) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [67.19ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [13.68ms]
+(pass) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3029.21ms]
+(pass) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [41.97ms]
+(pass) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [190.65ms]
+(pass) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [218.25ms]
+(pass) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [39.51ms]
+(pass) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [66.34ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [11.41ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [10.04ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [14.67ms]
+(pass) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [114.24ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [1023.20ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [1133.03ms]
+(pass) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [1229.20ms]
+358 |     throw new Error('organization-bound parity session missing');
+359 |   const access = sessions['dany'];
+360 |   const before = await fixture('write-state', {});
+361 |   const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+362 |   expect(viaMcp.isError).toBe(true);
+363 |   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 400"
+Received: "postApiProjectsByIdCommands was refused: HTTP 422 unsupported_relationship_type from POST /api/projects/{id}/commands.\n{\"at\":0,\"kind\":\"updateTypedDependency\",\"error\":\"unsupported_relationship_type\"}"
+
+      at refuseCommands (/tmp/puni-external-command-contracts/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:363:23)
+      at async <anonymous> (/tmp/puni-external-command-contracts/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:925:13)
+(fail) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [1115.68ms]
+(pass) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [2113.24ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [5.05ms]
+
+ 20 pass
+ 1 fail
+ 693 expect() calls
+Ran 21 tests across 1 file. [22.82s]

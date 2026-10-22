@@ -252,6 +252,33 @@ describe('scoped typed endpoint addresses', () => {
     });
   });
 
+  test('explicit identities are nonempty opaque strings without surrounding whitespace', () => {
+    for (const scope of ['whole', 'node', 'descendant-step'] as const) {
+      const endpoint =
+        scope === 'whole'
+          ? { projectId: 'owner', scope, workItemId: 'work-item/a' }
+          : { projectId: 'owner', scope, workItemId: 'work-item/a', stepId: 'step/a' };
+      expect(normalize(endpoint)).toEqual(endpoint);
+      for (const field of scope === 'whole'
+        ? ['projectId', 'workItemId']
+        : ['projectId', 'workItemId', 'stepId']) {
+        for (const malformed of ['', ' ', ' padded '])
+          expect(() => normalize({ ...endpoint, [field]: malformed })).toThrow(
+            'invalid_typed_endpoint',
+          );
+      }
+    }
+    // Omitted project retains the existing local parser contract, including exact aliases.
+    expect(normalize({ scope: 'whole', workItemRef: 'PUNI.080.39' })).toEqual({
+      scope: 'whole',
+      workItemRef: 'PUNI.080.39',
+    });
+    expect(normalize({ scope: 'whole', workItemId: ' local ' })).toEqual({
+      scope: 'whole',
+      workItemId: ' local ',
+    });
+  });
+
   test('refuses malformed project addresses and explicitly scoped batch aliases', () => {
     for (const projectId of ['', ' ', 7, null]) {
       expect(() => normalize({ scope: 'whole', workItemId: 'w', projectId })).toThrow(

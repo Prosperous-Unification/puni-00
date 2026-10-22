@@ -110,10 +110,17 @@ const server = Bun.serve({
       ]);
       return Response.json({ id, restricted });
     }
+    if (request.method === 'POST' && path === '/__fixture/typed-dependencies')
+      return Response.json(
+        backend.sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all(),
+      );
     if (request.method === 'POST' && path === '/__fixture/write-state') {
       const tables = [
         'project',
         'work_item',
+        'dependency',
+        'typed_dependency',
+        'external_dependency',
         'step',
         'calendar_marker',
         'command_journal',

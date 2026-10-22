@@ -282,7 +282,7 @@ export const commandDefinitions = {
     }),
     scope: 'project',
     description:
-      'Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id.',
+      'Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id. Omitted projectId keeps owner-local IDs or workItemRef batch aliases. Explicit projectId requires nonempty stable IDs without surrounding whitespace (or sn1 node ID), never workItemRef. The successor project must own the batch. External authoring may refuse external_dependencies_inactive.',
   }),
   updateTypedDependency: defineCommand('updateTypedDependency', {
     schema: type({
@@ -296,7 +296,7 @@ export const commandDefinitions = {
     }),
     scope: 'project',
     description:
-      'Change both endpoints and FS, SS or FF type of a typed relationship by its stable dependencyId.',
+      'Change both endpoints and FS, SS or FF type of a typed relationship by its stable dependencyId. Omitted projectId keeps owner-local IDs or workItemRef batch aliases. Explicit projectId requires nonempty stable IDs without surrounding whitespace (or sn1 node ID), never workItemRef. The successor project must own the batch. External authoring may refuse external_dependencies_inactive.',
   }),
   removeTypedDependency: defineCommand('removeTypedDependency', {
     schema: type({ kind: "'removeTypedDependency'", dependencyId: 'string' }),

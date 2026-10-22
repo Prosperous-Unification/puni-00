@@ -312,6 +312,82 @@ async function tool(
   };
 }
 
+/** Runs a successful project operation using the selected production transport. */
+async function projectOperation(
+  transport: 'HTTP' | 'MCP',
+  operation: 'commands',
+  body: Record<string, unknown>,
+): Promise<{ results: { id: string }[] }>;
+async function projectOperation(
+  transport: 'HTTP' | 'MCP',
+  operation: 'undo' | 'redo',
+  body: Record<string, unknown>,
+): Promise<unknown>;
+async function projectOperation(
+  transport: 'HTTP' | 'MCP',
+  operation: 'commands' | 'undo' | 'redo',
+  body: Record<string, unknown>,
+): Promise<unknown> {
+  if (!Object.hasOwn(sessions, 'dany'))
+    throw new Error('organization-bound parity session missing');
+  const access = sessions['dany'];
+  if (transport === 'MCP') {
+    const answer = await tool(
+      access,
+      `postApiProjectsById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
+      { id: ids.launch, ...body },
+    );
+    expect({ error: answer.isError, text: answer.isError ? answer.text : '' }).toEqual({
+      error: false,
+      text: '',
+    });
+    return JSON.parse(answer.text) as unknown;
+  }
+  const caller = await oauth.callerSessionFor(access);
+  const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, [
+    'read',
+    'write',
+  ]);
+  const response = await fetch(`${beUrl}/api/projects/${ids.launch}/${operation}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+    ...(operation === 'commands' ? { body: JSON.stringify(body) } : {}),
+  });
+  if (response.status !== 200)
+    throw new Error(`${operation}: HTTP ${String(response.status)} ${await response.text()}`);
+  return (await response.json()) as unknown;
+}
+
+/** Compares the upstream refusal and every captured durable effect through both mounted transports. */
+async function refuseCommands(
+  commands: readonly unknown[],
+  status: number,
+  refusal: unknown,
+): Promise<void> {
+  if (!Object.hasOwn(sessions, 'dany'))
+    throw new Error('organization-bound parity session missing');
+  const access = sessions['dany'];
+  const before = await fixture('write-state', {});
+  const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+  expect(viaMcp.isError).toBe(true);
+  expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+  expect(JSON.parse(viaMcp.text.slice(viaMcp.text.indexOf('\n') + 1))).toEqual(refusal);
+  expect(await fixture('write-state', {})).toEqual(before);
+  const caller = await oauth.callerSessionFor(access);
+  const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, [
+    'read',
+    'write',
+  ]);
+  const direct = await fetch(`${beUrl}/api/projects/${ids.launch}/commands`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ commands }),
+  });
+  expect(direct.status).toBe(status);
+  expect(await direct.json()).toEqual(refusal);
+  expect(await fixture('write-state', {})).toEqual(before);
+}
+
 const projectNames = (text: string) =>
   (JSON.parse(text) as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
 
@@ -430,10 +506,10 @@ describe('MCP organization delegation against a booted be-01', () => {
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Claimable' }],
     });
     expect(created.isError).toBe(false);
-    ids.leaf = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id ?? '';
+    ids.leaf = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(0)?.id ?? '';
     const tree = await tool(sessions['dany'] ?? '', 'getApiProjectsById', { id: ids.launch });
     if (tree.isError) throw new Error(`project tree refused: ${tree.text}`);
-    ids.firstStep = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps[0]?.id ?? '';
+    ids.firstStep = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id ?? '';
     if (ids.firstStep.length === 0) throw new Error('project tree has no first step');
     // Another of dany's persons: the pin refuses it.
     const asCodex = await claimLeaf(claire.access, 'codex');
@@ -514,7 +590,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       id: ids.launch,
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Human' }],
     });
-    const human = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id;
+    const human = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(0)?.id;
     const asCodex = await tool(dany.access, 'postApiProjectsByIdCommands', {
       id: ids.launch,
       commands: [
@@ -630,7 +706,278 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
     expect(viaMcp.isError).toBe(true);
     expect(viaMcp.text).toContain('HTTP 409 external_dependencies_inactive');
-    expect(viaMcp.text).toContain(JSON.stringify(refusal));
+    expect(JSON.parse(viaMcp.text.slice(viaMcp.text.indexOf('\n') + 1))).toEqual(refusal);
+  });
+
+  test('HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types', async () => {
+    if (!Object.hasOwn(sessions, 'dany'))
+      throw new Error('organization-bound parity session missing');
+    const access = sessions['dany'];
+    const created = await tool(access, 'postApiProjects', { name: 'Dormant matrix prerequisite' });
+    expect(created.isError).toBe(false);
+    const projectId = (JSON.parse(created.text) as { project: { id: string } }).project.id;
+    const tree = await tool(access, 'getApiProjectsById', { id: projectId });
+    expect(tree.isError).toBe(false);
+    const remoteStepId = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id;
+    if (remoteStepId === undefined) throw new Error('remote project has no step');
+    const remote = await tool(access, 'postApiProjectsByIdCommands', {
+      id: projectId,
+      commands: [{ kind: 'createWorkItem', name: 'Remote prerequisite' }],
+    });
+    expect(remote.isError).toBe(false);
+    const remoteId = (JSON.parse(remote.text) as { results: { id: string }[] }).results.at(0)?.id;
+    const local = await projectOperation('HTTP', 'commands', {
+      commands: [
+        { kind: 'createWorkItem', name: 'Local predecessor' },
+        { kind: 'createWorkItem', name: 'Local successor' },
+      ],
+    });
+    const localId = local.results.at(0)?.id;
+    const successorId = local.results.at(1)?.id;
+    if (remoteId === undefined || localId === undefined || successorId === undefined)
+      throw new Error('matrix endpoints not minted');
+    const added = await projectOperation('HTTP', 'commands', {
+      commands: [
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'whole', workItemId: localId },
+          successor: { scope: 'whole', workItemId: successorId },
+          type: 'FS',
+        },
+      ],
+    });
+    const dependencyId = added.results.at(0)?.id;
+    if (dependencyId === undefined) throw new Error('local relationship not minted');
+    for (const scope of ['whole', 'node', 'descendant-step']) {
+      if (scope === 'descendant-step') {
+        const child = await tool(access, 'postApiProjectsByIdCommands', {
+          id: projectId,
+          commands: [{ kind: 'createWorkItem', parentId: remoteId, name: 'Remote descendant' }],
+        });
+        expect(child.isError).toBe(false);
+        await projectOperation('HTTP', 'commands', {
+          commands: [{ kind: 'createWorkItem', parentId: successorId, name: 'Local descendant' }],
+        });
+      }
+      for (const type of ['FS', 'SS', 'FF']) {
+        for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+          await refuseCommands(
+            [
+              { kind: 'patchWorkItem', workItemId: successorId, patch: { name: 'Must roll back' } },
+              {
+                kind,
+                ...(kind === 'updateTypedDependency' ? { dependencyId } : {}),
+                predecessor: {
+                  projectId,
+                  scope,
+                  workItemId: remoteId,
+                  ...(scope === 'whole' ? {} : { stepId: remoteStepId }),
+                },
+                successor: {
+                  projectId: ids.launch,
+                  scope,
+                  workItemId: successorId,
+                  ...(scope === 'whole' ? {} : { stepId: ids.firstStep }),
+                },
+                type,
+              },
+            ],
+            409,
+            { error: 'external_dependencies_inactive', at: 1, kind },
+          );
+        }
+      }
+    }
+  });
+
+  for (const transport of ['HTTP', 'MCP'] as const) {
+    test(`${transport} preserves legacy aliases and typed local stable relationship history`, async () => {
+      const created = await projectOperation(transport, 'commands', {
+        commands: [
+          { kind: 'createWorkItem', ref: 'PUNI.080.39', name: 'Alias predecessor' },
+          { kind: 'createWorkItem', ref: 'successor', name: 'Alias successor' },
+          { kind: 'addDependency', workItemRef: 'successor', predecessorRef: 'PUNI.080.39' },
+        ],
+      });
+      const predecessorId = created.results.at(0)?.id;
+      const successorId = created.results.at(1)?.id;
+      if (predecessorId === undefined || successorId === undefined)
+        throw new Error('local endpoints not minted');
+      await projectOperation(transport, 'commands', {
+        commands: [{ kind: 'removeDependency', workItemId: successorId, predecessorId }],
+      });
+      for (const scope of ['whole', 'node', 'descendant-step'] as const) {
+        if (scope === 'descendant-step')
+          await projectOperation(transport, 'commands', {
+            commands: [
+              { kind: 'createWorkItem', parentId: predecessorId, name: 'Predecessor descendant' },
+              { kind: 'createWorkItem', parentId: successorId, name: 'Successor descendant' },
+            ],
+          });
+        for (const explicit of [false, true]) {
+          const predecessor = {
+            scope,
+            workItemId: predecessorId,
+            ...(scope === 'whole' ? {} : { stepId: ids.firstStep }),
+            ...(explicit ? { projectId: ids.launch } : {}),
+          };
+          const successor = {
+            scope,
+            workItemId: successorId,
+            ...(scope === 'whole' ? {} : { stepId: ids.firstStep }),
+            ...(explicit ? { projectId: ids.launch } : {}),
+          };
+          const added = await projectOperation(transport, 'commands', {
+            commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
+          });
+          const dependencyId = added.results.at(0)?.id;
+          if (dependencyId === undefined) throw new Error('typed relationship not minted');
+          await projectOperation(transport, 'commands', {
+            commands: [
+              { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'SS' },
+            ],
+          });
+          const expected = {
+            id: dependencyId,
+            project_id: ids.launch,
+            predecessor_work_item_id: predecessorId,
+            successor_work_item_id: successorId,
+            predecessor_scope: scope,
+            successor_scope: scope,
+            predecessor_step_id: scope === 'whole' ? null : ids.firstStep,
+            successor_step_id: scope === 'whole' ? null : ids.firstStep,
+            type: 'SS',
+          };
+          expect(await fixture('typed-dependencies', {})).toContainEqual(
+            expect.objectContaining(expected),
+          );
+          await projectOperation(transport, 'commands', {
+            commands: [{ kind: 'removeTypedDependency', dependencyId }],
+          });
+          expect(await fixture('typed-dependencies', {})).not.toContainEqual(
+            expect.objectContaining({ id: dependencyId }),
+          );
+          await projectOperation(transport, 'undo', {});
+          expect(await fixture('typed-dependencies', {})).toContainEqual(
+            expect.objectContaining(expected),
+          );
+          await projectOperation(transport, 'redo', {});
+          expect(await fixture('typed-dependencies', {})).not.toContainEqual(
+            expect.objectContaining({ id: dependencyId }),
+          );
+        }
+      }
+      const aliased = await projectOperation(transport, 'commands', {
+        commands: [
+          { kind: 'createWorkItem', ref: 'PUNI.080.39', name: 'Node alias predecessor' },
+          { kind: 'createWorkItem', ref: 'node-successor', name: 'Node alias successor' },
+          {
+            kind: 'addTypedDependency',
+            predecessor: { scope: 'node', workItemRef: 'PUNI.080.39', stepId: ids.firstStep },
+            successor: { scope: 'node', workItemRef: 'node-successor', stepId: ids.firstStep },
+            type: 'FF',
+          },
+        ],
+      });
+      expect(aliased.results.at(2)?.id).toBeString();
+      const nodeId = aliased.results.at(0)?.id;
+      if (nodeId === undefined) throw new Error('node alias not minted');
+      await projectOperation(transport, 'commands', {
+        commands: [
+          {
+            kind: 'addTypedDependency',
+            predecessor: {
+              projectId: ids.launch,
+              scope: 'node',
+              stepNodeId: `sn1.${nodeId}.${ids.firstStep}`,
+            },
+            successor: { scope: 'node', workItemId: ids.leaf, stepId: ids.firstStep },
+            type: 'FS',
+          },
+        ],
+      });
+    });
+  }
+
+  test('HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically', async () => {
+    const endpoint = { scope: 'whole', workItemId: ids.leaf };
+    const malformed: readonly [unknown, string][] = [
+      [null, 'invalid_typed_endpoint'],
+      [[], 'invalid_typed_endpoint'],
+      [{ scope: 'sideways', workItemId: ids.leaf }, 'invalid_typed_endpoint'],
+      [{ ...endpoint, workItemId: 7 }, 'invalid_typed_endpoint'],
+      [{ ...endpoint, stepId: ids.firstStep }, 'invalid_typed_endpoint'],
+      [
+        { projectId: ids.launch, scope: 'whole', workItemRef: 'PUNI.080.39' },
+        'invalid_typed_endpoint',
+      ],
+      [{ scope: 'node', stepNodeId: 'sn1.broken' }, 'invalid_step_node_id'],
+      [{ scope: 'node', stepNodeId: 'sn2.a.b' }, 'unknown_step_node_encoding'],
+      [{ ...endpoint, undeclared: true }, 'invalid_body'],
+    ];
+    for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+      for (const [predecessor, error] of malformed) {
+        await refuseCommands(
+          [
+            { kind: 'patchWorkItem', workItemId: ids.leaf, patch: { name: 'Must roll back' } },
+            {
+              kind,
+              ...(kind === 'updateTypedDependency' ? { dependencyId: 'not-reached' } : {}),
+              predecessor,
+              successor: endpoint,
+              type: 'FS',
+            },
+          ],
+          400,
+          error === 'invalid_body' ? { error } : { error, at: 1, kind },
+        );
+      }
+      await refuseCommands(
+        [
+          {
+            kind,
+            ...(kind === 'updateTypedDependency' ? { dependencyId: 'not-reached' } : {}),
+            predecessor: endpoint,
+            successor: endpoint,
+            type: 'SF',
+          },
+        ],
+        400,
+        { error: 'invalid_body' },
+      );
+    }
+  });
+
+  test('explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP', async () => {
+    for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+      for (const side of ['predecessor', 'successor']) {
+        for (const field of ['projectId', 'workItemId', 'stepId']) {
+          for (const malformed of ['', ' ', ' identity ']) {
+            const endpoint = {
+              projectId: ids.launch,
+              scope: 'node',
+              workItemId: ids.leaf,
+              stepId: ids.firstStep,
+            };
+            await refuseCommands(
+              [
+                { kind: 'patchWorkItem', workItemId: ids.leaf, patch: { name: 'Must roll back' } },
+                {
+                  kind,
+                  ...(kind === 'updateTypedDependency' ? { dependencyId: 'not-reached' } : {}),
+                  predecessor: endpoint,
+                  successor: endpoint,
+                  [side]: { ...endpoint, [field]: malformed },
+                  type: 'FS',
+                },
+              ],
+              400,
+              { error: 'invalid_typed_endpoint', at: 1, kind },
+            );
+          }
+        }
+      }
+    }
   });
 
   test("a removed member's session is refused on its next call and cannot refresh", async () => {
