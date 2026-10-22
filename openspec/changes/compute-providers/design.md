@@ -261,8 +261,8 @@ whose instance is `puni_pool` apart from the rest. No price, plan or quota colum
   named refusal in Dash until slice 4's successor; preferable to a stub that reports zeros.
 - **`run` ships before its real caller.** The review invoker keeps its local spawn; the port's
   `run` is proven by a smoke per adapter. The risk is a seam nobody uses drifting; the
-  mitigation is that slice 2's smoke runs in the gate for the SSH adapter against a local sshd
-  fixture, as `discovery-ssh-transport` does.
+  mitigation is that slice 2's smoke runs in the gate for the SSH adapter against a fixture `ssh`
+  client, with a real sshd rehearsal recorded in verify.md as `discovery-ssh-transport` did.
 - **Dependency order.** This change needs `wbs-resources` slice 1 (merged) and
   `wbs-machine-credentials` slice 1 (branch `plan/wbs-machine-credentials`) for the machine
   principal; slice 5 needs `wbs-resources` task 1.5. The `resource-directory` delta is written

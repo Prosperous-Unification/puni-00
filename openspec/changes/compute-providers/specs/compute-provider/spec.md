@@ -175,8 +175,8 @@ reachable host. Every instant SHALL come from the injected clock.
 
 #### Scenario: The SSH adapter measures memory
 
-- **WHEN** `observe({ resourceId, measure: 'memory_gib' })` runs against a local sshd fixture
-  whose `/proc/meminfo` says `MemTotal: 15976448 kB` and `MemAvailable: 7340032 kB`
+- **WHEN** `observe({ resourceId, measure: 'memory_gib' })` runs through a local SSH fixture (a fixture `ssh`
+  client in the gate; a real sshd in the slice 2 rehearsal) whose `/proc/meminfo` says `MemTotal: 15976448 kB` and `MemAvailable: 7340032 kB`
 - **THEN** the measurement is `measured` with `capacityUnits: 15` and `usageUnits: 8`, and its
   evidence names the transport and the two lines
 

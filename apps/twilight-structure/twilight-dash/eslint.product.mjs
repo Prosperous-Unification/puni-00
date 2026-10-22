@@ -4,7 +4,8 @@
  * activation check runner under `check-runs/` and the review invoker under `review/` reach
  * Burokrat's judges through the exact
  * `@twilight-burokrat/judge` alias. Every other cross-product, app-to-app and app-to-infrastructure
- * dependency retains the workspace fences. The two exact progress paths additionally reach
+ * dependency retains the workspace fences. The compute providers under `compute/` reach the
+ * fleet's pinned SSH transport through the exact `@tools/fleet-ssh-transport` alias. The two exact progress paths additionally reach
  * `@twilight-burokrat/contracts` alone. Tests may additionally reach the shared scratch helper
  * and the shared clock-read detector.
  */
@@ -89,6 +90,13 @@ export default ({
       // Proof (2026-10-12): dropping only the `check-runs/**` entry made eslint fail
       // `run-activation-checks.ts` with `Imports of apps are forbidden` on its judge import.
       rules: boundary(['^@twilight-burokrat/judge$']),
+    },
+    {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/compute/**/*.ts'],
+      // The compute providers reach the fleet's pinned SSH transport through its exact facade.
+      // Proof: see `Dash compute reaches only the SSH transport facade` in
+      // tools/tool-devsync/src/eslint-boundaries.test.ts.
+      rules: boundary(['^@tools/fleet-ssh-transport$']),
     },
     {
       files: ['apps/twilight-structure/twilight-dash/cli/src/**/*.test.ts'],

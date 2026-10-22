@@ -56,6 +56,18 @@ test('only clock.ts reads the wall clock', () => {
   expect(modules).toContain('activation/observation-tick.ts');
   expect(modules).not.toContain('activation/testing/observation-close-process.ts');
   expect(modules).not.toContain('activation/review-typescript-source.test.fixture.ts');
+  // The compute providers stamp every report from the injected clock (`compute-providers` P8).
+  // Proof: appending `Date.now()` to compute/report-capacity.ts failed the reader assertion below
+  // with `+ "compute/report-capacity.ts"` (2026-10-22).
+  for (const path of [
+    'compute/configuration.ts',
+    'compute/provider.ts',
+    'compute/report-capacity.ts',
+    'compute/ssh-host.ts',
+  ]) {
+    expect(modules).toContain(path);
+  }
+  expect(modules).not.toContain('compute/testing/ssh-fixture.ts');
   const readers = [
     ...new Set(
       modules.flatMap((path) =>

@@ -213,3 +213,193 @@ and the byte-for-byte test fails on a one-token trigger drift and on a dropped i
   a `compute_provider_*` row written by the incoming release makes the outgoing release's audit
   list read fail until the swap completes. Writes are unaffected in both directions. Belongs with
   issue #632.
+
+### Slice 2: Dash provider port, `ssh_host` adapter, `report-capacity` (2026-10-22)
+
+Branch `feat/compute-providers-2` from `chore/compute-providers-merge-main` at `8c8e96363`.
+Implemented tasks 2.1 to 2.3; task 2.4 (operator steps, first stored reports from dev) is open.
+
+What landed:
+
+- `apps/twilight-structure/twilight-dash/cli/src/compute/`: `provider.ts` (the P8 port, plus
+  `onRunChange` for the after-run tick), `configuration.ts` (`loadReporterConfiguration`, the
+  refusals, `WbsCredential`), `ssh-host.ts` (the adapter), `report-capacity.ts` (the loop and
+  the command), wired into `runDash` as `report-capacity`.
+- `tools/tool-fleet/src/ssh-transport.ts` gains `renderRemoteCommandArguments` (`-F none`, the
+  strict options, the jump's `ProxyCommand`, `ConnectTimeout`, `--`); Dash reaches it and
+  `readSshTransport` only through `@tools/fleet-ssh-transport` (`ssh-transport-facade.ts`),
+  allowed for `compute/**` alone in `eslint.product.mjs`.
+- Dash CLI README section `report-capacity` (configuration shape and outcomes);
+  `docs/infra/gate-hosts.md` points at it and at task 2.4.
+
+Assumed in this slice (each overrulable):
+
+- The configuration names the credential inline (`credential`, a `wbs_mk_` key only; no OIDC
+  token source) and reuses fleet discovery's transport file per instance (`sshTransportFile`).
+- In-gate SSH cases run against a fixture `ssh` client (`compute/testing/ssh-fixture.ts`), not an
+  sshd: no sshd ships on the laptop or in CI, and the transport has no non-default port. The
+  real client against a real sshd is the rehearsal below.
+- `cpu_cores` usage is the one-minute load floored and capped at the core count; `agent_slots`
+  dials `true` so an unreachable host reports `unreachable`, and its usage counts the runs this
+  process started (0 for the reporter today).
+- `name_unresolved` and `no_route` join the four P8 transport faults as `unreachable`.
+- `docker` and `kubernetes` are refused `provider_not_implemented` until slices 3 and 4.
+- Any `4xx` or redirect ends the loop (P10 names `401`, `403`, `404`, `409 provider_mismatch`;
+  `400 invalid_body` and `observedAt_in_future` are treated the same). `5xx` and a transport
+  fault to WBS retry once on the next tick, per binding, then exit `wbs_unavailable`.
+- `wbsOrigin` must be `https:` or loopback `http:`.
+
+R5 proofs, each fault injected into production source, the named test watched failing, the
+source restored:
+
+| Check                                       | Injected fault                                            | Observed failing test                                                                                                              |
+| ------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| unparseable answer throws (2.2)             | parse error caught and answered `unreachable`             | `throws for /proc/meminfo without MemTotal` and `throws for an unparseable df answer` (promise resolved)                           |
+| `401` and every other refusal exit (2.3)    | refusal turned into a logged `break`                      | `exits on 401 and sends nothing further` (`test budget: the loop kept going`), the five `exits at once` cases, the entrypoint case |
+| credential never echoed                     | `parseSecretsOrThrow` replaced by `parseOrThrow`          | `never echoes a malformed credential or a well-formed one` (summary quoted the key)                                                |
+| owner-only configuration                    | mode and owner check skipped                              | `refuses a group- or world-readable configuration credential_not_owner_only`                                                       |
+| absent distinct from unreadable             | `ENOENT` branch never taken                               | `refuses an absent configuration config_absent` (received `config_unreadable`)                                                     |
+| plain HTTP only on loopback                 | protocol check off                                        | `refuses a plain-HTTP origin that is not loopback`                                                                                 |
+| `puni_pool` refused by name                 | the pool branch never taken                               | `refuses a pool instance provider_kind_not_available before any adapter opens`                                                     |
+| measures checked before opening             | `unsupported` check off                                   | `refuses a measure the adapter lacks unsupported_measure before opening it`                                                        |
+| no `Date.now` in `src/compute`              | `Date.now()` appended to `compute/report-capacity.ts`     | `only clock.ts reads the wall clock` (`+ "compute/report-capacity.ts"`)                                                            |
+| remote-command host cannot be an ssh option | refusal removed in `renderRemoteCommandArguments`         | `refuses a command host that ssh could read as an option`                                                                          |
+| the cadence sleep wakes on a run change     | the abort listener dropped from `sleepUnlessInterrupted`  | `resolves when the interrupt aborts, long before the timer` (timed out)                                                            |
+| compute reaches only the transport facade   | override widened to `^@tools/fleet`; override scoped away | `Dash compute reaches only the SSH transport facade` at the exact allow-list assertion, both times                                 |
+
+Rehearsal against a real sshd (2026-10-22, scratch scripts outside the repository): two
+disposable `alpine:3` containers, one running OpenSSH (`172.17.0.3`, user `puni1`, the key only
+in a throwaway `ssh-agent`), one with nothing on port 22 (`172.17.0.4`); `/usr/bin/ssh`, the
+production `sshHostAdapter` and `readSshTransport` with an owner-only `known_hosts`. Both
+containers and the agent were removed afterwards.
+
+| Case                                           | Result                                                                                                                                                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memory_gib`                                   | `measured`, `capacityUnits: 30`, `usageUnits: 29`, evidence `MemTotal: 32449024 kB; MemAvailable: 1608956 kB`                                                                |
+| `disk_gib /tmp`, `cpu_cores`, `agent_slots: 4` | `measured` 459/352, 24/24 (load 33.29 capped), 4/0                                                                                                                           |
+| `disk_gib /absent`                             | threw `df -kP -- '/absent' on 172.17.0.3 exited 1: df: /absent: can't find mount point`                                                                                      |
+| `run uname -n`                                 | `{"exitCode":0,"stdout":"5269ec277ab9\n"}` (the container's host name)                                                                                                       |
+| closed port                                    | `unreachable`, `ssh connection_refused: ssh: connect to host 172.17.0.4 port 22: Connection refused`                                                                         |
+| `known_hosts` pinning another key              | `unreachable`, `ssh host_key_mismatch: No ED25519 host key is known for 172.17.0.3 and you have requested strict checking.`                                                  |
+| the whole command, fake WBS on loopback        | four `PUT`s with the configured bearer; the fourth answered `401`; exit 1, `error: refused: instance h4claw resource slots: HTTP 401 unknown_identity`; the key in no output |
+
+The first real run showed ssh ending its diagnostics with `\r\n`; the adapter now trims the
+line, and the fixture's refusals carry `\r\n`.
+
+Not run or not verified:
+
+- Task 2.4: no instance is registered on dev and no report is stored there; the first stored
+  reports for h2puni and h4claw are owed with it.
+- A `MemTotal`-less or nonsense `df` from a real host: fixture only.
+- The `timeout` and `authentication_failed` causes: classified from ssh's diagnostics, not
+  observed against a real host here.
+- SIGTERM: the reporter holds no state to flush and ends with the process; no handler is
+  installed.
+
+Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-2` with `env -u CLAUDECODE`:
+
+- `bunx nx run-many -t lint typecheck -p twilight-dash tool-fleet --skip-nx-cache --parallel=1`:
+  succeeded (4 tasks).
+- `bunx nx run twilight-dash:test --skip-nx-cache`: exit 0, 2147 pass, 0 fail (before the two
+  `sleepUnlessInterrupted` cases; `report-capacity.test.ts` alone afterwards: 17 pass, 0 fail).
+- `bunx nx run twilight-dash:build --skip-nx-cache`: succeeded (observation launcher only; the
+  bundle does not reach `src/compute`).
+- `bunx nx run tool-fleet:test --skip-nx-cache`: exit 0, 589 pass, 0 fail.
+- `bunx nx run tool-devsync:test --skip-nx-cache` (full): exit 0, 898 pass, 0 fail, after the
+  slice commit (an earlier run before committing failed only the index checker's
+  untracked-path refusal and, once, `names a discovered module missing tsconfig.json`, which
+  passed alone and in the full rerun).
+- Burokrat `check-indexes working . HEAD`: exit 0; no module index covers a changed file (the
+  `store-memory` review debt is unchanged).
+- `bunx openspec validate --all --json`: 269 of 269 passed.
+
+### Slice 2 review (Fable, 2026-10-22, PR #659)
+
+The review found the secrets handling, argv pinning and the P10 table sound. Fixed on the same
+PR:
+
+- S1-1: `observe(agent_slots)` read `#activeRuns` after the reachability dial, so a run ending
+  during the dial raced the count (the run smoke failed 1 run in 4 there; 12 local runs did not
+  reproduce it). `observe` now samples runs in use at its start, the instant it stamps. The
+  fixture gained a `dialDelay` that holds the dial open for 0.5 s, which makes the old race
+  deterministic.
+- S2-1: the entrypoint test's in-test kill sits inside an explicit 60 s test budget
+  (`ENTRYPOINT_BUDGET_MS`), not at 20 s, and still asserts exit 1.
+- S2-2: negatives for `timeout`, `authentication_failed`, `name_unresolved`, `no_route`, a
+  non-numeric `nproc`, a missing loadavg line, a header-only `df` and `MemAvailable` above
+  `MemTotal`.
+- S3-1: no `AbortSignal.any` remains. The request carries `AbortSignal.timeout` alone, with an
+  explicit `stop.aborted` check on failure. Each instance loop adds one `stop` listener that
+  aborts its current sleep controller.
+- S3-2: a `transient` answer resets the `report_superseded` count.
+- S3-4: the timeout reason is cut to 200 characters like the 255 reason. Testing it showed the
+  command deadline waited for ssh's pipes, which a descendant (the fixture's `sleep`, in
+  production a `ProxyCommand`) can hold open. The deadline now answers as soon as the killed
+  ssh exits.
+- S3-7: `Proof:` comments beside the run-environment refusal, the unknown-255 throw and the
+  non-zero remote exit. New negatives for `isFile()`, the 64 KiB configuration cap, the 1 MiB
+  output cap and a malformed `200`.
+- S3-6: `report-capacity` resolves `ssh` on `PATH` before it validates `--config`. Both
+  refusals come before any effect, and the spec says nothing about their order.
+- S3-9: spec, tasks and design now say the gate uses a fixture `ssh` client and a real sshd was
+  only the rehearsal.
+
+| Fault injected (watched 2026-10-22)                                                | Observed failing test                                                                                                                                            |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_slots` usage read from `#activeRuns` after the dial                         | `counts the runs in use at the stamp, not after the dial`                                                                                                        |
+| each `TRANSPORT_FAULTS` entry removed in turn                                      | `answers unreachable for every typed transport fault` (four new causes); the closed-port case (`connection_refused`, `host_key_mismatch`)                        |
+| timeout reason not cut                                                             | `bounds an unreachable reason to the 200 characters WBS accepts` (length 254)                                                                                    |
+| deadline awaits the pipes (`answered` alone)                                       | the same test's elapsed-time assertion (5001 ms, not under 2000 ms) under the project's `--timeout=60000` (the first watch named only bun's default 5 s timeout) |
+| unmatched 255 answered `unreachable`                                               | `throws for an ssh failure that names no transport fault`                                                                                                        |
+| non-zero remote exit branch dropped                                                | `throws when the remote command fails on a reachable host` (received the parser's `has no MemTotal line`)                                                        |
+| run-environment allow-list refusal skipped                                         | `refuses a run environment key outside the allow-list before ssh starts`                                                                                         |
+| 1 MiB output cap dropped                                                           | `refuses an answer over 1 MiB`                                                                                                                                   |
+| `AbortSignal.any([wake.signal, stop])` per sleep, or `[stop, timeout]` per request | `adds a fixed number of abort listeners whatever the number of ticks` (16 composites instead of 0), each                                                         |
+| superseded count kept across a transient answer                                    | `counts only consecutive report_superseded` (exited `another_reporter`)                                                                                          |
+| any `200` answered `stored`                                                        | `throws on a 200 that carries no stored report`                                                                                                                  |
+| `isFile()` check skipped                                                           | `refuses a directory config_unreadable…` (raw `EISDIR` escaped)                                                                                                  |
+| 64 KiB cap dropped                                                                 | `…and a file over 64 KiB config_malformed` (the file loaded)                                                                                                     |
+
+Recorded, not changed:
+
+- S3-3: an ssh 255 whose diagnostic matches none of the six patterns throws and ends the
+  reporter, as the design requires. Examples are `kex_exchange_identification` and
+  `Connection reset by peer`. A `connection_closed` reason is a candidate for a later slice.
+- S3-5: the command deadline (`setTimeout`) and the request `AbortSignal.timeout` are not on the
+  injected `Monotonic`. The fixture drives the timeout branch with a real 200 ms deadline, not
+  deterministically.
+- S3-8, pre-existing in `tool-fleet` (the coordinator files an issue): the jump's
+  `ProxyCommand=ssh …` lacks `-F none`. The transport and `known_hosts` owner check also stats
+  the path after `readFile`, so it follows symlinks and checks no uid, unlike Dash's
+  `readOwnerOnly`.
+
+Commands after the review fixes (2026-10-22, `env -u CLAUDECODE`):
+
+- `ssh-host.test.ts` six times in a row: 15 pass, 0 fail each run.
+- `provider.test.ts`: 11 pass. `report-capacity.test.ts`: 20 pass.
+- `bunx nx run-many -t lint typecheck -p twilight-dash tool-fleet --skip-nx-cache --parallel=1`:
+  succeeded.
+- `bunx nx run twilight-dash:test --skip-nx-cache`: 2158 pass, 0 fail.
+- `bunx nx run tool-fleet:test --skip-nx-cache`: 589 pass, 0 fail.
+
+### Slice 2 re-review (Fable, 2026-10-22, PR #659 at `2ca651681`)
+
+The re-review passed. Three items closed on the same PR:
+
+- S2-A: the hang fix's proof named a failure that only appears under bun's default 5 s test
+  timeout. `bounds an unreachable reason…` now asserts that the timed-out observation answers in
+  under 2000 ms. With `execute` awaiting `answered` alone, it failed at 5001 ms under
+  `--timeout=60000`.
+- S3-A: `execute` sets a flag when the deadline fires and treats any exit after it as timed
+  out, so the answer no longer depends on which branch of the race settles first. With
+  `timedOut: false` restored, `answers timeout when a killed ssh has no descendant` still passed
+  3 of 3 runs, because `killed` always won in the fixture. With `killed` made never to resolve,
+  so that `answered` settles first, the flag passed and `timedOut: false` failed with
+  `true on stalled.fixture exited 137`.
+- JSDoc: `execute` now says the pipe readers outlive the answer until a descendant closes the
+  pipes, and that the race's loser is not an unhandled rejection. `runReporter` now says a stop
+  is noticed at the next step, up to one request timeout plus one command deadline late (two
+  hard-coded 30 s constants).
+
+Recorded, not changed: S3-C, pre-existing. The 1 MiB output cap is checked on stdout only, and
+only after reading all of it; stderr is not capped.

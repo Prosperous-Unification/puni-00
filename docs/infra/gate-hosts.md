@@ -79,3 +79,12 @@ The [Gate](../../AGENTS.md#gate) rules are the same as on h2puni:
 - Trust the printed `h2puni gate: running on <sha>`.
 - Exit 65 means the tree is dirty, and exit 66 means it has unreadable tracked paths.
 - `bin/with-heavy-lock.sh status` names the holder of the lock on that host.
+
+## Capacity reports into WBS
+
+Each gate host is meant to report its memory, `/tmp` disk and agent slots to WBS as an `ssh_host`
+compute provider through Dash's
+[`report-capacity`](../../apps/twilight-structure/twilight-dash/cli/README.md#report-capacity).
+The operator steps (registering `h2puni` and `h4claw`, the agent person's API key, running the
+reporter as `puni1`) are task 2.4 of
+[compute-providers](../../openspec/changes/compute-providers/tasks.md) and land here with it.
