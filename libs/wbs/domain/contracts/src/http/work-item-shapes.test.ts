@@ -68,12 +68,12 @@ test('prerequisite refusal preserves indexed command context and resolved identi
     ],
   };
   const readings = await Promise.all(
-    refusals.map((refusal) => validateSchema(refusal.schema, body)),
+    refusals.map(async (refusal) => await refusal.schema.validator['~standard'].validate(body)),
   );
   expect(readings.some((reading) => reading.issues === undefined)).toBe(true);
   const { blockers: _blockers, ...missing } = body;
   const incomplete = await Promise.all(
-    refusals.map((refusal) => validateSchema(refusal.schema, missing)),
+    refusals.map(async (refusal) => await refusal.schema.validator['~standard'].validate(missing)),
   );
   expect(incomplete.every((reading) => reading.issues !== undefined)).toBe(true);
 });

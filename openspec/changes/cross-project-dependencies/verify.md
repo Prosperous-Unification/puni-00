@@ -913,6 +913,12 @@ frontend/core/SQLite/backend TypeScript builds exited 0. The first sandboxed
 TypeScript/Vitest attempts could not write generated files and are not counted.
 Changed-source ESLint, Prettier and strict OpenSpec validation exited 0 after
 the independent review evidence was formatted.
+An additional contracts-spec TypeScript check on the combined tree exposed a
+test-only TS2345 at `work-item-shapes.test.ts:71,76`: a heterogeneous refusal
+schema union could not be passed through one inferred generic argument. Each
+declaration now runs its own standard validator; contracts-spec TypeScript,
+changed-test lint/format and the four contract tests pass. No HTTP refusal
+schema or production validation behavior changed.
 Mounted connected claim publication, shared-mode and full observation faults,
 MCP authenticated transport, full gate and CI remain open. Task 6.3 stays
 unchecked.
