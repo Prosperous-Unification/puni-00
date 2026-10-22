@@ -1023,3 +1023,11 @@ passed with a fresh Nx graph. Prettier and `git diff --check` passed for this
 packet. Shared connected aggregate production support and the frontend reason
 presenter remain outside this packet; tasks 8.4 and 9.2 stay unchecked. Full CI
 and the exact-SHA host gate remain pending.
+
+The [independent backend review](evidence/task-8-4-unavailable-consumers-review.md)
+approved this bounded packet and identified a missing person-load presenter key.
+On the combined branch, the mounted `person-load-page.test.tsx` case for
+`dependency_calendar_missing` failed with the visible text `Platform could not
+be read: .`; after adding its reason words, all 8 page tests passed. Frontend
+TypeScript now reports only the separate structured schedule-error mismatches
+in `wbs-table.tsx`; task 9.2 remains open.
