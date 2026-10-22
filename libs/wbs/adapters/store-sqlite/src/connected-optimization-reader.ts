@@ -26,6 +26,7 @@ import {
 import { captureConnectedQuestion } from './connected-question-identity';
 
 type CapturedEntry =
+  | { readonly kind: 'durable'; readonly outcome: ConnectedSolverOutcome }
   | SolverProcessOutcome
   | { readonly kind: 'idle' }
   | { readonly kind: 'pending' }
@@ -144,6 +145,7 @@ export function connectedOptimizationReaderOf(
         if (prepared.kind === 'boundary-infeasible')
           return projectOutcome(questions[objective], prepareConnectedBoundaryOutcome(prepared));
         const entry = captured.variants[objective];
+        if (entry.kind === 'durable') return projectOutcome(questions[objective], entry.outcome);
         if (entry.kind === 'idle' || entry.kind === 'pending' || entry.kind === 'retrying')
           return { state: { state: entry.kind }, candidate: null };
         if (entry.kind === 'corrupt')

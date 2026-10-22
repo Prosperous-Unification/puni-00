@@ -1384,3 +1384,122 @@ configured lint attempts exited nonzero without diagnostics; separate reruns
 passed. Existing dependencies are linked from the workspace; a clean frozen
 installation and full host gate were not performed. Mounted failure fixtures
 emit expected application error logs while their assertions pass.
+
+### Task 7.3/7.4 bounded connected durable repository — 2026-10-22
+
+Isolated implementation based on `7efc7c029`; this packet does not complete either task.
+The additive `20261022213000_add_optimization_boundary_certificates` migration retains
+exact-question boundary evidence independently of generation eviction and cache budget
+pruning. Connected envelope-v2 success stays physically separate from local envelope-v1
+interpretation. The repository shares the existing writer fences and adds current input-hash
+correspondence. Diagnostic replacement and certificate insertion share the caller transaction.
+The captured adapter borrows its supplied database snapshot and performs no admission.
+
+Fresh commands and results:
+
+- `bun test` over `connected-optimization-cache.db.test.ts`,
+  `optimization-boundary-certificate-migration.db.test.ts`,
+  `connected-optimization-reader.test.ts`, `connected-question-identity.test.ts`,
+  `connected-durable.test.ts`, `optimized-schedule-cache.db.test.ts`,
+  `optimized-cache.db.test.ts`, `optimized-outcome.db.test.ts`,
+  `optimization-generation.db.test.ts`, and `captured-optimization-reader.db.test.ts`:
+  **179 passed, 0 failed**, 1,391 assertions. The new suites were rerun after mutation restoration.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exit 0.
+- `bun tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261022213000_add_optimization_boundary_certificates/migration.sql`:
+  exit 0.
+- `bunx openspec validate cross-project-dependencies --strict`: valid.
+- Changed TypeScript files were formatted with Prettier. Project lint initially found the
+  barrel export ordering; that was repaired. `NX_DAEMON=false bunx nx run wbs-store-sqlite:lint` then exited 0. The changed-file Prettier check passed.
+
+Watched R5 production-path mutations, each restored before the final green run:
+
+| Injected fault                                                                                          | Command selector on `bun test libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts -t` | Observed refusal of the fault                                                    |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Remove each project/hash/contract/budget predicate independently from either physical lookup            | `lookup`                                                                                                     | Corresponding `isolates ... lookup by ...` assertion failed.                     |
+| Remove the cache objective predicate                                                                    | `strict connected success`                                                                                   | Expected PRI `miss`, received `corrupt`.                                         |
+| Remove the certificate objective predicate                                                              | `retains the fractional`                                                                                     | Fractional retained roundtrip failed.                                            |
+| Remove current-generation inputHash writer fence while holding generation constant                      | `fences changed input hash`                                                                                  | Expected `superseded`, received `stored`.                                        |
+| Bypass the retained certificate source                                                                  | `retains the fractional`                                                                                     | Expected retained terminal after turnover, received miss.                        |
+| Remove certificate/cache conflict refusal                                                               | `cannot mask`                                                                                                | Expected corruption throw was absent.                                            |
+| Remove request identity validation                                                                      | `malformed request`                                                                                          | Invalid quantum/wire/hash/stage request became a miss.                           |
+| Remove decoded project/hash/objective/contract/budget correspondence independently                      | `compares decoded <field>`                                                                                   | Each isolated per-field check passed before removal and failed after removal.    |
+| Remove captured liveness inputHash correspondence                                                       | `different current input hash`                                                                               | Expected idle, received pending.                                                 |
+| Substitute a fresh connection for the supplied snapshot; diagnostic fixture supplied its real file path | `stage selections from the supplied snapshot`                                                                | Isolated and shared cases expected idle after rival publication, received ready. |
+
+Decoded identity checks are redundant with other identity fields and canonical stage
+correspondence: simply removing one initially left all five decoded-field cases green.
+For each diagnostic proof, the other correspondence fields and stage-byte comparison were
+removed temporarily; the remaining single field still refused its coherent wrong envelope.
+Removing that final field admitted it. No diagnostic mutations remain in production or tests.
+Existing codec field-sweep proofs were not repeated; the codec implementation was untouched.
+
+For migration guards, `bun test libs/wbs/adapters/store-sqlite/src/optimization-boundary-certificate-migration.db.test.ts -t 'refuses retained'`
+failed when the retained-row predicate was removed, and `-t 'refuses replaced'` failed when
+schema identity comparison was removed: both accepted destructive rollback unexpectedly.
+Restored tests prove intact empty rollback preserves the preceding full ledger and retained,
+missing, or replaced table rollback refuses without changing that ledger.
+An injected real SQLite insertion trigger also proves diagnostic deletion rolls back when
+certificate insertion aborts; removing the trigger allows the same admitted commit.
+
+Limits and checks not performed: the adapter is not installed in production composition.
+Existing borrowed reader lifetime wrappers were not extended or tested with this new connected
+capability; the tests prove supplied-snapshot visibility, not post-settlement wrapper expiry.
+The nonbinding-deadline certificate variation, complete repository-level quantum/wire identity
+mutation matrix, same-attempt replacement timestamp mutation proof, and terminal duplicate
+conflicting-valid-evidence mutation proof remain unverified here. The shared old writer fences
+have focused stale-owner/epoch/generation/enablement tests and existing regression evidence;
+this packet did not independently remutate every shared old predicate.
+Coordinator admission, terminal event-before-release, Retry, restart, frontend outcomes,
+installed solver handshake, Python/model suites, full CI and host gate are outside this packet.
+Tasks 7.3 and 7.4 remain unchecked and connected runtime capability remains unavailable.
+
+### Task 7.3/7.4 durable repository review correction — 2026-10-22
+
+Addressed the P2 finding in `/tmp/puni-optimizer-durable-review.md` against
+`47a7cb6f9`. Replayed the retained reviewer fixture as temporary
+`connected-durable-review.db.test.ts`: the original code produced **1 pass, 2 fail**
+with `connected outcome lacks payload`; the truncated-JSON control passed. Missing
+cache payload and missing failed reason escaped before the modeled corruption catch,
+so an admitted replacement could not retire those older diagnostics.
+
+Moved both missing-field checks into the existing recoverable cache decoding boundary.
+Retained certificate decoding remains outside that boundary and still throws on damaged
+terminal evidence. Unknown stored enum validation likewise remains outside it.
+No task checkbox or production composition changed; tasks 7.3/7.4 remain open.
+
+Added ten production repository/adapter regressions covering missing `ok` payload,
+missing ordinary `plan-infeasible` payload, missing failed reason, truncated `ok`
+payload and truncated ordinary infeasible payload. Each fault checks repository
+`corrupt`, expired captured `corrupt`, live captured `retrying`, unchanged diagnostic
+on reads, and admitted replacement by one exact decoded boundary certificate with
+no surviving cache diagnostic. The first red run was **4 pass, 6 fail**; the four
+truncated-payload controls already passed. Corrected run: **10 pass, 0 fail**.
+The independent reviewer reproduction then passed **3/3**; its temporary copied
+fixture was removed.
+
+Watched R5 faults, restored independently:
+
+- Injected an early missing-payload throw before the cache recovery boundary.
+  `bun test libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts -t 'missing.*payload.*(repository|terminal)'`
+  failed **4/4**: both missing `ok`/ordinary-infeasible read cases and admitted
+  replacements threw `injected missing payload bypass`.
+- Injected an early missing-failed-reason throw before that boundary.
+  `bun test libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts -t 'missing failed reason.*(repository|terminal)'`
+  failed **2/2**: repository/captured read and exact admitted replacement both
+  threw `injected missing reason bypass`.
+- The adjacent production `Proof:` comment names these observed faults. All
+  injected throws were removed before the restored full focused run.
+
+Fresh restored verification:
+
+- Same ten-suite focused command as the bounded repository packet above:
+  **189 passed, 0 failed**, 1,447 assertions, including all prior 179 cases.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exit 0.
+- `NX_DAEMON=false bunx nx run wbs-store-sqlite:lint`: exit 0.
+- Changed source/test and this record formatted and checked with Prettier.
+- `bunx openspec validate cross-project-dependencies --strict`: valid.
+
+No migration/schema change: migration lint was not rerun for this correction.
+Full CI, host gate, production composition, borrowed lifetime integration,
+coordinator admission/Retry/restart and terminal event/release remain outside
+this correction and unverified here.
