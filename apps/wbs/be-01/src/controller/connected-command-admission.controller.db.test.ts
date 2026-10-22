@@ -1,5 +1,5 @@
 import type { StoredTypedDependency } from '@wbs/core';
-import type { WritingServices } from '@wbs/core';
+import type { TypedDependencyStore, WritingServices } from '@wbs/core';
 import { clockOf, grantAdmission } from '@wbs/core';
 import { commandTransaction } from '@wbs/core/module/plan-commands/composition';
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
@@ -191,7 +191,11 @@ test('mounted external authoring stays dormant and rolls back an earlier success
 
 async function semantic<T extends { readonly ok: boolean }>(
   fixture: Awaited<ReturnType<typeof open>>,
-  act: (service: WorkItemService, graph: WritingServices) => Promise<T>,
+  act: (
+    service: WorkItemService,
+    graph: WritingServices,
+    typedDependencies: TypedDependencyStore,
+  ) => Promise<T>,
   inspectCollected?: (recordings: CollectedRecording[]) => void,
   refusedProjectRead?: string,
   failedGraphRead?: 'findCycle' | 'findStepReferences' | 'proposedCycle',
@@ -352,7 +356,9 @@ async function semantic<T extends { readonly ok: boolean }>(
         externalDependencyAuthoring: { state: 'active' },
         broadcast: held,
       });
-      const collected = await service.collect(() => act(service, graph));
+      const collected = await service.collect(() =>
+        act(service, graph, scope.stores.typedDependencies),
+      );
       inspectCollected?.(collected.recordings);
       if (collected.result.ok)
         await service.recordCollected(
@@ -1035,6 +1041,464 @@ async function ownerRow(fixture: Awaited<ReturnType<typeof open>>, name: string)
   if (row === null) throw new Error('fixture owner row missing');
   return row.id;
 }
+
+function workflowStep(projectId: string, name: string): string {
+  const step = harness.sqlite
+    .query<{ id: string }, [string, string]>('SELECT id FROM step WHERE project_id=? AND name=?')
+    .get(projectId, name);
+  if (step === null) throw new Error('fixture workflow step missing');
+  return step.id;
+}
+
+async function localBranch(fixture: Awaited<ReturnType<typeof open>>, name: string) {
+  const parent = await ownerRow(fixture, `${name} parent`);
+  const children: string[] = [];
+  for (const suffix of ['first', 'second']) {
+    const created = await semantic(fixture, (service) =>
+      service.create(fixture.owner.projectId, fixture.principal.id, {
+        name: `${name} ${suffix}`,
+        parentId: parent,
+        afterId: null,
+      }),
+    );
+    if (!created.ok) throw new Error('fixture branch creation refused');
+    children.push(created.value.id);
+  }
+  return { parent, children };
+}
+
+// Proof: bypassing typedRefusal's connected cycle consumer admitted the closing edge;
+// a reciprocal-project shortcut instead refused the valid interleaving (2026-10-22).
+test('admitted distinct tasks interleave projects until a local edge closes the remote cycle', async () => {
+  const fixture = await open();
+  const a = fixture.predecessor;
+  const b = fixture.owner;
+  const reverse = { ...fixture, owner: a };
+  const c = await ownerRow(reverse, 'Distinct returning task');
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(b.projectId, fixture.principal.id, {
+        predecessor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') },
+        successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(reverse, (service) =>
+      service.addTypedDependency(a.projectId, fixture.principal.id, {
+        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+        successor: {
+          projectId: a.projectId,
+          workItemId: c,
+          scope: 'node',
+          stepId: workflowStep(a.projectId, 'QA'),
+        },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  const before = effects();
+  expect(
+    await semantic(reverse, (service) =>
+      service.addTypedDependency(a.projectId, fixture.principal.id, {
+        predecessor: {
+          projectId: a.projectId,
+          workItemId: c,
+          scope: 'node',
+          stepId: workflowStep(a.projectId, 'QA'),
+        },
+        successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: false, reason: 'cycle' });
+  expect(effects()).toEqual(before);
+});
+
+// Proof: retaining only the first predecessor leaf admitted a reverse edge for
+// an omitted pair; the selected cycle assertion failed (2026-10-22).
+test('admitted remote scopes expand all four pairs under their own trees and steps', async () => {
+  const fixture = await open();
+  const remote = { ...fixture, owner: fixture.predecessor };
+  const a = await localBranch(remote, 'Remote');
+  const b = await localBranch(fixture, 'Owner');
+  const aStep = workflowStep(remote.owner.projectId, 'QA');
+  const bStep = workflowStep(fixture.owner.projectId, 'Dev');
+  expect(aStep).not.toBe(bStep);
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        predecessor: {
+          projectId: remote.owner.projectId,
+          workItemId: a.parent,
+          scope: 'descendant-step',
+          stepId: aStep,
+        },
+        successor: {
+          projectId: fixture.owner.projectId,
+          workItemId: b.parent,
+          scope: 'descendant-step',
+          stepId: bStep,
+        },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  const before = effects();
+  for (const left of a.children)
+    for (const right of b.children) {
+      expect(
+        await semantic(remote, (service) =>
+          service.addTypedDependency(remote.owner.projectId, fixture.principal.id, {
+            predecessor: {
+              projectId: fixture.owner.projectId,
+              workItemId: right,
+              scope: 'node',
+              stepId: bStep,
+            },
+            successor: {
+              projectId: remote.owner.projectId,
+              workItemId: left,
+              scope: 'node',
+              stepId: aStep,
+            },
+            type: 'FS',
+          }),
+        ),
+      ).toMatchObject({ ok: false, reason: 'cycle' });
+      expect(effects()).toEqual(before);
+    }
+});
+
+// Proof: bypassing structuralRefusal's cycle consumer made this move succeed
+// after the valid external setup, rather than refuse cycle (2026-10-22).
+test('admitted subtree move closes a real remote descendant cycle and rolls back', async () => {
+  const fixture = await open();
+  const branch = await localBranch(fixture, 'Move');
+  const moving = fixture.owner.workItemId;
+  expect(
+    await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
+      service.addTypedDependency(fixture.predecessor.projectId, fixture.principal.id, {
+        predecessor: {
+          projectId: fixture.owner.projectId,
+          workItemId: branch.parent,
+          scope: 'descendant-step',
+          stepId: workflowStep(fixture.owner.projectId, 'QA'),
+        },
+        successor: {
+          ...fixture.predecessor,
+          scope: 'node',
+          stepId: workflowStep(fixture.predecessor.projectId, 'Dev'),
+        },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        predecessor: {
+          ...fixture.predecessor,
+          scope: 'node',
+          stepId: workflowStep(fixture.predecessor.projectId, 'QA'),
+        },
+        successor: {
+          ...fixture.owner,
+          scope: 'node',
+          stepId: workflowStep(fixture.owner.projectId, 'Dev'),
+        },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  const before = effects();
+  expect(
+    await semantic(fixture, (service) =>
+      service.move(
+        moving,
+        fixture.principal.id,
+        {
+          parentId: branch.parent,
+          afterId: null,
+        },
+        fixture.expectedAccess,
+      ),
+    ),
+  ).toMatchObject({ ok: false, reason: 'cycle' });
+  expect(effects()).toEqual(before);
+});
+
+// Proof: independently bypassing the clear-estimate structural cycle consumer,
+// step-removal cycle condition, and project-reach cycle condition made each
+// corresponding real SQLite transition succeed instead of refuse (2026-10-22).
+for (const transition of ['clear-estimate', 'step-remove', 'project-reach'] as const)
+  test(`admitted ${transition} moves a legacy anchor into a real remote cycle and rolls back`, async () => {
+    const fixture = await open();
+    const a = fixture.owner;
+    const b = fixture.predecessor;
+    const c = await ownerRow(fixture, 'Legacy successor');
+    const dev = workflowStep(a.projectId, 'Dev');
+    const qa = workflowStep(a.projectId, 'QA');
+    expect(
+      await semantic(fixture, (_service, graph) =>
+        graph.projects.updateWithin(
+          a.projectId,
+          fixture.principal.id,
+          { depReach: 'anchor-slice' },
+          fixture.expectedAccess,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      await semantic(fixture, (service) =>
+        service.setEstimate(a.workItemId, fixture.principal.id, dev, {
+          optimistic: 0,
+          realistic: 0,
+          pessimistic: 0,
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      await semantic(fixture, (service) =>
+        service.addDependency(c, fixture.principal.id, a.workItemId),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      await semantic({ ...fixture, owner: b }, (service) =>
+        service.addTypedDependency(b.projectId, fixture.principal.id, {
+          predecessor: { projectId: a.projectId, workItemId: c, scope: 'node', stepId: qa },
+          successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+          type: 'FS',
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      await semantic(fixture, (service) =>
+        service.addTypedDependency(a.projectId, fixture.principal.id, {
+          predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+          successor: { ...a, scope: 'node', stepId: qa },
+          type: 'FS',
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+    const before = effects();
+    const refused = await semantic<{ readonly ok: boolean }>(fixture, (service, graph) => {
+      switch (transition) {
+        case 'clear-estimate':
+          return service.clearEstimate(a.workItemId, fixture.principal.id, dev);
+        case 'step-remove':
+          return graph.steps.removeWithin(
+            a.projectId,
+            dev,
+            fixture.principal.id,
+            true,
+            fixture.expectedAccess,
+          );
+        case 'project-reach':
+          return graph.projects.updateWithin(
+            a.projectId,
+            fixture.principal.id,
+            { depReach: 'whole-item' },
+            fixture.expectedAccess,
+          );
+      }
+    });
+    expect(refused).toMatchObject({
+      ok: false,
+      reason: transition === 'clear-estimate' ? 'cycle' : 'dependency_cycle',
+    });
+    expect(effects()).toEqual(before);
+  });
+
+// Proof: bypassing typedRefusal's cycle consumer admitted the second command;
+// forcing UoW COMMIT on refusal instead retained the first link and revisions,
+// failing the all-table equality assertion (2026-10-22).
+test('admitted batch rolls back an actual external write when a later command closes the remote cycle', async () => {
+  const fixture = await open();
+  const c = await ownerRow(fixture, 'Batch closing task');
+  expect(
+    await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
+      service.addTypedDependency(fixture.predecessor.projectId, fixture.principal.id, {
+        predecessor: {
+          projectId: fixture.owner.projectId,
+          workItemId: c,
+          scope: 'node',
+          stepId: workflowStep(fixture.owner.projectId, 'QA'),
+        },
+        successor: {
+          ...fixture.predecessor,
+          scope: 'node',
+          stepId: workflowStep(fixture.predecessor.projectId, 'Dev'),
+        },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  const before = effects();
+  expect(
+    await semantic(fixture, async (service, _graph, typedDependencies) => {
+      const first = await service.addTypedDependency(
+        fixture.owner.projectId,
+        fixture.principal.id,
+        fixture.input,
+      );
+      expect(first).toMatchObject({ ok: true });
+      const staged = await typedDependencies.listIncident([fixture.owner.projectId]);
+      expect(staged).toHaveLength(2);
+      if (!first.ok) throw new Error('fixture first external write refused');
+      expect(staged.find((relationship) => relationship.id === first.value)).toMatchObject({
+        predecessor: fixture.input.predecessor,
+        successor: fixture.input.successor,
+      });
+      return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        predecessor: {
+          ...fixture.input.successor,
+          scope: 'node',
+          stepId: workflowStep(fixture.owner.projectId, 'QA'),
+        },
+        successor: {
+          projectId: fixture.owner.projectId,
+          workItemId: c,
+          scope: 'node',
+          stepId: workflowStep(fixture.owner.projectId, 'Dev'),
+        },
+        type: 'FS',
+      });
+    }),
+  ).toMatchObject({ ok: false, reason: 'cycle' });
+  expect(effects()).toEqual(before);
+});
+
+test('admitted estimate insertion and appended step preserve a valid connected interleaving', async () => {
+  const fixture = await open();
+  const a = fixture.owner;
+  const b = fixture.predecessor;
+  expect(
+    await semantic({ ...fixture, owner: b }, (service) =>
+      service.addTypedDependency(b.projectId, fixture.principal.id, {
+        predecessor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') },
+        successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(a.projectId, fixture.principal.id, {
+        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+        successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'QA') },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(fixture, (service) =>
+      service.setEstimate(a.workItemId, fixture.principal.id, workflowStep(a.projectId, 'Dev'), {
+        optimistic: 0,
+        realistic: 0,
+        pessimistic: 0,
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  const added = await semantic(fixture, (_service, graph) =>
+    graph.steps.addWithin(
+      a.projectId,
+      fixture.principal.id,
+      'Release',
+      0,
+      undefined,
+      fixture.expectedAccess,
+    ),
+  );
+  expect(added).toMatchObject({ ok: true });
+  const steps = harness.sqlite
+    .query<{ name: string }, [string]>('SELECT name FROM step WHERE project_id=? ORDER BY position')
+    .all(a.projectId);
+  expect(steps.map((step) => step.name)).toEqual(['Dev', 'QA', 'Release']);
+  expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toHaveLength(2);
+  expect(
+    await semantic(fixture, async (service) => ({
+      ok: (await service.findDependencyCycle(a.projectId, fixture.principal.id)) === null,
+    })),
+  ).toEqual({ ok: true });
+});
+
+// Proof: applying the requested owner's reach to every captured project refused
+// the final valid estimate write as cycle after all setup succeeded (2026-10-22).
+test('admitted remote legacy anchors retain their own reach when the owner uses whole-item reach', async () => {
+  const fixture = await open();
+  const remote = { ...fixture, owner: fixture.predecessor };
+  const a = remote.owner;
+  const b = fixture.owner;
+  const c = await ownerRow(remote, 'Remote legacy successor');
+  expect(
+    await semantic(remote, (_service, graph) =>
+      graph.projects.updateWithin(
+        a.projectId,
+        fixture.principal.id,
+        { depReach: 'anchor-slice' },
+        fixture.expectedAccess,
+      ),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(remote, (service) =>
+      service.setEstimate(a.workItemId, fixture.principal.id, workflowStep(a.projectId, 'Dev'), {
+        optimistic: 0,
+        realistic: 0,
+        pessimistic: 0,
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(remote, (service) =>
+      service.addDependency(c, fixture.principal.id, a.workItemId),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(b.projectId, fixture.principal.id, {
+        predecessor: {
+          projectId: a.projectId,
+          workItemId: c,
+          scope: 'node',
+          stepId: workflowStep(a.projectId, 'QA'),
+        },
+        successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(remote, (service) =>
+      service.addTypedDependency(a.projectId, fixture.principal.id, {
+        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+        successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'QA') },
+        type: 'FS',
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    await semantic(fixture, (service) =>
+      service.setEstimate(b.workItemId, fixture.principal.id, workflowStep(b.projectId, 'Dev'), {
+        optimistic: 1,
+        realistic: 1,
+        pessimistic: 1,
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    harness.sqlite
+      .query<{ depReach: string }, [string]>('SELECT dep_reach AS depReach FROM project WHERE id=?')
+      .get(a.projectId),
+  ).toEqual({ depReach: 'anchor-slice' });
+  expect(
+    harness.sqlite
+      .query<{ depReach: string }, [string]>('SELECT dep_reach AS depReach FROM project WHERE id=?')
+      .get(b.projectId),
+  ).toEqual({ depReach: 'whole-item' });
+});
 
 function lastPreconditions(projectId: string): unknown {
   const entry = harness.sqlite
