@@ -60,6 +60,7 @@ export const CASE_MANIFEST = {
     'directory.listMeasures:seeded-per-organization',
     'directory.addMeasure:index-backstop',
     'directory.patchMeasure:scoped-key-frozen',
+    'directory.patchMeasure:shape-frozen',
     'directory.removeMeasure:scoped',
   ],
   organizationLimits: [

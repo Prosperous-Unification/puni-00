@@ -811,8 +811,9 @@ export function asMeasureKey(value: unknown): string {
 
 /**
  * A measure's unit label, trimmed, of at most
- * {@link MOST_CHARACTERS_IN_A_UNIT_LABEL} characters; empty is allowed, as for
- * a resource's.
+ * {@link MOST_CHARACTERS_IN_A_UNIT_LABEL} characters. An empty label passes
+ * here and is refused by the domain's `unit_required`, a 409 like the
+ * definition's other refusals.
  */
 export function asMeasureUnit(value: unknown): string {
   const unit = asText(value, 'unit').trim();

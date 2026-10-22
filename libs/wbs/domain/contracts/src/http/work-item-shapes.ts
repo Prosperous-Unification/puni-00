@@ -249,6 +249,7 @@ const batchRefusals = [
         type({ ...context, error: "'scheduling_measure_fixed'" }),
         type({ ...context, error: "'currency_required'" }),
         type({ ...context, error: "'currency_forbidden'" }),
+        type({ ...context, error: "'unit_required'" }),
         type({ ...context, error: "'measure_in_use'" }),
       ),
     ),

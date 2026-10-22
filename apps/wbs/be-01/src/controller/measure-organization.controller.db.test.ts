@@ -144,6 +144,7 @@ describe('measure definitions in an organization', () => {
       ],
       [{ ...GPU, key: 'fee', measureKind: 'money' }, 'currency_required'],
       [{ ...GPU, currency: 'EUR' }, 'currency_forbidden'],
+      [{ ...GPU, key: 'blank', unit: ' ' }, 'unit_required'],
       [{ kind: 'deleteMeasure', measureId: tokens }, 'measure_in_use'],
     ];
     for (const [command, error] of cases)

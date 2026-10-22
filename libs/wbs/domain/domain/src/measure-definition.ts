@@ -181,6 +181,8 @@ export function nextMeasureOrder(held: readonly MeasureDefinition[]): number {
  *   scheduling measure, leaving the solver's input named by nothing.
  * - `currency_required` / `currency_forbidden`: money without a currency, or
  *   anything else with one.
+ * - `unit_required`: a unit label that is empty or only whitespace; every
+ *   figure is shown beside it.
  */
 export type MeasureDefinitionRefusal =
   | 'measure_key_taken'
@@ -189,7 +191,8 @@ export type MeasureDefinitionRefusal =
   | 'second_scheduling_measure'
   | 'scheduling_measure_fixed'
   | 'currency_required'
-  | 'currency_forbidden';
+  | 'currency_forbidden'
+  | 'unit_required';
 
 function refuseCurrency(
   fields: Pick<MeasureDefinition, 'kind' | 'currency'>,
@@ -210,6 +213,7 @@ export function decideMeasureCreate(
   if (held.some((each) => each.key === fields.key)) return 'measure_key_taken';
   if (fields.schedulesWork && held.some((each) => each.schedulesWork))
     return 'second_scheduling_measure';
+  if (fields.unit.trim() === '') return 'unit_required';
   return refuseCurrency(fields);
 }
 
@@ -220,7 +224,7 @@ export type MeasurePatchDecision =
 /**
  * `target` with `patch` applied, or why the organization holding `held` (which
  * includes `target`) refuses it. Checked in a fixed order — key, shape,
- * scheduling, currency — so one patch always answers one reason.
+ * scheduling, unit, currency — so one patch always answers one reason.
  */
 export function decideMeasurePatch(
   held: readonly MeasureDefinition[],
@@ -252,6 +256,7 @@ export function decideMeasurePatch(
     ...(patch.order === undefined ? {} : { order: patch.order }),
     ...(patch.currency === undefined ? {} : { currency: patch.currency }),
   };
+  if (next.unit.trim() === '') return { ok: false, reason: 'unit_required' };
   const currency = refuseCurrency(next);
   return currency === null ? { ok: true, next } : { ok: false, reason: currency };
 }

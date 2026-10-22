@@ -258,6 +258,7 @@ export type CommandRefusalCode =
   | 'scheduling_measure_fixed'
   | 'currency_required'
   | 'currency_forbidden'
+  | 'unit_required'
   | 'measure_in_use';
 
 /** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */

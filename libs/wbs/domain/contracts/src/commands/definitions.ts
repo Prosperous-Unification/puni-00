@@ -493,7 +493,7 @@ export const commandDefinitions = {
     }),
     scope: 'directory',
     description:
-      'Define a measure for the organization: key is a lowercase slug (letter first, then letters, digits or _, at most 40) that never changes; unit is the label beside every figure; measureKind (duration, count, money) and scale (integer, real) never change; money needs a three-letter currency and nothing else may name one (currency_required, currency_forbidden). threePoint and showByDefault default false; order defaults to after every held definition. Refused measure_key_taken for a key the organization holds and second_scheduling_measure for schedulesWork while time holds it. Under legacy access the legacy organization owns it, refused organization_required when none exists.',
+      'Define a measure for the organization: key is a lowercase slug (letter first, then letters, digits or _, at most 40) that never changes; unit is the label beside every figure (empty is refused unit_required); measureKind (duration, count, money) and scale (integer, real) never change; money needs a three-letter currency and nothing else may name one (currency_required, currency_forbidden). threePoint and showByDefault default false; order defaults to after every held definition. Refused measure_key_taken for a key the organization holds and second_scheduling_measure for schedulesWork while time holds it. Under legacy access the legacy organization owns it, refused organization_required when none exists.',
   }),
   patchMeasure: defineCommand('patchMeasure', {
     schema: type({

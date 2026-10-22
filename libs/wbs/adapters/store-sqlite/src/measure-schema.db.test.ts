@@ -159,25 +159,44 @@ describe(MIGRATION, () => {
     expect(measuresOf('org-b')).toHaveLength(5);
   });
 
-  // Proof: with the frozen-key trigger removed from migration.sql, the key
-  // update stored `llm_tokens`; watched 2026-10-23.
-  it('never changes a key or its organization, but renames freely', () => {
+  // Proof: with the frozen-shape trigger's RAISE replaced, every update below
+  // stored; with each column's `IS NOT` test dropped from its WHEN alone, that
+  // column's row stored; watched 2026-10-23.
+  for (const [column, value] of [
+    ['key', "'llm_tokens'"],
+    ['organization_id', "'org-b'"],
+    ['kind', "'money'"],
+    ['scale', "'real'"],
+    ['derived', '1'],
+  ] as const)
+    it(`never changes ${column}`, () => {
+      organization('org-a');
+      organization('org-b');
+      // `kind` to money needs a currency for the CHECK; the trigger runs first.
+      const currency = column === 'kind' ? ", currency = 'USD'" : '';
+      expect(() => {
+        db.run(
+          `UPDATE measure SET ${column} = ${value}${currency} WHERE organization_id = 'org-a' AND key = 'tokens'`,
+        );
+      }).toThrow('measure key, organization, kind, scale and derived are immutable');
+      expect(measuresOf('org-a').find(({ key }) => key === 'tokens')).toMatchObject({
+        kind: 'count',
+        scale: 'integer',
+        derived: 0,
+      });
+    });
+
+  it('renames, relabels, reorders and re-flags freely', () => {
     organization('org-a');
-    organization('org-b');
-    expect(() => {
-      db.run(
-        "UPDATE measure SET key = 'llm_tokens' WHERE organization_id = 'org-a' AND key = 'tokens'",
-      );
-    }).toThrow('measure key and organization are immutable');
-    expect(() => {
-      db.run(
-        "UPDATE measure SET organization_id = 'org-b' WHERE organization_id = 'org-a' AND key = 'cost'",
-      );
-    }).toThrow('measure key and organization are immutable');
     db.run(
-      "UPDATE measure SET name = 'LLM tokens' WHERE organization_id = 'org-a' AND key = 'tokens'",
+      "UPDATE measure SET name = 'LLM tokens', unit = 'tok', \"order\" = 9, show_by_default = 1, key = 'tokens', kind = 'count' WHERE organization_id = 'org-a' AND key = 'tokens'",
     );
-    expect(measuresOf('org-a').find(({ key }) => key === 'tokens')?.name).toBe('LLM tokens');
+    expect(measuresOf('org-a').find(({ key }) => key === 'tokens')).toMatchObject({
+      name: 'LLM tokens',
+      unit: 'tok',
+      order: 9,
+      show_by_default: 1,
+    });
   });
 
   // Proof: with the guard statements removed from down.sql, this case failed:
@@ -188,14 +207,13 @@ describe(MIGRATION, () => {
     const ledger = () =>
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all();
     const before = ledger();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined measures exist/);
+    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
     expect(measuresOf('org-a')).toHaveLength(6);
     expect(ledger()).toEqual(before);
   });
 
-  it('rolls back over seeded definitions alone, and comes forward seeding again', () => {
+  it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
-    db.run("UPDATE measure SET name = 'LLM tokens' WHERE key = 'tokens'");
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
     expect(
       db
@@ -209,5 +227,28 @@ describe(MIGRATION, () => {
     runMigrations(path, FOLDER);
     expect(measuresOf('org-a')).toEqual(seededRows(5));
     expect(measuresOf('org-b')).toEqual(seededRows(6));
+  });
+
+  // Proof: with the guard statements removed from down.sql, each edit here was
+  // dropped by the rollback; with only the name, flag, order or currency
+  // comparison removed from the guard, that edit's row was; watched 2026-10-23.
+  for (const edit of [
+    "name = 'LLM tokens'",
+    "unit = 'tok'",
+    'three_point = 0',
+    'show_by_default = 1',
+    '"order" = 9',
+  ] as const)
+    it(`refuses rollback over a seeded definition edited by ${edit}`, () => {
+      organization('org-a');
+      db.run(`UPDATE measure SET ${edit} WHERE key = 'tokens'`);
+      expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
+      expect(measuresOf('org-a')).toHaveLength(5);
+    });
+
+  it('refuses rollback over a seeded cost repriced in another currency', () => {
+    organization('org-a');
+    db.run("UPDATE measure SET currency = 'EUR' WHERE key = 'cost'");
+    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
   });
 });

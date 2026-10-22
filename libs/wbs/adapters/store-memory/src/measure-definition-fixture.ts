@@ -58,7 +58,9 @@ function heldIn(tables: MemoryMeasureDefinitionTables, organizationId: string) {
  * scheduling measure (and `directory.patchMeasure:scoped-key-frozen` made
  * `tokens` schedule work); with the key test removed, the first case stored a
  * second `gpu_minutes`; with the stored key no longer kept on patch, the patch
- * case renamed `tokens` to `llm_tokens`; watched 2026-10-23.
+ * case renamed `tokens` to `llm_tokens`; with the shape refusal removed,
+ * `directory.patchMeasure:shape-frozen` stored `tokens` as money; watched
+ * 2026-10-23.
  */
 export function memoryMeasureDefinitions(
   tables: MemoryMeasureDefinitionTables,
@@ -114,6 +116,15 @@ export function memoryMeasureDefinitions(
       const stored = held?.measures[index];
       if (held === undefined || stored === undefined)
         return Promise.resolve<MeasureWritten>({ ok: false, reason: 'not_found' });
+      // SQLite's `measure_shape_frozen` trigger aborts the same write.
+      if (
+        next.kind !== stored.kind ||
+        next.scale !== stored.scale ||
+        next.derived !== stored.derived
+      )
+        return Promise.reject(
+          new Error('measure key, organization, kind, scale and derived are immutable'),
+        );
       const others = held.measures.filter((each) => each.id !== next.id);
       // The key never changes, whatever `next` carries: the trigger's guarantee.
       const written = { ...next, key: stored.key };

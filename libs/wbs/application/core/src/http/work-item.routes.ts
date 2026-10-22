@@ -306,8 +306,10 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     // The organization's own measure definitions stand in the way, or legacy
     // access has no legacy organization to own one (`wbs-measure-budgets`).
-    // Proof: with these cases absent, wbs-core's typecheck failed on TS2366
-    // at this function (the switch no longer exhaustive); watched 2026-10-23.
+    // Proof (compile-time only): with these cases absent, wbs-core's typecheck
+    // failed on TS2366 at this function, the switch no longer exhaustive;
+    // watched 2026-10-23. No runtime observation exists: the code does not
+    // build without them.
     case 'organization_required':
     case 'measure_key_taken':
     case 'measure_key_immutable':
@@ -316,6 +318,7 @@ function answerBatch(
     case 'scheduling_measure_fixed':
     case 'currency_required':
     case 'currency_forbidden':
+    case 'unit_required':
     case 'measure_in_use':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     // The resource's kind refuses the units whatever the plan holds.

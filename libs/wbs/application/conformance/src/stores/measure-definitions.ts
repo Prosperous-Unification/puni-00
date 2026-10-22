@@ -112,6 +112,21 @@ export function directoryMeasureRegistrations(
         expect((await heldIn(port, B, 'tokens')).name).toBe('Tokens');
       },
     ),
+    storeCase('directory', 'directory.patchMeasure:shape-frozen', open, async ({ port, seed }) => {
+      const tokens = await heldIn(port, A, 'tokens');
+      for (const changed of [
+        { ...tokens, kind: 'money' as const, currency: 'USD' },
+        { ...tokens, scale: 'real' as const },
+        { ...tokens, derived: true },
+      ])
+        expect(
+          await port.patchMeasure(A, changed, seed.stamps[1]).then(
+            () => 'written',
+            (err: unknown) => (err instanceof Error ? err.message : 'not an Error'),
+          ),
+        ).toBe('measure key, organization, kind, scale and derived are immutable');
+      expect(await heldIn(port, A, 'tokens')).toEqual(tokens);
+    }),
     storeCase('directory', 'directory.removeMeasure:scoped', open, async ({ port, seed }) => {
       const inB = { ...GPU, id: 'measure-gpu-b' };
       expect((await port.addMeasure(A, GPU, seed.stamps[0])).ok).toBe(true);

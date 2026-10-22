@@ -3932,9 +3932,10 @@ export const stepParallel = sqliteTable(
  * rows `MeasureDefinition` in `@wbs/domain` reads. Added by
  * `20261023100000_add_measure`, which seeds the five definitions for every
  * existing organization and, by its `organization_seed_measures` trigger, for
- * every organization inserted later; its `measure_key_frozen` trigger keeps
- * `key` and `organization_id` unchanged, and its `down.sql` refuses while any
- * definition beyond the seeded keys exists. `order` is quoted by drizzle and
+ * every organization inserted later; its `measure_shape_frozen` trigger keeps
+ * `key`, `organization_id`, `kind`, `scale` and `derived` unchanged, and its
+ * `down.sql` refuses while any definition beyond the seeded keys, or any seeded
+ * definition edited away from its seed, exists. `order` is quoted by drizzle and
  * must be quoted in raw SQL.
  */
 export const measure = sqliteTable(
@@ -3982,5 +3983,3 @@ export const measure = sqliteTable(
     ),
   ],
 );
-
-export type MeasureRow = typeof measure.$inferSelect;

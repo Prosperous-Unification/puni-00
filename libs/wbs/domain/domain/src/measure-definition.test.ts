@@ -106,6 +106,17 @@ describe('decideMeasureCreate', () => {
     expect(decideMeasureCreate([], { ...GPU_MINUTES, schedulesWork: true })).toBeNull();
   });
 
+  // Proof: with the unit test removed from decideMeasureCreate and from
+  // decideMeasurePatch, this case answered null and ok; watched 2026-10-23.
+  it('refuses an empty or whitespace unit label', () => {
+    expect(decideMeasureCreate(SEEDED, { ...GPU_MINUTES, unit: '' })).toBe('unit_required');
+    expect(decideMeasureCreate(SEEDED, { ...GPU_MINUTES, unit: '  ' })).toBe('unit_required');
+    expect(decideMeasurePatch(SEEDED, held('tokens'), { unit: ' ' })).toEqual({
+      ok: false,
+      reason: 'unit_required',
+    });
+  });
+
   // Proof: with either currency rule removed, its half of this case answered
   // null; watched 2026-10-23.
   it('requires a currency on money and refuses one elsewhere', () => {

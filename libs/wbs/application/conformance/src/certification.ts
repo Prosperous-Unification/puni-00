@@ -102,6 +102,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'directory.listMeasures:seeded-per-organization',
   'directory.addMeasure:index-backstop',
   'directory.patchMeasure:scoped-key-frozen',
+  'directory.patchMeasure:shape-frozen',
   'directory.removeMeasure:scoped',
   'eventLog.recordEvent',
   'eventLog.rangeSince',

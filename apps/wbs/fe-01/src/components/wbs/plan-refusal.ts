@@ -558,6 +558,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'scheduling_measure_fixed':
     case 'currency_required':
     case 'currency_forbidden':
+    case 'unit_required':
     case 'measure_in_use':
       return refusal.error;
     // The organization limits (`wbs-organization-limits` L9): worded with the

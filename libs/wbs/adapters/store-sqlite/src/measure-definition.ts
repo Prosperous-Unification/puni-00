@@ -4,7 +4,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
-import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
+import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
 import { measure, organization } from './schema';
 
 /** The columns a {@link MeasureDefinition} is read from, in its own field names. */
@@ -35,11 +35,22 @@ const MEASURE_COLUMNS = {
  * key; watched 2026-10-23.
  */
 function refusalOf(err: unknown): 'measure_key_taken' | 'second_scheduling_measure' {
+  // Proof: with this rethrow removed, the SQLite certification's
+  // `directory.patchMeasure:shape-frozen` received drizzle's "Failed query"
+  // message instead of the trigger's; watched 2026-10-23.
+  // The frozen-shape trigger's abort is a caller fault, not a refusal: the
+  // batch decided shape changes away first. Rethrown under the trigger's own
+  // words so every source names it alike; drizzle wraps it in "Failed query".
+  if (messagesOf(err).some((message) => message.includes(FROZEN_SHAPE)))
+    throw new Error(FROZEN_SHAPE, { cause: err });
   if (isUniqueViolation(err, UNIQUE_INDEXES.measureKeyInOrganization)) return 'measure_key_taken';
   if (isUniqueViolation(err, UNIQUE_INDEXES.schedulingMeasureInOrganization))
     return 'second_scheduling_measure';
   throw err;
 }
+
+/** What `measure_shape_frozen` aborts with, and what a frozen-shape write rethrows. */
+const FROZEN_SHAPE = 'measure key, organization, kind, scale and derived are immutable';
 
 /** The organization marked legacy, or null when none is. */
 export function legacyOrganizationOf(db: SQLiteBunDatabase): string | null {
@@ -78,7 +89,8 @@ export function insertMeasure(
 
 /**
  * Rewrites every field of one of the organization's definitions but its id
- * and key; the `measure_key_frozen` trigger refuses a key change underneath.
+ * and key; the `measure_shape_frozen` trigger refuses a key, kind, scale or
+ * derived change underneath.
  * A row of another organization is not matched, so it answers `not_found`.
  *
  * Proof: with the organization condition dropped from the update, the SQLite

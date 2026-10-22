@@ -18,10 +18,11 @@
 --
 -- `measure_one_scheduling` holds the one scheduling measure per organization
 -- (D2) beneath the command's own `second_scheduling_measure` refusal;
--- `measure_key_frozen` holds the key and owner beneath `measure_key_immutable`.
+-- `measure_shape_frozen` holds the key, owner, kind, scale and derived flag beneath
+-- `measure_key_immutable` and `measure_shape_immutable` (design D13).
 --
 -- Proof: each CHECK replaced by `CHECK (1)`, each unique index made plain, the
--- frozen-key trigger, the seeding INSERTs and the organization trigger each
+-- frozen-shape trigger, the seeding INSERTs and the organization trigger each
 -- removed alone failed its own case in store-sqlite
 -- `measure-schema.db.test.ts`; watched 2026-10-23.
 CREATE TABLE `measure` (
@@ -53,11 +54,13 @@ CREATE UNIQUE INDEX `measure_organization_key` ON `measure` (`organization_id`,`
 --> statement-breakpoint
 CREATE UNIQUE INDEX `measure_one_scheduling` ON `measure` (`organization_id`) WHERE `schedules_work` = 1;
 --> statement-breakpoint
-CREATE TRIGGER `measure_key_frozen`
-BEFORE UPDATE OF `key`, `organization_id` ON `measure`
+CREATE TRIGGER `measure_shape_frozen`
+BEFORE UPDATE OF `key`, `organization_id`, `kind`, `scale`, `derived` ON `measure`
 WHEN NEW.`key` IS NOT OLD.`key` OR NEW.`organization_id` IS NOT OLD.`organization_id`
+	OR NEW.`kind` IS NOT OLD.`kind` OR NEW.`scale` IS NOT OLD.`scale`
+	OR NEW.`derived` IS NOT OLD.`derived`
 BEGIN
-	SELECT RAISE(ABORT, 'measure key and organization are immutable');
+	SELECT RAISE(ABORT, 'measure key, organization, kind, scale and derived are immutable');
 END;
 --> statement-breakpoint
 CREATE TRIGGER `organization_seed_measures`

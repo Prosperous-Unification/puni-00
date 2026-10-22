@@ -166,6 +166,11 @@ describe('the measure definition directory commands', () => {
         ok: false,
         reason: 'currency_forbidden',
       });
+      expect(await run([{ ...GPU, unit: '   ' }])).toMatchObject({
+        ok: false,
+        at: 0,
+        reason: 'unit_required',
+      });
       expect(await run([{ ...fee, currency: 'EUR' }])).toMatchObject({
         ok: true,
         results: [{ entity: { key: 'fee', kind: 'money', currency: 'EUR' } }],
@@ -210,6 +215,7 @@ describe('the measure definition directory commands', () => {
           { kind: 'patchMeasure', measureId: await idOf('hours'), patch: { currency: 'EUR' } },
           'currency_forbidden',
         ],
+        [{ kind: 'patchMeasure', measureId: tokens, patch: { unit: ' ' } }, 'unit_required'],
         [{ kind: 'patchMeasure', measureId: tokens, patch: {} }, 'nothing_to_change'],
         [{ kind: 'patchMeasure', measureId: tokens, patch: { name: '  ' } }, 'name_required'],
         [{ kind: 'patchMeasure', measureId: 'nothing', patch: { name: 'x' } }, 'not_found'],

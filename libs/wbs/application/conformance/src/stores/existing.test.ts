@@ -151,6 +151,7 @@ describe('the migrated existing store kits', () => {
       'directory.listMeasures:seeded-per-organization',
       'directory.addMeasure:index-backstop',
       'directory.patchMeasure:scoped-key-frozen',
+      'directory.patchMeasure:shape-frozen',
       'directory.removeMeasure:scoped',
       'eventLog.recordEvent',
       'eventLog.rangeSince',
