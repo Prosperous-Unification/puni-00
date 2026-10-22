@@ -11,6 +11,7 @@ import {
   servicesOver as coreServicesOver,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import type { TrustedIssuerVerification } from '@wbs/core/module/authentication/authentication.feature';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
@@ -21,6 +22,7 @@ import {
   capturedOptimizationReaderOf,
   DrizzleEventLogStore,
   EnterpriseConnectionRepository,
+  MachineCredentialRepository,
   scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
@@ -68,7 +70,18 @@ export interface ServicesOptions {
   oidc?: OidcVerifier;
   passwordSessions?: boolean;
   localIdentity?: AuthenticatedUser;
+  /**
+   * The OIDC machine source (`wbs-machine-credentials` A13 step 3): how
+   * trusted issuers' JWTs are verified, and the configured issuer they may
+   * never be. `boot.ts` always wires it; absent (fixtures), the source is off.
+   */
+  trustedIssuers?: TrustedIssuerVerification;
   optimizer?: OptimizerRuntime;
+  /**
+   * The clock's time source; `Date.now` unless a test fixes it to pin a
+   * machine key's rotation window from the route to its verification.
+   */
+  now?: () => number;
 }
 
 export interface BeServices extends AccountfulServices {
@@ -101,7 +114,8 @@ export function servicesOver(stores: PlanTransactionalStores, shared: SharedRunt
 /** Adds be-01's optimizer process adapter around core's single service composition. */
 export function buildServices(options: ServicesOptions): BeServices {
   const { source } = options;
-  const clock = clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() });
+  const now = options.now ?? (() => Date.now());
+  const clock = clockOf({ now, newId: () => crypto.randomUUID() });
   let coordinator: OptimizationCoordinator | undefined;
   const optimized =
     options.optimizer === undefined
@@ -168,6 +182,12 @@ export function buildServices(options: ServicesOptions): BeServices {
       // `enterprise email trust, composed > trusts a proven connection's email
       // on its domain` in `enterprise-email-trust.controller.db.test.ts` fail.
       enterprise: new EnterpriseConnectionRepository(source.db, source.gate),
+      // Proof: wiring an inert store answering every id null here made every
+      // admitting case of `machine-credential.controller.db.test.ts` fail
+      // (`routes an API key to its credential …` among them); watched
+      // 2026-10-22.
+      machineCredentials: new MachineCredentialRepository(source.db, source.gate),
+      ...(options.trustedIssuers === undefined ? {} : { trustedIssuers: options.trustedIssuers }),
       ...(options.oidc === undefined ? {} : { oidc: options.oidc }),
       ...(options.passwordSessions === undefined
         ? {}

@@ -5,7 +5,7 @@ import {
   type ClaimOccupancy,
   type ClaimStore,
   type ClaimWriteOutcome,
-  type CredentialPair,
+  type CredentialPin,
   type OccupancyRow,
   type ProgressKey,
   type StampedClaim,
@@ -89,7 +89,7 @@ export class ClaimRepository implements ClaimStore {
     return this.identity.boundAccountOf(personId);
   }
 
-  pinnedPersonOf(credential: CredentialPair | null): Promise<string | null> {
+  pinnedPersonOf(credential: CredentialPin | null): Promise<string | null> {
     return this.identity.pinnedPersonOf(credential);
   }
 

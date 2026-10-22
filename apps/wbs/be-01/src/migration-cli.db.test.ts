@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261022120000_add_runtime_commands');
+    expect(baselineLedger.at(-1)?.name).toBe('20261022121000_add_runtime_commands');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1147,7 +1147,11 @@ describe('migration deploy entrypoints', () => {
           name !== '20261019130100_add_external_identity_person' &&
           name !== '20261020120000_add_resources' &&
           name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022120000_add_runtime_commands',
+          name !== '20261022100000_add_machine_credential' &&
+          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
+          name !== '20261022110100_check_machine_credential_id' &&
+          name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022121000_add_runtime_commands',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1199,12 +1203,16 @@ describe('migration deploy entrypoints', () => {
     const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('resources exist');
-    // The newer, empty claim occupancy and runtime migrations reverse first.
+    // The newer, empty claim occupancy, machine credential and runtime migrations reverse first.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
           name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022120000_add_runtime_commands',
+          name !== '20261022100000_add_machine_credential' &&
+          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
+          name !== '20261022110100_check_machine_credential_id' &&
+          name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022121000_add_runtime_commands',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1240,7 +1248,7 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022120000_add_runtime_commands');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022121000_add_runtime_commands');
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

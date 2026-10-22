@@ -920,7 +920,7 @@ describe('accepted runtime lifecycle', () => {
       value: { authority: { kind: 'uninitialized' } },
     });
     expect(rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toContain(
-      '20261022120000_add_runtime_commands',
+      '20261022121000_add_runtime_commands',
     );
     runMigrations(dbPath, migrations);
     expect(

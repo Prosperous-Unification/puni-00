@@ -94,7 +94,13 @@ describe(MIGRATION, () => {
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
     occupy('c1', 'ram', 4);
-    expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual(['20261022120000_add_runtime_commands']);
+    expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
+      '20261022121000_add_runtime_commands',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
+    ]);
     const before = db.query('SELECT * FROM __drizzle_migrations').all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
@@ -103,7 +109,11 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      '20261022120000_add_runtime_commands',
+      '20261022121000_add_runtime_commands',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
       MIGRATION,
     ]);
     expect(db.query("SELECT name FROM sqlite_master WHERE name = 'claim_occupancy'").all()).toEqual(

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,13 +11,14 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { openExistingConnection } from './db';
+import { openDatabase, openExistingConnection } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { captureAppliedMigrationSet } from './migration-set';
 import { openSqliteSource, type SqliteSource } from './source';
 
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const runtimeMigration = '20261022120000_add_runtime_commands';
+const runtimeMigration = '20261022121000_add_runtime_commands';
 const previousMigration = '20261020130000_add_claim_occupancy';
 let directory: string;
 let dbPath: string;
@@ -43,6 +44,79 @@ function applied() {
 }
 
 describe('runtime ledger lifecycle', () => {
+  it('refuses retained old-branch migration identity during capture without changing ledger or runtime history', () => {
+    const oldRuntimeMigration = '20261022120000_add_runtime_commands';
+    const branchMigrations = join(directory, 'old-branch-migrations');
+    const branchPath = join(directory, 'old-branch.db');
+    const mainAdditions = new Set([
+      '20261022100000_add_machine_credential',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022110100_check_machine_credential_id',
+      '20261022120000_scope_trusted_issuer_audience',
+    ]);
+    for (const name of readdirSync(migrations)) {
+      if (mainAdditions.has(name)) continue;
+      cpSync(
+        join(migrations, name),
+        join(branchMigrations, name === runtimeMigration ? oldRuntimeMigration : name),
+        { recursive: true },
+      );
+    }
+    runMigrations(branchPath, branchMigrations);
+    const branch = openDatabase(branchPath);
+    try {
+      const ledger = branch
+        .query<{ ledger_id: string }, []>('SELECT ledger_id FROM runtime_ledger WHERE id=1')
+        .get();
+      if (ledger === null) throw new Error('old branch ledger missing');
+      // Raw retained-history fixture, not a claim of application admission.
+      const retained = runtimeAcceptanceFixture(ledger.ledger_id);
+      branch.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
+      branch.run(
+        "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt',?)",
+        [JSON.stringify(RUNTIME_CLAIM)],
+      );
+      branch.run(
+        "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command',?)",
+        [JSON.stringify(retained)],
+      );
+      branch.run(
+        'UPDATE runtime_ledger SET authority_count=1,binding_count=1,receipt_count=1 WHERE id=1',
+      );
+      const readRetained = () => ({
+        schema: branch
+          .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
+          .all(),
+        migrations: branch.query('SELECT * FROM __drizzle_migrations ORDER BY id').all(),
+        ledger: branch.query('SELECT * FROM runtime_ledger ORDER BY id').all(),
+        authority: branch.query('SELECT * FROM runtime_authority ORDER BY rowid').all(),
+        bindings: branch.query('SELECT * FROM runtime_claim_binding ORDER BY rowid').all(),
+        receipts: branch.query('SELECT * FROM runtime_command_receipt ORDER BY rowid').all(),
+      });
+      const before = readRetained();
+      const beforeBytes = branch.serialize();
+      expect(
+        branch
+          .query<{ name: string }, [string]>('SELECT name FROM __drizzle_migrations WHERE name=?')
+          .all(oldRuntimeMigration),
+      ).toEqual([{ name: oldRuntimeMigration }]);
+      expect(before.authority).toHaveLength(1);
+      expect(before.bindings).toHaveLength(1);
+      expect(before.receipts).toHaveLength(1);
+      expect(() =>
+        captureAppliedMigrationSet(branchPath, migrations, {
+          target: 'integration',
+          attempt: 'old-branch',
+          candidate: 'unique-runtime',
+        }),
+      ).toThrow(`applied migration ${oldRuntimeMigration} is absent or changed in candidate`);
+      expect(readRetained()).toEqual(before);
+      expect(branch.serialize()).toEqual(beforeBytes);
+    } finally {
+      branch.close();
+    }
+  });
+
   it('reopens committed permanent history without changing installation identity', async () => {
     const initial = await audit();
     await source.uow.run(async ({ stores }) => {

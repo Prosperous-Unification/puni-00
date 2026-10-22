@@ -1,8 +1,8 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 import {
   type ClaimReceipt,
-  type CredentialPair,
-  credentialPairOf,
+  type CredentialPin,
+  credentialPinOf,
   type RuntimeClaimRequest,
   type RuntimeReply,
   type RuntimeWriteRequest,
@@ -318,7 +318,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome> {
     return this.execute(projectId, actorId, commands, access, credential);
   }
@@ -389,7 +389,9 @@ export class PlanCommandRunner {
     // Proof: P5-37 read the caller's actor again inside admission; the queued request lost its original authorized identity.
     const actorId = context.actor.id;
     const organizationId = context.access.scope.organizationId;
-    const credential = credentialPairOf(context.actor.authentication);
+    // Proof: dropping this verified pin made six machine/consent public claim, write and replay cases
+    // in runtime-credential-pin.db.test.ts accept another bound agent (200 instead of 403), 2026-10-22.
+    const credential = credentialPinOf(context.actor.authentication);
 
     const outcome = await this.execute(
       projectId,
@@ -427,7 +429,7 @@ export class PlanCommandRunner {
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     return this.execute(projectId, actorId, commands, access, credential, prelude);
   }
@@ -490,14 +492,14 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private execute(
@@ -505,7 +507,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude: undefined,
     runtime: RuntimeCommandsPrelude,
   ): Promise<ScopedBatchOutcome | RuntimeExecutionReply>;
@@ -514,7 +516,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude?: BatchPrelude<R>,
     runtime?: RuntimeCommandsPrelude,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R> | RuntimeExecutionReply> {
@@ -826,7 +828,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);

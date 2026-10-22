@@ -1,6 +1,6 @@
 import type {
   AuthorityReceipt,
-  CredentialPair,
+  CredentialPin,
   RuntimeAuthorityRequest,
   RuntimeClaim,
   RuntimeClaimInventory,
@@ -33,7 +33,7 @@ export interface RuntimeAdmissionIdentity {
   readonly projectId: string;
   readonly personId: string;
   readonly actorId: string;
-  readonly credential: CredentialPair | null;
+  readonly credential: CredentialPin | null;
 }
 
 /** Narrow borrowed capabilities; no public capture or nested unit of work. */
@@ -42,7 +42,7 @@ export interface RuntimeAdmission {
   readonly actorId: string;
   readonly commands: RuntimeCommands;
   readonly access: ResourceAccess;
-  readonly credential: CredentialPair | null;
+  readonly credential: CredentialPin | null;
   observe(): Promise<RuntimeObservation>;
   listClaims(): Promise<Claim[]>;
   findClaim(claimId: string): Promise<Claim | null>;

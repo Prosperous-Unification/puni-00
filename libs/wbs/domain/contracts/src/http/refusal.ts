@@ -274,6 +274,12 @@ export interface DirectoryUsage {
    * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
    */
   pinnedCredentials?: number;
+  /**
+   * Unrevoked machine credentials of the person, revoked by a confirmed
+   * removal and refusing an unbind or rebind. Optional on the wire: an
+   * outgoing be-01 mid-swap counts none.
+   */
+  machineCredentials?: number;
 }
 
 /**
@@ -383,6 +389,11 @@ type BareRefusalCode =
   | 'delegation_inactive'
   /** An MCP session's upstream token now resolves to another account than it was bound to. */
   | 'binding_changed'
+  /**
+   * An MCP consent family's credential is revoked, names another family, or its
+   * person is no longer bound to the account (`wbs-machine-credentials` A20).
+   */
+  | 'credential_revoked'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'
@@ -408,7 +419,8 @@ type BareRefusalCode =
   /**
    * A verified machine token (no groups claim) whose `(issuer, subject)` no
    * account is linked to (`wbs-team-claims` D6b): refused before any account
-   * is minted.
+   * is minted. Also a `wbs_mk_` API key that is malformed or that no live
+   * machine credential admits (`wbs-machine-credentials` A13, A22).
    */
   | 'unknown_identity'
   | 'invalid_body'
@@ -496,7 +508,28 @@ type BareRefusalCode =
   | 'runtime_ledger_mismatch'
   | 'runtime_receipt_not_found'
   | 'runtime_command_target_mismatch'
-  | 'runtime_command_not_supported';
+  | 'runtime_command_not_supported'
+  // Machine credentials (`wbs-machine-credentials`): an agent person bound to
+  // an account that is no member; a second rotation inside the window; a
+  // rotation of a credential whose secret its issuer rotates.
+  | 'account_not_member'
+  | 'rotation_in_progress'
+  | 'rotation_at_issuer'
+  // OIDC credentials and trusted issuers (`wbs-machine-credentials` A16):
+  // registration's discovery and gate refusals, a credential naming another
+  // organization's issuer, and a pair another credential holds.
+  | 'issuer_unreachable'
+  | 'issuer_mismatch'
+  | 'issuer_reserved'
+  | 'issuer_not_oidc'
+  | 'issuer_taken'
+  | 'unknown_sso_connection'
+  | 'unknown_trusted_issuer'
+  | 'subject_taken'
+  // A25: another organization registered the issuer with this audience; an
+  // organization at its trusted issuer cap.
+  | 'audience_taken'
+  | 'trusted_issuer_limit';
 
 type SharedCommandCode =
   | 'person_not_bound'
@@ -541,9 +574,11 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     /** Bare from the by-person read; with its command context from a batch. */
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
-    person_not_bound: undefined | CommandRefusalDetail['person_not_bound'];
+    /** Naming the person from a machine credential create; with its command context from a batch. */
+    person_not_bound: undefined | { personId: string } | CommandRefusalDetail['person_not_bound'];
     credential_not_for_person: undefined | CommandRefusalDetail['credential_not_for_person'];
-    in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
+    /** Also a trusted issuer that unrevoked machine credentials name (`wbs-machine-credentials` A16). */
+    in_use: { inUse: StepInUse } | { machineCredentials: number } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

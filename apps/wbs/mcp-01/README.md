@@ -155,6 +155,24 @@ activation reach be-01 unbound and are refused with `no_active_organization`.
 Unset, mcp-01 forwards the upstream token as before. Contract and deployment
 keys: `docs/auth-integration.md`, "MCP organization delegation".
 
+### Consent as an agent person
+
+When the signed-in account has agent persons bound to it in an organization,
+the choice page (shown then even for one organization) also offers each agent
+(`wbs-machine-credentials` A8, A20). Choosing one records a pending consent in
+the store, asks be-01 (`/internal/mcp/credentials`) to mint an `mcp_consent`
+machine credential issued by the human for that agent, and only then issues
+the code; a refusal answers `access_denied` and no family exists. The family
+and its sessions carry the agent person and the credential; every tool call's
+delegation names the credential, so be-01 pins it to the agent with `read` and
+`write` and the agent acts as a `member`. A credential revoked in WBS ends the
+family's use at its next request (401) and refresh (`invalid_grant`). The other
+way round, a minute-long sweep (`McpOAuthServer.reportEndedConsents`, started
+in `src/main.ts`) reports every consent family mcp-01 ended (revoked, expired,
+retired by the epoch) and every code never exchanged to
+`/internal/mcp/credentials/ended`, keeping each end in the store until be-01
+acknowledges it.
+
 ## Durable sessions and key rotation
 
 mcp-01 owns this store because it is the authorization server that creates,
@@ -181,7 +199,16 @@ refuses. An absent path is created; an existing empty, partial or unreadable fil
 refuses instead of being reinitialized. A store from before the ledger is adopted
 only when its schema is exactly the first migration's. Reverse with
 `rollbackMcpStore` while mcp-01 is stopped: it refuses while a bound credential
-is still usable or the epoch has advanced.
+is still usable or the epoch has advanced, and (reversing
+`20261022130000_mcp_family_person`) while a consent family acting as an agent
+person has an end be-01 has not acknowledged (`consent_ended_reported_at IS
+NULL`) or a row is left in `mcp_consent_pending`. When it refuses for those:
+end the live consent families with
+`UPDATE mcp_family SET revoked_at = <now in ms> WHERE credential_id IS NOT NULL AND revoked_at IS NULL;`
+on the stopped store, wait out the five-minute code lifetime of any pending
+consent, start mcp-01 once with be-01 reachable (its startup sweep reports every
+end and pending row to `/internal/mcp/credentials/ended`, which revokes those
+credentials in WBS), stop it, and retry the rollback.
 
 ### Credential epoch
 

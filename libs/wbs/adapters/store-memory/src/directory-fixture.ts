@@ -25,6 +25,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   members: [],
   claims: [],
   pinnedCredentials: 0,
+  machineCredentials: 0,
   capacityOf: new Map(),
 };
 
@@ -312,6 +313,7 @@ export function inMemoryDirectory(
         claims: [],
         members: [],
         pinnedCredentials: 0,
+        machineCredentials: 0,
         capacityOf: new Map<string, number>(),
       }),
     // Seeded, as the migration seeds the real table: `systemOfUrl` can answer
@@ -368,6 +370,7 @@ export function inMemoryDirectory(
         claims: [],
         members: [],
         pinnedCredentials: 0,
+        machineCredentials: 0,
         capacityOf: new Map<string, number>(),
       }),
     removeWorkItemType(typeId, _cascade, _stamp) {

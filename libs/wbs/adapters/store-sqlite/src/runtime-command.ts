@@ -18,7 +18,7 @@ import { sql } from 'drizzle-orm';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 
-const MIGRATION = '20261022120000_add_runtime_commands';
+const MIGRATION = '20261022121000_add_runtime_commands';
 const REQUIRED_SCHEMA: Readonly<Record<string, string>> = {
   runtime_ledger:
     "CREATE TABLE runtime_ledger (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), schema_version INTEGER NOT NULL CHECK (schema_version = 1), ledger_id TEXT NOT NULL CHECK (length(ledger_id) > 0), authority_count INTEGER NOT NULL CHECK (typeof(authority_count) = 'integer' AND authority_count BETWEEN 0 AND 9007199254740991), binding_count INTEGER NOT NULL CHECK (typeof(binding_count) = 'integer' AND binding_count BETWEEN 0 AND 9007199254740991), receipt_count INTEGER NOT NULL CHECK (typeof(receipt_count) = 'integer' AND receipt_count BETWEEN 0 AND 9007199254740991))",

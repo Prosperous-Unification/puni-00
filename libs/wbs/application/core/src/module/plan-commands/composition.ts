@@ -1,4 +1,4 @@
-import { credentialPairOf } from '@wbs/contracts';
+import { credentialPinOf } from '@wbs/contracts';
 
 import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { CapturedFanout } from '../../ports/fanout-capture-store';
@@ -297,7 +297,9 @@ function runtimeTransaction(uow: UnitOfWork): RuntimeTransaction {
       // Proof: F20 delayed these copies; queued project/person/actor/credential tests returned refusals.
       const { projectId, personId } = context;
       const actorId = context.actor.id;
-      const credential = credentialPairOf(context.actor.authentication);
+      // Proof: dropping this verified pin made eight machine/consent public read, acquisition and
+      // historical lookup cases in runtime-credential-pin.db.test.ts answer 200 instead of 403, 2026-10-22.
+      const credential = credentialPinOf(context.actor.authentication);
       // Proof: F16 injected real UoW reentrancy; the blocked-writer test returned early with staged row `staged`.
       return uow.run<T | RuntimeReadRefusal>(async (scope) => {
         const admitted = await authorizeRuntimeScope(scope, {
