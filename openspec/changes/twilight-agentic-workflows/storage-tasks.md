@@ -238,11 +238,11 @@ by composing the existing asynchronous SQLite opener.
 Its decoder rejects unknown providers and missing settings. The production path has no
 memory fallback and cannot bootstrap missing trusted state.
 
-- [ ] Write selection tests: valid SQLite configuration reopens persisted state; memory/unknown provider, missing required settings, altered persisted organization/capacity/lease and absent database all throw. Double close is idempotent; every operation after close throws. Malformed values are rejected at the configuration boundary.
-- [ ] Implement the small composition factory and verify there is no `bun:sqlite`, SQL, path or adapter-schema type import in either port/core record module. Test import boundaries structurally using the existing repository TypeScript AST pattern; injecting a forbidden adapter import must fail the assertion.
-- [ ] Prove migration lint accepts the provider's additive forward/down pair and rejects missing rollback, destructive forward SQL and paths outside its exact root. Exercise the production hook routing; removing the new root or routing and widening the accepted path must each fail a meaningful assertion. Keep destructive down scripts allowed.
-- [ ] Run all new shared and SQLite tests plus Dash typecheck/lint. Record every skipped/unavailable check explicitly. Do not broaden into full host gates outside the required script.
-- [ ] Execute each unproven safety negative from the matrix below; add the observed `Proof:` comments only after its failure is seen and the restored production path passes.
+- [x] Write selection tests: valid SQLite configuration reopens persisted state; memory/unknown provider, missing required settings, altered persisted organization/capacity/lease and absent database all throw. Double close is idempotent; every operation after close throws. Malformed values are rejected at the configuration boundary.
+- [x] Implement the small composition factory and verify there is no `bun:sqlite`, SQL, path or adapter-schema type import in either port/core record module. Test import boundaries structurally using the existing repository TypeScript AST pattern; injecting a forbidden adapter import must fail the assertion.
+- [x] Prove migration lint accepts the provider's additive forward/down pair and rejects missing rollback, destructive forward SQL and paths outside its exact root. Exercise the production hook routing; removing the new root or routing and widening the accepted path must each fail a meaningful assertion. Keep destructive down scripts allowed.
+- [x] Run all new shared and SQLite tests plus Dash typecheck/lint. Record every skipped/unavailable check explicitly. Do not broaden into full host gates outside the required script.
+- [x] Execute each unproven safety negative from the matrix below; add the observed `Proof:` comments only after its failure is seen and the restored production path passes.
 - [ ] Have root review final code, exact diff and verification evidence. Root runs the full clean-worktree gate for the selected SHA and decides when parent 6a.1–6a.2 may be checked. This packet does not check 6a.3–6a.8, 6b.3 or product W0–W12.
 
 ## Required fault oracles

@@ -645,3 +645,14 @@ Task 5 independent review remains pending. Full project test targets, build, who
 migration lint/secrets, exact-SHA host gate, current-main integration and whole-branch review
 remain outstanding. Parent 6a.1–6a.2 are still unchecked. No live worker/WBS, hardware
 power-loss, second durable provider or coordinator readiness claim follows from this packet.
+
+Independent Task 5 review approved spec compliance and task quality with no findings. It
+inspected the recorded snapshot/close faults, import and migration assertions and focused
+dependency routing without rerunning passing suites. The five implementation checkboxes
+are checked; the final root review/gate checkbox and parent 6a.1–6a.2 remain pending.
+
+Root supplementary checks at `95493a44cef90f6dc967e8567a823f861097073f`: all 192 tracked SQL
+files passed `git ls-files -z -- '*.sql' | xargs -0 --no-run-if-empty bun run tools/tool-git-hooks/src/hooks/migration-lint.ts`;
+all 11,583 tracked files passed `git ls-files -z | xargs -0 --no-run-if-empty bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts`.
+Both used `set -euo pipefail`, exited zero without diagnostics, and their nonempty input
+counts were verified. These checks precede current-main integration and the full host gate.
