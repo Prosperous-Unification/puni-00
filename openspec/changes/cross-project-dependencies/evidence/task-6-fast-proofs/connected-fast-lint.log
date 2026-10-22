@@ -1,0 +1,31 @@
+
+/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/connected-plan-calendar.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/connected-plan-projection.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/connected-plan.test.ts
+    1:1   error  Run autofix to sort these imports!                                                           simple-import-sort/imports
+    4:1   error  Projects cannot be imported by a relative or absolute path, and must begin with a npm scope  @nx/enforce-module-boundaries
+  122:61  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  131:19  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  224:19  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  399:46  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  427:16  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  438:16  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  500:41  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  500:73  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  514:26  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  549:14  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+  580:30  error  This assertion is unnecessary since it does not change the type of the expression            @typescript-eslint/no-unnecessary-type-assertion
+
+/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/connected-plan.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/schedule-parts.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+✖ 17 problems (17 errors, 0 warnings)
+  17 errors and 0 warnings potentially fixable with the `--fix` option.
+

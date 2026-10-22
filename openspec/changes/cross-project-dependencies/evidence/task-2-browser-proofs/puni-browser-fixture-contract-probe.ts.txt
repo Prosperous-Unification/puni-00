@@ -1,0 +1,22 @@
+import ts from '/tmp/puni-cross-browser-fixtures/node_modules/typescript';
+import { readSpace } from '/tmp/puni-cross-browser-fixtures/libs/wbs/domain/contracts/src/http/space-shapes';
+import { WRITABLE_REPLIES } from '/tmp/puni-cross-browser-fixtures/apps/wbs/fe-01/e2e/spaces-stub';
+const source = await Bun.file('/tmp/puni-cross-browser-fixtures/apps/wbs/fe-01/e2e/spaces-timeline.spec.ts').text();
+const syntax = ts.createSourceFile('spaces-timeline.spec.ts',source,ts.ScriptTarget.Latest,true);
+let namesCode:string|undefined;let timelineCode:string|undefined;
+function visit(node:ts.Node){
+ if(ts.isVariableDeclaration(node)&&node.name.getText(syntax)==='names')namesCode=node.initializer?.getText(syntax);
+ if(ts.isPropertyAssignment(node)&&node.name.getText(syntax)==='json'&&ts.isObjectLiteralExpression(node.initializer)&&node.initializer.properties.some(property=>ts.isPropertyAssignment(property)&&property.name.getText(syntax)==='rows'))timelineCode=node.initializer.getText(syntax);
+ ts.forEachChild(node,visit);
+}
+visit(syntax);if(namesCode===undefined||timelineCode===undefined)throw new Error('Missing timeline fixture expressions');
+const names=Function('return ('+namesCode+')')();
+const timeline=Function('names','return ('+timelineCode+')')(names);
+const success=readSpace.responses.find(reply=>reply.status===200);if(success===undefined)throw new Error('Missing success schema');
+for(const [label,body] of [['shared',WRITABLE_REPLIES['GET /api/spaces/s'].body],['timeline',timeline]] as const){
+ const checked=await success.schema.validator['~standard'].validate(body);
+ console.log(label,checked.issues===undefined?'accepted':JSON.stringify(checked));
+ if(process.argv[2]==='missing'){
+  if(checked.issues===undefined||!checked.issues.every(issue=>issue.message.includes('abbreviation')))throw new Error('Expected only abbreviation failures for '+label);
+ }else if(checked.issues!==undefined)throw new Error('Fixture remains invalid: '+label);
+}

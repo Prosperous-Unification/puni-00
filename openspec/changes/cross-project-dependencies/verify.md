@@ -351,3 +351,63 @@ Only stage-identity WBS leaf `b52f23c6-c7b8-4aec-ad80-83c8a0c3c279` is complete.
 full 7.1–7.4 checkboxes remain open: wire/Python, stage selection, complete hash tuple,
 publication, terminal certificates, Retry/restart and persistence are not delivered by
 these domain files. Full host gate, final CI/build/deployment remain pending.
+
+## Task 6.1–6.2 — reviewed core Fast/calendar foundation, runtime still open
+
+Original `d9deee3e0` and correction `802c37658` integrated together as
+`3a58f3d73` and `734d5191d`. The ten manifest files match the reviewed worker tree.
+[Implementation](evidence/task-6-fast.md), [initial review](evidence/task-6-fast-review.md),
+[correction](evidence/task-6-fast-round1.md), [approval](evidence/task-6-fast-round1-review.md)
+and [proof artifacts](evidence/task-6-fast-proofs/) retain the complete record.
+
+One real resolved Fast pass now derives the connected projection with each project's
+settings, reach, capacity namespace, anchor and fractional workday constraints. Shared
+and isolated person modes remain distinct; authored held identities stay inspectable.
+Required connected optimization is explicitly unavailable until implemented. Live and
+saved local preparation both delegate to the same helper. A shared leaf owns unchanged
+slice construction, eliminating the new resource/helper cycle while preserving exports.
+
+The initial live patch exposed a Project/CapturedProject type mismatch and lint failures.
+A five-setting structural parameter and import cleanup fixed them without fabricated
+fields or casts. The review independently reproduced all 21 claimed mutations; two
+remain diagnostic-only. The correction changes no guarded scheduling arithmetic, so
+those unchanged mutations were not repeated; function syntax equality and fresh
+before/after characterization cover the extraction. Thirty-two permanent real live/saved
+cases and the independent 192-comparison probe preserve canonical bytes/display facts.
+
+Author original full core suite: 1,195 tests passed. Correction focused suite: 220 tests /
+1,093 assertions. Astra re-review: 77 tests / 694 assertions, actual noEmit types and named
+lint passed. Root's fresh combined integration at `734d5191d` passed **270 tests /
+1,246 assertions / eight files**, using the correction's exact six-file command plus
+`connected-plan-capture.db.test.ts` and `saved-plan-capture.db.test.ts`. Actual uncached
+Nx core/module, SQLite and backend/module types passed:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-store-sqlite,wbs-be-01 --skipNxCache --parallel=1 --outputStyle=static
+```
+
+Only pure core foundation leaf `a72b08c9-6bed-4fa1-aba8-13999591049c` is complete.
+Full 6.1/6.2 remain unchecked for required runtime port, snapshot/live projection and
+consumer wiring. The staged real synchronous callback is not installed connected
+runtime capability. Readiness, optimization, history, activation and final release
+verification remain open; no complete feature or deployment is claimed.
+
+## Task 2.2 — spaces browser fixture follow-up
+
+CI run `39693163327` at earlier `b3f318912` failed five spaces cases because mocked
+project replies lacked the now-required abbreviation. Original schema probes refused
+only those missing fields. Exactly two fixture fields were added in `16a3238d5`,
+Astra approved, and root integrated `aa46186e2`; assertions and production validation
+are unchanged. See [repair](evidence/task-2-browser.md), [review](evidence/task-2-browser-review.md)
+and [logs/probes](evidence/task-2-browser-proofs/).
+
+Actual Playwright config on isolated ports, fresh worktree database and `CI=1` to refuse
+server reuse passed all **nine** spaces/timeline tests. The initial sandbox listen refusal
+occurred before tests; the approved identical command with local-server permission
+produced the counted pass. Actual frontend module/types, lint and formatting passed.
+Astra independently removed only the new fields and observed exactly 4/2/6 abbreviation
+errors for shared-space/timeline/project-list responses; restored bodies passed.
+
+This closes browser fixture follow-up `6d57e884-c640-42d5-a32b-2c7d237f6855`, not the
+full browser shard or final CI. Old failed checkpoint evidence remains a failure;
+current candidate full CI, exact-SHA host gate and deployment are still required.

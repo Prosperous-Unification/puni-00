@@ -1,0 +1,13 @@
+import ts from '/tmp/puni-cross-fast-calendar/node_modules/typescript/lib/typescript.js';
+const before = await Bun.file('/tmp/puni-connected-fast-review-integration/libs/wbs/application/core/src/module/work-item/work-item.before-review.ts').text();
+const after = await Bun.file('/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/schedule-slices.ts').text();
+function printSliceFunction(source: string) {
+  const file = ts.createSourceFile('slices.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const fn = file.statements.find((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === 'slicesOf');
+  if (fn === undefined) throw new Error('missing slicesOf production function');
+  return ts.createPrinter({ removeComments: true }).printNode(ts.EmitHint.Unspecified, fn, file);
+}
+const previous = printSliceFunction(before);
+const current = printSliceFunction(after);
+if (previous !== current) throw new Error('slicesOf syntax differs after extraction');
+console.log('Unchanged slicesOf function syntax confirmed against reviewed pre-extraction production source.');

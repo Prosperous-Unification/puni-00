@@ -1,0 +1,9 @@
+{
+  "libs/wbs/application/core/src/service/schedule-parts.ts": "81a58c50323fcd09b6c1075ea145a4a9e757ee94894c124f3a6ed8487150946c",
+  "libs/wbs/application/core/src/service/connected-plan.ts": "0f656c8665e99dc6c4abd10c49e8eaac657a413433b3096fa85186223a4b11e9",
+  "libs/wbs/application/core/src/service/connected-plan-calendar.ts": "8f5fbb2c0aea703544ac6434b627541d0db269f80a70f597057e565ed536e815",
+  "libs/wbs/application/core/src/service/connected-plan-projection.ts": "bdc01c7075da44dc85cc86673f831289ac3ef778480c6f0ed48b70539fb66dd5",
+  "libs/wbs/application/core/src/service/connected-plan.test.ts": "513e8f4b7cdbbe793270485e15fa544d228def9ca5bff3ebd77ce35964b18584",
+  "libs/wbs/application/core/src/module/saved-plans/saved-plan-schedule.ts": "6321e69dd98b1951d30bf842ae3e2390547652716fa3db31acee45f7a3593a00",
+  "/tmp/puni-connected-fast-live-wrapper.patch": "3c7779f18b12ff5d33b5dba1cec9b21bf5128444eab45868f7beda42b5b2ce66"
+}
