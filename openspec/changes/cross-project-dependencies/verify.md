@@ -2851,3 +2851,5 @@ This remains a bounded reader correction: connected capture/writer/current, broa
 comparison, rendered provenance, activation and canonical host gate remain open.
 The prior full backend lint resource failures are not reclassified as passing;
 this correction uses focused changed-file lint plus the domain lint target.
+
+Project drain refusal and atomic successor cleanup evidence: [task-4-project-drain.md](evidence/task-4-project-drain.md). This bounded packet does not complete task 4.4 or activate external authoring.

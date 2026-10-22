@@ -20,6 +20,7 @@ import { bumpWorkItems } from './revision';
 import {
   externalDependency,
   type ExternalDependencyRow,
+  project,
   projectOrganization,
   step,
   typedDependency,
@@ -107,7 +108,7 @@ type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
  * Throws unless each endpoint names its declared project's rows in the shape
  * its scope requires, with successor ownership and same-organization evidence; a node
  * endpoint's work item has no children and a descendant-step endpoint's has
- * some.
+ * some. Delete-pending or absent projects cannot accept new endpoint facts.
  *
  * Once typed commands exist (task 4), the service must refuse these first
  * with typed 4xx. This is the persistence boundary inside the write's transaction,
@@ -125,6 +126,18 @@ export function assertEndpointsHeld(
   row: StoredTypedDependency,
 ): string | undefined {
   const organizationId = assertEvidence(tx, row);
+  for (const endpoint of [row.predecessor, row.successor]) {
+    // Proof: bypassing this fence admitted new A→B links with either endpoint
+    // delete-pending in the installed deletion safety fixture (2026-10-22).
+    const target = tx
+      .select({ pendingAt: project.optimizationDeletePendingAt })
+      .from(project)
+      .where(eq(project.id, endpoint.projectId))
+      .get();
+    if (target?.pendingAt !== null)
+      throw new Error(`project ${endpoint.projectId} is pending deletion or unavailable`);
+  }
+
   for (const endpoint of [row.predecessor, row.successor]) {
     if (endpoint.scope === 'whole') continue;
     const child = tx

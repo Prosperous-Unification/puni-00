@@ -16,7 +16,13 @@ import { localCommandAccess } from '@wbs/core/testing/organization-access-fixtur
 import { contractVersionOf, schedule, sliceKey } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource, type SqliteSource } from '@wbs/store-sqlite';
-import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
+import {
+  beginOptimizationDrain,
+  finishOptimizationDrain,
+  reconcileOptimizationDrains,
+} from '@wbs/store-sqlite/optimization-drain';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, describe, expect, it } from 'bun:test';
 // Test-only SQL snapshots and fault setup require raw queries across store tables.
 // eslint-disable-next-line no-restricted-imports
@@ -374,6 +380,7 @@ function lifecycleTables(
     'assignment',
     'dependency',
     'typed_dependency',
+    'external_dependency',
     'actual',
     'step_progress',
     'step_measure',
@@ -7719,4 +7726,180 @@ describe('installed project drain sparse policy rollback', () => {
       });
     }
   }
+});
+
+describe('installed external project deletion safety', () => {
+  async function addExternal(
+    db: ReturnType<typeof openDrizzle>,
+    predecessor = 'A',
+    successor = 'B',
+  ) {
+    await new TypedDependencyRepository(db, OPEN).add(
+      {
+        id: `${predecessor}-${successor}`,
+        projectId: successor,
+        type: 'FS',
+        predecessor: { projectId: predecessor, workItemId: predecessor, scope: 'whole' },
+        successor: { projectId: successor, workItemId: successor, scope: 'whole' },
+      },
+      { at: 1, by: 'ada' },
+    );
+  }
+
+  for (const boundary of ['installed', 'raw'] as const) {
+    it(`refuses referenced predecessor before drain writes at ${boundary} boundary`, async () => {
+      const { db, path, services, pushUrls } = bootstrap();
+      seedSharedLifecycle(path);
+      seedDependencyAuthority(path);
+      const slot = seedLifecycleSlot(db);
+      db.insert(solverQueue)
+        .values({ ...slot, admittedCancelEpoch: 0, enqueuedAt: 1 })
+        .run();
+      await addExternal(db);
+      const before = lifecycleTables(db);
+      const attempt = Promise.resolve().then<unknown>(() =>
+        boundary === 'installed'
+          ? services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })
+          : beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' }),
+      );
+      await Promise.allSettled([attempt]);
+      expect(lifecycleTables(db)).toEqual(before);
+      const message = await rejectedMessage(attempt);
+      expect(message).toContain('externally referenced predecessor');
+      expect(message).toContain('A-B');
+      expect(lifecycleTables(db)).toEqual(before);
+      expect(pushUrls).toEqual([]);
+    });
+  }
+
+  for (const endpoint of ['A', 'B']) {
+    it(`refuses new relationships while ${endpoint} is delete pending`, async () => {
+      const { db, path, services } = bootstrap();
+      seedSharedLifecycle(path);
+      seedDependencyAuthority(path);
+      expect(await services.optimizationLifecycle.beginDrain(endpoint, { at: 2, by: 'ada' })).toBe(
+        0,
+      );
+      const before = lifecycleTables(db);
+      expect(await rejectedMessage(addExternal(db))).toContain(
+        `project ${endpoint} is pending deletion`,
+      );
+      expect(lifecycleTables(db)).toEqual(before);
+    });
+  }
+
+  it('retires a referenced predecessor contract without deleting its relationship', async () => {
+    const { db, path, services } = bootstrap();
+    seedSharedLifecycle(path);
+    seedDependencyAuthority(path);
+    const slot = seedLifecycleSlot(db);
+    await addExternal(db);
+    expect(
+      await services.optimizationLifecycle.beginDrain(
+        'A',
+        { at: 2, by: 'ada' },
+        slot.contractVersion,
+      ),
+    ).toBe(1);
+    expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'open',
+    });
+    expect(db.all(sql.raw('SELECT id FROM external_dependency'))).toEqual([{ id: 'A-B' }]);
+  });
+
+  for (const finalizer of ['finish', 'release', 'reclaim'] as const) {
+    it(`refuses late predecessor references before the first finalizer cleanup via ${finalizer}`, async () => {
+      const { db, path, services } = bootstrap();
+      seedSharedLifecycle(path);
+      seedDependencyAuthority(path);
+      const slot = finalizer === 'finish' ? undefined : seedLifecycleSlot(db);
+      expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(
+        slot === undefined ? 0 : 1,
+      );
+      // Maintenance corruption bypasses authoring admission to exercise finalization independently.
+      db.run(
+        sql.raw(
+          "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('late', 'org-a', 'A', 'B', 'A', 'whole', 'B', 'whole', 'FS')",
+        ),
+      );
+      db.run(
+        sql.raw(
+          "CREATE TRIGGER witness_external_cleanup BEFORE DELETE ON estimate BEGIN SELECT RAISE(ABORT, 'first cleanup reached'); END",
+        ),
+      );
+      const before = lifecycleTables(db);
+      expect(
+        await rejectedMessage(
+          Promise.resolve().then<unknown>(() =>
+            finalizer === 'release' && slot !== undefined
+              ? services.optimizationLifecycle.releaseSlot(slot)
+              : finalizer === 'reclaim'
+                ? reconcileOptimizationDrains(db, 1002)
+                : finishOptimizationDrain(db, 'A'),
+          ),
+        ),
+      ).toContain('externally referenced predecessor late');
+      expect(lifecycleTables(db)).toEqual(before);
+    });
+  }
+
+  it('keeps late-reference drain state intact during installed startup reconciliation', async () => {
+    const logLines: string[] = [];
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.4.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('blocked drain must not launch')),
+      },
+      undefined,
+      undefined,
+      false,
+      undefined,
+      logLines,
+    );
+    seedSharedLifecycle(path);
+    seedDependencyAuthority(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('late', 'org-a', 'A', 'B', 'A', 'whole', 'B', 'whole', 'FS')",
+      ),
+    );
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+    expect(logLines.join('\n')).toContain('externally referenced predecessor late');
+  });
+
+  it('rolls back successor cleanup on late failure then deletes only owned incoming links', async () => {
+    const { db, path, services } = bootstrap();
+    seedSharedLifecycle(path);
+    seedDependencyAuthority(path);
+    await addExternal(db);
+    seedAnotherSharedPair(path);
+    await addExternal(db, 'C', 'D');
+    expect(await services.optimizationLifecycle.beginDrain('B', { at: 2, by: 'ada' })).toBe(0);
+    const before = lifecycleTables(db);
+    const predecessor = db.all(sql.raw("SELECT * FROM work_item WHERE id = 'A'"));
+    db.run(
+      sql.raw(
+        "CREATE TRIGGER fail_external_cleanup BEFORE DELETE ON step WHEN OLD.project_id = 'B' BEGIN SELECT RAISE(ABORT, 'late cleanup fault'); END",
+      ),
+    );
+    expect(await rejectedMessage(services.optimizationLifecycle.finishDrain('B'))).toContain(
+      'delete from "step"',
+    );
+    expect(lifecycleTables(db)).toEqual(before);
+    db.run(sql.raw('DROP TRIGGER fail_external_cleanup'));
+    expect(await services.optimizationLifecycle.finishDrain('B')).toBe('finished');
+    expect(db.all(sql.raw('SELECT id FROM external_dependency'))).toEqual([{ id: 'C-D' }]);
+    expect(db.all(sql.raw("SELECT * FROM work_item WHERE id = 'A'"))).toEqual(predecessor);
+  });
 });

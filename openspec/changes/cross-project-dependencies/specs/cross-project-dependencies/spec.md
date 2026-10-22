@@ -147,13 +147,35 @@ Dependency-affecting edits, tree and step mutations, dynamic anchor changes, und
 
 ### Requirement: Deleting an external prerequisite requires explicit relationship removal
 
-Deleting a project, work item or step that would remove an externally referenced predecessor SHALL refuse until affected relationships are removed or explicitly reassigned by authorized editors. Deleting a successor SHALL remove its owned incoming relationships in its existing undoable transaction. Internal-only deletion behavior SHALL remain unchanged.
+Deleting a project, work item or step that would remove an externally referenced predecessor SHALL refuse until affected relationships are removed or explicitly reassigned by authorized editors. Deleting a successor work item SHALL remove its owned incoming relationships in its existing undoable transaction. Whole-project deletion through optimization drain SHALL remove successor-owned incoming relationships atomically with project cleanup, preserving surviving predecessor revisions; this maintenance lifecycle does not create an undo journal. Internal-only deletion behavior SHALL remain unchanged.
+
+Whole-project drain initiation SHALL refuse external predecessor references before changing delete-pending markers, audit, generations, queues or slots. Finalization SHALL revalidate external predecessor references before graph cleanup, including slot release, reclaim and restart reconciliation; a project-pending contract retirement SHALL not commit partial drain state before this refusal. Ordinary contract-version retirement SHALL remain permitted for externally referenced projects. Typed relationship authoring SHALL refuse either endpoint in a delete-pending project within its write transaction. Stored relationships remain readable during drain, and no authoring activation is introduced.
 
 #### Scenario: External blocker is not silently removed
 
 - **GIVEN** project B's task waits on project A's task
 - **WHEN** A's editor deletes the referenced task or project
 - **THEN** deletion refuses and B's prerequisite remains intact
+
+#### Scenario: Referenced project drain refuses before cancellation
+
+- **GIVEN** an external relationship owned by B names a predecessor in A and A has queued or running optimization work
+- **WHEN** installed or maintenance lifecycle code begins whole-project drain for A
+- **THEN** it refuses naming the relationship and all persistent state remains unchanged
+- **AND** retiring only a contract version remains allowed
+
+#### Scenario: Late external reference blocks all project finalizers
+
+- **GIVEN** a project is delete pending and maintenance has introduced a late external predecessor reference
+- **WHEN** direct finish, last-slot release or restart/reclaim finalization runs
+- **THEN** it refuses before graph cleanup and rolls back its slot and generation changes
+
+#### Scenario: Successor project cleanup is atomic
+
+- **GIVEN** B owns an incoming external relationship from surviving A
+- **WHEN** whole-project finalization deletes B
+- **THEN** its incoming relationship is removed and A's work-item revision is preserved
+- **AND** a later cleanup or event failure rolls back all cleanup and recorded events
 
 ### Requirement: External progress drives existing readiness and live reads
 
