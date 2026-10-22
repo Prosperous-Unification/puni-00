@@ -13,6 +13,7 @@ import type { User } from '../../ports/account-values';
 import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
+import type { TrustedIssuerTokens } from '../../ports/trusted-issuers';
 import { digestMachineSecret, type MachineKey, parseMachineKey } from '../../service/machine-key';
 import type { AccountResource } from './account.resource';
 
@@ -73,6 +74,14 @@ export interface AuthServiceOptions {
    * verifier.
    */
   machineKeys?: MachineKeyVerification;
+  /**
+   * How JWTs of organizations' trusted issuers are verified
+   * (`wbs-machine-credentials` A13 step 3, A16): the OIDC machine source.
+   * Absent, the source is off and every JWT keeps the configured-issuer path
+   * (fixtures only; `boot.ts` wires it). Requires {@link machineKeys}, whose
+   * credentials and clock it reads.
+   */
+  trustedIssuers?: TrustedIssuerVerification;
 }
 
 /** What {@link AuthServiceOptions.machineKeys} reads. */
@@ -80,6 +89,20 @@ export interface MachineKeyVerification {
   readonly credentials: MachineCredentials;
   readonly now: () => number;
 }
+
+/** What {@link AuthServiceOptions.trustedIssuers} reads. */
+export interface TrustedIssuerVerification {
+  readonly tokens: TrustedIssuerTokens;
+  /**
+   * The Issuer Identifier of the deployment's configured human sign-in
+   * issuer, null when the deployment configures none. A token of it never
+   * reaches a trusted issuer (A13 step 2).
+   */
+  readonly configuredIssuer: () => Promise<string | null>;
+}
+
+/** What {@link AuthService.authenticateOrRefuse} answers besides a principal. */
+export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
 
 export type { AuthenticatedUser } from '@wbs/contracts';
 
@@ -205,7 +228,7 @@ export class AuthService {
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     const outcome = await this.authenticateOrRefuse(token);
-    return outcome === 'unknown_identity' ? null : outcome;
+    return outcome === 'unknown_identity' || outcome === 'invalid_token' ? null : outcome;
   }
 
   /**
@@ -224,10 +247,16 @@ export class AuthService {
    * (`wbs-machine-credentials` A13, A22): it is parsed once and never handed
    * to a JWT verifier. It answers `unknown_identity` when it does not parse,
    * before any read, and when no live credential admits it.
+   *
+   * **A JWT whose `iss` is not the configured issuer is a trusted issuer's or
+   * nobody's** (`wbs-machine-credentials` A13 steps 3 and 5), once
+   * {@link AuthServiceOptions.trustedIssuers} is wired: see
+   * {@link authenticateTrustedIssuerToken}. It never falls back to another
+   * verifier, and a token of the configured issuer never reaches it.
    */
   async authenticateOrRefuse(
     token: string | null,
-  ): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+  ): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
     const machineKey = parseMachineKey(token);
@@ -237,6 +266,10 @@ export class AuthService {
     // verifier` in `machine-credential.controller.db.test.ts` failed, with 16
     // more cases of that file; watched 2026-10-22.
     if (machineKey !== null) return this.authenticateMachineKey(machineKey);
+    if (this.opts.trustedIssuers !== undefined) {
+      const trusted = await this.authenticateTrustedIssuerToken(token, this.opts.trustedIssuers);
+      if (trusted !== 'configured_path') return trusted;
+    }
     if (this.opts.oidc !== undefined) {
       const identity = await this.opts.oidc.verify(token);
       if (identity === null) {
@@ -346,6 +379,82 @@ export class AuthService {
     // Proof: with this rejection caught and dropped, `fails as a server error
     // when its last use cannot be recorded` in
     // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
+    await machines.credentials.touchLastUsed(admission.actor.credentialId, now);
+    return machinePrincipalOf(admission.actor, account.username);
+  }
+
+  /**
+   * One JWT of a trusted issuer (`wbs-machine-credentials` A13 steps 2, 3
+   * and 5), in this order:
+   *
+   * 1. No JWT, no string `iss`, or the configured issuer's `iss`: the
+   *    configured path (`configured_path`), with no trusted-issuer read.
+   * 2. No organization trusts the `iss`: `invalid_token`, with no key set
+   *    fetched.
+   * 3. The credential of the pair is read with its trusted issuer within its
+   *    own organization; the token is verified against that issuer's key set
+   *    and audience (or, with no credential, against the first key set of
+   *    the URL, to tell a forged token from an unknown subject). Any failure,
+   *    an unfetchable key set included, is `invalid_token`.
+   * 4. Verified with no credential: `unknown_identity`; with one, the same
+   *    {@link admitMachineCredential} decision and {@link machinePrincipalOf}
+   *    principal as an API key, its last use recorded.
+   *
+   * @throws when machine credentials are not wired, when the admitted
+   * credential's account does not exist, and on every store failure.
+   */
+  private async authenticateTrustedIssuerToken(
+    token: string,
+    trusted: TrustedIssuerVerification,
+  ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
+    const claims = trusted.tokens.peek(token);
+    if (claims === null) return 'configured_path';
+    // Proof: with this comparison removed, `never consults trusted issuers
+    // for a configured-issuer token without groups` in
+    // `oidc-credential.controller.db.test.ts` admitted the credential a
+    // planted trusted issuer of the configured URL holds; watched 2026-10-22.
+    if (claims.issuer === (await trusted.configuredIssuer())) return 'configured_path';
+    const machines = this.opts.machineKeys;
+    if (machines === undefined)
+      throw new Error('trusted issuers are wired but machine credentials are not');
+    const keySets = await machines.credentials.trustedKeySetsOf(claims.issuer);
+    const anyKeySet = keySets.at(0);
+    // Proof: with this refusal answering `configured_path` instead (a
+    // stranger `iss` let through to the configured verifier), `refuses a
+    // stranger issuer invalid_token without fetching any key set` in
+    // `oidc-credential.controller.db.test.ts` answered 401 unauthenticated;
+    // watched 2026-10-22.
+    if (anyKeySet === undefined) return 'invalid_token';
+    const pair =
+      claims.subject === null
+        ? null
+        : await machines.credentials.findByPair(claims.issuer, claims.subject);
+    const verdict = await trusted.tokens.verify(token, {
+      issuer: claims.issuer,
+      jwksUri: pair?.jwksUri ?? anyKeySet,
+      audience: pair?.audience ?? null,
+    });
+    // Proof: with only `key_set_unavailable` refused here (an `invalid`
+    // verdict admitted), `refuses a token signed by another key` and `refuses
+    // a wrong audience, the credential audience winning over the default` in
+    // `oidc-credential.controller.db.test.ts` answered 200; watched
+    // 2026-10-22.
+    if (verdict.kind !== 'verified') return 'invalid_token';
+    if (verdict.subject !== claims.subject)
+      throw new Error('a verified token changed its subject between peek and verify');
+    if (pair === null) return 'unknown_identity';
+    const now = machines.now();
+    const admission = admitMachineCredential(
+      { kind: 'oidc', trustedIssuerId: pair.trustedIssuerId },
+      pair.credential,
+      now,
+    );
+    if (admission.kind === 'refused') return admission.refusal;
+    const account = await this.opts.account.readAccount(admission.actor.accountId);
+    if (account === null)
+      throw new Error(
+        `machine credential ${admission.actor.credentialId} acts as a missing account`,
+      );
     await machines.credentials.touchLastUsed(admission.actor.credentialId, now);
     return machinePrincipalOf(admission.actor, account.username);
   }

@@ -110,6 +110,12 @@ export const EXCLUDED_PATHS: readonly string[] = [
   // 2026-10-22.
   '/api/organization/machine-credentials',
   '/api/organization/machine-credentials/*',
+  // A trusted issuer admits machines for every person of its organization,
+  // and be-01 refuses every delegation on these routes as well.
+  // Proof: removing either entry made `keeps trusted issuer administration
+  // out of the generated MCP tools` expose its tools; watched 2026-10-22.
+  '/api/organization/trusted-issuers',
+  '/api/organization/trusted-issuers/*',
 ];
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */

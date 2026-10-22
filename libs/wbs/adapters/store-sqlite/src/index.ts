@@ -70,6 +70,7 @@ export * from './step-measure';
 export * from './step-node-attempt';
 export * from './step-progress';
 export * from './step-reference';
+export * from './trusted-issuer-administration';
 export * from './typed-dependency';
 export * from './user';
 export { SubtreeRepository, WORK_ITEM_COLUMNS, WorkItemRepository } from './work-item';

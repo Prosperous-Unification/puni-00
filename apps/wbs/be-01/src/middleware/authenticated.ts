@@ -1,3 +1,4 @@
+import type { AuthenticationRefusal } from '@wbs/core/module/authentication/authentication.feature';
 import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { MACHINE_KEY_PREFIX } from '@wbs/core/service/machine-key';
 
@@ -57,7 +58,8 @@ export async function userFromHeaders(
 
 /**
  * {@link userFromHeaders}, keeping a verified token linked to nobody apart as
- * `unknown_identity`.
+ * `unknown_identity`, and a JWT of no trusted issuer, or one a trusted
+ * issuer's key set does not verify, as `invalid_token`.
  *
  * A `wbs_mk_` API key travels in `Authorization: Bearer` only
  * (`wbs-machine-credentials` A13, A22): one found in the session cookie is
@@ -70,7 +72,7 @@ export async function userFromHeaders(
 export async function userOrRefusalFromHeaders(
   auth: AuthService,
   headers: Record<string, string | undefined>,
-): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
   const cookie = cookieValue(headers['cookie'], '__Host-wbs_access');
   if (cookie?.startsWith(MACHINE_KEY_PREFIX) === true) return 'unknown_identity';
   return auth.authenticateOrRefuse(tokenFromHeaders(headers));

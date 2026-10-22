@@ -325,10 +325,14 @@ the issuer's OIDC discovery document once, require its `issuer` to equal the giv
 record its `jwks_uri`; an unreachable document SHALL be `409 issuer_unreachable`, a
 disagreeing one `409 issuer_mismatch`, and nothing is stored in either case. The configured
 issuer SHALL be refused `409 issuer_reserved`. With `ssoConnectionId` the connection SHALL be
-the organization's, of strategy `oidc` (`409 issuer_not_oidc` otherwise) and proven (`409
-sso_connection_unproven`). `(organization, issuer)` SHALL be unique (`409 issuer_taken`).
+the organization's (`404 unknown_sso_connection` otherwise), of strategy `oidc` (`409
+issuer_not_oidc` otherwise) and proven (`409 sso_connection_unproven`). `(organization, issuer)` SHALL be unique (`409 issuer_taken`).
 `DELETE /api/organization/trusted-issuers/:id` SHALL be refused `409 in_use` with the count
-while unrevoked credentials name it. Each act SHALL write its audit row in the same
+while unrevoked credentials name it; once none does, the revoked credentials naming it SHALL
+be removed with it in the same transaction, their audit rows kept. Every trusted issuer
+route SHALL refuse a `member` or `viewer` `403 forbidden`, a delegation or a machine
+credential `403 insufficient_scope`, and answer `403 no_active_organization` before
+activation. Each act SHALL write its audit row in the same
 transaction.
 
 #### Scenario: Registering a workload identity issuer

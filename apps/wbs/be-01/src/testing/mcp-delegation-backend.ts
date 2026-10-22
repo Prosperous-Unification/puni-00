@@ -28,6 +28,7 @@ const backend = await BootedBrowserProcess.open(
   {
     ...new FakeOidcProvider().routeOptions(BOOTED_ORIGIN),
     verifier: new JwksTokenVerifier({ audience, issuer, jwksUri: new URL(jwksUrl) }),
+    issuer: () => Promise.resolve(trustedIssuer),
   },
   BOOTED_ORIGIN,
   undefined,

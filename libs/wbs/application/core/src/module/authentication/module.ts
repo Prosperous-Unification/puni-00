@@ -38,6 +38,7 @@ export const authenticationModule = DiBag.createBuilder()
           now: () => account.clock.now(),
         },
         passwords: account.passwords,
+        ...(account.trustedIssuers === undefined ? {} : { trustedIssuers: account.trustedIssuers }),
         ...(account.oidc === undefined ? {} : { oidc: account.oidc }),
         ...(account.passwordSessions === undefined
           ? {}

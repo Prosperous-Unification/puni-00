@@ -80,10 +80,13 @@ export const listMachineCredentials = defineEndpointShape({
 });
 
 /**
- * Creates an API-key credential for an agent person of the active
- * organization and answers its key, `wbs_mk_<id>.<secret>`, in this response
- * only; storage keeps the secret's SHA-256 digest. A member may name only an
- * agent person bound to their own account; an admin any agent person.
+ * Creates a credential for an agent person of the active organization. An
+ * `api_key` answers its key, `wbs_mk_<id>.<secret>`, in this response only;
+ * storage keeps the secret's SHA-256 digest. An `oidc` credential names a
+ * trusted issuer of the organization and the exact `subject` its tokens carry
+ * (`audience`, when given, is required of them over the issuer's default);
+ * it holds no secret. A member may name only an agent person bound to their
+ * own account; an admin any agent person.
  */
 export const createMachineCredential = defineEndpointShape({
   method: 'POST',
@@ -91,7 +94,14 @@ export const createMachineCredential = defineEndpointShape({
   operationId: 'postApiOrganizationMachine-credentials',
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
-    type({ source: "'api_key'", name: '0 < string <= 80', personId: 'string > 0' }),
+    type({ source: "'api_key'", name: '0 < string <= 80', personId: 'string > 0' }).or({
+      source: "'oidc'",
+      name: '0 < string <= 80',
+      personId: 'string > 0',
+      trustedIssuerId: 'string > 0',
+      subject: '0 < string <= 512',
+      'audience?': '0 < string <= 512',
+    }),
   ),
   responses: [
     {
@@ -106,6 +116,17 @@ export const createMachineCredential = defineEndpointShape({
           issuedBy: 'string',
           createdAt: 'number',
           key: 'string',
+        }).or({
+          id: 'string',
+          source: "'oidc'",
+          name: 'string',
+          personId: 'string',
+          issuedBy: 'string',
+          createdAt: 'number',
+          trustedIssuerId: 'string',
+          issuer: 'string',
+          subject: 'string',
+          audience: 'string | null',
         }),
       ),
     },
@@ -114,16 +135,22 @@ export const createMachineCredential = defineEndpointShape({
     ...common,
     malformed,
     { status: 404, schema: responseSchema(type({ error: "'unknown_person'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'unknown_trusted_issuer'" })) },
     {
       status: 409,
       schema: responseSchema(type({ error: "'person_not_bound'", personId: 'string' })),
     },
     {
       status: 409,
-      schema: responseSchema(type({ error: "'account_not_member' | 'name_taken'" })),
+      schema: responseSchema(
+        type({ error: "'account_not_member' | 'name_taken' | 'subject_taken'" }),
+      ),
     },
   ],
-  document: { summary: 'Create an API-key machine credential, its key shown once.' },
+  document: {
+    summary:
+      'Create a machine credential: an API key shown once, or an OIDC pair of a trusted issuer.',
+  },
 });
 
 /**
@@ -173,4 +200,115 @@ export const revokeMachineCredential = defineEndpointShape({
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [...common, malformed, notFound],
   document: { summary: 'Revoke a machine credential immediately.' },
+});
+
+/** An issuer URL as OIDC defines one: HTTPS, no query, no fragment, short enough to store. */
+const issuerUrl = type(/^https:\/\/[^\s?#]+$/).and('string <= 2048');
+
+/**
+ * One trusted issuer as listed (`wbs-machine-credentials` A16): the
+ * `jwks_uri` discovered at registration and the count of unrevoked
+ * credentials naming it, which refuses its removal.
+ */
+export const trustedIssuerSummary = type({
+  id: 'string',
+  issuer: 'string',
+  jwksUri: 'string',
+  defaultAudience: 'string | null',
+  ssoConnectionId: 'string | null',
+  createdAt: 'number',
+  createdBy: 'string | null',
+  machineCredentials: 'number',
+});
+
+const trustedIssuerCommon = [
+  { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+  organizationRefusal,
+  organizationContextRefusal,
+  // A delegation or a machine credential never administers trusted issuers.
+  {
+    status: 403,
+    schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
+  },
+  // A member or a viewer: only an admin trusts an issuer for every person.
+  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+] as const;
+
+/** Lists the active organization's trusted issuers, for its admins. */
+export const listTrustedIssuers = defineEndpointShape({
+  method: 'GET',
+  path: '/api/organization/trusted-issuers',
+  operationId: 'getApiOrganizationTrusted-issuers',
+  policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ trustedIssuers: trustedIssuerSummary.array() })),
+    },
+  ],
+  refusals: [...trustedIssuerCommon, malformed],
+  document: { summary: 'List the trusted OIDC issuers of the active organization.' },
+});
+
+/**
+ * Registers an OIDC issuer whose tokens the organization's `oidc` credentials
+ * accept. Its discovery document is fetched once: it must answer
+ * (`issuer_unreachable`), name the same `issuer` (`issuer_mismatch`) and
+ * publish an HTTPS `jwks_uri`. The deployment's own sign-in issuer is
+ * `issuer_reserved`. `ssoConnectionId`, when given, must be a proven `oidc`
+ * enterprise connection of the organization; it decides who may register,
+ * not what the URL is.
+ */
+export const registerTrustedIssuer = defineEndpointShape({
+  method: 'POST',
+  path: '/api/organization/trusted-issuers',
+  operationId: 'postApiOrganizationTrusted-issuers',
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
+  body: requestSchema(
+    type({
+      issuer: issuerUrl,
+      'defaultAudience?': '0 < string <= 512',
+      'ssoConnectionId?': 'string > 0',
+    }),
+  ),
+  responses: [{ kind: 'json', status: 201, schema: responseSchema(trustedIssuerSummary) }],
+  refusals: [
+    ...trustedIssuerCommon,
+    malformed,
+    { status: 404, schema: responseSchema(type({ error: "'unknown_sso_connection'" })) },
+    {
+      status: 409,
+      schema: responseSchema(
+        type({
+          error:
+            "'issuer_unreachable' | 'issuer_mismatch' | 'issuer_reserved' | 'issuer_not_oidc' | 'sso_connection_unproven' | 'issuer_taken'",
+        }),
+      ),
+    },
+  ],
+  document: { summary: 'Trust an OIDC issuer for machine credentials, discovered once.' },
+});
+
+/**
+ * Removes a trusted issuer; refused `in_use` with the count while unrevoked
+ * credentials name it. Revoked credentials naming it are removed with it.
+ */
+export const removeTrustedIssuer = defineEndpointShape({
+  method: 'DELETE',
+  path: '/api/organization/trusted-issuers/:id',
+  operationId: 'deleteApiOrganizationTrusted-issuersById',
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
+  params: requestSchema(type({ id: 'string' })),
+  responses: [{ kind: 'empty', status: 204 }],
+  refusals: [
+    ...trustedIssuerCommon,
+    malformed,
+    notFound,
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'in_use'", machineCredentials: 'number' })),
+    },
+  ],
+  document: { summary: 'Remove a trusted issuer no live credential names.' },
 });

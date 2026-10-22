@@ -497,7 +497,18 @@ type BareRefusalCode =
   // rotation of a credential whose secret its issuer rotates.
   | 'account_not_member'
   | 'rotation_in_progress'
-  | 'rotation_at_issuer';
+  | 'rotation_at_issuer'
+  // OIDC credentials and trusted issuers (`wbs-machine-credentials` A16):
+  // registration's discovery and gate refusals, a credential naming another
+  // organization's issuer, and a pair another credential holds.
+  | 'issuer_unreachable'
+  | 'issuer_mismatch'
+  | 'issuer_reserved'
+  | 'issuer_not_oidc'
+  | 'issuer_taken'
+  | 'unknown_sso_connection'
+  | 'unknown_trusted_issuer'
+  | 'subject_taken';
 
 type SharedCommandCode =
   | 'not_found'
@@ -543,7 +554,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
     /** Naming the person from a machine credential create; with its command context from a batch. */
     person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
-    in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
+    /** Also a trusted issuer that unrevoked machine credentials name (`wbs-machine-credentials` A16). */
+    in_use: { inUse: StepInUse } | { machineCredentials: number } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

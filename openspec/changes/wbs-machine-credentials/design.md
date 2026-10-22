@@ -106,8 +106,9 @@ pair in it must never be mistaken for a machine.
 (`sso_required`) and the session policy (`reauthentication_required`) judge a human
 sign-in; a headless machine has none to reauthenticate. The organization's control is the
 issuer who created it, the trusted-issuer gate (A16) and revoke. `authentication` on a
-machine principal is `upstream` for `oidc` (the pair) and
-`{ kind: 'machine', credentialId }` for `api_key`; the rules return `ok` for a machine
+machine principal is `{ kind: 'machine', credentialId, personId }` for both `api_key` and
+`oidc` (slice 5 as built: the draft's `upstream` for `oidc` would have escaped A23's role
+cap, which reads the `machine` kind); the rules return `ok` for a machine
 principal, with a negative that a machine of an enforcing organization is still admitted.
 The `mcp_consent` source is the exception: its family was opened by a human sign-in, so the
 rules keep judging that sign-in's upstream pair as they do today (an enforcing organization

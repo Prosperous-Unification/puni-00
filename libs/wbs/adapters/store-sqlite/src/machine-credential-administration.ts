@@ -6,6 +6,7 @@ import {
   type MachineCredentialAdministration,
   type MachineCredentialSummary,
   type MachineSecretSummary,
+  type OidcCredentialDraft,
 } from '@wbs/core';
 import type { MachineCredentialSource, OrganizationRole } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
@@ -22,6 +23,7 @@ import {
   machineCredential,
   type MachineCredentialRow,
   machineCredentialSecret,
+  organizationTrustedIssuer,
   person,
   personOrganization,
 } from './schema';
@@ -205,43 +207,8 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
     return this.write((tx) => {
       const role = administeringRole(tx, organizationId, actorId);
       if (role === 'inactive' || role === 'forbidden') return { kind: role };
-      const pinned = tx
-        .select({ accountId: person.accountId })
-        .from(person)
-        .innerJoin(personOrganization, eq(personOrganization.resourceId, person.id))
-        .where(
-          and(
-            eq(person.id, draft.personId),
-            eq(personOrganization.organizationId, organizationId),
-            eq(person.kind, 'agent'),
-          ),
-        )
-        .get();
-      // Proof: with the organization predicate dropped from this read, `refuses
-      // a person of another organization or of kind person` reached B's agent
-      // and answered 409 account_not_member instead of 404; watched 2026-10-22.
-      if (pinned === undefined) return { kind: 'unknown_person' };
-      // Proof: with this check removed, `refuses a member another account's
-      // agent, writing nothing` answered 201 for Dany's agent; watched
-      // 2026-10-22.
-      if (isOwnAgentsOnly(role) && pinned.accountId !== actorId) return { kind: 'forbidden' };
-      if (pinned.accountId === null) return { kind: 'person_not_bound' };
-      // Proof: with this check removed, `refuses an agent bound to an account
-      // that is no member` created the credential; watched 2026-10-22.
-      if (roleIn(tx, organizationId, pinned.accountId) === null)
-        return { kind: 'account_not_member' };
-      const named = tx
-        .select({ id: machineCredential.id })
-        .from(machineCredential)
-        .where(
-          and(
-            eq(machineCredential.organizationId, organizationId),
-            eq(machineCredential.name, draft.name),
-            isNull(machineCredential.revokedAt),
-          ),
-        )
-        .get();
-      if (named !== undefined) return { kind: 'name_taken' };
+      const refused = pinRefusal(tx, organizationId, actorId, role, draft);
+      if (refused !== null) return { kind: refused };
       tx.insert(machineCredential)
         .values({
           id: draft.id,
@@ -278,6 +245,83 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
           { id: draft.secretId, createdAt: act.stamp.at, expiresAt: null },
         ]),
       } as const;
+    });
+  }
+
+  /**
+   * As {@link createApiKey}, with no secret: the pair is the trusted issuer's
+   * URL, read within this organization, and `draft.subject`.
+   *
+   * Proof: with the audit append's failure caught and dropped, `stores no
+   * OIDC credential when the audit row cannot be written` in
+   * `oidc-credential.controller.db.test.ts` answered 201 instead of 500;
+   * watched 2026-10-22.
+   */
+  createOidc(
+    organizationId: string,
+    actorId: string,
+    draft: OidcCredentialDraft,
+    act: AuditedAct,
+  ): ReturnType<MachineCredentialAdministration['createOidc']> {
+    return this.write((tx) => {
+      const role = administeringRole(tx, organizationId, actorId);
+      if (role === 'inactive' || role === 'forbidden') return { kind: role };
+      const refused = pinRefusal(tx, organizationId, actorId, role, draft);
+      if (refused !== null) return { kind: refused };
+      const trusted = tx
+        .select({ issuer: organizationTrustedIssuer.issuer })
+        .from(organizationTrustedIssuer)
+        .where(
+          and(
+            eq(organizationTrustedIssuer.id, draft.trustedIssuerId),
+            // Proof: with this predicate removed, `refuses another
+            // organization's trusted issuer, writing nothing` in
+            // `oidc-credential.controller.db.test.ts` created A's credential
+            // on B's issuer; watched 2026-10-22.
+            eq(organizationTrustedIssuer.organizationId, organizationId),
+          ),
+        )
+        .get();
+      if (trusted === undefined) return { kind: 'unknown_trusted_issuer' };
+      const paired = tx
+        .select({ id: machineCredential.id })
+        .from(machineCredential)
+        .where(
+          and(
+            eq(machineCredential.source, 'oidc'),
+            eq(machineCredential.issuer, trusted.issuer),
+            eq(machineCredential.subject, draft.subject),
+          ),
+        )
+        .get();
+      if (paired !== undefined) return { kind: 'subject_taken' };
+      tx.insert(machineCredential)
+        .values({
+          id: draft.id,
+          organizationId,
+          personId: draft.personId,
+          issuedBy: actorId,
+          source: 'oidc',
+          name: draft.name,
+          issuer: trusted.issuer,
+          subject: draft.subject,
+          audience: draft.audience,
+          trustedIssuerId: draft.trustedIssuerId,
+          ...auditOnCreate(act.stamp),
+        })
+        .run();
+      const row = credentialRow(tx, draft.id);
+      appendOrganizationAudit(tx, {
+        id: act.auditId,
+        organizationId,
+        actorId: act.actor,
+        action: 'machine_credential_created',
+        subjectKind: 'machine_credential',
+        subjectId: draft.id,
+        detail: auditDetail(row, null),
+        at: act.stamp.at,
+      });
+      return { kind: 'created', credential: summaryOf(row, []) } as const;
     });
   }
 
@@ -383,6 +427,56 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
   private write<T>(work: (tx: Transaction) => T): Promise<T> {
     return writeImmediately(this.db, this.gate, work);
   }
+}
+
+/**
+ * Why `draft` may not be pinned by an actor with `role`, or null: the
+ * person-side refusals every source shares (A7, A12), then a live name.
+ */
+function pinRefusal(
+  tx: Transaction,
+  organizationId: string,
+  actorId: string,
+  role: OrganizationRole,
+  draft: { readonly personId: string; readonly name: string },
+):
+  'unknown_person' | 'forbidden' | 'person_not_bound' | 'account_not_member' | 'name_taken' | null {
+  const pinned = tx
+    .select({ accountId: person.accountId })
+    .from(person)
+    .innerJoin(personOrganization, eq(personOrganization.resourceId, person.id))
+    .where(
+      and(
+        eq(person.id, draft.personId),
+        eq(personOrganization.organizationId, organizationId),
+        eq(person.kind, 'agent'),
+      ),
+    )
+    .get();
+  // Proof: with the organization predicate dropped from this read, `refuses
+  // a person of another organization or of kind person` reached B's agent
+  // and answered 409 account_not_member instead of 404; watched 2026-10-22.
+  if (pinned === undefined) return 'unknown_person';
+  // Proof: with this check removed, `refuses a member another account's
+  // agent, writing nothing` answered 201 for Dany's agent; watched
+  // 2026-10-22.
+  if (isOwnAgentsOnly(role) && pinned.accountId !== actorId) return 'forbidden';
+  if (pinned.accountId === null) return 'person_not_bound';
+  // Proof: with this check removed, `refuses an agent bound to an account
+  // that is no member` created the credential; watched 2026-10-22.
+  if (roleIn(tx, organizationId, pinned.accountId) === null) return 'account_not_member';
+  const named = tx
+    .select({ id: machineCredential.id })
+    .from(machineCredential)
+    .where(
+      and(
+        eq(machineCredential.organizationId, organizationId),
+        eq(machineCredential.name, draft.name),
+        isNull(machineCredential.revokedAt),
+      ),
+    )
+    .get();
+  return named === undefined ? null : 'name_taken';
 }
 
 /** The unrevoked credential `credentialId` when the actor reaches it, else undefined. */

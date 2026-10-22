@@ -43,6 +43,7 @@ export class AuthService extends AuthenticationFeature {
         : { passwordSessions: options.passwordSessions }),
       ...(options.localIdentity === undefined ? {} : { localIdentity: options.localIdentity }),
       ...(options.machineKeys === undefined ? {} : { machineKeys: options.machineKeys }),
+      ...(options.trustedIssuers === undefined ? {} : { trustedIssuers: options.trustedIssuers }),
       account: new AccountResource({
         users: options.users,
         ...(options.identities === undefined ? {} : { identities: options.identities }),
