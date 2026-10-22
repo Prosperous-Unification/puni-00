@@ -243,7 +243,7 @@ memory fallback and cannot bootstrap missing trusted state.
 - [x] Prove migration lint accepts the provider's additive forward/down pair and rejects missing rollback, destructive forward SQL and paths outside its exact root. Exercise the production hook routing; removing the new root or routing and widening the accepted path must each fail a meaningful assertion. Keep destructive down scripts allowed.
 - [x] Run all new shared and SQLite tests plus Dash typecheck/lint. Record every skipped/unavailable check explicitly. Do not broaden into full host gates outside the required script.
 - [x] Execute each unproven safety negative from the matrix below; add the observed `Proof:` comments only after its failure is seen and the restored production path passes.
-- [ ] Have root review final code, exact diff and verification evidence. Root runs the full clean-worktree gate for the selected SHA and decides when parent 6a.1–6a.2 may be checked. This packet does not check 6a.3–6a.8, 6b.3 or product W0–W12.
+- [x] Have root review final code, exact diff and verification evidence. Root runs the full clean-worktree gate for the selected SHA and decides when parent 6a.1–6a.2 may be checked. This packet does not check 6a.3–6a.8, 6b.3 or product W0–W12.
 
 ## Required fault oracles
 

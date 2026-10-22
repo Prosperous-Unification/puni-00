@@ -68,7 +68,7 @@ The one static piece, the binding's schema and validator, is Burokrat's.
 | Unit                                                      | Responsibility                                                                                                            |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                    |
-| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port, the five adapters, the provider registry, the fakes                                              |
+| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port and adapters consuming injected model/tool capabilities                                           |
 | `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a fleet credential; every refusal typed                                |
 | `twilight-dash/cli/src/runs/`                             | RunStore/ArtifactStore ports and adapters, attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands |
 | `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                     |
@@ -78,50 +78,25 @@ Dash does not import WBS app internals; the shared contracts package is the boun
 
 ## The port
 
-```ts
-type ExecutorKind = 'api-model' | 'cli-harness' | 'acp' | 'tool' | 'human';
+[Executor design](executor-design.md) is the authoritative ActivityExecutor contract;
+[executor tasks](executor-tasks.md) deliver the shared port and first API-model adapter.
+The port distinguishes preparation, real adapter sessions, immutable turn identities,
+completed and uncertain outcomes, and honest recovery capabilities. Its stream is the
+installed AI SDK UIMessageChunk. Unknown usage causes the later coordinator to omit
+measurement: an absent measure stays absent and an earlier measured value remains intact.
 
-interface ActivityExecutor {
-  readonly kind: ExecutorKind;
-  /** Opens the adapter's session for one attempt; the returned id is the attempt's agent run. */
-  open(attempt: AttemptContext): Promise<ActivitySession>;
-  /** One prompt in, AI SDK UI message parts out as they arrive, then the turn's outcome. */
-  turn(
-    session: ActivitySession,
-    prompt: string,
-    onPart: (part: UIMessageChunk) => void,
-  ): Promise<TurnOutcome>;
-  close(session: ActivitySession): Promise<void>;
-}
+The API-model adapter uses a caller-injected SDK model registry and selected tool
+capabilities, retained prompt text and the real ToolLoopAgent. Provider construction,
+credentials, execution/spending authority and durable host integration are separate.
+Its process-local conversations and exact-retry cache do not advertise backend recovery.
+The other adapters remain planned:
 
-type Usage =
-  | { kind: 'measured'; inputTokens: number; outputTokens: number }
-  | { kind: 'unknown'; reason: 'acp-v1-no-usage' | 'tool' | 'human' };
-
-interface TurnOutcome {
-  text: string;
-  usage: Usage;
-  finish: 'end_turn' | 'max_steps' | 'refused' | 'cancelled';
-}
-```
-
-The stream shape is the AI SDK's `UIMessageChunk`, which the website front end already
-consumes. `Usage.unknown` is the one modelled degradation: ACP v1 exposes no per-step usage,
-so `token_actual` for such an attempt is written as absent, never as zero, and the Board
-shows it as unknown.
-
-Adapters:
-
-- **api-model**: `createProviderRegistry` over `@ai-sdk/anthropic`, `@ai-sdk/openai` and
-  `@openrouter/ai-sdk-provider` with model ids of the form `provider:model`; `Agent` with
-  `stopWhen`; optional `@ai-sdk/code-mode` routing per activity class after spike 0.2.
-- **cli-harness**: `HarnessAgent` with `@ai-sdk/harness-claude-code` or
-  `@ai-sdk/harness-codex`, permission mode from the binding, sandbox from A7.
-- **acp**: the prototype's client, kept for its permission seam and `session/load` replay;
-  `@ai-sdk/harness-acp` is not used until it exposes both.
-- **tool**: a registered command (`twin`, `twib`, `bin/h2puni-gate.sh`, the merge) with
-  argv built from the attempt, exit code and captured output as the outcome.
-- **human**: writes `waiting_for_person`, holds the claim, and resumes on an operator command.
+- **cli-harness**: HarnessAgent with Claude Code or Codex, permission mode from binding
+  and sandbox from A7.
+- **acp**: the existing client permission seam and session/load replay; harness-acp
+  remains deferred until it exposes both.
+- **tool**: a registered command with attempt-derived argv and recorded exit/output.
+- **human**: a durable waiting_for_person state and an operator continuation.
 
 ## Workflow binding
 

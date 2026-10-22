@@ -261,9 +261,35 @@ so a startable step names the activity to run. Not the step graph, which is WBS'
 _Avoid_: Workflow config, pipeline, step mapping
 
 **Attempt**:
-One admitted try of one activity on one claimed step, with its own state, agent run and
-usage; a retry is a new attempt on the same claim.
+One admitted try of one activity on one exact claimed step, with its own state, agent run
+and usage; continuation or reattachment retains that attempt and claim. A retry is a new
+attempt of the same logical operation with a new exact claim.
 _Avoid_: Job, execution, session, try
+
+**Activity preparation**:
+The identified request to create an executor session for one runtime attempt before its
+activity turn is dispatched.
+_Avoid_: Turn, admission, launch command
+
+**Creation key**:
+The adapter-instance-scoped identity of one session preparation payload, reused for exact
+retries of that preparation.
+_Avoid_: Operation key, turn key, session ID
+
+**Executor session**:
+The adapter or backend conversation identity used as an attempt's agent run; it is distinct
+from that attempt and its logical operation.
+_Avoid_: Attempt, worker, provider response ID
+
+**Turn key**:
+The session-scoped identity of one immutable activity turn request, reused for exact
+retries of that request.
+_Avoid_: Creation key, decision ID, operation key
+
+**Turn intent**:
+The retained identity and immutable request for one activity turn whose dispatch and
+outcome may need reconciliation.
+_Avoid_: Turn result, execution fact, receipt
 
 **Run store**:
 Twilight Dash's durable record of runs, attempts and recovery facts, separate from the

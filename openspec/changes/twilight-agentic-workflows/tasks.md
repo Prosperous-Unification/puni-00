@@ -29,13 +29,20 @@ repository defaults and I1 approval/budget declarations are separate work.
 
 ## 2. The port and the api-model adapter (Dash)
 
-- [ ] 2.1 Red: `activity-executor.test.ts` — the port contract against a fake adapter: session
-      id becomes agent run, parts arrive in order, usage measured or unknown with reason.
-- [ ] 2.2 Red: `api-model-adapter.test.ts` with the AI SDK mock language model — measured
-      usage, `stopWhen` honoured, bare model id refused before any request. Negative: remove
-      the prefix check and the request reaches the mock; watched.
-- [ ] 2.3 Green: provider registry (`anthropic`, `openai`, `openrouter`), `Agent` loop,
-      limits from the class. The website's `ProviderFetch` seam pattern reused for tests.
+The three [executor tasks](executor-tasks.md) implement [executor design](executor-design.md).
+These parent gates stay open until that packet is accepted. They do not complete other
+adapters, durable coordinator dispatch, S0.08 recovery or S7a.
+
+- [ ] 2.1 Red/green: shared executor identities, immutable request/locator snapshots and
+      real accepted Burokrat selection against actual installed SDK registry capabilities.
+      Session-to-WBS-agent-run persistence remains later host integration.
+- [ ] 2.2 Red/green: real SDK turns preserve per-step measured/unknown usage, distinct
+      output/step limits, zero automatic retries and correlated uncertain/throwing outcomes.
+      Bare model IDs fail at accepted-binding/registry boundaries; newly owned guards need
+      isolated production fault proofs rather than masked duplicate prefix checks.
+- [ ] 2.3 Green: concrete API-model adapter with injected model registry/tools, owned local
+      sessions, payload-bound retries, cancellation/listener lifecycle and honest unsupported
+      durable recovery. No production provider factory or live command is enabled.
 
 ## 3. The cli-harness adapter
 
@@ -70,10 +77,10 @@ repository defaults and I1 approval/budget declarations are separate work.
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
 [storage design](storage-design.md). Their checkboxes remain the parent acceptance gate.
 
-- [ ] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
+- [x] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
       capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
       inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
-- [ ] 6a.2 Green: semantic ports and memory fixture, then the currently selected durable
+- [x] 6a.2 Green: semantic ports and memory fixture, then the currently selected durable
       adapter (SQLite). Keep physical schema/migrations in that adapter and select it by configuration.
 - [ ] 6a.3 Red/green: binding manifest retention and integrity, pinned prompt/tool-policy
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.

@@ -1003,3 +1003,57 @@ Parent 1.1–1.2 implementation and review are accepted. Parent1.3 repository
 defaults/gate adoption, broader I1 policies/retention and runtime integration
 remain open. The exact-SHA binding h2 gate and merge remain pending; the separate
 storage gate does not certify this branch. No publishing or deployment occurred.
+
+### 2026-10-22 — completed storage and binding host gates
+
+The canonical h2puni wrapper completed with exit0 on exact storage head
+`79f4dcdd97ba2111170558b71965899212171859`: frozen dependencies,267 OpenSpec
+entries, format,180 workspace tasks in45m53s, Twilight targets in46m41s, both
+source lints and actual Docker solver checks (3 tests/15 assertions in10.61s;
+Docker target3m6s). Log: `/tmp/puni-agentic-gate-79f4dcdd9-retry.log`.
+The preceding queue expiration occurred before checks and remains historical;
+this completed run is the current storage evidence.
+
+The same wrapper independently completed with exit0 on binding head
+`6f09b11fc638c36c3d90747b98a0eabd63147c0e`: frozen1801 installs/1648 packages,
+267 OpenSpec entries, format,180 workspace tasks in46m20s, Twilight targets
+in48m20s, Burokrat source lint25.9s, Dash lint21.7s and actual Docker solver
+checks (3 tests/15 assertions in10.51s; Docker target4m8s). It waited1433s for
+the canonical host lock and printed the exact SHA. Log:
+`/tmp/puni-agentic-binding-gate-6f09b11fc.log`. Both runs used the clean isolated
+host gate tree. Existing Docker pip root/version notices and the controlled
+orphan EOF diagnostic are retained; tests passed. External trusted Tool Wiki
+activation remains unavailable (`certified:false`), not a passing certification.
+
+Independent storage/binding reviews plus these exact gates accept storage parent
+6a.1–6a.2 and the static binding packet. Other coordinator, provider portability,
+governance, repository-default and product milestones remain open. Draft PR629
+and PR639 carry the completed evidence; neither was merged or deployed here.
+These are exact historical head results, not a claim that subsequent source is gated.
+
+### 2026-10-22 — API-model executor plan adoption
+
+Adopted executor-design.md, executor-tasks.md and the owning activity-execution
+delta on a separate native worktree based on the gated6f09 binding/storage head.
+Reconciled the parent's illustrative port and fake-adapter/prefix-check tasks to
+one contract, injected capabilities, actual SDK mocks and honest recovery limits.
+The three slices are port/settings, real SDK turn conversion and local owned
+session lifecycle. No executor implementation or live entry point is enabled by
+this adoption. Receiver HTTP work remains in its separate branch.
+
+Frozen setup installed1493 packages in989ms. Inherited baseline command:
+
+```sh
+TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-binding.test.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/run-store.test.ts --timeout=60000
+```
+
+Observed119 tests/252 assertions across2 files pass in530ms; log
+`/tmp/puni-executor-baseline.log`. This proves the inherited baseline only.
+No executor behavioral test, typecheck, mutation proof, build or new exact-SHA
+gate has run. Planning formatting and diff checks passed. OpenSpec validation passed one change,
+zero errors and seven untouched long-requirement warnings. The first draft had
+12 warnings; tightening the five owned requirement paragraphs and retaining their
+testable details in scenarios removed those warnings without changing other deltas.
+No provider factories, credentials, tenant limits, CTT or WBS writes are part of
+this packet; full preparation/turn intent persistence and receiver pin/grant
+mapping remain later durable integration.
