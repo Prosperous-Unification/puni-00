@@ -152,3 +152,54 @@ A linear dogfood SHALL NOT be presented as completion of that product scope.
 
 - **WHEN** an operator approves a new execution epoch for one changed activity
 - **THEN** affected downstream results are invalidated with provenance retained, and old outcomes cannot complete the repaired join
+
+### Requirement: Sender authority history preserves exact local provenance
+
+RunStore SHALL retain an immutable receiver pin and exact canonical authority intents before dispatch. One command may remain pending per scope. Acceptance SHALL retain its exact intent and artifact link; exact duplicate replies SHALL remain immutable after current-owner validation. A local epoch SHALL remain distinct from receiver authority generation.
+
+#### Scenario: A replacement owner records a late acceptance
+
+- **WHEN** a current owner records verified acceptance of an intent staged in an older local epoch
+- **THEN** the acceptance remains inspectable history and does not establish the replacement owner's grant
+- **AND** only an accepted acquisition staged in the current local epoch may establish that epoch's historical mapping
+
+#### Scenario: An unresolved authority command is followed by another
+
+- **WHEN** a different authority command is staged while one remains unresolved in the scope
+- **THEN** it is refused without replacing the retained intent
+- **AND** timeout, receipt absence or later refusal does not clear or expire that intent
+
+#### Scenario: A runtime history family disappears
+
+- **WHEN** trusted runtime rows, links, consecutive revisions or required retained counts disagree
+- **THEN** inspection and mutation throw before reporting absence or an uninitialized scope
+
+### Requirement: RunStore opens complete named physical formats
+
+SQLite RunStore SHALL preserve the original migration identities and bootstrap the complete ordered schema2 bundle atomically. Opening SHALL validate complete bundle identity, required markers and the entire physical schema, including empty tables. Opening SHALL NOT create, repair or upgrade an older format.
+
+#### Scenario: A format1 store is opened by the schema2 adapter
+
+- **WHEN** a genuine format1 store reaches the schema2 opener
+- **THEN** compatibility inspection rejects it before mode-changing configuration
+- **AND** its bytes, declarations and retained records remain unchanged
+
+#### Scenario: Runtime history reaches the new down script
+
+- **WHEN** a pin, intent, acceptance or inconsistent retained count exists
+- **THEN** the new down script refuses before deleting runtime history
+- **AND** only an unused consistent reverse restores the original schema and records
+
+### Requirement: Verified sender history reads complete retained receipt artifacts
+
+Application acceptance and history reads SHALL read actual artifact bytes, validate strict UTF-8 and the complete existing receipt schema, and match the exact retained canonical request with an independently computed digest. Async validation SHALL occur outside SQLite transactions. Raw persistence SHALL document this trusted precondition; correspondence SHALL NOT imply authenticity or current permission.
+
+#### Scenario: A receipt is valid but belongs to another request
+
+- **WHEN** a retained artifact has valid wire shape but differs in scope, ledger, command, digest or request-derived acceptance
+- **THEN** verified acceptance and history inspection throw without recording a local acceptance
+
+#### Scenario: Caller input changes during artifact verification
+
+- **WHEN** caller-owned guard, intent or reference values change after submission and before verification returns
+- **THEN** the verified operation retains and submits only its original detached snapshot

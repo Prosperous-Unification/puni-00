@@ -1938,3 +1938,21 @@ collisions have recovered/audited payloads; new metadata uses distinct filenames
 Expected SDK stderr, inherited lint/color/OpenSpec warnings, existing memory skip,
 initial review extraction deviation and historical proof-diagnostic limits remain
 disclosed. Scoped fix re-review and final published combined gate/CI are pending.
+
+## Durable runtime authority planning, 2026-10-22
+
+Native isolated branch feat/agentic-durable-execution starts at immutable PR660 head
+3fdc85cdcffa41e57936764c8de62a2557cf166b. Frozen install passed (1493 packages,
+1.52s); the fresh RunStore memory/SQLite baseline passed 64 tests, 232 assertions,
+0 failures across two files. Implementation, R5 negatives, reviews and cohesive
+composition acceptance remain open. PR660's exact-head host gate and CI remain separate.
+
+Parent0.3 is reopened: its historical throwaway2.x pin experiment does not establish
+the checked-out root's dependency compatibility. Frozen root installation contains
+@agentclientprotocol/sdk1.4.0. No SDK upgrade or2.x adapter verification is claimed.
+
+CTT committed main94ff58f5 contains completedWork, DEFER_READY, summary and settle.
+The primary registry0.8.0 tarball (218212 bytes,244 entries) matched its published
+SHA512 integrity, but its root and sync/async declarations lack the new surface.
+The package was inspected, not executed. No CTT source, dependency or publication
+changed; a suitable package remains a future coordinator-admission prerequisite.

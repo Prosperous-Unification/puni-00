@@ -248,8 +248,12 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-CTT 0.8.0 is published; the unified API additions are planned in issue #2 and must not be
-claimed as already available. CTT owns no durable journal, storage provider or agent SDK.
+CTT main [94ff58f5](https://github.com/dany-fedorov/configurable-tree-traversal/commit/94ff58f5a797278be30a89c0c7d468a1a56d0a53) contains the unified API; the integrity-verified published 0.8.0 declarations lack it.
+A usable pinned package remains required before coordinator admission. CTT owns no durable
+journal, storage provider or agent SDK.
+
+The internal [runtime authority history](runtime-authority-design.md) retains sender intent
+and acceptance before run creation, keeping local epochs separate from receiver grants.
 
 ## Governance cutover
 

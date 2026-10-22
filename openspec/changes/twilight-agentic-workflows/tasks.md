@@ -6,7 +6,7 @@
       stream parts seen. Fallback named in design A7.
 - [x] 0.2 (verify.md, 2026-10-21: runs under Bun and Node, host tools called from QuickJS) `@ai-sdk/code-mode` under Bun with two fake tools routed through
       `experimental_toolCallers` — record whether QuickJS loads and the exact `ai` pin it forces.
-- [x] 0.3 (verify.md, 2026-10-21: installs clean, typechecks; the devsync pin test is slice 2 work) Pin set: `ai`, `@ai-sdk/harness`, `harness-claude-code`, `harness-codex`,
+- [ ] 0.3 (verify.md, 2026-10-21: installs clean, typechecks; the devsync pin test is slice 2 work) Pin set: `ai`, `@ai-sdk/harness`, `harness-claude-code`, `harness-codex`,
       `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@openrouter/ai-sdk-provider`,
       `@agentclientprotocol/sdk` 2.x — one install, `bun run typecheck` green, versions in
       verify.md. Test: `tools/tool-devsync` pin test extended for the new exact pins.
@@ -83,6 +83,10 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
 - [ ] 5.5 Reconcile current main organization limits through
       [limits integration tasks](limits-integration-tasks.md), preserving separately owned
       policy/defaults and proving actual conditional claim refusal/replay consumption.
+
+- [ ] 5.6 Retain exact authority intent, immutable acceptance and local-epoch mapping through
+      [runtime authority tasks](runtime-authority-tasks.md). This internal persistence slice
+      does not enable dispatch or complete durable sender/coordinator acceptance.
 
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 

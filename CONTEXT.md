@@ -516,6 +516,16 @@ The receiver-owned owner label and generation for conditional writes in one orga
 project and person's scope, separate from a coordinator's local owner epoch.
 _Avoid_: Credential, local lease
 
+**Runtime pin**:
+The retained complete organization/project/person address and receiver installation identity
+for runtime coordination.
+_Avoid_: Credential, current authority
+
+**Runtime intent**:
+The retained exact canonical identity and local ownership provenance of a receiver command,
+separate from its acceptance.
+_Avoid_: Dispatch acknowledgement, observed progress
+
 **Runtime basis**:
 The versioned digest of one coherent local project's ledger identity, project revision and
 complete work-item revision set, used as a conditional write precondition.
