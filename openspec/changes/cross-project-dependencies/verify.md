@@ -496,3 +496,12 @@ Only domain leaf `b6e1ccd6-8579-48fe-ab68-fa8893b4e31b` is complete. All full
 persistence, retry and publication consumers. Fresh main `d504c9eae` (MCP client
 persistence PR #622) merged cleanly as `3a9c23030`; this is not final gate evidence.
 Full CI, exact-SHA host gate, browser feature coverage and delivery remain open.
+
+## Repository OpenSpec checkpoint at 706e033e0
+
+`./node_modules/.bin/openspec validate --all --json` exited 0 on the integrated
+feature packet: **267 passed / zero failed** (249 changes and 18 specs), with
+no invalid entries. [Exact output](evidence/openspec-all-706e033e0.json.txt).
+This is repository schema validation at that checkpoint, not implementation,
+behavioral gate, final-candidate CI or delivery evidence. Solver source remains
+unintegrated pending independent review and backend compatibility corrections.
