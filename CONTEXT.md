@@ -548,6 +548,25 @@ that claim lowers it, and the last release frees it. Clockless; read by the clai
 startable read, never by a schedule.
 _Avoid_: Lease, hold, lock, allocation
 
+**Compute provider**:
+A kind of thing Twilight Dash can measure a resource on and run an agent against: a tenant's
+SSH host, a Docker daemon, a Kubernetes cluster, or later a PUNI pool. WBS stores the kind and
+never dials it.
+_Avoid_: Provider (alone: an identity provider or an adapter elsewhere), backend, executor, host (that is one kind)
+
+**Provider instance**:
+One registered compute provider of one organization, with a name and a display locator, that
+a resource may name as what fulfils its units. Additive: a schedule, a claim and an occupancy
+never read it.
+_Avoid_: Host record, node, machine, pool
+
+**Capacity report**:
+The latest measurement a provider instance's Dash reporter put on one resource: capacity and
+usage in the resource's own unit, or that the provider was unreachable, with when it was
+observed and which agent person reported it. Informational beside the declared capacity until
+an admin adopts it as a typed number.
+_Avoid_: Receipt (that is progress), heartbeat, usage report, telemetry
+
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
 the affected projects with their work items by number and name, each work item's effects,
