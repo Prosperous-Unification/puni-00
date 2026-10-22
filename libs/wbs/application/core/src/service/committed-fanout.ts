@@ -26,10 +26,22 @@ export async function recordCommittedFanout(
   // its A-facing assignment but A's own local scheduling facts stayed equal.
   for (const projectId of changedConnectionEndpoints(before, after)) directCauses.add(projectId);
   for (const projectId of addressedCauses) directCauses.add(projectId);
+  const sharedIds = new Set([
+    ...before.observation.projects.map(({ projectId }) => projectId),
+    ...after.observation.projects.map(({ projectId }) => projectId),
+  ]);
+  // Proof: replacing this refusal with continue resolves the missing complete-inventory cause negative.
+  for (const projectId of addressedCauses)
+    if (
+      !sharedIds.has(projectId) &&
+      !before.dependency?.projects.has(projectId) &&
+      !after.dependency?.projects.has(projectId)
+    )
+      throw new Error('direct cause absent from both captures');
   const { recipients } = compareSharedPeopleFanout({
     before: before.observation,
     after: after.observation,
-    directCauses: [...directCauses],
+    directCauses: [...directCauses].filter((projectId) => sharedIds.has(projectId)),
   });
   const events: CommittedProjectEvent[] = [];
   // Proof: injecting a recipient when comparison returned none made the

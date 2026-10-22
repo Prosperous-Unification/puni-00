@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+182 |   harness.sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
+183 |   harness.sqlite.run("INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')");
+184 |   for (const project of [upstream, downstream]) harness.sqlite.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [project.rowId, project.stepId, 'ana']);
+185 |   const answer = await harness.call('ada', 'PATCH', `/api/projects/${upstream.id}`, { name: 'Changed over person bridge' });
+186 |   expect(answer.status).toBe(200);
+187 |   for (const project of [downstream, tail]) expect(events(project.id)).toEqual([{ type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id }]);
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "91d5e2ed-baef-4602-8170-205f629169ce",
+-     "projectId": "4ac5609c-d42a-424d-b179-3edcf1c4d00b",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-connected-fanout/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:187:72)
+(fail) mounted shared-person bridge carries a label change across an external edge [391.15ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [3.02s]

@@ -1180,3 +1180,18 @@ ETIMEDOUT` in the browser-port probe under parallel worker load; the focused
 Vitest unit suite then passed **993/993 across 79 files**. This diagnoses the
 local parallel timeout but does not establish the second timezone/browser tier
 or the exact-SHA host gate.
+
+### Task 5.2 bounded shared connected fanout — 2026-10-22
+
+The [shared connected fanout packet](evidence/shared-connected-fanout/README.md)
+partitions raw external/person component facts from ordinary selected shared
+booking observations, captures inputs once per observation, and retains surviving
+projects across last-edge removal. Mounted isolated/shared progress commits
+notify successor and tail, and successor-only refetch observes changed readiness;
+a mounted label write crosses a person bridge and an external edge. The packet
+records seven independently watched production faults, 64 focused tests/297
+assertions, scoped TypeScript/lint/format and strict change validation. Rank,
+optimizer lifecycle, remaining writers and socket/browser acceptance stay open.
+Task 5.2 remains unchecked; full CI and the exact-SHA host gate are pending.
+
+Astra High [review](evidence/shared-connected-fanout/independent-review.md) approved this bounded packet with no P1/P2 findings. The one proof-description mismatch was corrected in `40bc0ab5c`; it now names the actual ordinary-partition assertion observed in the retained fault log.
