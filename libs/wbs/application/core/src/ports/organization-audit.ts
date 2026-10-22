@@ -24,6 +24,9 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'machine_credential_revoked',
   'trusted_issuer_registered',
   'trusted_issuer_removed',
+  'compute_provider_registered',
+  'compute_provider_updated',
+  'compute_provider_removed',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
@@ -36,7 +39,8 @@ export type OrganizationAuditSubjectKind =
   | 'scim_user'
   | 'session_policy'
   | 'machine_credential'
-  | 'trusted_issuer';
+  | 'trusted_issuer'
+  | 'compute_provider';
 
 /**
  * The detail one audit row keeps: flat values only, so it is reviewable at a

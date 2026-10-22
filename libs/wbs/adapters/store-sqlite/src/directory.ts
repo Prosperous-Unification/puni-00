@@ -19,6 +19,7 @@ import type {
   Resource,
   ResourceAdded,
   ResourcePatch,
+  ResourceProviderSet,
   ResourceRemoved,
   ResourceUsageRows,
   ResourceWritten,
@@ -46,6 +47,7 @@ import {
   assignment,
   claim,
   claimOccupancy,
+  computeProvider,
   externalIdentity,
   externalSystem,
   externalSystemOrganization,
@@ -59,6 +61,7 @@ import {
   projectResourceCapacity,
   projectTeamCapacity,
   resource,
+  resourceCapacityReport,
   resourceOrganization,
   service,
   serviceOrganization,
@@ -918,6 +921,56 @@ export class DirectoryRepository implements DirectoryStore {
           return { ok: false, reason: 'taken' };
         throw err;
       }
+    });
+  }
+
+  /**
+   * Sets or clears a resource's provider reference in one transaction with
+   * its checks (`compute-providers` P3); a changed reference deletes the
+   * report the old instance sent.
+   */
+  async setResourceProvider(
+    resourceId: string,
+    providerId: string | null,
+    organizationId: string | null,
+    stamp: WriteStamp,
+  ): Promise<ResourceProviderSet> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): ResourceProviderSet => {
+        const held = tx
+          .select({ providerId: resource.providerId })
+          .from(resource)
+          .where(eq(resource.id, resourceId))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        if (providerId !== null) {
+          const instance = tx
+            .select({ organizationId: computeProvider.organizationId })
+            .from(computeProvider)
+            .where(eq(computeProvider.id, providerId))
+            .get();
+          // Proof: with this check removed, `refuses an id no instance holds,
+          // unchanged` in `compute-provider.controller.db.test.ts` failed on
+          // the foreign key with 500 instead of 404; watched 2026-10-22.
+          if (instance === undefined) return { ok: false, reason: 'unknown_provider' };
+          // Proof: with this check removed, `refuses a stranger's instance,
+          // unchanged` in `compute-provider.controller.db.test.ts` stored B's
+          // instance on A's resource; watched 2026-10-22.
+          if (instance.organizationId !== organizationId)
+            return { ok: false, reason: 'provider_not_in_organization' };
+        }
+        if (held.providerId !== providerId) {
+          tx.update(resource)
+            .set({ providerId, ...auditOnUpdate(stamp) })
+            .where(eq(resource.id, resourceId))
+            .run();
+          tx.delete(resourceCapacityReport)
+            .where(eq(resourceCapacityReport.resourceId, resourceId))
+            .run();
+        }
+        return { ok: true, projectIds: this.projectsNamingResource(tx, resourceId) };
+      });
     });
   }
 

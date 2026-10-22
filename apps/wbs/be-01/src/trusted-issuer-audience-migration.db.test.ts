@@ -11,6 +11,9 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
+/** The two compute-provider migrations newer than the audience scope, newest first. */
+const COMPUTE_PROVIDERS =
+  '20261022140100_widen_organization_audit_compute_providers, 20261022140000_add_resource_provider';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const SUBJECT = 'repo:acme/wbs:ref:refs/heads/main';
 const roots: string[] = [];
@@ -107,7 +110,7 @@ describe(AUDIENCE_SCOPE, () => {
     const down = await rollBack(root, dbPath, ID_SHAPE);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AUDIENCE_SCOPE}`);
+    expect(down.stdout).toContain(`rolled back: ${COMPUTE_PROVIDERS}, ${AUDIENCE_SCOPE}`);
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);
 

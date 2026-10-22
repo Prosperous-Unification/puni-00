@@ -166,6 +166,8 @@ export * from './occupancy';
 export * from './resource';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
+// Provider instances and capacity reports beside a declared capacity (compute-providers P2-P7).
+export * from './compute-provider';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

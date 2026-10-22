@@ -202,6 +202,8 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -280,6 +282,8 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -400,6 +404,8 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',

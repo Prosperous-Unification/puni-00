@@ -86,6 +86,18 @@ test('keeps trusted issuer administration out of the generated MCP tools', () =>
     expect(names).not.toContain(operation);
 });
 
+test('keeps compute provider administration and capacity reports out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  for (const operation of [
+    'getApiOrganizationCompute-providers',
+    'postApiOrganizationCompute-providers',
+    'patchApiOrganizationCompute-providersById',
+    'deleteApiOrganizationCompute-providersById',
+    'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  ])
+    expect(names).not.toContain(operation);
+});
+
 test('pins every generated MCP operation name independently of the registry', () => {
   // Proof: removing importProject from httpShapes failed with
   // `postApiProjectsImport` as the one expected-only operation.

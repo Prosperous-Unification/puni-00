@@ -46,4 +46,79 @@ actor that places an attempt on a provider and is not renamed; **Occupancy** is 
 
 ## Slices
 
-None implemented.
+### Slice 1: WBS provider reference and capacity report (2026-10-22)
+
+Branch `feat/compute-providers-1` on `plan/compute-providers` merged with `main` at
+`75585eebd` (machine credentials). Implemented tasks 1.1 to 1.5.
+
+What landed:
+
+- Migrations `20261022140000_add_resource_provider` (`compute_provider`,
+  `resource.provider_id`, `resource_capacity_report`; additive, guarded `down.sql`) and
+  `20261022140100_widen_organization_audit_compute_providers` (one compatible rebuild of
+  `organization_audit` admitting `compute_provider_registered|updated|removed` and subject kind
+  `compute_provider`; issue #632's trigger allow-list has not landed, and moving the vocabulary
+  into triggers would need this same rebuild to drop the CHECK first).
+- `@wbs/domain` `compute-provider.ts`: `decideCapacityReport`, `capacityReportStateOf`,
+  `compareCapacity`; `@wbs/core` ports `compute-providers.ts`,
+  `DirectoryStore.setResourceProvider`; SQLite `ComputeProviderRepository`; routes
+  `GET|POST /api/organization/compute-providers`, `PATCH|DELETE …/:id` (`?cascade=true`),
+  `PUT /api/compute-providers/:providerId/resources/:resourceId/capacity-report`;
+  `patchResource.patch.providerId`; the resources read carries `providerId`, `report` and
+  `measurement { declared, measured, measuredAt, state }`.
+- MCP: the three new path families are excluded from the generated tools.
+
+R5 proofs, each fault injected, the named test watched failing, the fault reverted:
+
+| Check                                                | Injected fault                                                  | Observed                                                                        |
+| ---------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| pinned person must be `agent` (domain)               | check removed                                                   | `refuses a key pinned to a person of kind person` failed                        |
+| `observedAt` skew bound                              | check removed                                                   | `refuses an observedAt beyond the skew tolerance…` failed                       |
+| instance organization (domain, O4)                   | comparison dropped                                              | `answers another organization's instance unknown_provider…` failed              |
+| `provider_mismatch`                                  | check removed                                                   | `refuses a resource that names another instance…` failed                        |
+| latest wins                                          | superseded turned into store                                    | superseded case and the fast-check property both failed                         |
+| stale at 3 × cadence                                 | `>` made `>=`                                                   | `marks stale only past three cadences` failed                                   |
+| rollback guard of `add_resource_provider`            | trigger `WHEN 0`                                                | `refuses rollback over one referencing resource` failed (rollback succeeded)    |
+| report outcome CHECK                                 | `CHECK (1 OR …)`                                                | `refuses a report whose columns contradict its outcome` failed                  |
+| one instance name per organization                   | unique index made plain                                         | `keeps one instance name per organization` failed                               |
+| audit rollback guard                                 | filter `WHERE 0`                                                | `refuses rollback over one compute provider audit row` failed                   |
+| migration lint accepts the rebuild                   | `CHECK (violations = 0)` → `CHECK (1)`                          | `accepts the compute provider audit rebuild` failed                             |
+| admin only                                           | members admitted                                                | member's list answered 200 instead of 403                                       |
+| `name_taken`                                         | check removed                                                   | third `h4claw` answered 500 instead of 409                                      |
+| organization predicate on instance lookup            | predicate dropped                                               | Dany's patch renamed B's instance (200)                                         |
+| `in_use` unless cascade                              | refusal removed                                                 | delete answered 204 without cascade                                             |
+| audit row in the act's transaction                   | append failure swallowed                                        | 201 instead of 500                                                              |
+| secret-shaped name or locator                        | route check removed                                             | 500 instead of 400                                                              |
+| machine principal only on the report                 | predicate removed                                               | session answered 500 instead of 403                                             |
+| reference names an existing instance                 | check removed                                                   | 500 instead of 404 `unknown_provider`                                           |
+| reference names the caller's organization's instance | check removed                                                   | B's instance stored on A's resource (200)                                       |
+| resources read carries the provider columns          | `withProviderReadings` dropped                                  | three read cases found no `providerId`                                          |
+| boot wires the store                                 | binding omitted                                                 | `boot did not wire compute providers`                                           |
+| `resourceCapacityReport` audit-column exemption      | `auditColumns()` injected                                       | `exempts only tables that carry no audit columns` failed                        |
+| MCP exclusions                                       | admin entries removed / report entry removed                    | the four admin tools / the `putApiCompute-providers…` tool exposed              |
+| P4: a report never plans                             | SQLite capacity read prefers `capacity_units`                   | schedule hash moved; with the read asserts removed the 12 GB claim answered 409 |
+| P4: export never carries the reference               | resource read selects `provider_id`, document rows spread whole | the export after the reference differed from before                             |
+
+Unverified or not done in slice 1:
+
+- The task 1.3 race fault line: one process's write gate serializes two reporters, so no
+  in-process test interleaves them; the compare-and-replace runs in one `BEGIN IMMEDIATE`
+  transaction by construction only.
+- The instance store has no memory twin (the memory composition holds no instance,
+  `NO_COMPUTE_PROVIDERS`); only `setResourceProvider` is in the conformance suite.
+- The directory usage (`in_use` detail) does not carry `providerId` (spec
+  `resource-directory`); the resources read does.
+- The adopt action (P7) is slice 5; nothing adopts a measurement.
+- `browser-lifecycle.mounted-process.db.test.ts` `mounted worker protocol buffers…` fails
+  here and on `main` at `e2ae536b2` alike (worker exit 143 under a 5 s timeout); unrelated.
+
+Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-1` with `env -u CLAUDECODE`:
+
+- `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-conformance,wbs-auth,wbs-gw-01,wbs-mcp-01,wbs-realtime,wbs-runtime-portable,wbs-be-01,wbs-fe-01 --skip-nx-cache`: exit 0.
+- `bunx nx run wbs-be-01:test --skip-nx-cache`: exit 0, 3249 pass, 0 fail.
+- `bunx nx run-many -t test -p wbs-domain,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-store-memory,wbs-conformance,tool-git-hooks --skip-nx-cache`: each succeeded; `wbs-mcp-01:test` succeeded after its two shape-document fixtures gained the new paths.
+- `bunx nx run-many -t lint -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-conformance,wbs-be-01,wbs-mcp-01,wbs-fe-01,tool-git-hooks --skip-nx-cache`: each succeeded (fe-01 after one `no-fallthrough` fix, rerun alone).
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`: exit 0.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit 0; no new file lies under a module index (only `libs/wbs/adapters/store-memory/src/README.md` reports review debt, unchanged).
+- `bunx openspec validate --all --json`: 268 of 268 passed.
+- fe-01 changed only in `plan-refusal.ts` (three refusal codes the contract now carries); `vitest run src/components/wbs/attempt-actions.test.tsx`: 7 pass. The full fe-01 suite was not run.

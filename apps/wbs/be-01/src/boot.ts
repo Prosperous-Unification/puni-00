@@ -8,6 +8,7 @@ import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
+  ComputeProviderRepository,
   ConsentCredentialRepository,
   currentMembershipAccess,
   DomainClaimRepository,
@@ -491,6 +492,14 @@ export async function bootBe01(
                 administration: new TrustedIssuerAdministrationRepository(db, services.gate),
                 discovery: trustedIssuerDiscovery({ fetch: globalThis.fetch }),
                 configuredIssuer: configuredIssuerOf(opts.oidc),
+              },
+              // Proof: omitting this binding made `serves compute provider
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire compute providers`;
+              // watched 2026-10-22.
+              computeProviders: {
+                administration: new ComputeProviderRepository(db, services.gate),
+                reports: new ComputeProviderRepository(db, services.gate),
               },
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),

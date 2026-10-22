@@ -88,6 +88,10 @@ export function createWorkingPlanDirectory(
     listResources: () => source().listResources(),
     addResource: afterWrite((...parameters) => source().addResource(...parameters), ok),
     patchResource: afterWrite((...parameters) => source().patchResource(...parameters), ok),
+    setResourceProvider: afterWrite(
+      (...parameters) => source().setResourceProvider(...parameters),
+      ok,
+    ),
     usageOfResource: (resourceId) => source().usageOfResource(resourceId),
     // A cascaded removal takes demands and moves their rows' revisions, so the
     // retained plan reloads as after every other successful directory write.
