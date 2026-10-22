@@ -1,6 +1,8 @@
 import {
   type PlanDocument,
   planDocumentResponse,
+  planDocumentV10Response,
+  planDocumentV11Response,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
@@ -1604,4 +1606,66 @@ test('refuses resources in a file older than version 10', async () => {
     capacities: classified.value.resourceCapacities,
     demands: classified.value.demands,
   }).toEqual({ resources: [], capacities: [], demands: [] });
+});
+
+test('versioned response admits explicit v11 links while v10 remains frozen', async () => {
+  const document = await exportDocument();
+  expect((await validateSchema(planDocumentV10Response, document)).issues).toBeUndefined();
+  const external = {
+    id: 'cross',
+    type: 'FS',
+    predecessor: {
+      kind: 'external',
+      scope: 'whole',
+      projectId: 'remote',
+      workItemId: 'stable',
+      display: {
+        projectName: 'Remote',
+        abbreviation: 'REM',
+        workItemName: 'Build',
+        address: 'REM.1',
+      },
+    },
+    successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+  };
+  const next = {
+    ...document,
+    document: { ...document.document, version: 11 },
+    typedDependencies: [external],
+  };
+  expect((await validateSchema(planDocumentV11Response, next)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentResponse, next)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV10Response, next)).issues).toBeDefined();
+  expect(
+    (await validateSchema(planDocumentResponse, { ...next, document: document.document })).issues,
+  ).toBeDefined();
+});
+
+test('v11 step endpoint requires its descriptive step label', async () => {
+  const document = await exportDocument();
+  Reflect.set(document.document, 'version', 11);
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'node',
+        projectId: 'remote',
+        workItemId: 'stable',
+        stepId: 'remote-step',
+        display: {
+          projectName: 'Remote',
+          abbreviation: 'REM',
+          workItemName: 'Build',
+          address: 'REM.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+  });
 });

@@ -126,7 +126,9 @@ const externalEndpoint = type({
   projectId: 'string',
   workItemId: 'string',
   stepId: 'string',
-  display: externalDisplay,
+  // Proof: making stepName optional admitted the missing-label classifier test
+  // in plan-document.resource.test.ts (2026-10-22).
+  display: externalDisplay.and({ stepName: 'string' }),
 });
 
 /** Authored v11 links belong to the imported successor; labels never bind identity. */
@@ -202,7 +204,7 @@ const documentWorkItem = numberedWorkItem
   .omit('attempts', 'spans', 'span', 'blockages', 'blockageCauses', 'nodeResources')
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
-export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
+export const planDocumentV10 = workItemTree.omit('typedDependencies', 'workItems').and({
   workItems: documentWorkItem.array(),
   stepBlockages: type({
     workItemId: 'string',
@@ -227,10 +229,24 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
   directory: directory.and({ resources: documentResource.array() }),
 });
 
-export type PlanDocument = (typeof planDocument)['infer'];
+export type PlanDocumentV10 = (typeof planDocumentV10)['infer'];
+
+/** Explicit external predecessor identities; import mappings are never exported. */
+export const planDocumentV11 = planDocumentV10.omit('document', 'typedDependencies').and({
+  // Proof: replacing 11 with 10 failed the versioned-response test (2026-10-22).
+  document: planHeader.omit('version').and({ version: '11' }),
+  typedDependencies: documentV11TypedDependency.array(),
+});
+export type PlanDocumentV11 = (typeof planDocumentV11)['infer'];
+
+/** Version discrimination keeps historic local endpoints separate from v11 endpoints. */
+export const planDocument = planDocumentV10.or(planDocumentV11);
+export type PlanDocument = PlanDocumentV10 | PlanDocumentV11;
 
 /** Additive responses remain readable by clients written for this version. */
 export const planDocumentResponse = responseSchema(planDocument);
+export const planDocumentV10Response = responseSchema(planDocumentV10);
+export const planDocumentV11Response = responseSchema(planDocumentV11);
 
 /** The classifier reads only the format/version header before version-specific content. */
 export const planDocumentHeaderRequest = requestSchema(

@@ -1180,3 +1180,46 @@ ETIMEDOUT` in the browser-port probe under parallel worker load; the focused
 Vitest unit suite then passed **993/993 across 79 files**. This diagnoses the
 local parallel timeout but does not establish the second timezone/browser tier
 or the exact-SHA host gate.
+
+### Task 8.1 contract/preparation slice — 2026-10-22
+
+Based on `6a03205c6`, isolated clone `/tmp/puni-external-transfer-contract`.
+Task 8.1 remains unchecked. This slice reserves an explicit v11 response arm,
+keeps the v10 writer and endpoint vocabulary frozen, requires the captured step
+label for step-scoped external endpoints, rejects empty/repeated authored IDs
+before splitting internal/external declarations, and rejects mapped destination
+collisions during preparation. `findImportDependencyDuplicate` also accepts the
+complete scoped set for the later transaction admission call.
+
+Fresh checks:
+
+- `bun test ./libs/wbs/application/core/src/service/prepare-import.test.ts ./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts ./libs/wbs/application/core/src/module/plan-document/module.test.ts ./libs/wbs/domain/contracts/src/http/import-shapes.test.ts`: **163 pass, 0 fail**, 334 assertions.
+- `bunx tsc --build --force libs/wbs/domain/contracts/tsconfig.json libs/wbs/application/core/tsconfig.json`: exit 0.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.app.json`: exit 0; the frontend transport consumes the shared response union without an additional adapter.
+- `bunx eslint` on the seven changed TypeScript files: exit 0 after producing the Nx project graph. Initial lint had skipped module boundaries without that graph; the final run did not skip it.
+- `bunx prettier --check` on those files: exit 0.
+- `bunx openspec validate cross-project-dependencies --json`: one valid change, zero issues.
+
+Watched faults, each independently restored:
+
+- Bypass empty-ID check: both internal/external empty authored-ID tests fail.
+- Bypass repeated-ID check: cross-arm repeated authored-ID test fails.
+- Bypass mapped tuple lookup: mapped-destination and final scoped-tuple collision tests fail.
+- Bypass preparation's duplicate refusal: mapped-destination collision test fails.
+- Make external step label optional: missing-label classifier test fails.
+- Replace the v11 response version with 10: versioned-response acceptance test fails.
+
+The first four new refusal assertions were observed red against the original
+preparation; both response/label assertions were observed red before their
+implementation. Guard-adjacent `Proof:` comments name these witnessed faults.
+A directory-based Bun invocation also matched generated `dist/out-tsc` tests and
+reported two alias-resolution errors; the exact source-file command above fixes
+test selection and is the reported result.
+
+Not included or verified here: scoped transaction admission/persistence, final
+post-allocation invocation of the duplicate helper, connected capture/export,
+selected schedule/boundary evidence serialization, saved-plan storage, copy,
+activation, mounted external-import tests, browser checks, full build or host
+gate. No selected connected optimization evidence DTO is fabricated: the current
+transfer producer has not yet supplied that evidence. V11 is a reserved contract
+arm until the coherent export producer and admission slices are integrated.

@@ -82,7 +82,7 @@ export const importProject = defineEndpointShape({
   document: {
     summary: 'Import an archival plan as a new project.',
     description:
-      'Reads plan document versions 1 to 9. Version 9 requires direct stepBlockages facts; earlier versions refuse nonempty blockage facts and normalize empty collections. Versions 1 to 5 import every work item with ' +
+      'Reads plan document versions 1 to 11. Version 10 requires resources, capacities and demands. Version 11 distinguishes file-local internal endpoints from stable external identities and accepts explicit externalMappings; external authoring remains inactive until deployment activation. Version 9 requires direct stepBlockages facts; earlier versions refuse nonempty blockage facts and normalize empty collections. Versions 1 to 5 import every work item with ' +
       'readiness and hold null. From version 6 every work item must carry both `readiness` ' +
       '(`draft`, `ready` or null) and `hold` (`on_hold`, `blocked` or null); a missing field, ' +
       'a value outside either vocabulary, or either one on a parent is refused `invalid_body` ' +

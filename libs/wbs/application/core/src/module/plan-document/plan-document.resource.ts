@@ -15,11 +15,11 @@ import {
   type ImportedAttempt,
   PLAN_DOCUMENT_EXTERNAL_VERSION,
   PLAN_DOCUMENT_VERSION,
-  type PlanDocument,
   planDocumentHeaderRequest,
   type PlanDocumentImport,
   type PlanDocumentRequest,
   planDocumentRequest,
+  type PlanDocumentV10 as PlanDocument,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
