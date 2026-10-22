@@ -804,3 +804,10 @@ light/dark Playwright cases passed 2/2 locally. Replacing the production tab
 class `border-0` with `border-2` made the light case fail at the corrected
 assertion, and the source was restored. Fresh full CI for this correction is
 pending.
+
+The same superseded CI head exposed one unscoped Timezone hint selector in
+shard 1 and two six-section settings assertions in shard 3. The corrected
+exact browser cases passed 3/3. A missing Timezone hint made the scoped
+selector fail while General's hint remained; removing General made both the
+ordered list and phone count assertions fail. Production sources were restored
+after each probe. Full CI for these corrections remains pending.

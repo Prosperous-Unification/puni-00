@@ -230,9 +230,10 @@ test('the section tabs fit a phone, whole and apart, at 44px', async ({ page }) 
       };
     });
   });
-  expect(tabs).toHaveLength(6);
-  // Proof: on main at b0072a456 this failed on `Teams is cut short`: six tabs in
-  // one unwrapped row at 375. Watched 2026-10-14.
+  // Proof: removing General from the rendered sections made this count fail
+  // (six instead of seven). The existing wrap check failed on main at
+  // b0072a456 when an unwrapped Teams tab was cut short at 375px.
+  expect(tabs).toHaveLength(7);
   for (const tab of tabs) {
     expect(tab.cut, `${tab.name} is cut short`).toBe(false);
     expect(tab.pastEdge, `${tab.name} runs past the modal's edge`).toBe(false);
