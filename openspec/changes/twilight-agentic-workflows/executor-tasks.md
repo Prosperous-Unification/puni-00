@@ -45,7 +45,7 @@ Record exact commands, changed guard/fault, named failing test, restoration and 
 - Produce `type ApiModelRegistry = Pick<ReturnType<typeof createProviderRegistry>, 'languageModel'>` and `type ApiModel = ReturnType<ApiModelRegistry['languageModel']>` using installed SDK types. If generic assignment requires a forwarding closure, preserve the concrete model return type; no `any` or fallback to string models.
 - Produce `interface ApiModelSettings { readonly selection: SelectedActivity; readonly model: ApiModel; readonly instructions: string; readonly tools: ToolSet; readonly maxSteps: number; readonly maxOutputTokens: number }` and `resolveApiModelSettings(options: {selection:SelectedActivity;models:ApiModelRegistry;tools:ToolSet}): ApiModelSettings`. This is a useful local composition function, not an availability/authorization endpoint.
 
-- [ ] **Write production-boundary tests using actual accepted selection.** A test-local fixture uses the real decoder/acceptance path, not a fabricated digest:
+- [x] **Write production-boundary tests using actual accepted selection.** A test-local fixture uses the real decoder/acceptance path, not a fabricated digest:
 
 ```ts
 const binding = decodeWorkflowBinding({
@@ -79,14 +79,14 @@ expect(model.doStreamCalls).toHaveLength(0);
 
 Import `decodeWorkflowBinding/checkWorkflowBinding/acceptWorkflowBinding/selectWorkflowActivity` from actual contracts, registry from `ai`, mocks from `ai/test`, and `expect/test` from Bun. Also test a selection naming `read` with no supplied `read` capability; a registry missing `fixture`; wrong executor; corrupted typed boundary values; selected-tool dictionary excludes supplied extras and inherited properties are not supplied tool capabilities. Prompt BOM success prevents a false decoded-text digest check. Codec tests mutate the original request after snapshot, assert mutation succeeds and the returned request remains unchanged; freeze-only aliasing must fail.
 
-- [ ] **Run the focused tests red**, then implement precise codecs/guards, local concrete model lookup and selected-tool dictionary. Do not add a second YAML/schema validator or read prompt files. Missing model/tool/config throws; no `unavailable` result. New snapshots validate once at their external boundary; internal callers retain precise types.
+- [x] **Run the focused tests red**, then implement precise codecs/guards, local concrete model lookup and selected-tool dictionary. Do not add a second YAML/schema validator or read prompt files. Missing model/tool/config throws; no `unavailable` result. New snapshots validate once at their external boundary; internal callers retain precise types.
 
 ```bash
 TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.test.ts ./apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.test.ts --timeout=60000
 ```
 
-- [ ] **Prove guards on these production functions.** Remove the required-tool guard and observe the missing-tool test fail; permit extra supplied tools and observe exact-dictionary test fail; allow an invalid request epoch/version and observe its boundary test fail; replace detached request copy with freeze(input) and observe caller-mutability test fail. Model lookup/bare-ID negatives use actual accepted-binding and installed registry boundaries. Parent 2.2's prefix-guard-removal example is not a mandate for a redundant adapter guard: do not add one when the registry masks its removal, and do not claim a new adapter R5 proof for an existing boundary. No separate byte-copy safety claim: accepted binding already owns snapshotting.
-- [ ] **Prove the exact contract import boundary.** Extend the existing effective-policy test pattern with a named Dash executor case: all four declared source/test paths admit only the anchored @twilight-burokrat/contracts alias; judge/sibling aliases, relative app imports and unlisted production/test peers remain refused. Preserve inherited constraints. Prepare the real Nx graph first; nonexistent-file parser errors or skipped rules are not policy evidence. Watch removal of this allowance and alias/relative/path widening fail their intended assertions with valid loaded configuration, then restore bytes and record results.
+- [x] **Prove guards on these production functions.** Remove the required-tool guard and observe the missing-tool test fail; permit extra supplied tools and observe exact-dictionary test fail; allow an invalid request epoch/version and observe its boundary test fail; replace detached request copy with freeze(input) and observe caller-mutability test fail. Model lookup/bare-ID negatives use actual accepted-binding and installed registry boundaries. Parent 2.2's prefix-guard-removal example is not a mandate for a redundant adapter guard: do not add one when the registry masks its removal, and do not claim a new adapter R5 proof for an existing boundary. No separate byte-copy safety claim: accepted binding already owns snapshotting.
+- [x] **Prove the exact contract import boundary.** Extend the existing effective-policy test pattern with a named Dash executor case: all four declared source/test paths admit only the anchored @twilight-burokrat/contracts alias; judge/sibling aliases, relative app imports and unlisted production/test peers remain refused. Preserve inherited constraints. Prepare the real Nx graph first; nonexistent-file parser errors or skipped rules are not policy evidence. Watch removal of this allowance and alias/relative/path widening fail their intended assertions with valid loaded configuration, then restore bytes and record results.
 
 ```bash
 NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx show project twilight-dash --json
@@ -94,7 +94,7 @@ TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test --preload ./tools/te
 NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p twilight-dash,tool-devsync --skip-nx-cache
 ```
 
-- [ ] **Run focused tests, typecheck and lint green; record evidence for the root-owned bounded commit.** Port/configuration works independently; no adapter execution or durable recovery is claimed.
+- [x] **Run focused tests, typecheck and lint green; record evidence for the root-owned bounded commit.** Port/configuration works independently; no adapter execution or durable recovery is claimed.
 
 ### Task 2: A real SDK turn driver with truthful outcomes
 
