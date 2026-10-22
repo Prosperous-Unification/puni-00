@@ -26,6 +26,7 @@ import {
 } from 'react';
 
 import { cn } from '@/lib/utils';
+import type { PlanRead } from '@/lib/wbs-api';
 import type {
   CalendarMarkerView,
   NewCalendarMarkerView,
@@ -78,6 +79,7 @@ import { markerRulesAreTooDense } from './marker-rule-density';
 import { chartTypedDependencies, markCount } from './plan-chart-input';
 import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
+import { scheduleUnavailableWords } from './schedule-unavailable-words';
 import { recordGanttScrollCommit } from './scroll-performance';
 import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor, PLAN_TERMINAL_ALLOWANCE } from './table-frame';
@@ -3349,7 +3351,9 @@ function GanttPanelContent({
         <p role="status" className="text-sm">
           {scheduleError === 'cycle'
             ? 'Nothing can be drawn while these dependencies run in a circle — no dates could be worked out. Remove one and the chart comes back.'
-            : 'Nothing can be drawn because this plan extends beyond the supported calendar range. Shorten it and the chart comes back.'}
+            : scheduleError === 'calendar_range'
+              ? 'Nothing can be drawn because this plan extends beyond the supported calendar range. Shorten it and the chart comes back.'
+              : scheduleUnavailableWords(scheduleError)}
         </p>
       </section>
     );
@@ -3393,7 +3397,7 @@ interface GanttProps {
   /** The day the plan begins, or null while it is not on a calendar. */
   startDate: IsoDate | null;
   /** be-01's answer when no dates could be worked out at all. */
-  scheduleError: 'calendar_range' | 'cycle' | null;
+  scheduleError: PlanRead['scheduleError'];
   /**
    * Which chart read this is drawn from — a number that moves whenever a new
    * one lands, and 0 before any has (`NO_CHART_READ`): the plan drawn at 0 is

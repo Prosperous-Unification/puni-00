@@ -10917,3 +10917,42 @@ describe('the marker paint surface', () => {
     expect(Number(surface.getAttribute('height'))).toBe(height);
   });
 });
+
+for (const refusal of [
+  {
+    error: {
+      kind: 'dependency_calendar_missing' as const,
+      projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+    },
+    words: 'PUNI · Remote plan',
+  },
+  {
+    error: {
+      kind: 'engine_unavailable' as const,
+      engine: 'optimized' as const,
+      projects: ['remote'],
+      reason: 'adapter_missing' as const,
+    },
+    words: 'The required optimized scheduling engine is unavailable',
+  },
+]) {
+  itDom(`explains ${refusal.error.kind} without drawing invented chart dates`, () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={refusal.error}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(refusal.words);
+    expect(document.querySelectorAll('rect')).toHaveLength(0);
+  });
+}

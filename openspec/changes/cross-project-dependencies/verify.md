@@ -1010,3 +1010,13 @@ connected calendar-range refusal. The same packet evidence now records the real
 shared-person regression and watched final-availability guard removal. Holder
 transfer and catalog attachment now require the final presented schedule to be
 available; broader integration obligations remain open.
+
+### Task 9.2 bounded structured-unavailability UI packet — 2026-10-22
+
+The [unavailable UI packet](evidence/task-9-2-unavailable-ui-packet.md) renders
+captured missing-calendar project labels and explicit required-engine refusals
+in the table and Gantt. Four new mounted negatives failed before implementation
+and passed afterward; frontend TypeScript passed. The packet records scoped
+lint/format status and the broader five-suite regression passing 551/551 tests.
+Persisted external endpoint projection/navigation and terminal boundary certificate
+UI remain open; task 9.2 stays unchecked.

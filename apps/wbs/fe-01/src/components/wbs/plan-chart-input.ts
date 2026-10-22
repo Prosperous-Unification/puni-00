@@ -449,11 +449,7 @@ export const factEndStopOf = (startDate: string | null, factEnd: string | null):
  * A cycle is not a failure to report and retry: it is a plan somebody has to
  * fix, so it draws a sentence where the bars would be.
  */
-export function usePlanSchedule({
-  scheduleError,
-}: {
-  scheduleError: 'calendar_range' | 'cycle' | null;
-}) {
+export function usePlanSchedule({ scheduleError }: { scheduleError: PlanRead['scheduleError'] }) {
   const hasSchedule = useCallback(() => scheduleError === null, [scheduleError]);
 
   // `day 6`, not a bare `6`: with no start date a figure under Start or End

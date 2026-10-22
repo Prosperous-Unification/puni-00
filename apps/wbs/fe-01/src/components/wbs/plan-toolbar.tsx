@@ -15,6 +15,7 @@ import {
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import { cn } from '@/lib/utils';
+import type { PlanRead } from '@/lib/wbs-api';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
 import { isEstimateMethod, type StepView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
@@ -695,7 +696,7 @@ export function PlanToolbar({
   frameState: FrameLayoutState;
   people: PersonView[];
   /** Why the plan has no dated schedule to arrange, when it has none. */
-  scheduleError: 'calendar_range' | 'cycle' | null;
+  scheduleError: PlanRead['scheduleError'];
   /** Issues the arrangement and says it landed; built where the toast stack is. */
   arrangeBySchedule: () => void;
   chartRead: ChartRead;

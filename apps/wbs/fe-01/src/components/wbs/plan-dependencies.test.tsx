@@ -2,7 +2,7 @@ import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-l
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
+import type { PlanRead, ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -1973,7 +1973,7 @@ describe('dependencies in the table — cross-review findings', () => {
    * renders what be-01 sent, which is the only part of this the table owns.
    */
   const apiReturning = (
-    scheduleError: 'cycle' | null,
+    scheduleError: PlanRead['scheduleError'],
     schedule: Partial<WorkItemView['schedule']> = {},
   ): ProjectApi =>
     refusingApi({
@@ -2170,6 +2170,37 @@ describe('dependencies in the table — cross-review findings', () => {
       'On the critical path: any delay here moves the whole plan’s finish.',
     );
   });
+
+  for (const refusal of [
+    {
+      error: {
+        kind: 'dependency_calendar_missing' as const,
+        projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+      },
+      words: 'PUNI · Remote plan',
+    },
+    {
+      error: {
+        kind: 'engine_unavailable' as const,
+        engine: 'optimized' as const,
+        projects: ['remote'],
+        reason: 'connected_optimization_not_supported' as const,
+      },
+      words: 'Connected optimization is unavailable',
+    },
+  ]) {
+    itDom(`explains ${refusal.error.kind} without hiding the table`, async () => {
+      render(
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(apiReturning(refusal.error))}
+        />,
+      );
+      expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
+      expect(screen.getByRole('alert')).toHaveTextContent(refusal.words);
+      expect(screen.getByLabelText('Add a dependency to 010')).toBeInTheDocument();
+    });
+  }
 
   itDom('shows dashes rather than zeroes when there is no schedule', async () => {
     // agy, medium. A cycle sends every row the same zeroed schedule, and
