@@ -67,6 +67,7 @@ export interface ClassSelection {
 }
 /** Static document, acceptance and filesystem refusals; none grant execution authority. */
 export type WorkflowBindingErrorCode =
+  | 'invalid_arguments'
   | 'unsupported_version'
   | 'unknown_executor'
   | 'invalid_binding'

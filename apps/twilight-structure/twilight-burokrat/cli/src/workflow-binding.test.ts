@@ -16,7 +16,8 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { digestOf } from './contracts/canonical';
 import { selectWorkflowActivity } from './contracts/validate-workflow-binding';
 import { WorkflowBindingError } from './contracts/workflow-binding';
-import { readWorkflowBinding } from './workflow-binding';
+import { invokeCli } from './invoke-cli';
+import { readWorkflowBinding, runWorkflowBindingCommand } from './workflow-binding';
 
 let root: string;
 let prompt: string;
@@ -268,4 +269,167 @@ test('loads the complete illustrative parent YAML with its exact five project co
   expect(selectWorkflowActivity(accepted, 'change', 'review').settings.executor).toBe('api-model');
   expect(selectWorkflowActivity(accepted, 'change', 'integrate').settings.executor).toBe('human');
   expect(selectWorkflowActivity(accepted, 'change', 'verify').prompt).toBeNull();
+});
+
+function spawnBinding(args: readonly string[], cwd = root) {
+  const child = Bun.spawnSync({
+    cmd: [process.execPath, join(import.meta.dir, 'cli.ts'), ...args],
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  return {
+    exitCode: child.exitCode,
+    stdout: child.stdout.toString(),
+    stderr: child.stderr.toString(),
+  };
+}
+function expectCliRefusal(
+  invocation: { exitCode: number | null; stdout: string; stderr: string },
+  code: string,
+) {
+  expect(invocation.exitCode, invocation.stderr).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr).toContain(code);
+}
+
+test('routes an incomplete binding command before generic record validation', async () => {
+  const invocation = await invokeCli(['validate', 'workflow-binding', '/never-read.yaml']);
+  expectCliRefusal(invocation, 'invalid_arguments');
+  expect(invocation.stderr).not.toContain('binding_missing');
+});
+test('prints only the accepted digest with real cwd and exit status', () => {
+  const accepted = read();
+  const invocation = spawnBinding([
+    'validate',
+    'workflow-binding',
+    '.twilight/workflows.yaml',
+    '--steps',
+    'approve',
+  ]);
+  expect(invocation.exitCode, invocation.stderr).toBe(0);
+  expect(invocation.stdout).toBe(`${accepted.bindingDigest}\n`);
+  expect(invocation.stderr).toBe('');
+});
+test.each([
+  ['no operands', []],
+  ['missing steps value', ['.twilight/workflows.yaml', '--steps']],
+  ['extra operand', ['.twilight/workflows.yaml', '--steps', 'approve', 'extra']],
+  ['repeated flag', ['.twilight/workflows.yaml', '--steps', 'approve', '--steps', 'approve']],
+  ['wrong flag', ['.twilight/workflows.yaml', '--step', 'approve']],
+  ['repeated flag as value', ['.twilight/workflows.yaml', '--steps', '--steps']],
+  ['empty filename', ['', '--steps', 'approve']],
+  ['flag as filename', ['--steps', '--steps', 'approve']],
+  ['empty steps', ['.twilight/workflows.yaml', '--steps', '']],
+  ['leading empty segment', ['.twilight/workflows.yaml', '--steps', ',approve']],
+  ['trailing empty segment', ['.twilight/workflows.yaml', '--steps', 'approve,']],
+  ['duplicate segment', ['.twilight/workflows.yaml', '--steps', 'approve,approve']],
+  ['whitespace segment', ['.twilight/workflows.yaml', '--steps', 'approve, later']],
+])('refuses malformed CLI %s before filesystem access', (name, operands) => {
+  // A valid absolute binding makes isolated arity/flag bypasses reach real acceptance.
+  const args = operands.map((operand) =>
+    operand === '.twilight/workflows.yaml' ? binding : operand,
+  );
+  expectCliRefusal(spawnBinding(['validate', 'workflow-binding', ...args]), 'invalid_arguments');
+  if (name !== 'no operands') {
+    rmSync(binding);
+    expectCliRefusal(spawnBinding(['validate', 'workflow-binding', ...args]), 'invalid_arguments');
+  }
+});
+// Proof: bypassing only production checkWorkflowBinding step membership made this spawned
+// complete approve+qa fixture exit 0 with a digest and empty stderr; the refusal test failed.
+test('refuses an unknown qa mapping in a spawned binding command', () => {
+  writeFileSync(
+    binding,
+    ordinary.replace(
+      'approve: { class: decision }',
+      'approve: { class: decision }\n    qa: { class: decision }',
+    ),
+  );
+  const invocation = spawnBinding([
+    'validate',
+    'workflow-binding',
+    '.twilight/workflows.yaml',
+    '--steps',
+    'approve',
+  ]);
+  expectCliRefusal(invocation, 'unknown_step');
+  expect(invocation.stderr).toContain('types.default.qa');
+});
+test('uses actual cwd for prompts even with an absolute binding filename', () => {
+  const nested = join(root, 'nested');
+  mkdirSync(nested);
+  const invocation = spawnBinding(
+    ['validate', 'workflow-binding', binding, '--steps', 'approve'],
+    nested,
+  );
+  expectCliRefusal(invocation, 'prompt_missing');
+  expect(invocation.stderr).toContain('.twilight/approve.md');
+});
+test.each([
+  ['missing binding', 'binding_missing'],
+  ['missing prompt', 'prompt_missing'],
+  ['malformed YAML', 'invalid_yaml'],
+])('prints named stderr and no success stdout for %s', (name, code) => {
+  if (name === 'missing binding') rmSync(binding);
+  if (name === 'missing prompt') rmSync(prompt);
+  if (name === 'malformed YAML') writeFileSync(binding, '[broken');
+  expectCliRefusal(
+    spawnBinding([
+      'validate',
+      'workflow-binding',
+      '.twilight/workflows.yaml',
+      '--steps',
+      'approve',
+    ]),
+    code,
+  );
+});
+test.each(['validate', 'validate-record'])(
+  'preserves legacy %s JSON validation',
+  async (command) => {
+    const filename = join(root, 'entry.json');
+    writeFileSync(
+      filename,
+      JSON.stringify({
+        schemaVersion: 1,
+        path: 'example.ts',
+        mode: '100644',
+        blob: '1'.repeat(40),
+      }),
+    );
+    const invocation = await invokeCli([command, 'candidate-entry', filename]);
+    expect(invocation.exitCode, invocation.stderr).toBe(0);
+    expect(invocation.stdout).toBe('valid candidate-entry\n');
+    expect(invocation.stderr).toBe('');
+  },
+);
+test.each([
+  ['short', ['validate-record', 'workflow-binding', '/never-read.yaml']],
+  [
+    'complete',
+    ['validate-record', 'workflow-binding', '.twilight/workflows.yaml', '--steps', 'approve'],
+  ],
+])('keeps binding out of the JSON-only alias (%s)', async (_name, args) => {
+  const invocation = await invokeCli(args);
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr.length).toBeGreaterThan(0);
+  expect(invocation.stderr).not.toContain('invalid_arguments');
+  expect(invocation.stderr).not.toContain('binding_missing');
+});
+
+test.each([
+  [
+    'wrong command',
+    ['validate-record', 'workflow-binding', '.twilight/workflows.yaml', '--steps', 'approve'],
+  ],
+  [
+    'wrong subject',
+    ['validate', 'candidate-entry', '.twilight/workflows.yaml', '--steps', 'approve'],
+  ],
+])('refuses helper %s before filesystem access', (_name, args) => {
+  expectRefusal(() => runWorkflowBindingCommand(args, root), 'invalid_arguments', 'arguments');
+  rmSync(binding);
+  expectRefusal(() => runWorkflowBindingCommand(args, root), 'invalid_arguments', 'arguments');
 });

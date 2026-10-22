@@ -930,3 +930,44 @@ breakage. Root read the complete report and accepts Task 2's six slice boxes.
 This accepts static byte snapshots and real loading only; Task 3 CLI, parent
 1.1–1.2, broader I1 governance and runtime retention remain open. Full packet
 review and integration checks remain required after Task 3.
+
+### 2026-10-22 — binding Task 3 candidate: CLI validation
+
+The candidate adds the exact five-argument workflow-binding command before generic
+record validation. It prints the accepted digest and newline only on success;
+malformed arguments refuse before filesystem access. Existing JSON validate and
+validate-record commands remain supported; workflow-binding is not a RecordKind.
+README documents the invocation root, complete-type fallback and static limits.
+
+Root read the full task-3-report.md, production diff, retained final check logs and
+the actual qa-bypass command output. Original feature RED had 41 passing and
+19 failing tests; initial GREEN had 62 passing. An added repeated --steps value
+regression first observed unknown_step instead of invalid_arguments, then passed
+after its narrow grammar fix. Initial bounded typecheck failed on a Bun test.each
+rest-tuple callback; only the test table changed to explicit name/args rows.
+
+Final unchanged-source packet: 164 tests pass, 398 assertions, four files, 27.21 s.
+Fresh uncached Burokrat typecheck and source lint, ten-file Prettier check and
+git diff --check pass. OpenSpec reports one valid change, zero errors and the
+same eight long-requirement warnings; strict validation was not claimed. The
+inherited color-environment warning remains disclosed.
+
+R5: 11 distinct production mutations produced 11 failed targeted invocations and
+14 failed cases. They cover early routing, exact arity, helper prefixes, filename
+checks, required flag, repeated flag value, step-segment shape/uniqueness and
+the actual binding checker's step membership. All faults were restored; the final
+packet is restored GREEN, not 11 separately observed restoration pairs.
+Some faults change the named refusal while another boundary still rejects.
+
+With only membership rejection bypassed, a complete approve-plus-qa binding and
+readable prompt actually exited 0, printed digest
+9166ebba065a345820873dc08e560bd8fc3e885f0c59aa67956b30abeb80ae90 and a newline,
+and emitted no stderr; the refusal test then failed on exit status. That extra
+process is separate from the 11 mutation-test invocations. Exact evidence, argv,
+diffs, final source hashes and logs are retained in task-3-evidence beside the
+binding ledger report. Historical Task 1/2 fault matrices were not rerun.
+
+Independent Task 3 review is pending. No package-wide build/test, portable
+installation, full host gate, live service, runtime, retention or authority check
+was performed by this scoped slice. Parent 1.1–1.2 and whole-packet acceptance
+remain open; I1 governance, defaults and runtime integration remain separate.
