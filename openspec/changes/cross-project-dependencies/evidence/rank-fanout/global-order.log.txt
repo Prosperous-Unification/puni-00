@@ -1,0 +1,91 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+688 |       const ranks = new ProjectRankRepository(connection.db, OPEN);
+689 |       connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+690 |       const before = await capture();
+691 |       await ranks.moveAfter('org-a', 'a3', null, { at: 1, by: 'ada' });
+692 |       const unrelated = await capture();
+693 |       expect(unrelated.dependency).toEqual(before.dependency);
+                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+    "connections": [
+      {
+        "key": "["a1","a1","a1","whole",null,"a2","a2","whole",null,"FS"]",
+        "predecessorProjectId": "a1",
+        "successorProjectId": "a2",
+      },
+      {
+        "key": "["a3","a3","a3","whole",null,"a4","a4","whole",null,"FS"]",
+        "predecessorProjectId": "a3",
+        "successorProjectId": "a4",
+      },
+    ],
+    "organizationId": "org-a",
+    "projects": 
+  Map {
+-     "a1" => "["fc858934ff3e1597b7a59f86b7d278b99f5ab2ad8e2d12e71f23c44ed9d63ee6","a1",0,"PA1",null,false,"fast","pri",[],[],[],[],[],[["a1","a1",10,null]],[]]",
+-     "a2" => "["f04df76ead01a8c223f87d3d0232be1ce187eaadf840858b7d8b2dbc8e254813","a2",1,"PA2",null,false,"fast","pri",[],[],[],[],[],[["a2","a2",10,null]],[]]",
+-     "a3" => "["a3946c4e5401120b42fd627bb4242e79c6c1b17e0b81c3bb1149e207f48b0d34","a3",2,"PA3",null,false,"fast","pri",[],[],[],[],[],[["a3","a3",10,null]],[]]",
++     "a1" => "["fc858934ff3e1597b7a59f86b7d278b99f5ab2ad8e2d12e71f23c44ed9d63ee6","a1",1,"PA1",null,false,"fast","pri",[],[],[],[],[],[["a1","a1",10,null]],[]]",
++     "a2" => "["f04df76ead01a8c223f87d3d0232be1ce187eaadf840858b7d8b2dbc8e254813","a2",2,"PA2",null,false,"fast","pri",[],[],[],[],[],[["a2","a2",10,null]],[]]",
++     "a3" => "["a3946c4e5401120b42fd627bb4242e79c6c1b17e0b81c3bb1149e207f48b0d34","a3",0,"PA3",null,false,"fast","pri",[],[],[],[],[],[["a3","a3",10,null]],[]]",
+      "a4" => "["5aeb0ac926874ac26d6f22f99135b78adad55153d79d6177783415a7c0f017ca","a4",3,"PA4",null,false,"fast","pri",[],[],[],[],[],[["a4","a4",10,null]],[]]",
+    }
+  ,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:693:36)
+(fail) captures staged component-relative rank changes in isolated mode and ignores unrelated order and respacing [204.88ms]
+688 |       const ranks = new ProjectRankRepository(connection.db, OPEN);
+689 |       connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+690 |       const before = await capture();
+691 |       await ranks.moveAfter('org-a', 'a3', null, { at: 1, by: 'ada' });
+692 |       const unrelated = await capture();
+693 |       expect(unrelated.dependency).toEqual(before.dependency);
+                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+    "connections": [
+      {
+        "key": "["a1","a1","a1","whole",null,"a2","a2","whole",null,"FS"]",
+        "predecessorProjectId": "a1",
+        "successorProjectId": "a2",
+      },
+      {
+        "key": "["a3","a3","a3","whole",null,"a4","a4","whole",null,"FS"]",
+        "predecessorProjectId": "a3",
+        "successorProjectId": "a4",
+      },
+    ],
+    "organizationId": "org-a",
+    "projects": 
+  Map {
+-     "a1" => "["fc858934ff3e1597b7a59f86b7d278b99f5ab2ad8e2d12e71f23c44ed9d63ee6","a1",0,"PA1",null,false,"fast","pri",[],[],[],[],[],[["a1","a1",10,null]],[]]",
+-     "a2" => "["f04df76ead01a8c223f87d3d0232be1ce187eaadf840858b7d8b2dbc8e254813","a2",1,"PA2",null,false,"fast","pri",[],[],[],[],[],[["a2","a2",10,null]],[]]",
+-     "a3" => "["a3946c4e5401120b42fd627bb4242e79c6c1b17e0b81c3bb1149e207f48b0d34","a3",2,"PA3",null,false,"fast","pri",[],[],[],[],[],[["a3","a3",10,null]],[]]",
++     "a1" => "["fc858934ff3e1597b7a59f86b7d278b99f5ab2ad8e2d12e71f23c44ed9d63ee6","a1",1,"PA1",null,false,"fast","pri",[],[],[],[],[],[["a1","a1",10,null]],[]]",
++     "a2" => "["f04df76ead01a8c223f87d3d0232be1ce187eaadf840858b7d8b2dbc8e254813","a2",2,"PA2",null,false,"fast","pri",[],[],[],[],[],[["a2","a2",10,null]],[]]",
++     "a3" => "["a3946c4e5401120b42fd627bb4242e79c6c1b17e0b81c3bb1149e207f48b0d34","a3",0,"PA3",null,false,"fast","pri",[],[],[],[],[],[["a3","a3",10,null]],[]]",
+      "a4" => "["5aeb0ac926874ac26d6f22f99135b78adad55153d79d6177783415a7c0f017ca","a4",3,"PA4",null,false,"fast","pri",[],[],[],[],[],[["a4","a4",10,null]],[]]",
+    }
+  ,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:693:36)
+(fail) captures staged component-relative rank changes in shared mode and ignores unrelated order and respacing [151.95ms]
+
+ 0 pass
+ 14 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [3.04s]

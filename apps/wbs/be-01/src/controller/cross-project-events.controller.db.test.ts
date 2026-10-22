@@ -234,3 +234,49 @@ it('mounted shared-person bridge carries a label change across an external edge'
       { type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id },
     ]);
 });
+
+it.each([false, true])(
+  'rank reversal invalidates the dependency component with shared mode %s',
+  async (shared) => {
+    const { harness, upstream, downstream, tail, foreign, events } = await fixture();
+    harness.sqlite.run(
+      "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a'",
+    );
+    if (shared) {
+      harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      harness.sqlite.run("DELETE FROM external_dependency WHERE id = 'down-tail'");
+      harness.sqlite.run("INSERT INTO person (id, name) VALUES ('rank-bridge', 'Bridge')");
+      harness.sqlite.run(
+        "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('rank-bridge', 'org-a', 'Bridge')",
+      );
+      for (const project of [downstream, tail])
+        harness.sqlite.run(
+          "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, 'rank-bridge')",
+          [project.rowId, project.stepId],
+        );
+    }
+    const move = (id: string, afterProjectId: string | null) =>
+      harness.call('ada', 'POST', `/api/organization/projects/${id}/rank`, { afterProjectId });
+    const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Unrelated' });
+    expect(created.status).toBe(200);
+    const unrelated = (created.body as { project: { id: string } }).project.id;
+    const unchanged = [upstream, downstream, tail, foreign].map(({ id }) => events(id));
+    expect((await move(unrelated, null)).status).toBe(200);
+    expect([upstream, downstream, tail, foreign].map(({ id }) => events(id))).toEqual(unchanged);
+    expect((await move(foreign.id, null)).status).toBe(404);
+    expect([upstream, downstream, tail, foreign].map(({ id }) => events(id))).toEqual(unchanged);
+    expect((await move(downstream.id, null)).status).toBe(200);
+    expect(events(upstream.id)).toEqual([
+      { type: 'elsewhere_changed', projectId: upstream.id, causeProjectId: downstream.id },
+    ]);
+    expect(events(downstream.id)).toEqual([
+      { type: 'elsewhere_changed', projectId: downstream.id, causeProjectId: upstream.id },
+    ]);
+    expect(events(tail.id)).toHaveLength(2);
+    expect(events(unrelated)).toEqual([]);
+    expect(events(foreign.id)).toEqual([]);
+    const after = [upstream, downstream, tail].map(({ id }) => events(id));
+    expect((await move(downstream.id, downstream.id)).status).toBe(200);
+    expect([upstream, downstream, tail].map(({ id }) => events(id))).toEqual(after);
+  },
+);

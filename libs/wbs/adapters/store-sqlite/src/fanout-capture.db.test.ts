@@ -10,7 +10,7 @@ import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanou
 import { scheduleResolved } from '@wbs/domain';
 import { schedule, sliceKey } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
-import { afterEach, expect, it } from 'bun:test';
+import { afterEach, expect, it, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { openConnection, openDatabase } from './db';
@@ -23,6 +23,8 @@ import {
 } from './fanout-capture';
 import { OPEN } from './gate';
 import { allocateGeneration } from './optimization-generation';
+import { ProjectRepository } from './project';
+import { ProjectRankRepository } from './project-rank';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
@@ -665,3 +667,177 @@ it.each(['external', 'alternating', 'disconnected'])(
     }
   },
 );
+
+it.each(['isolated', 'shared'] as const)(
+  'captures staged component-relative rank changes in %s mode and ignores unrelated order and respacing',
+  async (mode) => {
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-rank-fanout-'));
+    directories.push(directory);
+    const path = await openSpaceDatabase(directory);
+    seedDependencyAuthority(path);
+    const connection = openConnection(path);
+    try {
+      connection.db.run(
+        sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+      );
+      if (mode === 'shared')
+        connection.db.run(sql.raw("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'"));
+      for (const projectId of ['a1', 'a2', 'a3', 'a4'])
+        connection.db.run(
+          sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${projectId}, ${projectId}, 10, ${projectId})`,
+        );
+      for (const [predecessor, successor] of [
+        ['a1', 'a2'],
+        ['a3', 'a4'],
+      ])
+        connection.db.run(
+          sql`INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES (${predecessor}, 'org-a', ${predecessor}, ${successor}, ${predecessor}, 'whole', ${successor}, 'whole', 'FS')`,
+        );
+      const capture = () =>
+        readFanoutObservationIn(
+          connection.db,
+          'org-a',
+          {
+            schedulerOf: () =>
+              createScheduler(
+                (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+                  schedule(
+                    rows,
+                    edges,
+                    slices,
+                    floors,
+                    pools,
+                    reach,
+                    deadlines,
+                    typed,
+                    undefined,
+                    elsewhere,
+                  ),
+                scheduleResolved,
+              ),
+          },
+          createReadSnapshotLifetime(),
+        );
+      const ranks = new ProjectRankRepository(connection.db, OPEN);
+      connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+      const before = await capture();
+      await ranks.moveAfter('org-a', 'a3', null, { at: 1, by: 'ada' });
+      const unrelated = await capture();
+      expect(unrelated.dependency).toEqual(before.dependency);
+      connection.db.run(sql.raw('UPDATE project_rank SET position = position * 7'));
+      const respaced = await capture();
+      expect(respaced.dependency).toEqual(unrelated.dependency);
+      await ranks.moveAfter('org-a', 'a2', null, { at: 2, by: 'ada' });
+      const reordered = await capture();
+      expect(reordered.dependency?.projects.get('a1')).not.toBe(
+        before.dependency?.projects.get('a1'),
+      );
+      expect(reordered.dependency?.projects.get('a2')).not.toBe(
+        before.dependency?.projects.get('a2'),
+      );
+      expect(reordered.dependency?.projects.get('a3')).toBe(before.dependency?.projects.get('a3'));
+      expect(reordered.dependency?.projects.get('a4')).toBe(before.dependency?.projects.get('a4'));
+      const committed = await recordCommittedFanout(
+        new DrizzleEventLogStore(connection.db, OPEN),
+        respaced,
+        reordered,
+        () => 3,
+      );
+      expect(committed.map(({ event }) => event)).toEqual([
+        { type: 'elsewhere_changed', projectId: 'a1', causeProjectId: 'a2' },
+        { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+      ]);
+      connection.db.run(sql.raw('ROLLBACK'));
+      expect((await capture()).dependency).toEqual(before.dependency);
+      expect(connection.db.all(sql`SELECT * FROM event_log`)).toHaveLength(0);
+    } finally {
+      connection.close();
+    }
+  },
+);
+
+it('refuses a dependency member omitted from authoritative rank order', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-missing-rank-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  seedDependencyAuthority(path);
+  const connection = openConnection(path);
+  const order = spyOn(ProjectRankRepository.prototype, 'orderIn').mockResolvedValue([]);
+  try {
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    for (const projectId of ['a1', 'a2'])
+      connection.db.run(
+        sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${projectId}, ${projectId}, 10, ${projectId})`,
+      );
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1', 'whole', 'a2', 'whole', 'FS')",
+      ),
+    );
+    expect(
+      readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        {
+          schedulerOf: () => {
+            throw new Error('isolated capture cannot schedule');
+          },
+        },
+        createReadSnapshotLifetime(),
+      ),
+    ).rejects.toThrow('dependency fan-out member absent from rank order');
+  } finally {
+    order.mockRestore();
+    connection.close();
+  }
+});
+
+it('refuses expired rank evidence before reading a dependency member', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-expired-rank-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  seedDependencyAuthority(path);
+  const connection = openConnection(path);
+  const lifetime = createReadSnapshotLifetime();
+  const read = spyOn(ProjectRepository.prototype, 'findInOrganization');
+  const order = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(() => {
+    lifetime.expire();
+    return Promise.resolve([
+      { projectId: 'a1', rank: 1, ranked: false },
+      { projectId: 'a2', rank: 2, ranked: false },
+    ]);
+  });
+  try {
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    for (const projectId of ['a1', 'a2'])
+      connection.db.run(
+        sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${`${projectId}-row`}, ${projectId}, 10, ${projectId})`,
+      );
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1-row', 'whole', 'a2-row', 'whole', 'FS')",
+      ),
+    );
+    expect(
+      readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        {
+          schedulerOf: () => {
+            throw new Error('isolated capture cannot schedule');
+          },
+        },
+        lifetime,
+      ),
+    ).rejects.toThrow('snapshot');
+    expect(read).not.toHaveBeenCalled();
+  } finally {
+    order.mockRestore();
+    read.mockRestore();
+    connection.close();
+  }
+});

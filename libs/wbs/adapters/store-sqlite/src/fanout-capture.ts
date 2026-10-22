@@ -413,7 +413,11 @@ export async function readFanoutObservationIn(
   };
 }
 
-/** Captures external components and shared-person bridges without scheduling or opening another connection. */
+/**
+ * Captures external components and shared-person bridges on the borrowed writer.
+ * Rank facts use each component's relative order, so unrelated moves and physical
+ * position respacing do not invalidate it. Every member requires rank evidence.
+ */
 async function readDependencyFanoutIn(
   db: Drizzle,
   organizationId: string,
@@ -452,13 +456,29 @@ async function readDependencyFanoutIn(
   // Proof: retaining only incident IDs lost both event rows in `invalidates surviving projects disconnected by relationship removal`.
   const projects = new Map(ownership.map(({ projectId }) => [projectId, 'not_incident']));
   const members = new Set<string>();
+  const components: ReadonlySet<string>[] = [];
   for (const edge of connections)
     for (const endpoint of [edge.predecessorProjectId, edge.successorProjectId]) {
       if (members.has(endpoint)) continue;
       // Proof: forcing isolated discovery makes the alternating shared capture witness retain ordinary projects [a1, a4] instead of [].
       const topology = discoverConnectedTopologyIn(db, endpoint, mode, lifetime);
+      components.push(topology.projects);
       for (const projectId of topology.projects) members.add(projectId);
     }
+  const ordinals = new Map<string, number>();
+  if (members.size > 0) {
+    const order = await new ProjectRankRepository(db, OPEN).orderIn(organizationId);
+    // Proof: removing this check read one dependency member after rank evidence expired.
+    lifetime.assertOpen();
+    for (const component of components)
+      // Proof: using global rank instead made the disconnected component change
+      // during an unrelated move in the component-relative rank DB witness.
+      order
+        .filter(({ projectId }) => component.has(projectId))
+        .forEach(({ projectId }, index) => {
+          ordinals.set(projectId, index);
+        });
+  }
   const people = new Map<string, readonly string[]>();
   for (const projectId of members) {
     const header = await new ProjectRepository(db, OPEN).findInOrganization(
@@ -477,12 +497,19 @@ async function readDependencyFanoutIn(
     // Proof: removing this refusal changed the missing-endpoint negative from the named invariant to a property-access TypeError; the unreadable seam separately throws unchanged.
     if (captured === null || header === null)
       throw new Error('dependency fan-out endpoint is unreadable');
+    const ordinal = ordinals.get(projectId);
+    // Proof: omitting this refusal made the omitted authoritative-order member
+    // DB negative resolve successfully instead of rejecting corrupt evidence.
+    if (ordinal === undefined) throw new Error('dependency fan-out member absent from rank order');
     people.set(projectId, [...new Set(captured.assignments.map(({ personId }) => personId))]);
     projects.set(
       projectId,
       JSON.stringify([
         scheduleInputHash(scheduleInputOfCaptured(captured)),
         captured.project.name,
+        // Proof: omitting ordinal made isolated/shared staged rank reversal and
+        // both mounted rank reversal witnesses retain zero dependency events.
+        ordinal,
         // Proof: omitting abbreviation made the mounted abbreviation-only PATCH retain one event instead of two.
         header.abbreviation,
         captured.project.startDate,

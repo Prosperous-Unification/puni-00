@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+724 |     for (const projectId of ['a1', 'a2'])
+725 |       connection.db.run(sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${projectId}, ${projectId}, 10, ${projectId})`);
+726 |     connection.db.run(sql.raw("INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1', 'whole', 'a2', 'whole', 'FS')"));
+727 |     await expect(readFanoutObservationIn(connection.db, 'org-a', {
+728 |       schedulerOf: () => { throw new Error('isolated capture cannot schedule'); },
+729 |     }, createReadSnapshotLifetime())).rejects.toThrow('dependency fan-out member absent from rank order');
+                                                    ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:729:47)
+(fail) refuses a dependency member omitted from authoritative rank order [156.59ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.85s]
