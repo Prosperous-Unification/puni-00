@@ -285,6 +285,8 @@ describe('20260927130000_add_organization_ownership', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -343,6 +345,8 @@ describe('20260927130000_add_organization_ownership', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',

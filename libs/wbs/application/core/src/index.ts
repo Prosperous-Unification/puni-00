@@ -91,6 +91,7 @@ export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';
 export * from './ports/organization-audit';
+export * from './ports/organization-limits';
 export * from './ports/project-event';
 export * from './ports/project-rank-store';
 export * from './ports/project-store';

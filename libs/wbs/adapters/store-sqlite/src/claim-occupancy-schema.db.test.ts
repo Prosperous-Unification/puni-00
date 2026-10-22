@@ -94,21 +94,27 @@ describe(MIGRATION, () => {
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
     occupy('c1', 'ram', 4);
-    const before = db.query('SELECT * FROM __drizzle_migrations').all();
+    const before = db
+      .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id')
+      .all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
-    // The newer, empty machine credential migrations reverse first.
-    expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(
+    // The newer, empty machine credential and organization limits migrations reverse first.
+    expect(
+      db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
+    ).toEqual(
       before.filter(
-        (row) =>
+        ({ name }) =>
           ![
             '20261022100000_add_machine_credential',
             '20261022110000_widen_organization_audit_machine_credentials',
             '20261022110100_check_machine_credential_id',
             '20261022120000_scope_trusted_issuer_audience',
+            '20261022130000_add_organization_limits',
+            '20261022130100_widen_organization_audit_organization_limits',
             '20261022140000_add_resource_provider',
             '20261022140100_widen_organization_audit_compute_providers',
-          ].includes((row as { name: string }).name),
+          ].includes(name),
       ),
     );
   });
@@ -117,6 +123,8 @@ describe(MIGRATION, () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',

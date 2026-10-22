@@ -183,6 +183,69 @@ projects, with no retained stream.
 be-01 reads the marker on every request, so no restart is needed. Browsers then choose the
 organization explicitly once.
 
+## Organization limits after activation
+
+Every activated organization holds three caps (`wbs-organization-limits`): its own
+`organization_limits` row, or the deployment defaults be-01 reads at boot from
+`ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS`, `ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS` and
+`ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE`. be-01 refuses to boot without all
+three. Every cap is a whole number from 0 to 1,000,000. An admin reads caps beside usage at
+`GET /api/organization/limits` and on the organization page. Agent persons, bound claims and
+stated capacity units are refused past their caps.
+
+### Show, set and reset an organization's caps
+
+`organization-limits-cli.ts` is the only writer (design L12): no HTTP route changes limits.
+It reads the defaults from the same three variables, so run it inside the container, where
+they are set. `set` and `reset` rehearse by default and roll back; `--apply` writes. Each
+applied change writes the row and one `organization_limits_changed` audit row in one
+transaction. The audit row names `operator:<os login>` as its actor. Under `docker exec`
+that login is `root`, so pass `-u <login>` to `docker exec` when the audit row should name a
+person.
+
+```sh
+# The effective caps, their source (`organization` or `default`) and usage beside each.
+docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts show --organization <organization id>
+# Set any subset. Caps not named keep the organization's row values, or the defaults
+# when there is no row, so the row is always complete. Rehearse first, then apply.
+docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts set --organization <organization id> \
+  --max-agent-persons 8 --max-concurrent-claims 40 --max-capacity-units-per-resource 64
+docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts set --organization <organization id> \
+  --max-concurrent-claims 40 --apply
+# Reset: delete the row, so the deployment defaults apply again.
+docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts reset --organization <organization id> --apply
+```
+
+Each command prints one JSON document on stdout: `before`, `after`, and `caps` with usage
+beside each cap. A `set` that names the values the row already holds reports
+`change: unchanged` and writes nothing. A cap set below current usage is accepted. The
+command prints a `warning:` line on stderr and the same text in `warnings`, and exits 0.
+What is held stays held, and the next acquisition of that kind is refused.
+
+Each refusal is one JSON line on stderr with its own exit code. Nothing is written.
+
+| Exit | Refusal                | Meaning                                                               |
+| ---- | ---------------------- | --------------------------------------------------------------------- |
+| 2    | `malformed`            | unknown flag or command, missing `--organization`, not a whole number |
+| 3    | `inactive`             | the store is not activated; a legacy store is uncapped                |
+| 4    | `unknown_organization` | no organization has that id                                           |
+| 5    | `out_of_bound`         | a value outside 0 to 1,000,000                                        |
+| 6    | `no_cap`               | `set` named no cap                                                    |
+| 7    | `no_row`               | `reset` on an organization that already uses the defaults             |
+
+A missing `DB_PATH`, a missing database, missing or malformed default variables, an
+unavailable login or a failed audit write throw (exit 1). The transaction is rolled back.
+
+The CLI is SQLite-only. The memory store has no `OrganizationLimits` administration.
+
+Verified locally on 2026-10-22 by `organization-limits-cli.db.test.ts` and
+`organization-limits-audit-migration.db.test.ts`. The CLI has **not** been run against dev
+or prod.
+
 ## Verified and not verified
 
 Verified locally on 2026-10-20 against migrated disposable fixtures:

@@ -7,6 +7,7 @@ export const PORT_NAMES = [
   'projectRanks',
   'users',
   'directory',
+  'organizationLimits',
   'capacity',
   'resourceCapacity',
   'priorityBands',
@@ -57,6 +58,11 @@ export const CASE_MANIFEST = {
     'directory.addResource:taken',
     'directory.setResourceProvider:unknown-and-clear',
     'directory.removeResource:in-use-cascade',
+  ],
+  organizationLimits: [
+    'organizationLimits.readAgentPersonCap:organization-scope',
+    'organizationLimits.readConcurrentClaimCap:bound-triples',
+    'organizationLimits.readCapacityCap:per-resource-except-project',
   ],
   capacity: [
     'capacity.set:project-team-key',
