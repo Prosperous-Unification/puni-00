@@ -30,7 +30,7 @@ import { slicesOf } from './schedule-slices';
  * number of days.
  */
 export interface DependencyGraphState {
-  readonly rows: readonly WorkItem[];
+  readonly rows: readonly Omit<WorkItem, 'factStart' | 'factEnd'>[];
   /** The project's steps in step order; an estimate on any other step throws in `slicesOf`. */
   readonly steps: readonly StepPolicy[];
   readonly estimates: readonly Pick<StoredEstimate, 'workItemId' | 'stepId'>[];

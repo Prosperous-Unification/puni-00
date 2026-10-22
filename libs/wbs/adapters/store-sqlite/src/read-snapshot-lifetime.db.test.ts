@@ -111,6 +111,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
           old.readProject('a1'),
           old.readAggregate('ada', access),
           old.readExport('a1', access),
+          old.readExecution('a1', access, null),
         ])
           expect((await failureOf(reading)).message).toContain('closed');
         expect(queries.length).toBe(before);

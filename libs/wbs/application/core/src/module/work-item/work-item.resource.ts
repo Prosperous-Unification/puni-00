@@ -4,7 +4,6 @@ import {
   assumedAssignee,
   type Attempt,
   type AttemptOutcome,
-  type AuthoredDependencyGraph,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -47,6 +46,7 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
+  projectExecutionBlockers,
   type Readiness,
   refuseDemand,
   refuseOccupancy,
@@ -66,6 +66,7 @@ import {
   type ScopedDependencyEndpoint,
   type SettableStatus,
   type Sibling,
+  sliceKey,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
   type Span,
@@ -188,6 +189,8 @@ import {
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
+import { resolveConnectedDependencyGraph } from '../../service/connected-dependency-graph';
+import { deriveExecutionReadiness } from '../../service/connected-readiness';
 import { type DependencyGraphChange, resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
@@ -1700,6 +1703,12 @@ export class WorkItemService {
     access: ResourceAccess,
     teamId: string | null,
   ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
+    if (this.opts.livePlans !== undefined) {
+      const observed = await this.opts.livePlans.readExecution(projectId, access, teamId);
+      if (observed.kind === 'not_found' || observed.kind === 'access_refused') return null;
+      if (observed.kind === 'unknown_team') return { kind: 'unknown_team' };
+      return findStartableWork(observed.reads);
+    }
     if (!(await this.admits(projectId, access))) return null;
     const { directory } = this.opts;
     const rows = await this.opts.workItems.listByProject(projectId);
@@ -1728,7 +1737,14 @@ export class WorkItemService {
           ]);
     const teamNames = new Map(teams.map((team) => [team.id, team.name] as const));
     if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
-    const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
+    const {
+      statuses,
+      stated,
+      dependencies,
+      evidenceByNode,
+      eligibilityByNode,
+      predecessorIdsByLeaf,
+    } = await this.statusReadsOf(projectId, rows);
     const capacities = await this.resourceCapacitiesOf(projectId);
     const resources =
       capacities.length === 0
@@ -1744,6 +1760,9 @@ export class WorkItemService {
       claims,
       assignments,
       dependencies,
+      evidenceByNode,
+      eligibilityByNode,
+      predecessorIdsByLeaf,
       personNames: new Map(people.map((person) => [person.id, person.name] as const)),
       teamNames,
       teamId,
@@ -3211,9 +3230,33 @@ export class WorkItemService {
         each.state,
       ]),
     );
-    const status = (await this.statusesOf(projectId, rows)).get(id);
+    const observed = await this.opts.livePlans?.readExecution(projectId, access, null);
+    if (observed !== undefined && observed.kind !== 'ready')
+      return { ok: false, reason: 'not_found' };
+    const execution =
+      observed === undefined ? await this.statusReadsOf(projectId, rows) : observed.reads;
+    const status = execution.statuses.get(id);
     if (status === undefined) throw new Error(`work item ${id} has no derived status`);
+    const admission = new Map(
+      steps.map((step) => {
+        const key = sliceKey(id, step.id);
+        const evidence = execution.evidenceByNode.get(key);
+        const eligibility = execution.eligibilityByNode.get(key);
+        if (lineage.isLeaf && (evidence === undefined || eligibility === undefined))
+          throw new Error(`missing execution reading ${key}`);
+        return [
+          step.id,
+          {
+            started: evidence?.started === true,
+            canStart: eligibility?.canStart === true,
+            blockers:
+              eligibility === undefined ? [] : projectExecutionBlockers(eligibility.startBlockers),
+          },
+        ] as const;
+      }),
+    );
     const decided = decideClaim({
+      admission,
       target: {
         workItemId: id,
         isLeaf: lineage.isLeaf,
@@ -3597,38 +3640,55 @@ export class WorkItemService {
    * {@link statusesOf} with the reads it folded, so a caller that needs the
    * same progress statements and dependency edges reads them once.
    */
-  private async statusReadsOf(
-    projectId: string,
-    rows: readonly LabelledWorkItem[],
-  ): Promise<{
-    statuses: Map<string, WorkItemStatus>;
-    stated: StoredProgress[];
-    dependencies: AuthoredDependencyGraph;
-  }> {
+  private async statusReadsOf(projectId: string, rows: readonly LabelledWorkItem[]) {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error(`execution project ${projectId} is missing`);
+    const steps = await this.opts.projects.stepsOf(projectId);
     const stated = await this.opts.progress.listByProject(projectId);
     const attempted = await this.opts.attempts.listByProject(projectId);
-    const progress = rollUpWorkItemStatuses(
-      rows,
-      rollUpProgress(
-        rows,
-        stated,
-        workedStepsOf(
-          await this.opts.estimates.listByProject(projectId),
-          await this.opts.actuals.listByProject(projectId),
-          stated,
-          attempted,
-        ),
-        attempted.filter((attempt) => attempt.endedAt === null),
-      ),
-    );
-    const rowIds = new Set(rows.map((row) => row.id));
+    const estimates = await this.opts.estimates.listByProject(projectId);
+    const actuals = await this.opts.actuals.listByProject(projectId);
+    const blockages = await this.opts.blockages.listByProject(projectId);
     const dependencies = {
-      edges: (await this.opts.dependencies.listByProject(projectId)).filter(
-        (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
-      ),
+      edges: await this.opts.dependencies.listByProject(projectId),
       typed: await this.opts.typedDependencies.listByProject(projectId),
     };
-    return { statuses: workItemStatusesOf(rows, progress, dependencies), stated, dependencies };
+    const authored = resolveConnectedDependencyGraph({
+      projects: [
+        {
+          projectId,
+          state: {
+            rows,
+            steps,
+            estimates,
+            legacy: dependencies.edges,
+            typed: dependencies.typed,
+            reach: project.depReach,
+          },
+        },
+      ],
+      external: [],
+    });
+    const readiness = deriveExecutionReadiness(
+      [
+        {
+          projectId,
+          reads: {
+            workItems: rows,
+            steps,
+            progress: stated,
+            stepBlockages: blockages,
+            estimates,
+            actuals,
+            dependencies: dependencies.edges,
+          },
+        },
+      ],
+      dependencies.typed,
+      authored,
+      new Map([[projectId, attempted]]),
+    );
+    return { ...readiness, statuses: new Map(readiness.statuses), stated, dependencies };
   }
 
   /**
@@ -7558,6 +7618,31 @@ export class WorkItemService {
           throw new Error('claims are put back only by a replay, which names its access');
         const exhausted = await this.refuseReacquiring(projectId, command, access);
         if (exhausted !== null) return { ok: false, detail: exhausted };
+        // Only a recorded fresh progress statement recreates a governed start.
+        // Release undo and historical structural restoration have no new statement.
+        const newStarts = command.stated;
+        if (newStarts.length > 0) {
+          const observed = await this.opts.livePlans?.readExecution(projectId, access, null);
+          if (observed !== undefined && observed.kind !== 'ready')
+            return { ok: false, detail: 'execution evidence is no longer readable.' };
+          const execution =
+            observed === undefined
+              ? await this.statusReadsOf(
+                  projectId,
+                  await this.opts.workItems.listByProject(projectId),
+                )
+              : observed.reads;
+          for (const statement of newStarts) {
+            const key = sliceKey(statement.workItemId, statement.stepId);
+            const evidence = execution.evidenceByNode.get(key);
+            const eligibility = execution.eligibilityByNode.get(key);
+            if (evidence === undefined || eligibility === undefined)
+              throw new Error(`missing replay execution reading ${key}`);
+            // Proof: bypassing this predicate made mounted `local claim redo reevaluates` replay an unsafe start (task-6-3-admission-proofs/replay-filter.log).
+            if (!evidence.started && !eligibility.canStart)
+              return { ok: false, detail: 'execution prerequisites are no longer satisfied.' };
+          }
+        }
         const added = await claims.add(
           command.claims,
           command.stated,

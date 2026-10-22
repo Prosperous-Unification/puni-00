@@ -1,6 +1,6 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 import { type AuthenticatedUser, type CredentialPair, credentialPairOf } from '@wbs/contracts';
-import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type { ExecutionPrerequisite, ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { CommandCaller } from '../../ports/command-access';
@@ -130,6 +130,10 @@ export type Refusal =
   | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }
   | { reason: PlainClaimReason; detail?: never }
   | { reason: 'not_startable'; detail: { status: WorkItemStatus } }
+  | {
+      reason: 'prerequisites_unmet';
+      detail: { stepIds: string[]; blockers: ExecutionPrerequisite[] };
+    }
   | { reason: 'step_done'; detail: { stepIds: string[] } }
   | {
       reason: 'already_claimed' | 'destination_claimed' | 'children_claimed';

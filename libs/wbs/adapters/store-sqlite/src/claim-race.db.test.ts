@@ -188,7 +188,13 @@ describe('a claim on SQLite', () => {
   // second undo answered ok and the FK cascade took the worker's delegated
   // claim with the subtree claim; watched 2026-10-19.
   it('refuses an undo of a subtree claim that would take a delegated claim it never wrote', async () => {
-    const { runner, projectId, claims, as } = await seeded();
+    const {
+      runner,
+      projectId,
+      claims,
+      as,
+      steps: [dev],
+    } = await seeded();
     const tree = await runner.run(projectId, F, [
       { kind: 'createWorkItem', ref: 'root', name: 'Root', parentId: null, afterId: null },
       {
@@ -211,7 +217,13 @@ describe('a claim on SQLite', () => {
     ).id;
     expect(
       await as(F, [
-        { kind: 'claimWorkItem', workItemId: childId, personId: 'worker', parentClaim },
+        {
+          kind: 'claimWorkItem',
+          workItemId: childId,
+          personId: 'worker',
+          parentClaim,
+          steps: [dev],
+        },
       ])(),
     ).toMatchObject({ ok: true });
     await as(G, [{ kind: 'patchWorkItem', workItemId: childId, patch: { name: 'Renamed' } }])();

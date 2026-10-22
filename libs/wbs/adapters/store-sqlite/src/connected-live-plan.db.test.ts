@@ -219,3 +219,96 @@ test('unconnected isolated routing query count is independent of local edges', a
   expect(with19LocalRelationships).toBe(empty);
   expect(empty).toBeLessThanOrEqual(10);
 });
+
+test('execution observation captures FS prerequisites without invoking any scheduler', async () => {
+  const execution = createLivePlanStore({
+    kind: 'owned',
+    openConnection: () => openReadOnlyConnection(path),
+    schedulerOf: () => {
+      throw new Error('execution must not invoke scheduler');
+    },
+  });
+  const first = await execution.readExecution('a1', access, null);
+  expect(first.kind).toBe('ready');
+  if (first.kind !== 'ready') throw new Error('execution observation missing');
+  expect(first.reads.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(false);
+  write(
+    "INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('a2','a2-s','done',1)",
+  );
+  const next = await execution.readExecution('a1', access, null);
+  if (next.kind !== 'ready') throw new Error('execution observation missing');
+  expect(next.reads.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(true);
+  expect(first.reads.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(false);
+});
+
+test('execution observation rechecks membership and activation before materializing foreign evidence', async () => {
+  write("DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='ada'");
+  expect(await reader().readExecution('a1', access, null)).toEqual({
+    kind: 'access_refused',
+    refusal: 'not_a_member',
+  });
+  expect(await reader().readExecution('a1', { kind: 'legacy' }, null)).toEqual({
+    kind: 'access_refused',
+    refusal: 'no_active_organization',
+  });
+});
+
+test('execution observation refuses foreign and absent targets alike', async () => {
+  expect(await reader().readExecution('b1', access, null)).toEqual({ kind: 'not_found' });
+  expect(await reader().readExecution('absent', access, null)).toEqual({ kind: 'not_found' });
+});
+
+test('borrowed service claim sees staged remote completion and collects its normal announcement', async () => {
+  const { servicesOver } = await import('@wbs/core/compose');
+  const { CREATOR_ADMISSION } = await import('@wbs/core/ports/edit-admission');
+  const { createLocalDependencyContext } = await import('@wbs/core/service/dependency-context');
+  const { recordingBroadcaster } = await import('@wbs/core/testing/broadcast-fixture');
+  const { testClock } = await import('@wbs/core/testing/clock-fixture');
+  const { openSqliteSource } = await import('./source');
+  write("INSERT INTO person (id,name,account_id) VALUES ('executor','Executor','ada')");
+  write(
+    "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('executor','org-a','Executor')",
+  );
+  const source = openSqliteSource({ dbPath: path }).bindLivePlans({
+    schedulerOf: () => {
+      throw new Error('claim must not invoke scheduler');
+    },
+  });
+  try {
+    await source.uow.run(async (scope) => {
+      const graph = servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast: recordingBroadcaster(),
+        scheduler: fastScheduler,
+      });
+      const input = {
+        personId: 'executor',
+        stepIds: ['a1-s'],
+        runId: null,
+        parentClaimId: null,
+        assign: false,
+        resources: null,
+      };
+      const blocked = await graph.workItems.collect(() =>
+        graph.workItems.claim('a1', 'ada', input, access, null),
+      );
+      expect(blocked.result).toMatchObject({ ok: false, reason: 'prerequisites_unmet' });
+      await scope.stores.progress.set(
+        { workItemId: 'a2', stepId: 'a2-s', state: 'done', statedAt: 1 },
+        { at: 1, by: 'ada' },
+      );
+      const accepted = await graph.workItems.collect(() =>
+        graph.workItems.claim('a1', 'ada', input, access, null),
+      );
+      expect(accepted.result).toMatchObject({ ok: true, value: { alreadyHeld: false } });
+      expect(accepted.dirty).toBe(true);
+      expect(accepted.recordings).toHaveLength(1);
+      expect(await scope.stores.claims.listByProject('a1')).toHaveLength(1);
+      return { commit: false, value: undefined };
+    });
+  } finally {
+    await source.close();
+  }
+});

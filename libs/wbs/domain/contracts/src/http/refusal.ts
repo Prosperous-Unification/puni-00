@@ -199,6 +199,7 @@ export type CommandRefusalCode =
   | 'steps_on_subtree'
   | 'item_done'
   | 'not_startable'
+  | 'prerequisites_unmet'
   | 'step_done'
   | 'already_claimed'
   // `claimWorkItem` occupancy (`wbs-resources` R3, R4), between already_claimed
@@ -349,24 +350,35 @@ export type CommandRefusalDetail = {
               ? { name?: string }
               : C extends 'not_startable'
                 ? { status: string }
-                : C extends 'step_done'
-                  ? { stepIds: string[] }
-                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
-                    ? { holders: ClaimRefusalHolder[] }
-                    : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
-                      ? { holder: ClaimRefusalHolder }
-                      : C extends 'below_declared_demand'
-                        ? { resourceId: string; asked: number; declared: number }
-                        : C extends 'below_held_occupancy'
-                          ? { resourceId: string; asked: number; held: number }
-                          : C extends 'resources_exhausted'
-                            ? {
-                                resourceId: string;
-                                asked: number;
-                                free: number;
-                                holders: OccupancyRefusalHolder[];
-                              }
-                            : Record<never, never>);
+                : C extends 'prerequisites_unmet'
+                  ? {
+                      stepIds: string[];
+                      blockers: {
+                        workItemId: string;
+                        stepId: string | null;
+                        type: 'FS' | 'SS' | 'FF';
+                        provenance: 'workflow' | 'legacy' | 'authored';
+                        relationshipId: string | null;
+                      }[];
+                    }
+                  : C extends 'step_done'
+                    ? { stepIds: string[] }
+                    : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
+                      ? { holders: ClaimRefusalHolder[] }
+                      : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                        ? { holder: ClaimRefusalHolder }
+                        : C extends 'below_declared_demand'
+                          ? { resourceId: string; asked: number; declared: number }
+                          : C extends 'below_held_occupancy'
+                            ? { resourceId: string; asked: number; held: number }
+                            : C extends 'resources_exhausted'
+                              ? {
+                                  resourceId: string;
+                                  asked: number;
+                                  free: number;
+                                  holders: OccupancyRefusalHolder[];
+                                }
+                              : Record<never, never>);
 };
 
 type BareRefusalCode =

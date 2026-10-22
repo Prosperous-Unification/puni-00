@@ -22,6 +22,12 @@ function leafClaim(
 ): ClaimRequest {
   const { person = 'agent', run = null, ...rest } = over;
   return {
+    admission: new Map(
+      ['impl', 'review'].map((stepId) => [
+        stepId,
+        { started: false, canStart: true, blockers: [] },
+      ]),
+    ),
     target: {
       workItemId,
       isLeaf: true,

@@ -123,6 +123,17 @@ export function projectConnectedTree(
         leaves.map((id) => [id, requireEvidence(readiness.nodes.causes.get(id), `cause ${id}`)]),
       ),
     },
+    evidenceByNode: new Map(
+      projection.authored.graph.nodes.flatMap((node) => {
+        const id = node.kind === 'step' ? node.ref.workItemId : node.workItemId;
+        if (!rowIds.has(id)) return [];
+        const key = sliceKey(id, node.kind === 'step' ? node.ref.stepId : null);
+        // Proof: replacing this required lookup with a raw `.get` made the
+        // projector's missing-evidence case accept absent execution facts;
+        // watched 2026-10-22.
+        return [[key, requireEvidence(readiness.evidenceByNode.get(key), `evidence ${key}`)]];
+      }),
+    ),
     eligibilityByNode: new Map(
       projection.authored.graph.nodes.flatMap((node) => {
         const id = node.kind === 'step' ? node.ref.workItemId : node.workItemId;

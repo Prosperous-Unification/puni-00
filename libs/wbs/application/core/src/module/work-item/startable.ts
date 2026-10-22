@@ -1,26 +1,23 @@
 import {
-  type Assignment,
-  type AuthoredDependencyGraph,
-  type Demand,
   deriveNumbers,
   effectiveTeamsOf,
+  type ExecutionPrerequisite,
   freeUnitsOf,
   indexTree,
   isStartableStatus,
   leafOccupancyOf,
   occupancyByResource,
-  type OccupancyRow,
-  predecessorLeavesOf,
+  projectExecutionBlockers,
   refuseOccupancy,
   type Resource,
-  type ResourceCapacity,
   type ResourceKind,
-  type StoredProgress,
+  sliceKey,
   treeOrder,
   type WorkItemStatus,
 } from '@wbs/domain';
 
 import type { StampedClaim } from '../../ports/claim-store';
+import type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
 
 /** A person as the startable read names them: id and the caller's display name. */
@@ -133,12 +130,24 @@ export interface HeldSubtree extends WorkItemAddress {
   readonly claimedAt: number;
 }
 
+/** Current prerequisite truth for a target step; started work remains observable after upstream edits. */
+export interface StepPrerequisites {
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly started: boolean;
+  readonly canStart: boolean;
+  readonly canFinish: boolean;
+  readonly startBlockers: ExecutionPrerequisite[];
+  readonly finishBlockers: ExecutionPrerequisite[];
+}
+
 /**
  * The startable read: leaves with startable steps that fit now, and apart the
  * leaves that do not fit, the claimed steps of those leaves and every subtree
  * claim of the project, with the project's free units per resource.
  */
 export interface StartableWork {
+  readonly prerequisites: StepPrerequisites[];
   readonly leaves: StartableLeaf[];
   /** Otherwise startable leaves whose demand exceeds the free units, each with its shortfall. */
   readonly doesNotFit: UnfitLeaf[];
@@ -153,32 +162,7 @@ export interface StartableWork {
   readonly occupancyScope: 'project';
 }
 
-/** Everything {@link findStartableWork} reads, gathered in one admitted read. */
-export interface StartableReads {
-  readonly rows: readonly LabelledWorkItem[];
-  /** Every row's derived status: the folds the table shows (`workItemStatusesOf`). */
-  readonly statuses: ReadonlyMap<string, WorkItemStatus>;
-  /** The project's steps in project order. */
-  readonly stepIds: readonly string[];
-  readonly stated: readonly Pick<StoredProgress, 'workItemId' | 'stepId' | 'state'>[];
-  readonly claims: readonly StampedClaim[];
-  readonly assignments: readonly Assignment[];
-  readonly dependencies: AuthoredDependencyGraph;
-  /** Display names of every person an assignment or a claim names. */
-  readonly personNames: ReadonlyMap<string, string>;
-  /** Display names of every team a label names. */
-  readonly teamNames: ReadonlyMap<string, string>;
-  /** The team to filter by, or null for every leaf. */
-  readonly teamId: string | null;
-  /** The project's stated capacities. */
-  readonly capacities: readonly ResourceCapacity[];
-  /** Every demand stated on a work item of the project. */
-  readonly demands: readonly Demand[];
-  /** The project's occupancy rows: one per claim and resource (`ClaimStore.occupancyOf`). */
-  readonly occupancy: readonly OccupancyRow[];
-  /** Every resource a capacity names, by id, under the caller's names. */
-  readonly resources: ReadonlyMap<string, Resource>;
-}
+export type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
 
 /**
  * Which steps may be started now, grouped by leaf in tree order
@@ -186,7 +170,8 @@ export interface StartableReads {
  *
  * A step is startable when its leaf passes {@link isStartableStatus} — the
  * same test a claim applies — its stated progress is not `done`, and no claim
- * holds it. With a team, only leaves whose effective team set holds it are
+ * holds it. An unstarted step must also pass its resolved execution prerequisites;
+ * prior actual start evidence keeps continuing work visible after upstream edits. With a team, only leaves whose effective team set holds it are
  * read: the team's **Allotment**. Leaves without a startable step are left out
  * of `leaves`; every claimed step of a leaf the filter keeps is in `claimed`,
  * whatever the leaf's status, so a claim on work that has since stopped shows.
@@ -203,7 +188,7 @@ export interface StartableReads {
  * carries its standing copy, so it always fits. An unstated capacity never excludes; a stated 0 excludes any
  * demand on it. Occupancy is the project's only.
  *
- * @throws when a status, a person name, a team name or a stated capacity's
+ * @throws when required execution evidence, a status, a person name, a team name or a stated capacity's
  * resource is missing: each is read from the same observation as the rows, so
  * a miss is corrupt trusted state, never an empty answer.
  */
@@ -213,7 +198,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
   const order = treeOrder(rows);
   const numbers = deriveNumbers(rows);
   const teams = effectiveTeamsOf(rows);
-  const predecessors = predecessorLeavesOf(index, reads.dependencies);
+  const predecessors = reads.predecessorIdsByLeaf;
   const byId = new Map(rows.map((row) => [row.id, row]));
   const statusFor = (id: string): WorkItemStatus => {
     const status = statuses.get(id);
@@ -298,6 +283,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
       shortfall: refusal.asked - refusal.free,
     };
   };
+  const prerequisites: StepPrerequisites[] = [];
   const leaves: StartableLeaf[] = [];
   const doesNotFit: UnfitLeaf[] = [];
   const claimed: ClaimedStep[] = [];
@@ -309,6 +295,23 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     // its claimed leaf apart, and omits the unlabelled leaf` and two more cases
     // of startable.test.ts failed; watched 2026-10-19.
     if (teamId !== null && inForce?.teamIds.includes(teamId) !== true) continue;
+    for (const stepId of stepIds) {
+      const key = sliceKey(leafId, stepId);
+      const eligibility = reads.eligibilityByNode.get(key);
+      const evidence = reads.evidenceByNode.get(key);
+      if (eligibility === undefined || evidence === undefined)
+        throw new Error(`missing execution reading ${key}`);
+      // Proof: dropping finishBlockers failed mounted `FF permits start` (task-6-3-admission-proofs/finish-projection.log).
+      prerequisites.push({
+        workItemId: leafId,
+        stepId,
+        started: evidence.started,
+        canStart: eligibility.canStart,
+        canFinish: eligibility.canFinish,
+        startBlockers: projectExecutionBlockers(eligibility.startBlockers),
+        finishBlockers: projectExecutionBlockers(eligibility.finishBlockers),
+      });
+    }
     const address = addressOf(row);
     const free: string[] = [];
     for (const stepId of stepIds) {
@@ -330,6 +333,13 @@ export function findStartableWork(reads: StartableReads): StartableWork {
           claimedAt: holding.claimedAt,
         });
       } else if (!done.has(key)) {
+        const nodeKey = sliceKey(leafId, stepId);
+        const eligibility = reads.eligibilityByNode.get(nodeKey);
+        const evidence = reads.evidenceByNode.get(nodeKey);
+        if (eligibility === undefined || evidence === undefined)
+          throw new Error(`missing execution reading ${nodeKey}`);
+        // Proof: bypassing this filter made mounted `remote unfinished FS` advertise the blocked step (task-6-3-admission-proofs/startable-filter.log).
+        if (!evidence.started && !eligibility.canStart) continue;
         // Proof: with `!done.has(key)` removed (a done step counted free),
         // `leaves a done step out and keeps the other` failed; watched 2026-10-20.
         free.push(stepId);
@@ -355,12 +365,12 @@ export function findStartableWork(reads: StartableReads): StartableWork {
               return { teamId: each, name, fromId: inForce.fromId };
             }),
       // A leaf with no authored predecessor is absent from the map: none.
-      // Proof: with the `!== 'done'` filter removed, `names the unfinished
-      // predecessors of a startable leaf, and drops finished ones` failed;
+      // Proof: with the `!== 'done'` filter removed, the predecessor listing
+      // test (then named `names the unfinished predecessors...`) failed;
       // watched 2026-10-20.
-      unfinishedPredecessorIds: [...(predecessors.get(leafId) ?? [])]
-        .filter((each) => statusFor(each) !== 'done')
-        .sort(byPlace),
+      unfinishedPredecessorIds: [...(predecessors.get(leafId) ?? [])].filter(
+        (each) => statusFor(each) !== 'done',
+      ),
       subtreeClaim: nearestSubtreeClaim(row.parentId, byId, subtreeClaims, personOf),
     };
     const exhausted = exhaustedOf(leafId);
@@ -407,6 +417,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     },
   );
   return {
+    prerequisites,
     leaves,
     doesNotFit,
     claimed,

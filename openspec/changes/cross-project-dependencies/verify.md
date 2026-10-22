@@ -896,3 +896,23 @@ identity response contract is available. Existing SQLite, writer and HTTP
 boundary suites passed 110/110 (293 assertions). Removing the production
 connected-export refusal made its existing negative fail; restoration passed.
 This is evidence only: connected export/import remain inactive and 8.1 is open.
+
+## Task 6.3 — bounded execution admission integration
+
+The [admission evidence](evidence/task-6-3-admission-proofs/README.md) and
+[regression repair](evidence/task-6-3-regression-repair/README.md) describe the
+isolated packet. The [independent Astra review](evidence/task-6-3-admission-v2-review.md)
+approved bounded integration after an initial rejection. The reviewed source and regression
+patches were applied to the feature tree; the pre-existing detached tree
+projector was also updated to require captured `evidenceByNode` for every
+target slice. Removing that guard made its targeted production-path test fail
+before restoration. After integration, the eight-file admission and legacy
+regression suite passed 207/207 (855 assertions), the connected projector suite
+passed 23/23 (57 assertions), the frontend writer suite passed 19/19, and
+frontend/core/SQLite/backend TypeScript builds exited 0. The first sandboxed
+TypeScript/Vitest attempts could not write generated files and are not counted.
+Changed-source ESLint, Prettier and strict OpenSpec validation exited 0 after
+the independent review evidence was formatted.
+Mounted connected claim publication, shared-mode and full observation faults,
+MCP authenticated transport, full gate and CI remain open. Task 6.3 stays
+unchecked.

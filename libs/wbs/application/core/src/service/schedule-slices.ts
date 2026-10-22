@@ -25,7 +25,7 @@ export const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>
  * steps throw through the allowance/unit lookups rather than dropping effort.
  */
 export function slicesOf(
-  rows: readonly WorkItem[],
+  rows: readonly Omit<WorkItem, 'factStart' | 'factEnd'>[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
   /**

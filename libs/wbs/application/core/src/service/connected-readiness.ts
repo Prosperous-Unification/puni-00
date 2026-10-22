@@ -2,6 +2,7 @@ import {
   type ConnectedGraph,
   type ExecutionEligibility,
   executionEligibilityOf,
+  type ExecutionEvidence,
   indexTree,
   predecessorLeavesOf,
   rollUpProgress,
@@ -12,7 +13,9 @@ import {
   type WorkItemStatus,
 } from '@wbs/domain';
 
+import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 import { type NodeReadingProjection, projectNodeReadings } from './node-readings';
 import { workItemStatusesOf } from './work-item-statuses';
@@ -21,6 +24,7 @@ import { workItemStatusesOf } from './work-item-statuses';
 export interface ConnectedReadiness {
   readonly statuses: ReadonlyMap<string, WorkItemStatus>;
   readonly nodes: NodeReadingProjection;
+  readonly evidenceByNode: ReadonlyMap<string, ExecutionEvidence>;
   readonly eligibilityByNode: ReadonlyMap<string, ExecutionEligibility>;
   readonly predecessorIdsByLeaf: ReadonlyMap<string, readonly string[]>;
   readonly orderByWorkItem: ReadonlyMap<string, number>;
@@ -36,11 +40,32 @@ export function deriveConnectedReadiness(
   authored: ConnectedGraph,
   attemptsByProject: ReadonlyMap<string, readonly StoredAttempt[]>,
 ): ConnectedReadiness {
-  const members = [...capture.projects].sort(
-    (left, right) =>
-      left.rank - right.rank ||
-      (left.projectId < right.projectId ? -1 : left.projectId > right.projectId ? 1 : 0),
+  return deriveExecutionReadiness(
+    [...capture.projects].sort(
+      (left, right) => left.rank - right.rank || left.projectId.localeCompare(right.projectId),
+    ),
+    capture.relationships,
+    authored,
+    attemptsByProject,
   );
+}
+
+/** Project-owned live evidence required by the scheduler-free execution reading. */
+export interface ExecutionProject {
+  readonly projectId: string;
+  readonly reads: Pick<
+    PlanInputReads,
+    'workItems' | 'steps' | 'progress' | 'stepBlockages' | 'estimates' | 'actuals' | 'dependencies'
+  >;
+}
+
+/** Fold complete authorized live evidence without scheduling or fabricated project metadata. */
+export function deriveExecutionReadiness(
+  members: readonly ExecutionProject[],
+  relationships: readonly StoredTypedDependency[],
+  authored: ConnectedGraph,
+  attemptsByProject: ReadonlyMap<string, readonly StoredAttempt[]>,
+): ConnectedReadiness {
   const progress = new Map<string, 'unknown' | 'in_progress' | 'done'>();
   const attempts: StoredAttempt[] = [];
   const orderByWorkItem = new Map<string, number>();
@@ -73,7 +98,7 @@ export function deriveConnectedReadiness(
   const stated = members.flatMap((member) => [...member.reads.progress]);
   const dependencies = {
     edges: members.flatMap((member) => [...member.reads.dependencies]),
-    typed: capture.relationships,
+    typed: relationships,
   };
   const statuses = workItemStatusesOf(rows, progress, dependencies);
   const nodes = projectNodeReadings({
@@ -91,29 +116,29 @@ export function deriveConnectedReadiness(
   const attempted = new Set(
     attempts.map((attempt) => sliceKey(attempt.workItemId, attempt.stepId)),
   );
-  const eligibilityByNode = executionEligibilityOf(
-    authored.graph,
-    new Map(
-      authored.graph.nodes.map((node) => {
-        const key =
-          node.kind === 'step'
-            ? sliceKey(node.ref.workItemId, node.ref.stepId)
-            : sliceKey(node.workItemId, null);
-        const state = node.kind === 'step' ? statementOf.get(key) : progress.get(node.workItemId);
-        return [
-          key,
-          {
-            done: state === 'done',
-            started: state === 'done' || state === 'in_progress' || attempted.has(key),
-          },
-        ];
-      }),
-    ),
+  const evidenceByNode = new Map(
+    authored.graph.nodes.map((node) => {
+      const key =
+        node.kind === 'step'
+          ? sliceKey(node.ref.workItemId, node.ref.stepId)
+          : sliceKey(node.workItemId, null);
+      const state = node.kind === 'step' ? statementOf.get(key) : progress.get(node.workItemId);
+      return [
+        key,
+        {
+          done: state === 'done',
+          // Proof: omitting attempted.has(key) kept an ended failed SS predecessor blocked in mounted `SS observes ended unsuccessful attempts` (task-6-3-admission-proofs/attempt-evidence.log).
+          started: state === 'done' || state === 'in_progress' || attempted.has(key),
+        },
+      ];
+    }),
   );
+  const eligibilityByNode = executionEligibilityOf(authored.graph, evidenceByNode);
   const predecessors = predecessorLeavesOf(indexTree(rows), dependencies);
   return {
     statuses,
     nodes,
+    evidenceByNode,
     eligibilityByNode,
     predecessorIdsByLeaf: new Map(
       [...predecessors].map(([id, prior]) => [

@@ -78,3 +78,32 @@ export function executionEligibilityOf(
     ]),
   );
 }
+
+/** Stable resolved prerequisite identity for transport; workflow and legacy joins have no relationship row. */
+export interface ExecutionPrerequisite {
+  readonly workItemId: string;
+  readonly stepId: string | null;
+  readonly type: 'FS' | 'SS' | 'FF';
+  readonly provenance: 'workflow' | 'legacy' | 'authored';
+  readonly relationshipId: string | null;
+}
+
+/** New-start permission and the target's own actual start evidence, kept distinct. */
+export interface ExecutionAdmission {
+  readonly started: boolean;
+  readonly canStart: boolean;
+  readonly blockers: readonly ExecutionPrerequisite[];
+}
+
+/** Projects graph positions to stable authored identities without local ordering assumptions. */
+export function projectExecutionBlockers(
+  blockers: readonly ExecutionBlocker[],
+): ExecutionPrerequisite[] {
+  return blockers.map(({ predecessor, edge }) => ({
+    workItemId: predecessor.kind === 'step' ? predecessor.ref.workItemId : predecessor.workItemId,
+    stepId: predecessor.kind === 'step' ? predecessor.ref.stepId : null,
+    type: edge.type,
+    provenance: edge.provenance,
+    relationshipId: edge.provenance === 'authored' ? edge.relationshipId : null,
+  }));
+}

@@ -1,0 +1,14 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vitest.config" without a file extension (vitest.node.config.ts:3:24). Add the file extension
+  - import "./vitest.node-suites" without a file extension (vitest.node.config.ts:4:29). Add the file extension
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+  - JSON import "./vitest.node-suites.json" without import attributes (vitest.node-suites.ts:1:22). Add `with { type: 'json' }`
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-start-admission/apps/wbs/fe-01
+
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  09:39:43
+   Duration  5.22s (import 90%, transform 10%)

@@ -30,6 +30,22 @@ const leafSteps = {
 // are optional on the wire although this release always sends them: mid-swap a
 // new fe-01 or MCP client is answered by an outgoing be-01 that knows no fit.
 // be-01's own answer is held to them by startable-organization.controller.db.test.ts.
+const prerequisite = type({
+  workItemId: 'string',
+  stepId: 'string | null',
+  type: "'FS' | 'SS' | 'FF'",
+  provenance: "'workflow' | 'legacy' | 'authored'",
+  relationshipId: 'string | null',
+});
+const stepPrerequisites = type({
+  workItemId: 'string',
+  stepId: 'string',
+  started: 'boolean',
+  canStart: 'boolean',
+  canFinish: 'boolean',
+  startBlockers: prerequisite.array(),
+  finishBlockers: prerequisite.array(),
+});
 const startableLeaf = type({ ...leafSteps, 'fits?': 'true' });
 const unfitLeaf = type({
   ...leafSteps,
@@ -97,6 +113,7 @@ export const readStartableWork = defineEndpointShape({
       status: 200,
       schema: responseSchema(
         type({
+          'prerequisites?': stepPrerequisites.array(),
           leaves: startableLeaf.array(),
           'doesNotFit?': unfitLeaf.array(),
           claimed: claimedStep.array(),

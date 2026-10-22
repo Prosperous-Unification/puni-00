@@ -210,7 +210,7 @@ export * from './ports/step-parallel-store';
 export * from './service/connected-dependency-graph';
 export { deriveConnectedPlan } from './service/connected-plan';
 export type { ConnectedPlanCapture } from './service/connected-plan-values';
-export { deriveConnectedReadiness } from './service/connected-readiness';
+export { deriveConnectedReadiness, deriveExecutionReadiness } from './service/connected-readiness';
 export { createLocalDependencyContext } from './service/dependency-context';
 export { captureLocalTypedDependency } from './service/local-typed-dependency';
 export * from './service/numbered-work-item';

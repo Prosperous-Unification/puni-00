@@ -381,3 +381,32 @@ it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
     ]);
   },
 );
+
+it('reports a retained external prerequisite without retry or reread', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  let requests = 0;
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      requests += 1;
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: {
+            error: 'referenced_by_external_dependency',
+            at: 0,
+            kind: 'deleteWorkItem',
+            dependencyIds: ['retained-edge'],
+          },
+        }),
+      );
+    });
+  });
+  expect(outcome).toBe('refused');
+  expect(requests).toBe(1);
+  expect(recorded.rereads).toEqual([]);
+  expect(recorded.refusals).toEqual([
+    { sentence: 'That change could not be completed (referenced_by_external_dependency).' },
+  ]);
+});

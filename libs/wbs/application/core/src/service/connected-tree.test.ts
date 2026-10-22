@@ -298,6 +298,7 @@ describe('detached connected tree projection', () => {
         { ...captured.readiness, nodes: { ...captured.readiness.nodes, causes: new Map() } },
       ],
       ['eligibility', { ...captured.readiness, eligibilityByNode: new Map() }],
+      ['evidence', { ...captured.readiness, evidenceByNode: new Map() }],
     ] as const) {
       expect(() => projectConnectedTree({ ...captured, readiness }, 'B')).toThrow(name);
     }

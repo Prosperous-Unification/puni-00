@@ -219,6 +219,19 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'not_startable'", status: 'string' }),
+        type({
+          ...context,
+          // Proof: removing this arm failed the shared refusal validator and generated MCP prerequisite document tests (task-6-3-admission-proofs/refusal-shape.log).
+          error: "'prerequisites_unmet'",
+          stepIds: 'string[]',
+          blockers: type({
+            workItemId: 'string',
+            stepId: 'string | null',
+            type: "'FS' | 'SS' | 'FF'",
+            provenance: "'workflow' | 'legacy' | 'authored'",
+            relationshipId: 'string | null',
+          }).array(),
+        }),
         type({ ...context, error: "'step_done'", stepIds: 'string[]' }),
         type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'destination_claimed'", holders: claimHolder.array() }),

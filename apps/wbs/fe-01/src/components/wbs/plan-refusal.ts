@@ -493,6 +493,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // Proof: removing this case failed both sparse command writer cases (2026-10-17).
     case 'referenced_by_step_parallel':
       return refusal.error;
+    // Proof: omitting this arm made the retained-external-prerequisite writer test
+    // throw at unreachable instead of reporting refusal (2026-10-22).
+    case 'referenced_by_external_dependency':
+      return refusal.error;
     // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`): the table sends
     // neither yet, so these arrive only from a batch another client wrote.
     case 'runId_must_be_1_to_256_characters':
@@ -507,6 +511,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'parent_claim_foreign':
     case 'parent_claim_not_ancestor':
     case 'item_done':
+    case 'prerequisites_unmet':
     case 'not_startable':
     case 'step_done':
     case 'already_claimed':

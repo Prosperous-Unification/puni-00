@@ -135,6 +135,11 @@ export class CommandContext {
     switch (outcome.reason) {
       case 'not_startable':
         return this.refuse({ reason: outcome.reason, detail: { status: outcome.status } });
+      case 'prerequisites_unmet':
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { stepIds: [...outcome.stepIds], blockers: [...outcome.blockers] },
+        });
       case 'step_done':
         return this.refuse({ reason: outcome.reason, detail: { stepIds: [...outcome.stepIds] } });
       case 'already_claimed':

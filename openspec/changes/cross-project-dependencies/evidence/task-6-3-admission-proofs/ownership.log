@@ -1,0 +1,56 @@
+$ bun test libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts -t execution observation refuses foreign
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+243 |   expect(await reader().readExecution('a1', access, null)).toEqual({ kind: 'access_refused', refusal: 'not_a_member' });
+244 |   expect(await reader().readExecution('a1', { kind: 'legacy' }, null)).toEqual({ kind: 'access_refused', refusal: 'no_active_organization' });
+245 | });
+246 |
+247 | test('execution observation refuses foreign and absent targets alike', async () => {
+248 |   expect(await reader().readExecution('b1', access, null)).toEqual({ kind: 'not_found' });
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "kind": "not_found",
++   "kind": "ready",
++   "reads": {
++     "assignments": [],
++     "capacities": [],
++     "claims": [],
++     "demands": [],
++     "dependencies": {
++       "edges": [],
++       "typed": [],
++     },
++     "eligibilityByNode": Map {},
++     "evidenceByNode": Map {},
++     "nodes": {
++       "causes": Map {},
++       "readings": Map {},
++     },
++     "occupancy": [],
++     "orderByWorkItem": Map {},
++     "personNames": Map {},
++     "predecessorIdsByLeaf": Map {},
++     "resources": Map {},
++     "rows": [],
++     "stated": [],
++     "statuses": Map {},
++     "stepIds": [],
++     "teamId": null,
++     "teamNames": Map {},
++   },
+  }
+
+- Expected  - 1
++ Received  + 28
+
+      at <anonymous> (/tmp/puni-start-admission/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:248:60)
+(fail) execution observation refuses foreign and absent targets alike [155.06ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.12s]

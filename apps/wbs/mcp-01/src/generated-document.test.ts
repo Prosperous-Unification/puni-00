@@ -196,3 +196,13 @@ test('keeps browser current-context discovery out of generated MCP tools', () =>
   const names = toolsFromDocument(documentFromShapes(httpShapes)).map((tool) => tool.name);
   expect(names).not.toContain('getApiOrganizationActive');
 });
+
+test('generated command and startable documents expose execution prerequisites', () => {
+  const document = readDocument();
+  const paths = document.paths;
+  if (paths === undefined) throw new Error('Generated document paths are missing');
+  const serialized = JSON.stringify(paths['/api/projects/{id}/commands']);
+  expect(serialized).toContain('prerequisites_unmet');
+  expect(serialized).toContain('relationshipId');
+  expect(JSON.stringify(paths['/api/projects/{id}/startable'])).toContain('finishBlockers');
+});

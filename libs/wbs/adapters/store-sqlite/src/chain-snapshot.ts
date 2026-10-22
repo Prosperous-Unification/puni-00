@@ -35,6 +35,7 @@ import {
 } from './db';
 import { DirectoryRepository } from './directory';
 import { DrizzleEventLogStore } from './event-log';
+import { readExecutionIn } from './execution-read';
 import { OPEN } from './gate';
 import {
   type ActiveOrganizationOf,
@@ -395,6 +396,8 @@ export function createLivePlanStore(
     }
   }
   return {
+    readExecution: (projectId, access, teamId) =>
+      observe((db, lifetime) => readExecutionIn(db, projectId, access, teamId, lifetime)),
     read: (projectId, access) =>
       observe((db, lifetime) => readLivePlanIn(db, projectId, access, options, lifetime)),
     // Proof: bypassing this observation transaction for aggregate reads made the mounted

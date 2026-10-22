@@ -181,6 +181,35 @@ execution.
 - **WHEN** prerequisite evidence disagrees with that correction
 - **THEN** the correction remains permitted and visible as an authored observation rather than being represented as dependency-approved execution
 
+#### Scenario: All unfinished steps preserve all-or-none claim meaning
+
+- **GIVEN** a leaf has both permitted and prerequisite-blocked unfinished steps
+- **WHEN** a claim omits `steps`, or explicitly requests both kinds
+- **THEN** the whole claim is refused with `prerequisites_unmet`, blocked target step IDs and resolved predecessor identities, relationship types and provenance
+- **AND** no claim, progress, assignment, occupancy, journal, revision or event is written
+- **AND** explicitly selecting only a permitted step remains possible under the other claim rules
+
+#### Scenario: Continuing work and ownership remain distinct
+
+- **GIVEN** an upstream edit makes a prerequisite false after a target step actually started
+- **WHEN** that step is advertised or acquired by a new holder
+- **THEN** its own actual-start evidence preserves continuation while its prerequisite reading still reports the current unmet condition
+- **AND** an identical already-held claim remains idempotent
+- **AND** subtree ownership does not inspect descendant execution prerequisites
+
+#### Scenario: Claim redo recreates a governed start while historical restoration does not
+
+- **GIVEN** a claim recorded a new in-progress statement and was undone
+- **WHEN** redo observes its prerequisite unsatisfied
+- **THEN** redo refuses before restoring the claim or its progress
+- **AND** release undo with no recorded new statement preserves historical restoration semantics
+
+The bounded governed consumer is `claimWorkItem` and its new-statement replay.
+Historical `startAttempt`/`endAttempt`, manual progress/status and actual-date
+corrections remain authored observations under their existing policies. Claim
+`runId` remains ownership metadata. FF finish readings do not assert universal
+completion enforcement or introduce a new execution runner.
+
 ### Requirement: Alphabetic tokens enable bounded project autocomplete
 
 An empty current token or a token beginning with a digit SHALL offer only current-project candidates and SHALL NOT initiate external-project discovery. A token beginning with a letter SHALL enable bounded case-insensitive project autocomplete while retaining local title matches. Choosing a project SHALL establish an explicit search scope rather than create a relationship. Selecting an endpoint SHALL retain existing one-click and Customize semantics.
