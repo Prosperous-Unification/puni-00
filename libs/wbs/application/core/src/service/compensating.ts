@@ -15,6 +15,7 @@ import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Reparented } from '../ports/work-item-store';
 import type { CommandSubject, CompensatingCommand, JournalPayload } from './compensating-command';
 import { formatIncidentKey, mapIncidentNode } from './incident-node-transition';
+import { STEP_BLOCKAGE_REPLAY_KINDS } from './replay-capabilities';
 
 export type {
   AttemptKey,
@@ -26,6 +27,10 @@ export type {
   JournalPayload,
   RestoreSubtree,
 } from './compensating-command';
+export {
+  STEP_BLOCKAGE_REPLAY_CAPABILITIES,
+  STEP_BLOCKAGE_REPLAY_KINDS,
+} from './replay-capabilities';
 
 /**
  * `{workItemId: revision}`, for one moment in one entity's life — and, under
@@ -84,15 +89,6 @@ export interface Preconditions {
   expected: Revisions;
   from: Revisions;
 }
-
-export const STEP_BLOCKAGE_REPLAY_KINDS = ['replace_blockage'] as const;
-
-/** Persisted replay semantics understood by this image, distinct from command discriminators. */
-export const STEP_BLOCKAGE_REPLAY_CAPABILITIES = [
-  'replace_blockage',
-  'move_progress_v1',
-  'delete_state_v1',
-] as const;
 
 const COMMANDS = [
   'patch',
