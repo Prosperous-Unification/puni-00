@@ -50,6 +50,68 @@ const live = (capture: ConnectedPlanCapture = connectedCapture()): ConnectedRead
 };
 
 describe('detached connected tree projection', () => {
+  it('labels a descendant-step selector by its parent address without inventing a single-step reference', () => {
+    const a = connectedReads('A');
+    const capture = connectedCapture({
+      ...a,
+      steps: a.steps.map((step) => ({ ...step, code: 'dev' })),
+      workItems: [
+        { ...a.workItems[0], id: 'parent' },
+        { ...a.workItems[0], parentId: 'parent' },
+      ],
+    });
+    const captured = live({
+      ...capture,
+      relationships: capture.relationships.map((relationship) => ({
+        ...relationship,
+        predecessor: {
+          projectId: 'A',
+          workItemId: 'parent',
+          scope: 'descendant-step',
+          stepId: 'build',
+        },
+      })),
+    });
+    expect(projectConnectedTree(captured, 'B').dependencies[0]?.predecessor).toMatchObject({
+      endpoint: { projectId: 'A', workItemId: 'parent', scope: 'descendant-step', stepId: 'build' },
+      isLeaf: false,
+      workItemNumber: '010',
+      step: { id: 'build', code: 'dev', name: 'Build' },
+      stepReference: null,
+      stepNodeId: null,
+      qualifiedReference: 'A.010',
+    });
+  });
+
+  it.each(['abbreviation', 'row name', 'step name'] as const)(
+    'refuses null endpoint %s evidence',
+    (fault) => {
+      const capture = connectedCapture();
+      const captured = live({
+        ...capture,
+        relationships: capture.relationships.map((relationship) => ({
+          ...relationship,
+          predecessor: { projectId: 'A', scope: 'node', workItemId: 'a', stepId: 'build' },
+        })),
+      });
+      const metadata = structuredClone(captured.metadataByProject.get('A')!);
+      if (fault === 'abbreviation')
+        Object.defineProperty(metadata.project, 'abbreviation', { value: null });
+      if (fault === 'row name')
+        Object.defineProperty(metadata.workItems[0], 'name', { value: null });
+      if (fault === 'step name') Object.defineProperty(metadata.steps[0], 'name', { value: null });
+      expect(() =>
+        projectConnectedTree(
+          {
+            ...captured,
+            metadataByProject: new Map([...captured.metadataByProject, ['A', metadata]]),
+          },
+          'B',
+        ),
+      ).toThrow(`endpoint ${fault}`);
+    },
+  );
+
   it('keeps the genuine interleaved A design B build A test slice order', () => {
     const a = connectedReads('A');
     const capture = connectedCapture({

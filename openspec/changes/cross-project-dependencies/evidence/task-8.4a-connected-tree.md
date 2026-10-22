@@ -105,3 +105,43 @@ tree; it preserves the truthful placement discriminator for that integration.
 
 No mounted controller tests, full CI, browser checks, host gate, OpenSpec
 validation, deployment, push or merge were performed for this isolated packet.
+
+## Review correction — 2026-10-22
+
+Astra rejected the initial packet for two reproduced defects. A descendant-step
+selector was printed as a single-step address, contrary to the wbs-domain delta,
+and required endpoint labels accepted unexpected nulls. Four added regressions
+first failed against the original production projector: the descendant-step
+projection and null abbreviation, row-name and step-name cases.
+
+The corrected DTO retains the descendant-step endpoint's stable parent/project/
+step identity and `scope`, plus its step label. Its `stepReference` and
+`stepNodeId` are null; `qualifiedReference` is the qualified parent address
+(`A.010`), never a single-step address. This interpretation was sent to the
+integrator through root. Coded leaf-node references retain their exact previous
+spelling. A dedicated label guard rejects null required textual evidence;
+deliberately nullable step code remains accepted.
+
+Two restored faults were watched independently through the real projector:
+
+- Removing the null-label guard made all three null endpoint label tests fail
+  because malformed labels were accepted (exit 1).
+- Restoring the old non-whole reference formatting made the descendant-step
+  test fail on its expected null step reference and qualified parent address
+  (exit 1).
+
+Both were restored before final checks. Logs:
+`/tmp/puni-connected-tree-correction-null-label-refusal.log` and
+`/tmp/puni-connected-tree-correction-descendant-single-step-address.log`.
+Adjacent `Proof:` comments identify these observed negatives.
+
+Fresh corrected-packet verification:
+
+- Combined projector/connected-plan/connected-readiness: 54 pass, 0 fail,
+  146 assertions (176 ms); focused projector: 23 pass, 0 fail.
+- Core lib+spec `bunx tsc --build --force` command above: exit 0.
+- Named-source/test ESLint command above: exit 0, no diagnostics.
+- `git diff --check`: exit 0.
+
+The initial full lint failure remains unresolved and was not reclassified as
+passing. All previously listed mounted integration and gate limits remain.

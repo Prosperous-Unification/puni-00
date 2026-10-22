@@ -18,7 +18,11 @@ type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 type ConnectedMetadata =
   ConnectedRead['metadataByProject'] extends ReadonlyMap<string, infer M> ? M : never;
 
-/** Uncoded steps retain stable navigation identities and explicitly have no printable reference. */
+/**
+ * Node references name individual leaf steps; descendant-step references name
+ * the parent address and retain scope/step identity as a selector. Uncoded nodes
+ * retain stable navigation identities without a printable step reference.
+ */
 export interface ConnectedTreeEndpoint extends EndpointEvidence {
   readonly qualifiedReference: string | null;
   readonly stepReference: string | null;
@@ -52,6 +56,12 @@ function requireEvidence<T>(value: T | undefined, name: string): T {
   // Proof: removing this guard made `refuses absent row status` return an undefined status instead of refusing.
   if (value === undefined) throw new Error(`missing connected tree ${name}`);
   return value;
+}
+
+function requireLabel(value: string | null | undefined, name: string): string {
+  // Proof: removing null refusal made all three `refuses null endpoint ... evidence` cases accept malformed labels.
+  if (value === null) throw new Error(`missing connected tree ${name}`);
+  return requireEvidence(value, name);
 }
 
 /**
@@ -164,11 +174,11 @@ export function projectConnectedTree(
     }
     const workItemNumber = requireEvidence(numbers.get(row.id), `endpoint number ${row.id}`);
     // Proof: undefined abbreviation and row-name injections were accepted before these refusals; both `refuses absent endpoint ... evidence` cases failed.
-    const abbreviation = requireEvidence(
+    const abbreviation = requireLabel(
       own.project.abbreviation,
       `endpoint abbreviation ${endpoint.projectId}`,
     );
-    const name = requireEvidence(row.name, `endpoint row name ${row.id}`);
+    const name = requireLabel(row.name, `endpoint row name ${row.id}`);
     const steps = [...own.steps].sort((left, right) => left.position - right.position);
     const step =
       endpoint.scope === 'whole'
@@ -179,15 +189,16 @@ export function projectConnectedTree(
           );
     if (step !== null) {
       // Proof: undefined step-name and step-code injections were accepted as endpoint evidence before these refusals; both named absence cases failed.
-      requireEvidence(step.name, `endpoint step name ${step.id}`);
+      requireLabel(step.name, `endpoint step name ${step.id}`);
       requireEvidence(step.code, `endpoint step code ${step.id}`);
     }
     const stepReference =
       // Proof: replacing workItemNumber with '010' failed the remote own-number assertion in `projects incoming and outgoing incident labels`.
-      step?.code == null
+      // Proof: restoring non-whole single-step formatting failed `labels a descendant-step selector` on its null step reference and parent address.
+      endpoint.scope !== 'node' || step?.code == null
         ? null
         : formatStepReference(workItemNumber, step.code, steps.indexOf(step) + 1, steps.length);
-    const reference = endpoint.scope === 'whole' ? workItemNumber : stepReference;
+    const reference = endpoint.scope === 'node' ? stepReference : workItemNumber;
     return {
       endpoint: { ...endpoint },
       isLeaf: !own.workItems.some((candidate) => candidate.parentId === row.id),
