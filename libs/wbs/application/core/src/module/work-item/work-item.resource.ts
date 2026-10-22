@@ -209,6 +209,7 @@ import {
   refusalOf,
   type ReleaseInput,
 } from './claims';
+import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-dependencies';
 import { findPersonWork, type PersonWork } from './person-work';
 import { findStartableWork, type StartableWork } from './startable';
 
@@ -4194,10 +4195,10 @@ export class WorkItemService {
    *   frozen row. Two rows answering one ticket is the failure freezing
    *   exists to prevent. The original is untouched, so a frozen work item can
    *   still be duplicated: copying is not moving.
-   * - **Only internal dependencies.** Legacy and typed relationships with one
-   *   end outside the subtree are left behind. Internal typed relationships
-   *   receive new IDs and address the copied work items; their scopes, steps
-   *   and type stay the same.
+   * - Legacy dependencies copy only when both ends are inside. Typed prerequisites
+   *   copy with their successor: internal endpoints remap, outside predecessors
+   *   retain their authorized scoped identity, and every copied link has a new ID.
+   *   Outgoing links to successors outside the subtree stay with their original.
    *
    * Direct step blockage belongs to the original work and is omitted from copies.
    * Proof: injecting copied facts failed the blocked leaf/descendant regression;
@@ -4339,27 +4340,38 @@ export class WorkItemService {
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
       }));
-    const copiedTyped = typed
-      // Proof: 2026-09-28, admitting either outside endpoint made the mounted
-      // copy test receive 500 instead of 200 (no copy exists for X).
-      .filter(
-        (dependency) =>
-          inside.has(dependency.predecessor.workItemId) &&
-          inside.has(dependency.successor.workItemId),
-      )
-      .map((dependency) => ({
-        ...dependency,
-        id: this.clock.newId(),
-        // Proof: 2026-09-27, retaining C1's source id failed the mounted copy test's copied-predecessor assertion.
-        predecessor: {
-          ...dependency.predecessor,
-          workItemId: copyOf(dependency.predecessor.workItemId),
-        },
-        successor: {
-          ...dependency.successor,
-          workItemId: copyOf(dependency.successor.workItemId),
-        },
-      }));
+    const selection = {
+      sourceProjectId: workItem.projectId,
+      destinationProjectId: workItem.projectId,
+      workItemIds: newIds,
+      stepIds: new Map(
+        (await this.opts.projects.stepsOf(workItem.projectId)).map((step) => [step.id, step.id]),
+      ),
+    };
+    const selected = selectCopiedDependencies(typed, selection);
+    const checked = await withDependencyContext(
+      this.opts.dependencyContext,
+      workItem.projectId,
+      actorId,
+      async (dependencyContext) => {
+        // Proof: skipping source evidence changed the absent-row copy's modeled
+        // refusal into a later recording throw; watched 2026-10-22.
+        const evidence = await this.typedEvidence(dependencyContext, workItem.projectId, selected);
+        if (!evidence.ok) return evidence;
+        // Proof: bypassing current capability made the production mounted dormant
+        // copy return 200 instead of 409 with zero expected changes, 2026-10-22.
+        if (
+          selected.some((dependency) => dependency.predecessor.projectId !== workItem.projectId) &&
+          !permitsExternalDependencies(this.opts.externalDependencyAuthoring)
+        )
+          return { ok: false as const, reason: 'external_dependencies_inactive' as const };
+        return evidence;
+      },
+    );
+    if (!checked.ok) return checked;
+    const copiedTyped = selected.map((dependency) =>
+      remapCopiedDependency(dependency, selection, this.clock.newId()),
+    );
 
     // Proof: bypassing this call failed `connected duplicate refuses an injected failed graph read`
     // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
@@ -4473,10 +4485,21 @@ export class WorkItemService {
                   deleteCopy,
                 ],
               },
-        // Every copied row, including endpoint revisions bumped by copied
-        // typed relationships. Later writes to the copy make undo refuse.
-        touched: copyIds,
+        // Proof: dropping retained local predecessors failed the mounted copy's
+        // exact from[X] revision and touched-identity assertions, 2026-10-22.
+        touched: [
+          ...new Set([
+            ...copyIds,
+            ...copiedTyped
+              .flatMap((dependency) => [dependency.predecessor, dependency.successor])
+              .filter((endpoint) => endpoint.projectId === workItem.projectId)
+              .map((endpoint) => endpoint.workItemId),
+          ]),
+        ],
         before: rows,
+        // Proof: dropping this evidence made the admitted semantic copy throw
+        // journal external revision coverage is not exact; watched 2026-10-22.
+        externalBefore: checked.externalBefore,
       },
     );
     return { ok: true, value: { id: copyOf(id) } };

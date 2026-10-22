@@ -1147,3 +1147,14 @@ this change passed 1/1 with no issues, and normal repository-wide validation
 passed 268/268. Repository-wide strict validation still reports unrelated
 existing warnings. No runtime activation, deploy or host gate is claimed by
 this documentation correction.
+
+## Task 8.2 bounded subtree copy packet
+
+Subtree implementation and scoped evidence: [task-8-subtree-copy.md](evidence/task-8-subtree-copy.md).
+This packet preserves typed prerequisites of copied successors, exact local and
+remote revision preconditions, atomic graph/admission/persistence refusal, and
+stable compensation IDs. Active positives are explicitly admitted semantic
+fixtures; production mounted external copy remains a 409. Whole-project copy
+still depends on task 8.1; task 8.2 remains unchecked. Host gate and mounted MCP
+copy equivalence are unverified in this packet. The evidence records the
+separately reproduced pre-existing command-fixture failure and follow-up repair.

@@ -664,20 +664,26 @@ describe('working plan dependency mutations through runner commands', () => {
             return rows;
           },
         };
-        const typedDependencies = {
-          ...scope.stores.typedDependencies,
-          listByProject: async (requestedProjectId: string) => {
-            const rows = await scope.stores.typedDependencies.listByProject(requestedProjectId);
-            if (updates === 1) observedAfterEdit.push(...rows);
-            return rows;
+        // Retained incidents intentionally throws when read; observing two methods
+        // must preserve the getter without evaluating it during fixture composition.
+        const typedDependencies = new Proxy(scope.stores.typedDependencies, {
+          get(dependencies, property) {
+            if (property === 'listByProject')
+              return async (requestedProjectId: string) => {
+                const rows = await dependencies.listByProject(requestedProjectId);
+                if (updates === 1) observedAfterEdit.push(...rows);
+                return rows;
+              };
+            if (property === 'update')
+              return async (
+                ...parameters: Parameters<PlanTransactionalStores['typedDependencies']['update']>
+              ) => {
+                await dependencies.update(...parameters);
+                updates += 1;
+              };
+            return Reflect.get(dependencies, property, dependencies) as unknown;
           },
-          update: async (
-            ...parameters: Parameters<PlanTransactionalStores['typedDependencies']['update']>
-          ) => {
-            await scope.stores.typedDependencies.update(...parameters);
-            updates += 1;
-          },
-        };
+        });
         return compose({ ...scope.stores, workItems, typedDependencies }, broadcast);
       });
       const committed = await runner.run(projectId, OWNER, [
