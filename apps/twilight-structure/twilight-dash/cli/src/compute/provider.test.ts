@@ -12,6 +12,8 @@ import {
   type ProviderAdapter,
   type ProviderAdapters,
 } from './configuration';
+import { dockerAdapter } from './docker';
+import { kubernetesStubAdapter } from './kubernetes';
 import type { ComputeProvider, Measure, Measurement, ResourceBinding } from './provider';
 import { fakeCredential } from './testing/credential';
 
@@ -50,6 +52,7 @@ function recordingAdapter(
 ): ProviderAdapter & { opened: InstanceSettings[] } {
   const opened: InstanceSettings[] = [];
   return {
+    isStub: false,
     measures,
     opened,
     open: (settings) => {
@@ -318,5 +321,152 @@ describe('loading a reporter configuration', () => {
       message: expect.stringContaining('h4claw-slots') as string,
     });
     expect(adapter.opened).toEqual([]);
+  });
+
+  test('refuses a kubernetes instance provider_not_implemented, naming it, before its stub opens', async () => {
+    const stub = kubernetesStubAdapter();
+    const opened: string[] = [];
+    const refusal = await refusalOf(
+      writeConfiguration(
+        configuration({
+          instances: [
+            {
+              instanceId: 'cluster-1',
+              kind: 'kubernetes',
+              bindings: [{ resourceId: 'cluster-ram', measure: 'memory_gib' }],
+            },
+          ],
+        }),
+      ),
+      {
+        kubernetes: {
+          ...stub,
+          open: (settings) => {
+            opened.push(settings.instanceId);
+            return stub.open(settings);
+          },
+        },
+      },
+    );
+    expect(refusal).toEqual({
+      reason: 'provider_not_implemented',
+      message: expect.stringContaining('instance cluster-1 is a kubernetes') as string,
+    });
+    expect(opened).toEqual([]);
+  });
+
+  test('the kubernetes stub answers not_implemented from every method', async () => {
+    const stub = await kubernetesStubAdapter().open({
+      instanceId: 'cluster-1',
+      kind: 'kubernetes',
+      bindings: [],
+    });
+    expect(stub.capabilities.runs).toBe(true);
+    expect([...stub.capabilities.measures].sort()).toEqual([
+      'agent_slots',
+      'cpu_cores',
+      'disk_gib',
+      'memory_gib',
+    ]);
+    expect(await stub.observe({ resourceId: 'r', measure: 'memory_gib' }, NOW)).toEqual({
+      kind: 'not_implemented',
+      observedAt: NOW,
+    });
+    expect(await stub.run({ command: ['true'], environment: {} }, NOW)).toEqual({
+      kind: 'not_implemented',
+    });
+  });
+
+  test('opens a docker instance with its context and image through the real adapter', async () => {
+    const loaded = await loadReporterConfiguration(
+      writeConfiguration(
+        configuration({
+          instances: [
+            {
+              instanceId: 'h4claw-docker',
+              kind: 'docker',
+              dockerContext: 'h4claw',
+              runImage: 'ghcr.io/puni/agent:1.2@sha256:abc',
+              bindings: [
+                { resourceId: 'docker-ram', measure: 'memory_gib' },
+                { resourceId: 'docker-disk', measure: 'disk_gib', ceilingGib: 200 },
+              ],
+            },
+          ],
+        }),
+      ),
+      { docker: dockerAdapter({ dockerExecutable: '/nonexistent/docker', environment: {} }) },
+    );
+    const [instance] = loaded.instances;
+    expect(instance.provider.kind).toBe('docker');
+    expect(instance.provider.capabilities.runs).toBe(true);
+  });
+
+  test('refuses a docker disk binding without ceilingGib or with a path config_malformed', async () => {
+    const docker = (bindings: unknown[], extra: Record<string, unknown> = {}) =>
+      writeConfiguration(
+        configuration({
+          instances: [
+            {
+              instanceId: 'h4claw-docker',
+              kind: 'docker',
+              dockerContext: 'h4claw',
+              bindings,
+              ...extra,
+            },
+          ],
+        }),
+      );
+    const adapters = { docker: recordingAdapter(), ssh_host: recordingAdapter() };
+    for (const bindings of [
+      [{ resourceId: 'disk', measure: 'disk_gib' }],
+      [{ resourceId: 'disk', measure: 'disk_gib', path: '/var/lib/docker' }],
+      [{ resourceId: 'disk', measure: 'disk_gib', path: '/', ceilingGib: 200 }],
+      [{ resourceId: 'ram', measure: 'memory_gib', ceilingGib: 200 }],
+    ]) {
+      expect(await refusalOf(docker(bindings), adapters), JSON.stringify(bindings)).toMatchObject({
+        reason: 'config_malformed',
+      });
+    }
+    // An ssh_host disk binding still takes a path, never a ceiling.
+    const sshDisk = writeConfiguration(
+      configuration({
+        instances: [
+          {
+            instanceId: 'h4claw',
+            kind: 'ssh_host',
+            bindings: [{ resourceId: 'disk', measure: 'disk_gib', ceilingGib: 200 }],
+          },
+        ],
+      }),
+    );
+    expect(await refusalOf(sshDisk, adapters)).toMatchObject({ reason: 'config_malformed' });
+  });
+
+  test('refuses a docker context or image that could read as a flag config_malformed', async () => {
+    for (const extra of [
+      { dockerContext: '-H=tcp://evil' },
+      { dockerContext: 'h4claw', runImage: '--privileged' },
+      { dockerContext: 'x'.repeat(65) },
+      { dockerContext: 'a' },
+    ]) {
+      const refusal = await refusalOf(
+        writeConfiguration(
+          configuration({
+            instances: [
+              {
+                instanceId: 'h4claw-docker',
+                kind: 'docker',
+                bindings: [{ resourceId: 'ram', measure: 'memory_gib' }],
+                ...extra,
+              },
+            ],
+          }),
+        ),
+        { docker: recordingAdapter() },
+      );
+      expect(refusal, JSON.stringify(extra)).toMatchObject({ reason: 'config_malformed' });
+      expect(refusal.message).not.toContain('evil');
+    }
   });
 });

@@ -77,21 +77,30 @@ them. The audit vocabulary is widened by one compatible rebuild
 
 ## 3. Dash: Docker adapter
 
-- [ ] 3.1 `docker` adapter: `docker info`, `docker stats --no-stream` over the instance
+- [x] 3.1 `docker` adapter: `docker info`, `docker stats --no-stream` over the instance
       label, `docker system df`, `run` as `docker run --rm` with the label. Red: fixture
       transcripts for each command, a daemon that refuses the socket (`unreachable`), a
       `docker info` without `MemTotal` (throws). R5 fault line: sum usage over all containers
       instead of the labelled ones and the two-instance fixture over-reports; watched.
+      As shipped: `docker ps --filter label=…` names the labelled containers, since
+      `docker stats` cannot filter; `disk_gib` capacity is the binding's `ceilingGib`; `run`
+      needs the instance's `runImage`; `agent_slots` is not a docker measure. The in-gate cases
+      run against a fixture `docker` CLI; the laptop daemon is the rehearsal (verify.md).
 
 ## 4. Dash: Kubernetes stub and the PUNI pool slot
 
-- [ ] 4.1 `kubernetes` stub answering `not_implemented` from every method; the loader refuses
+- [x] 4.1 `kubernetes` stub answering `not_implemented` from every method; the loader refuses
       `provider_not_implemented` before dialling. Red: the loader case; the stub's methods are
       never reached by the reporter (spy). R5 fault line: let the loader accept the stub and
       the reporter sends a body WBS refuses `400 invalid_body`; watched.
-- [ ] 4.2 `puni_pool`: the kind in WBS (`compute_provider.kind` CHECK, slice 1.1) and in the
+- [x] 4.2 `puni_pool`: the kind in WBS (`compute_provider.kind` CHECK, slice 1.1) and in the
       port's `ProviderKind`; no adapter; loader refuses `provider_kind_not_available`. Red: the
       loader case; a WBS instance of that kind registers and is listed.
+
+Slice 4 notes: the stub's refusal is the loader's (`ProviderAdapter.isStub`), checked before the
+adapter opens; `run` answers `{ kind: 'not_implemented' }` through a widened return type
+(`AgentRunHandle` gained `kind: 'started'`). The kubernetes stub reads no kube context or
+namespace. The pool loader case and its proof are slice 2's; slice 4 adds the WBS listing.
 
 ## 5. fe-01: panel, resources section, directory row (after `wbs-resources` 1.5)
 

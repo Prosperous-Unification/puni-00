@@ -49,16 +49,28 @@ const StoredReport = type({ providerId: 'string', observedAt: 'number' });
 const Superseded = type({ error: "'report_superseded'", storedObservedAt: 'number' });
 const RefusalBody = type({ error: 'string', 'providerId?': 'string | null', 'skewMs?': 'number' });
 
-/** The body of one report: the measurement without its Dash-only evidence. */
+/**
+ * The body of one report: the measurement without its Dash-only evidence. A stub's
+ * `not_implemented` is carried as it is, which WBS refuses `400 invalid_body`; the loader refuses
+ * a stub before any observation, so only a broken loader reaches that refusal.
+ */
 function reportBody(measurement: Measurement, cadenceSeconds: number): string {
-  const outcome =
-    measurement.kind === 'measured'
-      ? {
-          kind: 'measured',
-          capacityUnits: measurement.capacityUnits,
-          usageUnits: measurement.usageUnits,
-        }
-      : { kind: 'unreachable', reason: measurement.reason };
+  let outcome: Record<string, unknown>;
+  switch (measurement.kind) {
+    case 'measured':
+      outcome = {
+        kind: 'measured',
+        capacityUnits: measurement.capacityUnits,
+        usageUnits: measurement.usageUnits,
+      };
+      break;
+    case 'unreachable':
+      outcome = { kind: 'unreachable', reason: measurement.reason };
+      break;
+    case 'not_implemented':
+      outcome = { kind: 'not_implemented' };
+      break;
+  }
   return JSON.stringify({ observedAt: measurement.observedAt, cadenceSeconds, outcome });
 }
 
@@ -261,7 +273,9 @@ async function reportInstance(
 /**
  * Runs one reporting loop per configured instance until the first ends; the others stop at their
  * next step and the first end is thrown. A loop notices the stop at its next step, so it may end
- * up to one request timeout plus one command deadline late (two hard-coded 30 s constants). It
+ * up to one request timeout plus one observation late. An observation runs up to three commands
+ * one after another, each under its own command deadline (a `docker` memory or cores observation:
+ * `info`, `ps`, `stats`), so with the hard-coded 30 s constants that is up to 30 s + 90 s. It
  * never returns normally and never prints the credential.
  * @throws ReporterExit for `another_reporter`, a WBS refusal, or WBS unavailable after one retry;
  * a provider's error for a measurement it could not parse.

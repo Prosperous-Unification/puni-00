@@ -61,6 +61,9 @@ test('only clock.ts reads the wall clock', () => {
   // with `+ "compute/report-capacity.ts"` (2026-10-22).
   for (const path of [
     'compute/configuration.ts',
+    'compute/docker.ts',
+    'compute/execution.ts',
+    'compute/kubernetes.ts',
     'compute/provider.ts',
     'compute/report-capacity.ts',
     'compute/ssh-host.ts',
@@ -68,6 +71,7 @@ test('only clock.ts reads the wall clock', () => {
     expect(modules).toContain(path);
   }
   expect(modules).not.toContain('compute/testing/ssh-fixture.ts');
+  expect(modules).not.toContain('compute/testing/docker-fixture.ts');
   const readers = [
     ...new Set(
       modules.flatMap((path) =>

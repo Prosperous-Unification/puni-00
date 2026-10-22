@@ -84,20 +84,26 @@ export interface InstanceSettings {
   readonly bindings: readonly ResourceBinding[];
   readonly host?: string;
   readonly sshTransportFile?: string;
+  readonly dockerContext?: string;
+  readonly runImage?: string;
 }
 
 /**
- * What builds a provider of one kind. `measures` is consulted before `open`, so an unsupported
- * binding is refused without reading the adapter's own inputs; `open` reads only local state.
+ * What builds a provider of one kind. `isStub` and `measures` are consulted before `open`, so a
+ * stub or an unsupported binding is refused without reading the adapter's own inputs; `open` reads
+ * only local state.
  */
 export interface ProviderAdapter {
+  /** True for an adapter whose every method answers `not_implemented` (`kubernetes`, P9). */
+  readonly isStub: boolean;
   readonly measures: ReadonlySet<Measure>;
   open(settings: InstanceSettings): Promise<ComputeProvider>;
 }
 
 /**
  * The adapters this Dash carries. `puni_pool` is a slot with no adapter and never appears here
- * (`compute-providers` P9); a kind that is absent is refused `provider_not_implemented`.
+ * (`compute-providers` P9); a kind that is absent, or whose adapter is a stub, is refused
+ * `provider_not_implemented`.
  */
 export type ProviderAdapters = Partial<Record<Exclude<ProviderKind, 'puni_pool'>, ProviderAdapter>>;
 
@@ -105,6 +111,13 @@ const DEFAULT_CADENCE_SECONDS = 300;
 const MAX_CONFIGURATION_BYTES = 64 * 1024;
 const Identifier = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const AbsolutePath = /^\/[A-Za-z0-9._/-]*$/;
+// Docker's own context-name rule (`^[a-zA-Z0-9][a-zA-Z0-9_.+-]+$`, two characters at least),
+// bounded; the first character keeps it from reading as a flag.
+// Proof: `{0,63}` made `refuses a docker context or image that could read as a flag
+// config_malformed` load the one-character context `a` (2026-10-23).
+const DockerContext = /^[A-Za-z0-9][A-Za-z0-9_.+-]{1,63}$/;
+// An image reference (`registry/repository:tag@digest`), bounded, never starting with `-`.
+const ImageReference = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/;
 // The key shape `libs/wbs/application/core/src/service/machine-key.ts` mints.
 const MachineKey =
   /^wbs_mk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
@@ -115,6 +128,7 @@ const Binding = type({
   measure: type.enumerated(...MEASURES),
   'path?': AbsolutePath,
   'slots?': '1 <= number.integer <= 10000',
+  'ceilingGib?': '1 <= number.integer <= 1000000',
 }).onUndeclaredKey('reject');
 
 const Instance = type({
@@ -123,6 +137,8 @@ const Instance = type({
   bindings: Binding.array().atLeastLength(1),
   'host?': 'string',
   'sshTransportFile?': 'string',
+  'dockerContext?': DockerContext,
+  'runImage?': ImageReference,
 }).onUndeclaredKey('reject');
 
 const Configuration = type({
@@ -220,16 +236,36 @@ function readOrigin(path: string, source: string): string {
   return origin.origin;
 }
 
-/** The measure-specific fields: `path` exactly for `disk_gib`, `slots` exactly for `agent_slots`. */
-function checkBinding(path: string, instanceId: string, binding: ResourceBinding): void {
-  const wantsPath = binding.measure === 'disk_gib';
+/**
+ * The measure-specific fields: `slots` exactly for `agent_slots`; for `disk_gib`, `ceilingGib`
+ * exactly on a `docker` instance (its disk answer has no capacity) and `path` exactly otherwise.
+ */
+function checkBinding(
+  path: string,
+  instanceId: string,
+  kind: ProviderKind,
+  binding: ResourceBinding,
+): void {
+  const wantsCeiling = binding.measure === 'disk_gib' && kind === 'docker';
+  const wantsPath = binding.measure === 'disk_gib' && !wantsCeiling;
   const wantsSlots = binding.measure === 'agent_slots';
-  if (wantsPath !== (binding.path !== undefined) || wantsSlots !== (binding.slots !== undefined)) {
+  // Proof: dropping the `ceilingGib` comparison made `refuses a docker disk binding without
+  // ceilingGib or with a path config_malformed` load the docker binding without one (2026-10-22).
+  if (
+    wantsPath !== (binding.path !== undefined) ||
+    wantsSlots !== (binding.slots !== undefined) ||
+    wantsCeiling !== (binding.ceilingGib !== undefined)
+  ) {
+    const wanted = wantsPath
+      ? 'a path'
+      : wantsSlots
+        ? 'slots'
+        : wantsCeiling
+          ? 'ceilingGib'
+          : 'none of path, slots and ceilingGib';
     throw new ConfigurationRefusal(
       'config_malformed',
-      `${path}: instance ${instanceId} resource ${binding.resourceId} measure ${binding.measure} takes ${
-        wantsPath ? 'a path' : wantsSlots ? 'slots' : 'neither path nor slots'
-      }`,
+      `${path}: instance ${instanceId} resource ${binding.resourceId} measure ${binding.measure} takes ${wanted}`,
     );
   }
 }
@@ -283,7 +319,7 @@ export async function loadReporterConfiguration(
         );
       }
       resourceIds.add(binding.resourceId);
-      checkBinding(path, instance.instanceId, binding);
+      checkBinding(path, instance.instanceId, instance.kind, binding);
     }
   }
   const instances: ReporterInstance[] = [];
@@ -302,6 +338,15 @@ export async function loadReporterConfiguration(
       throw new ConfigurationRefusal(
         'provider_not_implemented',
         `instance ${instance.instanceId} is a ${kind}, which this Dash cannot report yet`,
+      );
+    }
+    // A stub would answer `not_implemented`, a body WBS refuses `400 invalid_body` (P9).
+    // Proof: skipping this check made `refuses a kubernetes instance at startup, never reaching
+    // the stub` reach the stub's methods and end `refused: … HTTP 400 invalid_body` (2026-10-22).
+    if (adapter.isStub) {
+      throw new ConfigurationRefusal(
+        'provider_not_implemented',
+        `instance ${instance.instanceId} is a ${kind}, whose adapter is a stub this Dash cannot report from`,
       );
     }
     const unsupported = instance.bindings.find((binding) => !adapter.measures.has(binding.measure));
