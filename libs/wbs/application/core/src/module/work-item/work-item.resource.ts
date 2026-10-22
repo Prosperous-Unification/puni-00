@@ -495,6 +495,7 @@ function finalsOf(charged: ReadonlyMap<string, ChargedEstimate>): {
 export type DeleteStrategy = 'cascade' | 'promote';
 
 export type WorkItemRefusal =
+  | 'project_deleting'
   | 'external_dependencies_inactive'
   | 'referenced_by_external_dependency'
   | 'not_found'
@@ -6666,6 +6667,10 @@ export class WorkItemService {
       async (context) => {
         const evidence = await this.typedEvidence(context, projectId, [proposed]);
         if (!evidence.ok) return evidence.reason;
+        // Proof: bypassing this consumer restored mounted pending-endpoint add/update
+        // HTTP500 instead of modeled HTTP409; all-table refusal snapshots pass (2026-10-22).
+        if (await this.opts.typedDependencies.hasDeletingEndpoint(proposed))
+          return 'project_deleting';
         if (proposed.predecessor.projectId !== projectId && !this.externalDependenciesActive)
           return 'external_dependencies_inactive';
         if (

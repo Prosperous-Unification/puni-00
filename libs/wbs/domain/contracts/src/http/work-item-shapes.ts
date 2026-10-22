@@ -197,6 +197,8 @@ const batchRefusals = [
         type({ ...context, error: "'self_node'" }),
         type({ ...context, error: "'not_a_parent'" }),
         type({ ...context, error: "'external_dependencies_inactive'" }),
+        // Proof: removing this arm made mounted pending-endpoint add/update return HTTP500 (2026-10-22).
+        type({ ...context, error: "'project_deleting'" }),
         type({ ...context, error: "'duplicate_dependency'" }),
         type({ ...context, error: "'too_large'" }),
         // `setStatus` refusals (`add-work-item-statuses`).

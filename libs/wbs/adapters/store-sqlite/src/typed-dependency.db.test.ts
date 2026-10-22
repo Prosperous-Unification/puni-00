@@ -407,3 +407,29 @@ describe('TypedDependencyRepository', () => {
     }
   });
 });
+
+it('refuses absent endpoint project state during typed authoring admission', async () => {
+  const dependency = link('a', 'b');
+  expect(
+    await rejection(
+      repo.hasDeletingEndpoint({
+        ...dependency,
+        predecessor: { projectId: 'absent-project', workItemId: 'a', scope: 'whole' },
+      }),
+    ),
+  ).toContain('missing endpoint project absent-project');
+});
+
+it('refuses unreadable endpoint project state during typed authoring admission', async () => {
+  const native = openDatabase(path);
+  try {
+    native.run(
+      'ALTER TABLE project RENAME COLUMN optimization_delete_pending_at TO broken_pending_at',
+    );
+  } finally {
+    native.close();
+  }
+  expect(await rejection(repo.hasDeletingEndpoint(link('a', 'b')))).toContain(
+    'unreadable endpoint project deletion state',
+  );
+});

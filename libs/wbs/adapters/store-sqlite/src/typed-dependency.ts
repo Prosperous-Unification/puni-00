@@ -343,6 +343,32 @@ export class TypedDependencyRepository implements TypedDependencyStore {
     private readonly gate: Gate,
   ) {}
 
+  /** {@link TypedDependencyStore.hasDeletingEndpoint} on the caller's borrowed writer. */
+  async hasDeletingEndpoint(row: StoredTypedDependency): Promise<boolean> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      let deleting = false;
+      for (const endpoint of [row.predecessor, row.successor]) {
+        const target = tx
+          .select({ pendingAt: project.optimizationDeletePendingAt })
+          .from(project)
+          .where(eq(project.id, endpoint.projectId))
+          .get();
+        // Proof: accepting absence returned false instead of the named missing-project
+        // error in typed authoring admission storage tests (2026-10-22).
+        if (target === undefined) throw new Error(`missing endpoint project ${endpoint.projectId}`);
+        // Proof: removing decoding accepted SQLite's quoted missing-column literal
+        // after marker-column rename in the unreadable-state test (2026-10-22).
+        if (target.pendingAt !== null && typeof target.pendingAt !== 'number')
+          throw new Error(`unreadable endpoint project deletion state ${endpoint.projectId}`);
+        // Proof: forcing this predicate false restored mounted add/update HTTP500
+        // instead of project_deleting HTTP409 with complete rollback (2026-10-22).
+        if (target.pendingAt !== null) deleting = true;
+      }
+      return deleting;
+    });
+  }
+
   /** Raw staging writes stay inside the admitted outer UoW; no async SQLite callback. */
   readonly incidents: IncidentDependencyStore = {
     capture: async (id) => {

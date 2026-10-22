@@ -26,6 +26,9 @@ export interface IncidentDependencyStore {
 /** Persistence boundary for typed endpoint links. Duplicate adds must refuse. */
 export interface TypedDependencyStore {
   readonly incidents: IncidentDependencyStore;
+  /** Reads both endpoint lifecycle markers within the current writer observation.
+   * Missing or unreadable projects throw; deletion is an expected command conflict. */
+  hasDeletingEndpoint(row: StoredTypedDependency): Promise<boolean>;
   /** Relationships owned by this successor project, including local and external rows. */
   listByProject(projectId: string): Promise<StoredTypedDependency[]>;
   /** Each relationship touching any requested project once, ordered by relationship ID. */

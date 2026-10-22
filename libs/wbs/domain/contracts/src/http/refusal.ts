@@ -147,6 +147,7 @@ export type CommandRefusalCode =
   | 'referenced_by_external_dependency'
   | 'unknown_dependency'
   | 'external_dependencies_inactive'
+  | 'project_deleting'
   | 'duplicate_dependency'
   | 'unsupported_relationship_type'
   | 'too_large'

@@ -331,6 +331,7 @@ function answerBatch(
     case 'self_node':
     case 'not_a_parent':
     case 'external_dependencies_inactive':
+    case 'project_deleting':
     case 'duplicate_dependency':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':

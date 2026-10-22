@@ -455,3 +455,31 @@ it('a retired writer does not publish or reread a typed terminal Retry refusal',
   expect(recorded.refusals).toEqual([]);
   expect(recorded.rereads).toEqual([]);
 });
+
+it('reports a deleting project without retry or reread', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  let requests = 0;
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      requests += 1;
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: {
+            error: 'project_deleting',
+            at: 0,
+            kind: 'addTypedDependency',
+          },
+        }),
+      );
+    });
+  });
+  expect(outcome).toBe('refused');
+  expect(requests).toBe(1);
+  expect(recorded.rereads).toEqual([]);
+  expect(recorded.refusals).toEqual([
+    { sentence: 'This project is being deleted. Nothing was changed.' },
+  ]);
+});

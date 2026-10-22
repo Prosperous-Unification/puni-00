@@ -370,6 +370,7 @@ for (const fault of [
           return {
             ...stores,
             typedDependencies: {
+              hasDeletingEndpoint: (row) => stores.typedDependencies.hasDeletingEndpoint(row),
               listIncident: (ids) => stores.typedDependencies.listIncident(ids),
               listByProject: (id) => stores.typedDependencies.listByProject(id),
               add: (row, stamp) => stores.typedDependencies.add(row, stamp),

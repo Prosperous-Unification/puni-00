@@ -311,6 +311,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       ),
     ]);
   const typedDependencies: TypedDependencyStore = {
+    hasDeletingEndpoint: (row) => {
+      assertProject(row.projectId);
+      return scope.stores.typedDependencies.hasDeletingEndpoint(row);
+    },
     get incidents(): TypedDependencyStore['incidents'] {
       throw new Error('incident staging requires raw admitted stores');
     },

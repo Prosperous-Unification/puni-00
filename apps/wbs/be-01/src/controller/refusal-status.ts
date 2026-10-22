@@ -18,6 +18,7 @@ const CONFLICTS = new Set([
   'ancestor',
   'self_node',
   'not_a_parent',
+  'project_deleting',
   'duplicate_dependency',
   'dependency_cycle',
   'referenced_by_dependency',

@@ -49,6 +49,8 @@ export function inMemoryTypedDependencies(
   };
   return {
     rows,
+    // This fixture has no optimizer lifecycle or project markers.
+    hasDeletingEndpoint: () => Promise.resolve(false),
     incidents: {
       capture,
       detach: async (receipt) => {

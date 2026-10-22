@@ -452,6 +452,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'not_a_parent':
     case 'node_on_parent':
     case 'descendant_step_on_leaf':
+    case 'project_deleting':
     case 'duplicate_dependency':
     case 'unsupported_relationship_type':
     case 'too_large':
@@ -800,6 +801,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     // Proof: absent sentence made the dormant writer test receive the generic fallback (2026-10-22).
     external_dependencies_inactive: 'Dependencies between projects are not enabled on this server.',
+    project_deleting: 'This project is being deleted. Nothing was changed.',
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',

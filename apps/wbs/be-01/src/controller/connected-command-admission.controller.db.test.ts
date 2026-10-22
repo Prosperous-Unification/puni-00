@@ -14,6 +14,8 @@ import type { CompensatingCommand } from '@wbs/core/service/compensating';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { openDrizzle } from '@wbs/store-sqlite/db';
+import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, test } from 'bun:test';
 
@@ -24,8 +26,18 @@ afterEach(async () => {
   await harness.closeComposed();
 });
 
-async function open() {
-  harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
+async function open(pushUrls?: string[]) {
+  harness = OrganizationHarness.openComposedWith({
+    sessionBinding: true,
+    ...(pushUrls === undefined
+      ? {}
+      : {
+          pushFetch: (url) => {
+            pushUrls.push(url);
+            return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+          },
+        }),
+  });
   // Synthetic stored authority supports this suite's admitted semantic fixture; mounted production admission stays dormant.
   seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
@@ -2912,3 +2924,81 @@ test('mounted external redo checks revoked current membership before opening its
   expect(await response.json()).toMatchObject({ error: 'not_a_member' });
   expect(effects()).toEqual(before);
 });
+
+for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) {
+  test(`mounted ${command} models a delete-pending endpoint as conflict without effects`, async () => {
+    const pushUrls: string[] = [];
+    const fixture = await open(pushUrls);
+    const projectId = fixture.owner.projectId;
+    expect(
+      (
+        await fixture.request(`/api/projects/${projectId}/commands`, {
+          commands: [{ kind: 'createWorkItem', name: 'Second local row' }],
+        })
+      ).status,
+    ).toBe(200);
+    const second = harness.sqlite
+      .query<{ id: string }, [string, string]>(
+        'SELECT id FROM work_item WHERE project_id=? AND id<>?',
+      )
+      .get(projectId, fixture.owner.workItemId);
+    if (second === null) throw new Error('second local endpoint missing');
+    const input = {
+      predecessor: { projectId, workItemId: fixture.owner.workItemId, scope: 'whole' },
+      successor: { projectId, workItemId: second.id, scope: 'whole' },
+      type: 'FS',
+    };
+    if (command === 'updateTypedDependency')
+      expect(
+        (
+          await fixture.request(`/api/projects/${projectId}/commands`, {
+            commands: [{ kind: 'addTypedDependency', ...input }],
+          })
+        ).status,
+      ).toBe(200);
+    const dependency = harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM typed_dependency WHERE project_id=?')
+      .get(projectId);
+    let release = (): void => {
+      throw new Error('writer was not held');
+    };
+    const until = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let markEntered = (): void => {
+      throw new Error('writer entry was not observed');
+    };
+    const entered = new Promise<void>((resolve) => {
+      markEntered = resolve;
+    });
+    const held = harness.holdWriteTurn(until, markEntered);
+    await entered;
+    const pending = fixture.request(`/api/projects/${projectId}/commands`, {
+      commands: [
+        { kind: 'patchWorkItem', workItemId: second.id, patch: { name: 'Must roll back' } },
+        {
+          kind: command,
+          ...input,
+          ...(dependency === null ? {} : { dependencyId: dependency.id }),
+          type: 'SS',
+        },
+      ],
+    });
+    expect(
+      beginOptimizationDrain(openDrizzle(harness.databasePath()), projectId, { at: 2, by: 'ada' }),
+    ).toBe(0);
+    const before = effects();
+    const pushedBefore = [...pushUrls];
+    release();
+    await held;
+    const response = await pending;
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: 'project_deleting',
+      at: 1,
+      kind: command,
+    });
+    expect(effects()).toEqual(before);
+    expect(pushUrls).toEqual(pushedBefore);
+  });
+}
