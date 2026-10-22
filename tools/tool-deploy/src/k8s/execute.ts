@@ -1326,6 +1326,7 @@ export function kubectlEffects(
     });
     const logs = await kubectl(['-n', namespace, 'logs', `job/${name}`, '--all-containers']);
     if (observed.outcome !== 'complete') {
+      const failure = `job ${name} failed:\n${logs.trim()}`;
       // Proof: an empty-log failed replay Job omitted its injected OOMKilled/137 pod status
       // in execute-adapter.test.ts until this production failure-path query was added.
       const pods = await run(
@@ -1342,9 +1343,16 @@ export function kubectlEffects(
         ],
         null,
         callMs,
-      );
+      ).catch((cause: unknown) => {
+        // Proof: deleting the fixture kubectl after logs reproduced ENOENT masking the
+        // failed Job and its original output; diagnostic-spawn now retains all three.
+        throw new Error(
+          `${failure}\npod status unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
+          { cause },
+        );
+      });
       throw new Error(
-        `job ${name} failed:\n${logs.trim()}\npod status (kubectl exit ${String(pods.exitCode)}):\n${pods.stdout.trim()}\n${pods.stderr.trim()}`,
+        `${failure}\npod status (kubectl exit ${String(pods.exitCode)}):\n${pods.stdout.trim()}\n${pods.stderr.trim()}`,
       );
     }
     return logs;

@@ -756,6 +756,8 @@ describe('replay Jobs through kubectl', () => {
       'defaults',
       'status',
       'empty-logs',
+      'diagnostic-exit',
+      'diagnostic-spawn',
     ] as const) {
       it(`binds reused replay ${task} Job output to its image and command: ${fault}`, async () => {
         const root = scratchSync('wbs-replay-job-');
@@ -775,7 +777,9 @@ describe('replay Jobs through kubectl', () => {
             {},
             command,
           ),
-          status: fault === 'status' || fault === 'empty-logs' ? { failed: 1 } : { succeeded: 1 },
+          status: ['status', 'empty-logs', 'diagnostic-exit', 'diagnostic-spawn'].includes(fault)
+            ? { failed: 1 }
+            : { succeeded: 1 },
         };
         const pod = (
           observed['spec'] as {
@@ -817,7 +821,7 @@ describe('replay Jobs through kubectl', () => {
         writeFileSync(join(root, 'observed.json'), JSON.stringify(observed));
         writeFileSync(
           kubectl,
-          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"get pods"*) echo 'task-pod Failed task 137 OOMKilled' ;;\n*"logs"*) ${fault === 'empty-logs' ? ':' : "echo '[]'"} ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
+          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"get pods"*) printf '%s\\n' "$@" > '${root}/pod-args'; ${fault === 'diagnostic-exit' ? "echo 'pod status API unavailable' >&2; exit 42" : "echo 'task-pod Failed task 137 OOMKilled'"} ;;\n*"logs"*) ${fault === 'empty-logs' ? ':' : fault === 'diagnostic-spawn' ? `rm '${kubectl}'; echo 'original task output'` : "echo '[]'"} ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
         );
         chmodSync(kubectl, 0o755);
         const effects = kubectlEffects({
@@ -843,10 +847,34 @@ describe('replay Jobs through kubectl', () => {
         else {
           const failure = await rejection(observe());
           expect(failure).toContain(
-            fault === 'status' || fault === 'empty-logs' ? 'failed' : 'replay Job',
+            ['status', 'empty-logs', 'diagnostic-exit', 'diagnostic-spawn'].includes(fault)
+              ? `job ${jobName(task === 'inventory' ? 'replay-inventory' : 'replay-kinds', 'tx')} failed:`
+              : 'replay Job',
           );
-          if (fault === 'status' || fault === 'empty-logs') {
-            expect(failure).toContain('task-pod Failed task 137 OOMKilled');
+          if (fault === 'diagnostic-spawn') {
+            expect(failure).toContain('original task output');
+            expect(failure).toContain('pod status unavailable:');
+            expect(failure).toContain('ENOENT');
+          } else if (['status', 'empty-logs', 'diagnostic-exit'].includes(fault)) {
+            expect(readFileSync(join(root, 'pod-args'), 'utf8').trim().split('\n')).toEqual([
+              '--context',
+              'lab',
+              '-n',
+              'wbs-solver',
+              'get',
+              'pods',
+              '-l',
+              `batch.kubernetes.io/job-name=${jobName(task === 'inventory' ? 'replay-inventory' : 'replay-kinds', 'tx')}`,
+              '-o',
+              'custom-columns=NAME:.metadata.name,PHASE:.status.phase,REASON:.status.reason,CONTAINER:.status.containerStatuses[*].name,EXIT:.status.containerStatuses[*].state.terminated.exitCode,TERMINATED:.status.containerStatuses[*].state.terminated.reason,WAITING:.status.containerStatuses[*].state.waiting.reason',
+            ]);
+            if (fault === 'diagnostic-exit') {
+              expect(failure).toContain('[]');
+              expect(failure).toContain('pod status (kubectl exit 42):');
+              expect(failure).toContain('pod status API unavailable');
+            } else {
+              expect(failure).toContain('task-pod Failed task 137 OOMKilled');
+            }
           }
         }
       });
