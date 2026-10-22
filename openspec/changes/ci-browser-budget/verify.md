@@ -60,3 +60,50 @@ source hold released after512RunStore tests; its clean e306f7e14 commit is under
 independent read-only review while this separate task is the only implementation
 writer. The first OpenSpec-skill lookup used a nonexistent global path; the actual
 repo-owned skill was then read. That was navigation, not verification evidence.
+
+## Implementation candidate
+
+The actual pixels_shard YAML now declares35minutes, with four shards, every step,
+scope, organization check, artifacts and required aggregate preserved. A new test in
+the existing Bun.YAML workflow oracle pins that numeric field. The worker's TDD RED
+read25instead of35:6pass/1fail/36expects; source change then passed7/0/36. Initial
+RED/GREEN and permission-failed Nx attempts are controller/worker transcript evidence
+only, not saved raw files. The report's initial claim that all failed raw logs were
+retained was corrected explicitly; no missing bytes were reconstructed or invented.
+
+| Check or fault                                | Observed outcome                                | Evidence limit                                                                                                                                      |
+| --------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove actual pixels_shard timeout            | 6pass/1fail, receivedundefined; exactrestore7/0 | Parsed production workflow, no live service timeout                                                                                                 |
+| Change35to36                                  | 6pass/1fail, received36; exactrestore7/0        | Same actual YAML field                                                                                                                              |
+| Restore former25                              | 6pass/1fail, received25; exactrestore7/0        | Regression also refused                                                                                                                             |
+| Uncached tool-git-hooks:typecheck             | PASS                                            | Earlier sandbox writes to .nx/dist denied; authorized escalation passed; Nx's historical flaky-task label is retained, not a source-flakiness claim |
+| Uncached tool-git-hooks:lint                  | PASS                                            | Color-environment warning retained                                                                                                                  |
+| Exact changed-file Prettier/focused test/diff | PASS;7tests/36expects                           | No browser/package/host/CI invoked                                                                                                                  |
+
+Static commands used NX_DAEMON=false and task-specific NX_WORKSPACE_DATA_DIRECTORY,
+NX_SOCKET_DIR and NX_CACHE_DIRECTORY under /tmp/ci-browser-budget-nx. Required native
+worktree artifact writes used escalated access after the named sandbox failures;
+repository configuration and generated outputs were not moved or changed to hide a
+failure. Exact argv/durations/final logs remain in the ignored task evidence.
+
+All three faults restore workflow SHA256
+06cb96b79ec3449a2edd28fa920b8949e6713b9d900eb82ac36e8a51ec2fa160
+before adjacent Proof comments. Root independently reconstructed that original and
+all three mutant hashes from the completed source and matched all negative/restored
+raw summaries. Final source SHA256:
+workflow3483ed001b38c09d9dbec6034b73dc362f072134b25c94ed3aa0c8cfd1e2efcf;
+testabda3c0f2bad4d7ad4c9758de7baeff20bd423eacb8d41692e9bcb59413041e5.
+
+Root's present-state audit compared all11766staged mode/blob/path entries to the
+immutable clean planningHEADf67d3ad6bb43340056742e15c4d53f9cda6857a1, all equal,
+confirmed only the two authorized source paths dirty and compared complete parsed
+before/after YAML structures: only the budget changed. The worker captured only two
+index paths and a single raw-index hash, so no worker whole-index before/after freeze
+or raw-byte invariance pass is claimed. Root's complete present-state comparison is
+separate evidence and does not invent a historical capture.
+
+Independent task and bounded whole-branch reviews remain pending. Task boxes remain
+open until their specified behavior and required reviews are accepted. Final cohesive
+exact-SHA canonical gate/applicable CI, actual35-minute hosted behavior and complete
+browser verdict remain unverified at this new source. Original3fdcCI failures remain
+unchanged. This internal correction is not independently published or activated.
