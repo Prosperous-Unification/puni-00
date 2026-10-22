@@ -127,18 +127,33 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
 
 ## 4. The capacity cap
 
-- [ ] 4.1 `setForResource` passes `sumStatedCapacity(resourceId, exceptProjectId)` through
+- [x] 4.1 `setForResource` passes `sumStatedCapacity(resourceId, exceptProjectId)` through
       `refuseLimit` inside the capacity store's transaction for non-null `units`; null and
       lowering never consult it; team `setCapacity` untouched — Red: `resource-command.test.ts`
       and the organization controller test: two projects sharing 64, lowering under a lowered
       cap, another resource another sum, legacy access applied. R5 fault: include the project's
       own stated units in `declared` and re-stating 48 of 64 with nothing else refuses; drop
       the per-resource predicate and `worktrees` are refused for `h2puni ram`'s units; watched.
-- [ ] 4.2 Plan import checks every capacity it writes against the sum excluding its own
+      Built 2026-10-22: the decision is `refuseCapacityStatement` in `@wbs/domain` (a statement
+      not above the project's own units never refuses), the sum is the gauge's new
+      `readCapacityCap(organizationId, resourceId, exceptProjectId)` read in the batch's
+      `BEGIN IMMEDIATE`; the red cases are `capacity-limit.controller.db.test.ts` (be-01,
+      through `POST /api/projects/:id/commands`) rather than `resource-command.test.ts`, whose
+      memory batch runner has no scoped path; the race and a fast-check model are
+      `capacity-limit-race.db.test.ts`; the memory twin is certified by
+      `organizationLimits.readCapacityCap:per-resource-except-project`. The gauge is read for
+      every non-null statement under scoped access (lowering included) and refuses only a raise.
+      `setResourceCapacity` is not journalled, so no undo or redo re-check exists (a case says so).
+- [x] 4.2 Plan import checks every capacity it writes against the sum excluding its own
       project and refuses whole — Red: `plan-import-organization.controller.db.test.ts`: 70 GB
       under 64 writes nothing, a re-import of the same project at 64 of 64 is applied. R5
-      fault: count the project being replaced and the re-import refuses; watched.
-- [ ] 4.3 Refusal shape `capacity_limit { resourceId, cap, declared, asked }` in
+      fault: count the project being replaced and the re-import refuses; watched. Built
+      2026-10-22, amended: no import replaces a project; every import creates a new one,
+      which states nothing, so the exclusion is empty and a re-import of an export beside its
+      still-stating source counts the source (`declared: 64, asked: 64`, refused) and is
+      applied once the source clears. The red cases are in `capacity-limit.controller.db.test.ts`;
+      the R5 fault is the other projects' sum read as 0, watched.
+- [x] 4.3 Refusal shape `capacity_limit { resourceId, cap, declared, asked }` in
       `@wbs/contracts`; MCP batch description — Red: the shape tests and the emit diff.
 
 ## 5. The operator CLI and the audit
