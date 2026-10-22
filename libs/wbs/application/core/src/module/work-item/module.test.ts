@@ -68,6 +68,9 @@ const hostRequirements = () => {
     stepParallelStore: DiBag.createProvider(() => stores.stepParallels, {
       factoryReturnKind: 'sync-value',
     }),
+    admitConnectedOptimization: DiBag.createProvider(() => undefined, {
+      factoryReturnKind: 'sync-value',
+    }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
     estimateStore: DiBag.createProvider(() => stores.estimates, {

@@ -93,6 +93,12 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       editAdmission: DiBag.createProvider(() => requirements.admission, {
         factoryReturnKind: 'sync-value',
       }),
+      admitConnectedOptimization: DiBag.createProvider(
+        () => requirements.admitConnectedOptimization,
+        {
+          factoryReturnKind: 'sync-value',
+        },
+      ),
       scheduler: DiBag.createProvider(() => requirements.scheduler, {
         factoryReturnKind: 'sync-value',
       }),

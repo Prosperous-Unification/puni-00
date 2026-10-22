@@ -117,7 +117,11 @@ import {
   permitsExternalDependencies,
 } from '../../ports/external-dependency-authoring';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
-import type { OptimizationCapture, OptimizationInput } from '../../ports/optimization-input';
+import type {
+  ConnectedOptimizationAdmission,
+  OptimizationCapture,
+  OptimizationInput,
+} from '../../ports/optimization-input';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -921,6 +925,8 @@ export interface WorkItemServiceOptions {
   admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
   scheduler: Scheduler;
+  /** Required for enabled connected live reads; capture-only graphs omit admission. */
+  admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command scope reads the captured cache on its own source connection. */
   schedulerMode?: 'capture';
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
@@ -1909,15 +1915,39 @@ export class WorkItemService {
     });
   }
 
-  /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
+  /**
+   * Read through caller access and admit a connected target only after its owned observation closes.
+   * Capture mode never admits; the response retains the original captured projection.
+   * Throws when an enabled scheduled connected live observation lacks installed admission.
+   * See {@link tree} and {@link scheduleInputWithin}.
+   */
   async treeWithin(
     projectId: string,
     access: ResourceAccess,
   ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.read(projectId, access);
-      if (captured.kind === 'connected')
-        return presentConnectedTree(projectConnectedTree(captured, projectId));
+      if (captured.kind === 'connected') {
+        const tree = presentConnectedTree(projectConnectedTree(captured, projectId));
+        // Proof: bypassing this capture guard made the borrowed mounted read enter admission.
+        if (this.opts.schedulerMode !== 'capture') {
+          const observation = captureConnectedOptimization(captured, projectId);
+          // Proof: removing enablement failed the disabled read; bypassing scheduled kind failed the missing-calendar HTTP response.
+          if (observation.kind === 'scheduled' && observation.enabled) {
+            // Proof: removing this invariant made the configured missing-admission test resolve.
+            if (this.opts.admitConnectedOptimization === undefined)
+              throw new Error('connected optimizer admission is not installed');
+            // The existing target stage belongs to the closed observation, before final projection.
+            // Proof: omitting admission left cold mounted connected reads with zero launches.
+            await this.opts.admitConnectedOptimization({
+              projectId,
+              input: observation.input,
+              enabled: observation.enabled,
+            });
+          }
+        }
+        return tree;
+      }
       if (captured.kind !== 'isolated') {
         const tree = projectSharedTree(captured);
         if (
@@ -9988,7 +10018,13 @@ function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
 function captureConnectedOptimization(
   captured: Extract<LivePlanRead, { kind: 'connected' }>,
   projectId: string,
-): OptimizationCapture {
+):
+  | Exclude<OptimizationCapture, { readonly kind: 'scheduled' }>
+  | {
+      readonly kind: 'scheduled';
+      readonly input: Extract<OptimizationInput, { readonly kind: 'connected' }>;
+      readonly enabled: boolean;
+    } {
   const member = captured.projection.capture.projects.find(
     (project) => project.projectId === projectId,
   );

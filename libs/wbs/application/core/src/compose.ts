@@ -39,6 +39,7 @@ import { INACTIVE_EXTERNAL_DEPENDENCIES } from './ports/external-dependency-auth
 import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
 import type { MachineCredentials } from './ports/machine-credentials';
 import type { OidcVerifier } from './ports/oidc-verifier';
+import type { ConnectedOptimizationAdmission } from './ports/optimization-input';
 import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
@@ -64,6 +65,8 @@ export interface RuntimePorts {
   readonly intervals: Intervals;
   readonly push: PushTransport;
   readonly scheduler: Scheduler;
+  /** Live connected target admission; borrowed graphs never receive this capability. */
+  readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** Adapter callback for plan edits that should refresh runtime-owned optimization. */
   readonly onPlanChanged?: (projectId: string) => void;
 }
@@ -102,6 +105,8 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** Live connected target admission; borrowed graphs never receive this capability. */
+  readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command graph reads the transaction-captured cache without live admission. */
   readonly schedulerMode?: 'capture';
   /** Who may write a project through the built services; see {@link EditAdmission}. */
@@ -211,6 +216,9 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       admission,
       scheduler,
+      ...(shared.admitConnectedOptimization === undefined
+        ? {}
+        : { admitConnectedOptimization: shared.admitConnectedOptimization }),
       ...(shared.schedulerMode === undefined ? {} : { schedulerMode: shared.schedulerMode }),
     }).workItems,
   };
@@ -334,6 +342,9 @@ export function composeServices(
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
+    ...(runtime.admitConnectedOptimization === undefined
+      ? {}
+      : { admitConnectedOptimization: runtime.admitConnectedOptimization }),
     admission: CREATOR_ADMISSION,
   });
   const publicServices = {

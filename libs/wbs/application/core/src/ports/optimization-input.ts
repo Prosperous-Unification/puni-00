@@ -16,3 +16,10 @@ export type OptimizationCapture =
       readonly kind: 'unavailable';
       readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
     };
+
+/** Admit one detached target stage after its live observation has closed. */
+export type ConnectedOptimizationAdmission = (ask: {
+  readonly projectId: string;
+  readonly input: Extract<OptimizationInput, { readonly kind: 'connected' }>;
+  readonly enabled: boolean;
+}) => Promise<void>;

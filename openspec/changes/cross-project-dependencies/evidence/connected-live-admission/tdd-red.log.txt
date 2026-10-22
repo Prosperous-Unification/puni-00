@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected.db.test.ts:
+480 |     const first = await f.tree();
+481 |     expect(first).toMatchObject({
+482 |       optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
+483 |     });
+484 |     expect(f.probe.open).toBe(0);
+485 |     expect(f.launched).toHaveLength(2);
+                             ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-connected-live-admission/apps/wbs/be-01/src/services-connected.db.test.ts:485:24)
+(fail) cold mounted isolated connected tree admits only its detached target after read closure [253.32ms]
+480 |     const first = await f.tree();
+481 |     expect(first).toMatchObject({
+482 |       optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
+483 |     });
+484 |     expect(f.probe.open).toBe(0);
+485 |     expect(f.launched).toHaveLength(2);
+                             ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-connected-live-admission/apps/wbs/be-01/src/services-connected.db.test.ts:485:24)
+(fail) cold mounted shared connected tree admits only its detached target after read closure [168.51ms]
+518 |     dependencyContext: createLocalDependencyContext(f.bound.stores),
+519 |     clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
+520 |     broadcast: recordingBroadcaster(),
+521 |     scheduler: fastScheduler,
+522 |   });
+523 |   await expect(graph.workItems.treeWithin('a1', access)).rejects.toThrow('connected optimizer admission');
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-connected-live-admission/apps/wbs/be-01/src/services-connected.db.test.ts:523:66)
+(fail) configured connected live tree refuses missing admission while borrowed capture remains inert [221.04ms]
+
+ 0 pass
+ 8 filtered out
+ 3 fail
+ 9 expect() calls
+Ran 3 tests across 1 file. [4.81s]

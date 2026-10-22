@@ -116,7 +116,7 @@ function stream(bytes: string) {
     },
   });
 }
-async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated') {
+async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated', held = false) {
   const folder = mkdtempSync(join(tmpdir(), 'connected-composition-'));
   const path = await openSpaceDatabase(folder);
   seedDependencyAuthority(path);
@@ -146,20 +146,43 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated')
     "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
   const launched: ReservedSpawnRequest[] = [];
-  const probe = { open: 0 };
+  const probe = {
+    open: 0,
+    opened: 0,
+    writerReads: [] as number[],
+    onClosed: (): void => undefined,
+  };
+  let holdChildren = held;
+  const children = new Set<() => void>();
+  const finishChildren = () => {
+    holdChildren = false;
+    for (const finish of children) finish();
+    children.clear();
+  };
   const source = openSqliteSource({
     dbPath: path,
     openReadOnlyConnection: (filename) => {
       const connection = openReadOnlyConnection(filename);
       probe.open++;
+      probe.opened++;
       return {
         ...connection,
         close: () => {
           connection.close();
           probe.open--;
+          probe.onClosed();
         },
       };
     },
+  });
+  const enter = source.gate.enter.bind(source.gate);
+  source.gate.enter = (work) => {
+    probe.writerReads.push(probe.open);
+    return enter(work);
+  };
+  cleanups.push(() => {
+    finishChildren();
+    return Promise.resolve();
   });
   const composed = compose(
     source,
@@ -170,13 +193,19 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated')
             expect(probe.open).toBe(0);
             launched.push(asked);
             if (asked.kind !== 'connected') throw Error('expected connected launch');
+            const completion = Promise.withResolvers<number>();
+            const finish = () => {
+              completion.resolve(0);
+            };
+            children.add(finish);
+            if (!holdChildren) finish();
             return Promise.resolve({
               pid: 100 + launched.length,
               stdout: stream(response(asked.request, 'boundary-infeasible').stdout),
               stderr: stream(''),
-              exited: Promise.resolve(0),
+              exited: completion.promise,
               verdict: () => undefined,
-              kill: () => undefined,
+              kill: finish,
             });
           },
         }
@@ -213,7 +242,7 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated')
     );
     expect(response.status).toBe(200);
   };
-  return { ...composed, sqlite, source, launched, probe, capture, edit, path };
+  return { ...composed, sqlite, source, launched, probe, capture, edit, path, finishChildren };
 }
 
 for (const mode of ['isolated', 'shared'] as const) {
@@ -334,6 +363,16 @@ for (const mode of ['isolated', 'shared'] as const) {
         createdAt: 12,
       })
       .run();
+    f.source.db
+      .insert(optimizedScheduleCache)
+      .values({
+        ...captureConnectedQuestion(stage, 'pri', installed),
+        generation: 1,
+        status: 'failed',
+        failureReason: 'timeout',
+        createdAt: 12,
+      })
+      .run();
     const mountedTree = await f.tree();
     expect(mountedTree).toMatchObject({ optimization: { variants: { time: { state: 'ready' } } } });
     const tree = await f.services.workItems.treeWithin('a1', access);
@@ -357,6 +396,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
         broadcast: recordingBroadcaster(),
         scheduler: fastScheduler,
+        schedulerMode: 'capture',
       });
       const mounted = testApp({
         ...f.services,
@@ -453,5 +493,202 @@ for (const fault of ['changed-question', 'calendar', 'throw'] as const) {
       if (fault === 'throw') expect(f.errors.join('')).toContain('optimizer child failed');
       else expect(f.errors).toEqual([]);
     }
+  });
+}
+
+for (const mode of ['isolated', 'shared'] as const) {
+  test(`cold mounted ${mode} connected tree admits only its detached target after read closure`, async () => {
+    const f = await fixture(true, mode, true);
+    // The predecessor is also enabled: a target read must not fan admission out to it.
+    f.sqlite.run("UPDATE project SET optimization_enabled=1 WHERE id='a2'");
+    const observed = await f.bound.stores.livePlans?.read('a1', access);
+    if (observed?.kind !== 'connected' || observed.projection.placement.kind !== 'scheduled')
+      throw Error('expected connected stage capture');
+    const stage = observed.projection.placement.stages.find(
+      (selection) => selection.stage.projectId === 'a1',
+    )?.stage;
+    if (stage === undefined) throw Error('target stage missing');
+    const opened = f.probe.opened;
+    const first = await f.tree();
+    expect(f.launched).toHaveLength(2);
+    expect(f.probe.opened - opened).toBe(1);
+    expect(f.probe.writerReads.length).toBeGreaterThan(0);
+    expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
+    expect(first).toMatchObject({
+      optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
+    });
+    expect(f.probe.open).toBe(0);
+    expect(f.launched).toHaveLength(2);
+    expect(f.launched.map((asked) => [asked.key.projectId, asked.objective]).sort()).toEqual([
+      ['a1', 'pri'],
+      ['a1', 'time'],
+    ]);
+    for (const asked of f.launched) {
+      if (asked.kind !== 'connected') throw Error('expected connected launch');
+      expect(canonicalConnectedStageInput(asked.stage)).toBe(canonicalConnectedStageInput(stage));
+      expect(asked.key.inputHash).toBe(
+        captureConnectedQuestion(stage, asked.objective, installed).inputHash,
+      );
+    }
+    await Promise.all([f.tree(), f.tree(), f.tree()]);
+    f.services.optimizer?.inputChanged('a1');
+    // Background capture shares current work; it must not reserve another seat.
+    await f.services.workItems.optimizationCapture('a1');
+    expect(f.launched).toHaveLength(2);
+    f.finishChildren();
+    await f.services.optimizer?.drain();
+    const ledger = () =>
+      ['optimization_generation', 'solver_slot', 'solver_queue', 'event_log'].map((table) =>
+        f.sqlite.query(`SELECT * FROM ${table}`).all(),
+      );
+    const terminal = ledger();
+    expect(await f.tree()).toMatchObject({
+      optimization: {
+        variants: { pri: { state: 'boundary-infeasible' }, time: { state: 'boundary-infeasible' } },
+      },
+    });
+    await f.tree();
+    expect(f.launched.filter((asked) => asked.key.projectId === 'a1')).toHaveLength(2);
+    expect(ledger()).toEqual(terminal);
+    expect(f.errors).toEqual([]);
+  });
+}
+
+test('configured connected live tree refuses missing admission while borrowed capture remains inert', async () => {
+  const f = await fixture();
+  const graph = servicesOver(f.bound.stores, {
+    admission: CREATOR_ADMISSION,
+    dependencyContext: createLocalDependencyContext(f.bound.stores),
+    clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
+    broadcast: recordingBroadcaster(),
+    scheduler: fastScheduler,
+  });
+  const missingAdmission = await graph.workItems.treeWithin('a1', access).then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  expect(missingAdmission).toBeInstanceOf(Error);
+  expect(String(missingAdmission)).toContain('connected optimizer admission');
+  await f.bound.uow.run(async (scope) => {
+    await scope.stores.estimates.set(
+      { workItemId: 'a2', stepId: 'a2-s', optimistic: 3, realistic: 3, pessimistic: 3 },
+      { by: 'ada', at: 12 },
+    );
+    const borrowed = servicesOver(scope.stores, {
+      admission: CREATOR_ADMISSION,
+      dependencyContext: createLocalDependencyContext(scope.stores),
+      clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+      schedulerMode: 'capture',
+      admitConnectedOptimization: () => {
+        throw Error('live admission reached borrowed capture');
+      },
+    });
+    const mounted = testApp({
+      ...f.services,
+      ...borrowed,
+      writes: f.services,
+      auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),
+      organizations: new SqliteOrganizationAccess(
+        f.source.db,
+        userBoundOrganizationOf(() => Promise.resolve('org-a')),
+        () => 12,
+      ),
+    });
+    const captured = await f.tree(mounted);
+    expect(captured).toMatchObject({ optimization: { variants: { time: { state: 'idle' } } } });
+    expect(captured.slices.map((slice) => slice.earliestStart)).toEqual([3]);
+    expect(await scope.stores.estimates.listByProject('a2')).toMatchObject([{ realistic: 3 }]);
+    expect(f.sqlite.query("SELECT realistic FROM estimate WHERE work_item_id='a2'").get()).toEqual({
+      realistic: 1,
+    });
+    return { commit: false, value: undefined };
+  });
+  expect(await f.bound.stores.estimates.listByProject('a2')).toMatchObject([{ realistic: 1 }]);
+  expect(f.launched).toEqual([]);
+});
+
+for (const mode of ['isolated', 'shared'] as const) {
+  test(`installed ${mode} non-public connected observations reserve no optimizer work`, async () => {
+    const f = await fixture(true, mode);
+    await f.services.workItems.tree('a1');
+    await f.services.workItems.exportWithin('a1', access);
+    await f.services.workItems.optimizationCapture('a1');
+    await f.services.workItems.optimizationCaptureWithin('a1', access);
+    if (mode === 'shared') await f.services.workItems.sharedTreesWithin('ada', access);
+    await f.services.optimizer?.drain();
+    expect(f.launched).toEqual([]);
+    for (const table of ['optimization_generation', 'solver_queue', 'solver_slot'])
+      expect(f.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
+  });
+}
+
+for (const fault of ['disabled', 'calendar', 'denied'] as const) {
+  test(`mounted connected live ${fault} read allocates no optimizer work`, async () => {
+    const f = await fixture();
+    if (fault === 'disabled')
+      f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
+    if (fault === 'calendar') f.sqlite.run("UPDATE project SET start_date=NULL WHERE id='a2'");
+    if (fault === 'denied') {
+      const refused = await f.app.handle(
+        new Request('http://localhost/api/projects/a1/work-items', {
+          headers: { 'X-WBS-Expected-Organization': 'org-b' },
+        }),
+      );
+      expect(refused.status).toBe(409);
+    } else {
+      if (fault === 'disabled') {
+        const captureOnly = servicesOver(f.bound.stores, {
+          admission: CREATOR_ADMISSION,
+          dependencyContext: createLocalDependencyContext(f.bound.stores),
+          clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
+          broadcast: recordingBroadcaster(),
+          scheduler: fastScheduler,
+        });
+        await captureOnly.workItems.treeWithin('a1', access);
+      }
+      const tree = await f.tree();
+      if (fault === 'calendar')
+        expect(tree).toMatchObject({ scheduleError: { kind: 'dependency_calendar_missing' } });
+    }
+    expect(f.launched).toEqual([]);
+    for (const table of ['optimization_generation', 'solver_queue', 'solver_slot'])
+      expect(f.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
+  });
+}
+
+for (const fault of ['disabled', 'draining'] as const) {
+  test(`mounted connected live admission respects ${fault} committed at read closure`, async () => {
+    const f = await fixture();
+    if (fault === 'draining') {
+      const question = captureConnectedQuestion(await f.capture(), 'time', installed);
+      f.source.db
+        .insert(optimizationGeneration)
+        .values({
+          projectId: 'a1',
+          contractVersion: question.contractVersion,
+          generation: 1,
+          inputHash: question.inputHash,
+          cancelEpoch: 0,
+          updatedAt: 1,
+        })
+        .run();
+    }
+    f.probe.onClosed = () => {
+      f.probe.onClosed = () => undefined;
+      if (fault === 'disabled')
+        f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
+      else
+        f.sqlite.run(
+          "UPDATE optimization_generation SET admission_state='draining' WHERE project_id='a1'",
+        );
+    };
+    expect(await f.tree()).toMatchObject({
+      optimization: { enabled: true, variants: { time: { state: 'idle' } } },
+    });
+    expect(f.launched).toEqual([]);
+    for (const table of ['solver_queue', 'solver_slot'])
+      expect(f.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
   });
 }

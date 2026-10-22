@@ -14,6 +14,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import type { TrustedIssuerVerification } from '@wbs/core/module/authentication/authentication.feature';
+import type { ConnectedOptimizationAdmission } from '@wbs/core/ports/optimization-input';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
@@ -192,6 +193,19 @@ export function buildServices(options: ServicesOptions): BeServices {
       }),
       scheduler,
       onPlanChanged: (projectId) => coordinator?.inputChanged(projectId),
+      ...(options.optimizer === undefined
+        ? {}
+        : {
+            // Proof: omitting this installation made cold mounted reads fail without admission.
+            admitConnectedOptimization: (async (ask) => {
+              // Invariant diagnostic: public services are exposed only after coordinator installation.
+              if (coordinator === undefined)
+                throw new Error(
+                  'connected optimizer admission before service composition completed',
+                );
+              await coordinator.admitCaptured(ask);
+            }) satisfies ConnectedOptimizationAdmission,
+          }),
       passwords: bunPasswordHasher,
       tokens: joseTokenCodec(options.jwtKey),
       // Proof: 2026-10-12, wiring a collaborator that proves nothing here made

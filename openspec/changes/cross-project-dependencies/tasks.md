@@ -394,3 +394,24 @@ older provisional gaps. Tasks 3.2, 4.2, 4.4 and activation remain open.
 - [x] Add mounted pending-migration refusal tests comparing complete sqlite_master, ledger and every table, including explicit unreadable authority and disposal/no-start assertions; observe ordering regression before implementation.
 - [x] Admit current authority before source migrations; distinguish empty-schema bootstrap from exact known historical name/hash-prefix and scratch-reproduced schema; retain strict post-migration inspection before startup side effects.
 - [x] Verify fresh, certified historical and dormant pending-migration positives; refuse historical hash/schema/ledger faults and nonempty unrecorded schema; watch preflight-order, postflight-removal, historical-hash/schema and fresh-routing mutations fail.
+
+### Bounded task 7.3/7.4 initial connected live admission (2026-10-23)
+
+Ordered slices:
+
+- [x] Watch cold mounted isolated/shared reads fail with zero launches, and missing
+      configured admission resolve; then install the core-owned detached target
+      admission callback through public composition and Work item DI.
+- [x] Exercise repeated mounted reads with held children, retained terminal reuse,
+      target-only initial admission, capture-only surfaces, staged borrowed HTTP
+      rollback, typed refusals and source-writer enablement/drain races.
+- [x] Watch production mutations for capture mode, missing installation,
+      enablement, unscheduled refusal, port forwarding and omitted admission;
+      record independent close/recapture probes and their limits.
+- [ ] Complete displaced selected-stage/final-composite proof, full calendar and
+      capacity matrices, installed Python/image acceptance and canonical host gate.
+
+This packet adds public target admission only. Existing committed-event fanout
+may admit other enabled projects after outcomes finish. Parent 7.3/7.4 and
+activation remain open; receipts and proof limits are in
+[evidence/connected-live-admission/report.md](evidence/connected-live-admission/report.md).

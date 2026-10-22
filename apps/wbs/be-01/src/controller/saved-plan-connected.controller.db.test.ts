@@ -192,8 +192,11 @@ test('enabled connected capture never enters solver admission or changes durable
     expect(mounted.sqlite.query('SELECT * FROM optimized_schedule_cache').all()).toEqual([]);
     expect(admission).not.toHaveBeenCalled();
     expect(mounted.sqlite.query('SELECT schedule_absent_reason FROM saved_plan').get()).toEqual({
-      schedule_absent_reason: 'unavailable',
+      schedule_absent_reason: null,
     });
+    expect(
+      mounted.sqlite.query("SELECT kind FROM saved_plan_body WHERE kind='schedule'").all(),
+    ).toEqual([{ kind: 'schedule' }]);
     expect(probe.announcements).toBe(1);
   } finally {
     admission.mockRestore();

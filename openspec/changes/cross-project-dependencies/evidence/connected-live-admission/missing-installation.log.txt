@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected.db.test.ts:
+537 |     dependencyContext: createLocalDependencyContext(f.bound.stores),
+538 |     clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
+539 |     broadcast: recordingBroadcaster(),
+540 |     scheduler: fastScheduler,
+541 |   });
+542 |   await expect(graph.workItems.treeWithin('a1', access)).rejects.toThrow(
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-connected-live-admission/apps/wbs/be-01/src/services-connected.db.test.ts:542:66)
+(fail) configured connected live tree refuses missing admission while borrowed capture remains inert [287.70ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.79s]
+
+Watched exit: 1

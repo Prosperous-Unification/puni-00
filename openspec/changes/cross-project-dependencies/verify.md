@@ -4893,3 +4893,14 @@ Full host gate, full repository build/test/lint, deployment rehearsal and live r
 
 - Prettier check of all changed TypeScript and OpenSpec Markdown files — exit 0; `git diff --check` — exit 0.
 - `openspec validate cross-project-dependencies --json` and `openspec validate --all --json` — exit 0. Strict validation was additionally attempted and refused existing long-requirement warnings across the parent change; the new requirements were split to avoid adding a warning.
+
+### Bounded initial connected live admission (2026-10-23)
+
+The [initial admission report](evidence/connected-live-admission/report.md)
+records the core-owned callback installed only in the public graph, mounted cold
+reads, retained terminal suppression, staged borrowed rollback and source-owned
+post-close disable/drain refusal. Target admission preserves the captured response
+and existing coordinator policy. Independent mutated wiring, guard, close and
+recapture receipts and the unproven final-composite distinction are recorded in
+the report. No full host gate or installed Python/image acceptance ran here;
+parent 7.3/7.4 and external authoring activation remain open.

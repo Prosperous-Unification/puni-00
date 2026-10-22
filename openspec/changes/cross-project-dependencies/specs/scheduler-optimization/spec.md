@@ -345,3 +345,46 @@ production connected reader or dependency authoring.
 - **GIVEN** the caller was authorized for the connected capture
 - **WHEN** membership is removed after the read transaction closes and before writer admission
 - **THEN** the source-owned Retry writer returns forbidden without optimizer, audit or event mutation
+
+### Requirement: Public connected tree reads admit their captured target after closure
+
+An installed connected public `treeWithin` read SHALL admit only the requested
+scheduled enabled target after its owned observation closes. It SHALL consume
+the retained pre-selection stage without recapture and return its already-derived
+projection. Existing coordinator admission, terminal and lifecycle policies SHALL
+remain authoritative.
+
+#### Scenario: Observation is unavailable or no admission was installed
+
+- **GIVEN** a connected public tree observation
+- **WHEN** runtime is missing or captured scheduling is unavailable
+- **THEN** existing explicit unavailable behavior remains visible without admission
+- **AND** a configured scheduled enabled observation lacking admission throws
+
+#### Scenario: Existing non-admitting consumer reads a connected observation
+
+- **WHEN** `tree`, aggregate, export, save or background capture reads a connected observation
+- **THEN** it does not invoke initial live admission
+- **AND** existing committed-event reactions can still admit other enabled targets after outcomes
+
+#### Scenario: Cold target reads converge on existing work
+
+- **GIVEN** an enabled connected target with no retained objective answers
+- **WHEN** its public tree is read repeatedly while its solver children remain active
+- **THEN** its captured pre-selection stage admits one current attempt per objective
+- **AND** the first response retains the captured projection from before admission
+- **AND** retained terminal answers suppress subsequent admission for that question
+
+#### Scenario: A borrowed caller receives a live callback accidentally
+
+- **GIVEN** a command graph in capture mode with staged input and a live callback
+- **WHEN** the connected tree is read inside its owning unit of work
+- **THEN** it presents the staged captured placement without invoking that callback
+- **AND** its owner retains commit or rollback control
+
+#### Scenario: Enablement or drain state changes when observation closes
+
+- **GIVEN** the connected observation captured an enabled target
+- **WHEN** the target becomes disabled or draining before source writer admission
+- **THEN** existing source-owned admission refuses solver work
+- **AND** the response still presents the captured observation
