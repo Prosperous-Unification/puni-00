@@ -13,7 +13,11 @@
 
 ## 1. Workflow binding (Burokrat)
 
-- [ ] 1.1 Red: `workflow-binding.test.ts` — accepts the sample binding; refuses unknown
+Tasks 1.1–1.2 are expanded in [binding tasks](binding-tasks.md), implementing the
+[binding design](binding-design.md). Their checkboxes remain the parent acceptance gate;
+repository defaults and I1 approval/budget declarations are separate work.
+
+- [ ] 1.1 Red: `workflow-binding.test.ts` — accepts the complete illustrative binding; refuses unknown
       version, unknown executor kind, bare model id, absent prompt file, step code outside the
       given list. Each refusal is a named code.
 - [ ] 1.2 Green: ArkType schema and `twib validate workflow-binding <file> --steps <codes>`

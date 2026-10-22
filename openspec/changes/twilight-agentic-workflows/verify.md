@@ -756,3 +756,30 @@ Local logs: `/tmp/puni-agentic-adr-green.log` (failed unstaged/sandbox run),
 The corrected committed SHA still requires a complete new host gate; parent6a.1–6a.2
 and Task5's final acceptance checkbox remain unchecked. No live bridge, coordinator,
 second durable provider or deployment acceptance follows from these checks.
+
+### 2026-10-22 — workflow-binding packet preflight
+
+Binding work is isolated on `feat/agentic-workflow-binding`, based on storage candidate
+`42681e77400689b05d802f8fdf34c7d0f5d38aa1`, in the native managed worktree
+`/home/df/.codex/worktrees/d4f8/puni-00`. The storage PR and its replacement h2 gate
+remain separate; this does not claim storage aggregate acceptance.
+
+The reviewed binding supplement expands parent1.1–1.2 into three TDD slices: strict
+shape/coverage and checked class selection; exact prompt-byte acceptance and real loader;
+CLI integration. Approval/budget declarations, defaults/gate rollout, runtime retention,
+adapters and dispatch remain outside this packet. The sample now defines its previously
+dangling review/integrate classes; its human integration class models only the wait.
+
+Frozen Bun install succeeded with1493packages in1.57s. Before any behavior changes, the
+existing canonical, navigator-records, invoke-cli, cli and no-ambient-clock tests passed:
+39tests,237assertions,5files,17.24s. Command: `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/canonical.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/navigator-records.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/invoke-cli.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/cli.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000`.
+Logs: `/tmp/puni-binding-install.log`, `/tmp/puni-binding-baseline.log`. This baseline
+verifies existing behavior only; no new binding implementation or R5 proof exists yet.
+
+Adoption OpenSpec validation: one valid change, zero failures, eight long-requirement
+warnings (seven before the added acceptance requirement). The new warning reflects the
+explicit snapshot/IO contract; no validation failure is ignored. WBS I1 is a rolled-up
+parent: an attempted atomic notes/progress update refused `rolled_up`, and reread confirmed
+no note/status change. Progress must be recorded on its actual schema/CLI children. Their
+broader sandbox/cwd, approval/budget, retry/context and retained-manifest requirements are
+explicit remaining work; the static subset does not complete I1.01 or I1 overall.

@@ -125,6 +125,9 @@ Adapters:
 
 ## Workflow binding
 
+The following complete mapping is illustrative, not a repository default or a claim that
+its model names are available. Validation requires the referenced prompt files.
+
 ```yaml
 version: 1
 types:
@@ -146,15 +149,32 @@ classes:
     harness: claude-code
     permissionMode: allow-edits
     prompt: .twilight/prompts/impl.md
+  review:
+    executor: api-model
+    model: anthropic:claude-opus-5-5
+    prompt: .twilight/prompts/review.md
+    tools: [wbs-read]
+    limits: { maxSteps: 20, maxOutputTokens: 16000 }
   verify:
     executor: tool
     command: bin/h2puni-gate.sh
+  integrate:
+    executor: human
+    prompt: .twilight/prompts/integrate.md
 ```
 
-Burokrat validates shape, pinned model ids (a bare `claude-...` is refused), known executor
-kinds, prompt files present, and step codes against the list the caller passes from the WBS
-export. A work item type with no entry falls back to `default`; a step code with no entry is
-refused at validation, not at run time.
+Every declared type mapping must cover exactly the supplied project-step set. A requested
+type with no entry selects the complete `default` mapping if present; an explicit type
+never inherits missing steps from `default`. Unknown or missing mapped steps refuse
+validation. Without an explicit type or default, selection refuses `unmapped_type`.
+
+The `integrate` class here models only a human decision wait. It does not implement A6's
+subsequent guarded merge; that composition remains unresolved before repository defaults
+and runtime integration. Binding acceptance establishes static settings and referenced-byte
+consistency, not approval or budget authority. Parent 1.1–1.2 does not complete WBS I1's
+governance remainder. See [binding design](binding-design.md) and
+[binding tasks](binding-tasks.md) for this validator packet. The five activity classes here
+need not map one-to-one onto all five executor kinds; contract fixtures cover every kind.
 
 ## WBS run bridge
 
