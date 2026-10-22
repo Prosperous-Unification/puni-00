@@ -46,3 +46,23 @@ Correction verification:
 Independent watched correction negatives: removing the service consumer, forcing the persisted-marker predicate false, and removing the HTTP409 schema arm each made both mounted tests return HTTP500 instead of HTTP409. Accepting a missing project and removing marker decoding independently made the named absent/unreadable-state tests resolve instead of throw. Logs are `/tmp/puni-deletion-modeled-{consumer,read,schema,absence,unreadable}-mutant.log`; all faults were restored before green verification.
 
 No canonical host gate, build, deployment or external authoring activation is established by this correction.
+
+Second review correction: implicit typed writes
+
+The review's first-child reproduction was confirmed on the mounted production composition: an existing local node relationship remapped by `createWorkItem` reached the raw pending-project fence and returned HTTP500. A local duplicate that copies an incoming typed prerequisite and a mounted first-child transfer of external incidents independently reproduced the same fault.
+
+`WorkItemService.structuralRefusal` now checks lifecycle state for newly added or changed typed facts before graph expansion and persistence. This shared proposed-state path covers first-child local node remaps and duplicate/copy; unchanged relationships do not create an additional lifecycle gate. `createIncidentNodeTransition` checks both current endpoint markers after endpoint authority and before any detach, so derived external restoration retains its borrowed writer and grants no remote edit permission. Its post-await authority assertion rejects an observation closed during the marker read. Raw SQLite fences remain unchanged.
+
+Audit of the remaining typed writers: explicit add/update and compensating add/update already call `typedRefusal`; incident restoration uses the bound transition; typed import builds a fresh target project, and production external import remains dormant and refuses before relationship persistence. No authoring activation or saved-plan change was added.
+
+Fresh forward implicit-write refusals return HTTP409 `project_deleting`, preserving every application table and outbound pushes, including an earlier patch in the batch. Undo/redo retain the documented existing stale-history policy: they return HTTP409 `stale_undo` and discard exactly the refused entry. Their tests assert that graph, revisions, audit, events, sequences and every other journal entry remain unchanged; this packet does not silently change history semantics.
+
+Verification:
+
+- Full connected-command admission, cross-project lifecycle, typed-copy and cross-project history controller suites: **157 pass, 0 fail, 2316 assertions** (`/tmp/puni-deletion-implicit-regression.log`).
+- Backend/core `tsc --build --force` and changed-file ESLint passed. All-change OpenSpec validation: **268 pass, 0 fail**.
+- Removing the structural lifecycle consumer independently restored HTTP500 in both mounted create and duplicate tests (`/tmp/puni-deletion-implicit-structural-mutant.log`: 2 failures).
+- Removing the incident lifecycle consumer independently restored HTTP500 in mounted fresh/undo/redo tests (`/tmp/puni-deletion-implicit-incident-mutant.log`: 3 failures).
+- Removing only the post-marker-read authority assertion returned a modeled refusal after the injected observation close instead of throwing (`/tmp/puni-deletion-implicit-lifetime-mutant.log`: 1 failure).
+
+All injected faults were restored before green verification. Existing no-host-gate, no-build, no-deploy and no-activation limits remain.

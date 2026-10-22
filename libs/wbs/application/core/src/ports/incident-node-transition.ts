@@ -37,6 +37,7 @@ export type IncidentTransitionOutcome<T> =
   | {
       readonly ok: false;
       readonly reason:
+        | 'project_deleting'
         | 'not_found'
         | 'forbidden'
         | 'unknown_step'
@@ -48,6 +49,7 @@ export type IncidentTransitionOutcome<T> =
     };
 
 /** One admitted structural transition; no arbitrary foreign relationship writer escapes.
+ * Delete-pending endpoint facts refuse before any relationship is detached.
  * The caller must abort its enclosing UoW for any refusal or throw. */
 export interface IncidentNodeTransition {
   run<T extends { readonly ok: boolean }>(

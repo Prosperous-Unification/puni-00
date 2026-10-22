@@ -154,6 +154,13 @@ export function createIncidentNodeTransition(
           if (endpoint.projectId !== projectId)
             addresses.set(JSON.stringify([endpoint.projectId, endpoint.workItemId]), endpoint);
         }
+        // Proof: removing this lifecycle consumer restored mounted fresh/undo/redo
+        // incident-restoration HTTP500 instead of modeled HTTP409 (2026-10-22).
+        const isDeleting = await stores.typedDependencies.hasDeletingEndpoint(relationship);
+        // Proof: removing this assertion returned a refusal after the injected
+        // close in `incident pending-state read cannot return after its observation closes`.
+        assertAuthority(projectId, actorId);
+        if (isDeleting) return { ok: false, reason: 'project_deleting' };
         const from = await stores.typedDependencies.incidents.capture(relationship.id);
         assertAuthority(projectId, actorId);
         const to = {

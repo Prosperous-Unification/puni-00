@@ -1439,13 +1439,13 @@ export class WorkItemService {
     this.externalDependenciesActive = permitsExternalDependencies(opts.externalDependencyAuthoring);
   }
 
-  /** Checks endpoint shape before graph expansion so proposed defects remain modeled refusals. */
+  /** Checks changed typed endpoint lifecycle and shape before graph expansion or persistence. */
   private structuralRefusal(
     projectId: string,
     actorId: string,
     change: DependencyGraphChange,
   ): Promise<
-    | { ok: false; reason: 'cycle' | 'self_node' }
+    | { ok: false; reason: 'cycle' | 'self_node' | 'project_deleting' }
     | { ok: false; reason: 'node_on_parent' | 'descendant_step_on_leaf'; dependencyIds: string[] }
     | null
   > {
@@ -1454,6 +1454,21 @@ export class WorkItemService {
       projectId,
       actorId,
       async (context) => {
+        if (change.typed !== undefined) {
+          const existing = await this.opts.typedDependencies.listByProject(projectId);
+          for (const proposed of change.typed) {
+            const previous = existing.find((relationship) => relationship.id === proposed.id);
+            if (
+              previous !== undefined &&
+              formatScopedDependencyKey(previous) === formatScopedDependencyKey(proposed)
+            )
+              continue;
+            // Proof: removing this preflight restored HTTP500 in mounted createWorkItem
+            // and duplicateWorkItem implicit-write tests (2026-10-22).
+            if (await this.opts.typedDependencies.hasDeletingEndpoint(proposed))
+              return { ok: false, reason: 'project_deleting' };
+          }
+        }
         const conflict = await context.graph.findEndpointConflict(projectId, change);
         if (conflict !== null) return { ok: false, ...conflict };
         const cycle = await context.graph.findCycle(projectId, change);

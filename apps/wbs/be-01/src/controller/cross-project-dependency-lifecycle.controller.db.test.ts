@@ -3,6 +3,8 @@ import { grantAdmission } from '@wbs/core';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { openDrizzle } from '@wbs/store-sqlite/db';
+import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
 import { afterEach, expect, test } from 'bun:test';
 
 import {
@@ -745,5 +747,131 @@ test('modeled structural refusal makes the compound capability refuse at its top
     },
     changed: false,
   });
+  expect(readTables()).toEqual(before);
+});
+
+for (const direction of ['fresh', 'undo', 'redo'] as const) {
+  test(`mounted ${direction} incident restoration models a deleting remote endpoint`, async () => {
+    const fixture = await seedIncidents();
+    const commands = `/api/projects/${fixture.owner.projectId}/commands`;
+    const create = {
+      kind: 'createWorkItem',
+      name: 'Refused child',
+      parentId: fixture.owner.workItemId,
+    };
+    if (direction !== 'fresh')
+      expect((await fixture.request(commands, { commands: [create] })).status).toBe(200);
+    if (direction === 'redo')
+      expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/undo`)).status).toBe(
+        200,
+      );
+    expect(
+      beginOptimizationDrain(openDrizzle(harness.databasePath()), fixture.successor.projectId, {
+        at: 30,
+        by: fixture.principal.id,
+      }),
+    ).toBe(0);
+    const before = readTables();
+    const discarded =
+      direction === 'fresh'
+        ? null
+        : harness.sqlite
+            .query<{ id: string }, [string, string, number]>(
+              `SELECT id FROM command_journal WHERE project_id=? AND user_id=? AND undone=? ORDER BY seq ${direction === 'undo' ? 'DESC' : 'ASC'} LIMIT 1`,
+            )
+            .get(fixture.owner.projectId, fixture.principal.id, direction === 'undo' ? 0 : 1);
+    if (direction !== 'fresh' && discarded === null) throw new Error('replay entry missing');
+    const response =
+      direction === 'fresh'
+        ? await fixture.request(commands, { commands: [create] })
+        : await fixture.request(`/api/projects/${fixture.owner.projectId}/${direction}`);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject(
+      direction === 'fresh'
+        ? { error: 'project_deleting', at: 0, kind: 'createWorkItem' }
+        : { error: 'stale_undo' },
+    );
+    expect(readTables()).toEqual(
+      discarded === null
+        ? before
+        : before.map((table) =>
+            table.name !== 'command_journal'
+              ? table
+              : {
+                  ...table,
+                  rows: table.rows.filter(
+                    (row) => (JSON.parse(row) as { readonly id: string }).id !== discarded.id,
+                  ),
+                },
+          ),
+    );
+  });
+}
+
+test('incident pending-state read cannot return after its observation closes', async () => {
+  const fixture = await seedIncidents();
+  expect(
+    beginOptimizationDrain(openDrizzle(harness.databasePath()), fixture.successor.projectId, {
+      at: 30,
+      by: fixture.principal.id,
+    }),
+  ).toBe(0);
+  const boundary = harness.publicWrites();
+  const before = readTables();
+  const failure = await boundary.uow.run(async (scope) => {
+    const resolved = await boundary.commandAccess.resolve({
+      kind: 'human',
+      principal: fixture.principal,
+      expectedAccess: fixture.expectedAccess,
+    });
+    if (!resolved.ok) throw new Error('fixture authority refused');
+    await requireOwnerEdit(scope.stores, fixture);
+    const granted = grantAdmission(fixture.owner.projectId, fixture.principal.id);
+    const opened = createDependencyContext(
+      scope.stores,
+      {
+        projectId: fixture.owner.projectId,
+        actorId: fixture.principal.id,
+        access: resolved.access,
+        admission: granted.admission,
+      },
+      () => undefined,
+      { kind: 'raw' },
+    );
+    const read = scope.stores.typedDependencies.hasDeletingEndpoint.bind(
+      scope.stores.typedDependencies,
+    );
+    scope.stores.typedDependencies.hasDeletingEndpoint = async (relationship) => {
+      const isDeleting = await read(relationship);
+      if (isDeleting) opened.close();
+      return isDeleting;
+    };
+    try {
+      const observed: unknown = await opened.context.incidents
+        .run(
+          fixture.owner.projectId,
+          fixture.principal.id,
+          {
+            kind: 'fresh',
+            fromWorkItemId: fixture.owner.workItemId,
+            toWorkItemId: 'refused-child',
+          },
+          { at: 30, by: fixture.principal.id },
+          () => {
+            throw new Error('closed incident observation reached structure');
+          },
+        )
+        .then(
+          (value) => value,
+          (error: unknown) => error,
+        );
+      return { commit: false, value: observed };
+    } finally {
+      scope.stores.typedDependencies.hasDeletingEndpoint = read;
+      opened.close();
+    }
+  });
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure instanceof Error ? failure.message : '').toContain('closed');
   expect(readTables()).toEqual(before);
 });

@@ -3002,3 +3002,69 @@ for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) 
     expect(pushUrls).toEqual(pushedBefore);
   });
 }
+
+for (const command of ['createWorkItem', 'duplicateWorkItem'] as const) {
+  test(`mounted ${command} refuses implicit typed writes on a deleting project without effects`, async () => {
+    const pushUrls: string[] = [];
+    const fixture = await open(pushUrls);
+    const projectId = fixture.owner.projectId;
+    expect(
+      (
+        await fixture.request(`/api/projects/${projectId}/commands`, {
+          commands: [{ kind: 'createWorkItem', name: 'Local prerequisite' }],
+        })
+      ).status,
+    ).toBe(200);
+    const peer = harness.sqlite
+      .query<{ id: string }, [string, string]>(
+        'SELECT id FROM work_item WHERE project_id=? AND id<>?',
+      )
+      .get(projectId, fixture.owner.workItemId);
+    const step = harness.sqlite
+      .query<{ id: string }, [string]>(
+        'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      )
+      .get(projectId);
+    if (peer === null || step === null) throw new Error('implicit-write fixture endpoints missing');
+    expect(
+      (
+        await fixture.request(`/api/projects/${projectId}/commands`, {
+          commands: [
+            {
+              kind: 'addTypedDependency',
+              type: 'FS',
+              predecessor: { projectId, workItemId: peer.id, scope: 'whole' },
+              successor: {
+                projectId,
+                workItemId: fixture.owner.workItemId,
+                scope: 'node',
+                stepId: step.id,
+              },
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      beginOptimizationDrain(openDrizzle(harness.databasePath()), projectId, { at: 2, by: 'ada' }),
+    ).toBe(0);
+    const before = effects();
+    const pushedBefore = [...pushUrls];
+    const response = await fixture.request(`/api/projects/${projectId}/commands`, {
+      commands: [
+        { kind: 'patchWorkItem', workItemId: peer.id, patch: { name: 'Must roll back' } },
+        command === 'createWorkItem'
+          ? { kind: command, name: 'First child', parentId: fixture.owner.workItemId }
+          : { kind: command, workItemId: fixture.owner.workItemId },
+      ],
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: 'project_deleting',
+      at: 1,
+      kind: command,
+    });
+    expect(effects()).toEqual(before);
+    expect(pushUrls).toEqual(pushedBefore);
+  });
+}
