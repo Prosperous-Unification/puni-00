@@ -1,9 +1,27 @@
 {
   "objectiveValues": {
-    "makespan": { "bound": 1, "stageValue": 1, "status": "feasible", "value": 1 },
-    "movement": { "bound": 1, "stageValue": 1, "status": "feasible", "value": 1 },
-    "priority": { "bound": 1, "stageValue": 1, "status": "feasible", "value": 1 }
+    "makespan": {
+      "bound": 1,
+      "stageValue": 1,
+      "status": "feasible",
+      "value": 1
+    },
+    "movement": {
+      "bound": 1,
+      "stageValue": 1,
+      "status": "feasible",
+      "value": 1
+    },
+    "priority": {
+      "bound": 1,
+      "stageValue": 1,
+      "status": "feasible",
+      "value": 1
+    }
   },
   "status": "feasible",
-  "wireVersion": 4
+  "wireVersion": 5,
+  "scope": {
+    "kind": "local"
+  }
 }

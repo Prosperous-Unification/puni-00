@@ -66,7 +66,7 @@ const requestOf = () => {
       plan.reach,
       [],
     ),
-    solverVersion: '0.3.0',
+    solverVersion: '0.4.0',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
@@ -87,6 +87,7 @@ const requestOf = () => {
  */
 const asResponse = (offsets: Readonly<Record<string, number>>): SolverResponse => ({
   wireVersion: SOLVER_WIRE_VERSION,
+  scope: { kind: 'local' },
   status: 'feasible',
   offsets,
   objectiveValues: {
@@ -132,7 +133,7 @@ describe('the quantised baseline as a solution the solver could publish', () => 
     );
     const built = buildSolverRequest(ffPlan, 'time', {
       baselineOffsets,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: 1_000,
     });
     if (!built.ok) throw new Error(built.detail);
@@ -142,6 +143,7 @@ describe('the quantised baseline as a solution the solver could publish', () => 
     );
     const response: SolverResponse = {
       wireVersion: SOLVER_WIRE_VERSION,
+      scope: { kind: 'local' },
       status: 'feasible',
       offsets: baselineOffsets,
       objectiveValues: {
@@ -248,7 +250,7 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
         richPlan.reach,
         [],
       ),
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: 30_000,
     });
     if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
@@ -294,6 +296,7 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
     offsets: Readonly<Record<string, number>>,
   ): SolverResponse => ({
     wireVersion: SOLVER_WIRE_VERSION,
+    scope: { kind: 'local' },
     status: 'feasible',
     offsets,
     objectiveValues: valuesOf(request, offsets),

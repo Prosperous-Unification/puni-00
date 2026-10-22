@@ -4,7 +4,7 @@
     "milestone\u0000second": 0
   },
   "budgetMs": 30000,
-  "contractVersion": "17+0.3.0",
+  "contractVersion": "18+0.4.0",
   "edges": [
     {
       "predecessorKey": "milestone\u0000first",
@@ -50,7 +50,10 @@
       "demands": []
     }
   ],
-  "solverVersion": "0.3.0",
+  "solverVersion": "0.4.0",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
-  "wireVersion": 4
+  "wireVersion": 5,
+  "scope": {
+    "kind": "local"
+  }
 }

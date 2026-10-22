@@ -1,5 +1,5 @@
 {
-  "contractVersion": 17,
+  "contractVersion": 18,
   "cases": {
     "minute-step-half-workday": {
       "slices": [

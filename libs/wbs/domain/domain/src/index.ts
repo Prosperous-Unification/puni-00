@@ -30,6 +30,8 @@ export * from './dependency-reach';
 // neither imported anything at all — and both answer questions about a plan's
 // shape rather than about storage: what number a work item takes from where it
 // sits, and where a new sibling goes. `schedule.ts` reads the first of them.
+export { canonicalConnectedStageInput } from './canonical-connected-stage-input';
+export type { ConnectedOptimizationStage } from './connected-optimization-input';
 export * from './contract-version';
 export * from './derive-numbers';
 // `effective-label` is deliberately absent: it is the walk the three dimensions

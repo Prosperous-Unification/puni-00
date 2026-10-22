@@ -1,3 +1,4 @@
+import type { ConnectedOptimizationStage } from '@wbs/domain';
 import {
   expandToLeaves,
   groupSlicesByLeaf,
@@ -12,15 +13,20 @@ import {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import { buildConnectedSolverRequestPair } from './build-connected-solver-request';
 import { buildSolverEdges } from './build-solver-edges';
 import { quantiseElsewhere } from './quantise-elsewhere';
 import { ffStartWeightUnits } from './solver-units';
 import {
+  type ConnectedSolverRequest,
+  type ConnectedSolverResponse,
   SOLVER_OBJECTIVE_TERMS,
   type SolverObjectiveTerm,
   type SolverRequest,
   type SolverResponse,
   type SolverSlice,
+  type SolverWireRequest,
+  type SolverWireResponse,
 } from './wire-types';
 
 /**
@@ -126,6 +132,7 @@ export const SOLVER_REVALIDATION_FAILURES = [
   'objective-regression',
   'objective-mismatch',
   'deadline-violated',
+  'boundary-violated',
 ] as const;
 export type SolverRevalidationFailure = (typeof SOLVER_REVALIDATION_FAILURES)[number];
 
@@ -248,7 +255,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * detect and then agree with whatever the solver reported.
  */
 const recomputeObjectives = (
-  request: SolverRequest,
+  request: SolverWireRequest,
   placements: readonly Placement[],
 ): Record<SolverObjectiveTerm, bigint> => {
   let makespan = 0n;
@@ -259,7 +266,9 @@ const recomputeObjectives = (
     if (finish > makespan) makespan = finish;
     priority += BigInt(placement.slice.priorityWeight) * finish;
     const start = BigInt(placement.start);
-    const baseline = BigInt(request.baselineOffsets[placement.slice.key]);
+    const reference =
+      'baselineOffsets' in request ? request.baselineOffsets : request.movementReferenceOffsets;
+    const baseline = BigInt(reference[placement.slice.key]);
     movement += start >= baseline ? start - baseline : baseline - start;
   }
   // An empty slice set has no finish to take a maximum over, and 0 is the
@@ -288,12 +297,23 @@ const groupBy = <T>(items: readonly T[], keysOf: (item: T) => readonly string[])
  * does not match the request is a check that reads whichever slices both
  * happened to name.
  */
-export const revalidateSolverResult = (
-  request: SolverRequest,
-  response: SolverResponse,
+const revalidateWireSolverResult = (
+  request: SolverWireRequest,
+  response: SolverWireResponse,
   canonicalSlices?: readonly Slice[],
   canonicalInput?: ScheduleInput,
 ): RevalidatedSolverResult => {
+  if (request.scope.kind !== response.scope.kind) {
+    return refuse('malformed-request', 'response scope does not match request scope');
+  }
+  if (
+    request.scope.kind === 'connected-stage' &&
+    (response.scope.kind !== 'connected-stage' ||
+      response.scope.projectId !== request.scope.projectId ||
+      response.scope.inputHash !== request.scope.inputHash ||
+      response.scope.questionHash !== request.scope.questionHash)
+  )
+    return refuse('malformed-request', 'connected response identity differs from request');
   const canonical = new Map(
     canonicalSlices?.map((slice) => [sliceKey(slice.workItemId, slice.stepId), slice]),
   );
@@ -341,7 +361,9 @@ export const revalidateSolverResult = (
     // a `Record<string, number>`, so the compiler believes this lookup always
     // lands; the map is a wire value and its key set is exactly what is in
     // question here, which is why the domain is asked of the value itself.
-    const baseline = request.baselineOffsets[slice.key];
+    const reference =
+      'baselineOffsets' in request ? request.baselineOffsets : request.movementReferenceOffsets;
+    const baseline = reference[slice.key];
     if (!isNonNegativeSafeInteger(baseline)) {
       return refuse(
         'malformed-request',
@@ -536,6 +558,34 @@ export const revalidateSolverResult = (
     }
   }
 
+  if (request.scope.kind === 'connected-stage') {
+    for (const boundary of request.scope.boundaries) {
+      const placement = placementByKey.get(boundary.localKey);
+      if (placement === undefined)
+        return refuse(
+          'malformed-request',
+          `boundary names unknown slice ${JSON.stringify(boundary.localKey)}`,
+        );
+      // Proof: disabling this incoming comparison let the production connected
+      // revalidator publish offset 0 below bound 10 (5 pass / 1 fail); the
+      // restored comparison refuses it as boundary-violated.
+      if (boundary.direction === 'incoming' && placement.start < boundary.minimumStartUnits) {
+        return refuse(
+          'boundary-violated',
+          `slice ${JSON.stringify(boundary.localKey)} starts before ${String(boundary.minimumStartUnits)}`,
+        );
+      }
+      // Proof: disabling this outgoing comparison published offset 10 above
+      // bound 9 (6 pass / 1 fail); the restored comparison refuses it.
+      if (boundary.direction === 'outgoing' && placement.start > boundary.maximumStartUnits) {
+        return refuse(
+          'boundary-violated',
+          `slice ${JSON.stringify(boundary.localKey)} starts after ${String(boundary.maximumStartUnits)}`,
+        );
+      }
+    }
+  }
+
   for (const edge of request.edges) {
     const predecessor = placementByKey.get(edge.predecessorKey);
     const successor = placementByKey.get(edge.successorKey);
@@ -690,6 +740,56 @@ export const revalidateSolverResult = (
   }
 
   return { ok: true, published: true };
+};
+
+/** Keep the existing local entry point precise for current callers. */
+export const revalidateSolverResult = (
+  request: SolverRequest,
+  response: SolverResponse,
+  canonicalSlices?: readonly Slice[],
+  canonicalInput?: ScheduleInput,
+): RevalidatedSolverResult =>
+  revalidateWireSolverResult(request, response, canonicalSlices, canonicalInput);
+
+const stableWire = (value: unknown): string =>
+  JSON.stringify(value, (_key, member: unknown) =>
+    member !== null && typeof member === 'object' && !Array.isArray(member)
+      ? Object.fromEntries(
+          Object.entries(member).sort(([left], [right]) =>
+            left < right ? -1 : left > right ? 1 : 0,
+          ),
+        )
+      : member,
+  );
+
+/** Independently reconstruct the fixed-boundary question before accepting solver output. */
+export const revalidateConnectedSolverResult = (
+  stage: ConnectedOptimizationStage,
+  request: ConnectedSolverRequest,
+  response: ConnectedSolverResponse,
+): RevalidatedSolverResult => {
+  const pair = buildConnectedSolverRequestPair(
+    stage,
+    {
+      inputHash: request.scope.inputHash,
+      questionHash: request.scope.questionHash,
+    },
+    { solverVersion: request.solverVersion, budgetMs: request.budgetMs },
+  );
+  const prepared = request.objective === 'pri' ? pair.pri : pair.time;
+  if (prepared.kind !== 'request')
+    return refuse('malformed-request', `connected stage preparation is ${prepared.kind}`);
+  // Proof: bypassing this correspondence check accepted an unknown response
+  // after the request dropped its authored boundary (8 pass / 1 fail).
+  if (stableWire(prepared.request) !== stableWire(request)) {
+    return refuse('malformed-request', 'connected request differs from its canonical stage');
+  }
+  const localSlices = stage.input.slices.filter(
+    (slice) =>
+      stage.input.order.kind === 'connected' &&
+      stage.input.order.projectIdByWorkItem.get(slice.workItemId) === stage.projectId,
+  );
+  return revalidateWireSolverResult(request, response, localSlices);
 };
 
 /**

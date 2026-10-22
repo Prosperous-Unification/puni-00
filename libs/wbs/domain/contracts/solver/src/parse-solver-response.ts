@@ -1,10 +1,14 @@
 import {
+  CONNECTED_SOLVER_RESPONSE_STATUSES,
+  type ConnectedSolverRequest,
+  type ConnectedSolverResponse,
   SOLVER_OBJECTIVE_TERM_KEYS,
   SOLVER_OBJECTIVE_TERMS,
   SOLVER_RESPONSE_KEYS,
   SOLVER_RESPONSE_STATUSES,
   SOLVER_STAGE_STATUSES,
   SOLVER_WIRE_VERSION,
+  type SolverConnectedScopeIdentity,
   type SolverResponse,
 } from './wire-types';
 
@@ -39,7 +43,10 @@ export type ParsedSolverResponse =
   | { readonly ok: true; readonly response: SolverResponse }
   | { readonly ok: false; readonly failure: SolverParseFailure; readonly detail: string };
 
-const refuse = (failure: SolverParseFailure, detail: string): ParsedSolverResponse => ({
+const refuse = (
+  failure: SolverParseFailure,
+  detail: string,
+): { readonly ok: false; readonly failure: SolverParseFailure; readonly detail: string } => ({
   ok: false,
   failure,
   detail,
@@ -56,7 +63,7 @@ const unknownKeys = (value: Record<string, unknown>, allowed: readonly string[])
 
 /**
  * The structural half, written against the constants `wire-types.test.ts` pins
- * to `solver-wire.v4.json`. It is deliberately hand-written rather than driven
+ * to `solver-wire.v5.json`. It is deliberately hand-written rather than driven
  * by a JSON Schema validator, and the golden corpus is what stops that from
  * drifting: `parse-solver-response.test.ts` runs every response fixture through
  * this function and fails if it accepts one the schema rejects or rejects one
@@ -64,7 +71,7 @@ const unknownKeys = (value: Record<string, unknown>, allowed: readonly string[])
  *
  * Returns `null` when the value is a valid response, or a one-line reason.
  */
-const violation = (value: unknown): string | null => {
+const violation = (value: unknown, expectedScope?: SolverConnectedScopeIdentity): string | null => {
   if (!isPlainObject(value)) {
     return `response is ${Array.isArray(value) ? 'an array' : typeof value}`;
   }
@@ -75,9 +82,28 @@ const violation = (value: unknown): string | null => {
   if (value['wireVersion'] !== SOLVER_WIRE_VERSION) {
     return `wireVersion is ${JSON.stringify(value['wireVersion'])}, expected ${String(SOLVER_WIRE_VERSION)}`;
   }
+  const scope = value['scope'];
+  if (!isPlainObject(scope)) return 'response scope is not an object';
+  if (expectedScope === undefined) {
+    if (Object.keys(scope).length !== 1 || scope['kind'] !== 'local')
+      return 'local response has invalid scope';
+  } else {
+    // Proof: disabling the questionHash comparison admitted a response for a
+    // different connected question (13 pass / 1 fail).
+    if (
+      Object.keys(scope).length !== 4 ||
+      scope['kind'] !== expectedScope.kind ||
+      scope['projectId'] !== expectedScope.projectId ||
+      scope['inputHash'] !== expectedScope.inputHash ||
+      scope['questionHash'] !== expectedScope.questionHash
+    )
+      return 'connected response does not echo the request question identity';
+  }
 
   const status = value['status'];
-  if (typeof status !== 'string' || !SOLVER_RESPONSE_STATUSES.includes(status as never)) {
+  const statuses: readonly string[] =
+    expectedScope === undefined ? SOLVER_RESPONSE_STATUSES : CONNECTED_SOLVER_RESPONSE_STATUSES;
+  if (typeof status !== 'string' || !statuses.includes(status)) {
     return `unknown status ${JSON.stringify(status)}`;
   }
 
@@ -142,7 +168,12 @@ const violation = (value: unknown): string | null => {
  * text after a valid one; a line that is not JSON is `malformed-json`; and a
  * JSON value that is not a response is `schema-violation`.
  */
-export const parseSolverResponse = (raw: string): ParsedSolverResponse => {
+const parseFramedResponse = (
+  raw: string,
+  expectedScope?: SolverConnectedScopeIdentity,
+):
+  | { readonly ok: true; readonly response: SolverResponse | ConnectedSolverResponse }
+  | { readonly ok: false; readonly failure: SolverParseFailure; readonly detail: string } => {
   if (raw.trim().length === 0) return refuse('empty-output', 'stdout was empty');
 
   // Exactly one optional terminator comes off. Anything still holding a break
@@ -160,8 +191,41 @@ export const parseSolverResponse = (raw: string): ParsedSolverResponse => {
     return refuse('malformed-json', error instanceof Error ? error.message : String(error));
   }
 
-  const detail = violation(parsed);
+  const detail = violation(parsed, expectedScope);
   if (detail !== null) return refuse('schema-violation', detail);
 
-  return { ok: true, response: parsed as SolverResponse };
+  // The strict structural guard above establishes the discriminated wire boundary.
+  return { ok: true, response: parsed as SolverResponse | ConnectedSolverResponse };
+};
+
+/** Parse the local wire arm without accepting a connected identity. */
+export const parseSolverResponse = (raw: string): ParsedSolverResponse => {
+  const parsed = parseFramedResponse(raw);
+  if (!parsed.ok) return parsed;
+  // parseFramedResponse's absent expectedScope admits only the local discriminant.
+  return { ok: true, response: parsed.response as SolverResponse };
+};
+
+/** Parse a connected response and require the exact request question identity. */
+export const parseConnectedSolverResponse = (
+  raw: string,
+  request: ConnectedSolverRequest,
+):
+  | { readonly ok: true; readonly response: ConnectedSolverResponse }
+  | { readonly ok: false; readonly failure: SolverParseFailure; readonly detail: string } => {
+  const parsed = parseFramedResponse(raw, request.scope);
+  if (!parsed.ok) return parsed;
+  // Proof: requiring a dependency bound alone rejected a valid connected
+  // occupancy-only boundary terminal (13 pass / 1 fail). The solver's initial
+  // model classifies either effective fixed-boundary source the same way.
+  const hasActiveBoundary =
+    request.scope.boundaries.length > 0 ||
+    Object.values(request.elsewhere).some((bookings) => bookings.length > 0);
+  // Proof: disabling the no-active-boundary refusal accepted a fabricated
+  // boundary-infeasible response with neither bound nor booking (13/1).
+  if (parsed.response.status === 'boundary-infeasible' && !hasActiveBoundary) {
+    return refuse('schema-violation', 'boundary-infeasible response has no active boundary');
+  }
+  // parseFramedResponse's expectedScope admits only the connected discriminant.
+  return { ok: true, response: parsed.response as ConnectedSolverResponse };
 };

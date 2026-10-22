@@ -53,13 +53,22 @@ from typing import Any, Mapping, Sequence
 from ortools.sat.python import cp_model
 
 from .model import MAKESPAN, MOVEMENT, PRIORITY, TERMS, build_model, stage_order
+from .validate import RequestRejected
 
-WIRE_VERSION = 4
+WIRE_VERSION = 5
+
+
+def response_scope(scope: Mapping[str, Any]) -> dict[str, str]:
+    """Echo only the identity, so an answer cannot silently attach to another stage."""
+    if scope["kind"] == "local":
+        return {"kind": "local"}
+    return {field: str(scope[field]) for field in
+            ("kind", "projectId", "inputHash", "questionHash")}
 
 # Response-level statuses. A RUN-OUTCOME vocabulary of exactly three values, and
 # a different question from the per-term status: this one says whether a
 # schedule is being returned at all. `optimal` is deliberately absent — see
-# solver-wire.v4.json's response `$comment`.
+# solver-wire.v5.json's response `$comment`.
 STATUS_FEASIBLE = "feasible"
 STATUS_UNKNOWN = "unknown"
 STATUS_INFEASIBLE = "infeasible"
@@ -82,7 +91,7 @@ ROW_STOP_PLAN_INFEASIBLE = "stop-plan-infeasible"  # INFEASIBLE, k = 1
 ROW_STOP_INVALID = "stop-invalid"  # INFEASIBLE, k > 1
 # TASK-310. Not a matrix row and deliberately not folded into the one above.
 # The three artifacts that name a disposition — spec.md's staged-lexicographic
-# requirement, design.md's `INFEASIBLE, k > 1` row and solver-wire.v4.json's
+# requirement, design.md's `INFEASIBLE, k > 1` row and solver-wire.v5.json's
 # response `$comment` — all argue from the *staging*: every constraint a later
 # stage adds is satisfied by the previous incumbent, so the run answered and
 # the answer cannot be carried. None of them says anything about a status the
@@ -153,7 +162,7 @@ class ModelInvalid(SolveFailed):
 class SolverConfig:
     """Per-process solver settings, which are deliberately not on the wire.
 
-    `solver-wire.v4.json` is closed (`additionalProperties: false`) and carries
+    `solver-wire.v5.json` is closed (`additionalProperties: false`) and carries
     no search-worker, seed or determinism field, and its own `$comment` records
     the precedent: the lifecycle wrapper's `childDeadlineAt` and `attemptToken`
     are *process* arguments rather than message fields. These are the same kind
@@ -191,7 +200,11 @@ def evaluate_terms(
     three and refuses the response on a one-unit disagreement, so this runs on
     Python's unbounded integers and never on a CP-SAT variable value.
     """
-    baseline = request["baselineOffsets"]
+    baseline = (
+        request["movementReferenceOffsets"]
+        if request["scope"]["kind"] == "connected-stage"
+        else request["baselineOffsets"]
+    )
     makespan = 0
     priority = 0
     movement = 0
@@ -241,6 +254,17 @@ def donated_budget_ms(share_ms: float, spent_ms: float) -> float:
 BASELINE_PROBE_UNITS = 1.0
 
 
+def offsets_are_feasible(request: Mapping[str, Any], offsets: Mapping[str, int]) -> bool:
+    """Prove a complete fixed placement against this request's full CP-SAT model."""
+    probe = build_model(request)
+    for key, var in probe.starts.items():
+        probe.model.add(var == int(offsets[key]))
+    solver = cp_model.CpSolver()
+    solver.parameters.num_search_workers = 1
+    solver.parameters.max_deterministic_time = BASELINE_PROBE_UNITS
+    return solver.solve(probe.model) in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+
 def baseline_is_feasible(request: Mapping[str, Any]) -> bool:
     """Is `baselineOffsets` a solution of exactly the model this run solves?
 
@@ -267,14 +291,18 @@ def baseline_is_feasible(request: Mapping[str, Any]) -> bool:
     exact failure mode — a bound installed against a model that does not admit
     the baseline after all.
     """
-    probe = build_model(request)
-    baseline = request["baselineOffsets"]
-    for key, var in probe.starts.items():
-        probe.model.add(var == int(baseline[key]))
-    solver = cp_model.CpSolver()
-    solver.parameters.num_search_workers = 1
-    solver.parameters.max_deterministic_time = BASELINE_PROBE_UNITS
-    return solver.solve(probe.model) in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+    # Proof: probing `seedOffsets` in place of this declared witness let an
+    # infeasible `feasibleBaselineOffsets` pass unchecked; configured Nx saw
+    # test_infeasible_declared_witness_is_rejected_but_seed_is_allowed fail
+    # (270 pass / 1 fail).
+    baseline = (
+        request["feasibleBaselineOffsets"]
+        if request["scope"]["kind"] == "connected-stage"
+        else request["baselineOffsets"]
+    )
+    if baseline is None:
+        return False
+    return offsets_are_feasible(request, baseline)
 
 
 def baseline_bound(request: Mapping[str, Any]) -> tuple[str, int] | None:
@@ -297,8 +325,17 @@ def baseline_bound(request: Mapping[str, Any]) -> tuple[str, int] | None:
     """
     primary = stage_order(str(request["objective"]))[0]
     if not baseline_is_feasible(request):
+        if request["scope"]["kind"] == "connected-stage" and request["feasibleBaselineOffsets"] is not None:
+            raise RequestRejected("declared feasibleBaselineOffsets violate the full model")
         return None
-    return primary, evaluate_terms(request, request["baselineOffsets"])[primary]
+    baseline = (
+        request["feasibleBaselineOffsets"]
+        if request["scope"]["kind"] == "connected-stage"
+        else request["baselineOffsets"]
+    )
+    if baseline is None:
+        return None
+    return primary, evaluate_terms(request, baseline)[primary]
 
 
 def _configure(config: SolverConfig, budget_ms: float) -> cp_model.CpSolver:
@@ -394,9 +431,12 @@ def solve_request(
         # test_an_infeasible_fast_baseline_is_not_sent_as_a_hint observe
         # [0, 2, 2, 2] hint variables instead of [0, 0, 0, 0]
         # (2026-09-28 unittest failure).
-        if request["fastHint"] == request["baselineOffsets"]:
-            for key, start in built.starts.items():
-                built.model.add_hint(start, int(request["fastHint"][key]))
+    seed = (request["seedOffsets"] if request["scope"]["kind"] == "connected-stage"
+            else request["fastHint"])
+    seed_is_witness = bound is not None and request["scope"]["kind"] == "local" and seed == request["baselineOffsets"]
+    if seed is not None and (seed_is_witness or (request["scope"]["kind"] == "connected-stage" and offsets_are_feasible(request, seed))):
+        for key, start in built.starts.items():
+            built.model.add_hint(start, int(seed[key]))
 
     for index, term_name in enumerate(order):
         stage = index + 1
@@ -435,12 +475,23 @@ def solve_request(
             # Nothing publishable, and a typed state rather than a failure.
             # Deadlines are in the model before any objective term, so this is a
             # property of the plan.
-            return {"wireVersion": WIRE_VERSION, "status": STATUS_INFEASIBLE}
+            scope = request["scope"]
+            # Proof: forcing this predicate false converted six connected
+            # boundary terminal cases to ordinary infeasible (269-test Nx
+            # suite: six failures), including nonbinding-deadline and foreign
+            # occupancy examples.
+            boundary_active = scope["kind"] == "connected-stage" and (
+                len(scope["boundaries"]) > 0 or any(request["elsewhere"].values())
+            )
+            return {"wireVersion": WIRE_VERSION, "scope": response_scope(scope),
+                    "status": "boundary-infeasible" if boundary_active else STATUS_INFEASIBLE}
 
         if row == ROW_STOP_NO_SOLUTION:
             # The budget ran out with nothing found and nothing proved. Fast
             # stays visible.
-            return {"wireVersion": WIRE_VERSION, "status": STATUS_UNKNOWN}
+            # Proof: relabelling this branch boundary-infeasible made the
+            # connected UNKNOWN solver case fail (271 pass / 1 fail on Nx).
+            return {"wireVersion": WIRE_VERSION, "scope": response_scope(request["scope"]), "status": STATUS_UNKNOWN}
 
         if row == ROW_STOP_PUBLISH:
             # Publish stage k−1's incumbent, which is feasible for the original
@@ -486,6 +537,7 @@ def solve_request(
 
     return {
         "wireVersion": WIRE_VERSION,
+        "scope": response_scope(request["scope"]),
         "status": STATUS_FEASIBLE,
         "offsets": {key: incumbent[key] for key in built.keys},
         "objectiveValues": objective_values,

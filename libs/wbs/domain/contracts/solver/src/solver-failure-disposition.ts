@@ -132,6 +132,7 @@ const REVALIDATION_DISPOSITIONS: Readonly<Record<SolverRevalidationFailure, Solv
     'objective-regression': 'invalid-output',
     'objective-mismatch': 'invalid-output',
     'deadline-violated': 'invalid-output',
+    'boundary-violated': 'invalid-output',
   };
 
 /**
@@ -162,7 +163,7 @@ export const SOLVER_EXIT_CODES = {
  *
  * `solveFailed` is `invalid-output`, and that mapping is a requirement rather
  * than a preference. A **later-stage** `INFEASIBLE` is the one solver outcome
- * with no encoding on the wire (`solver-wire.v4.json`, the response
+ * with no encoding on the wire (`solver-wire.v5.json`, the response
  * `$comment`), so the entrypoint "SHALL exit non-zero without emitting a
  * response, and the coordinator SHALL record that run as `invalid-output`"
  * (`openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/

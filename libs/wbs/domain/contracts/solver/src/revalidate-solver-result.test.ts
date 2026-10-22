@@ -36,9 +36,10 @@ const slice = (over: Partial<SolverSlice> & { key: string }): SolverSlice => ({
 });
 
 const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
-  wireVersion: 4,
-  contractVersion: '7+0.3.0',
-  solverVersion: '0.3.0',
+  wireVersion: 5,
+  scope: { kind: 'local' },
+  contractVersion: '7+0.4.0',
+  solverVersion: '0.4.0',
   objective: 'pri',
   budgetMs: 30_000,
   stageBudgetSplit: [0.6, 0.25, 0.15],
@@ -82,7 +83,8 @@ const feasible = (
   offsets: Record<string, number>,
   over: Partial<SolverObjectiveValues> = {},
 ): SolverResponse => ({
-  wireVersion: 4,
+  wireVersion: 5,
+  scope: { kind: 'local' },
   status: 'feasible',
   offsets,
   objectiveValues: valuesFor(offsets, over),
@@ -125,7 +127,11 @@ describe('revalidateSolverResult accepts', () => {
 
   it('a non-publishing response with nothing checked', () => {
     for (const status of ['infeasible', 'unknown'] as const) {
-      const result = revalidateSolverResult(request(), { wireVersion: 4, status });
+      const result = revalidateSolverResult(request(), {
+        wireVersion: 5,
+        scope: { kind: 'local' },
+        status,
+      });
       // `published: false` is the point: the response is acceptable AND there is
       // no plan, and a caller that reads `ok` alone would publish nothing at all.
       expect(result).toEqual({ ok: true, published: false });
@@ -153,7 +159,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     rejects(
       revalidateSolverResult(
         omitted,
-        { wireVersion: 4, status: 'unknown' },
+        { wireVersion: 5, scope: { kind: 'local' }, status: 'unknown' },
         real,
         canonicalPair(real, 'SS'),
       ),
@@ -180,7 +186,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     rejects(
       revalidateSolverResult(
         forged,
-        { wireVersion: 4, status: 'unknown' },
+        { wireVersion: 5, scope: { kind: 'local' }, status: 'unknown' },
         real,
         canonicalPair(real, 'FF'),
       ),
@@ -216,7 +222,11 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SF' as 'FS' }],
     });
     rejects(
-      revalidateSolverResult(unsupported, { wireVersion: 4, status: 'unknown' }),
+      revalidateSolverResult(unsupported, {
+        wireVersion: 5,
+        scope: { kind: 'local' },
+        status: 'unknown',
+      }),
       'malformed-request',
     );
   });
@@ -226,7 +236,11 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SS', startWeightUnits: 1 } as never],
     });
     rejects(
-      revalidateSolverResult(misplaced, { wireVersion: 4, status: 'unknown' }),
+      revalidateSolverResult(misplaced, {
+        wireVersion: 5,
+        scope: { kind: 'local' },
+        status: 'unknown',
+      }),
       'malformed-request',
     );
   });
@@ -255,7 +269,11 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       elsewhere: {},
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 4, status: 'unknown' }),
+      revalidateSolverResult(malformed, {
+        wireVersion: 5,
+        scope: { kind: 'local' },
+        status: 'unknown',
+      }),
       'malformed-request',
     );
   });
@@ -268,7 +286,11 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       elsewhere: {},
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 4, status: 'unknown' }),
+      revalidateSolverResult(malformed, {
+        wireVersion: 5,
+        scope: { kind: 'local' },
+        status: 'unknown',
+      }),
       'malformed-request',
     );
   });
@@ -285,7 +307,11 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         elsewhere: {},
       });
       rejects(
-        revalidateSolverResult(malformed, { wireVersion: 4, status: 'unknown' }),
+        revalidateSolverResult(malformed, {
+          wireVersion: 5,
+          scope: { kind: 'local' },
+          status: 'unknown',
+        }),
         'malformed-request',
       );
     }
@@ -301,7 +327,13 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { 'opaque-a': 0, 'opaque-b': 10 },
       elsewhere: {},
     });
-    expect(revalidateSolverResult(legal, { wireVersion: 4, status: 'unknown' })).toEqual({
+    expect(
+      revalidateSolverResult(legal, {
+        wireVersion: 5,
+        scope: { kind: 'local' },
+        status: 'unknown',
+      }),
+    ).toEqual({
       ok: true,
       published: false,
     });
@@ -324,7 +356,10 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       elsewhere: {},
     });
     for (const status of ['infeasible', 'unknown'] as const) {
-      rejects(revalidateSolverResult(malformed, { wireVersion: 4, status }), 'malformed-request');
+      rejects(
+        revalidateSolverResult(malformed, { wireVersion: 5, scope: { kind: 'local' }, status }),
+        'malformed-request',
+      );
     }
     rejects(revalidateSolverResult(malformed, feasible({ a: 1 })), 'malformed-request');
   });
@@ -344,7 +379,13 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         fastHint: { a: 0 },
         elsewhere: {},
       });
-      expect(revalidateSolverResult(legal, { wireVersion: 4, status: 'infeasible' })).toEqual({
+      expect(
+        revalidateSolverResult(legal, {
+          wireVersion: 5,
+          scope: { kind: 'local' },
+          status: 'infeasible',
+        }),
+      ).toEqual({
         ok: true,
         published: false,
       });
@@ -482,7 +523,8 @@ describe('revalidateSolverResult recomputes the objective', () => {
     movement: term(27),
   };
   const answer = (values: SolverObjectiveValues): SolverResponse => ({
-    wireVersion: 4,
+    wireVersion: 5,
+    scope: { kind: 'local' },
     status: 'feasible',
     offsets: { a: 0, b: 20 },
     objectiveValues: values,
@@ -547,7 +589,8 @@ describe('revalidateSolverResult recomputes the objective', () => {
       elsewhere: {},
     });
     const response: SolverResponse = {
-      wireVersion: 4,
+      wireVersion: 5,
+      scope: { kind: 'local' },
       status: 'feasible',
       offsets: { a: 2_147_483_646 },
       objectiveValues: {
