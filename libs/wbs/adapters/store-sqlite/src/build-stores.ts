@@ -17,6 +17,7 @@ import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
+import { RuntimeCommandRepository } from './runtime-command';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
@@ -55,6 +56,8 @@ export function buildStores(
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),
     claims: new ClaimRepository(db, gate),
+    // Proof: P26 committed instead of rolling back the borrowed UoW; late duplicate receipt retained prior runtime writes.
+    runtimeCommands: new RuntimeCommandRepository(db, gate),
     demands: new DemandRepository(db, gate),
     attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),

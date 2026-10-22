@@ -67,6 +67,11 @@ import {
 } from './replay-fixture';
 import { cascadeDemands, inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import {
+  inMemoryRuntimeCommands,
+  type MemoryRuntimeTable,
+  memoryRuntimeTable,
+} from './runtime-command';
+import {
   inMemoryStepBlockages,
   type MemoryStepBlockageTable,
   memoryStepBlockageTable,
@@ -85,6 +90,7 @@ import {
 } from './typed-dependency-fixture';
 
 interface MemoryTables {
+  readonly runtime: MemoryRuntimeTable;
   readonly users: MemoryUserTable;
   readonly projects: MemoryProjectTables;
   readonly directory: MemoryDirectoryTables;
@@ -109,6 +115,7 @@ interface MemoryTables {
 
 function emptyTables(): MemoryTables {
   return {
+    runtime: memoryRuntimeTable(),
     users: memoryUserTable(),
     projects: memoryProjectTables(),
     directory: memoryDirectoryTables(),
@@ -189,6 +196,11 @@ export class MemoryState {
   }
 
   replaceWith(next: MemoryState): void {
+    // Proof: P27 aliased the staged tables; refused/late-failing real runtime writes escaped rollback.
+    this.tables.runtime.ledger = structuredClone(next.tables.runtime.ledger);
+    replaceMap(this.tables.runtime.authorities, next.tables.runtime.authorities);
+    replaceMap(this.tables.runtime.bindings, next.tables.runtime.bindings);
+    replaceMap(this.tables.runtime.acceptances, next.tables.runtime.acceptances);
     replaceMap(this.tables.users.byId, next.tables.users.byId);
     replaceMap(this.tables.projects.projects, next.tables.projects.projects);
     replaceMap(this.tables.projects.steps, next.tables.projects.steps);
@@ -551,6 +563,7 @@ export function bindStores(
   };
   const demands = inMemoryDemands(state.tables.directory.resources, workItems);
   const stores: TransactionalStores = {
+    runtimeCommands: inMemoryRuntimeCommands(state.tables.runtime),
     users,
     projects,
     directory,

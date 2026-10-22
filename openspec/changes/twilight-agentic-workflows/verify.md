@@ -822,3 +822,50 @@ approved spec compliance and quality at `23ae1d8093bcc96a9f3e40fc7255283ddbc2ca8
 with no Critical or Important findings. The color-environment warning and historical Nx
 notice are deferred tooling minors. Review inspected F01/F16 directly without rerunning
 the matrix. Parent integration and exact-SHA receiver gate remain pending.
+
+### 2026-10-22 — receiver Task2 persistence candidate
+
+Implemented the required runtime store in SQLite and memory: four permanent
+ledger/authority/binding/receipt tables, exact scoped identities, row/count
+atomicity, immutable retained history and an additive migration with guarded down.
+The generic source remains lazy before explicit migration. Every runtime operation
+currently audits owned schema and all retained rows/payloads; cost grows with retained
+history. Canonical request bytes remain opaque at this layer; Task3 owns digest,
+receipt correspondence, current authorization and actual application acceptance.
+
+Fresh checks in the isolated receiver worktree:
+
+- Focused real-source/parser/WorkingPlan/inventory suite: 106 tests,432 assertions,
+  six files,9.81s, all passed.
+- SQLite conformance:82 tests,6992 assertions,37.06s; memory conformance:82 tests,
+  5436 assertions,2.86s. Both certify the new runtime family without exclusions.
+- Uncached core/contracts/SQLite/memory/conformance typecheck and lint passed in
+  their final covering runs. Final conformance unit/typecheck/lint also passed.
+  Initial failures exposed WorkingPlan catalog propagation, closed family/case
+  registries, a duplicate test registration and ordinary lint/type errors; these
+  were corrected and their failed logs retained.
+- Forward migration lint was invoked explicitly on
+  `20261022120000_add_runtime_commands/migration.sql` and exited0. Its SHA-256
+  `ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d`
+  matches the repository's pinned inspection identity. Formatting/diff checks
+  passed. OpenSpec validates one change with zero errors and ten existing
+  long-requirement warnings.
+
+R5 evidence contains64 distinct mutations and64 failing targeted trials:36 in the
+first summary,27 in the extra summary, and one WorkingPlan lifetime fault. The first
+63 were restored after each trial and followed by aggregate restored GREEN runs;
+they are not63 immediate red/green pairs. The lifetime fault has an immediate
+restored GREEN. Actual SQLite UoW rollback-to-COMMIT and memory staged-state aliasing
+leaked earlier writes after a real late duplicate receipt failure. Removing the
+primitive savepoint left a binding after a counter-trigger failure. Removing the
+history audit produced false absence, and removing the down guard let the actual
+rollback helper drop retained history. Named diagnostic and schema/constraint
+proofs are distinct from successful unauthorized business operations.
+
+Full commands, failures, historical mutation runners and per-fault outputs live in
+`.superpowers/sdd/receiver-tasks/task-2-report.md` and `task-2-evidence/`. Historical
+runner spellings predate formatting/lint cleanup; final restored suites passed,
+without claiming the entire matrix was rerun afterward. Task1's matrix was not
+rerun. This candidate has no runtime routes, application acceptance, full backend
+suite, build, live deployment or exact-SHA receiver host gate. Independent Task2
+review and parent acceptance remain pending.

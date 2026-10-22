@@ -1499,3 +1499,21 @@ describe('working plan value failures', () => {
     }
   });
 });
+
+it('borrows permanent runtime storage only during the working plan lifetime', async () => {
+  const source = openMemorySource();
+  try {
+    await source.uow.run(async (scope) => {
+      const workingPlan = createWorkingPlan(scope, 'runtime-project');
+      expect(workingPlan.stores.runtimeCommands).toBe(scope.stores.runtimeCommands);
+      expect(await workingPlan.stores.runtimeCommands.inspectLedger()).toMatchObject({
+        schemaVersion: 1,
+      });
+      workingPlan.close();
+      expect(() => workingPlan.stores.runtimeCommands).toThrow('closed');
+      return { commit: true, value: undefined };
+    });
+  } finally {
+    await source.close();
+  }
+});

@@ -41,3 +41,51 @@ export type RuntimeReadRefusal = Readonly<{
     | 'person_not_bound'
     | 'credential_not_for_person';
 }>;
+
+/** Receiver-owned grant; generations are positive safe integers within one scope. */
+export type RuntimeAuthority = Readonly<{ ownerId: string; generation: number }>;
+
+/** One local runtime attempt, distinct from WBS business attempt ordinals. */
+export type ExecutionIdentity = Readonly<{
+  storeId: string;
+  runId: string;
+  attemptId: string;
+  sessionId: string;
+}>;
+
+/** Permanent exact target/session binding, retained after the live claim disappears. */
+export type RuntimeClaim = Readonly<{
+  claimId: string;
+  workItemId: string;
+  stepId: string;
+  parentClaimId: string | null;
+  execution: ExecutionIdentity;
+}>;
+
+/** Immutable success body stored atomically with its accepted command. */
+export type RuntimeReceipt = Readonly<{
+  schemaVersion: 1;
+  ledgerId: string;
+  scope: RuntimeScope;
+  commandId: string;
+  requestDigest: string;
+  actorId: string;
+  acceptance:
+    | Readonly<{ kind: 'authority'; authority: RuntimeAuthority }>
+    | Readonly<{
+        kind: 'claim';
+        authority: RuntimeAuthority;
+        claim: RuntimeClaim;
+        basisAfter: RuntimeBasis;
+      }>
+    | Readonly<{
+        kind: 'write';
+        authority: RuntimeAuthority;
+        claim: RuntimeClaim;
+        basisAfter: RuntimeBasis;
+        applied: readonly Readonly<{
+          index: number;
+          kind: 'setProgress' | 'setMeasure' | 'patchWorkItem' | 'releaseWorkItem';
+        }>[];
+      }>;
+}>;

@@ -22,6 +22,7 @@ export const PORT_NAMES = [
   'attempts',
   'blockages',
   'stepParallels',
+  'runtimeCommands',
   'claims',
   'demands',
   'dependencies',
@@ -131,6 +132,7 @@ export const CASE_MANIFEST = {
   blockages: ['blockages.set:read-remove'],
   // Proof: family removed; complete-source inventory assertion failed (source-inventory.txt), 2026-10-15.
   stepParallels: ['stepParallels.set:sparse-replace-remove'],
+  runtimeCommands: ['runtimeCommands.write:permanent-history'],
   claims: [
     'claims.add:taken-stated-remove',
     'claims.listStampedByProject:write-instant',
