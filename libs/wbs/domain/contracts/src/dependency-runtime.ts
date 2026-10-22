@@ -1,3 +1,11 @@
+/** Immutable binary support, distinct from additive schema and persisted activation authority. */
+export interface DependencyRuntimeCapability {
+  readonly protocol: 'wbs-dependency-runtime';
+  readonly version: 1;
+  readonly role: 'backend' | 'gateway' | 'mcp';
+  readonly semantics: readonly 'cross-project-dependencies-v1'[];
+}
+
 /** Exact coordinator attribution for irreversible dependency semantic admission. */
 export interface DependencyActivationReceipt {
   protocol: 'wbs-dependency-activation';

@@ -954,7 +954,7 @@ describe('bootBe01', () => {
     expect(closes).toBe(1);
   }, 10_000);
 
-  it('releases the source and the port when a step after the listener fails', async () => {
+  it('releases the source without binding the port when schema admission fails', async () => {
     const dir = tempDir('wbs-boot-rollback-');
     const dbPath = join(dir, 'test.db');
     const port = await freePort();

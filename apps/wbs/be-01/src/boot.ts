@@ -61,6 +61,10 @@ import { nodeDigest } from './runtime/bun-runtime';
 import { delegationVerifier, type MappedUserOf, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/delegation-keys';
+import {
+  assertDependencyRuntime,
+  BACKEND_DEPENDENCY_CAPABILITY,
+} from './runtime/dependency-capability';
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
@@ -339,8 +343,9 @@ type BuiltApp = ReturnType<typeof buildApp>;
  * script meant "the timer is running in production" was a claim no test could
  * reach — the same shape of gap as the `runRetention` that had no caller at all.
  *
- * **It owns what it acquires.** The bag below opens the source, composes the
- * services, starts retention, mounts the listener and starts configured proof scheduling, in that order,
+ * **It owns what it acquires.** The bag opens the source, admits the schema and
+ * runtime, composes services, starts retention, mounts the listener and starts
+ * configured proof scheduling, in that order,
  * and releases them in the reverse of it. A step that fails takes the whole
  * startup down with it and gives back every resource the earlier steps took;
  * that is why this is `async` — `source.close()` and `retention.stop()` are
@@ -391,17 +396,45 @@ export async function bootBe01(
         // error: expected `DiBagCleanupError`, received `undefined`.
         disposeService: (source) => source.close(),
       }),
+      // Proof: replacing all admittedSource dependencies with source let real
+      // listener/DNS/retention/optimizer startup run against enabled authority
+      // in cross-project-dependency.boot.db.test.ts (2026-10-22).
+      admittedSource: DiBag.createProvider(
+        ({ source }: { source: OwnedSource }): OwnedSource => {
+          if (opts.migrateOnStartup === true)
+            runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+          readStepBlockageActivation(source.db);
+          // Proof: removing this invocation persisted local-dev during the real
+          // enabled-empty boot refusal test (2026-10-22).
+          assertDependencyRuntime(source.db, BACKEND_DEPENDENCY_CAPABILITY);
+          if (opts.migrateOnStartup === true) {
+            const coded = backfillStepCodes(
+              source.db,
+              new DrizzleEventLogStore(source.db, OPEN),
+              Date.now(),
+            );
+            opts.logger.info({ coded: coded.length }, 'step codes backfilled');
+          }
+          if (opts.localIdentity !== undefined)
+            new UserRepository(source.db, OPEN).ensureLocalIdentity(opts.localIdentity, {
+              at: Date.now(),
+              by: opts.localIdentity.id,
+            });
+          return source;
+        },
+        { factoryReturnKind: 'sync-value' },
+      ),
       browser: DiBag.createProvider(
-        ({ source }: { source: OwnedSource }) =>
+        ({ admittedSource: source }: { admittedSource: OwnedSource }) =>
           browserComposition(opts, { clock, gate: source.gate }, source.db),
         { factoryReturnKind: 'sync-value' },
       ),
       services: DiBag.createProvider(
         ({
-          source,
+          admittedSource: source,
           browser,
         }: {
-          source: OwnedSource;
+          admittedSource: OwnedSource;
           browser: ReturnType<typeof browserComposition>;
         }): BeServices =>
           buildServices({
@@ -465,12 +498,12 @@ export async function bootBe01(
         provider: DiBag.createProvider(
           (
             {
-              source,
+              admittedSource: source,
               services,
               browser,
               retention: _retention,
             }: {
-              source: OwnedSource;
+              admittedSource: OwnedSource;
               services: BeServices;
               browser: ReturnType<typeof browserComposition>;
               // Read for its edge, not its value: it is what puts the timer's
@@ -606,53 +639,11 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async (disposerCtx) => {
               if (disposerCtx.reason !== 'service-disposed') await app.stop();
             });
-            // Elysia runs this callback inline, before `listen` returns, so the
-            // schema step and the identity write happen exactly where they did —
-            // and a throw in either still leaves this factory, which is now what
-            // releases the socket above.
             const startListener =
               dependencies.startListener ??
               ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
             startListener(app, opts.port, () => {
-              if (opts.migrateOnStartup !== true) {
-                opts.logger.info(
-                  { port: opts.port },
-                  'be-01 listening (schema managed by the deploy pipeline)',
-                );
-              } else {
-                opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
-                runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
-                // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
-                readStepBlockageActivation(db);
-                // The swap's post-`stop-blue` step, here because a process that
-                // migrates itself has no older colour left to wait for.
-                const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
-                opts.logger.info({ coded: coded.length }, 'step codes backfilled');
-              }
-              if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
-              if (opts.localIdentity !== undefined) {
-                // The one write in the tree whose author is the row it writes:
-                // the fixed local-mode account brings itself into existence, so
-                // it is its own `created_by`. `Date.now()` rather than an
-                // injected clock because boot is not a service and has none —
-                // the rule the stamp exists for is that the *repository* reads
-                // no clock, and this is the caller.
-                //
-                // **This has to finish before the first write, and it does.**
-                // Every audit column's `created_by` references `users(id)` with
-                // foreign keys on, so a write attributed to this identity before
-                // its row exists is a `FOREIGN KEY constraint failed` rather
-                // than a quiet null. `/health` answers 503 `migrating` until the
-                // flag below, and both things that send the first request wait
-                // for a 200 first: Playwright's `webServer` does, and so does
-                // the deploy poller before it routes traffic to green. `OPEN`:
-                // this runs before the first request is served, so there is no
-                // batch for this write to land inside and no turn to wait for.
-                new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
-                  at: Date.now(),
-                  by: opts.localIdentity.id,
-                });
-              }
+              opts.logger.info({ port: opts.port }, 'be-01 listening (schema admitted)');
             });
             services.optimizer?.start();
             factoryCtx.pushDisposer(async () => {
