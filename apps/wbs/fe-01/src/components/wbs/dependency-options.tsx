@@ -144,6 +144,12 @@ export function DependencyOptions({
                 ? `Project ${option.project.abbreviation} - ${option.project.name}`
                 : `${option.label}${option.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[option.refusal]}`}`
             }
+            // Proof: CI browser shard 3 failed the existing overflow assertion when this title was absent.
+            title={
+              option.kind === 'project'
+                ? `Project ${option.project.abbreviation} - ${option.project.name}`
+                : `${option.label}${option.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[option.refusal]}`}`
+            }
             onClick={() => {
               if (
                 option.kind === 'project' ||

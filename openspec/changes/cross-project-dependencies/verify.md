@@ -683,3 +683,16 @@ types, effective Nx-boundary lint and format passed. Source `0f2111268`
 integrated as `dbc57b2d5`, SHA-256 retained. Whole 4.3 stays unchecked until
 the hand-down incident mapping under 4.4 exists. Mounted 4.2 external success
 and post-commit fanout are not inferred from admitted transaction proofs.
+
+## Task 9.1 — browser overflow regression after integration
+
+CI run `39744552119` at `81316a58b` failed browser shard 3 on the existing
+`plan-table-review.spec.ts` dependency-list title assertion: the new shared
+`DependencyOptions` option had no `title` (162 other shard checks passed).
+The missing attribute is the observed negative for the adjacent production
+`Proof:` comment. Root restored the full option label as its hover title.
+The exact failed case then passed through `CI=1 E2E_PORT_SHIFT=3400 NX_DAEMON=false
+bunx nx run wbs-fe-01:e2e -- e2e/plan-table-review.spec.ts -g 'keeps the
+dependency list inside the window'` on isolated local ports: one pass, exit 0.
+Changed-file ESLint, Prettier and `git diff --check` passed. The fresh full
+CI, host gate and deployment remain pending.
