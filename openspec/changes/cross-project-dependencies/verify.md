@@ -5162,3 +5162,11 @@ Broader checks and limits:
 - Initial Nx invocation returned zero after socket refusal without executing targets; that output is not evidence. Configured checks use `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` and inspect actual target completion.
 - Changed-file ESLint, Prettier check and `git diff --check` pass.
 - Canonical host gate and full backend suite remain outstanding. Independent Astra review accepted this bounded packet during integration. No deployment, activation, or semantic support grant is part of this slice.
+
+After integration at `9ef3476aa`, the combined endpoint and shared
+contract/client/OpenAPI suites passed **64/64**, 251 assertions
+(`/tmp/puni-integrated-backend-capability-tests.log`). The mounted dormant
+authoring rollback control passed **1/1**, 13 assertions
+(`/tmp/puni-integrated-backend-dormant-test.log`); all **271/271** OpenSpec
+items validated (`/tmp/puni-openspec-after-backend-capability.json`). This
+does not turn the advertised empty semantic set into an authoring permit.
