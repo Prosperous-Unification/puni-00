@@ -745,6 +745,16 @@ export type OptimizerRetryRefusal =
       code: 'schedule-input-unavailable';
       reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
       projectId: string;
+    }
+  | {
+      code: 'schedule-input-unavailable';
+      reason: 'dependency_calendar_missing';
+      projectId: string;
+      projects: readonly {
+        readonly projectId: string;
+        readonly abbreviation: string;
+        readonly name: string;
+      }[];
     };
 
 export type Refusal<C extends RefusalCode = RefusalCode> = ErrorRefusal<C> | OptimizerRetryRefusal;

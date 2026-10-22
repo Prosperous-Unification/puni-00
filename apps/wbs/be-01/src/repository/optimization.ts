@@ -82,6 +82,7 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
   // Proof: forcing ordinary here let a removed super-admin Retry succeed.
   // Proof: removing either refusal changed foreign/removed mounted outcomes.
   if (classified === null) return { kind: 'refused', decision: { kind: 'not_found' } };
+  // Proof: bypassing this refusal made mounted membership removal after read-close return 409 instead of 403.
   if (classified === 'refused') return { kind: 'refused', decision: { kind: 'forbidden' } };
   // Proof: omitting this pre-generation lookup made Q1→Q2→Q1 Retry return idle instead of the retained boundary terminal.
   const retained =
@@ -93,6 +94,7 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
             ask.objective
           ],
         };
+  // Proof: bypassing terminal lookup made mounted Retry after generation replacement return idle instead of boundary-infeasible.
   if (retained?.outcome.kind === 'boundary-infeasible')
     return {
       kind: 'refused',

@@ -325,3 +325,14 @@ foreign organization concealment. Watched dormant, graph-edge and history guard
 faults are in verify.md. Production composition remains inactive; 3.2/4.2 stay
 unchecked pending their complete endpoint/type/authority/history matrix and active
 MCP parity.
+
+Task 9.2 B4 bounded backend Retry bridge (2026-10-22): human-scoped Retry consumes
+the actual detached connected pre-selection stage through the mounted HTTP
+adapter, coordinator and source writer. SQLite tests cover terminal no-write 409,
+stale-before-terminal, changed foreign boundary, replaced generation, failed Pri
+beside terminal Time, exact missing-calendar target/list, idle/unavailable, foreign
+concealment, authorization-before-capture and membership removal before writer
+admission. Independent watched faults and commands are in verify.md. The private
+fixture installs no production reader; buildServices and activation remain dormant.
+Three-project C=8/final6 Retry, browser reconciliation and complete optimizer
+acceptance remain pending. Parent 7.3/7.4/9.2 remain unchecked.

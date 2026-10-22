@@ -839,6 +839,7 @@ export class OptimizationCoordinator {
     if (ask.projectId !== ask.stage.projectId) throw new Error('connected Retry target differs');
     const prepared = this.prepareConnected(ask.stage);
     const key = this.connectedKey(prepared);
+    // Proof: bypassing this comparison made mounted stale Retry report boundary-infeasible instead of stale-input-hash.
     if (ask.inputHash !== key.inputHash)
       return { kind: 'stale-input-hash', currentInputHash: key.inputHash };
     const committed = await this.options.repository.admitRetry({

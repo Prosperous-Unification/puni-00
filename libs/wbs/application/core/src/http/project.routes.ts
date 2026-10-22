@@ -18,6 +18,7 @@ import { installPlanDocument } from '../module/plan-document/check';
 import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
+import type { OptimizationInput } from '../ports/optimization-input';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
@@ -33,7 +34,7 @@ export interface OptimizationRetry {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
-    readonly input: ScheduleInput;
+    readonly input: ScheduleInput | OptimizationInput;
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
@@ -373,6 +374,7 @@ export function projectRoutes(
           principal.id,
           resolved.access,
         );
+        // Proof: bypassing authorization made the mounted foreign Retry open a connected read before its 404.
         if (!authorization.ok) {
           return authorization.reason === 'not_found'
             ? { ok: false, status: 404, body: { error: 'not_found' } }
@@ -398,7 +400,20 @@ export function projectRoutes(
               projectId: captured.projectId,
             },
           };
-        if (optimizer === undefined) {
+        // Proof: removing this branch made mounted missing-calendar Retry return 500 instead of its typed 409.
+        if (captured.kind === 'dependency_calendar_missing')
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              code: 'schedule-input-unavailable',
+              reason: 'dependency_calendar_missing',
+              projectId: params.id,
+              projects: captured.projects,
+            },
+          };
+        // Proof: removing idle handling made mounted held-target Retry return 500 instead of 409.
+        if (captured.kind === 'idle' || optimizer === undefined) {
           return {
             ok: false,
             status: 409,

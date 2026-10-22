@@ -284,6 +284,15 @@ const retryRefusal = responseSchema(
       code: "'schedule-input-unavailable'",
       reason: "'engine_unavailable' | 'cycle' | 'calendar_range'",
       projectId: 'string',
+    })
+    // Proof: removing this variant made mounted missing-calendar Retry fail response validation (500).
+    .or({
+      code: "'schedule-input-unavailable'",
+      reason: "'dependency_calendar_missing'",
+      projectId: 'string',
+      projects: type({ projectId: 'string', abbreviation: 'string', name: 'string' })
+        .array()
+        .readonly(),
     }),
 );
 

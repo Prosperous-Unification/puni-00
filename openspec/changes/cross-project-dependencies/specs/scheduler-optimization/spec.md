@@ -297,3 +297,51 @@ The frontend HTTP adapter SHALL bind connected scope to the requested URL projec
 - **GIVEN** a connected tree with internally consistent scope and terminal evidence
 - **WHEN** the frontend adapter reads it for a different project ID
 - **THEN** the adapter refuses the project mismatch before presentation
+
+### Requirement: Connected manual Retry observes current scoped input before writer admission
+
+Manual Retry SHALL authorize the target before opening its connected input capture.
+The capture SHALL close its read transaction before the source-owned writer admits
+Retry, and SHALL return the target's immutable pre-selection stage rather than
+rebuilding a question from final composite dates. The coordinator SHALL compare
+the submitted input hash with the captured current hash before retained terminal
+lookup. The writer SHALL recheck current project and membership authority and
+SHALL consult retained terminal evidence before requiring a matching generation.
+
+A terminal objective SHALL return HTTP 409 `not-retryable` with
+`boundary-infeasible` state without mutating optimizer state, audit or events and
+without launching a child. A failed sibling MAY be retried independently using
+the current connected hash. An idle target SHALL return 409 `not-retryable` with
+`idle` state. Missing required calendars SHALL return 409
+`schedule-input-unavailable`, reason `dependency_calendar_missing`, the addressed
+`projectId` and the captured list of missing projects with their IDs,
+abbreviations and names. Engine, cycle and calendar-range refusals SHALL preserve
+the existing typed unavailable contract. These observations SHALL NOT activate a
+production connected reader or dependency authoring.
+
+#### Scenario: Stale request beside retained terminal evidence
+
+- **GIVEN** the current connected question retains boundary-infeasible Time
+- **WHEN** Retry submits an older hash, including after a foreign boundary changes
+- **THEN** it returns stale-input-hash with the current captured hash before terminal lookup
+- **AND** no optimizer state, audit or event changes and no child launches
+
+#### Scenario: Terminal evidence survives generation replacement
+
+- **GIVEN** a retained terminal question whose generation was replaced
+- **WHEN** an authorized caller retries that current question
+- **THEN** Retry returns boundary-infeasible rather than idle
+- **AND** its writer makes no state changes
+
+#### Scenario: Failed sibling remains retryable
+
+- **GIVEN** retained terminal Time and failed Pri for one connected stage
+- **WHEN** an authorized caller retries Pri with the current stage hash
+- **THEN** Retry returns HTTP 202 and launches only Pri after closing the read capture
+- **AND** Retry of Time still returns boundary-infeasible
+
+#### Scenario: Membership changes after the detached read
+
+- **GIVEN** the caller was authorized for the connected capture
+- **WHEN** membership is removed after the read transaction closes and before writer admission
+- **THEN** the source-owned Retry writer returns forbidden without optimizer, audit or event mutation

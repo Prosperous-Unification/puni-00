@@ -730,3 +730,28 @@ local/external update and remove history, rollback, stale replay and foreign
 organization concealment. It does not establish the full 3.2/4.2 command matrix,
 MCP active parity, shared capacity, all endpoint scopes/types, optimizer or rollout
 acceptance. Those parent tasks remain unchecked.
+
+### Bounded connected Retry HTTP authority bridge (2026-10-22)
+
+The human-scoped `optimizationInputWithin` now returns the existing detached
+connected capture union alongside its legacy local/shared ScheduleInput shape.
+Its connected path delegates to `captureConnectedOptimization`, preserving the
+pre-selection stage; the route handles idle and missing-calendar observations
+before asking the coordinator. Missing-calendar HTTP refusal carries the target
+ID and the complete captured missing-project identity list. Existing shared
+unavailable project identity remains unchanged.
+
+The ordinary mounted HTTP adapter feeds that union into the existing connected
+coordinator and source-owned Retry writer. Current input hash comparison precedes
+retained terminal preflight; terminal preflight precedes generation lookup. A
+closed authorized read grants no writer authority: the writer rechecks membership
+before terminal lookup or reservation. The test fixture explicitly installs a
+private connected read store and controlled launcher around real SQLite and real
+service/route/coordinator/writer code. `buildServices`, public source binding,
+background production capture and dependency activation remain dormant.
+
+This is the first coherent B4 backend slice. It establishes terminal/stale/failed
+sibling/refusal and read-to-writer authority behavior; it does not complete the
+three-project captured C=8 versus final C=6 mounted Retry proof, browser HTTP
+reconciliation, complete optimizer acceptance or tasks 7.3/7.4/9.2. Settings PATCH
+keeps its existing semantics; terminal-setting refusal is not introduced.

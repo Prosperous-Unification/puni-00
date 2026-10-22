@@ -4274,3 +4274,136 @@ Normal pre-commit hooks passed format, scoped lint, plaintext-secrets and
 private-nesting. Tool-wiki explicitly reported inactive/uncertified because its
 external activation root is not provisioned. Migration hooks and doc-caps skipped
 because no matching files were staged. No hook was bypassed.
+
+### B4 bounded connected Retry HTTP bridge (2026-10-22)
+
+This packet changes the human-scoped Retry capture/HTTP boundary only. Its
+fixture uses the normal mounted `buildApp` HTTP adapter, real migrated SQLite,
+real scoped connected capture, real OptimizationCoordinator, and source-owned
+observation/outcome/reservation/Retry/dequeue writers. Only the private connected
+reader and controlled child process are supplied by the test. Production
+`buildServices`, source installation, background capture and activation are not
+changed. Local/shared ScheduleInput callers retain their existing shape.
+
+Red/green: the first valid mounted terminal, stale, missing-calendar and idle
+cases each returned 500 (`connected optimization input is unsupported`) before
+the bridge; **0 pass/4 fail**. After the bridge and precise missing-calendar
+Refusal/schema union, all nine new mounted cases passed. Earlier fixture setup
+mistakes (audit table name, missing expected-organization header and expected
+backfilled abbreviation) were corrected before counting relevant red/green
+observations.
+
+The nine cases cover terminal no-write/no-launch 409, stale-before-terminal,
+missing-calendar target/list, idle, failed Pri beside terminal Time, changed
+foreign boundary, retained terminal after generation replacement, unavailable
+input and authorization-before-read plus membership removal after read-close.
+The actual Retry owner and launcher both assert zero open read connections.
+Refusals compare all rows in optimization_generation,
+optimization_boundary_certificate, optimized_schedule_cache, solver_slot,
+solver_queue, event_log, event_sequencer and organization_audit. The failed-Pri
+case admits only Pri and observes the third launch as Pri after its initial pair.
+
+Independent production faults, each injected alone and restored:
+
+| Fault                                           | Selected mounted observation                                                           |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Bypass retained terminal preflight              | Replaced-generation Retry reports idle instead of boundary-infeasible; 0 pass/1 fail.  |
+| Bypass connected current-hash comparison        | Stale Retry reports boundary-infeasible instead of stale-input-hash; 0 pass/1 fail.    |
+| Remove missing-calendar route branch            | Missing-calendar Retry returns 500 instead of 409; 0 pass/1 fail.                      |
+| Remove missing-calendar response schema variant | Mounted response validation returns 500 instead of 409; 0 pass/1 fail.                 |
+| Remove idle route handling                      | Held-target Retry returns 500 instead of 409; 0 pass/1 fail.                           |
+| Bypass unavailable route handling               | Unavailable Retry returns 500 instead of 409; 0 pass/1 fail.                           |
+| Bypass initial target authorization             | Foreign Retry opens one read instead of zero before its 404; 0 pass/1 fail.            |
+| Bypass writer membership refusal                | Removal after read-close returns terminal 409 instead of forbidden 403; 0 pass/1 fail. |
+
+Adjacent production Proof comments name those watched outcomes. Scratch logs:
+`/tmp/b4-{terminal-preflight,stale-first,calendar-branch,calendar-schema,idle-branch,unavailable-branch,read-auth-first,writer-auth}-fault.log`.
+The bridge's connected delegation itself was exercised by the original 500 reds;
+no fault was attributed to a check that remained green.
+
+Fresh focused verification:
+
+- `bun test apps/wbs/be-01/src/controller/connected-retry.controller.db.test.ts apps/wbs/be-01/src/module/optimization/connected-publication.test.ts`:
+  **28 pass/0 fail, 134 assertions** before the final event_sequencer snapshot
+  strengthening; final rerun is recorded below.
+- `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json --pretty false`: exit 0.
+- Scoped ESLint on all seven changed TypeScript files: exit 0, no diagnostics.
+  Initial lint caught only import ordering in the new test; autofix and rerun
+  cleared it. Nx graph was generated with `NX_DAEMON=false
+NX_ISOLATE_PLUGINS=false` before lint.
+- `./node_modules/.bin/openspec validate --all --json`: **269 passed/0 failed**
+  (251 changes, 18 specs); existing warnings remain.
+- Frozen Bun installation succeeded with `BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/b4-bun`.
+  The initial BUN_TMPDIR-only attempt failed EROFS and is not successful evidence.
+- Normal hooks installed through `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-git-hooks:install`;
+  output explicitly reports pre-commit, prepare-commit-msg and commit-msg installed.
+
+The broader attempted regression command was:
+
+```sh
+bun test apps/wbs/be-01/src/controller/connected-retry.controller.db.test.ts \
+  apps/wbs/be-01/src/controller/project.controller.test.ts \
+  apps/wbs/be-01/src/controller/project-organization.controller.db.test.ts \
+  apps/wbs/be-01/src/module/optimization/connected-publication.test.ts \
+  libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts
+```
+
+It returned **98 pass/30 fail**, 552 assertions. Running those same four existing
+files without the new test at exact base **3757ad13c**, in detached isolated
+`/tmp/puni-b4-baseline`, returned **89 pass/30 fail**, 490 assertions. The failure
+names are identical. Logs: `/tmp/b4-focused.log` and `/tmp/b4-baseline.log`.
+Most fail through the existing counting UnitOfWork fixture lacking
+`typedDependencies`, including existing settings PATCH cases; no production PATCH
+semantics or unrelated fixture were changed. The borrowed connected claim also
+fails identically at base. These regressions are failed checks, not a green gate.
+The exact baseline failure names are:
+
+- before activation > keeps deployment-wide access whatever organization a session is bound to
+- after activation > answers 404 alike for a foreign and an absent project, and changes nothing
+- after activation > refuses a viewer every project write and lets the viewer read and open
+- after activation > lets only the creator edit a restricted project, a super-admin only as recovery
+- after activation > recovers a restricted project as an audited super-admin edit
+- after activation > records nothing for a recovery that changes nothing, or an edit refused
+- after activation > links a solution slug within the organization, blind to another organization's
+- projects > exports the project WBS and Gantt payload as JSON
+- projects > exports the referenced directory closure and authored calendar markers
+- projects > exports a readable Markdown WBS and Gantt table
+- projects > resolves a project by its solution slug
+- projects > refuses a non-owner editing a restricted project, and writes nothing
+- projects > lets any account edit an unrestricted project
+- projects > sets the PERT weights and the rounding in one patch
+- projects > refuses weights that cannot average a triple, and keeps the ones it had
+- projects > patches each optimizer setting on its own, and the change survives a read
+- projects > emits exactly one project_settings_changed, carrying all three values
+- projects > announces nothing when a settings patch changes none of the three
+- projects > refuses switching the optimizer on when this deployment has none, on either key alone
+- projects > refuses switching the optimizer on with both keys in one patch, not just either alone
+- projects > still lets an already-enabled project resend and disable after the optimizer is gone
+- projects > lets a settings panel resend the values a project already holds, optimizer or not
+- projects > refuses a read-only collaborator’s settings patch, and emits nothing
+- projects > puts Retry under the settings PATCH project-write authorization
+- refuses structural settings before the service but preserves its semantic refusal codes
+- distinguishes absent project bodies from empty form patches without coercing form booleans
+- preserves application/json-patch+json on migrated project writes
+- preserves application/xml on migrated project writes
+- exports complete deadline tree fields without undo flags and rejects malformed core fields
+- borrowed service claim sees staged remote completion and collects its normal announcement
+
+Parent tasks 7.3/7.4/9.2 remain unchecked. This bounded packet does not establish
+three-project captured C=8 versus final C=6 mounted Retry, browser reconciliation,
+full optimizer acceptance, production installation or activation. No host gate,
+full Nx gate/build, standalone CI secrets/migration scan or deployment was run.
+Settings PATCH regression was attempted above and remains blocked by the identical
+base fixture failures; no server terminal-setting refusal was added.
+
+After adding event_sequencer to the no-write snapshot, the final mounted plus
+connected-publication rerun returned **28 pass/0 fail, 134 assertions**. No
+additional behavior change followed. Final format/diff and normal hook outcomes
+are recorded below.
+
+Final backend spec typecheck and scoped seven-file ESLint reruns exited 0 with no
+diagnostics. `git diff --check` and staged diff check exited 0. Explicit normal
+pre-commit execution passed format, lint, plaintext-secrets and private-nesting.
+Tool-wiki reported inactive/uncertified because its external activation root is
+not provisioned. Migration/website-migration and doc-caps hooks skipped because no
+matching files were staged. No hook was bypassed.

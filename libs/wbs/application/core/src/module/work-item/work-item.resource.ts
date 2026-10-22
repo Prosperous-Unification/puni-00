@@ -117,7 +117,7 @@ import {
   permitsExternalDependencies,
 } from '../../ports/external-dependency-authoring';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
-import type { OptimizationCapture } from '../../ports/optimization-input';
+import type { OptimizationCapture, OptimizationInput } from '../../ports/optimization-input';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -1621,14 +1621,19 @@ export class WorkItemService {
     };
   }
 
-  /** Human-scoped Retry input; the shared chain and settings leave one closed authorized read. */
+  /** Human-scoped Retry input; connected pre-selection boundaries and settings leave one closed authorized read. */
   async optimizationInputWithin(
     projectId: string,
     access: ResourceAccess,
   ): Promise<
-    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | {
+        readonly kind: 'scheduled';
+        readonly input: ScheduleInput | OptimizationInput;
+        readonly enabled: boolean;
+      }
     | { readonly kind: 'not_found' }
     | AccessRefused
+    | Extract<OptimizationCapture, { readonly kind: 'idle' | 'dependency_calendar_missing' }>
     | {
         readonly kind: 'unavailable';
         readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
@@ -1638,8 +1643,11 @@ export class WorkItemService {
     const captured = await this.opts.livePlans?.read(projectId, access);
     if (captured?.kind === 'access_refused') return captured;
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
-    if (captured?.kind === 'connected')
-      throw new Error('connected optimization input is unsupported');
+    // Proof: restoring the connected refusal made mounted terminal/stale Retry return 500 instead of 409.
+    if (captured?.kind === 'connected') {
+      const observation = captureConnectedOptimization(captured, projectId);
+      return observation.kind === 'unavailable' ? { ...observation, projectId } : observation;
+    }
     if (captured?.kind === 'shared') {
       if (captured.chain.kind === 'engine_unavailable')
         return {
