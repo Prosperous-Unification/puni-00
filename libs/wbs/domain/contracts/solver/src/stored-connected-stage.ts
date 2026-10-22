@@ -152,10 +152,25 @@ export function encodeConnectedStage(stage: ConnectedOptimizationStage): StoredC
     structuredClone({
       ...stage,
       dtoVersion: 1,
+      // Proof: restoring relationship spreads rejected real scoped SQLite cache packets in `saved-plan-connected.test.ts` (unknown projectId).
+      relationships: stage.relationships.map(({ id, type, predecessor, successor }) => ({
+        id,
+        type,
+        predecessor,
+        successor,
+      })),
       starts: [...stage.starts],
       finishes: [...stage.finishes],
       input: {
         ...input,
+        // Proof: restoring row spreads rejected real SQLite cache packets in `saved-plan-connected.test.ts` (unknown captured metadata).
+        rows: input.rows.map(({ id, parentId, position, priority, frozenNumber }) => ({
+          id,
+          parentId,
+          position,
+          priority,
+          frozenNumber,
+        })),
         notBefore: [...input.notBefore],
         deadlines: [...input.deadlines],
         poolSizes: [...input.poolSizes],

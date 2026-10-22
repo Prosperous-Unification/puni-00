@@ -3727,3 +3727,94 @@ prepare-commit-msg passed agent attribution. Tool-wiki explicitly reported inact
 and uncertified because its external activation root is not provisioned. Migration
 hooks and doc-caps skipped because no matching files were staged. No hook bypass
 was used. `git diff --check` passed before commit.
+
+#### B2 detached converter matrix and real durable cache producer corrections (2026-10-22)
+
+The bounded matrix now uses the existing migrated SQLite fixture through the
+installed `createLivePlanStore` capture path, closes all connections and removes
+the database before historical conversion. Fixture-only options seed persisted
+facts, prepare real durable optimizer cache rows and provide a controlled Fast
+placement with valid pinned starts. No solver child process is run: feasible wire
+responses are constructed in the fixture, checked by `encodeConnectedSuccess`,
+persisted in `optimized_schedule_cache`, then read through the installed private
+connected captured reader. Cache questions are prepared in execution order so the
+second member's actual question retains the first member's selected movement.
+This is cache/selection/converter fidelity evidence, not a solver optimality proof.
+
+New real SQLite cases establish:
+
+- Both isolated and shared mode retain mixed optimized/Fast stages: a1 moves from
+  common-axis start 3 to 0 while a2 keeps its Fast start 8 despite a ready cache.
+  The later a2 stage retains a1=0; the earlier a1 stage retains a1=3. Target a1 test
+  starts at 0.5, while a2's own-anchor start is 7 rather than common-axis 8.
+- Public person identity survives target/baseline/composite projection; the ready
+  decision keeps encoded isolated person identity (shared people retain their
+  public identity). Stage bytes retain encoded project-local team/resource IDs.
+- A Time quantisation-floor observation selects its baseline, independently of a
+  ready unselected Pri sibling whose decision chooses its candidate on a priority
+  tie. Ready state does not imply optimized Time placement.
+- Original parent/step identities and labels survive node, whole and
+  descendant-step endpoints. A nonempty held a2 member stays in input history and
+  idleProjects without a synthetic optimization stage.
+- Real SQLite engine-unavailable, authored scheduling cycle and large-estimate
+  calendar-range cases produce matching explicit input state and absent reason;
+  all three authored relationships remain available in history.
+
+Two producer defects were exposed and corrected before these captures could
+reach the dormant converter. The stored-stage encoder spread captured metadata
+and relationship ownership into closed DTOs; it now explicitly projects only the
+DTO's row and relationship facts. The connected cache reader reconstructed a
+candidate from the chosen schedule, losing a rejected candidate when publication
+kept baseline; it now copies the already validated original candidate starts.
+This preserves the original decision on the selection replay.
+
+Watched production-path negatives, each restored afterward:
+
+- Replacing explicit row projection with the old row spread made three real SQL
+  ready cases fail with forbidden captured metadata fields (3 pass/3 fail in the
+  SQL-filtered six-case run).
+- Replacing explicit relationship projection with the old relationship spread
+  made the same three cases fail with forbidden relationship.projectId
+  (3 pass/3 fail).
+- Reconstructing candidate starts from decision.schedule made the SQL floor case
+  fail: retained Time decision became optimized instead of baseline
+  (5 pass/1 fail). Adjacent Proof comments name these observations.
+
+Fresh restored verification:
+
+- Eleven-file focused suite: `saved-plan-connected.test.ts`, contracts
+  `connected-durable.test.ts`, SQLite `connected-optimization-reader.test.ts`,
+  `captured-scheduler.db.test.ts`, `connected-optimization-cache.db.test.ts`, core
+  `connected-history.test.ts`, `connected-endpoints.test.ts`, domain
+  `connected-history.test.ts`, `versioned-schedule.test.ts`,
+  `versioned-plan-input.test.ts`, core `versioned-saved-plan-body.test.ts`:
+  **201 pass/0 fail, 1394 assertions**.
+- `bunx tsc --noEmit -p apps/wbs/be-01/tsconfig.spec.json --pretty false`,
+  `bunx tsc --noEmit -p libs/wbs/adapters/store-sqlite/tsconfig.lib.json --pretty false`
+  and `bunx tsc --noEmit -p libs/wbs/domain/contracts/tsconfig.spec.json --pretty false`:
+  exit 0.
+- Store spec typecheck remains unverified as a whole: its attempted execution
+  reported an unrelated existing `import-dependencies.db.test.ts:190` mock missing
+  `TypedDependencyStore.hasDeletingEndpoint`. No unrelated test was changed.
+- `openspec validate --all --json`: exit 0, **268 passed/0 failed**
+  (250 changes and 18 specs), existing requirement-length warnings remain.
+
+Scratch logs are `/tmp/puni-b2-matrix-{tests,types,spec}.log`,
+`/tmp/puni-b2-matrix-{row-spread,relationship-spread,floor-candidate}-fault.log`.
+The first scoped lint run found import ordering and an unnecessary optional
+chain; final lint, format and normal-hook evidence is recorded below.
+
+This advances the prior pending B2 list; task 8.3 remains unchecked. Complete
+team/resource capacity-binding restoration in saved decision placements (beyond
+encoded stage inputs), the complete metadata/read-fact contradiction matrix,
+mounted save/current guard failures, immutable save lifecycle, common final
+serialization, comparison HTTP/UI and the canonical host gate remain pending.
+No full Nx/host gate, build, independent CI secrets/migration scan, activation or
+deployment was run. Active save/current remain v8/v1 and compose retains its
+connected refusal; the new converter still has no production writer caller.
+
+Final scoped ESLint on the four changed TypeScript files returned exit 0 without
+diagnostics. Prettier checked all six owned files with exit 0. After the lint-only
+import/optional-chain corrections, the real SQL capture suite returned
+**24 pass/0 fail, 98 assertions**. `git diff --check` returned exit 0. Normal
+lefthook hooks were installed in this isolated clone; none were bypassed.

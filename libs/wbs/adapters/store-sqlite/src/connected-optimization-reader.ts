@@ -83,13 +83,9 @@ function projectOutcome(
       : Object.values(outcome.objectiveValues).every(({ status }) => status === 'optimal')
         ? 'proven'
         : 'incomplete';
-  const starts = new Map(
-    [...outcome.starts.keys()].map((key) => {
-      const placed = outcome.decision.schedule.slices.get(key);
-      if (placed === undefined) throw new Error(`connected materialization lost ${key}`);
-      return [key, placed.earliestStart] as const;
-    }),
-  );
+  // Proof: using decision.schedule here changed the SQL quantisation-floor case in
+  // `saved-plan-connected.test.ts` from baseline to optimized on the later selection replay.
+  const starts = new Map(outcome.starts);
   return { state: { state: 'ready', proof }, candidate: { question, starts } };
 }
 

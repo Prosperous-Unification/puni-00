@@ -263,3 +263,13 @@ retention, terminal action suppression and failed-sibling Retry HTTP hash proofs
 remain deferred; parent 7.3/7.4/9.2 and B3 enablement remain unchecked. See verify.md.
 
 Task 8.3 saved-history B2 bounded prerequisite (2026-10-22): detached connected-history preparation now retains complete component relationship/readiness evidence, exact stage bytes, observation configuration and selected schedules through reserved input9/schedule2 builders. A real migrated SQLite fixture proves isolated/shared interleaving and conversion after store deletion. Ready-displacement coverage corrected the dormant placement codec to accept its existing optimizer binding discriminator. Converter fault evidence and the remaining B2 matrix are recorded in verify.md. This does not activate save/current, remove compose refusal, or complete B2/task 8.3.
+
+Task 8.3 saved-history B2 matrix follow-up (2026-10-22): migrated SQLite capture
+now covers real durable cache-ready mixed Fast/optimized selection, retained later
+foreign boundaries, selected Time quantisation-floor baseline with independent
+ready Pri sibling, public versus encoded person/stage capacity identities,
+node/whole/descendant-step endpoints, nonempty idle members and engine/cycle/range
+absence. Two dormant cache producer corrections and watched faults are recorded
+in verify.md. Team/resource placement-binding breadth and the mounted D/E
+save/current/lifecycle proofs remain pending; v8/v1 writers and compose refusal
+remain active, and task 8.3 stays unchecked.
