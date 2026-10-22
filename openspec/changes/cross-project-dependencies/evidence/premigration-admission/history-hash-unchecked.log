@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+{"level":"info","time":1792705735349,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705735383,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705735384,"service":"be-01","msg":"migrations applied"}
+
+apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:
+132 |     if (running.services.retention.isRunning()) starts.push('retention');
+133 |     if (running.services.optimizer?.isRunning() === true) starts.push('optimizer');
+134 |     await running.stop();
+135 |     running = undefined;
+136 |   }
+137 |   expect(snapshot(path)).toBe(before);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: "{"schema":[{"type":"index","name":"actual_by_step","tbl_name":"actual","sql":"CREATE INDEX `actual_... (158726 bytes truncated) ...]},{"name":"work_item_type_organization","rows":[]},{"name":"work_item_work_item_type","rows":[]}]}"
+Received: "{"schema":[{"type":"index","name":"actual_by_step","tbl_name":"actual","sql":"CREATE INDEX `actual_... (163744 bytes truncated) ...]},{"name":"work_item_type_organization","rows":[]},{"name":"work_item_work_item_type","rows":[]}]}"
+
+      at refuse (/tmp/puni-premigration-admission/apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:137:26)
+      at async <anonymous> (/tmp/puni-premigration-admission/apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:415:11)
+(fail) refuses uncertified historical storage before pending migration: UPDATE __drizzle_migrations SET hash='altered' WHERE name='20261022211000_add_external_dependencies' [374.08ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [6.75s]

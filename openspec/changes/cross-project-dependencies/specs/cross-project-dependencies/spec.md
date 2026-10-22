@@ -487,3 +487,45 @@ Preparation SHALL re-read stable identities and templates, permit resourceVersio
 
 - **WHEN** resumed prepared history has corrupt bytes or a foreign target, or fresh cluster, storage, Flux, backup UID, template, suspension or ownership annotation differs
 - **THEN** validation refuses without replacing the original snapshot, patching a controller or invoking recovery
+
+### Requirement: Backend startup admits semantic authority before migrations
+
+Backend startup with automatic migrations SHALL inspect existing dependency authority
+before source migration. ENABLED authority requires compatible semantics even when
+empty. Invalid, absent or unreadable authority SHALL refuse with complete source
+schema, ledger and all table rows unchanged, close storage, and start no application
+side effects. Inspection errors SHALL never select historical bootstrap.
+
+#### Scenario: Enabled empty authority has a pending additive migration
+
+- **GIVEN** ENABLED authority without relationships and an incompatible backend
+- **WHEN** startup selects a pending migration that would add a table and ledger entry
+- **THEN** startup refuses with the complete source schema, ledger and all table rows unchanged
+- **AND** services, backfill, local identity writes, workers and listeners do not start and acquired storage is closed
+- **AND** malformed, partial, unreadable or recorded-but-missing authority receives the same refusal
+
+### Requirement: Backend bootstrap requires positive historical evidence
+
+Only an explicitly empty SQLite schema or a certified historical pre-authority store
+MAY defer authority inspection until after migration. Historical certification SHALL
+require an exact known pre-authority migration name/hash prefix and complete schema
+equality with that prefix reconstructed exclusively in disposable scratch storage.
+A nonempty store without a readable ledger SHALL refuse.
+
+#### Scenario: Fresh and certified historical bootstrap
+
+- **WHEN** startup migrates an empty schema or an exact known pre-authority historical schema and ledger
+- **THEN** migrations establish dormant authority and strict post-migration inspection admits ordinary startup
+- **AND** an altered historical migration hash, missing schema object or missing ledger refuses before source migration
+
+### Requirement: Backend rechecks semantic authority after migration
+
+Backend startup SHALL strictly inspect authority again after migration and before
+services, backfill, local identity writes, workers or listening. This startup admission
+SHALL NOT authorize external authoring or deployment recovery.
+
+#### Scenario: Migration corrupts previously dormant authority
+
+- **GIVEN** pre-migration inspection admitted valid dormant authority
+- **WHEN** a pending migration removes the authority receipt table
+- **THEN** strict post-migration inspection refuses before service creation or application writes and closes storage

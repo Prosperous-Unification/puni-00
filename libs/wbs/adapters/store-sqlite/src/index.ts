@@ -19,6 +19,7 @@ export * from './cross-project-dependency-activation';
 export * from './db';
 export * from './delegation-use';
 export * from './dependency';
+export * from './dependency-migration-admission';
 export * from './directory';
 export * from './domain-claim';
 export * from './email-verification';

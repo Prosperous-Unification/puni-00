@@ -4866,3 +4866,30 @@ backend lint diagnosis passed twice on this pre-composition head, with no rule
 diagnostics or skipped boundary warnings (`/tmp/puni-lint-{nx,static}.txt`).
 The prior unexplained exit 1 did not reproduce; these passes do not establish
 its cause or replace the exact-head host gate.
+
+### Backend pre-migration startup admission — 2026-10-23
+
+Bounded packet only; parent cross-project activation/deployment tasks remain open.
+
+- Initial mounted regression (`bun test apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts`) observed pending table/ledger changes before refusal for enabled-empty authority and missing receipt/marker. The snapshot now contains complete ordered sqlite_master plus sorted serialized rows of every table, including the complete migration name/hash ledger.
+- Final focused regression: `bun test apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts apps/wbs/be-01/src/boot.db.test.ts` — **147 pass, 0 fail, 343 assertions**, 57.07 seconds. Local ephemeral listeners required sandbox escalation. Fresh install, certified historical upgrade and dormant pending-migration controls serve actual `/health`.
+- `bunx tsc --build --force apps/wbs/be-01/tsconfig.json` — exit 0.
+- Focused ESLint of all five changed TypeScript files — exit 0 after generating the Nx project graph, without skipped module-boundary warnings in the final lint output.
+- Historical positive startup reconstructs the finite applied pre-authority prefix only in scratch storage; observed historical test around 220–235 ms in the focused runs. Current stores do not replay history. Noncanonical operator schema changes require attended upgrade.
+
+Watched production mutations (each restored immediately):
+
+| Injected fault                                 | Observed mounted negative                                                                 | Evidence                                                                      |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Move preflight after `runMigrations`           | Enabled-empty pending migration changed complete schema/ledger certificate                | [ordering log](evidence/premigration-admission/preflight-after-migration.log) |
+| Remove strict post-migration runtime assertion | Migration dropped receipt table; service factory started before refusal                   | [postflight log](evidence/premigration-admission/postflight-removed.log)      |
+| Remove historical hash comparison              | Altered applied hash admitted source migration and changed complete certificate           | [hash log](evidence/premigration-admission/history-hash-unchecked.log)        |
+| Remove complete historical schema comparison   | Missing `actual_by_step` index admitted source migration and changed complete certificate | [schema log](evidence/premigration-admission/history-schema-unchecked.log)    |
+| Treat every nonempty schema as fresh           | Unrecorded partial source migrated instead of refusing unchanged                          | [fresh-routing log](evidence/premigration-admission/nonempty-as-fresh.log)    |
+
+Explicit authority-read exception with a pending migration preserves the complete source certificate, retains the injected error in the cause chain and closes storage before any app factory. Postflight corruption checks source closure and no services, workers or listener startup. Existing lifecycle regressions continue to cover disposal ordering. No buildServices, connected admission or command capability changes are included.
+
+Full host gate, full repository build/test/lint, deployment rehearsal and live runtime behavior were not run for this bounded implementation packet; the integrating branch remains responsible for its required host gate.
+
+- Prettier check of all changed TypeScript and OpenSpec Markdown files — exit 0; `git diff --check` — exit 0.
+- `openspec validate cross-project-dependencies --json` and `openspec validate --all --json` — exit 0. Strict validation was additionally attempted and refused existing long-requirement warnings across the parent change; the new requirements were split to avoid adding a warning.

@@ -388,3 +388,9 @@ older provisional gaps. Tasks 3.2, 4.2, 4.4 and activation remain open.
 - [x] Resolve all selected row names/folders/forward hashes, then inspect complete-selection dormant/no-edge authority on the native rollback connection before any down statement; preserve per-migration retry and rebuild contracts.
 - [x] Watch omitted/late/first-only admission, enabled/edge/inspector bypasses, delayed metadata checks and independent SQL down-guard bypasses fail; restore each guard and record adjacent proof evidence.
 - [ ] Finish bounded verification and independent review; parent tasks 10.1/10.2 remain unchecked.
+
+### Bounded backend pre-migration admission packet (2026-10-23)
+
+- [x] Add mounted pending-migration refusal tests comparing complete sqlite_master, ledger and every table, including explicit unreadable authority and disposal/no-start assertions; observe ordering regression before implementation.
+- [x] Admit current authority before source migrations; distinguish empty-schema bootstrap from exact known historical name/hash-prefix and scratch-reproduced schema; retain strict post-migration inspection before startup side effects.
+- [x] Verify fresh, certified historical and dormant pending-migration positives; refuse historical hash/schema/ledger faults and nonempty unrecorded schema; watch preflight-order, postflight-removal, historical-hash/schema and fresh-routing mutations fail.

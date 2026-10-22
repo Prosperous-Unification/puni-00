@@ -783,3 +783,25 @@ reversals and exact-set retry after a later script failure. No blanket transacti
 is added. Non-goals: participant fencing, activation, automatic recovery after
 semantic exposure, Compose/Kubernetes release integration or completion of parent
 tasks 10.1/10.2.
+
+### Bounded backend startup migration admission (2026-10-23)
+
+Intent: prevent an incompatible backend from changing source schema or ledger before
+its semantic authority refusal. `assertDependencyMigrationRuntime` runs before the
+existing migration runner; the existing strict runtime check remains after migrations
+and before services, backfill, local identity, workers and listening.
+
+`inspectDependencyBootstrap` distinguishes an empty schema, present/recorded authority,
+and a historical source. Present or recorded authority reaches the strict existing
+inspector; its failures are never caught as historical bootstrap. Historical admission
+requires an exact finite prefix of the supplied migration files, entirely preceding
+activation, with exact names and SHA256 hashes. It reproduces that prefix using the
+ordinary runner in disposable scratch storage and compares every sqlite_master object.
+Both scratch connections and directories are released on failure. This costs one
+historical schema replay (about 220 ms in the focused local historical positive test)
+only for historical startup, rather than current startup. Operator-added schema or
+schema differences dependent on historical content require attended upgrade; they
+are not silently treated as certified history.
+
+Non-goals: activating authoring, changing service composition or connected solver
+admission, providing participant fencing, or authorizing deployment recovery.

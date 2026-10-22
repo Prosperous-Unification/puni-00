@@ -1,5 +1,5 @@
 import type { DependencyRuntimeCapability } from '@wbs/contracts';
-import { inspectDependencyActivation } from '@wbs/store-sqlite';
+import { inspectDependencyActivation, inspectDependencyBootstrap } from '@wbs/store-sqlite';
 import type { Drizzle } from '@wbs/store-sqlite/db';
 
 export { BACKEND_DEPENDENCY_CAPABILITY } from './dependency-support';
@@ -26,4 +26,14 @@ export function assertDependencyRuntime(
     !capability.semantics.includes('cross-project-dependencies-v1')
   )
     throw new Error('backend lacks cross-project dependency semantics');
+}
+
+/** Admits existing semantic authority before migrations; only certified bootstrap can defer it. */
+export function assertDependencyMigrationRuntime(
+  db: Drizzle,
+  capability: DependencyRuntimeCapability,
+  migrationsFolder: string,
+): void {
+  if (inspectDependencyBootstrap(db, migrationsFolder) === 'authority')
+    assertDependencyRuntime(db, capability);
 }

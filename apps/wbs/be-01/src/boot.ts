@@ -64,6 +64,7 @@ import { delegationVerifier, type MappedUserOf, REFUSE_DELEGATIONS } from './run
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/delegation-keys';
 import {
+  assertDependencyMigrationRuntime,
   assertDependencyRuntime,
   BACKEND_DEPENDENCY_CAPABILITY,
 } from './runtime/dependency-capability';
@@ -418,11 +419,20 @@ export async function bootBe01(
       // in cross-project-dependency.boot.db.test.ts (2026-10-22).
       admittedSource: DiBag.createProvider(
         ({ source }: { source: OwnedSource }): OwnedSource => {
-          if (opts.migrateOnStartup === true)
+          if (opts.migrateOnStartup === true) {
+            // Proof: moving this after runMigrations changed the complete schema/ledger
+            // certificate in enabled-empty pending-migration boot refusal (2026-10-23).
+            assertDependencyMigrationRuntime(
+              source.db,
+              BACKEND_DEPENDENCY_CAPABILITY,
+              opts.migrationsFolder ?? './drizzle',
+            );
             runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+          }
           readStepBlockageActivation(source.db);
           // Proof: removing this invocation persisted local-dev during the real
-          // enabled-empty boot refusal test (2026-10-22).
+          // enabled-empty boot refusal test (2026-10-22). Removing it also started
+          // services after a migration dropped the receipt table (2026-10-23).
           assertDependencyRuntime(source.db, BACKEND_DEPENDENCY_CAPABILITY);
           if (opts.migrateOnStartup === true) {
             const coded = backfillStepCodes(

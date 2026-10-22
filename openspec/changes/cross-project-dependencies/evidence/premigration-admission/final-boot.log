@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/cross-project-dependency.boot.db.test.ts:
+(pass) refuses enabled empty authority before service factories and writes on every restart [178.25ms]
+(pass) refuses broken authority before service factories: DELETE FROM cross_project_dependency_activation [93.29ms]
+(pass) refuses broken authority before service factories: DROP TABLE cross_project_dependency_activation_receipt [99.99ms]
+(pass) refuses broken authority before service factories: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [102.70ms]
+(pass) refuses broken authority before service factories: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [99.62ms]
+{"level":"info","time":1792705816582,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705816619,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705816620,"service":"be-01","msg":"migrations applied"}
+(pass) admits dormant authority and serves health after dev migrations [158.65ms]
+(pass) refuses disabled authority retaining an external relationship before service factories [120.11ms]
+(pass) closes storage when the authority read becomes unreadable before any service [107.56ms]
+(pass) refuses enabled empty authority before a pending migration changes schema or ledger [101.03ms]
+(pass) refuses damaged authority before pending migration: DROP TABLE cross_project_dependency_activation_receipt [98.02ms]
+(pass) refuses damaged authority before pending migration: DELETE FROM cross_project_dependency_activation [109.27ms]
+(pass) refuses damaged authority before pending migration: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'; DROP TABLE cross_project_dependency_activation_receipt; DROP TABLE cross_project_dependency_activation [102.32ms]
+(pass) rechecks authority after a pending migration corrupts dormant state [111.14ms]
+{"level":"info","time":1792705817504,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705817520,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705817520,"service":"be-01","msg":"migrations applied"}
+(pass) admits dormant authority with a pending migration [140.58ms]
+{"level":"info","time":1792705817761,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1792705817777,"service":"be-01","port":0,"msg":"be-01 listening (schema admitted)"}
+{"level":"info","time":1792705817777,"service":"be-01","msg":"migrations applied"}
+(pass) admits a certified pre-authority historical schema and ledger [253.45ms]
+(pass) refuses uncertified historical storage before pending migration: UPDATE __drizzle_migrations SET hash='altered' WHERE name='20261022211000_add_external_dependencies' [120.26ms]
+(pass) refuses uncertified historical storage before pending migration: DROP INDEX actual_by_step [221.56ms]
+(pass) refuses uncertified historical storage before pending migration: DROP TABLE __drizzle_migrations [118.68ms]
+(pass) refuses uncertified historical storage before pending migration: DELETE FROM __drizzle_migrations WHERE name='20261022210000_add_project_abbreviations' [116.80ms]
+(pass) refuses an unrecorded partial schema rather than treating it as fresh [13.22ms]
+
+ 20 pass
+ 0 fail
+ 76 expect() calls
+Ran 20 tests across 1 file. [6.83s]
