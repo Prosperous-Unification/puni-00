@@ -261,6 +261,32 @@ describe('executeRelease', () => {
     expect(journal.read()?.state.phase).toBe('lease-released');
   });
 
+  it('refuses a live marked Lease before treating its in-flight journal as lost', async () => {
+    const fake = cluster();
+    const journal = memoryJournal();
+    fake.seedLease('other-transaction#run-a', journal.path);
+    if (fake.lease === null) throw new Error('seeded Lease is missing');
+    // The winner marks its Lease after the loser's first read but before its first checkpoint.
+    const options = {
+      ...on(fake),
+      sleep: () => {
+        if (fake.lease === null) throw new Error('live Lease disappeared during wait');
+        fake.lease = { ...fake.lease, journalRequired: true, renewedAtMs: fake.now };
+        return Promise.resolve();
+      },
+    };
+
+    expect(await rejection(executeRelease(request(), journal, fake, quiet, options))).toContain(
+      'still renewed',
+    );
+    expect(fake.calls).toEqual(['observeCluster', 'readLease', 'readLease']);
+    expect(fake.lease.journalRequired).toBe(true);
+    expect(fake.lease.holder).toBe('other-transaction#run-a');
+    expect(journal.read()).toBeNull();
+    expect(fake.writesOpen).toBe(true);
+    expect(fake.migrationJobRuns).toBe(0);
+  });
+
   it('refuses to resume a transaction whose live coordinator still renews the Lease', async () => {
     const fake = cluster();
     const journal = memoryJournal();

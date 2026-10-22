@@ -588,12 +588,7 @@ export function decideLease(
   nowMs: number,
 ): LeaseDecision {
   if (observed === null) return { kind: 'create' };
-  // Proof: journal-marker bypass made the mounted missing-journal restart start a fresh transaction.
-  if (observed.journalRequired && claim.journalTransaction === null)
-    throw new Error(
-      'release Lease requires its missing authoritative journal; manual recovery required',
-    );
-  if (observed.holder === claim.holder) return { kind: 'held' };
+  const sameHolder = observed.holder === claim.holder;
   const holderTransaction = transactionOf(observed.holder);
   const remainingMs = observed.renewedAtMs + observed.durationSeconds * 1000 - nowMs;
   const live = observed.parked === null && remainingMs > 0;
@@ -602,13 +597,21 @@ export function decideLease(
     (claim.journalTransaction === null && observed.journal === claim.journalPath);
   // Proof: accepting any holder of the same release let `refuses a second live coordinator for
   // the same request` run two interleaved coordinators until liveness was required here.
-  if (live) {
+  // Proof: evaluating the journal marker first made the mounted live marked Lease case claim
+  // manual recovery while the winner was still renewing and before the loser mutated anything.
+  if (live && !sameHolder) {
     if (ours) return { kind: 'wait', ms: remainingMs };
     throw new Error(
       `Lease is held by live coordinator ${observed.holder} (journal ${String(observed.journal)}); ` +
         `it expires in ${String(Math.ceil(remainingMs / 1000))}s unless renewed`,
     );
   }
+  // Proof: journal-marker bypass made the mounted missing-journal restart start a fresh transaction.
+  if (observed.journalRequired && claim.journalTransaction === null)
+    throw new Error(
+      'release Lease requires its missing authoritative journal; manual recovery required',
+    );
+  if (sameHolder) return { kind: 'held' };
   if (ours) return { kind: 'takeover' };
   throw new Error(
     `Lease is held by ${observed.holder} (${observed.parked ?? 'expired'}, journal ` +

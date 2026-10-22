@@ -291,6 +291,43 @@ describe('decideLease', () => {
     expect(decideLease(lease(), claim, 5000)).toEqual({ kind: 'wait', ms: 16_000 });
   });
 
+  it('classifies a live marked foreign holder before its journal can be read', () => {
+    const fresh = { ...claim, journalTransaction: null };
+    expect(decideLease(lease({ journalRequired: true }), fresh, 5000)).toEqual({
+      kind: 'wait',
+      ms: 16_000,
+    });
+    expect(() =>
+      decideLease(lease({ holder: 'tx-9#run', journalRequired: true }), claim, 5000),
+    ).toThrow('held by live coordinator tx-9#run');
+  });
+
+  it('still refuses a marked Lease with no journal for its holder or after lapse', () => {
+    const fresh = { ...claim, journalTransaction: null };
+    expect(() =>
+      decideLease(lease({ holder: claim.holder, journalRequired: true }), fresh, 5000),
+    ).toThrow('requires its missing authoritative journal');
+    expect(() => decideLease(lease({ journalRequired: true }), fresh, 30_000)).toThrow(
+      'requires its missing authoritative journal',
+    );
+    expect(() =>
+      decideLease(lease({ journalRequired: true, parked: 'recovery-required' }), fresh, 5000),
+    ).toThrow('requires its missing authoritative journal');
+  });
+
+  it('keeps ordinary live and lapsed decisions for a marked Lease with its journal', () => {
+    expect(decideLease(lease({ journalRequired: true }), claim, 5000)).toEqual({
+      kind: 'wait',
+      ms: 16_000,
+    });
+    expect(
+      decideLease(lease({ holder: claim.holder, journalRequired: true }), claim, 5000),
+    ).toEqual({ kind: 'held' });
+    expect(decideLease(lease({ journalRequired: true }), claim, 30_000)).toEqual({
+      kind: 'takeover',
+    });
+  });
+
   it('refuses a live coordinator of another transaction', () => {
     expect(() => decideLease(lease({ holder: 'tx-9#run' }), claim, 5000)).toThrow(
       'held by live coordinator tx-9#run',

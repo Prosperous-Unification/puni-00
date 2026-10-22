@@ -436,6 +436,7 @@ No runtime behavior change or production activation is included. Parent tasks
 - [x] Wire production suspend/drain/readback around source replay/capture/migration, conditional restoration before rollout, and fresh rollback re-entry after completed forward restoration.
 - [x] Prove exact absent/false/true restoration, patch-before-ack restart, individual UID/resourceVersion/template/token guards, unrelated descendant and unlabelled/readonly consumer refusal, repeated inventory, Lease loss and bounded drain timeout through the real executor/file journal/kubectl adapter.
 - [x] Prove sticky Lease journal retention, missing/unreadable/corrupt journal refusal, UID/session CAS and ABA refusal, and guarded Lease cleanup; record watched faults and configured checks.
+- [x] Preserve live-holder conflict precedence over the sticky missing-journal refusal when a contender sees the marker before the winner's first checkpoint; keep marked lapsed/parked and same-holder missing-journal refusal. Evidence: verify.md under “Kubernetes live marked-Lease race.”
 - [ ] Complete independent review and isolated host gate for the integrated SHA. Parent 10.1/10.2, complete B2 participant exclusion and B3 semantic activation remain open.
 
 Task 9.2 bounded stable-link filter landing (2026-10-23): desktop and phone

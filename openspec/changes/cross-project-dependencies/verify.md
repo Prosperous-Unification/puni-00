@@ -5089,3 +5089,30 @@ Nx build/lint/module-typecheck or remote h2puni/h4claw gate was run in this boun
 packet. The configured Vite warning about `__dirname` remains. This establishes
 mounted frontend navigation/filter behavior only; parent 9.2, production
 activation and remaining unavailable/Retry/transfer work stay open.
+
+## Kubernetes live marked-Lease race — 2026-10-23
+
+The [pushed checkpoint's k3s rehearsal](https://github.com/Prosperous-Unification/puni-00/actions/runs/39869773579/job/120142709665)
+failed its concurrent-coordinator assertion. Its log shows one coordinator
+promoted, while the loser read an initially unmarked live Lease, waited 19,912 ms,
+then saw the winner's durable journal-required marker before its first journal
+checkpoint. `executeRelease` had captured `journalTransaction=null` at startup;
+`decideLease` evaluated that marker before the still-live different holder and
+incorrectly reported missing-journal manual recovery. The loser performed no
+release mutation. This was an ordering defect in refusal classification, not
+evidence of a second promotion.
+
+A mounted executor test now marks and renews the competing Lease during the
+injected wait. An initial already-marked case failed with “requires its missing
+authoritative journal” instead of “still renewed”
+(`/tmp/puni-k3s-lease-race-red.log`). Moving only the live different-holder
+decision ahead of the marker check makes it pass, without moving the marker
+behind same-holder acceptance or lapsed/parked takeover. The restored source
+passed the two `release.test.ts`/`execute.test.ts` suites: **91/91**, 421
+assertions (`/tmp/puni-k3s-lease-race-green.log`). An independent watched
+order-reversal fault against the final mounted transition case failed with the
+same named diagnostic (`/tmp/puni-k3s-lease-race-order-fault.log`); the source was
+restored. Unit cases also assert marked same-holder, lapsed and parked missing
+journals still refuse, while valid marked-journal holder/wait/takeover decisions
+remain. The full k3s rehearsal and exact-head CI have not yet
+passed after this fix.

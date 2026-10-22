@@ -604,6 +604,12 @@ UID/resourceVersion deletion preconditions.
 - **WHEN** the journal is missing, unreadable or malformed after the Lease acquired its marker, including before the first controller checkpoint
 - **THEN** recovery refuses and retains the Lease and current controller state for attended recovery
 
+#### Scenario: A contender reads a live marked Lease during the first checkpoint
+
+- **WHEN** another coordinator owns and renews the live Lease while its journal-required marker is committed before its first journal checkpoint
+- **THEN** a contender waits or refuses as a live-holder conflict without taking over or mutating the release
+- **AND** a missing journal still prevents takeover after that Lease lapses or is parked
+
 #### Scenario: Lease is deleted and recreated under the same holder
 
 - **WHEN** the Lease UID changes despite a repeated holder or resourceVersion
