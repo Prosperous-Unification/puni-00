@@ -2220,6 +2220,77 @@ describe('a project link, /?project=<id>', () => {
     });
   });
 
+  for (const phone of [false, true]) {
+    for (const destination of ['work-item', 'step'] as const) {
+      itDom(
+        `selects a stable ${destination} destination over the remembered project on ${phone ? 'phone' : 'desktop'}`,
+        async () => {
+          const width = window.innerWidth;
+          Object.defineProperty(window, 'innerWidth', {
+            configurable: true,
+            value: phone ? 390 : 1024,
+          });
+          try {
+            const model = fakeProjectApi();
+            await model.createWorkItem('p2', {
+              parentId: null,
+              afterId: null,
+              name: 'Destination',
+            });
+            const api = fakeProjects(TWO);
+            const workItemId = '11111111-1111-4111-8111-111111111111';
+            const stepId = '22222222-2222-4222-8222-222222222222';
+            api.tree = async (projectId) => {
+              const plan = await model.tree(projectId);
+              return {
+                ...plan,
+                workItems: plan.workItems.map((each) => ({ ...each, id: workItemId })),
+                steps: plan.steps.map((step) =>
+                  step.id === 'step-qa' ? { ...step, id: stepId } : step,
+                ),
+                stepNodes: plan.stepNodes?.map((node) => {
+                  const nodeStepId = node.stepId === 'step-qa' ? stepId : node.stepId;
+                  return {
+                    ...node,
+                    id: `sn1.${workItemId}.${nodeStepId}`,
+                    workItemId,
+                    stepId: nodeStepId,
+                  };
+                }),
+              };
+            };
+            api.steps = async (projectId) =>
+              (await model.steps(projectId)).map((step) =>
+                step.id === 'step-qa' ? { ...step, id: stepId } : step,
+              );
+            localStorage.setItem('wbs.project', 'p1');
+            const stepQuery = destination === 'step' ? `&stepNode=sn1.${workItemId}.${stepId}` : '';
+            window.history.replaceState(
+              null,
+              '',
+              `/?project=p2&workItem=${workItemId}${stepQuery}&view=plan`,
+            );
+            pageWith(api);
+            await waitFor(() =>
+              expect(
+                screen.getByLabelText(
+                  destination === 'step' ? 'QA estimate for 010' : 'Name of 010',
+                ),
+              ).toHaveFocus(),
+            );
+            expect(picker().value).toBe('Paint the fence');
+            expect(localStorage.getItem('wbs.project')).toBe('p2');
+            expect(window.location.search).toBe('?view=plan');
+            expect(api.opened).toContain('p2');
+            expect(api.opened).not.toContain('p1');
+          } finally {
+            Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+          }
+        },
+      );
+    }
+  }
+
   itDom('shows the empty state for a link to a project it cannot open', async () => {
     localStorage.setItem('wbs.project', 'p1');
     window.history.replaceState(window.history.state, '', '/?project=unknown');

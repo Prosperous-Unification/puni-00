@@ -2124,9 +2124,10 @@ export function WbsTable({
   }, []);
 
   /**
-   * Resolves a stable work-item or step link after its tree read, opens its ancestors,
-   * then asks the viewport to mount and focus the addressed cell. A consumed or
-   * refused link is removed from history so later refetches do not steal focus.
+   * Resolves a stable work-item or step link after its tree read, reveals it through
+   * the current filter or opens its ancestors, then asks the viewport to mount
+   * and focus the addressed cell. A consumed or refused link is removed from
+   * history so later refetches do not steal focus.
    */
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -2154,6 +2155,12 @@ export function WbsTable({
         return;
       }
       if (!shownRowIds.includes(row.id)) {
+        // Proof: omitting this reveal left the nested Find destination absent in
+        // `reveals a nested stable work-item through Find on desktop` (2026-10-23).
+        if (filtering) {
+          revealRow(row.id);
+          return;
+        }
         const ancestors = table
           .getRow(row.id, true)
           .getParentRows()
@@ -2193,6 +2200,8 @@ export function WbsTable({
       dismissLink('Step link does not name a leaf step in this plan.');
       return;
     }
+    // Proof: removing this unhide left `Dev estimate for 010.1.1` absent in
+    // `reveals a nested stable step through Find on desktop` (2026-10-23).
     if (hiddenColumnIds.includes(stepId)) {
       toggleColumn(stepId);
       return;
@@ -2202,6 +2211,12 @@ export function WbsTable({
       return;
     }
     if (!shownRowIds.includes(workItemId)) {
+      // Proof: removing this reveal left `Dev estimate for 010.1.1` absent in
+      // `reveals a nested stable step through facet on phone` (2026-10-23).
+      if (filtering) {
+        revealRow(workItemId);
+        return;
+      }
       const ancestors: string[] = [];
       let parentId = row.parentId;
       while (parentId !== null) {
@@ -2224,9 +2239,11 @@ export function WbsTable({
     dismissLink();
   }, [
     flat,
+    filtering,
     hasSuccessfulTreeRead,
     projectId,
     hiddenColumnIds,
+    revealRow,
     pushToast,
     setExpanded,
     shownRowIds,

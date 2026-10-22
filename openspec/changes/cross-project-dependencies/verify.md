@@ -5046,3 +5046,46 @@ controller lifecycle suite passed **1,140/1,140**, 3,000 assertions
 no release caller, durable evidence write, complete participant exclusion,
 activation, candidate exposure or host gate is proven by this codec. Parent
 10.1/10.2 remain open.
+
+## Task 9.2 bounded stable-link landing through filters — 2026-10-23
+
+The stable-link effect in `wbs-table.tsx` now uses the existing
+`usePlanFilter.revealRow` when Find or facets exclude an accepted destination.
+`narrowTree` supplies the destination's ancestors and expansion overlay. Stored
+expansion is only changed by the existing unfiltered landing path. No new filter
+state, persisted preference or dependency identity is introduced. The URL remains
+pending until the destination reaches the visible row model; the existing focus
+request mounts and focuses the actual name or step estimate input, then the link
+parameters are consumed with unrelated query parameters retained. Existing
+wrong-project, malformed, absent/non-leaf and step visibility checks remain.
+
+Mounted coverage includes desktop and phone work-item/step destinations nested
+two ancestors deep under Find, a tag facet and their combination (12 cases),
+including initially hidden destination steps with UUID identity distinct from
+the fake source step. Assertions cover actual input focus, ancestors, retained
+query/facet/expansion, criteria expiry and unrelated URL state. Four additional
+page-owned cases select the stable destination over a remembered project and
+focus its name/step input on both viewports.
+
+Fresh commands from `/tmp/puni-filtered-link` (Vitest from `apps/wbs/fe-01`):
+
+- `TZ=UTC bunx vitest run src/components/wbs/persisted-remote-dependencies.test.tsx src/components/wbs/plan-cells.test.tsx src/components/wbs/plan-filter.test.tsx --maxWorkers=1 --no-file-parallelism`: 259 passed.
+- `TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx --maxWorkers=1 --no-file-parallelism`: 110 passed.
+- `TZ=UTC bunx vitest run src/components/wbs/persisted-remote-dependencies.test.tsx --maxWorkers=1 --no-file-parallelism`: 35 passed after adding initially hidden destination-step coverage.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit 0.
+- Focused ESLint over the three changed frontend files: exit 0, after generating the Nx project graph with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/filtered-graph.json`. The first direct lint reported skipped module-boundary rules without that graph; it was rerun with the graph present.
+- `bunx openspec validate cross-project-dependencies --json`: valid, 1 passed / 0 failed; existing long-requirement warnings remain.
+- `bunx prettier --check` over the six changed files and `git diff --check`: exit 0.
+
+Watched production-path faults, restored before final validation:
+
+- Before adding work-item filter reveal, `reveals a nested stable work-item through Find on desktop until criteria change` failed because `Name of 010.1.1` was absent.
+- Removing only the step filter reveal made `reveals a nested stable step through facet on phone until criteria change` fail because `Dev estimate for 010.1.1` was absent; React also reported the former repeated stored-expansion update loop. Adjacent `Proof:` comments name both observed failures.
+
+- Removing the hidden-column unhide branch made `reveals a nested stable step through Find on desktop until criteria change` fail because the actual estimate input was absent. The guard was restored and has an adjacent `Proof:` comment.
+
+Scope limits: no full frontend suite, browser/Playwright gate, zoned suite, full
+Nx build/lint/module-typecheck or remote h2puni/h4claw gate was run in this bounded
+packet. The configured Vite warning about `__dirname` remains. This establishes
+mounted frontend navigation/filter behavior only; parent 9.2, production
+activation and remaining unavailable/Retry/transfer work stay open.

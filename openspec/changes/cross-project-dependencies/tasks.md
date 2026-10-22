@@ -437,3 +437,12 @@ No runtime behavior change or production activation is included. Parent tasks
 - [x] Prove exact absent/false/true restoration, patch-before-ack restart, individual UID/resourceVersion/template/token guards, unrelated descendant and unlabelled/readonly consumer refusal, repeated inventory, Lease loss and bounded drain timeout through the real executor/file journal/kubectl adapter.
 - [x] Prove sticky Lease journal retention, missing/unreadable/corrupt journal refusal, UID/session CAS and ABA refusal, and guarded Lease cleanup; record watched faults and configured checks.
 - [ ] Complete independent review and isolated host gate for the integrated SHA. Parent 10.1/10.2, complete B2 participant exclusion and B3 semantic activation remain open.
+
+Task 9.2 bounded stable-link filter landing (2026-10-23): desktop and phone
+work-item/step landing now uses the existing criteria-scoped filter reveal for
+the linked row and its ancestors. Find/facets and stored expansion are retained;
+changing criteria expires the reveal. Mounted nested Find, facet and combined
+cases use destination-owned step identity and prove actual input focus and URL
+consumption with unrelated parameters retained. Page-owned project selection is
+covered separately. Parent 9.2 remains unchecked; this does not claim activation
+or the remaining unavailable/Retry/transfer work. See verify.md.

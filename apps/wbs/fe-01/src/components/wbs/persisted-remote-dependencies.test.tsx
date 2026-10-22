@@ -238,6 +238,150 @@ it('expands ancestors before focusing a stable work-item link and preserves unre
   expect(window.location.search).toBe('?view=plan');
 });
 
+for (const phone of [false, true]) {
+  for (const destination of ['work-item', 'step'] as const) {
+    for (const criteria of ['Find', 'facet', 'Find and facet'] as const) {
+      it(`reveals a nested stable ${destination} through ${criteria} on ${phone ? 'phone' : 'desktop'} until criteria change`, async () => {
+        localStorage.clear();
+        Object.defineProperty(window, 'innerWidth', {
+          configurable: true,
+          value: phone ? 390 : 1024,
+        });
+        const api = fakeProjectApi();
+        const parent = await api.createWorkItem('p1', {
+          parentId: null,
+          afterId: null,
+          name: 'Parent',
+        });
+        const branch = await api.createWorkItem('p1', {
+          parentId: parent.id,
+          afterId: null,
+          name: 'Branch',
+        });
+        const child = await api.createWorkItem('p1', {
+          parentId: branch.id,
+          afterId: null,
+          name: 'Linked child',
+        });
+        const match = await api.createWorkItem('p1', {
+          parentId: null,
+          afterId: parent.id,
+          name: 'Visible match',
+        });
+        const tag = await api.addTag('Selected');
+        api.labelWithTag(match.id, [tag.id]);
+        const workItemId = '11111111-1111-4111-8111-111111111111';
+        const stepId = '22222222-2222-4222-8222-222222222222';
+        if (destination === 'step')
+          localStorage.setItem('wbs.hiddenColumns.p1', JSON.stringify([stepId]));
+        const steps: ProjectApi['steps'] = async (projectId) =>
+          (await api.steps(projectId)).map((step) =>
+            step.id === 'step-dev' ? { ...step, id: stepId } : step,
+          );
+        const tree: ProjectApi['tree'] = async (projectId) => {
+          const plan = await api.tree(projectId);
+          return {
+            ...plan,
+            workItems: plan.workItems.map((row) =>
+              row.id === child.id ? { ...row, id: workItemId } : row,
+            ),
+            steps: plan.steps.map((step) =>
+              step.id === 'step-dev' ? { ...step, id: stepId } : step,
+            ),
+            stepNodes: plan.stepNodes?.map((node) => {
+              const rowId = node.workItemId === child.id ? workItemId : node.workItemId;
+              const nodeStepId = node.stepId === 'step-dev' ? stepId : node.stepId;
+              return {
+                ...node,
+                id: `sn1.${rowId}.${nodeStepId}`,
+                workItemId: rowId,
+                stepId: nodeStepId,
+              };
+            }),
+          };
+        };
+        let notify: (() => void) | undefined;
+        const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+          notify = handlers.onChange;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        };
+        render(
+          <WbsTableOverClient
+            projectId="p1"
+            projectServices={projectServicesOf({ ...api, tree, steps })}
+            subscribe={subscribe}
+          />,
+        );
+        fireEvent.click(await screen.findByRole('button', { name: 'Collapse 010' }));
+        const storedExpansion = localStorage.getItem('wbs.expanded.p1');
+        const openControls = () => {
+          if (phone) fireEvent.click(screen.getByRole('button', { name: 'Plan actions' }));
+        };
+        const closeControls = () => {
+          if (phone) fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        };
+        openControls();
+        if (criteria.includes('Find'))
+          fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Visible' } });
+        if (criteria.includes('facet')) {
+          fireEvent.click(screen.getByText(/^Filters/));
+          fireEvent.click(await screen.findByLabelText('Tag Selected'));
+          fireEvent.click(screen.getByText(/^Filters/));
+        }
+        closeControls();
+        await waitFor(() => {
+          expect(screen.queryByLabelText('Name of 010')).toBeNull();
+        });
+        const stepQuery = destination === 'step' ? `&stepNode=sn1.${workItemId}.${stepId}` : '';
+        window.history.replaceState(
+          null,
+          '',
+          `/?project=p1&workItem=${workItemId}${stepQuery}&view=plan`,
+        );
+        act(() => {
+          if (notify === undefined) throw new Error('No subscription');
+          notify();
+        });
+        await waitFor(() =>
+          expect(
+            screen.getByLabelText(
+              destination === 'step' ? 'Dev estimate for 010.1.1' : 'Name of 010.1.1',
+            ),
+          ).toHaveFocus(),
+        );
+        expect(screen.getByLabelText('Name of 010')).toBeVisible();
+        expect(screen.getByLabelText('Name of 010.1')).toBeVisible();
+        expect(window.location.search).toBe('?view=plan');
+        openControls();
+        expect(screen.getByLabelText('Find')).toHaveValue(
+          criteria.includes('Find') ? 'Visible' : '',
+        );
+        expect(localStorage.getItem('wbs.expanded.p1')).toBe(storedExpansion);
+        if (criteria.includes('facet')) {
+          fireEvent.click(screen.getByText(/^Filters/));
+          expect(screen.getByLabelText('Tag Selected')).toBeChecked();
+          fireEvent.click(screen.getByText(/^Filters/));
+        }
+        fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Visible match' } });
+        closeControls();
+        await waitFor(() => {
+          expect(screen.queryByLabelText('Name of 010.1.1')).toBeNull();
+        });
+        openControls();
+        fireEvent.change(screen.getByLabelText('Find'), { target: { value: '' } });
+        if (criteria.includes('facet')) {
+          fireEvent.click(screen.getByText(/^Filters/));
+          fireEvent.click(screen.getByLabelText('Tag Selected'));
+          fireEvent.click(screen.getByText(/^Filters/));
+        }
+        closeControls();
+        await screen.findByLabelText('Name of 010');
+        expect(screen.queryByLabelText('Name of 010.1')).toBeNull();
+      });
+    }
+  }
+}
+
 it('keeps the persisted remote relationship inspectable when its captured calendar is unavailable', async () => {
   await mount(true, 'REMOTE.080.s2-dev', true);
   expect(await screen.findByRole('link', { name: /Open REMOTE.080.s2-dev/ })).toHaveAttribute(

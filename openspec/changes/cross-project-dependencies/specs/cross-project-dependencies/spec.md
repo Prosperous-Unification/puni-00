@@ -316,6 +316,16 @@ External dependency chips, accessible labels and details SHALL include their pro
 - **WHEN** its predecessor abbreviation or number changes
 - **THEN** the live label updates while navigation and dependency identity still select the same endpoint
 
+#### Scenario: Stable destination is excluded by the current Find or facet criteria
+
+- **GIVEN** the destination project's mounted plan has an active Find query, facet selection, or both, excluding a nested linked work item or leaf step
+- **WHEN** the plan accepts navigation by stable project/work-item/step identity
+- **THEN** it reveals the destination and its ancestors through the current filter and focuses the actual name or step estimate input on desktop and phone
+- **AND** the Find query, facet selection and stored expansion remain unchanged
+- **AND** the temporary reveal expires when the criteria change
+- **AND** the accepted link parameters are consumed while unrelated URL parameters remain
+- **AND** another project's table does not consume the link; malformed, missing and non-leaf step targets retain their visible refusal, and hidden or unfolded step columns are made focusable before landing
+
 ### Requirement: Incompatible readers cannot silently ignore external dependencies
 
 Release activation SHALL prevent cross-project relationships from being authored while an incompatible reader, writer, background worker, gateway, MCP process or retained client can serve the store. Each migration SHALL ship a matching down migration and preserve old local relationships.
