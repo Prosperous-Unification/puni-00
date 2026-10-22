@@ -4705,3 +4705,15 @@ assertions), backend TypeScript, changed-file ESLint and Prettier. The reviewer
 inspected the five fault receipts without reinjecting them. Full packet
 `git diff --check` reports only trailing whitespace in the preserved raw hook
 transcript; the source/report diff passes. This does not close task 4.4.
+
+### Bounded task 3.2 generated MCP parity (2026-10-23)
+
+The [machine-key MCP/HTTP parity report](evidence/mcp-command-parity/report.md)
+records six generated-tool cases against a real mounted backend, five watched
+production faults, and three fixture-lifetime regressions added after Astra
+reproduced a child leak. The fix reaps the child on setup and close failures;
+Astra repeated the original fault and independently passed the configured MCP
+suite, **533/533 tests and 3,014 assertions**, plus lint and typecheck. It
+proves bounded whole-to-whole FS transport with machine-key authority. Delegated
+OAuth, the remaining endpoint/type/history matrix, production activation and
+task 3.2 remain open. No host gate ran for this packet.
