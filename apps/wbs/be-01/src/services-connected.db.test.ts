@@ -692,3 +692,250 @@ for (const fault of ['disabled', 'draining'] as const) {
       expect(f.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
   });
 }
+
+async function displacedFixture() {
+  const f = await fixture(true, 'isolated', true);
+  f.sqlite.run(
+    "UPDATE estimate SET optimistic=5,realistic=5,pessimistic=5 WHERE work_item_id='a1'",
+  );
+  f.sqlite.run("UPDATE project SET schedule_engine='fast',optimization_enabled=0 WHERE id='a2'");
+  f.sqlite.run(
+    "UPDATE project SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id='a3'",
+  );
+  f.sqlite.run("INSERT INTO step(id,project_id,name,position) VALUES('c-s','a3','Build',10)");
+  f.sqlite.run("INSERT INTO service_team(id,name) VALUES('c-team','C capacity')");
+  f.sqlite.run(
+    "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES('c-team','org-a','C capacity')",
+  );
+  f.sqlite.run(
+    "INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES('a3','c-team',1)",
+  );
+  for (const [id, position, days] of [
+    ['c-long', 10, 2],
+    ['c-short', 20, 1],
+  ] as const) {
+    f.sqlite.run('INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,1)', [
+      id,
+      'a3',
+      position,
+      id,
+    ]);
+    f.sqlite.run(
+      'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,?,?,?)',
+      [id, 'c-s', days, days, days],
+    );
+    f.sqlite.run("INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,'c-team')", [id]);
+    f.sqlite.run(
+      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a','a1','a3','a1',?,'whole','whole','FS')",
+      ['b-to-' + id, id],
+    );
+  }
+  const capture = async () => {
+    const observed = await f.bound.stores.livePlans?.read('a1', access);
+    if (observed?.kind !== 'connected' || observed.projection.placement.kind !== 'scheduled')
+      throw Error('displaced connected placement missing');
+    return observed.projection.placement;
+  };
+  const initial = await capture();
+  const cStage = initial.stages.find((selection) => selection.stage.projectId === 'a3')?.stage;
+  if (cStage === undefined) throw Error('C seed stage missing');
+  const question = captureConnectedQuestion(cStage, 'pri', installed);
+  const { stageBytes, ...identity } = question;
+  expect(stageBytes).toBe(canonicalConnectedStageInput(cStage));
+  const prepared = buildConnectedSolverRequest(cStage, identity, installed, 'pri');
+  if (prepared.kind !== 'request') throw Error('C request missing');
+  const request = prepared.request;
+  expect(request.quantum).toBe(48);
+  expect(
+    request.slices.map((slice) => [slice.key, slice.durationUnits, slice.priorityWeight]),
+  ).toEqual([
+    ['c-long\u0000c-s', 96, 1],
+    ['c-short\u0000c-s', 48, 1],
+  ]);
+  const offsets = Object.fromEntries(
+    request.slices.map((slice) => [slice.key, slice.key.includes('c-short') ? 288 : 336]),
+  );
+  const term = (value: number) => ({ value, stageValue: value, bound: 0, status: 'feasible' });
+  const success = encodeConnectedSuccess(
+    cStage,
+    identity,
+    request,
+    JSON.stringify({
+      wireVersion: 5,
+      scope: {
+        kind: 'connected-stage',
+        projectId: 'a3',
+        inputHash: question.inputHash,
+        questionHash: question.questionHash,
+      },
+      status: 'feasible',
+      offsets,
+      objectiveValues: { makespan: term(432), priority: term(768), movement: term(144) },
+    }),
+    hashConnectedBytes,
+  );
+  f.source.db
+    .insert(optimizedScheduleCache)
+    .values({
+      ...question,
+      generation: 1,
+      status: 'ok',
+      resultJson: JSON.stringify(success),
+      createdAt: 12,
+    })
+    .run();
+  const selected = await capture();
+  const bStage = selected.stages.find((selection) => selection.stage.projectId === 'a1')?.stage;
+  if (bStage === undefined) throw Error('B stage missing');
+  expect(cStage.starts.get('c-long\u0000c-s')).toBe(6);
+  expect(cStage.starts.get('c-short\u0000c-s')).toBe(8);
+  expect(selected.stages.find((selection) => selection.stage.projectId === 'a3')).toMatchObject({
+    chosen: {
+      chosen: 'optimized',
+      baselineValues: { priority: 17 },
+      optimizedValues: { priority: 16 },
+    },
+  });
+  expect(selected.combined.slices.get('c-short\u0000c-s')?.earliestStart).toBe(6);
+  expect(selected.combined.slices.get('c-long\u0000c-s')?.earliestStart).toBe(7);
+  expect(bStage.starts.get('c-short\u0000c-s')).toBe(8);
+  const finalStage = {
+    ...bStage,
+    starts: new Map(
+      [...selected.combined.slices].map(([key, slice]) => [key, slice.earliestStart]),
+    ),
+    finishes: new Map(
+      [...selected.combined.slices].map(([key, slice]) => [key, slice.earliestFinish]),
+    ),
+  };
+  return { ...f, bStage, finalStage };
+}
+
+test('displaced mounted live admission retains B pre-selection question after C Pri selection', async () => {
+  const f = await displacedFixture();
+  const opened = f.probe.opened;
+  const tree = await f.tree();
+  expect(f.probe.opened - opened).toBe(1);
+  expect(tree).toMatchObject({
+    optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
+  });
+  expect(f.probe.open).toBe(0);
+  expect(f.probe.writerReads.length).toBeGreaterThan(0);
+  expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
+  expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
+    ['a1\u0000a1-s', 1],
+  ]);
+  expect(f.launched.map((asked) => [asked.key.projectId, asked.objective]).sort()).toEqual([
+    ['a1', 'pri'],
+    ['a1', 'time'],
+  ]);
+  for (const asked of f.launched) {
+    if (asked.kind !== 'connected') throw Error('connected B request missing');
+    const question = captureConnectedQuestion(f.bStage, asked.objective, installed);
+    const { stageBytes, ...identity } = question;
+    const expected = buildConnectedSolverRequest(f.bStage, identity, installed, asked.objective);
+    expect(canonicalConnectedStageInput(asked.stage)).toBe(stageBytes);
+    expect(asked.key.inputHash).toBe(question.inputHash);
+    expect(expected.kind).toBe('request');
+    if (expected.kind !== 'request') throw Error('B request missing');
+    expect(asked.request).toEqual(expected.request);
+    expect(asked.request.scope.questionHash).toBe(question.questionHash);
+    expect(asked.request.scope.fixed).toEqual([
+      { projectId: 'a2', key: 'a2\u0000a2-s', start: 0, finish: 1 },
+      { projectId: 'a3', key: 'c-long\u0000c-s', start: 6, finish: 8 },
+      { projectId: 'a3', key: 'c-short\u0000c-s', start: 8, finish: 9 },
+    ]);
+    expect(
+      asked.request.scope.boundaries.find((boundary) => boundary.relationshipId === 'edge'),
+    ).toMatchObject({ direction: 'incoming', minimumStartUnits: 48 });
+    expect(
+      asked.request.scope.boundaries.find((boundary) => boundary.relationshipId === 'b-to-c-short'),
+    ).toMatchObject({ direction: 'outgoing', maximumStartUnits: 144 });
+    expect(asked.request.movementReferenceOffsets).toEqual({ 'a1\u0000a1-s': 48 });
+    const finalQuestion = captureConnectedQuestion(f.finalStage, asked.objective, installed);
+    const { stageBytes: finalBytes, ...finalIdentity } = finalQuestion;
+    expect(finalBytes).not.toBe(stageBytes);
+    const finalRequest = buildConnectedSolverRequest(
+      f.finalStage,
+      finalIdentity,
+      installed,
+      asked.objective,
+    );
+    if (finalRequest.kind !== 'request') throw Error('final comparison request missing');
+    expect(
+      finalRequest.request.scope.boundaries.find(
+        (boundary) => boundary.relationshipId === 'b-to-c-short',
+      ),
+    ).toMatchObject({ maximumStartUnits: 48 });
+    expect(question.inputHash).not.toBe(
+      captureConnectedQuestion(f.finalStage, asked.objective, installed).inputHash,
+    );
+  }
+  expect(f.errors).toEqual([]);
+});
+
+test('displaced mounted Retry accepts retained B hash and refuses final composite hash', async () => {
+  const f = await displacedFixture();
+  const question = captureConnectedQuestion(f.bStage, 'pri', installed);
+  f.source.db
+    .insert(optimizedScheduleCache)
+    .values({
+      ...question,
+      generation: 1,
+      status: 'failed',
+      failureReason: 'timeout',
+      createdAt: 12,
+    })
+    .run();
+  f.source.db
+    .insert(optimizationGeneration)
+    .values({
+      projectId: 'a1',
+      contractVersion: question.contractVersion,
+      generation: 1,
+      inputHash: question.inputHash,
+      cancelEpoch: 0,
+      updatedAt: 12,
+    })
+    .run();
+  const retry = (inputHash: string) =>
+    f.app.handle(
+      new Request('http://localhost/api/projects/a1/optimization/retry', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
+        body: JSON.stringify({ inputHash, objective: 'pri' }),
+      }),
+    );
+  const ledger = () =>
+    [
+      'optimization_generation',
+      'solver_queue',
+      'solver_slot',
+      'optimized_schedule_cache',
+      'event_log',
+    ].map((table) => f.sqlite.query(`SELECT * FROM ${table}`).all());
+  const before = ledger();
+  const refused = await retry(captureConnectedQuestion(f.finalStage, 'pri', installed).inputHash);
+  expect(refused.status).toBe(409);
+  expect(await refused.json()).toMatchObject({ code: 'stale-input-hash' });
+  expect(f.launched).toEqual([]);
+  expect(ledger()).toEqual(before);
+  const accepted = await retry(question.inputHash);
+  expect(accepted.status).toBe(202);
+  expect(await accepted.json()).toMatchObject({ state: 'retrying', inputHash: question.inputHash });
+  expect(f.launched).toHaveLength(1);
+  const asked = f.launched[0];
+  if (asked.kind !== 'connected') throw Error('connected Retry missing');
+  expect(asked.objective).toBe('pri');
+  expect(asked.key.projectId).toBe('a1');
+  expect(asked.key.inputHash).toBe(question.inputHash);
+  expect(canonicalConnectedStageInput(asked.stage)).toBe(question.stageBytes);
+  const { stageBytes, ...identity } = question;
+  expect(stageBytes).toBe(canonicalConnectedStageInput(f.bStage));
+  const prepared = buildConnectedSolverRequest(f.bStage, identity, installed, 'pri');
+  if (prepared.kind !== 'request') throw Error('Retry comparison request missing');
+  expect(asked.request).toEqual(prepared.request);
+  expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
+  expect(f.probe.open).toBe(0);
+  expect(f.errors).toEqual([]);
+});

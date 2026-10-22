@@ -4943,3 +4943,20 @@ limits passed, including a 1 ms readiness timeout that reaps the child. A
 reviewer-found trailing space in its raw fault log was removed before
 integration; committed-range `git diff --check` then passed. Tasks 3.2/4.2,
 activation, exact-head host gate and full delivery checks remain open.
+
+### Bounded mounted displaced-stage acceptance proof — 2026-10-23
+
+The [mounted displaced-stage packet](evidence/mounted-displaced-stage/report.md)
+adds real migrated SQLite/buildServices/installed-reader HTTP acceptance for B's
+retained stage after a genuine durable C Pri candidate improves weighted
+completion 17→16. It proves the outgoing named B→C.short FS bound remains 144
+rather than final-composite 48, exact stage/question/request identity, single
+owned live observation, closed-reader writer/child handoff, B-only initial live
+launches, and failed-Pri Retry accepting the retained hash while refusing the
+final-composite hash without ledger changes. The shared capture-helper fault
+fails both mounted cases; the separate live callback fault fails live only.
+The earlier survived cold-fixture receipt is preserved and explicitly explained.
+Production edits are proof comments only. Tasks 7.3/7.4/8.4 remain open; installed
+Python/image workers, full matrix, external authoring/activation and canonical
+host gate are outside this bounded packet. See the report for commands, exact
+observed failures and verification limits.

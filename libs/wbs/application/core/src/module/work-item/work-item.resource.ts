@@ -1939,6 +1939,7 @@ export class WorkItemService {
               throw new Error('connected optimizer admission is not installed');
             // The existing target stage belongs to the closed observation, before final projection.
             // Proof: omitting admission left cold mounted connected reads with zero launches.
+            // Proof: reconstructing final positions here failed displaced mounted live stage bytes after C Pri selection.
             await this.opts.admitConnectedOptimization({
               projectId,
               input: observation.input,
@@ -10040,6 +10041,7 @@ function captureConnectedOptimization(
   const selection = placement.stages.find((stage) => stage.stage.projectId === projectId);
   // Invariant diagnostic: the selector partitions captured members into stages and idle projects.
   if (selection === undefined) throw new Error(`missing optimization stage ${projectId}`);
+  // Proof: final maps failed displaced live bytes; Retry expected stale-input-hash but observed not-retryable idle.
   return { kind: 'scheduled', input: { kind: 'connected', stage: selection.stage }, enabled };
 }
 

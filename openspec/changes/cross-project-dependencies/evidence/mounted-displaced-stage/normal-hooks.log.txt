@@ -1,0 +1,53 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+  ────────────────────────────────────
+summary: (done in 7.78 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.04 seconds)
+✓ format (3.12 seconds)
+✓ lint (7.72 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  prepare-commit-msg │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+  ────────────────────────────────────
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  commit-msg │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+  ────────────────────────────────────
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+[proof/mounted-displaced-stage 2a8de281f] test(wbs): prove mounted displaced stage admission identity
+ 12 files changed, 665 insertions(+)
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/helper-final-placement.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/live-callback-final-placement.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/proofs.mjs.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/report.md
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/restored-format.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/restored-lint.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/restored-openspec.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/restored-tests.log.txt
+ create mode 100644 openspec/changes/cross-project-dependencies/evidence/mounted-displaced-stage/restored-typecheck.log.txt
