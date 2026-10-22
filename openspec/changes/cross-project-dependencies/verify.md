@@ -4743,3 +4743,16 @@ gauge. Astra independently reproduced the parent 24 pass / 7 fail and approved
 the candidate 68 pass / 0 fail (346 assertions), with production guards and
 assertions unchanged. Ten separate activation rollback-ledger failures remain
 open and are not resolved by this packet.
+
+### Bounded task 4.4 mounted compound replay cycle (2026-10-23)
+
+The [compound replay proof](evidence/task-4.4-compound-remote-cycle/verify.md)
+records healthy mounted undo/redo and both cycle refusals after an independent
+remote bridge edit leaves guarded A/B endpoint revisions unchanged. Earlier
+replayed patches roll back, nonjournal rows and pushes remain unchanged, and
+only the selected stale owner journal entry is pruned. Four watched mutations
+distinguish the early/final cycle guards, transaction rollback and journal
+repair. Astra independently approved the bounded packet after 54/54
+history/lifecycle tests (969 assertions), changed-file lint, typecheck and
+format. Full backend lint exited 1 without diagnostics on three attempts, so
+it is not verified by scoped lint. Task 4.4 and full delivery gates remain open.
