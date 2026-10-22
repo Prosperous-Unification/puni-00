@@ -121,7 +121,7 @@ NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t type
 
 ### Task 4: Exact conditional claim acquisition — S0.06
 
-**Files:** Extend `core/module/plan-commands/{plan-commands.feature,admitted-scope.resource,composition}.ts`; create `apps/wbs/be-01/src/controller/runtime-claim.db.test.ts`; extend SQLite `runtime-command.db.test.ts` and semantic request/receipt values. Keep existing `runWithin/runAfterWithin` behavior intact.
+**Files:** Extend `core/module/plan-commands/{plan-commands.feature,admitted-scope.resource,composition,runtime-authority,runtime-request}.ts`; create the narrow `core/module/plan-commands/runtime-claim.ts` capability and `apps/wbs/be-01/src/controller/runtime-claim.db.test.ts`; extend SQLite `runtime-command.db.test.ts` and semantic request/receipt values. Keep existing `runWithin/runAfterWithin` behavior intact.
 
 **Interfaces:** Produce `claimRuntime(context, request):Promise<RuntimeReply<ClaimReceipt>>`. Request is `{schemaVersion:1,commandId,expectedLedgerId,authority,expectedBasis,action:{kind:'claim',workItemId,stepId,parentClaimId,execution}}`; exact execution is `{storeId,runId,attemptId,sessionId}`. Success acceptance is `{kind:'claim',authority,claim,basisAfter}` in the common receipt envelope. Consume real authority/replay/canonicalization from Task3 and ledger/digest from Tasks1–2. No generic write method returning a temporary unsupported stub.
 
@@ -160,7 +160,7 @@ NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t type
 ```ts
 const before = await claimStore.findById(projectId, replacementClaim.claimId);
 const refused = await runner.writeRuntime(context, staleReleaseWithFreshBasis);
-expect(refused).toMatchObject({ ok: false, refusal: 'runtime_claim_mismatch' });
+expect(refused).toMatchObject({ ok: false, reason: 'runtime_claim_mismatch' });
 expect(await claimStore.findById(projectId, replacementClaim.claimId)).toEqual(before);
 ```
 

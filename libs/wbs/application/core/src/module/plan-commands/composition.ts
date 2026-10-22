@@ -80,6 +80,7 @@ export function commandTransaction(
           organizationId: null,
         };
         const resources: CommandAdmission = {
+          authorizeRuntime: (identity) => authorizeRuntimeScope(rawScope, identity),
           refuseOutsideScope: async (...args) => {
             const refusal = await scope.refuseOutsideScope(...args);
             if (refusal !== null) return refusal;
@@ -252,9 +253,14 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
   return admittedWrites({ transaction, announcements: source.announcements });
 }
 
-export function createPlanCommandRunner(source: PlanCommandsSource): PlanCommandRunner {
+/** Ordinary-only compositions may omit digest; runtime mutation requires the host Digest. */
+export function createPlanCommandRunner(
+  source: PlanCommandsSource,
+  digest?: Digest,
+): PlanCommandRunner {
   return new PlanCommandRunner({
     transaction: commandTransaction(source.uow, source.batchServices, source.committedFanout),
+    digest,
     publicServices: source.publicServices,
     announcements: source.announcements,
   });
@@ -336,6 +342,8 @@ async function authorizeRuntimeScope(
     scope: { organizationId, projectId, personId },
     actorId,
     commands: scope.stores.runtimeCommands,
+    access,
+    credential,
     listClaims: () => scope.stores.claims.listByProject(projectId),
     observe: async () => {
       const project = await scope.stores.projects.findInOrganization(projectId, organizationId);

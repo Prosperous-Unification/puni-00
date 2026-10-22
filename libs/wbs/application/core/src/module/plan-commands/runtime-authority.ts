@@ -14,6 +14,7 @@ import type {
 } from '@wbs/contracts';
 import type { Claim } from '@wbs/domain';
 
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import type {
   RuntimeCommandStore,
@@ -42,6 +43,8 @@ export interface RuntimeAdmission {
   readonly scope: RuntimeScope;
   readonly actorId: string;
   readonly commands: RuntimeCommandStore;
+  readonly access: ResourceAccess;
+  readonly credential: CredentialPair | null;
   observe(): Promise<RuntimeObservation>;
   listClaims(): Promise<Claim[]>;
 }
@@ -108,7 +111,7 @@ export class RuntimeReceiver {
       });
       const retained = await admitted.commands.readAcceptance(admitted.scope, request.commandId);
       if (retained !== null) {
-        await this.verifyAcceptance(retained, ledger.ledgerId);
+        await verifyRuntimeAcceptance(retained, ledger.ledgerId, this.digest);
         // Proof: P3-05 removed byte comparison; changed-owner retry received the old acceptance.
         if (retained.canonicalRequest !== canonicalRequest)
           return { commit: false, value: { ok: false, reason: 'runtime_command_conflict' } };
@@ -172,7 +175,7 @@ export class RuntimeReceiver {
         await admitted.commands.assertAbsentHistory();
         return { commit: false, value: { ok: false, reason: 'runtime_receipt_not_found' } };
       }
-      await this.verifyAcceptance(retained, ledger.ledgerId);
+      await verifyRuntimeAcceptance(retained, ledger.ledgerId, this.digest);
       return { commit: true, value: { ok: true, value: retained.receipt } };
     });
   }
@@ -234,62 +237,65 @@ export class RuntimeReceiver {
       };
     });
   }
+}
 
-  /** Stored structure, canonical bytes, digest and request-derived success fields must agree. */
-  private async verifyAcceptance(stored: StoredRuntimeAcceptance, ledgerId: string): Promise<void> {
-    const canonical = parseCanonicalRuntimeRequest(stored.canonicalRequest);
-    const request = canonical.operation;
-    // Proof: P3-09 removed correspondence; five canonical scope/command/ledger corruptions resolved.
-    if (
-      request.expectedLedgerId !== ledgerId ||
-      request.commandId !== stored.commandId ||
-      !matchesScope(canonical.scope, stored.scope)
-    )
-      throw new Error('runtime canonical receipt identity mismatch');
-    // Proof: P3-07 removed this comparison; otherwise-consistent wrong-digest acquisition resolved.
-    if ((await this.digest.sha256(stored.canonicalRequest)) !== stored.requestDigest)
-      throw new Error('runtime canonical request digest mismatch');
-    // Proof: P3-10 removed this check; corrupted authority and final claim/write receipt fixtures resolved.
-    if (!this.matchesAcceptance(request, stored.receipt))
-      throw new Error('runtime request acceptance mismatch');
-  }
+/** Stored structure, canonical bytes, digest and request-derived success fields must agree. */
+export async function verifyRuntimeAcceptance(
+  stored: StoredRuntimeAcceptance,
+  ledgerId: string,
+  digest: Digest,
+): Promise<void> {
+  const canonical = parseCanonicalRuntimeRequest(stored.canonicalRequest);
+  const request = canonical.operation;
+  // Proof: P3-09 removed correspondence; five canonical scope/command/ledger corruptions resolved.
+  if (
+    request.expectedLedgerId !== ledgerId ||
+    request.commandId !== stored.commandId ||
+    !matchesScope(canonical.scope, stored.scope)
+  )
+    throw new Error('runtime canonical receipt identity mismatch');
+  // Proof: P3-07 removed this comparison; otherwise-consistent wrong-digest acquisition resolved.
+  if ((await digest.sha256(stored.canonicalRequest)) !== stored.requestDigest)
+    throw new Error('runtime canonical request digest mismatch');
+  // Proof: P3-10 removed this check; corrupted authority and final claim/write receipt fixtures resolved.
+  if (!matchesAcceptance(request, stored.receipt))
+    throw new Error('runtime request acceptance mismatch');
+}
 
-  private matchesAcceptance(request: RuntimeOperation, receipt: RuntimeReceipt): boolean {
-    const accepted = receipt.acceptance;
-    if ('kind' in request)
-      return (
-        accepted.kind === 'authority' &&
-        accepted.authority.ownerId === request.ownerId &&
-        accepted.authority.generation ===
-          (request.expectedGeneration === null ? 1 : request.expectedGeneration + 1)
-      );
-    if (
-      accepted.kind === 'authority' ||
-      accepted.kind !== request.action.kind ||
-      accepted.authority.ownerId !== request.authority.ownerId ||
-      accepted.authority.generation !== request.authority.generation
-    )
-      return false;
-    const action = request.action;
-    if (action.kind === 'claim')
-      return matchesClaim(
-        {
-          claimId: accepted.claim.claimId,
-          workItemId: action.workItemId,
-          stepId: action.stepId,
-          parentClaimId: action.parentClaimId,
-          execution: action.execution,
-        },
-        accepted.claim,
-      );
+function matchesAcceptance(request: RuntimeOperation, receipt: RuntimeReceipt): boolean {
+  const accepted = receipt.acceptance;
+  if ('kind' in request)
     return (
-      accepted.kind === 'write' &&
-      matchesClaim(action.claim, accepted.claim) &&
-      accepted.applied.length === action.commands.length &&
-      accepted.applied.every(
-        (command, index) =>
-          command.index === index && command.kind === action.commands[index]?.kind,
-      )
+      accepted.kind === 'authority' &&
+      accepted.authority.ownerId === request.ownerId &&
+      accepted.authority.generation ===
+        (request.expectedGeneration === null ? 1 : request.expectedGeneration + 1)
     );
-  }
+  if (
+    accepted.kind === 'authority' ||
+    accepted.kind !== request.action.kind ||
+    accepted.authority.ownerId !== request.authority.ownerId ||
+    accepted.authority.generation !== request.authority.generation
+  )
+    return false;
+  const action = request.action;
+  if (action.kind === 'claim')
+    return matchesClaim(
+      {
+        claimId: accepted.claim.claimId,
+        workItemId: action.workItemId,
+        stepId: action.stepId,
+        parentClaimId: action.parentClaimId,
+        execution: action.execution,
+      },
+      accepted.claim,
+    );
+  return (
+    accepted.kind === 'write' &&
+    matchesClaim(action.claim, accepted.claim) &&
+    accepted.applied.length === action.commands.length &&
+    accepted.applied.every(
+      (command, index) => command.index === index && command.kind === action.commands[index]?.kind,
+    )
+  );
 }

@@ -1,5 +1,11 @@
-import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
+import {
+  type ClaimReceipt,
+  type CredentialPair,
+  credentialPairOf,
+  type RuntimeClaimRequest,
+  type RuntimeReply,
+} from '@wbs/contracts';
 import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
@@ -19,6 +25,7 @@ import {
 } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
+import type { Digest } from '../../ports/runtime';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
 import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
@@ -38,6 +45,10 @@ import type {
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { crossingRefusal, type PlainReason, refuseForeignReferences } from './command-references';
 import type { PlanCommandServices } from './plan-command-graph';
+import type { PendingRuntimeClaim } from './runtime-claim';
+import { prepareRuntimeClaim } from './runtime-claim';
+import { parseRuntimeClaimRequest } from './runtime-request';
+import type { RuntimeContext } from './runtime-state';
 
 export type { PlanCommandServices } from './plan-command-graph';
 
@@ -204,7 +215,16 @@ export interface PreludeRefusal<R> {
   prelude: R;
 }
 
+interface RuntimeExecutionReply {
+  runtime: RuntimeReply<ClaimReceipt>;
+}
+type RuntimeClaimPrelude = (
+  scope: CommandAdmission,
+) => Promise<RuntimeExecutionReply | PendingRuntimeClaim>;
+
 export interface PlanCommandRunnerOptions {
+  /** Required host hash capability for runtime mutation; ordinary callers may omit it. */
+  digest?: Digest;
   /** Maps each admitted turn to command resources without exposing its source. */
   transaction: CommandTransaction;
   /**
@@ -298,6 +318,59 @@ export class PlanCommandRunner {
     return this.execute(projectId, actorId, commands, access, credential);
   }
 
+  /** Claims one exact target atomically with its immutable binding and acceptance receipt. */
+  async claimRuntime(
+    context: RuntimeContext,
+    candidate: RuntimeClaimRequest,
+  ): Promise<RuntimeReply<ClaimReceipt>> {
+    const request = parseRuntimeClaimRequest(candidate);
+    const digest = this.opts.digest;
+    // Proof (diagnostic): P4-12 omission changed the missing-capability negative to an incidental digest.sha256 TypeError.
+    if (digest === undefined) throw new Error('runtime command digest is missing');
+    // Proof: P4-10 omission let the production read-only request accept.
+    if (!context.actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
+    // Proof (diagnostic): P4-11 omission changed the legacy typed-refusal test to a scope.organizationId TypeError.
+    if (context.access.kind === 'legacy') return { ok: false, reason: 'runtime_scope_unavailable' };
+    const { projectId, personId } = context;
+    const actorId = context.actor.id;
+    const organizationId = context.access.scope.organizationId;
+    const credential = credentialPairOf(context.actor.authentication);
+    const command: PlanCommand = {
+      kind: 'claimWorkItem',
+      workItemId: request.action.workItemId,
+      personId,
+      steps: [request.action.stepId],
+      runId: request.action.execution.sessionId,
+      ...(request.action.parentClaimId === null
+        ? {}
+        : { parentClaim: request.action.parentClaimId }),
+    };
+    const outcome = await this.execute(
+      projectId,
+      actorId,
+      [command],
+      context.access,
+      credential,
+      undefined,
+      async (scope) => {
+        const admitted = await scope.authorizeRuntime({
+          organizationId,
+          projectId,
+          personId,
+          actorId,
+          credential,
+        });
+        if ('ok' in admitted) return { runtime: admitted };
+        const prepared = await prepareRuntimeClaim(admitted, request, digest);
+        return 'ok' in prepared ? { runtime: prepared } : prepared;
+      },
+    );
+    if ('runtime' in outcome) return outcome.runtime;
+    if (outcome.ok) throw new Error('runtime claim completed without acceptance');
+    if ('refusal' in outcome) return { ok: false, reason: outcome.refusal };
+    return outcome;
+  }
+
   /**
    * {@link runWithin}, with `prelude` written first in the same unit of work:
    * the batch and the prelude's write settle together or not at all.
@@ -381,6 +454,15 @@ export class PlanCommandRunner {
     credential: CredentialPair | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
+  private execute(
+    projectId: string | null,
+    actorId: string,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+    credential: CredentialPair | null,
+    prelude: undefined,
+    runtime: RuntimeClaimPrelude,
+  ): Promise<ScopedBatchOutcome | RuntimeExecutionReply>;
   private async execute<R>(
     projectId: string | null,
     actorId: string,
@@ -388,33 +470,54 @@ export class PlanCommandRunner {
     access: ResourceAccess,
     credential: CredentialPair | null,
     prelude?: BatchPrelude<R>,
-  ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
+    runtime?: RuntimeClaimPrelude,
+  ): Promise<ScopedBatchOutcome | PreludeRefusal<R> | RuntimeExecutionReply> {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     // Proof: reusing a constructor-owned collector made compose.test.ts receive
     // the same AnnouncementCollector for two batches at its identity assertion.
     const collector = new AnnouncementCollector(this.opts.announcements);
-    type Applied = ScopedBatchOutcome | PreludeRefusal<R> | Collected<AppliedCommand[]>;
+    interface RuntimeApplied {
+      runtimeApplied: ClaimReceipt;
+      collected: Collected<AppliedCommand[]>;
+    }
+    type Applied =
+      | ScopedBatchOutcome
+      | PreludeRefusal<R>
+      | RuntimeExecutionReply
+      | RuntimeApplied
+      | Collected<AppliedCommand[]>;
     // Scoped writes are admitted only through this act's own grant; a
     // directory batch names no project and is granted none.
     let grant: GrantedAdmission | null = null;
     const done = await this.opts.transaction
       .run<Applied>(
         async (scope): Promise<CommandDecision<Applied>> => {
-          if (access.kind === 'scoped') {
+          const prepared = runtime === undefined ? null : await runtime(scope);
+          // Proof: P4-24 ran ordinary admission here before replay; the production replay hit its forbidden capture and failed.
+          if (prepared !== null && 'runtime' in prepared) return { commit: false, value: prepared };
+          // Proof: P4-09 substituted incoming access; `uses the freshly resolved role` refused person_not_bound.
+          const commandAccess = prepared === null ? access : prepared.admitted.access;
+          const commandCredential = prepared === null ? credential : prepared.admitted.credential;
+          if (commandAccess.kind === 'scoped') {
             // Proof: skipping this admission made `answers 404 alike for a foreign
             // and an absent project` in `command-organization.controller.db.test.ts`
             // answer 200 instead of 404; watched 2026-09-27.
-            const refusal = await scope.refuseOutsideScope(projectId, actorId, access.scope, {
-              commands: commands.map(({ kind }) => kind),
-            });
+            const refusal = await scope.refuseOutsideScope(
+              projectId,
+              actorId,
+              commandAccess.scope,
+              {
+                commands: commands.map(({ kind }) => kind),
+              },
+            );
             if (refusal !== null) return { commit: false, value: { ok: false, refusal } };
             if (projectId !== null) grant = grantAdmission(projectId, actorId);
           }
           const workingPlan = scope.openCommandGraph(
             projectId,
             collector,
-            admissionOf(access, grant),
+            admissionOf(commandAccess, grant),
           );
           // Proof: building from publicServices let the refused write survive:
           // expected [], received ["rolled back"] (2026-09-09).
@@ -452,7 +555,15 @@ export class PlanCommandRunner {
             }
             let applied: Applied;
             const collected = await graph.workItems.collect(() =>
-              this.applyAll(graph, scope, projectId, actorId, commands, access, credential),
+              this.applyAll(
+                graph,
+                scope,
+                projectId,
+                actorId,
+                commands,
+                commandAccess,
+                commandCredential,
+              ),
             );
             if (projectId !== null) {
               // A claim that also assigns changes assignments as setAssignee
@@ -488,9 +599,16 @@ export class PlanCommandRunner {
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
-            return 'ok' in applied
-              ? { commit: false, value: applied }
-              : { commit: true, value: applied };
+            if ('ok' in applied) return { commit: false, value: applied };
+            if (prepared !== null) {
+              const claim = applied.result.at(0);
+              if (claim?.kind !== 'claimWorkItem')
+                throw new Error('runtime claim application reply is missing');
+              const accepted = await prepared.finishClaim(claim.alreadyHeld);
+              if ('ok' in accepted) return { commit: false, value: { runtime: accepted } };
+              return { commit: true, value: { runtimeApplied: accepted, collected: applied } };
+            }
+            return { commit: true, value: applied };
           } catch (cause) {
             if (cause instanceof CommandRefused) {
               return {
@@ -509,19 +627,21 @@ export class PlanCommandRunner {
         () => grant?.expire(),
       )
       .finally(() => grant?.expire());
-    if ('ok' in done) return done;
+    if ('ok' in done || 'runtime' in done) return done;
+    const collected = 'runtimeApplied' in done ? done.collected : done;
     // After the commit and after the turn is let go, which is what the whole
     // collector is for.
     await collector.send();
     if (projectId === null)
-      return { ok: true, results: done.result, undoable: false, redoable: false };
+      return { ok: true, results: collected.result, undoable: false, redoable: false };
     // Through the public graph, because this runs after the collector has been
     // drained and the unit of work has settled. A staged graph may now name
     // discarded stores; its collector will never be drained again.
     const afterCommit = this.opts.publicServices;
-    if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
+    if (collected.dirty) await afterCommit.workItems.announceTreeNow(projectId);
+    if ('runtimeApplied' in done) return { runtime: { ok: true, value: done.runtimeApplied } };
     const state = await afterCommit.workItems.undoState(projectId, actorId);
-    return { ok: true, results: done.result, ...state };
+    return { ok: true, results: collected.result, ...state };
   }
 
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {

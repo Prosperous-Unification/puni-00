@@ -975,3 +975,53 @@ that order; no behavior defect was found. Only Task3 is checked. The subsequent
 commit hooks additionally passed plaintext-secrets, format and lint; migration
 hooks had no applicable files, and external Tool Wiki activation remains absent
 (`certified:false`). Broader receiver/HTTP/build/host-gate obligations remain open.
+
+### Receiver Task4 — exact conditional claim candidate
+
+`claimRuntime` uses the existing command transaction, admission, apply/journal and
+committed fanout path. Current authorization and ledger pin precede retained
+acceptance lookup; exact replay precedes ordinary effectful admission. New claims
+require current authority and basis, an unused runtime attempt and one exact
+post-apply claim. Ordinary alreadyHeld claims cannot be adopted. Binding, final
+basis and accepted receipt commit with the actual business writes. Runtime callers
+must inject the real Digest; ordinary-only runner composition remains supported.
+
+Fresh covering commands:
+
+```sh
+bun test ./apps/wbs/be-01/src/controller/runtime-claim.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts ./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts ./apps/wbs/be-01/src/service/plan-commands.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-be-01 --skip-nx-cache
+```
+
+Observed after lint amendments: 212 tests/928 assertions across nine files passed
+in18.60s; all10 scoped lint/typecheck tasks passed uncached in1m14s. Changed source
+formatting and diff checks passed. Root OpenSpec validation passed one change,
+zero errors and10 existing warnings. Earlier setup/type/lint failures are retained
+in the report. Initial behavioral RED was10 failures at absent claimRuntime after
+fixture setup correction; later coverage additions are not separate TDD claims.
+
+R5:24 distinct fault trials failed their targeted assertions; exact source bytes
+were restored after each, followed by aggregate GREEN. These are not24 immediate
+RED/GREEN pairs. The corrected manifest classifies13 behavior/identity/persistence,
+five borrowed-claim dependency breaks, two typed-outcome backstops, two diagnostic
+and two ordering trials. P4-06 reaches the intact attempt UNIQUE constraint;
+P4-07 instead reaches the later unmanaged application refusal. Neither proves
+unsafe acceptance. Fresh-role fallback proves erroneous refusal of an authorized
+admin. Missing-capability/legacy diagnostics and parser/replay ordering are not
+misrepresented as unsafe mutation proofs. The first eight trials historically
+used Python orchestration contrary to the Bun-only convention; the remaining16
+used Bun. Actual commands are preserved, not relabeled.
+
+The real late receipt INSERT trigger confirms staged claim/progress/binding/count
+and journal writes before aborting, then observes complete transactional rollback
+and no delivered fanout. Both ordinary capture points execute on success; this
+fixture's equivalent downstream scheduling facts emit no new elsewhere event.
+A post-commit announcement failure followed by actual source close/reopen proves
+lookup and exact replay recover the accepted claim without opening a new mutation
+graph. Queued caller mutation tests cover detached nested request/identity inputs.
+
+Full report, corrected manifest, fault outputs and final commands remain under
+`.superpowers/sdd/receiver-tasks/task-4-report.md` and `task-4-evidence/`.
+Independent review remains pending. Guarded release and release→new-attempt
+integration remain Task5; mounted routes/read scope/Digest composition remain
+Task6. No full receiver build, exact-SHA host gate or live deployment is claimed.

@@ -1,5 +1,6 @@
 import type {
   RuntimeAuthorityRequest,
+  RuntimeClaimRequest,
   RuntimeOperation,
   RuntimePlanCommand,
   RuntimeScope,
@@ -252,4 +253,19 @@ export function parseCanonicalRuntimeRequest(
   if (canonicalRuntimeRequest(parsed.scope, operation) !== bytes)
     throw new Error('runtime request bytes are not canonical');
   return { scope: parsed.scope, operation };
+}
+
+/** Validates and detaches the exact claim request before queued command admission. */
+export function parseRuntimeClaimRequest(candidate: unknown): RuntimeClaimRequest {
+  // Proof: P4-15 bypassed this boundary; invalid sessions entered two real UoW turns before later canonical rejection.
+  const request = operationShape.assert(candidate);
+  if ('kind' in request || request.action.kind !== 'claim')
+    throw new Error('runtime claim action is required');
+  return {
+    ...request,
+    // Proof: P4-13 omitted this copy; queued caller mutation made the original claim refuse as stale.
+    authority: { ...request.authority },
+    // Proof: P4-14 omitted the execution copy; the queued-identity production test threw on the changed session.
+    action: { ...request.action, execution: { ...request.action.execution } },
+  };
 }

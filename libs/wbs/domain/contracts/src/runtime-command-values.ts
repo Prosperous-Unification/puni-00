@@ -1,3 +1,10 @@
+import type {
+  CommandContext,
+  CommandRefusalCode,
+  CommandRefusalDetail,
+  RefusalCode,
+} from './http/refusal';
+
 /** Server-derived organization/project/person address of one runtime observation. */
 export type RuntimeScope = Readonly<{
   organizationId: string;
@@ -120,10 +127,16 @@ export type RuntimeState = Readonly<{
 export type RuntimeReply<T> =
   | Readonly<{ ok: true; value: T }>
   | RuntimeReadRefusal
+  | RuntimeCommandRefusal
   | Readonly<{ ok: false; error: 'insufficient_scope' }>
   | Readonly<{
       ok: false;
       reason:
+        | 'runtime_authority_stale'
+        | 'runtime_revision_conflict'
+        | 'runtime_claim_mismatch'
+        | 'runtime_claim_unmanaged'
+        | 'runtime_attempt_bound'
         | 'runtime_generation_conflict'
         | 'runtime_command_conflict'
         | 'runtime_ledger_mismatch'
@@ -194,3 +207,40 @@ export type RuntimeCommandRequest = Readonly<{
 /** Authority has no action; claim/write retain the complete final conditional request. */
 export type RuntimeOperation =
   (RuntimeAuthorityRequest & Readonly<{ kind: 'authority' }>) | RuntimeCommandRequest;
+
+/** Existing command refusals retain their closed detail registry at the application boundary. */
+type BareRuntimeCommandCode =
+  | {
+      [C in CommandRefusalCode]: keyof Omit<
+        CommandRefusalDetail[C],
+        keyof CommandContext
+      > extends never
+        ? C
+        : never;
+    }[CommandRefusalCode]
+  | Extract<RefusalCode, 'engine_unavailable' | 'invalid_estimate'>;
+
+export type RuntimeCommandRefusal =
+  | (Readonly<{ ok: false; reason: BareRuntimeCommandCode; detail?: never }> & CommandContext)
+  | {
+      [C in Exclude<CommandRefusalCode, BareRuntimeCommandCode>]: Readonly<{
+        ok: false;
+        reason: C;
+      }> &
+        CommandContext & { detail: Omit<CommandRefusalDetail[C], keyof CommandContext> };
+    }[Exclude<CommandRefusalCode, BareRuntimeCommandCode>];
+
+export type ClaimReceipt = RuntimeReceipt &
+  Readonly<{
+    acceptance: Readonly<{
+      kind: 'claim';
+      authority: RuntimeAuthority;
+      claim: RuntimeClaim;
+      basisAfter: RuntimeBasis;
+    }>;
+  }>;
+
+export type RuntimeClaimRequest = RuntimeCommandRequest &
+  Readonly<{
+    action: Extract<RuntimeAction, { kind: 'claim' }>;
+  }>;

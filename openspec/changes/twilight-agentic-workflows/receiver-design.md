@@ -93,6 +93,10 @@ Expected new codes: HTTP409 `runtime_generation_conflict`, `runtime_authority_st
 
 The conditional-path race between observation and claim may return `runtime_revision_conflict`; an ordinary command can still return `already_claimed`. This explicit scenario change belongs in the owning delta spec.
 
+Runtime claim/write composition extends the existing command transaction with narrow borrowed authorization and before-admission/after-apply work. Carry the freshly resolved scoped role and detached credential into ordinary command execution. Exact replay exits before effectful ordinary admission, graph creation, journaling and post-commit broadcasts. Share retained-acceptance verification with authority/lookup rather than copying it.
+
+The existing ordinary-only `createPlanCommandRunner(source)` composition remains valid. An optional second `Digest` dependency enables the fully implemented runtime operation; calling that operation without the required capability throws a named diagnostic, with no default hash or unsupported placeholder. Runtime HTTP composition must inject the real digest before mounting routes. Derive the closed command refusal reason/index/kind/detail shape from the existing shared refusal registry so ordinary holder/resource details survive without importing HTTP controllers into the runner or duplicating the core refusal union.
+
 ## Transactional storage and lifecycle
 
 Use `core/ports/runtime-command-store.ts` with SQL-free operations:
