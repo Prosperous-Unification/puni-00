@@ -42,7 +42,10 @@ export interface OptimizationRetry {
   }): Promise<
     | { readonly kind: 'forbidden' | 'not_found' }
     | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
-    | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
+    | {
+        readonly kind: 'not-retryable';
+        readonly state: OptimizationVariantState['state'] | 'boundary-infeasible';
+      }
     | { readonly kind: 'already-running' }
     | {
         readonly kind: 'accepted';

@@ -126,6 +126,17 @@ export type ProjectEvent =
       budgetMs: number;
     }
   | {
+      type: 'schedule_optimization_boundary_infeasible';
+      projectId: string;
+      generation: number;
+      inputHash: string;
+      objective: SolverObjectiveName;
+      contractVersion: string;
+      budgetMs: number;
+      questionHash: string;
+      scope: 'connected-stage';
+    }
+  | {
       type: 'schedule_optimization_failed';
       projectId: string;
       generation: number;

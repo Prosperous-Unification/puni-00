@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+362 |     const committed = await reserve(request);
+363 |     decisions.push(committed.decision.kind);
+364 |     return committed;
+365 |   };
+366 |   await f.admit(); await f.coordinator.drain();
+367 |   expect(decisions).toEqual(['reserved', 'reserved', 'closed', 'closed']);
+                          ^
+error: expect(received).toEqual(expected)
+
+  [
+    "reserved",
+    "reserved",
+-   "closed",
+-   "closed",
++   "reserved",
++   "reserved",
+  ]
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:367:21)
+(fail) rechecks a competitor terminal committed between observation and initial reservation [178.86ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.56s]

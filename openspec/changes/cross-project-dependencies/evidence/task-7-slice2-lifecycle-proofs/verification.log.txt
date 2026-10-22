@@ -1,0 +1,44 @@
+Final connected lifecycle suite
+(pass) refuses a connected Retry whose target differs from the captured project [82.21ms]
+
+ 15 pass
+ 0 fail
+ 60 expect() calls
+Ran 15 tests across 1 file. [3.90s]
+
+Focused lifecycle + dormant CLI suite before final target-refusal case
+(pass) restart launches an explicitly queued connected Retry after its older diagnostic [119.48ms]
+
+ 97 pass
+ 0 fail
+ 559 expect() calls
+Ran 97 tests across 5 files. [14.19s]
+
+Mounted local fixtures and installed source-owner regressions
+(pass) v9 sparse export uses its shared observation across concurrent change (false) [341.13ms]
+
+ 210 pass
+ 0 fail
+ 1221 expect() calls
+Ran 210 tests across 2 files. [69.79s]
+
+Final configured Nx core/backend typecheck and lint
+
+
+
+ NX   Successfully ran targets typecheck, lint for 2 projects and 2 tasks they depend on
+
+Nx read the output from the cache instead of running the command for 2 out of 6 tasks.
+
+  Run duration:      47.4s
+  Cache:             2/6 hit (33%)
+  Critical path:     47.3s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    47.3s
+
+Changed-file format check
+Checking formatting...
+All matched files use Prettier code style!

@@ -2204,3 +2204,147 @@ result at packet commit time; they remain unverified and are not passing claims.
 Sandbox attempts that stalled/returned 130 are superseded by running the same
 configured targets outside the sandbox. Review/integration must obtain their
 completed output and the required isolated host gate before release.
+
+## Private connected coordinator lifecycle slice (2026-10-22)
+
+Base: `169c816db9feb7b257c39bd5ed4e25eaf5321d42`; isolated clone
+`/tmp/puni-optimizer-lifecycle`. This is bounded slice 2 of the optimizer
+activation plan. Tasks 7.3/7.4 remain open. `services.ts` still does not install
+connected readers or connected admission; DTO/frontend connected presentation and
+external authoring remain dormant.
+
+`connected-publication.test.ts` composes the real SQLite repository, source UoW
+observation/outcome/initial-reservation/Retry/dequeue owners, real connected
+question preparation, strict durable codecs and actual child lifecycle with
+controlled output. Its tests cover fractional preflight contradiction without a
+child, independently solver-proven terminal output, exact terminal storage/release,
+Q1→Q2 (C=1.25)→Q1 admission/Retry without generation or event mutation, stale and
+old-budget queue restart, retained terminal suppression before queue launch,
+connected edit capture, a diagnostic Retry including queued restart, a competing
+terminal between observation and initial reservation, revoked enablement, required
+runtime digest/contract, held terminal storage and real event-insert rollback.
+The launcher port is now discriminated; existing local fixtures explicitly narrow
+before inspecting local-only materialization fields.
+
+The queue retains the existing complete address: stage input hash, objective,
+contract and budget. Quantum/wire are fixed by the installed contract and current
+connected preparation; objective question hashes are deterministically rebuilt
+from this tuple and canonical captured stage bytes. No schema or second
+coordinator was introduced. Connected capture never falls back to `inputOf`.
+Expected failed/corrupt evidence can launch only a queued explicit Retry newer
+than that evidence; retained boundary terminals cannot retry.
+
+Watched production faults were injected separately, restored and rerun green.
+Logs live in `evidence/task-7-slice2-lifecycle-proofs/`:
+
+| Fault                                                          | Observed failure                                                             |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Allocate before consulting retained complete evidence          | Q1→Q2→Q1 changed generation 2 to 3.                                          |
+| Omit Retry's pre-generation retained certificate lookup        | Q1 Retry returned idle instead of typed boundary terminal.                   |
+| Drop await on connected preflight terminal storage             | The held-store test observed zero counted seats instead of one.              |
+| COMMIT/BEGIN after certificate storage, before event insertion | The actual event-insert fault left one certificate instead of zero.          |
+| Omit the reservation owner's terminal recheck                  | The competitor test returned two extra reserved decisions instead of closed. |
+| Omit queued installed-budget correspondence                    | Restart failed to publish the two current-budget terminal certificates.      |
+
+Proof development limits: splitting the transaction after the complete outcome
+function was ineffective because its event insert had already thrown; the final
+fault splits immediately after certificate storage and fails the durable snapshot
+assertion. Merely checking final certificate/event counts also failed to expose
+temporary duplicate reservation; the strengthened test observes actual committed
+reservation decisions and fails when the terminal recheck is removed. The queued
+Retry regression first failed with only two original launches, then passed with
+the third connected launch after the eligibility fix. No independent mutation of
+already-proved lower-level token/cancel/input fences or solver FS/SS/FF validators
+was repeated in this slice.
+
+Verification:
+
+```sh
+bun test apps/wbs/be-01/src/module/optimization/connected-publication.test.ts
+bun test apps/wbs/be-01/src/module/optimization/connected-publication.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/dependency-capabilities-cli.test.ts
+bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts apps/wbs/be-01/src/services.db.test.ts
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck,lint -p wbs-core,wbs-be-01 --output-style=static
+./node_modules/.bin/openspec validate --all --json
+```
+
+Final connected suite: **15 passed, 0 failed / 60 assertions**. The combined
+lifecycle/dormant CLI run before adding the final target-refusal case passed
+**97 tests, 0 failed / 559 assertions**. Mounted local fixtures and installed
+source-owner regressions passed **210 tests, 0 failed / 1221 assertions**.
+Configured core/backend typechecks, module prerequisites and lint passed; core's
+two unchanged checks used valid Nx cache while backend checks executed fresh.
+A preceding type narrowing cleanup initially failed TypeScript; grouping the
+connected question with its read outcome removed the impossible boundary branch
+and final configured checks passed. Initial backend lint findings were import
+ordering and test promise typing, corrected before the final run. Default Nx
+socket startup was sandbox-denied; in-process Nx supplied the checks. OpenSpec
+all reports **268 passed, 0 failed**, with existing advisory warnings. Changed-file
+Prettier and `git diff --check` passed. Summary output is retained in
+`evidence/task-7-slice2-lifecycle-proofs/verification.log.txt`. Dependencies are
+linked from the source workspace, not freshly installed frozen. Normal lefthook
+hooks are installed and run without bypass.
+
+The initial lifecycle packet used legacy ownership. The scoped review follow-up
+below now proves connected foreign-member invalidation in the source-owned
+publication and generation-eviction turns. Post-close live installation still
+needs slice 3's production binding and remains unverified here. The existing local fan-out paths remain
+installed and are not replaced. Controlled solver output proves lifecycle and
+publication handling, not a real CP-SAT execution. Solver Python tests, frontend
+/browser, full build, frozen install, CI/secrets/migration full gate and isolated
+h2/h4 host gate are not run here. Parent integration owns review and the final
+exact-SHA host gate. No deployment, push or external authoring activation occurs.
+
+### Scoped connected fan-out review correction (2026-10-22)
+
+Independent review reproduced a selected connected B placement moving from
+[2,3] to [1,2] through the durable decoder while C received no invalidation.
+The source-owned outcome and generation-observation owners addressed a direct
+cause only through `localFacts`. Connected members live in `dependency.projects`,
+whose authoring fingerprint does not encode optimizer selection. Both owners now
+recognize that captured membership and pass the explicit cause to the existing
+old/new component traversal. No new connection, recursive read, source binding,
+DTO/frontend installation or global production opt-in is introduced.
+
+Four new activated/scoped tests in `connected-publication.test.ts` compose the
+actual source UoW, dependency capture and event writer. The success test pins the
+pre-solve B placement at [2,3], verifies the strict durable decoder chooses the
+optimized [1,2] placement, and checks persisted plus delivered C←B invalidation.
+The eviction test checks that advancing the question removes the selected cache
+and records C←B. Real C-recipient insertion triggers separately verify rollback
+of the complete outcome/cache/event/sequence snapshot and of generation
+replacement/cache eviction/recipient events. Generation is seeded before the
+success test so initial allocation fan-out cannot hide a missing outcome cause.
+
+The four tests first failed **0 passed / 4 failed** before the two owner
+predicates changed, then passed **4 passed / 0 failed**. Four separate watched
+production mutations also failed and restored green:
+
+| Fault                                                           | Observed failure                                                             |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Outcome owner ignores dependency membership                     | C←B events absent after durable optimized selection.                         |
+| Observation owner ignores dependency membership                 | Generation eviction returns no C←B envelope.                                 |
+| COMMIT/BEGIN after outcome storage, before recipient insert     | C's real insert fault leaves selected cache/event/sequence state committed.  |
+| COMMIT/BEGIN after generation eviction, before recipient insert | C's real insert fault leaves changed generation and evicted cache committed. |
+
+Adjacent `Proof:` comments and `scoped-*.log.txt` files in
+`evidence/task-7-slice2-lifecycle-proofs/` retain these observations. The original
+scoped regression output is retained as `scoped-red.log.txt`.
+
+Final follow-up verification:
+
+```sh
+bun test apps/wbs/be-01/src/module/optimization/connected-publication.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts
+bun test apps/wbs/be-01/src/services.db.test.ts
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck,lint -p wbs-be-01 --output-style=static
+./node_modules/.bin/openspec validate --all --json
+```
+
+Focused lifecycle: **100 passed, 0 failed / 564 assertions**. Installed
+`services.db.test.ts`: **138 passed, 0 failed / 962 assertions**. Fresh configured
+backend typecheck, module prerequisite and lint: **all passed, no cache hits**.
+OpenSpec: **268 passed, 0 failed**. Changed-file formatting and `git diff --check`
+passed. Normal lefthook hooks run without bypass. Summary output is retained in
+`scoped-verification.log.txt` beside the watched fault evidence. The global
+connected production reader/admission binding, live connected DTO/frontend path
+and exact-SHA host gate remain open. No external authoring is enabled outside the
+synthetic trusted storage fixtures.

@@ -1099,6 +1099,8 @@ describe('OptimizationCoordinator read', () => {
     expect(calls.map(({ objective }) => objective)).toEqual(['pri', 'time']);
     expect(calls.every(({ key }) => key.inputHash === scheduleInputHash(INPUT))).toBe(true);
     expect(calls.map(({ request }) => request.objective)).toEqual(['pri', 'time']);
+    if (calls[0].kind === 'connected' || calls[1].kind === 'connected')
+      throw new Error('expected local fixture requests');
     expect(calls[0].request.baselineOffsets).toBe(calls[1].request.baselineOffsets);
     expect(
       db

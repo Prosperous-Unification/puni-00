@@ -1191,6 +1191,7 @@ describe('shared displayed cache evidence', () => {
     });
     expect(accepted.status).toBe(202);
     expect(launched).toHaveLength(1);
+    if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
     expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
       { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
     ]);
@@ -1243,6 +1244,7 @@ describe('shared displayed cache evidence', () => {
     await Bun.sleep(50);
 
     expect(launched).toHaveLength(2);
+    if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
     expect(launched[0]?.key.inputHash).not.toBe(oldHash);
     expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
       { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
@@ -1336,6 +1338,7 @@ describe('shared displayed cache evidence', () => {
       h.triggerOptimization(lower);
       await Bun.sleep(300);
       expect(launched).toHaveLength(2);
+      if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
       expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
         { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
       ]);
@@ -1556,6 +1559,7 @@ describe('shared displayed cache evidence', () => {
 
     expect(launched).toHaveLength(2);
     for (const request of launched) {
+      if (request.kind === 'connected') throw new Error('expected local fixture request');
       expect(request.input.elsewhere?.get('ana')).toEqual([
         { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
       ]);
@@ -1593,6 +1597,7 @@ describe('shared displayed cache evidence', () => {
     });
     expect(launched).toHaveLength(2);
     for (const request of launched) {
+      if (request.kind === 'connected') throw new Error('expected local fixture request');
       expect(request.key.projectId).toBe(lower);
       expect(request.input.elsewhere?.get('ana')).toEqual([
         { start: 0, end: 3, projectId: higher, workItemId: 'higher-work' },

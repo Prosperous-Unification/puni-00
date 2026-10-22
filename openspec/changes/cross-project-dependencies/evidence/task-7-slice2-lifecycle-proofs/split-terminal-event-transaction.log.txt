@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+282 |     "CREATE TRIGGER reject_terminal BEFORE INSERT ON event_log BEGIN SELECT RAISE(ABORT, 'terminal event fault'); END",
+283 |   );
+284 |   sqlite.close();
+285 |   const rejected = await f.admit().then(() => null, (failure: unknown) => failure);
+286 |   expect(rejected).toBeInstanceOf(Error);
+287 |   expect(f.source.db.select().from(optimizationBoundaryCertificate).all()).toHaveLength(0);
+                                                                                 ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 0
+Received length: 1
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:287:76)
+(fail) rolls back terminal evidence and sequence together when the actual event insert fails [152.26ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.42s]

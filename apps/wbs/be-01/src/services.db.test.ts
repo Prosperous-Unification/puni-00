@@ -573,6 +573,7 @@ function completedSelectedChild(
       movement: { value: 48, stageValue: 48, bound: 48, status: 'optimal' as const },
     },
   };
+  if (request.kind === 'connected') throw new Error('expected local fixture request');
   expect(revalidateSolverResult(request.request, response)).toMatchObject({
     ok: true,
     published: true,

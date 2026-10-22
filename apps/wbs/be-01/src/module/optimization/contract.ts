@@ -1,9 +1,21 @@
+import type { ConnectedPreparedRequest } from '@wbs/contracts/solver/build-connected-request';
 import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
+import type {
+  StoredBoundaryCertificate,
+  StoredConnectedSuccess,
+} from '@wbs/contracts/solver/connected-durable';
+import type { ConnectedSolverOutcome } from '@wbs/contracts/solver/connected-solver-outcome';
+import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
 import type { OptimizationOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { ProjectEvent } from '@wbs/core/ports/project-event';
 import type { RecordedEvent } from '@wbs/core/ports/recorded-event';
+import type {
+  ConnectedOptimizationQuestion,
+  ConnectedVariantState,
+} from '@wbs/core/ports/scheduler';
 import type { OptimizationVariantState } from '@wbs/core/ports/scheduler';
+import type { ConnectedOptimizationStage } from '@wbs/domain';
 import type { OrganizationRole } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
@@ -13,6 +25,26 @@ import type {
   OptimizationCoordinator,
   OptimizationCoordinatorOptions,
 } from './optimization.feature';
+
+type ConnectedSolverRequest = Extract<ConnectedPreparedRequest, { kind: 'request' }>['request'];
+
+/** Scope-bearing evidence passed to the persistence owner after full connected evaluation. */
+export type ConnectedOutcomeToStore =
+  | { readonly kind: 'ok'; readonly success: StoredConnectedSuccess }
+  | { readonly kind: 'boundary-infeasible'; readonly certificate: StoredBoundaryCertificate }
+  | Extract<ConnectedSolverOutcome, { readonly kind: 'failed' }>
+  | { readonly kind: 'plan-infeasible'; readonly certificate: PlanInfeasibleResult };
+/** Durable evidence observed without materializing a local Schedule envelope. */
+export type ConnectedCachedOutcome =
+  | { readonly kind: 'miss' }
+  | { readonly kind: 'corrupt'; readonly message: string; readonly createdAt: number }
+  | {
+      [Kind in ConnectedSolverOutcome['kind']]: {
+        readonly kind: Kind;
+        readonly outcome: Extract<ConnectedSolverOutcome, { readonly kind: Kind }>;
+        readonly createdAt: number;
+      };
+    }[ConnectedSolverOutcome['kind']];
 
 /** The exact deterministic request a launcher writes to the solver's stdin. */
 type SolverRequest = Extract<BuiltSolverRequest, { readonly ok: true }>['request'];
@@ -31,6 +63,7 @@ export interface OptimizationCacheKey {
   readonly inputHash: string;
   readonly contractVersion: string;
   readonly budgetMs: number;
+  readonly questions?: Readonly<Record<SolverObjectiveName, ConnectedOptimizationQuestion>>;
 }
 
 /**
@@ -49,16 +82,22 @@ export interface ReservedSolverAdmission {
 }
 
 /** Everything the launcher needs from the read and its successful reservation. */
-export interface ReservedSpawnRequest {
+interface ReservedSpawnBase {
   readonly key: OptimizationCacheKey;
   readonly objective: SolverObjectiveName;
   readonly generation: number;
   readonly admission: ReservedSolverAdmission;
-  /** The exact deterministic request written to the launcher's stdin after bind. */
-  readonly request: SolverRequest;
-  /** The canonical input used to materialise and independently revalidate the response. */
-  readonly input: ScheduleInput;
 }
+export type ReservedSpawnRequest = ReservedSpawnBase &
+  (
+    | { readonly kind?: 'local'; readonly input: ScheduleInput; readonly request: SolverRequest }
+    | {
+        readonly kind: 'connected';
+        readonly stage: ConnectedOptimizationStage;
+        readonly question: ConnectedOptimizationQuestion;
+        readonly request: ConnectedSolverRequest;
+      }
+  );
 
 export interface ReservedSolverTerminal {
   readonly exitCode: number;
@@ -111,7 +150,10 @@ export type ScheduleOptimizationInfeasibleEvent = Extract<
 >;
 /** The three events a stored solver outcome publishes, and nothing else. */
 export type OptimizationOutcomeEvent =
-  ScheduleOptimizedEvent | ScheduleOptimizationFailedEvent | ScheduleOptimizationInfeasibleEvent;
+  | ScheduleOptimizedEvent
+  | ScheduleOptimizationFailedEvent
+  | ScheduleOptimizationInfeasibleEvent
+  | Extract<ProjectEvent, { type: 'schedule_optimization_boundary_infeasible' }>;
 
 /**
  * What a host must supply to install {@link optimizationModule}.
@@ -171,6 +213,7 @@ export interface SolverSlotRequest extends Omit<SolverSlotIdentity, 'attemptToke
   readonly ownerId: string;
   readonly attemptToken: string;
   readonly now: number;
+  readonly questions?: Readonly<Record<SolverObjectiveName, ConnectedOptimizationQuestion>>;
 }
 export type SolverSlotAdmission =
   | ReservedSolverAdmission
@@ -208,13 +251,21 @@ export type OptimizationDequeued =
       readonly inputHash: string;
       readonly admission: ReservedSolverAdmission;
     };
-export interface OptimizationOutcomeWrite {
+interface OptimizationOutcomeBase {
   readonly claim: SolverSlotIdentity & { readonly ownerId: string };
   readonly inputHash: string;
   readonly admittedCancelEpoch: number;
-  readonly outcome: OptimizationOutcome;
   readonly now: number;
 }
+export type OptimizationOutcomeWrite = OptimizationOutcomeBase &
+  (
+    | { readonly kind?: 'local'; readonly outcome: OptimizationOutcome }
+    | {
+        readonly kind: 'connected';
+        readonly question: ConnectedOptimizationQuestion;
+        readonly outcome: ConnectedOutcomeToStore;
+      }
+  );
 export type RecordedOptimizationOutcome =
   | {
       readonly kind: 'stored';
@@ -224,6 +275,14 @@ export type RecordedOptimizationOutcome =
     }
   | { readonly kind: 'superseded' | 'already-recorded' };
 export type OptimizationRetryDecision =
+  | {
+      readonly kind: 'not-retryable';
+      readonly state: 'boundary-infeasible';
+      readonly certificate: Extract<
+        ConnectedVariantState,
+        { state: 'boundary-infeasible' }
+      >['certificate'];
+    }
   | { readonly kind: 'forbidden' | 'not_found' }
   | {
       readonly kind: 'not-retryable';
@@ -244,6 +303,15 @@ export interface CommittedDecision<T> {
 
 /** The immutable generation, pair and requests read in one source turn. */
 export type OptimizationAdmissionObservation =
+  | {
+      readonly kind: 'connected-observed';
+      readonly generation: number | null;
+      readonly variants: Readonly<Record<SolverObjectiveName, ConnectedCachedOutcome>>;
+      readonly requests: readonly {
+        readonly key: OptimizationCacheKey;
+        readonly objective: SolverObjectiveName;
+      }[];
+    }
   | { readonly kind: 'idle' }
   | {
       readonly kind: 'observed';
