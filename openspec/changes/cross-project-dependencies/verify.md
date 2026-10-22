@@ -1020,3 +1020,14 @@ and passed afterward; frontend TypeScript passed. The packet records scoped
 lint/format status and the broader five-suite regression passing 551/551 tests.
 Persisted external endpoint projection/navigation and terminal boundary certificate
 UI remain open; task 9.2 stays unchecked.
+
+### Task 9.2 bounded persisted remote display/navigation packet — 2026-10-22
+
+The [persisted remote display packet](evidence/task-9-2-persisted-remote-display-packet.md)
+consumes the actual captured connected endpoint DTO through PlanRead, renders
+qualified desktop/phone labels and stable project/work-item/step navigation,
+and keeps foreign endpoints out of local Gantt arrows. It records initial red,
+restored mounted coverage, regression checks and watched production-path faults.
+Persisted remote scope edits remain an explicit read-only details state; terminal
+boundary certificate/Retry and remaining 9.2 integration stay open. Task 9.2 is
+not marked complete.

@@ -1,0 +1,84 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '-t', 'uses captured step words']
+Injected fault: if (endpoint.captured !== undefined) { -> if (false) {
+
+ RUN  v5.0.0 /tmp/puni-persisted-remote-display/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (8 tests | 1 failed | 7 skipped) 1482ms
+   × uses captured step words when its reference is null 1463ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 skipped (8)
+     Errors  1 error
+   Start at  11:45:11
+   Duration  12.50s (transform 42%, import 40%, tests 12%, environment 5%, setup 1%)
+
+  Transform  transforming modules took 5.20s · 42% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+stderr | src/components/wbs/persisted-remote-dependencies.test.tsx > uses captured step words when its reference is null
+An error occurred in the <CardDependsField> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > uses captured step words when its reference is null
+TestingLibraryElementError: Unable to find a label with the text of: Name of 010
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div />[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div />[39m
+[36m</body>[39m
+ ❯ waitForWrapper ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ mount src/components/wbs/persisted-remote-dependencies.test.tsx:71:16
+     69|     />,
+     70|   );
+     71|   await screen.findByLabelText('Name of 010');
+       |                ^
+     72|   if (phone) fireEvent.click(await screen.findByRole('button', { name:…
+     73|   return {
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:101:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+Error: Unknown dependency work item remote-row
+ ❯ rowOf src/components/wbs/typed-dependency-editor.tsx:56:32
+     54| function rowOf(rows: readonly TreeRow[], workItemId: string): TreeRow {
+     55|   const row = rows.find((candidate) => candidate.id === workItemId);
+     56|   if (row === undefined) throw new Error(`Unknown dependency work item…
+       |                                ^
+     57|   return row;
+     58| }
+ ❯ endpointText src/components/wbs/typed-dependency-editor.tsx:74:15
+ ❯ dependencyWords src/components/wbs/typed-dependency-editor.tsx:100:16
+ ❯ src/components/wbs/plan-cards.tsx:2281:31
+ ❯ CardDependsField src/components/wbs/plan-cards.tsx:2269:27
+ ❯ Object.react_stack_bottom_frame ../../../../../home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../../../../home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../../../../home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../../../../home/df/wd/puni/puni-00/node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+
+This error originated in "src/components/wbs/persisted-remote-dependencies.test.tsx" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "uses captured step words when its reference is null". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯

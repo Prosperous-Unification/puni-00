@@ -2124,24 +2124,51 @@ export function WbsTable({
   }, []);
 
   /**
-   * Resolves a copied step link after its tree read, opens its ancestors, then
-   * asks the viewport to mount and focus the addressed cell. A consumed or
+   * Resolves a stable work-item or step link after its tree read, opens its ancestors,
+   * then asks the viewport to mount and focus the addressed cell. A consumed or
    * refused link is removed from history so later refetches do not steal focus.
    */
   useEffect(() => {
     const url = new URL(window.location.href);
     const id = url.searchParams.get('stepNode');
-    if (id === null || !hasSuccessfulTreeRead) return;
+    const linkedWorkItem = url.searchParams.get('workItem');
+    if ((id === null && linkedWorkItem === null) || !hasSuccessfulTreeRead) return;
     // Proof: without this guard, the wrong project's table consumed
     // ?project=p2&stepNode=sn1.bad and announced it invalid (2026-09-27).
+    // Proof: bypassing it also consumed another project's workItem link in the mounted view (2026-10-22).
     if (url.searchParams.get('project') !== null && url.searchParams.get('project') !== projectId)
       return;
     const dismissLink = (message?: string) => {
       if (message !== undefined) pushToast({ kind: 'error', text: message });
       url.searchParams.delete('stepNode');
+      url.searchParams.delete('workItem');
       url.searchParams.delete('project');
       window.history.replaceState(window.history.state, '', url.href);
     };
+    // Proof: returning before this branch left the stable work-item link unfocused and unconsumed in the mounted view (2026-10-22).
+    if (id === null) {
+      const row = flat.find((candidate) => candidate.id === linkedWorkItem);
+      if (row === undefined) {
+        // Proof: suppressing this refusal removed the alert for an absent stable target in the mounted view (2026-10-22).
+        dismissLink('Work-item link does not name a work item in this plan.');
+        return;
+      }
+      if (!shownRowIds.includes(row.id)) {
+        const ancestors = table
+          .getRow(row.id, true)
+          .getParentRows()
+          .map((parent) => parent.id);
+        setExpanded((current) =>
+          current === true
+            ? current
+            : { ...current, ...Object.fromEntries(ancestors.map((ancestor) => [ancestor, true])) },
+        );
+        return;
+      }
+      setRequestedFocus({ cell: { rowId: row.id, columnId: 'name' }, landing: 'focus' });
+      dismissLink();
+      return;
+    }
     const parsed = parseStepNodeId(id);
     if (!parsed.ok) {
       // Proof: omitting this notice made `announces an invalid or unknown
@@ -2205,6 +2232,7 @@ export function WbsTable({
     shownRowIds,
     stepNodes,
     steps,
+    table,
     toggleColumn,
     toggleStep,
     unfoldedSteps,

@@ -647,16 +647,25 @@ export type TypedDependencyEndpoint =
       stepNodeId?: never;
     };
 
+/** Authorized endpoint words and navigation coordinates from the same connected read. */
+export type ConnectedDependencyEndpoint = NonNullable<
+  PlanReadWire['connectedDependencies']
+>[number]['predecessor'];
+
 /** The explicit relationship returned by a project tree read. */
 export interface TypedDependencyView {
   id: string;
   predecessor: {
+    captured?: ConnectedDependencyEndpoint;
+    projectId?: string;
     scope: 'whole' | 'node' | 'descendant-step';
     workItemId: string;
     stepId?: string;
     stepNodeId?: string;
   };
   successor: {
+    captured?: ConnectedDependencyEndpoint;
+    projectId?: string;
     scope: 'whole' | 'node' | 'descendant-step';
     workItemId: string;
     stepId?: string;
@@ -1426,8 +1435,8 @@ export interface PlanOptimizationView {
  * produced the rows: taken separately it would describe a different moment
  * than the tree on screen.
  *
- * The shared response owns every top-level field. Only rows and steps are
- * adapted here because the UI keeps mutable label lists and a smaller step view.
+ * The shared response owns every top-level field. Rows, steps and explicit
+ * relationships are adapted for UI presentation; captured evidence stays intact.
  */
 type PlanReadWire = Extract<ClientReply<typeof getWorkItems>, { kind: 'success' }>['body'];
 
@@ -1544,6 +1553,32 @@ export interface PlanRead extends Omit<
    * dialog edit.
    */
   steps: StepView[];
+}
+
+/** Combines legacy local relationships with captured incident relationships by stable relationship ID. */
+export function dependencyViewsOf(
+  plan: Pick<PlanRead, 'typedDependencies' | 'connectedDependencies'>,
+  projectId: string,
+): TypedDependencyView[] {
+  const relationships = new Map(
+    (plan.typedDependencies ?? []).map((relationship) => [relationship.id, relationship]),
+  );
+  for (const relationship of plan.connectedDependencies ?? []) {
+    const viewEndpoint = (
+      captured: ConnectedDependencyEndpoint,
+    ): TypedDependencyView['predecessor'] => ({
+      ...captured.endpoint,
+      // Proof: classifying every endpoint as local made both mounted remote-label cases throw on remote-row (2026-10-22).
+      ...(captured.endpoint.projectId === projectId ? {} : { captured }),
+    });
+    relationships.set(relationship.id, {
+      id: relationship.id,
+      type: relationship.type,
+      predecessor: viewEndpoint(relationship.predecessor),
+      successor: viewEndpoint(relationship.successor),
+    });
+  }
+  return [...relationships.values()];
 }
 
 /**
@@ -2766,7 +2801,7 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       );
       const plan: PlanRead = {
         ...tree,
-        typedDependencies: tree.typedDependencies ?? [],
+        typedDependencies: dependencyViewsOf(tree, projectId),
         steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,

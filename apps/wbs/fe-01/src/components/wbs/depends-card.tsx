@@ -1,5 +1,5 @@
 import type { WorkItemStatus } from '@wbs/domain/progress';
-import { type CSSProperties, useEffect, useRef, useSyncExternalStore } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import type { DepLights } from './dep-light-store';
 import { HoverCard } from './hover-card';
@@ -110,7 +110,13 @@ export interface DependsCardProps {
   /** At least one: a cell with nothing in it opens no card. */
   entries: readonly DependsEntry[];
   /** Authored relationships remain inspectable and editable without hovering their clipped chips. */
-  typedEntries?: readonly { id: string; label: string; onEdit: () => void; onRemove: () => void }[];
+  typedEntries?: readonly {
+    id: string;
+    label: string;
+    navigation?: ReactNode;
+    onEdit: () => void;
+    onRemove: () => void;
+  }[];
   /**
    * The entry whose pill the pointer is on, or null while the pointer is on
    * the cell's input area — where the whole list is the answer and no line is
@@ -336,6 +342,7 @@ export function DependsCard({
           }}
         >
           <span>{dependency.label}</span>
+          {dependency.navigation}
           <button type="button" onClick={dependency.onEdit} aria-label={`Edit ${dependency.label}`}>
             Edit
           </button>

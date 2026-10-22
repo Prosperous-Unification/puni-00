@@ -64,6 +64,14 @@ export function endpointText(
   steps: readonly StepView[],
   nodes?: StepNodes,
 ): string {
+  // Proof: bypassing captured endpoint words made the mounted null-reference case throw Unknown dependency work item remote-row (2026-10-22).
+  if (endpoint.captured !== undefined) {
+    const captured = endpoint.captured;
+    return (
+      captured.qualifiedReference ??
+      `${captured.projectAbbreviation}.${captured.workItemNumber}${captured.step === null ? '' : ` · ${captured.step.name}${endpoint.scope === 'descendant-step' ? ' across all descendants' : ' step'}`}`
+    );
+  }
   const row = rowOf(rows, endpoint.workItemId);
   if (endpoint.scope === 'whole') return row.number;
   const step = stepOf(steps, endpoint.stepId);
@@ -79,6 +87,21 @@ export function dependencyWords(
   steps: readonly StepView[],
   nodes?: StepNodes,
 ) {
+  if (
+    dependency.predecessor.captured !== undefined ||
+    dependency.successor.captured !== undefined
+  ) {
+    const words = (endpoint: ReadEndpoint) => {
+      const captured = endpoint.captured;
+      return captured === undefined
+        ? `${endpointText(endpoint, rows, steps, nodes)} ${rowOf(rows, endpoint.workItemId).name}`
+        : `${endpointText(endpoint, rows, steps, nodes)} ${captured.name}`;
+    };
+    return {
+      chip: `${endpointText(dependency.predecessor, rows, steps, nodes)} ${dependency.type} → ${endpointText(dependency.successor, rows, steps, nodes)}`,
+      label: `${words(dependency.predecessor)} to ${words(dependency.successor)}, ${relationshipName(dependency.type)}`,
+    };
+  }
   const predecessor = rowOf(rows, dependency.predecessor.workItemId);
   const successor = rowOf(rows, dependency.successor.workItemId);
   const source = endpointText(dependency.predecessor, rows, steps, nodes);
