@@ -34,9 +34,11 @@ import type { Step } from './step-store';
  * second implementation of {@link sliceKey}, and the two would disagree the day
  * either changes.
  *
- * Everything else is {@link ScheduledSlice} unchanged. The numbers are the
- * engine's verbatim — a slice starting at 3.6666666666666665 leaves as that, so
- * a bar drawn from it and the Start column beside it cannot say different days.
+ * The numbers are the engine's verbatim — a slice starting at
+ * 3.6666666666666665 leaves as that, so a bar drawn from it and the Start column
+ * beside it cannot say different days. Connected presentation may transfer a
+ * checked foreign person predecessor from `resourcePredecessorId` to
+ * `elsewhereHolder`, changing only that display reference and `boundBy`.
  */
 export interface IdentifiedSlice extends ScheduledSlice {
   id: string;

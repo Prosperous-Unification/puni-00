@@ -916,3 +916,21 @@ the independent review evidence was formatted.
 Mounted connected claim publication, shared-mode and full observation faults,
 MCP authenticated transport, full gate and CI remain open. Task 6.3 stays
 unchecked.
+
+## Task 8.4a — mounted connected tree and foreign person holder integration
+
+The initial [mounted tree packet](evidence/task-8.4a-mounted-tree-read.md) and
+[foreign person holder correction](evidence/task-8.4a-foreign-person-holder.md)
+were combined with task 6.3 admission. The correction received an
+[independent Astra approval](evidence/task-8.4a-foreign-person-holder-review.md)
+after the first mounted presenter review rejected a dangling foreign person
+predecessor in a real Gantt consumer. On the combined checkout, mounted tree,
+captured SQLite and pure projector suites passed 72/72 (205 assertions), and
+frontend/core/SQLite/backend TypeScript builds exited 0. The
+[mounted claim publication witness](evidence/task-8.4a-mounted-claim/README.md)
+passed after its previously observed post-commit 500; a fresh throw injected
+at connected tree publication made the witness fail 0/1, then restoration
+passed 1/1. It verifies target durable announcement, HTTP 200 and writer
+release together. Task 8.4 remains open for unavailable DTOs, retained and
+aggregate reads, optimizer admission and full mounted/browser checks; task 6.3
+still has its broader evidence matrix. CI and exact-SHA host gate remain open.

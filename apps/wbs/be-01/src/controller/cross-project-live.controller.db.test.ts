@@ -3,15 +3,15 @@ import * as connectedTree from '@wbs/core/service/connected-tree';
 import { formatStepNodeId, sliceKey } from '@wbs/domain';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { OrganizationHarness } from '../testing/organization-harness';
+import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
 afterEach(async () => {
   await harness.closeComposed();
 });
 
-async function open() {
-  harness = OrganizationHarness.openComposed();
+async function open(options: ComposedHarnessOptions = {}) {
+  harness = OrganizationHarness.openComposedWith(options);
   await harness.register('ada');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'member');
@@ -450,3 +450,113 @@ test.each(['person mismatch', 'foreign capacity'] as const)(
     }
   },
 );
+// Proof: replacing connected tree publication with a throw made this mounted
+// claim fail 0/1 before its target push; restored code passes 1/1 with the
+// committed claim, statement, journal and announcement observed together.
+test('nonassigning remote governed claim commits before durable announcement delivery', async () => {
+  let waiting = false;
+  const arrived = Promise.withResolvers<boolean>();
+  const delivery = Promise.withResolvers<Response>();
+  const fixture = await open({
+    pushFetch: (_url, init) => {
+      if (waiting) {
+        if (typeof init?.body !== 'string') throw new Error('missing push body');
+        const event: unknown = JSON.parse(init.body);
+        if (
+          event !== null &&
+          typeof event === 'object' &&
+          'subscription' in event &&
+          event.subscription === `project:${fixture.target.projectId}`
+        ) {
+          arrived.resolve(true);
+          return delivery.promise;
+        }
+      }
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
+  });
+  const { remote, target } = fixture;
+  harness.sqlite
+    .query("INSERT INTO person(id,name,kind,account_id) VALUES ('worker','Worker','agent',?)")
+    .run(harness.userId('ada'));
+  harness.sqlite
+    .query(
+      "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('worker','org-a','Local worker')",
+    )
+    .run();
+  harness.sqlite
+    .query(
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT ?,id,'done',1 FROM step WHERE project_id=?",
+    )
+    .run(remote.workItemId, remote.projectId);
+  const before = harness.sqlite
+    .query<{ n: number }, [string]>('SELECT count(*) AS n FROM command_journal WHERE project_id=?')
+    .get(target.projectId);
+  if (before === null) throw new Error('missing journal count');
+  waiting = true;
+  const pending = harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
+    commands: [
+      {
+        kind: 'claimWorkItem',
+        workItemId: target.workItemId,
+        steps: [target.stepId],
+        personId: 'worker',
+        runId: 'connected-run',
+        assign: false,
+      },
+    ],
+  });
+  try {
+    await Promise.race([
+      arrived.promise,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => {
+          reject(new Error('claim did not reach postcommit push'));
+        }, 1500);
+      }),
+    ]);
+    expect(
+      harness.sqlite
+        .query('SELECT person_id,step_id,run_id FROM claim WHERE work_item_id=?')
+        .all(target.workItemId),
+    ).toEqual([{ person_id: 'worker', step_id: target.stepId, run_id: 'connected-run' }]);
+    expect(
+      harness.sqlite
+        .query('SELECT state FROM step_progress WHERE work_item_id=? AND step_id=?')
+        .get(target.workItemId, target.stepId),
+    ).toEqual({ state: 'in_progress' });
+    expect(harness.sqlite.query('SELECT * FROM claim_occupancy').all()).toEqual([]);
+    expect(
+      harness.sqlite.query('SELECT * FROM assignment WHERE work_item_id=?').all(target.workItemId),
+    ).toEqual([]);
+    expect(
+      harness.sqlite
+        .query('SELECT count(*) AS n FROM command_journal WHERE project_id=?')
+        .get(target.projectId),
+    ).toEqual({ n: before.n + 1 });
+    const entered = Promise.withResolvers<boolean>();
+    const turn = harness.holdWriteTurn(Promise.resolve(), () => {
+      entered.resolve(true);
+    });
+    await Promise.race([
+      entered.promise,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => {
+          reject(new Error('announcement retained writer turn'));
+        }, 1000);
+      }),
+    ]);
+    await turn;
+  } finally {
+    delivery.resolve(Response.json({ delivered_to_sockets: 0 }));
+  }
+  const answer = await pending;
+  expect(answer.status).toBe(200);
+  expect(
+    harness.sqlite
+      .query<{ message: string }, [string]>(
+        'SELECT message FROM event_log WHERE subscription=? ORDER BY seq DESC LIMIT 1',
+      )
+      .get(`project:${target.projectId}`)?.message,
+  ).toContain('tree_replaced');
+});
