@@ -490,3 +490,153 @@ test('an active stage refuses an absent calendar origin', () => {
     ),
   ).toThrow('active connected optimization has no calendar origin');
 });
+function emptyComponent(): PreparedConnectedOptimization {
+  const source = prepared();
+  return {
+    ...source,
+    originOrdinal: null,
+    projects: source.projects.map((project) => ({ ...project, anchorOrdinal: null })),
+    input: {
+      ...source.input,
+      rows: [],
+      slices: [],
+      graph: { nodes: [], edges: [] },
+      order: {
+        kind: 'connected',
+        projectIdByWorkItem: new Map(),
+        rankByProject: new Map([
+          ['A', 0],
+          ['B', 0],
+          ['C', 1],
+        ]),
+      },
+    },
+  };
+}
+test.each(['builder', 'selector'] as const)(
+  'empty components refuse stale surplus placement in %s',
+  (entry) => {
+    const empty = emptyComponent();
+    const stale = baseline();
+    const read =
+      entry === 'builder'
+        ? () => buildConnectedOptimizationStage(empty, stale, 'A')
+        : () => selectConnectedOptimizations(empty, stale, null);
+    expect(read).toThrow('placement keys');
+  },
+);
+test.each([undefined, 'unknown'])(
+  'unmapped active ownership %s refuses before treating every project as idle',
+  (owner) => {
+    const component = prepared();
+    const ownership = new Map([
+      ['b', 'B'],
+      ['c', 'C'],
+    ]);
+    if (owner !== undefined) ownership.set('a', owner);
+    const malformed = {
+      ...component,
+      input: {
+        ...component.input,
+        order: {
+          kind: 'connected' as const,
+          projectIdByWorkItem: ownership,
+          rankByProject: new Map([
+            ['A', 0],
+            ['B', 0],
+            ['C', 1],
+          ]),
+        },
+      },
+    };
+    expect(() => buildConnectedOptimizationStage(malformed, baseline(component), 'A')).toThrow(
+      'ownership',
+    );
+    expect(() => selectConnectedOptimizations(malformed, baseline(component), null)).toThrow(
+      'ownership',
+    );
+  },
+);
+test('an idle member still validates real foreign placement evidence', () => {
+  const component = prepared();
+  const extra = {
+    projectId: 'D',
+    rank: 2,
+    anchorOrdinal: null,
+    engine: 'fast' as const,
+    objective: 'time' as const,
+    enabled: false,
+  };
+  const extended = {
+    ...component,
+    projects: [...component.projects, extra],
+    input: {
+      ...component.input,
+      order: {
+        kind: 'connected' as const,
+        projectIdByWorkItem: new Map([
+          ['a', 'A'],
+          ['b', 'B'],
+          ['c', 'C'],
+        ]),
+        rankByProject: new Map([
+          ['A', 0],
+          ['B', 0],
+          ['C', 1],
+          ['D', 2],
+        ]),
+      },
+    },
+  };
+  const stale = baseline(component);
+  const slices = new Map(stale.slices);
+  const a = slices.get(key('a'));
+  if (a === undefined) throw new Error('missing a');
+  slices.set(key('a'), { ...a, earliestFinish: 100 });
+  expect(() => buildConnectedOptimizationStage(extended, { ...stale, slices }, 'D')).toThrow();
+});
+test.each(['builder', 'selector'] as const)(
+  'empty components refuse stale work-item projections in %s even when slice keys are empty',
+  (entry) => {
+    const empty = emptyComponent();
+    const stale = { ...baseline(), slices: new Map() };
+    const read =
+      entry === 'builder'
+        ? () => buildConnectedOptimizationStage(empty, stale, 'A')
+        : () => selectConnectedOptimizations(empty, stale, null);
+    expect(read).toThrow('placement keys');
+  },
+);
+test('empty components validate their resolved graph without fabricating a calendar origin', () => {
+  const empty = emptyComponent();
+  const placement = scheduleResolved(empty.input);
+  const malformed = { ...empty, input: { ...empty.input, graph: prepared().input.graph } };
+  expect(() => buildConnectedOptimizationStage(malformed, placement, 'A')).toThrow(
+    'resolved graph node',
+  );
+});
+test.each(['duplicate-project', 'missing-rank', 'nonfinite-rank'] as const)(
+  'empty components refuse invalid membership %s',
+  (fault) => {
+    const empty = emptyComponent();
+    const first = empty.projects.at(0);
+    if (first === undefined || empty.input.order.kind !== 'connected')
+      throw new Error('invalid empty fixture');
+    const ranks = new Map(empty.input.order.rankByProject);
+    if (fault === 'missing-rank') ranks.delete(first.projectId);
+    const projects =
+      fault === 'duplicate-project'
+        ? [...empty.projects, first]
+        : fault === 'nonfinite-rank'
+          ? empty.projects.map((project) => ({ ...project, rank: NaN }))
+          : empty.projects;
+    const malformed = {
+      ...empty,
+      projects,
+      input: { ...empty.input, order: { ...empty.input.order, rankByProject: ranks } },
+    };
+    const placement = scheduleResolved(empty.input);
+    expect(() => buildConnectedOptimizationStage(malformed, placement, 'A')).toThrow('membership');
+    expect(() => selectConnectedOptimizations(malformed, placement, null)).toThrow('membership');
+  },
+);
