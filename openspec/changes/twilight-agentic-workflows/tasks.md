@@ -100,6 +100,8 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
       adapter (SQLite). Keep physical schema/migrations in that adapter and select it by configuration.
 - [ ] 6a.3 Red/green: binding manifest retention and integrity, pinned prompt/tool-policy
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
+      Retained recovery is expanded in [binding recovery tasks](binding-recovery-tasks.md);
+      that internal slice does not close revocation or provenance-aware re-pinning.
 - [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
       DEFER_READY, generation-checked settlement and callback-free summary. Require complete
       discovery/validation and filter durable waits/running/retry state before admission.

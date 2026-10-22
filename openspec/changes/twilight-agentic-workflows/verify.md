@@ -2094,3 +2094,9 @@ final cohesive source review, exact-SHA canonical host gate and applicable hoste
 CI remain required. The original3fdc host PASS and both failed browser attempts
 retain their original heads and outcomes. No independent authority PR/gate, main
 merge, deployment, production spend or cleanup occurred.
+
+### Retained binding recovery planning
+
+Intent, delta spec, design and ordered TDD tasks adopted for the retained-binding
+boundary. Implementation, R5 proofs and independent reviews remain pending.
+No source, format, host/CI acceptance or parent6a.3 closure is implied.

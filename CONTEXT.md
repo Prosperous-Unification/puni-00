@@ -511,6 +511,26 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Workflow binding**:
+The repository's mapping from work-item types and project step codes to named
+activity classes and their settings.
+_Avoid_: Workflow configuration, executor configuration
+
+**Workflow acceptance**:
+Burokrat's immutable static binding snapshot, complete project-step set and original
+prompt-byte identities; it grants no execution authority.
+_Avoid_: Approved binding, execution authorization
+
+**Run manifest**:
+The immutable execution configuration retained for a run, identified independently
+from its workflow acceptance.
+_Avoid_: Binding digest, workflow acceptance
+
+**Manifest binding**:
+A retained run manifest associated with workflow acceptance reconstructed from its
+original prompt artifacts.
+_Avoid_: Authorized manifest, execution grant
+
 **Runtime authority**:
 The receiver-owned owner label and generation for conditional writes in one organization,
 project and person's scope, separate from a coordinator's local owner epoch.

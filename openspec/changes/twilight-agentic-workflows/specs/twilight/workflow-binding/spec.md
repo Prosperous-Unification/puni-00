@@ -131,3 +131,63 @@ work and invalidates changed activities and their downstream provenance closure.
 
 - **WHEN** re-pinning changes an upstream activity's configuration or accepted input
 - **THEN** the downstream output is invalidated unless an explicit validated provenance mapping permits reuse
+
+### Requirement: Retained bindings are reconstructed through their schema and byte owners
+
+Burokrat SHALL decode an unknown retained acceptance using a closed schemaVersion1
+envelope, strict nested binding and closed sorted unique prompt path/lowercase SHA256
+descriptors covering every declared class. Decoding SHALL detach and deeply freeze
+its output without freezing caller input. Decoding SHALL NOT itself establish full
+project-step coverage or prompt-byte acceptance. Unsupported present schemaVersion
+SHALL use unsupported_version, envelope/hash shape errors invalid_binding and
+descriptor-set/order errors invalid_prompt_sources; nested binding diagnostics
+SHALL remain unchanged.
+
+Dash SHALL read a retained manifest by its exact requested digest, snapshot and
+decode it before artifact awaits, require matching binding/acceptance versions and
+check complete static binding coverage before artifact IO. It SHALL reconstruct
+acceptance from the actual retained prompt bytes through Burokrat and require full
+canonical snapshot equality. It SHALL verify every prompt and tool-policy reference
+through ArtifactStore. Undeclared prompt content SHALL refuse; missing declared
+content SHALL refuse through exact acceptance-source coverage. Multiple paths with
+identical bytes and repeated identical content references SHALL remain valid.
+Every repeated reference SHALL still be verified, including length and metadata.
+
+Returned manifest/binding associations SHALL be detached and deeply immutable.
+Observed prompt bytes SHALL be copied before later awaits. Original byte hashes,
+including BOM and newline bytes, SHALL be preserved; acceptance digest SHALL remain
+distinct from complete manifest digest. Missing, unreadable, malformed or mismatched
+retained state SHALL throw, without reading current working files or repairing state.
+This operation SHALL establish static consistency and byte correspondence only,
+not revocation, re-pinning, backend/credential availability or execution authority.
+Generic manifest storage SHALL remain compatible with other canonical JSON payloads.
+
+#### Scenario: Retained selection survives edits and SQLite reopen
+
+- **GIVEN** an accepted manifest and original prompt artifacts were retained in SQLite
+- **WHEN** working binding/prompt files change and the stores close and reopen
+- **THEN** recovery selects the original accepted settings and prompt bytes/digest
+
+#### Scenario: Shared content and repeated references retain all paths
+
+- **GIVEN** two declared prompt paths have identical original bytes and a manifest repeats the valid artifact reference
+- **WHEN** Dash reconstructs acceptance
+- **THEN** both paths are reconstructed and every reference is verified
+- **WHEN** a later duplicate has incorrect metadata
+- **THEN** recovery throws rather than skipping the duplicate
+
+#### Scenario: Static invalidity refuses before artifact reads
+
+- **WHEN** a retained envelope has invalid complete project coverage or binding references
+- **THEN** recovery throws before the first artifact read
+
+#### Scenario: Retained content cannot be silently substituted
+
+- **WHEN** retained prompt content is missing, unreadable or differs from the complete acceptance snapshot
+- **THEN** recovery throws and never substitutes current files or empty prompts
+
+#### Scenario: Awaited IO cannot change the pinned inputs
+
+- **WHEN** caller-owned manifest fields or an earlier returned prompt buffer mutate during a later artifact await
+- **THEN** the recovered association still matches the original retained snapshot
+- **AND** caller inputs remain mutable while returned nested values are frozen
