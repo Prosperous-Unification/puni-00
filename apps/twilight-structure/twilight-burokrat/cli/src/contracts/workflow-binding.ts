@@ -322,6 +322,9 @@ export function decodeWorkflowBinding(input: unknown): Binding {
     // Proof: separately bypassing RelativePath and drive checks accepted /absolute.md and
     // C:relative.md in their named prompt-path refusal tests.
     if (
+      // Proof: removing this guard changed invalid_binding to invalid_prompt_path in
+      // `refuses an undeclared tool prompt with invalid path` (fix round 1).
+      settings['executor'] !== 'tool' &&
       typeof settings['prompt'] === 'string' &&
       (!RelativePath.allows(settings['prompt']) || /^[A-Za-z]:/.test(settings['prompt']))
     ) {

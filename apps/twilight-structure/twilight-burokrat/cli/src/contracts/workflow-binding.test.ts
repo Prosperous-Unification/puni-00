@@ -626,3 +626,23 @@ test('reports the earliest sorted non-JSON class path', () => {
   expect(refusal.code).toBe('invalid_binding');
   expect(refusal.path).toBe('binding.classes.A');
 });
+
+for (const [kind, prompt] of [
+  ['valid', '.twilight/extra.md'],
+  ['invalid', '/absolute.md'],
+]) {
+  test(`refuses an undeclared tool prompt with ${kind} path`, () => {
+    const candidate = fixture();
+    Object.assign(candidate.classes.tool, { prompt });
+    let refusal: unknown;
+    try {
+      decodeWorkflowBinding(candidate);
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(WorkflowBindingError);
+    if (!(refusal instanceof WorkflowBindingError)) throw new Error('expected named error');
+    expect(refusal.code).toBe('invalid_binding');
+    expect(refusal.path).toBe('classes.tool.prompt');
+  });
+}

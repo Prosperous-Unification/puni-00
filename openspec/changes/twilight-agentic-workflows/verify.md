@@ -825,3 +825,23 @@ No full host gate, broader Burokrat suite/build, live service, migration or runt
 check was run for this slice. Storage gate evidence applies to its separate candidate only.
 Task1 checklist and parent1.1–1.2 remain unchecked; this subset does not complete broader
 WBS I1.01 sandbox/cwd/approval/budget/retry/retained-revision/context requirements.
+
+### 2026-10-22 — binding Task 1 review fix: undeclared tool prompt classification
+
+Independent task review found one Important contract defect: a tool class has no prompt
+field, but an invalid extra prompt was classified as invalid_prompt_path before strict
+shape rejection. The fix interprets prompt paths only for prompt-bearing executors.
+Two regressions assert the named code and path for both valid and invalid extra tool
+prompts; the initial run passed the valid-path case and failed the invalid-path case
+with the reported wrong code. Both pass after the fix.
+
+Removing only the new executor guard reproduced the wrong-code failure; restoring it
+passed the exact filtered test. This adds one classification fault/restoration pair to
+the earlier 55 distinct pairs, without rerunning or recertifying those earlier proofs.
+Exact evidence is in /tmp/puni-binding-task1/fix-round-1/.
+
+Final focused binding suite: 81 pass, zero fail, 120 assertions, 459 ms. Fresh uncached
+Burokrat typecheck (1.4 s), source lint (36.7 s), affected-file Prettier check and
+git diff --check pass. The ambient color-environment warning remains disclosed.
+Root read the complete fix report, source diff, regression/mutation logs and final
+check output. Scoped re-review remains pending; no Task 1 acceptance is claimed here.
