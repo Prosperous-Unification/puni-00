@@ -8,12 +8,13 @@ import { expect, test } from 'bun:test';
 const CHECKOUT = fileURLToPath(new URL('../../../', import.meta.url));
 const NX = fileURLToPath(import.meta.resolve('nx/bin/nx.js'));
 
-function runGit(repository: string, args: string[]): void {
+function runGit(repository: string, args: string[]): string {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...args], {
     stdout: 'pipe',
     stderr: 'pipe',
   });
   expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  return invocation.stdout.toString().trim();
 }
 
 async function createRepository(): Promise<string> {
@@ -21,6 +22,7 @@ async function createRepository(): Promise<string> {
   const repository = join(parent, 'repository');
   runGit(CHECKOUT, ['clone', '--quiet', '--shared', '--no-hardlinks', CHECKOUT, repository]);
   for (const path of [
+    'tools/tool-git-hooks/src/hooks/ci-runtime-selection.ts',
     'tools/tool-devsync/project.json',
     'tools/tool-devsync/src/current-documents.ts',
     'tools/tool-devsync/src/check-documents.ts',
@@ -66,6 +68,46 @@ test('the actual docs target executes documents, ADRs, retired roots and root pr
   expect(invocation.output).toContain('ADR numbers are unique and contiguous from 0001');
   expect(invocation.output).toContain('no current file names the retired');
   expect(invocation.output).toContain('"migrationId":"root-knowledge.v1"');
+}, 60_000);
+
+// Proof: the former selector graph location made the actual docs target reject nine untracked
+// .nx/ci-runtime-selection files. Disabling global exclusions keeps this boundary visible.
+test('runtime selection leaves the actual docs target a clean candidate tree', async () => {
+  const repository = await createRepository();
+  runGit(repository, ['config', 'core.excludesFile', '/dev/null']);
+  const base = runGit(repository, ['rev-parse', 'HEAD']);
+  const source = join(repository, 'tools/tool-devsync/src/check-documents.ts');
+  await writeFile(source, (await readFile(source, 'utf8')) + '\n');
+  runGit(repository, ['add', '--all']);
+  runGit(repository, [
+    '-c',
+    'user.name=CI selection test',
+    '-c',
+    'user.email=ci-selection@example.invalid',
+    'commit',
+    '--quiet',
+    '-m',
+    'code candidate',
+  ]);
+  const head = runGit(repository, ['rev-parse', 'HEAD']);
+  const plan = Bun.spawnSync(
+    [
+      process.execPath,
+      join(repository, 'tools/tool-git-hooks/src/hooks/ci-plan.ts'),
+      base,
+      head,
+      repository,
+    ],
+    { cwd: repository, env: process.env, stdout: 'pipe', stderr: 'pipe', timeout: 20_000 },
+  );
+  expect(plan.exitCode, plan.stderr.toString()).toBe(0);
+  const selected: unknown = JSON.parse(plan.stdout.toString());
+  expect(selected).toMatchObject({ mode: 'affected' });
+
+  const invocation = await invokeTarget(repository);
+  expect(invocation.code, invocation.output).toBe(0);
+  expect(invocation.output).toContain('Verified current documents and indexes');
+  expect(runGit(repository, ['ls-files', '--others', '--exclude-standard'])).toBe('');
 }, 60_000);
 
 test.each([

@@ -272,7 +272,12 @@ export async function selectRuntimeProjects(
         ...process.env,
         NX_DAEMON: 'false',
         NX_ISOLATE_PLUGINS: 'false',
-        NX_WORKSPACE_DATA_DIRECTORY: join(resolve(repository), '.nx/ci-runtime-selection'),
+        // Proof: the former .nx/ci-runtime-selection location made the public-selector/docs-target
+        // regression fail because production index validation rejected its untracked graph files.
+        NX_WORKSPACE_DATA_DIRECTORY: join(
+          resolve(repository),
+          '.nx/workspace-data/ci-runtime-selection',
+        ),
       },
       stdout: 'pipe',
       stderr: 'pipe',

@@ -10,6 +10,7 @@
       "cache": false,
       "inputs": ["default", "{workspaceRoot}/**/*"],
       "options": {
+        "env": { "CLAUDECODE": "0", "AGENT": "0" },
         "commands": [
           "bun tools/tool-devsync/src/check-documents.ts",
           "bun test --preload ./tools/test/scratch/preload.ts ./tools/tool-devsync/src/adr-index.test.ts ./tools/tool-devsync/src/retired-roots.test.ts --timeout=60000",
