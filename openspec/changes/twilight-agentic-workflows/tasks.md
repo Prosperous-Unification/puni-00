@@ -17,10 +17,10 @@ Tasks 1.1–1.2 are expanded in [binding tasks](binding-tasks.md), implementing 
 [binding design](binding-design.md). Their checkboxes remain the parent acceptance gate;
 repository defaults and I1 approval/budget declarations are separate work.
 
-- [ ] 1.1 Red: `workflow-binding.test.ts` — accepts the complete illustrative binding; refuses unknown
+- [x] 1.1 Red: `workflow-binding.test.ts` — accepts the complete illustrative binding; refuses unknown
       version, unknown executor kind, bare model id, absent prompt file, step code outside the
       given list. Each refusal is a named code.
-- [ ] 1.2 Green: ArkType schema and `twib validate workflow-binding <file> --steps <codes>`
+- [x] 1.2 Green: ArkType schema and `twib validate workflow-binding <file> --steps <codes>`
       printing the digest. Negative: remove the step-code check and the `qa` case passes;
       watched; `Proof:` comment.
 - [ ] 1.3 `.twilight/workflows.yaml` and `.twilight/prompts/*.md` for puni-00 with the five
