@@ -869,3 +869,42 @@ without claiming the entire matrix was rerun afterward. Task1's matrix was not
 rerun. This candidate has no runtime routes, application acceptance, full backend
 suite, build, live deployment or exact-SHA receiver host gate. Independent Task2
 review and parent acceptance remain pending.
+
+### Receiver Task2 independent review — fixes required
+
+Candidate `360dc8bb928419132cf64ba52d101bdab936f4ef` received a task-scoped
+independent review. Two Important findings are open: SQLite binding insertion
+accepted a non-string scope into permanent history, and memory audits checked
+values/counts without checking scoped lookup keys, receipt ledger identity or
+attempt uniqueness. Focused reviewer probes reproduced both. The original
+implementer is correcting them with real regressions and watched R5 faults;
+Task2 remains unchecked until scoped re-review.
+
+The raw store's existing terminal-atomicity contract does not promise standalone
+read isolation. Task3 application operations must continue to use the admitted
+transaction. The new runtime family is certified without exclusions; the memory
+provider's complete report still has six existing exclusions and absent
+`livePlans`/`projectRanks` families. No broader certification is claimed.
+
+#### Task2 fix round 1
+
+SQLite binding insertion now parses and persists the validated scope. Memory
+inspection validates canonical scoped keys, exact retained lookup identities,
+receipt installation identity and scoped store/attempt uniqueness. Shared scope
+negatives first failed on SQLite; 22 count-preserving memory corruption cases
+first failed before the audit fix. Both groups pass after correction.
+
+Fresh covering checks: 102 focused tests/654 assertions; SQLite conformance
+84 tests/7111 assertions; memory conformance84 tests/5555 assertions; all six
+SQLite/memory/conformance lint and typecheck targets; format and diff checks pass.
+The runtime family has no exclusions on either provider. Memory's six existing
+exclusions and two absent families remain outside this certification.
+
+Twelve distinct new guard-removal/dependency-break trials each made the targeted
+production negative fail by allowing the invalid operation. Source was restored
+per trial, then the complete focused suite passed once; these are not twelve
+immediate RED/GREEN pairs. The original64 trials remain historical, not rerun.
+Root inspected all twelve mutation-summary entries and representative exact scope,
+attempt-uniqueness and acceptance-key failure output. No full receiver gate,
+broad backend/application/HTTP suite or live deployment was run in this fix round.
+The corrected candidate still requires scoped independent re-review.

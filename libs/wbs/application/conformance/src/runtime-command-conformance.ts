@@ -98,7 +98,15 @@ export function runtimeCommandConformance(
         }),
       );
       await store.insertBinding({ ...RUNTIME_SCOPE, personId: 'other' }, RUNTIME_CLAIM);
-      expect(await store.inspectLedger()).toHaveProperty('bindingCount', 2);
+      await store.insertBinding(RUNTIME_SCOPE, {
+        ...RUNTIME_CLAIM,
+        claimId: 'other-store-claim',
+        execution: { ...RUNTIME_CLAIM.execution, storeId: 'other-store' },
+      });
+      expect(
+        await store.readAttemptBinding(RUNTIME_SCOPE, 'other-store', 'attempt'),
+      ).toHaveProperty('claimId', 'other-store-claim');
+      expect(await store.inspectLedger()).toHaveProperty('bindingCount', 3);
     }));
   it('retains one immutable acceptance per scoped command ID', () =>
     withSource(async (source) => {
@@ -199,6 +207,46 @@ export function runtimeRecordConformance(
       await opened.close();
     }
   });
+  for (const boundary of ['ID types', 'undeclared fields'] as const) {
+    it(`refuses malformed binding scope ${boundary} without changing retained rows or counters`, async () => {
+      const opened = await open();
+      try {
+        const store = opened.source.stores.runtimeCommands;
+        await store.insertBinding(RUNTIME_SCOPE, RUNTIME_CLAIM);
+        const before = await store.inspectLedger();
+        const incoming = {
+          ...RUNTIME_CLAIM,
+          claimId: 'next-claim',
+          execution: { ...RUNTIME_CLAIM.execution, attemptId: 'next-attempt' },
+        };
+        const scopes: (typeof RUNTIME_SCOPE)[] = [];
+        if (boundary === 'ID types') {
+          for (const field of ['organizationId', 'projectId', 'personId']) {
+            for (const invalid of [new Uint8Array([1, 2]), 42, null, undefined, true, '']) {
+              const scope = { ...RUNTIME_SCOPE };
+              Reflect.set(scope, field, invalid);
+              scopes.push(scope);
+            }
+          }
+        } else scopes.push({ ...RUNTIME_SCOPE, ...{ unexpected: 'field' } });
+        for (const scope of scopes) {
+          await assertRuntimeRejection(store.insertBinding(scope, incoming));
+          expect(await store.inspectLedger()).toEqual(before);
+          expect(await store.readBinding(RUNTIME_SCOPE, 'claim')).toEqual(RUNTIME_CLAIM);
+          expect(await store.readBinding(RUNTIME_SCOPE, 'next-claim')).toBeNull();
+          expect(await store.readAttemptBinding(RUNTIME_SCOPE, 'store', 'attempt')).toEqual(
+            RUNTIME_CLAIM,
+          );
+          expect(await store.readAttemptBinding(RUNTIME_SCOPE, 'store', 'next-attempt')).toBeNull();
+        }
+        await store.insertBinding(RUNTIME_SCOPE, incoming);
+        expect(await store.readBinding(RUNTIME_SCOPE, 'next-claim')).toEqual(incoming);
+        expect(await store.inspectLedger()).toEqual({ ...before, bindingCount: 2 });
+      } finally {
+        await opened.close();
+      }
+    });
+  }
   it('refuses malformed trusted scope and nested records without partial counters', async () => {
     const opened = await open();
     try {

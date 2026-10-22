@@ -43,6 +43,34 @@ const keyScope = (scope: RuntimeScope) => {
 };
 const keyRecord = (scope: RuntimeScope, id: string) => JSON.stringify([keyScope(scope), id]);
 
+/** Reads the canonical retained scope tuple; malformed or aliased keys throw before lookup absence. */
+function parseScopeKey(key: string): RuntimeScope {
+  const parts: unknown = JSON.parse(key);
+  // Proof: F1-03 removed tuple validation; an extra scope-key position passed the count-preserving audit.
+  if (!Array.isArray(parts) || parts.length !== 3) throw new Error('invalid runtime scope key');
+  const slots: readonly unknown[] = parts;
+  const [organizationId, projectId, personId] = slots;
+  // Proof: F1-04 bypassed scoped-ID validation; a numeric retained organization ID passed inspection.
+  const scope = parseRuntimeScope({ organizationId, projectId, personId });
+  // Proof: F1-05 removed canonical matching; a whitespace alias passed audit and hid the original scope.
+  if (JSON.stringify(parts) !== key) throw new Error('runtime scope key identity mismatch');
+  return scope;
+}
+
+/** Reads a retained binding key and refuses a different claim identity or noncanonical lookup bytes. */
+function parseBindingScope(key: string, claimId: string): RuntimeScope {
+  const parts: unknown = JSON.parse(key);
+  // Proof: F1-06 removed key shape validation; a three-position binding lookup passed inspection.
+  if (!Array.isArray(parts) || parts.length !== 2 || typeof parts[0] !== 'string')
+    throw new Error('invalid runtime binding key');
+  // Proof: F1-07 removed canonical matching; an outer whitespace alias passed audit and hid the binding.
+  if (JSON.stringify(parts) !== key) throw new Error('runtime binding key identity mismatch');
+  // Proof: F1-08 removed claim matching; a different retained claim ID passed inspection.
+  if (parts[1] !== claimId) throw new Error('runtime binding lookup identity mismatch');
+  // Proof: F1-09 replaced scoped-key parsing with a valid invented scope; a malformed retained scope passed audit.
+  return parseScopeKey(parts[0]);
+}
+
 /** Binds permanent history to the same cloned state as all other borrowed stores. */
 export function inMemoryRuntimeCommands(table: MemoryRuntimeTable): RuntimeCommandStore {
   function inspectState(): RuntimeLedger {
@@ -54,9 +82,33 @@ export function inMemoryRuntimeCommands(table: MemoryRuntimeTable): RuntimeComma
       ledger.receiptCount !== table.acceptances.size
     )
       throw new Error('runtime retained history counts differ');
-    for (const held of table.authorities.values()) parseRuntimeAuthority(held);
-    for (const bound of table.bindings.values()) parseRuntimeClaim(bound);
-    for (const accepted of table.acceptances.values()) parseStoredRuntimeAcceptance(accepted);
+    for (const [key, held] of table.authorities) {
+      // Proof: F1-02 omitted authority-key inspection; malformed JSON keys passed the real memory audit.
+      parseScopeKey(key);
+      parseRuntimeAuthority(held);
+    }
+    const attempts = new Set<string>();
+    for (const [key, bound] of table.bindings) {
+      const claim = parseRuntimeClaim(bound);
+      const scoped = parseBindingScope(key, claim.claimId);
+      const attempt = JSON.stringify([
+        keyScope(scoped),
+        claim.execution.storeId,
+        claim.execution.attemptId,
+      ]);
+      // Proof: F1-10 omitted uniqueness; two retained claims for one scoped store/attempt passed inspection.
+      if (attempts.has(attempt)) throw new Error('runtime attempt binding uniqueness violated');
+      attempts.add(attempt);
+    }
+    for (const [key, stored] of table.acceptances) {
+      const accepted = parseStoredRuntimeAcceptance(stored);
+      // Proof: F1-11 omitted lookup correspondence; a malformed acceptance key passed audit and became false absence.
+      if (key !== keyRecord(accepted.scope, accepted.commandId))
+        throw new Error('runtime acceptance lookup identity mismatch');
+      // Proof: F1-12 omitted the installation comparison; a receipt for another ledger passed inspection.
+      if (accepted.receipt.ledgerId !== ledger.ledgerId)
+        throw new Error('runtime acceptance ledger mismatch');
+    }
     return structuredClone(ledger);
   }
   function incrementCount(field: 'authorityCount' | 'bindingCount' | 'receiptCount'): void {

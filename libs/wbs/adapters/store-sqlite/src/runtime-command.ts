@@ -263,9 +263,11 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
       Promise.resolve().then(() => {
         this.db.transaction((tx) => {
           this.inspectState();
+          // Proof: F1-01 omitted scope validation; BLOB IDs and undeclared fields committed instead of rejecting without changes.
+          const scoped = parseRuntimeScope(scope);
           const bound = parseRuntimeClaim(binding);
           tx.run(
-            sql`INSERT INTO runtime_claim_binding(organization_id,project_id,person_id,claim_id,store_id,attempt_id,binding) VALUES (${scope.organizationId},${scope.projectId},${scope.personId},${bound.claimId},${bound.execution.storeId},${bound.execution.attemptId},${JSON.stringify(bound)})`,
+            sql`INSERT INTO runtime_claim_binding(organization_id,project_id,person_id,claim_id,store_id,attempt_id,binding) VALUES (${scoped.organizationId},${scoped.projectId},${scoped.personId},${bound.claimId},${bound.execution.storeId},${bound.execution.attemptId},${JSON.stringify(bound)})`,
           );
           // Proof: P07 omitted this increment; real-source exact-binding/count inspection failed.
           tx.run('UPDATE runtime_ledger SET binding_count=binding_count+1 WHERE id=1');
