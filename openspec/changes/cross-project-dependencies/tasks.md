@@ -248,3 +248,16 @@ owner replacement/withdrawal and busy lifetime during reconciliation. A watched
 optimistic-terminal production fault fails before the held authoritative tree
 arrives; verify.md records its exact assertion and the public HTTP/session/gate
 limits. This bounded packet leaves parent 7.3/7.4/9.2 unchecked.
+
+Task 9.2 B3 mounted unavailable-read prerequisite (2026-10-22): a new configured
+Vitest suite imports the runner-free real producer with three test-only runtime
+aliases and test-only TypeScript paths/library support. The production Vite
+resolver is unchanged. The suite crosses generated decoding for fractional and
+mixed observations, checks real HTTP adapter refusal/URL binding/malformed packet
+rejection, and mounts actual missing-calendar/required-engine trees through
+`httpProjectApi.tree` and `projectServicesOf` into both table and cards, preserving
+editable rows, unknown readiness and stable foreign navigation without fabricated
+dates or optimization. Connected schedule enablement remains refused. Rendered
+B=0.2→1.2 bars/spans, mounted captured C=8 versus final C=6, selected-ready/floor
+retention, terminal action suppression and failed-sibling Retry HTTP hash proofs
+remain deferred; parent 7.3/7.4/9.2 and B3 enablement remain unchecked. See verify.md.

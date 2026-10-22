@@ -9,7 +9,7 @@ import { deriveConnectedPlan } from '../service/connected-plan';
 import type { ConnectedPlanCapture } from '../service/connected-plan-values';
 import { deriveConnectedReadiness } from '../service/connected-readiness';
 import { projectConnectedTree } from '../service/connected-tree';
-import { connectedReads } from './connected-plan-fixture';
+import { connectedCapture, connectedReads } from './connected-plan-fixture';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const key = (id: string) => sliceKey(id, 'build');
@@ -324,6 +324,27 @@ export function createFractionalConnectedOptimizationTree(
     scheduleResolved,
     optimizer,
   );
+  return {
+    ...presentConnectedTree(projectConnectedTree(buildConnectedRead(capture, projection), 'B')),
+    undoable: false,
+    redoable: false,
+  };
+}
+
+/** A structured unavailable tree derived without requesting optimizer work. */
+export function createUnavailableConnectedOptimizationTree(
+  reason: 'missing-calendar' | 'required-engine',
+) {
+  const reads = connectedReads('A', reason === 'missing-calendar' ? null : '2026-10-05');
+  const capture = connectedCapture({
+    ...reads,
+    project: {
+      ...reads.project,
+      scheduleEngine: reason === 'required-engine' ? 'optimized' : 'fast',
+      optimizationEnabled: reason === 'required-engine',
+    },
+  });
+  const projection = deriveConnectedPlan(capture, { supports: () => false }, scheduleResolved);
   return {
     ...presentConnectedTree(projectConnectedTree(buildConnectedRead(capture, projection), 'B')),
     undoable: false,

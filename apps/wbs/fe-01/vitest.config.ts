@@ -40,6 +40,18 @@ export default defineConfig({
   // alias maps as sets rather than this comment asking a reader to remember.
   resolve: {
     alias: {
+      // Proof: without the solver alias, the connected producer suite failed to
+      // collect at build-connected-request (2026-10-22).
+      // Producer fixtures execute core scheduling only in tests. Specific solver
+      // entries precede the public contracts barrel, which is a prefix alias.
+      '@wbs/contracts/solver/build-connected-request': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts',
+      ),
+      '@wbs/contracts/solver/connected-solver-outcome': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts',
+      ),
       '@': resolve(__dirname, 'src'),
       '@wbs/domain/typed-dependency': resolve(
         __dirname,
@@ -168,6 +180,7 @@ export default defineConfig({
         __dirname,
         '../../../libs/wbs/domain/domain/src/saved-plan-default-name.ts',
       ),
+      '@wbs/domain': resolve(__dirname, '../../../libs/wbs/domain/domain/src/index.ts'),
     },
   },
   test: {

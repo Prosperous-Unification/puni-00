@@ -3498,3 +3498,150 @@ Sequential lint retry after typechecks completed:
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint` executed the
 whole core ESLint target and passed, exit 0, 39.5 seconds, 0/1 cache hits. The first
 non-diagnostic failure is retained above rather than reclassified as passing.
+
+## Connected cue B3 mounted unavailable-read prerequisite — 2026-10-22
+
+Bounded continuation from `a010b25a5` in isolated `/tmp/puni-b3-mounted`; root
+checkout files were not edited. `connected_optimization_presentation_unavailable`
+remains unchanged. This packet does not enable connected schedule presentation.
+
+The configured frontend suite now imports the existing runner-free producer
+through a relative test import. Collection initially failed because the public
+`@wbs/contracts` prefix alias swallowed its solver subpaths. Vitest alone receives
+two specific solver entries before that prefix and the domain barrel after the
+existing leaf entries. `vite-config.test.ts` verifies these three exact test-only
+exceptions and retains complete production alias parity. Production Vite config
+is unchanged. A single test-line Nx boundary exception allows the relative
+producer import; no production boundary rule is widened. Test TypeScript paths include those imports, the domain leaves and
+the scheduler port's plan-infeasible DTO; ES2023 library declarations cover the
+actual producer graph's existing `toSorted`, without widening app compilation.
+
+The 13 new cases exercise:
+
+- Full generated-decoder body equality for real fractional Pri idle/pending/failed
+  observations and mixed ready/terminal/pending/floor observations. B's 0.2→1.2
+  slice and row schedule survive JSON. Captured C starts at 8 while final C's
+  local start 4 under its Wednesday anchor is component start 6. These numerical
+  assertions are producer/decoder evidence, **not mounted date/bar/span evidence**.
+- Current real `httpProjectApi.tree` refuses these semantically valid connected
+  packets and independently binds the URL project. Unknown state/evidence and
+  correctly typed sibling objective/stage-byte mutations produce `invalid_response`
+  before the presentation refusal. This bounded refusal oracle must be replaced
+  with full adapter equality when the remaining enabling requirements close.
+- Actual missing-calendar/required-engine trees, created with ordinary captured
+  derivation and `presentConnectedTree`, cross the real HTTP adapter into
+  `projectServicesOf` and mounted `WbsTableOverClient`. Table and cards preserve
+  enabled name fields, unknown readiness and captured `A.010` stable navigation;
+  render the precise refusal sentence; and offer no optimization cue, fabricated
+  schedule bars/spans or Retry. Only unrelated catalog endpoints use the existing
+  fake client. The HTTP tree route is never bypassed.
+
+Watched negatives and restoration:
+
+- With the new relative producer import and no solver alias, configured Vitest
+  failed collection at `@wbs/contracts/solver/build-connected-request`. Adding the
+  test-only aliases collected the real producer. No production alias was added.
+- Fault: remove the production connected presentation guard alone from
+  `src/lib/wbs-api.ts`, leaving URL binding and semantic decoding intact. Command
+  (from fe-01): `TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx --no-file-parallelism --maxWorkers=1`.
+  Observed **7 failed / 6 passed**: the seven valid producer reads resolved
+  rather than refusing, while both mounted unavailable reads and four malformed
+  packet refusals still passed. Restored the file byte-for-byte. Log:
+  `/tmp/b3-mounted-guard-red.log`. No new production safety branch was added.
+- Full changed-file lint initially rejected the cross-project relative import at
+  the new test import. A single test-only `@nx/enforce-module-boundaries`
+  suppression documents the runner-free producer boundary, retaining production
+  import policy. This is the planned test import, not a production alias.
+- The malformed packet assertions initially expected the wrong error label
+  (`schema`); actual adapter failure is `invalid_response`. Corrected the test
+  oracle. The first resize helper also attempted assignment to a read-only
+  property after teardown; it now uses the suite's existing explicit viewport
+  property definition before dispatching resize. Neither failed run is counted
+  as a production regression proof.
+
+Checks use the root workspace's installed `node_modules` through a clone-local
+symlink, not a new frozen install. Nx uses `NX_DAEMON=false
+NX_ISOLATE_PLUGINS=false`. The sandboxed configured frontend target stopped in
+its node prerequisite without detailed output; running that exact node command
+showed **1003 passed / 5 failed**, with existing subprocess tests rejected by
+`spawnSync bun EPERM`. That is an unavailable sandbox check, not a green full
+frontend run. An escalated configured target was requested to permit those Bun
+subprocesses. One exploratory frontend invocation accidentally ran from the repo
+root without its config (18 passed and one collection failure); it is excluded
+from verification evidence.
+
+Deferred: real connected tree adapter propagation and full adapter equality;
+mounted fractional start/end/bar/card spans; mounted captured evidence versus
+final placement; terminal unavailable selection and zero Retry HTTP calls across
+reopen/refetch/remount; selected-ready/floor retention; failed-sibling current-hash
+Retry; pending announcement; mounted enabling R5 mutations. B4 and its terminal
+409/replacement-runtime/stale reconciliation proofs are independent work. Parent
+7.3/7.4/9.2 and B3 enablement remain unchecked. Browser HintLayer/focus/phone
+geometry, canonical clean host gate, required CI, installed solver runtime,
+live admission/Retry authority and activation are unrun and unproven here.
+
+Bounded checks restored green (exit 0):
+
+```sh
+# From apps/wbs/fe-01:
+TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx vite-config.test.ts --no-file-parallelism --maxWorkers=1
+TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
+# From repo root; all Nx commands use NX_DAEMON=false NX_ISOLATE_PLUGINS=false:
+bun test libs/wbs/application/core/src/service/connected-optimization-view.test.ts libs/wbs/domain/contracts/src/http/work-item-response.test.ts libs/wbs/domain/contracts/src/http/schema-shape.test.ts
+bunx nx run wbs-fe-01:typecheck --outputStyle=stream
+bunx nx run wbs-core:lint --outputStyle=stream
+bunx nx run wbs-core:typecheck --outputStyle=stream
+bunx eslint apps/wbs/fe-01/src/components/wbs/connected-optimization-integration.test.tsx apps/wbs/fe-01/vitest.config.ts apps/wbs/fe-01/vite-config.test.ts libs/wbs/application/core/src/testing/connected-optimization-view.fixture.ts
+./node_modules/.bin/openspec validate --all --json
+git diff --check
+```
+
+Counts: **31/31** targeted frontend tests in two files, including **13** new cases;
+**5/5** Auckland tests in four files; **53/53** core/contracts tests with **414**
+assertions; **268/268** OpenSpec items. The final frontend typecheck uses the
+correct `plan-infeasible-dto.ts` test path; its initial attempt named a nonexistent
+`plan-infeasible.ts` and failed. Changed TypeScript lint passes with the actual Nx
+graph and the narrow documented test import exception. Core lint/typecheck ran
+uncached. Formatting was checked on all seven changed paths. Logs use
+`/tmp/b3-mounted-*`; targeted frontend green is `final-targeted-correct.log`, core
+checks are `core-{tests,lint,typecheck}.log`, frontend typecheck is
+`nx-typecheck-final.log`, changed lint is `changed-lint-restored.log`, and final
+spec validation is `openspec-final.log`.
+
+The required frontend lint target was rerun after the test import exception and
+passed uncached (1m37s), log `fe-lint-final.log`; its earlier escalated run had
+already read the pre-exception import and correctly failed that one boundary.
+The escalated node tier reached **1007 passed / 1 failed**: the existing
+`playwright-config.test.ts` shifted-auth Bun subprocess exceeded its 20 s budget
+under concurrent checks (`unit-escalated.log`). Rerunning that test alone with the
+same configured node runner passed **1/1** in 5.98 s, with 17 unrelated cases
+filtered (`auth-recheck.log`). This selected pass does not itself make the full
+configured target green. Build and browser execution remain unrun.
+
+With the heavy checks finished, the full configured node command was rerun
+unchanged and passed **1008/1008 tests in 79 files**, 23.19 s
+(`unit-final.log`). The final selected frontend run, including exact unavailable
+table start/finish `—` and card span `— → —`, passed **31/31**, 7.73 s
+(`selected-final.log`). The earlier timed-out run remains a failed observation;
+no timeout budget was changed. The full UTC jsdom command runs independently
+because the original Nx target had stopped at its failed node prerequisite.
+
+The complete configured UTC jsdom command finished green: **4479/4479 tests in
+225 files**, 1156.07 s (`dom-full.log`). Final configured tiers are therefore
+node **1008/1008**, UTC jsdom **4479/4479**, and Auckland **5/5**. The original
+combined `nx run wbs-fe-01:test` invocation remains a failed historical run at
+its node prerequisite; the three exact configured commands were then verified
+individually. No aggregate-target success or canonical host gate is claimed.
+The lengthy serial jsdom run was allowed to finish; active fresh workers were
+confirmed while its reporter remained silent. All planned checks for this
+bounded prerequisite now pass, with the enabling/deployment limits above.
+
+The clone's normal lefthook pre-commit, prepare-commit-msg and commit-msg hooks
+are installed; the local commit uses them. No push, merge or activation is part
+of this packet. Independent review remains with the parent.
+
+Normal commit hooks passed lint, format, plaintext secrets, private nesting and
+agent message hooks. The tool-wiki hook returned `inactive`, `certified:false`
+because its external activation root is not provisioned; this is not Tool Wiki
+certification. Both migration hooks and doc-caps skipped because no matching
+migration or LLM_README paths were staged. Hook log: `commit.log`.
