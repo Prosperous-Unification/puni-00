@@ -1107,3 +1107,14 @@ step name beside a non-null qualified node address. Two mounted red cases,
 40 restored packet/editor tests and an independent watched address-only mutation
 cover desktop/phone labels, details and stable navigation. Scoped check receipts
 and unchanged task 9.2 completion boundaries remain in the same packet.
+
+## Task 8.2 bounded subtree copy packet
+
+Subtree implementation and scoped evidence: [task-8-subtree-copy.md](evidence/task-8-subtree-copy.md).
+This packet preserves typed prerequisites of copied successors, exact local and
+remote revision preconditions, atomic graph/admission/persistence refusal, and
+stable compensation IDs. Active positives are explicitly admitted semantic
+fixtures; production mounted external copy remains a 409. Whole-project copy
+still depends on task 8.1; task 8.2 remains unchecked. Host gate and mounted MCP
+copy equivalence are unverified in this packet. The evidence records the
+separately reproduced pre-existing command-fixture failure and follow-up repair.
