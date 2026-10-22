@@ -558,10 +558,14 @@ reference fields consume bounded lookup and detached external projections.
    prove Fast/optimized parity, stale-result refusal and mixed-engine reads.
 5. Integrate readiness, event fan-out, retained reads, historical capture,
    exports/imports, copies, HTTP/MCP and the frontend picker/settings.
-6. Advertise an explicit cross-project-dependency runtime capability. Activate
-   authoring only once incompatible readers/writers have drained. Reject
-   downgrade while external relationships exist, with an exact backup/removal
-   recovery command; never deploy an old reader against active external rows.
+6. Advertise an immutable cross-project-dependency runtime capability distinct
+   from additive schema support. Activate authoring only after the deployment
+   owner proves incompatible readers, writers, workers, gateways, MCP processes
+   and retained clients cannot serve or resume against the store. Keep activation
+   authority durable even when no live external relationship remains; never
+   infer downgrade safety from row count. Retain current writes and exposure
+   evidence after possible activation, and use attended compatible recovery
+   rather than automatic migration reversal or an unproven removal command.
 7. Record targeted tests and every watched production-path negative in
    `verify.md`, validate all OpenSpec changes, and run the isolated h2puni gate
    on the actual candidate SHA plus required CI migration/secrets checks.

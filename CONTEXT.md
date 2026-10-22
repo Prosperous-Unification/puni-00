@@ -831,6 +831,10 @@ _Avoid_: link, blocker, edge (outside the graph code)
 A dependency whose predecessor and successor belong to different projects in the same organization. Its ordering applies to the selected work items or steps, not to their projects as indivisible units.
 _Avoid_: project dependency, external link
 
+**Dependency activation authority**:
+The durable decision that permits cross-project dependency authoring for a WBS store after incompatible participants have been excluded. It remains in force when that store has no live cross-project dependencies.
+_Avoid_: feature flag, active edge count
+
 **Dependency endpoint**:
 One side of a typed dependency, in one of three scopes: **whole** (a work item, leaf or
 parent), **node** (one leaf's step node) or **descendant-step** (one project step within

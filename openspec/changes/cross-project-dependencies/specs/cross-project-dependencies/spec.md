@@ -296,9 +296,32 @@ External dependency chips, accessible labels and details SHALL include their pro
 
 ### Requirement: Incompatible readers cannot silently ignore external dependencies
 
-Release activation SHALL prevent cross-project relationships from being authored while an incompatible reader or writer can serve the store. Rollback or downgrade with retained external relationships SHALL refuse explicitly unless a verified compatible recovery procedure is used. Each migration SHALL ship a matching down migration and preserve old local relationships.
+Release activation SHALL prevent cross-project relationships from being authored while an incompatible reader, writer, background worker, gateway, MCP process or retained client can serve the store. Each migration SHALL ship a matching down migration and preserve old local relationships.
 
 #### Scenario: Old application is still serving
 
 - **WHEN** external relationship creation is attempted before compatible application activation is established
 - **THEN** creation refuses rather than storing an edge an old reader would ignore
+
+### Requirement: Dependency activation survives an empty live edge set
+
+Activation authority SHALL remain durable after the last live external relationship is removed. Live edge count alone never authorizes downgrade; an incapable runtime or rollback SHALL refuse after activation unless a verified compatible recovery accounts for retained journal, saved-plan and replay evidence.
+
+#### Scenario: Last live external relationship is removed
+
+- **GIVEN** cross-project dependency semantics were activated for the store
+- **WHEN** the last live external relationship is removed
+- **THEN** activation authority remains and an incapable runtime still refuses to start or downgrade
+- **AND** retained journal, saved-plan and replay obligations are not inferred absent from the live edge count
+
+### Requirement: Recovery preserves facts after possible semantic exposure
+
+When activation may have committed or later writes cannot be excluded, recovery SHALL retain current store bytes and activation and exposure evidence. Ordinary retry, automatic schema reversal and incompatible downgrade SHALL refuse until an explicitly reviewed compatible recovery is admitted. An eligible dormant rollback with independently verified no-write exposure retains its existing contract.
+
+#### Scenario: Failure after possible activation or application exposure
+
+- **GIVEN** activation may have committed or application writes after exposure cannot be excluded
+- **WHEN** deployment, health verification or activation readback fails
+- **THEN** the system retains current store bytes and activation and exposure evidence
+- **AND** ordinary retry, automatic schema reversal and incompatible downgrade refuse pending an explicitly reviewed compatible recovery
+- **AND** a pre-migration capture or snapshot alone does not authorize discarding later writes
