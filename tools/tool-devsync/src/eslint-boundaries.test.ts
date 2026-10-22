@@ -132,7 +132,7 @@ describe('the effective production and test boundaries', () => {
       ).toContain('@nx/enforce-module-boundaries');
   }, 30_000);
 
-  it('Dash executor reaches exactly the contracts alias at its five scoped paths', async () => {
+  it('Dash executor reaches exactly the contracts alias at its seven scoped paths', async () => {
     const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
     const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
     if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
@@ -147,6 +147,8 @@ describe('the effective production and test boundaries', () => {
       'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.ts',
       'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.test.ts',
       'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-turn.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-adapter.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-adapter.test.ts',
     ]) {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
       if (!isRecord(options)) throw new Error('Dash executor boundary options are malformed');

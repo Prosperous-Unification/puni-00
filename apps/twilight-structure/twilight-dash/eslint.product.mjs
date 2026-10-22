@@ -132,12 +132,17 @@ export default ({
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.ts',
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.test.ts',
         'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-turn.test.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-adapter.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-adapter.test.ts',
       ],
       // Proof: the Dash executor effective-policy test loaded valid faults, then failed contracts
       // admission on removal, judge/relative denials on alias/relative widening, and the
       // unlisted no-ambient-clock.test.ts denial on path widening (2/4/8/50 assertions).
       // Proof (Task 2): removing the exact turn-test path failed its admission; agents/*.ts
       // widening failed the unlisted api-model-turn.ts denial after 59 assertions with valid config.
+      // Proof (Task 3): removing the exact adapter/source-test paths failed their admissions after 57/68
+      // assertions; new-path-only alias/relative widening failed judge/relative denials after 59/63,
+      // and agents/*.ts widening admitted the unlisted turn driver after 81. Config remained valid.
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
   ];
