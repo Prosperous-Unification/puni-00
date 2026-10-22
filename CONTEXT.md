@@ -700,14 +700,46 @@ are the **estimate** and the **recorded days** instead
 _Avoid_: metric value, figure, datapoint, reading
 
 **Metric**:
-Which unit a measure is in, from a closed set: `token_estimate`, `token_actual`,
-`hours_actual`. A measure is absent per metric — an hours figure says nothing about
-whether a token figure exists.
-_Avoid_: unit, kind (which is the person's), measure type
+A **measure definition**'s key, the name a measure is addressed by: `time`, `tokens`, `hours`,
+`cost`, `agent_minutes` and whatever the organization defines. A measure is absent per metric —
+an hours figure says nothing about whether a token figure exists.
+_Avoid_: unit, kind (which is the definition's), measure type
+
+**Measure definition**:
+An organization's description of one thing worth estimating and recording: key, name, unit,
+kind (`duration`, `count`, `money`), scale, whether it takes three points, whether its columns
+show by default, and whether it schedules work. Five are seeded; more are a directory command.
+_Avoid_: metric type, measure config, KPI
+
+**Scheduling measure**:
+The one measure definition per organization whose estimates the solver reads — `time`. Every
+other measure's figures leave every date unchanged.
+_Avoid_: primary measure, duration measure
+
+**Measure estimate**:
+Three figures in a measure's unit — optimistic, realistic, pessimistic — held for one step node
+and one measure that allows three points. The scheduling measure's trio is the **estimate**.
+_Avoid_: budget, projection, target
+
+**Expected measure**:
+A measure estimate folded by the project's **PERT weights** and rounded by the measure's
+scale; compared with the **measure** to give the **measure variance**.
+_Avoid_: forecast, mean, planned value
+
+**Measure variance**:
+Fact minus expected for one measure on one step node, rolled up per subtree; absent when
+either side is.
+_Avoid_: overrun, delta, drift
+
+**Budget**:
+A cap on one measure for one work item, strict or advisory, stated by a person or derived
+from the pessimistic point; a parent's budget bounds its subtree. Facts are recorded past it;
+refusing the next attempt is the coordinator's act.
+_Avoid_: allowance, limit (which is the plan's), quota
 
 **Token estimate**:
-The tokens a step's work on one work item is expected to take. One number, not a trio: no
-scheduler folds it, so there is nothing for a range to reduce to.
+The **measure estimate** in `tokens` for one step node: three points since the measure
+budgets change; a legacy single figure reads as a single-point trio flagged until re-estimated.
 _Avoid_: token budget, projected spend, cost estimate
 
 **Token fact**:
