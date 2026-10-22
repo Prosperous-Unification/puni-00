@@ -1031,3 +1031,10 @@ restored mounted coverage, regression checks and watched production-path faults.
 Persisted remote scope edits remain an explicit read-only details state; terminal
 boundary certificate/Retry and remaining 9.2 integration stay open. Task 9.2 is
 not marked complete.
+
+Independent review corrections in the same packet preserve the captured step
+and all-descendants selector when its qualified reference names the parent,
+and restore captured-details entry focus, Escape/ArrowLeft dismissal and picker
+focus return. Eight added red cases, 38 restored packet/editor checks and four
+independent watched mutations cover desktop and phone. The packet's correction
+section records exact commands and excluded gates; task 9.2 remains unchecked.

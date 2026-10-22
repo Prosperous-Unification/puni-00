@@ -57,7 +57,7 @@ function rowOf(rows: readonly TreeRow[], workItemId: string): TreeRow {
   return row;
 }
 
-/** One endpoint's compact spelling, preserving the parent selector's expansion. */
+/** One endpoint's compact spelling; captured descendant addresses name the parent, so step/scope words remain explicit. */
 export function endpointText(
   endpoint: ReadEndpoint,
   rows: readonly TreeRow[],
@@ -67,9 +67,12 @@ export function endpointText(
   // Proof: bypassing captured endpoint words made the mounted null-reference case throw Unknown dependency work item remote-row (2026-10-22).
   if (endpoint.captured !== undefined) {
     const captured = endpoint.captured;
+    // Proof: bypassing this branch failed `preserves non-null captured descendant selector` on desktop and phone (2026-10-22).
+    if (endpoint.scope === 'descendant-step')
+      return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`} · all descendant work items`;
     return (
       captured.qualifiedReference ??
-      `${captured.projectAbbreviation}.${captured.workItemNumber}${captured.step === null ? '' : ` · ${captured.step.name}${endpoint.scope === 'descendant-step' ? ' across all descendants' : ' step'}`}`
+      `${captured.projectAbbreviation}.${captured.workItemNumber}${captured.step === null ? '' : ` · ${captured.step.name} step`}`
     );
   }
   const row = rowOf(rows, endpoint.workItemId);

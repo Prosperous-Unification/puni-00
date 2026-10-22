@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { dependencyViewsOf, type ProjectApi } from '@/lib/wbs-api';
@@ -18,6 +18,7 @@ async function mount(
   phone = false,
   reference: string | null = 'REMOTE.080.s2-dev',
   calendarMissing = false,
+  scope: 'node' | 'descendant-step' = 'node',
 ) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 });
   const api = fakeProjectApi();
@@ -42,17 +43,18 @@ async function mount(
     ...local,
     endpoint: {
       projectId: 'remote-stable',
-      scope: 'node' as const,
+      scope,
       workItemId: 'remote-row',
       stepId: 'remote-dev',
     },
+    isLeaf: scope !== 'descendant-step',
     name: 'Captured remote build',
     projectAbbreviation: 'REMOTE',
     workItemNumber: '080',
     step: { id: 'remote-dev', name: 'Remote development', code: 'DEV', position: 1 },
     qualifiedReference: reference,
-    stepReference: '080.s2-dev',
-    stepNodeId: 'sn1.remote-row.remote-dev',
+    stepReference: scope === 'descendant-step' ? null : '080.s2-dev',
+    stepNodeId: scope === 'descendant-step' ? null : 'sn1.remote-row.remote-dev',
   };
   let capture = remote;
   let notify: (() => void) | undefined;
@@ -244,3 +246,54 @@ it('keeps the persisted remote relationship inspectable when its captured calend
   );
   expect(screen.getAllByText(/REMOTE.*Captured remote project/).length).toBeGreaterThan(0);
 });
+
+for (const phone of [false, true]) {
+  it(`preserves non-null captured descendant selector in labels and details on ${phone ? 'phone' : 'desktop'}`, async () => {
+    await mount(phone, 'REMOTE.080', false, 'descendant-step');
+    const words = /REMOTE\.080.*Remote development.*all descendant work items/i;
+    if (phone) {
+      expect(screen.getByRole('button', { name: /^Edit REMOTE/ })).toHaveAccessibleName(words);
+      expect(screen.getAllByText(words).length).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole('button', { name: /^Edit REMOTE/ }));
+    } else {
+      const chip = screen.getByRole('button', { name: /^Edit dependency: REMOTE/ });
+      expect(chip).toHaveAccessibleName(words);
+      expect(chip).toHaveTextContent(words);
+      fireEvent.click(chip);
+    }
+    const details = screen.getByRole('dialog', { name: 'Captured dependency' });
+    expect(details).toHaveTextContent(words);
+    expect(within(details).getByRole('link', { name: /Open REMOTE\.080/ })).toHaveAttribute(
+      'href',
+      '/?project=remote-stable&workItem=remote-row',
+    );
+  });
+
+  it(`focuses captured details on keyboard entry on ${phone ? 'phone' : 'desktop'}`, async () => {
+    await mount(phone);
+    if (phone) {
+      const edit = screen.getByRole('button', { name: /^Edit REMOTE/ });
+      edit.focus();
+      fireEvent.click(edit, { detail: 0 });
+    } else {
+      const chip = screen.getByRole('button', { name: /^Edit dependency: REMOTE/ });
+      chip.focus();
+      fireEvent.keyDown(chip, { key: 'Enter' });
+    }
+    const back = screen.getByRole('button', { name: 'Back to dependency picker' });
+    await waitFor(() => expect(back).toHaveFocus());
+  });
+
+  for (const key of ['Escape', 'ArrowLeft'])
+    it(`dismisses captured details with ${key} and returns focus on ${phone ? 'phone' : 'desktop'}`, async () => {
+      await mount(phone);
+      fireEvent.click(
+        screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+      );
+      const back = screen.getByRole('button', { name: 'Back to dependency picker' });
+      back.focus();
+      fireEvent.keyDown(back, { key });
+      expect(screen.queryByRole('dialog', { name: 'Captured dependency' })).toBeNull();
+      await waitFor(() => expect(screen.getByLabelText('Add a dependency to 010')).toHaveFocus());
+    });
+}

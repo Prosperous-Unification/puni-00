@@ -79,3 +79,58 @@ certificate/retained-Fast/same-question Retry behavior, abbreviation settings
 integration and the remaining connected frontend/live/readiness/browser and
 activation obligations are not completed by this packet. Prior packet evidence
 continues to own structured schedule unavailability.
+
+## Review corrections — 2026-10-22
+
+Independent review of `cda5ab4ef580842c4d6f0aaca86104fedadb0d26` found two
+bounded defects. A non-null descendant selector's qualified reference is its
+parent work-item address, so returning it alone hid the chosen step and scope.
+Captured details also lacked the existing editor's focus and keyboard contract.
+Both corrections restore the specified display/navigation boundary; they add no
+remote scope editing or task 9.2 completion claim.
+
+The mounted descendant fixture now follows the actual connected producer:
+`scope:'descendant-step'`, `isLeaf:false`, captured remote step metadata,
+`qualifiedReference:'REMOTE.080'`, `stepReference:null`, and `stepNodeId:null`.
+Desktop chip/accessibility words, phone labels and both details dialogs retain
+`REMOTE.080`, `Remote development step`, and `all descendant work items`.
+The link still targets the stable remote project/work-item pair without a
+fabricated step-node address.
+
+The read-only dialog uses the existing editor presentation hook, focuses its
+Back button on entry, and intercepts Escape/ArrowLeft with a native listener
+removed by ref cleanup. Both keys call the existing desktop/phone close
+callbacks, which restore dependency-search focus. No editable control is present
+in this read-only dialog; ArrowLeft therefore retains its existing Back meaning.
+
+Verification of the correction:
+
+- Eight newly added mounted cases failed on the original packet while its prior
+  13 tests stayed green. [Initial red](persisted-remote-display/review-corrections/initial-red.log.txt).
+- `TZ=UTC bunx vitest run src/components/wbs/persisted-remote-dependencies.test.tsx src/components/wbs/typed-dependency-editor.test.tsx --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000`
+  from `apps/wbs/fe-01` passes **38/38**: 21 packet mounted cases and 17 existing
+  editor cases. [Restored output](persisted-remote-display/review-corrections/restored.log.txt).
+- Frontend `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`, scoped ESLint
+  of the three changed frontend files, scoped Prettier and full correction
+  whitespace checks pass. [Check receipt](persisted-remote-display/review-corrections/checks.log.txt).
+- An initial React key handler on the dialog container failed accessibility lint.
+  The final native listener follows the established editor approach and passes
+  lint without a suppression. No browser geometry was run; adding the existing
+  presentation hook is not a new measured browser-layout claim.
+
+Four independent production-path mutations in the separate proof clone each
+failed both desktop and phone tests, then the production source was restored:
+
+| Injected fault                                                                                                   | Observed failure                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [Bypass descendant selector formatting](persisted-remote-display/review-corrections/descendant-selector.log.txt) | Chip/phone accessible names lose remote step and descendant meaning despite a non-null captured reference. |
+| [Remove entry focus](persisted-remote-display/review-corrections/details-focus.log.txt)                          | Back is not focused after actual desktop keyboard entry or phone Edit activation.                          |
+| [Exclude Escape from dismissal](persisted-remote-display/review-corrections/details-escape.log.txt)              | Both captured dialogs remain mounted after Escape.                                                         |
+| [Exclude ArrowLeft from dismissal](persisted-remote-display/review-corrections/details-arrow-left.log.txt)       | Both captured dialogs remain mounted after ArrowLeft.                                                      |
+
+Each log records its exact mutation and Vitest command with the configured
+30-second test/hook limits. Adjacent `Proof:` comments name the observed faults.
+The full eight-file regression and repository/host gates were not rerun for this
+correction; earlier evidence remains historical to its stated snapshot. Task 9.2,
+production activation, persisted scope editing and terminal certificate/Retry
+remain open as stated above.

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 import type { TypedDependencyView } from '@/lib/wbs-api';
 
 import { endpointText } from './typed-dependency-editor';
@@ -26,7 +28,10 @@ export function DependencyNavigation({ dependency }: { dependency: TypedDependen
   );
 }
 
-/** A captured remote relationship remains inspectable even when endpoint choices have not been loaded. */
+/**
+ * Captured relationships stay inspectable without loaded endpoint choices.
+ * Focus enters Back; Escape/ArrowLeft call the owner's picker-focus restoration.
+ */
 export function CapturedDependencyDetails({
   dependency,
   onClose,
@@ -34,11 +39,32 @@ export function CapturedDependencyDetails({
   dependency: TypedDependencyView;
   onClose: () => void;
 }) {
+  const backButton = useRef<HTMLButtonElement>(null);
+  // Proof: removing this effect failed `focuses captured details on keyboard entry` on desktop and phone (2026-10-22).
+  useEffect(() => backButton.current?.focus(), []);
   return (
-    <div role="dialog" aria-label="Captured dependency">
+    <div
+      role="dialog"
+      aria-label="Captured dependency"
+      className="typed-dependency-editor"
+      ref={(element) => {
+        if (element === null) return;
+        const closeForKey = (event: KeyboardEvent) => {
+          // Proof: excluding each key independently failed `dismisses captured details with Escape` and `dismisses captured details with ArrowLeft` on both surfaces (2026-10-22).
+          if (event.key !== 'Escape' && event.key !== 'ArrowLeft') return;
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        };
+        element.addEventListener('keydown', closeForKey);
+        return () => {
+          element.removeEventListener('keydown', closeForKey);
+        };
+      }}
+    >
       <DependencyNavigation dependency={dependency} />
       <p>Relationship: {dependency.type}. Changing captured remote scopes is unavailable here.</p>
-      <button type="button" onClick={onClose}>
+      <button ref={backButton} type="button" onClick={onClose}>
         Back to dependency picker
       </button>
     </div>
