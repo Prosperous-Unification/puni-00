@@ -102,8 +102,26 @@ index paths and a single raw-index hash, so no worker whole-index before/after f
 or raw-byte invariance pass is claimed. Root's complete present-state comparison is
 separate evidence and does not invent a historical capture.
 
-Independent task and bounded whole-branch reviews remain pending. Task boxes remain
-open until their specified behavior and required reviews are accepted. Final cohesive
+Independent task and bounded whole-branch reviews approved source12a8215b4 with no
+Critical or Important findings. The four local behavior/verification tasks are now
+closed after both reviews; this does not close later cohesive operational acceptance. Final cohesive
 exact-SHA canonical gate/applicable CI, actual35-minute hosted behavior and complete
 browser verdict remain unverified at this new source. Original3fdcCI failures remain
 unchanged. This internal correction is not independently published or activated.
+
+## Bounded code acceptance
+
+Independent task review approved both spec compliance and task quality at
+12a8215b4426cfd9b9cffbd51450acf7bcdfc684. Independent final review read the complete
+3fdc85cdc..12a8215b4 two-commit branch and approved incorporation into the private
+cohesive candidate, with no Critical/Important finding and no source fix wave. Both
+retained color-warning and historical Nx-label observations are nonblocking; they
+remain separately deferred, not erased. This follow-up changes acceptance prose and
+local checkboxes only. Production source and the actual proved fault bytes remain
+unchanged. No independent PR, host gate, CI rerun, activation or release was made.
+
+Initial transcript-only RED/permission outcomes, missing historical whole-index
+capture and original3fdcCI failures retain their limits. The complete present-state
+audit and actual3negative/restored logs are distinct evidence. Final cohesive source
+review, exact-SHA canonical gate and applicable hosted CI remain required; no live
+35-minute cancellation or complete hosted browser verdict is asserted here.
