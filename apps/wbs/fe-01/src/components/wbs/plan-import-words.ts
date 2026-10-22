@@ -92,6 +92,10 @@ function refusalWords(refusal: PlanImportRefusal): string {
       return 'That project abbreviation is already in use, so nothing was imported.';
     case 'source_refused':
       return 'The server could not write one of this plan’s work items, so nothing was imported.';
+    // Proof: omitting this arm made the real import-refusal sentence test throw
+    // `Unexpected response variant: object`; watched 2026-10-22.
+    case 'external_dependencies_inactive':
+      return 'This server does not accept dependencies between projects yet, so nothing was imported.';
     case 'step_blockage_inactive':
       return 'This server does not take blocked steps yet, so nothing was imported.';
     case 'unauthenticated':

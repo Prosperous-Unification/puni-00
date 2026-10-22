@@ -865,3 +865,12 @@ lint attempt in the isolated packet exited 1 without rule diagnostics; named-fil
 lint passed. The projector is detached and does no IO or rescheduling. Mounted
 presenter, truthful unavailable DTO, announcement/claim, retained/aggregate paths
 and task 8.4 completion remain open, as does the final CI/host gate.
+
+## Task 8.1 — frontend dormant import refusal
+
+The v11 dormant external-import 409 exposed an unhandled frontend refusal. A
+focused `plan-import-words` Vitest case failed 1/15 at `unreachable` before the
+exhaustive message arm was added, then passed 15/15. Named-file ESLint and diff
+check passed. The adjacent `Proof:` comment records the removed-arm fault.
+Frontend-wide typecheck remains blocked by the separately reviewed task 6.3
+`referenced_by_external_dependency` refusal until that packet is integrated.

@@ -149,6 +149,16 @@ describe('importRefusalSentence', () => {
     );
   });
 
+  it('explains dormant external dependency import without exposing the refusal code', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({ error: 'external_dependencies_inactive', detail: null }),
+      ),
+    ).toBe(
+      'This server does not accept dependencies between projects yet, so nothing was imported.',
+    );
+  });
+
   it('gives every server refusal a sentence that names no code', () => {
     const codes = [
       'invalid_body',
