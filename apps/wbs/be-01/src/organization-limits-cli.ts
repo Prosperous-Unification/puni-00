@@ -14,6 +14,14 @@ import { OrganizationLimitsRepository } from '@wbs/store-sqlite/organization-lim
 
 import { loadOrganizationDefaultLimits } from './config';
 
+/**
+ * Operator CLI over the organization limits row. It runs beside a live be-01 and
+ * outside be-01's in-process write turn: the immediate transaction that
+ * {@link OrganizationLimitsRepository.set} opens is the serialization boundary
+ * (be-01's gauge reads inside its own immediate transaction), so neither side
+ * observes a half-written row. Negative numbers must use the `--flag=<n>` form;
+ * `--flag -1` is read as an unknown option and refused `malformed`.
+ */
 const USAGE =
   'usage: DB_PATH=/path/plan.db bun organization-limits-cli.ts show --organization <id>\n' +
   '       … set --organization <id> [--max-agent-persons <n>] [--max-concurrent-claims <n>] [--max-capacity-units-per-resource <n>] [--apply]\n' +

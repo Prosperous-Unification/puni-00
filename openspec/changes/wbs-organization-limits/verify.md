@@ -475,6 +475,28 @@ organization component suites), any h2puni or h4claw gate.
 | batch refusals name the body's numbers                   | `limitSentence` dropped from `refusalSentence`                                                | five cases of `organization-limit-words.test.ts` read the code-only fallback, 1 pass 5 fail                                                                                                                                                                                   | watched |
 | the people page names the agent cap's numbers            | `refusalOf`'s `agent_person_limit` arm never matching                                         | `names the organization’s agent-person cap with the refusal’s own numbers` (`directory-page.test.tsx`), 49 pass 1 fail                                                                                                                                                        | watched |
 
+### Slice 5 review (Fable, 2026-10-22, PR #650)
+
+Verdict: merge into the plan branch as is; one S2 and five S3 recordings.
+
+- S2-1 fixed: tasks 1.4 and 5.2 had been ticked with text still demanding a memory twin and
+  conformance cases for `set`/`reset`; both now say SQLite-only with the CLI db tests as Red.
+- S3-1 recorded: the hoisted `useOrganizationRole` stays mounted while `loss` is non-null, so a
+  late role refusal may replace one loss with another, and a page whose organizations feature
+  is unreachable but whose resource scope is `active` sends one role read it did not before.
+  Both are loss-to-loss or a single harmless read; no test pins them.
+- S3-2 fixed: the CLI module JSDoc names the immediate transaction as the serialization
+  boundary against a live be-01 outside its write turn.
+- S3-3 fixed in words: negative numbers need `--flag=<n>`; `--flag -1` is refused `malformed`
+  (exit 2), not `out_of_bound` (exit 5). Still a typed refusal.
+- S3-4 recorded: the merge commit `bc12be87e` also carries the role-hoist work in
+  `limits-panel.tsx`, its test and the new page test (not conflict files).
+- S3-5 recorded: `audit.test.ts` "every write fills the audit columns" skips inserts spread
+  from `auditOnOperatorCreate`, which itself fills the columns with `createdBy` null; no reader
+  dereferences `organizationLimits.createdBy`.
+- S3-6 recorded: `organization-limits.routes.ts` receives the whole `OrganizationLimits`
+  port, including `set`/`reset`, by design L12; a `Pick<…, 'read'>` would narrow it.
+
 ## Gate output
 
 Pending. To be recorded per slice with `bin/h2puni-gate.sh <sha>` (or h4claw) output, and

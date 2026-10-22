@@ -32,8 +32,9 @@ added })` answers null under the cap, the refusal at and over it, and a property
       `>=`; the "exactly at the cap after the add" case flips; watched.
 - [x] 1.4 Green: port `OrganizationLimits` in `@wbs/core` (`effectiveLimitsOf`, `usageOf`,
       `countAgentPersons`, `countBoundClaims`, `sumStatedCapacity(resourceId,
-exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conformance
-      suite; `effectiveLimitsOf` answers the row or the injected defaults with `source` —
+exceptProjectId)`, `set`, `reset`) over SQLite; the memory twin and the conformance
+      suite cover the gauge only (slice 3), `set`/`reset` are SQLite-only (slice 5 note below);
+      `effectiveLimitsOf` answers the row or the injected defaults with `source` —
       Red: the conformance cases for a row, no row, the three usage counts over two
       organizations (the foreign rows never counted), the triple count over a four-step leaf
       and two agents on one leaf. R5 fault: drop the `person_organization` join and B's agents
@@ -172,8 +173,9 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       rebuild `wbs-machine-credentials` has merged first (L13).
 - [x] 5.2 `OrganizationLimits.set` and `reset` write the row and the audit row in one
       immediate transaction, actor `operator:<os login>`, flat before and after detail,
-      unchanged `set` writes nothing — Red: the conformance cases and the "audit cannot be
-      written" case through a failing audit store. R5 fault: write the audit outside the
+      unchanged `set` writes nothing — Red: the `organization-limits-cli.db.test.ts` cases
+      (SQLite-only, no conformance twin) and the "audit cannot be written" case through a
+      `RAISE(ABORT)` trigger on `organization_audit`. R5 fault: write the audit outside the
       transaction and the failing-audit case leaves a row; watched.
 - [x] 5.3 `organization-limits-cli.ts`: `show`, `set` (defaults for caps not given, row values
       when one exists), `reset`; refusals for an unknown organization, an out-of-bound value,
