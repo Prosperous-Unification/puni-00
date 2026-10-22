@@ -8,7 +8,9 @@ operations; the coordinating assessor checked live systems, observability and co
 **Rerun 2026-10-22:** the scope gained [Agent swarm organization](../../../puni-assessment.md#agent-swarm-organization).
 That criterion was assessed at checkout `d43f4176a18ff32b22161f478eb02e62ae328667` in
 [swarm organization](swarm-organization.md), and the three current findings below were
-re-read in the [live refresh](live-evidence.md#rerun-refresh--2026-10-22). Capabilities
+re-read in the [live refresh](live-evidence.md#rerun-refresh--2026-10-22). The criterion
+itself was then re-evaluated against 2026 research and benchmarks in
+[the swarm criteria research note](swarm-criteria-research.md), which added four criteria. Capabilities
 whose scope did not change were not re-assessed; their judgments remain dated 2026-10-21.
 
 **Follow-through:** the [readiness roadmap](../../superpowers/plans/2026-10-21-puni-readiness-roadmap.md)
