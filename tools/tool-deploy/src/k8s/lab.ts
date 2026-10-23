@@ -23,6 +23,8 @@ import {
   run,
 } from './execute';
 import { fileJournal } from './journal';
+import { redactDiagnostic } from './lab-diagnostics';
+import { observeMissingMcpKey } from './lab-mcp-observation';
 import { labConfigDigestReader } from './lab-registry';
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity, type ReleaseRequest } from './release';
 
@@ -98,16 +100,7 @@ function log(line: string): void {
   console.log(`[lab ${new Date().toISOString().slice(11, 19)}] ${line}`);
 }
 
-/** Cap diagnostic output after replacing lab key material; never include a Secret payload. */
-export function redactDiagnostic(message: string, secrets: readonly string[]): string {
-  let redacted = message;
-  // Proof: deleting this replacement exposed generated-key-material in
-  // lab-diagnostics.test.ts (2026-09-27); restoring it passed the same test.
-  for (const secret of secrets) redacted = redacted.replaceAll(secret, '[REDACTED]');
-  redacted = redacted.replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, '[REDACTED]');
-  redacted = redacted.replace(/(MCP_(?:STORE|SIGNING)_KEY_[A-Z]+[=:])[^\s]+/g, '$1[REDACTED]');
-  return redacted.slice(0, 8192);
-}
+export { redactDiagnostic } from './lab-diagnostics';
 
 /** Reject a failed Secret write while keeping its payload out of the error. */
 export function assertSecretApplied(
@@ -212,48 +205,21 @@ async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
     { MCP_STORE_KEY_CURRENT: '', MCP_SIGNING_KEY_CURRENT: keys.signing },
     secrets,
   );
-  await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
-  // A crash-looping container restarts within seconds, and containerd drops the log of the
-  // container `lastState` names once a newer one replaces it; `kubectl logs --previous` then
-  // prints "unable to retrieve container logs" (run 36429927264, twice on one head). Re-read
-  // the pod and its previous log together until one terminated container shows both facts.
-  const deadline = Date.now() + 180_000;
-  let observed = 'no MCP container has terminated yet';
-  for (;;) {
-    if (Date.now() > deadline) {
-      throw new Error(
-        `ASSERTION FAILED: MCP pod without a store key exits non-zero and names the key in its log; last seen: ${observed}`,
-      );
-    }
-    await Bun.sleep(2_000);
-    const pods: (string | undefined)[][] = (
-      await k([
-        '-n',
-        'wbs',
-        'get',
-        'pods',
-        '-l',
-        'app.kubernetes.io/name=wbs-mcp',
-        '-o',
-        'jsonpath={range .items[*]}{.metadata.name} {.status.containerStatuses[0].lastState.terminated.exitCode}{"\\n"}{end}',
-      ])
-    )
-      .trim()
-      .split('\n')
-      .map((line) => line.trim().split(' '));
-    const [pod, exitCode] = pods.find(([, code]) => code !== undefined && code !== '') ?? [];
-    if (pod === undefined || exitCode === undefined) continue;
-    const logs = redactDiagnostic(
-      await k(['-n', 'wbs', 'logs', pod, '-c', 'mcp', '--previous', '--tail=40']),
-      secrets,
-    );
-    observed = `pod ${pod} exited ${exitCode}; log: ${logs}`;
-    // Blank rather than delete: deleting the key from the Secret stops at kubelet
-    // CreateContainerConfigError before the process runs (observed on the kept lab, 2026-09-27).
-    // Proof: expecting MCP_STORE_KEY_FAULT_INJECTED here failed run 36438630324 on the deadline
-    // with `last seen: pod … exited 1`, and this head passed k3s-rehearsal on #180.
-    if (exitCode !== '0' && logs.includes('MCP_STORE_KEY_CURRENT is required')) break;
-  }
+  // Blank rather than delete: deleting the Secret key stops at kubelet configuration
+  // validation before MCP runs, so it cannot prove the application's startup refusal.
+  const observed = await observeMissingMcpKey(
+    {
+      invoke: (args, timeoutMs) =>
+        run(
+          [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT, ...args],
+          null,
+          timeoutMs,
+        ),
+      now: Date.now,
+      sleep: Bun.sleep,
+    },
+    secrets,
+  );
   log(`MCP without a store key: ${observed}`);
   log('assert ok: MCP pod without a store key exits non-zero and names the key in its log');
   await applyMcpSecret(

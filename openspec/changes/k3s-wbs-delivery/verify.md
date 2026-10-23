@@ -977,3 +977,58 @@ F11.1d remains unchecked for independent re-review and live acceptance. No live
 operations, push, merge, activation, full host gate or shared Lease executor changes.
 The previously recorded live acceptance and external configuration provenance gaps
 remain outstanding.
+
+## F8 MCP replacement observation race (2026-10-23)
+
+Infra run `39924067289` selected a historical termination from the pre-restart Recreate
+pod, then failed when that pod disappeared before `logs --previous`. The nominal
+180-second loop did not bound its individual kubectl calls or model that lifecycle race.
+`observeMissingMcpKey`, called by the real lab, now captures pre-restart UIDs, validates
+structured pod JSON, selects the named `mcp` container only on a replacement non-terminating
+pod, and correlates a nonzero exit and `MCP_STORE_KEY_CURRENT is required` log to the
+same UID and terminated container ID with a second status read. Only log-request pod
+NotFound or previous-container unavailability naming the selected pod, and the precise
+unavailable-log form with a 64-hex containerd ID, retry. A newer
+unavailable container ID retries because that pod-scoped command can race a restart;
+success still requires matching UID/container evidence across reads. Collection reads and
+errors naming another pod, malformed runtime IDs, authorization failures and malformed
+observations refuse immediately. Restart, reads, logs and sleeps share the remaining deadline; failure
+retains bounded redacted evidence. The SQL CHECK assertion is unchanged.
+
+Focused production-loop coverage includes replacement/disappearance convergence, each
+modeled lifecycle fault exhausting the deadline, exit-zero and unrelated OOM rejection,
+changed terminated-container identity, Forbidden/malformed refusal, diagnostic redaction,
+command-time budget consumption and completion after the deadline.
+
+Eleven watched omission faults each exited 1 with a named failed focused test: nonzero
+exit guard, required-log guard, container-ID confirmation, lifecycle recovery, old-UID
+exclusion, terminating-pod exclusion, subprocess deadline cap, and post-command deadline
+guard, foreign-pod recovery, malformed-runtime recovery and structured decoding. Each
+original was restored in `finally`. The initial UID negative was too weak:
+removing its guard survived because another later pod supplied the proof. It now asserts
+which exact pod names supplied logs; the omission then failed. Logs are local execution
+artifacts at `/tmp/puni-mcp-observation-proofs/<fault>.log`.
+
+Fresh verification in `/tmp/puni-mcp-race` (Nx daemon and plugin isolation disabled,
+Nx cache skipped):
+
+- `bun test tools/tool-deploy/src/k8s/lab-mcp-observation.test.ts`: exit 0,
+  21 pass, 0 fail, 378 assertions; `/tmp/puni-mcp-focused-final.log`.
+- `bunx nx run tool-deploy:test --skip-nx-cache`: exit 1, 1325 pass, 2 fail,
+  3853 assertions across 42 files, 341.17s; `/tmp/puni-mcp-test-final.log`.
+  Both failures were existing `first-start-adapter.test.ts` SQLite observation cases,
+  `bad-replay` and `nonempty-wal`, hitting the configured 10000ms timeout. No MCP case failed.
+  The initial restricted attempt could not bind the fake registry's local HTTP listener;
+  the complete run used listener permission outside the sandbox.
+- Rerunning only those two cases with the same scratch preload and unchanged 10000ms
+  timeout: exit 0, 2 pass, 0 fail, 12.31s; `/tmp/puni-mcp-unrelated-timeouts-rerun.log`.
+  This does not turn the complete configured run green.
+- `bunx nx run tool-deploy:lint --skip-nx-cache` and
+  `bunx nx run tool-deploy:typecheck --skip-nx-cache`: exit 0;
+  `/tmp/puni-mcp-lint-final.log`, `/tmp/puni-mcp-typecheck-final.log`.
+- `./node_modules/.bin/openspec validate --all --json`: exit 0, all 273 entries pass;
+  `/tmp/puni-mcp-openspec.log`. Scoped Prettier check and `git diff --check`: exit 0.
+
+No heavy k3s rerun, host gate, deployment, integration or push was performed. The separate
+rollback Job OOM/exit-137 failure remains unresolved; this race repair does not establish
+live rehearsal acceptance.
