@@ -31,6 +31,7 @@ const newerMigrations = [
   '20261022120000_scope_trusted_issuer_audience',
   '20261022130000_add_organization_limits',
   '20261022130100_widen_organization_audit_organization_limits',
+  '20261023100000_add_claim_lease',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',

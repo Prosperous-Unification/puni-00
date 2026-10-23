@@ -20,6 +20,7 @@ const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -126,7 +127,7 @@ describe('person account and credential pin migrations', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
+      `rolled back: ${CLAIM_LEASE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
     );
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');
