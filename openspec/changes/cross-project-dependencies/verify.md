@@ -5636,3 +5636,16 @@ eight-file bounded runs passed 214/214 tests with 1,008 assertions, including
 the repaired mounted fixture. Task 5.1 is checked on that implementation and
 proof evidence. This does not close optimization admission, frontend delivery,
 semantic activation or the exact-head host/CI gate.
+
+## Task 5.2 scheduling-cause invalidation (2026-10-23)
+
+The independently reviewed [mounted cause packet](evidence/task-5-2-causes/report.md)
+exercises estimate, calendar anchor, team capacity, persisted engine selection
+and objective edits in isolated and shared modes. Each causes exactly one
+durable invalidation for the downstream project and transitive tail, with no
+foreign or unrelated event; repeated writes add none. Five separate watched
+production faults remove the corresponding captured scheduling identity or
+truncate traversal and fail the intended event assertions. On the integrated
+branch, the cause, topology and earlier event suites pass 20/20 with 359
+assertions. This proves backend invalidation, not changed schedule dates or
+actual gateway/browser delivery; task 5.2 remains open.

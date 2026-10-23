@@ -69,9 +69,8 @@ async function fixture() {
  * Watched failures: cross-project-dependencies/evidence/task-5-2-causes.
  */
 for (const cause of ['estimate', 'calendar', 'capacity', 'engine', 'objective'])
-  it.each([false, true])(
-    `${cause} scheduling edit invalidates dependency readers with shared mode %s`,
-    async (shared) => {
+  for (const shared of [false, true])
+    it(`${cause} scheduling edit invalidates dependency readers in ${shared ? 'shared' : 'isolated'} mode`, async () => {
       const { harness, upstream, downstream, tail, foreign, foreignTail, events } = await fixture();
       if (shared)
         harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
@@ -127,8 +126,9 @@ for (const cause of ['estimate', 'calendar', 'capacity', 'engine', 'objective'])
       // Repeating a successful write is not another scheduling change.
       expect(await mutate(cause)).toMatchObject({ status: 200 });
       for (const project of [downstream, tail]) expect(events(project.id)).toHaveLength(1);
+      for (const projectId of [upstream.id, foreign.id, foreignTail.id, unrelated])
+        expect(events(projectId)).toEqual([]);
       expect(harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all()).toEqual(
         endpoints,
       );
-    },
-  );
+    });

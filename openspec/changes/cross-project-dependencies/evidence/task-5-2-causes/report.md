@@ -54,3 +54,11 @@ socket/browser delivery, topology replacement, rollback faults, live activation,
 a build or a canonical isolated host gate. Existing completion/rank/label/commit
 and rollback controls were rerun in the companion event suite; topology work is
 being handled separately. The parent task and release acceptance remain open.
+
+Independent Astra High review approved the bounded packet without a Critical or
+Important finding and reran 19/19 with 290 assertions. After integration, the
+case names distinguish isolated and shared mode, and the repeated write
+reasserts source, foreign and unrelated silence. The causes, prior event and
+topology suites then passed 20/20 with 359 assertions; changed-file ESLint and
+Prettier passed. These refinements add no production guard and do not expand the
+original five watched fault claims.
