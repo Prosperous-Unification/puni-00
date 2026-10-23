@@ -17,6 +17,6 @@
 
 ## Task 5: End-to-end proof and review
 
-- [ ] 5.1 Demonstrate one real Puni change through an organization-scoped local WBS read and the GitHub adapter; record source identity, timing basis, coverage and provider limits in `verify.md`. Verify OpenSpec, formatting and focused tests/lint/typecheck/build; obtain independent review and fix findings. Record the failure-proof table and every skipped/unavailable check. Complete this implementation record before publication.
+- [x] 5.1 Demonstrate one real Puni change through an organization-scoped local WBS read and the GitHub adapter; record source identity, timing basis, coverage and provider limits in `verify.md`. Verify OpenSpec, formatting and focused tests/lint/typecheck/build; obtain independent review and fix findings. Record the failure-proof table and every skipped/unavailable check. Complete this implementation record before publication.
 
 Final acceptance follows publication: prepare the reviewed commits and PR, obtain the required gate and pixels verdicts on its final head, and retain actual CI scope, logs and timings in the PR verification receipt referenced by `verify.md`. Do not change the tested head just to duplicate that external evidence. Use the locked host wrapper if additional host validation becomes necessary. No merge or deployment is authorized.
