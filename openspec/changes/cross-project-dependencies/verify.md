@@ -6352,3 +6352,15 @@ connected-feasible binds, then failed precisely at the fractional child
 response (`expected solver-proven boundary-infeasible: failed`); all owned
 Docker resources were inspected absent afterward. The whole exact-head gate
 remains pending; see the packet above for pinned digests and module hashes.
+
+### 2026-10-23 bounded task 10.1 client incompatibility presentation
+
+The [client packet](verify-client-compatibility.md) was integrated as
+`63f2a26b2` after independent Astra High review. The exact protected 409
+schema becomes a typed `dependency_incompatible` failure and the mounted plan
+renders compatible-client guidance; ordinary 409s and exempt requests retain
+their prior meaning. Focused shared/frontend controls passed 45/231 tests and
+seven separate safety mutations failed their named assertions. Integrated
+serial uncached frontend lint/typecheck passed. No V1 HTTP/WS claim, semantic
+advertisement or authoring activation was added; parent 10.1 and exact-head
+host/CI gates remain open.

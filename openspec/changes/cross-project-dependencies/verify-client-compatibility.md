@@ -73,3 +73,18 @@ migration lint or independent review was run for this isolated prerequisite.
 No backend or gateway source was edited. No false V1 HTTP or WS claim is emitted.
 Existing retained sockets, client capability negotiation, complete participant
 fencing, activation, semantic support and production authoring remain separate work.
+
+## Integrated review and configured checks
+
+The exact `fadd66a6` packet was independently reviewed by Astra High with no
+blocking findings. The reviewer reran 45 shared-client tests, 231 focused
+frontend tests, the real mounted compatibility case and a production frontend
+TypeScript no-emit check. Review confirmed exact protected 409 decoding,
+required/status/header retention through a real `Response`, ordinary conflict
+and exemption behavior, actual plan guidance, and no V1 claim or activation.
+
+After integration as feature commit `63f2a26b2`, serial uncached
+`bunx nx run-many -t lint typecheck -p wbs-fe-01 --parallel=1 --skip-nx-cache
+--outputStyle=static` passed the module prerequisite and both configured
+frontend targets in 4m56s. This is an integrated source check, not a full
+feature gate; E2E, complete CI and the exact-head h2puni gate remain pending.

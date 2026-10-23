@@ -609,4 +609,5 @@ parent tasks 7.3/7.4 stay open.
 - [x] Write failing shared-client and real HTTP mounted-plan tests for exact protected-resource incompatibility, malformed envelopes and visible guidance without sending claims.
 - [x] Decode the exact shared admission schema as typed `dependency_incompatible` boundary failure; retain required semantics, normal conflicts, exemptions and cancellation; render plan guidance.
 - [x] Watch separate decoding, presentation, closed-envelope, required-semantics, status, exemption and cancellation faults fail; restore each fault and run focused verification.
-- [ ] Complete independent review and the isolated host gate on the integrated SHA. Parent 10.1 remains open: no V1 HTTP/WS claim, protocol negotiation, activation, semantic advertisement or authoring enablement. Evidence: [verify-client-compatibility.md](verify-client-compatibility.md).
+- [x] Complete independent Astra review and integrated configured frontend lint/typecheck; evidence: [verify-client-compatibility.md](verify-client-compatibility.md).
+- [ ] Complete isolated host gate on the integrated SHA. Parent 10.1 remains open: no V1 HTTP/WS claim, protocol negotiation, activation, semantic advertisement or authoring enablement.
