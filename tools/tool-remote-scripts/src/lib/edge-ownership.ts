@@ -182,3 +182,38 @@ export function ownerDockerExec(
     })(args, signal);
   };
 }
+
+/**
+ * Holds the canonical solver runtime description for the entire protected callback.
+ * Acquisition proves exclusion only for guarded executables, never legacy live
+ * solver drain. Every owner boundary inside the callback verifies this description.
+ */
+export async function withOwnerSolverRuntime<T>(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  action: () => Promise<T>,
+): Promise<T> {
+  // Proof: omitting both entry owner checks reached protected callback after
+  // marker replacement (solver-runtime-admission.test.ts, owner-entry mutation, exit 1).
+  await assertDependencyOwner(owner, layout);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  const path = join(ownership.directory, 'solver-runtime.lock');
+  // Proof: substituting wrong-runtime.lock reached protected work during actual
+  // paused CLI startup (solver-runtime-admission.proc.test.ts, owner-lock mutation, exit 1).
+  return withCanonicalLock(path, async (descriptor) => {
+    // Proof: omitting checked description lets replaced runtime inode pass an owner boundary (solver-runtime-admission.test.ts).
+    const lock = { path, descriptor };
+    ownership.locks.push(lock);
+    try {
+      await assertDependencyOwner(owner, layout);
+      const value = await action();
+      // Proof: omitting this check returned success after callback changed owner
+      // bytes (solver-runtime-admission.test.ts, owner-post-check mutation, exit 1).
+      await assertDependencyOwner(owner, layout);
+      return value;
+    } finally {
+      ownership.locks.splice(ownership.locks.indexOf(lock), 1);
+    }
+  });
+}

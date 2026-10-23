@@ -1,0 +1,30 @@
+from pathlib import Path
+import subprocess
+root=Path.cwd()
+lib=root/'tools/tool-remote-scripts/src/lib/solver-runtime-admission.ts'
+owner=root/'tools/tool-remote-scripts/src/lib/edge-ownership.ts'
+cli=root/'tools/tool-remote-scripts/src/solver-supervisor.ts'
+checks=[
+ ('runtime-canonical',lib,lambda s:s.replace("if (!isAbsolute(directory) || resolve(directory) !== directory)", "if (false)"), 'runtime refuses alias'),
+ ('runtime-lock',lib,lambda s:s.replace("join(directory, 'solver-runtime.lock')", "join(directory, 'wrong-runtime.lock')"), 'actual CLI retains runtime after readiness'),
+ ('runtime-strict',lib,lambda s:s.replace("import { withCanonicalLock }", "import { withLock as withCanonicalLock }"), 'runtime refuses symlink lock'),
+ ('owner-lock',owner,lambda s:s.replace("join(ownership.directory, 'solver-runtime.lock')", "join(ownership.directory, 'wrong-runtime.lock')"), 'paused actual startup'),
+ ('owner-entry',owner,lambda s:s[:s.index('export async function withOwnerSolverRuntime')]+s[s.index('export async function withOwnerSolverRuntime'):].replace('await assertDependencyOwner(owner, layout);','',2), 'runtime owner checks retained publication before'),
+ ('runtime-marker',lib,lambda s:s.replace('await assertNoEdgeOwner(directory);',''), 'actual CLI edge-owner'),
+ ('runtime-directory',lib,lambda s:s.replace('await readdir(directory);',''), 'runtime refuses unreadable'),
+ ('owner-description',owner,lambda s:s.replace('ownership.locks.push(lock);',''), 'owner callback retains runtime lock'),
+ ('owner-post-check',owner,lambda s:s.replace('const value = await action();\n      await assertDependencyOwner(owner, layout);','const value = await action();'), 'runtime owner checks retained publication after'),
+ ('cli-lifetime',cli,lambda s:s.replace('await new Promise<never>(() => {\n          setInterval(() => undefined, 60_000);\n        });',''), 'actual CLI retains runtime after readiness'),
+]
+evidence=root/'openspec/changes/cross-project-dependencies/evidence/solver-runtime-admission'
+for name,path,mutate,pattern in checks:
+ original=path.read_text(); changed=mutate(original)
+ if original==changed: raise RuntimeError('mutation did not apply '+name)
+ try:
+  path.write_text(changed)
+  command=['bun','test','tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts','tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts','--preload','./tools/test/scratch/preload.ts','--timeout=10000','-t',pattern]
+  completed=subprocess.run(command,cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  (evidence/(name+'.log.txt')).write_text(' '.join(command)+'\n'+completed.stdout+'\nexit '+str(completed.returncode)+'\n')
+  print(name,completed.returncode,completed.stdout[-180:],flush=True)
+  if completed.returncode==0: raise RuntimeError('mutation survived '+name)
+ finally: path.write_text(original)

@@ -1314,3 +1314,17 @@ any next session. A lost owner refuses even cleanup session creation and retains
 uncertainty for attended recovery. Canonical owner locks use kernel no-follow
 opening plus synchronous opened-regular-inode/path validation before any holder
 record write; legacy lock callers retain their prior contract.
+
+### Bounded solver runtime admission prerequisite
+
+The actual supervisor executable takes canonical `<edge state>/solver-runtime.lock`
+before reading config, sweeping or binding; it never takes edge.lock. Its callback
+remains open after listener readiness until process termination, including request
+continuations. The kernel releases it on SIGTERM/SIGKILL; no signal handler
+releases admission early. Read-only mapping preflight bypasses this lock.
+The installer retains edge.lock across restart/readiness without self-contention.
+A live dependency owner can take the same runtime lock in a structured callback,
+checking its owner and adding the descriptor to all owner boundary checks for
+that callback. Protected work must remain inside it. This only excludes adopted
+guarded source executables: old unguarded live processes still require census,
+stop/drain and restart-authority adoption. S1/S2/O4 and activation remain open.

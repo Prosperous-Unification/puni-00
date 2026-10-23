@@ -826,3 +826,9 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] O2 Prove per-boundary durable intent/readback and interruption retention; extract managed fence cores with owner-only mutation, preserving public wrapper safety.
 - [x] O3 Execute the dedicated explicit managed fence and prove retained admission closure, exact existing cohort receipts and no activation/restoration; record focused checks in verify-dependency-owner.md.
 - [ ] O4 Add complete ingress/MCP/solver/replay/background/restart ownership and installed-writer adoption/drain, then atomic activation and compatible restoration with explicit verified handoff. Parent 10.2 remains open.
+
+### Bounded Task 10.2 solver runtime admission prerequisite
+
+- [x] Add canonical runtime admission to the actual supervisor CLI for its full process lifetime, preserving read-only preflight and edge-held installer readiness.
+- [x] Add owner-scoped runtime lock callback, owner boundary checks and child-process contention/race/interruption proofs.
+- [x] Record focused checks and watched production omissions in [verify-solver-runtime-admission.md](verify-solver-runtime-admission.md). Old unguarded process adoption/drain, effective restart authority, S1/S2/O4 and parent 10.2 remain open.

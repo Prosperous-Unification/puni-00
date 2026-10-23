@@ -1336,3 +1336,31 @@ exclusion with unresolved participant obligations and SHALL retain evidence.
 - **THEN** the owner cannot issue a complete participant proof or activate storage
 - **AND** future handoff requires complete installed writer, ingress, MCP, solver,
   replay/background and restart exclusion through the final exposure readback
+
+### Requirement: Guarded supervisor runtime admission
+
+The supervisor executable SHALL hold canonical solver-runtime.lock from before
+config read, orphan sweep and socket bind until process termination. It SHALL
+refuse retained owner markers. Mapping preflight SHALL remain read-only and
+independent of runtime occupancy. A live dependency owner SHALL hold that same
+lock throughout its protected callback and include it in owner boundary checks.
+This source prerequisite SHALL NOT claim legacy process drain or activation.
+
+#### Scenario: Ready supervisor retains admission
+
+- **WHEN** the actual guarded supervisor is ready or paused in startup
+- **THEN** a competing launch or protected owner callback refuses
+- **AND** edge-held installer readiness remains possible
+- **AND** the kernel releases runtime admission after process termination
+
+#### Scenario: Retained owner and invalid trusted state refuse
+
+- **WHEN** owner markers exist or trusted runtime state is absent or unreadable
+- **THEN** supervisor admission refuses before config read, orphan sweep or bind
+- **AND** read-only mapping preflight still validates mapping under owner markers and runtime occupancy
+
+#### Scenario: Owner runtime callback loses evidence
+
+- **WHEN** the runtime descriptor identity or retained owner bytes change
+- **THEN** subsequent owner boundaries and successful callback completion refuse
+- **AND** interruption retains owner markers for attended recovery

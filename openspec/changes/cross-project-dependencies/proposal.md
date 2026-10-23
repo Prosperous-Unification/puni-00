@@ -17,7 +17,7 @@ Cross-organization dependencies, project-level ordering restrictions, whole-proj
 
 ## Constraints
 
-Preserve local behavior and access boundaries; require successor edit and predecessor read access. Use additive migrations with rollback and explicit compatibility for older writers. Never omit unresolved prerequisites or fabricate dates. Preserve API/MCP contracts through explicit versioning, and prove new safety guards with watched production-path negatives. CI and the isolated host gate remain release gates.
+Preserve local behavior and access boundaries; require successor edit and predecessor read access. Use additive migrations with rollback and explicit compatibility for older writers. Never omit unresolved prerequisites or fabricate dates. Preserve API/MCP contracts through explicit versioning, and prove new safety guards with watched production-path negatives. CI and the isolated host gate remain release gates. The bounded solver runtime admission prerequisite guards the actual source executable for its process lifetime and provides an owner callback; live legacy process adoption/drain and effective restart authority remain outside that packet.
 
 ## Capabilities
 

@@ -1,3 +1,4 @@
+import { withSolverRuntimeAdmission } from './lib/solver-runtime-admission';
 import { decodeSolverSupervisorConfig } from './lib/solver-supervisor-config';
 import {
   type SolverSupervisorRuntimeOptions,
@@ -153,7 +154,11 @@ const DEFAULT_DEPENDENCIES: SolverSupervisorEntrypointDependencies = {
   },
 };
 
-/** Reads one bounded host-owned document, validates it completely, then listens. */
+/**
+ * Reads one bounded host-owned document, validates it completely, then returns
+ * at listener readiness. This startup seam does not own runtime admission;
+ * the actual CLI retains it for its entire process lifetime.
+ */
 export async function runSolverSupervisor(
   argv: readonly string[],
   dependencies: SolverSupervisorEntrypointDependencies = DEFAULT_DEPENDENCIES,
@@ -179,7 +184,19 @@ if (import.meta.main) {
         assertSolverSupervisorMapping(await readConfig(expected.config), expected);
         console.log(`[wbs-solver-supervisor] ${expected.env} mapping preflight ok`);
       })()
-    : runSolverSupervisor(argv);
+    : // Proof: omitted CLI admission reached missing config under retained markers;
+      // solver-runtime-admission.proc.test.ts observed owner callbacks during paused startup.
+      withSolverRuntimeAdmission(async () => {
+        await runSolverSupervisor(argv);
+        // startSolverSupervisor returns at readiness. Retain the descriptor after
+        // that return and through all listener/request continuations. No signal
+        // handler unlocks it: the kernel closes it only when this process exits.
+        // Proof: removing lifetime wait lets the real ready CLI lose its lock
+        // in solver-runtime-admission.proc.test.ts (SIGTERM/SIGKILL cases).
+        await new Promise<never>(() => {
+          setInterval(() => undefined, 60_000);
+        });
+      });
   operation.catch((error: unknown) => {
     const message = error instanceof Error ? error.message : 'unknown failure';
     console.error(`[wbs-solver-supervisor] startup failed: ${message}`);
