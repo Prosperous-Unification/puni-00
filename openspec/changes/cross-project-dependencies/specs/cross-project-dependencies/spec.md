@@ -1229,3 +1229,79 @@ automatic rollback or activation permission.
 - **AND** it sets exact file modes and verifies all four sibling hashes and the sibling Bun version before the first final replacement
 - **AND** final replacement uses the native rename syscall with no cross-device copy recovery
 - **AND** preparation failure leaves all installed files unchanged, collisions preserve directories this attempt did not create, and failed staging cleanup reports the attempt and original expected hashes rather than success
+
+### Requirement: Supervisor execution consumes captured boot material
+
+The supervisor SHALL execute its hashed captured bundle bytes through a private virtual Bun.plugin loader and invoke the exported entrypoint. Config digest and decode SHALL consume identical captured bytes. Runtime identity SHALL use `/proc/self/exe`. The bundle SHALL contain only admitted builtin imports.
+
+#### Scenario: Bundle path replacement cannot replace captured execution
+
+- **WHEN** bundle A is captured and its path is atomically replaced by B or unlinked before virtual import
+- **THEN** A executes and reports A's digest; a hash-A/import-path mutant fails the same semantic control
+
+#### Scenario: Config and executable pathname replacement cannot counterfeit boot identity
+
+- **WHEN** config A is captured then replaced by B before decoding, or the installed Bun path is replaced after exec
+- **THEN** decoding and config digest describe A, and executable identity describes `/proc/self/exe`
+- **AND** missing, unreadable or malformed boot material refuses readiness
+
+#### Scenario: Existing packages cannot extend the bundle
+
+- **WHEN** a bundle contains a non-builtin residual import, including an existing local package despite `--no-install`
+- **THEN** installation refuses before service restart
+
+### Requirement: Supervisor startup policy excludes ambient executable inputs
+
+The generated unit SHALL explicitly constrain config, environment files, package installation, cwd and pre-exec environment for Bun 1.4.2. It SHALL exclude measured startup and loader injection. Generated argv and typed effective policy SHALL agree; unexpected execution inputs SHALL refuse identity admission. Each policy control SHALL have a watched failure proof.
+
+#### Scenario: Measured ambient preload and loader faults are excluded
+
+- **WHEN** ambient `BUN_OPTIONS` preload, cwd bunfig preload, cwd dotenv and dynamic-loader inputs are injected independently
+- **THEN** the explicit policy prevents their measured effects
+- **AND** removing the relevant control permits the injected effect and fails its identity acceptance test
+
+#### Scenario: Actual generated unit preserves the literal bootstrap
+
+- **WHEN** the real generated unit is loaded in a disposable manager fixture
+- **THEN** typed effective ExecStart contains exactly the canonical executable and argv, including the literal bootstrap and explicit policy flags
+- **AND** the admitted policy includes expected cwd, environment sources and pre-exec environment exclusions
+- **AND** systemd quoting, percent specifiers, dollar expansion or drop-ins cannot silently change the accepted execution contract
+
+### Requirement: Both connected sockets are bound to one service invocation
+
+The installer SHALL authenticate private nonce readiness and public solver connections using kernel SO_PEERCRED matching expected service UID and systemd MainPID. Readiness SHALL follow config validation, orphan sweep and public listen. Challenge and captured boot identities SHALL match exactly. The public solver client SHALL authenticate its expected server before sending work.
+
+#### Scenario: Private readiness correlates the boot report
+
+- **WHEN** the expected invocation answers a fresh private challenge after startup completes
+- **THEN** its nonce, bundle/config/runtime identities and connected kernel PID/UID agree with installer expectations
+- **AND** the per-attempt readiness socket is host-private, separate from the public socket, and payload process claims cannot replace kernel credentials
+
+#### Scenario: Stale, foreign or partial readiness refuses
+
+- **WHEN** a stale response is replayed, a nonce/digest differs, a foreign process serves either socket, a peer UID differs, or a private success coexists with a foreign public listener
+- **THEN** installation refuses even if both paths exist and the service reports active
+- **AND** no public solver request is sent before its server identity is admitted
+
+### Requirement: Effective service evidence converges under one admission deadline
+
+The installer SHALL retain canonical edge admission through publication, restart, identity observation and final four-artifact readback. Closed typed D-Bus observations SHALL bracket both connected probes and agree on effective execution policy, positive MainPID, UID and InvocationID. Per-call and overall deadlines SHALL bound convergence. Final hashes SHALL match captured expectations.
+
+#### Scenario: Restart during observation converges or refuses
+
+- **GIVEN** typed observations include executable/argv, MainPID, UID, InvocationID, FragmentPath, DropInPaths, NeedDaemonReload, startup state and environment policy
+- **WHEN** MainPID or InvocationID changes between the before and after snapshots
+- **THEN** the entire attempt is discarded and retried only within the fixed overall deadline
+- **AND** exhausted convergence reports failure with uncertainty evidence
+
+#### Scenario: Malformed effective state and final drift refuse
+
+- **WHEN** a typed property is missing/malformed, a query or socket stalls, a fragment/drop-in or effective argv changes, NeedDaemonReload is true, or a final artifact hash differs
+- **THEN** admission refuses within the deadline and preserves attempt identity and original hashes
+- **AND** a competing edge-lock holder cannot enter during the operation
+
+#### Scenario: Identity evidence grants no adoption authority
+
+- **WHEN** all identity observations and final hashes agree
+- **THEN** the installer reports only verified effective supervisor identity for this invocation
+- **AND** activation, retained-owner publication, prior-holder drain/adoption and automatic rollback remain separate ungranted operations

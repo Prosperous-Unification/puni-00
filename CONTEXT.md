@@ -2135,3 +2135,9 @@ _Avoid_: failed creation, absent resource
 **Reviewed-empty membership**:
 An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
 _Avoid_: unknown membership, passing Performance result
+
+**Effective supervisor identity**:
+The identity of the running solver supervisor established by agreement between
+its captured boot material, its service invocation and the kernel identities of
+its readiness and solver connections.
+_Avoid_: installed identity, socket readiness, adopted supervisor

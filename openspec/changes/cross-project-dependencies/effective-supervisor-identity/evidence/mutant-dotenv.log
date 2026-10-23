@@ -1,0 +1,42 @@
+{"name":"baseline","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"cwd-bunfig","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"config-policy-removed","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"home-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"home-explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"xdg-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_PATH","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_REGISTRY","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_MAX_HTTP_REQUESTS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"NODE_OPTIONS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS-positive-fault","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"environment-policy","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"environment-policy-removed","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"cwd-dotenv","exit":0,"stdout":"{\"fault\":null,\"env\":\"DOTENV\"}","stderr":""}
+{"name":"no-env-file","exit":0,"stdout":"{\"fault\":null,\"env\":\"DOTENV\"}","stderr":""}
+110 |   // Proof: --mutant=dotenv admits cwd AMBIENT_DOTENV and the baseline equality fails.
+111 |   const noDotenv = probe(
+112 |     'no-env-file',
+113 |     process.argv.includes('--mutant=dotenv') ? [] : ['--no-env-file'],
+114 |   );
+115 |   assert.equal(noDotenv.stdout, baseline.stdout);
+               ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ '{"fault":null,"env":"DOTENV"}'
+- '{"fault":null,"env":null}'
+                       ^
+
+ generatedMessage: true,
+     actual: "{\"fault\":null,\"env\":\"DOTENV\"}",
+   expected: "{\"fault\":null,\"env\":null}",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /tmp/puni-supervisor-ambient-packet/openspec/changes/cross-project-dependencies/effective-supervisor-identity/evidence/ambient-spike.mjs:115:10
+
+Bun v1.4.2 (Linux x64)
