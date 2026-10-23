@@ -6554,3 +6554,18 @@ retained provider ledger row in the production rollback path made the test
 fail when reapplying the existing provider table. Astra High independently
 reviewed the baseline and ledger proof with no blocking finding. The exact-SHA
 host gate remains pending for the integrated head.
+
+## Backend claim fixture reconciliation (2026-10-23)
+
+The old-head h2puni backend gate exposed two existing mounted fixtures that
+omitted `steps` from `claimWorkItem`. Under the new all-or-none workflow
+prerequisite rule, those whole-leaf requests correctly returned
+`prerequisites_unmet` before their resource and claim-cap assertions. The
+swarm and compute-provider fixtures now explicitly select the ready first
+step; the swarm's assignment/claimed-step assertions follow that same step.
+Before the correction, the two-file run had 29 passes and five failures;
+afterward it had 34 passes, zero failures and 260 assertions. Changed-file
+ESLint, Prettier and diff checks passed. Production admission was unchanged;
+the existing whole-leaf refusal proof remains in `claim-limit.controller.db.test.ts`.
+The old-SHA gate's Bun coverage crash and complete backend suite remain
+unverified on this corrected head.

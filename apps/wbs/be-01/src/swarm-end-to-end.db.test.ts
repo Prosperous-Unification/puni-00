@@ -44,6 +44,7 @@ let h: OrganizationHarness;
 const ids = {
   project: '',
   opsProject: '',
+  opsStep: '',
   opsLeaf: '',
   team: '',
   provider: '',
@@ -178,6 +179,8 @@ const claim = (agent: Agent, key: LeafKey) => ({
   workItemId: leafOf(key),
   personId: personOf(agent),
   runId: `run:${agent}:${key}`,
+  // The Dev step is ready; the default whole-leaf claim also includes QA, whose workflow FS is blocked.
+  steps: [ids.steps.dev],
   assign: true,
 });
 
@@ -482,6 +485,8 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const ops = await asAdmin('POST', '/api/projects', { name: 'Ops' });
     expect(ops.status).toBe(200);
     ids.opsProject = (ops.body as { project: { id: string } }).project.id;
+    ids.opsStep = (ops.body as { steps: { id: string }[] }).steps[0]?.id ?? '';
+    expect(ids.opsStep).not.toBe('');
 
     // `organization-limits`: capacities within the per-resource cap of 64 are applied.
     const capacities = await adminCommands(ids.project, [
@@ -720,19 +725,18 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     for (const holder of refusal.holders)
       expect(winning).toContain(`${agentOf(holder.personId)}/${keyOf(holder.workItemId)}`);
 
-    // `assignee-management` "A claim may also assign": each winner holds and is assigned both
-    // steps; the loser's leaf is assigned to nobody.
+    // `assignee-management` "A claim may also assign": each winner holds and is assigned the
+    // explicitly ready Dev step; the loser's leaf is assigned to nobody.
     // Proof: 2026-10-23, with `decideClaim`'s `assignStepIds` replaced by `[]`, assignedStepIds
     // read [] here and step 8's work item read answered the done leaf's assignees as {}.
-    const bothSteps = [ids.steps.dev, ids.steps.qa].toSorted();
+    const claimedSteps = [ids.steps.dev];
     for (const [index, reply] of replies.entries()) {
       const contender = contenders.at(index);
       if (contender === undefined || reply.status !== 200) continue;
       const person = personOf(contender.agent);
-      expect(claimAnswerOf(reply).assignedStepIds.toSorted()).toEqual(bothSteps);
+      expect(claimAnswerOf(reply).assignedStepIds.toSorted()).toEqual(claimedSteps);
       expect(await assigneesOf(contender.key)).toEqual({
         [ids.steps.dev]: person,
-        [ids.steps.qa]: person,
       });
       const work = await asAgent(
         contender.agent,
@@ -746,13 +750,13 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       };
       expect(
         read.assignments.map((each) => `${keyOf(each.workItemId)}/${each.stepId}`).toSorted(),
-      ).toEqual(bothSteps.map((stepId) => `${contender.key}/${stepId}`));
+      ).toEqual(claimedSteps.map((stepId) => `${contender.key}/${stepId}`));
       expect(
         read.claims
           .map((each) => `${keyOf(each.workItemId)}/${each.stepId}/${each.runId}`)
           .toSorted(),
       ).toEqual(
-        bothSteps.map(
+        claimedSteps.map(
           (stepId) => `${contender.key}/${stepId}/run:${contender.agent}:${contender.key}`,
         ),
       );
@@ -781,6 +785,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
             workItemId: ids.opsLeaf,
             personId: personOf(loser().agent),
             runId: `run:${loser().agent}:ops`,
+            steps: [ids.opsStep],
             assign: true,
           },
         ],
@@ -797,7 +802,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       },
     });
     expect((await limits()).usage.concurrentClaims).toBe(CAPS.claims);
-    expect((await startable()).claimed).toHaveLength(SLOTS * 2);
+    expect((await startable()).claimed).toHaveLength(SLOTS);
   });
 
   it('8. a winner finishes and releases; the loser retries into the freed units', async () => {
@@ -829,7 +834,6 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     // Assignments outlive the claim: the done leaf keeps its assignee.
     expect(await assigneesOf(done.key)).toEqual({
       [ids.steps.dev]: personOf(done.agent),
-      [ids.steps.qa]: personOf(done.agent),
     });
     expect((await limits()).usage.concurrentClaims).toBe(CAPS.claims - 1);
 
@@ -840,7 +844,6 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     ).toBe(ramOf(loser().key));
     expect(await assigneesOf(loser().key)).toEqual({
       [ids.steps.dev]: personOf(loser().agent),
-      [ids.steps.qa]: personOf(loser().agent),
     });
     expect((await freeUnits())[ids.resources.ram]).toEqual({
       capacity: RAM,
