@@ -6812,3 +6812,12 @@ failed all six. Configured MCP lint and scoped typecheck passed. Astra High
 independently reran the six cases with 236 assertions and found no blocker.
 Production and skip-policy behavior are unchanged; parent 6.3 completion and
 the integrated exact-SHA gate remain open.
+
+## Task 4.4 mounted remote endpoint compensation acceptance (2026-10-23)
+
+[The bounded receipt](verify-4-4-remote-replay.md) adds incoming predecessor and
+outgoing successor revision conflicts through real mounted first-child undo/redo.
+Disabling only the production revision comparison independently made all four
+cases return unsafe HTTP 200. Restored cases preserve every table except the
+selected stale journal and publish nothing. Production activation and the
+parent Task 4.4 remain open.

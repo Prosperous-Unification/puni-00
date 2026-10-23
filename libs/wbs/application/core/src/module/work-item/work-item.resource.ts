@@ -7369,6 +7369,9 @@ export class WorkItemService {
           // Proof: remote-revision-conflict bypass failed `external undo redo checks remote revisions`'s selected assertion
           // (actual SQLite boundary; watched 2026-10-22).
           // Proof: bypassing this comparison made mounted promote stale undo commit with 200 instead of 409 (2026-10-22).
+          // Proof: disabling only this comparison made all four mounted first-child
+          // remote-replay undo/redo predecessor/successor cases return unsafe 200
+          // instead of 409 after real remote HTTP edits (2026-10-23).
           if (
             external.expected.some(
               (revision) => revisions.get(scopedRevisionKey(revision)) !== revision.revision,
