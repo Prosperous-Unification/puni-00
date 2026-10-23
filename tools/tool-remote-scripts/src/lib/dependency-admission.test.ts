@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 
+import { createEdgeEnvironment } from '../../test/edge-state';
 import { checkBackendRecovery } from '../swap';
 import { admitDormantDependencies } from './dependency-admission';
 import { ROOT } from './docker';
@@ -220,7 +221,7 @@ else throw new Error('unexpected Docker command '+args.join(' '));
           '--database-path=/data/wbs.db',
         ],
         {
-          env: { ...process.env, PATH: `${root}:${process.env['PATH'] ?? ''}` },
+          env: { ...createEdgeEnvironment(), PATH: `${root}:${process.env['PATH'] ?? ''}` },
           stdout: 'pipe',
           stderr: 'pipe',
         },

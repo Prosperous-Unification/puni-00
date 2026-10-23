@@ -146,3 +146,37 @@ bash -n bin/dev-deploy.sh tools/tool-bootstrap/src/configure.sh
 Configured ESLint passed every corrected TypeScript file. Normal commit hooks
 repeat staged lint, format and repository guards. The integrated host gate,
 installed adoption audit remain outstanding.
+
+## Regression correction: isolated swap CLI prerequisites
+
+At `cb6585dd6`, fresh runs of the backend/gateway mixed-invocation tests,
+participant inspection tests, activation invocation tests and source/built
+recovery dispatch tests produced 29 failures. Executing children tried the real
+canonical `/home/puni1/wbs/state/edge.lock` and failed with `ENOENT` before reaching
+their intended parser or recovery refusal. The backend and gateway files each
+reported 4 passed / 11 failed; participant plus activation reported 39 passed /
+5 failed; the filtered recovery run reported 4 passed / 2 failed.
+
+These fixtures now use private scratch state with a regular `edge.lock`, set
+`WBS_EDGE_STATE` for each child and discard inherited `WBS_EDGE_LOCK_FD` tokens.
+The recovery fixture retains its existing local Docker substitute. Production
+admission, parser checks and R5 refusal proofs are unchanged; no live canonical
+state is created and no new safety check is introduced.
+
+Fresh verification:
+
+```sh
+bun test tools/tool-remote-scripts/src/swap-backend-exclusion.test.ts tools/tool-remote-scripts/src/swap-gateway-exclusion.test.ts tools/tool-remote-scripts/src/swap-dependency-participants.test.ts tools/tool-remote-scripts/src/lib/step-blockage-activation.test.ts tools/tool-remote-scripts/src/lib/dependency-admission.test.ts tools/tool-remote-scripts/src/edge-admission.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000
+# 120 passed, 0 failed, 347 assertions, 6 files
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:typecheck
+# successful uncached target, exit 0
+bunx openspec validate cross-project-dependencies --json
+# valid: true; existing long-requirement warnings only
+```
+
+Configured ESLint and Prettier passed all six changed TypeScript files, and
+`git diff --check` passed. The existing edge-admission suite still exercises
+retained markers, contention and forged descriptors through real launchers.
+The complete configured `tool-remote-scripts:test` target, Docker acceptance and
+exact-SHA host gate were not rerun for this fixture-only correction: local disk
+had approximately 423 MB free, and the parent integration owns the broad gate.

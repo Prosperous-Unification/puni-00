@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'bun:test';
 
+import { createEdgeEnvironment } from '../test/edge-state';
 import { parseDependencyParticipantInvocation } from './lib/dependency-participants';
 
 test('participant inspection accepts only its dedicated backend invocation', () => {
@@ -25,7 +26,7 @@ for (const args of [
     expect(() => parseDependencyParticipantInvocation(args)).toThrow('participant inspection');
     const child = Bun.spawn(
       [process.execPath, fileURLToPath(new URL('./swap.ts', import.meta.url)), ...args],
-      { stdout: 'pipe', stderr: 'pipe' },
+      { env: createEdgeEnvironment(), stdout: 'pipe', stderr: 'pipe' },
     );
     const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
     expect(code).toBe(1);

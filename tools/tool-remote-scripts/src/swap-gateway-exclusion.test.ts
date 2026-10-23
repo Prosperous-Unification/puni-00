@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'bun:test';
 
+import { createEdgeEnvironment } from '../test/edge-state';
 import { parseGatewayFenceInvocation } from './swap';
 
 const sha = 'a'.repeat(40);
@@ -37,6 +38,7 @@ for (const args of [
     const child = Bun.spawn(
       [process.execPath, fileURLToPath(new URL('./swap.ts', import.meta.url)), ...args],
       {
+        env: createEdgeEnvironment(),
         stdout: 'pipe',
         stderr: 'pipe',
       },

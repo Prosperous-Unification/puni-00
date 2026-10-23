@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
+import { createEdgeEnvironment } from '../../test/edge-state';
 import { activateBlockages, prepareActivation } from './step-blockage-activation';
 import { assertNoWriterBarrier, type WriterIntent } from './writer-barrier';
 
@@ -230,7 +231,7 @@ for (const args of [
   test(`activation CLI refuses incompatible invocation ${args.join(' ')}`, () => {
     const child = Bun.spawnSync(
       [process.execPath, new URL('../swap.ts', import.meta.url).pathname, ...args],
-      { stdout: 'pipe', stderr: 'pipe' },
+      { env: createEdgeEnvironment(), stdout: 'pipe', stderr: 'pipe' },
     );
     expect(child.exitCode).toBe(1);
     expect(new TextDecoder().decode(child.stderr)).toContain(
