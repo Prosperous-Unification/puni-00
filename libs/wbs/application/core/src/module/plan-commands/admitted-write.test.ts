@@ -1,3 +1,4 @@
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { LEGACY_ACCESS } from '../../ports/organization-access';
@@ -12,8 +13,10 @@ function recordingUnitOfWork(log: string[]): UnitOfWork {
   return {
     async run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
       log.push('begin');
-      // The scope is never read by the graph below: the services are fakes.
-      const decision = await act({ stores: {} as Scope['stores'] });
+      // Graph construction requires incident persistence; the service doubles ignore other stores.
+      const decision = await act({
+        stores: { typedDependencies: inMemoryTypedDependencies() } as unknown as Scope['stores'],
+      });
       log.push(decision.commit ? 'commit' : 'rollback');
       return decision.value;
     },

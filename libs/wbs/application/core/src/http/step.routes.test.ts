@@ -2,6 +2,7 @@ import type { AuthenticatedUser } from '@wbs/contracts';
 import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import type {
@@ -37,7 +38,10 @@ test('publishes a dependent recovery only after its unit of work commits', async
     uow: {
       run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) => {
         const decision = await act({
-          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+          stores: {
+            typedDependencies: inMemoryTypedDependencies(),
+            projects: { admitEditInOrganization: () => Promise.resolve('recovery') },
+          },
         });
         order.push('commit');
         return decision.value;
@@ -101,7 +105,10 @@ test('scoped step service cannot borrow a recovery grant for another project, ac
       run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) =>
         (
           await act({
-            stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+            stores: {
+              typedDependencies: inMemoryTypedDependencies(),
+              projects: { admitEditInOrganization: () => Promise.resolve('recovery') },
+            },
           })
         ).value,
     },

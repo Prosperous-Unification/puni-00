@@ -1,3 +1,4 @@
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
@@ -32,6 +33,7 @@ function runnerOver(entryToDiscard?: string) {
   const admissions: EditAdmission[] = [];
   // A stand-in for the stores the runner reads itself; the graph is stubbed.
   const stores = {
+    typedDependencies: inMemoryTypedDependencies(),
     journal: { discard: () => Promise.resolve() },
     projects: {
       admitEditInOrganization: () => Promise.resolve('recovery'),

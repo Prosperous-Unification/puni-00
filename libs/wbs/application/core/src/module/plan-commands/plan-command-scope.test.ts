@@ -1,3 +1,4 @@
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import type { Broadcaster } from '../../ports/project-event';
@@ -61,6 +62,7 @@ function stagedSource() {
   const makeScope = (plan: PlanState): Scope => {
     const projectStoreIdentity = {};
     const stores = {
+      typedDependencies: inMemoryTypedDependencies(),
       projects: projectStoreIdentity,
       journal: {
         discard: async (entryId: string) => {
