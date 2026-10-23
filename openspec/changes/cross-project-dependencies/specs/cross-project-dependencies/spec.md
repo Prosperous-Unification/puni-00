@@ -1475,13 +1475,17 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 - **AND** the timeout remains the primary failure, with any join failure retained only as closed command/category context and a bounded hash without raw private causes or getter invocation
 - **AND** no detached cleanup cutoff releases the caller early, the original scope is not mutated, and its token remains reusable before original expiry
 
-#### Scenario: Native source mount permutations preserve complete identity
+### Requirement: Complete native Docker mount identity is a destination set
 
-- **GIVEN** the exact live source member has the three supported unique mount destinations
-- **WHEN** native inspections return those mounts in different array orders during source exclusion and composed backend audits
-- **THEN** derived source identity compares fresh arrays ordered by destination, preserving every native per-mount field and the raw input
-- **AND** duplicate targets, any per-target field drift, changed membership and unrelated-member mount drift refuse
-- **AND** complete inventory comparison applies ordering only to the exact raw member independently recognized by the live source capability
+Complete inventory identity, independent Caddy ingress identity and solver full snapshot identity SHALL validate Mounts as an array of complete record entries with own canonical absolute unique Destination strings. Empty or relative targets, NUL, dot segments, duplicate separators and trailing-slash aliases SHALL refuse; canonical root remains supported. Array ordering SHALL use fresh copies and a total ordinal comparison of exact destination strings, preserving every native entry field/value and raw input/reference. Distinct Unicode paths SHALL remain distinct without normalization. Duplicate destinations SHALL refuse even when entries are identical. Container membership, configuration, host, security, process and per-target field comparisons SHALL remain strict.
+
+#### Scenario: All native participants may permute mount arrays
+
+- **GIVEN** source, Caddy and unrelated containers retain the same complete native mount entries
+- **WHEN** successive source, composed backend or parked restoration observations return different mount array orders
+- **THEN** shared inventory identity and independent ingress identity remain equal without changing raw inputs
+- **AND** any field drift, duplicate destination, missing or additional mount or changed participant refuses
+- **AND** exact source raw-member recognition, lifecycle checks and parked full-member validation remain independently required and create no new token
 
 ### Requirement: Adopted solver requires explicit ordinary edge policy
 
@@ -1591,6 +1595,6 @@ A restoring supervisor SHALL acquire the canonical runtime lock and independentl
 
 - **GIVEN** compatibility restoration captured an independently validated terminal source before exclusion tokens expired
 - **WHEN** fresh parked inventories return the same full native source mounts in a different array order
-- **THEN** read-only parked and backend inventory comparisons derive ordering only for that exact actual source after validating it against the captured member
+- **THEN** read-only parked and backend inventory comparisons use shared native ordering for all actual containers while independently validating the source against the captured member
 - **AND** no expected fields are copied into actual identity, no exclusion token is recreated, and no namespace admission is granted
 - **AND** duplicate source targets, per-target native field drift, unrelated member changes and missing exact raw membership refuse

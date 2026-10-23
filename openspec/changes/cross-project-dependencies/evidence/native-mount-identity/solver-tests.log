@@ -1,0 +1,16 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-cohort.test.ts:
+(pass) projects complete solver identity and distinguishes running terminal and inert [0.65ms]
+(pass) refuses unknown renamed relabeled restarting paused and ambiguous members [0.18ms]
+(pass) native multi-mount solver identity accepts permutations without changing raw snapshots or fields [0.57ms]
+(pass) native multi-mount solver retains field binding [0.12ms]
+(pass) native multi-mount solver retains missing binding [0.09ms]
+(pass) native multi-mount solver retains additional binding [0.08ms]
+(pass) native multi-mount solver retains duplicate binding [0.07ms]
+(pass) native multi-mount solver retains identity binding [0.12ms]
+
+ 8 pass
+ 0 fail
+ 20 expect() calls
+Ran 8 tests across 1 file. [43.00ms]

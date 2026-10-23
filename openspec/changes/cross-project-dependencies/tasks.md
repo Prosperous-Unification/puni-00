@@ -921,3 +921,5 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] X7f: Accept optional stricter deadlines on both source observers, propagate bounded local read scopes without changing original token authority, and prove invalid/longer deadlines, child abort/reaping and final expiry (verify-source-observer-deadline.md).
 
 - [x] X7g: Correct source observer cancellation to join the entire owner-wrapped operation before returning; prove gated child/owner cleanup and private primary/join error retention (verify-source-observer-join.md).
+
+- [x] X7h: Use one full-entry native mount destination-set identity for all containers and Caddy ingress, with total ordinal ordering, canonical/unique targets and unchanged raw input; supersede X7d/X7e source-only ordering proofs while retaining raw-member and parked validation (verify-native-mount-identity.md).

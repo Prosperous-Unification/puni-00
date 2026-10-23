@@ -1,5 +1,11 @@
 # Source startup binding and native mount identity
 
+Historical ordering scope: the earlier source-only ordering exception and unrelated
+array-order refusal premise are superseded by verify-native-mount-identity.md.
+Their proof receipts remain historical and are not counted as current guards.
+Startup, lifecycle, exact raw membership and parked full-member validation remain
+required. Current inventory ordering applies uniformly to every native container.
+
 Root's independently owned native probe observed created OomKillDisable:false become
 running OomKillDisable:null, with unchanged Config and no further change after tag
 substitution. A separate probe confirmed native source mount array permutations and

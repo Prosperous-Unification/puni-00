@@ -1,4 +1,5 @@
 import { parseDockerInspection } from './docker-inspection-json';
+import { orderMounts } from './docker-inventory';
 import {
   readBoolean,
   readClosed,
@@ -163,7 +164,7 @@ export interface SolverSnapshot {
   networks: Record<string, unknown>;
 }
 
-/** Reuse the strict solver lifecycle grammar while binding complete namespace/configuration identity. */
+/** Strict lifecycle/configuration identity, with complete native mounts ordered by the shared destination-set projection. */
 export function parseSolverSnapshot(raw: unknown, expectedId: string): SolverSnapshot {
   const container = readFields(raw);
   const config = readFields(container['Config']);
@@ -214,7 +215,8 @@ export function parseSolverSnapshot(raw: unknown, expectedId: string): SolverSna
     solver,
     config,
     host,
-    mounts: mounts.map((mount: unknown) => mount),
+    // Proof: native-solver-order omission refused multi-mount permutations and admitted duplicate targets.
+    mounts: orderMounts(mounts),
     path: readString(container['Path']),
     args: args.map((argument: unknown) => readString(argument)),
     networks: readFields(readFields(container['NetworkSettings'])['Networks']),

@@ -1,0 +1,151 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-cohort.test.ts:
+92 |   const snapshot = parseSolverSnapshot(native, ID);
+93 |   expect(native).toEqual(before);
+94 |   expect(snapshot.mounts).not.toBe(native.Mounts);
+95 |   expect(snapshot.mounts).toContain(native.Mounts[0]);
+96 |   native.Mounts.reverse();
+97 |   expect(parseSolverSnapshot(native, ID)).toEqual(snapshot);
+                                               ^
+error: expect(received).toEqual(expected)
+
+@@ -22,24 +22,24 @@
+        "Name": "no",
+      },
+    },
+    "mounts": [
+      {
+-       "Destination": "/cache",
+-       "Mode": "ro",
+-       "Propagation": "rprivate",
+-       "RW": false,
+-       "Source": "/scratch/cache",
+-       "Type": "volume",
+-     },
+-     {
+        "Destination": "/attempts",
+        "Mode": "rw",
+        "Propagation": "rprivate",
+        "RW": true,
+        "Source": "",
+        "Type": "tmpfs",
++     },
++     {
++       "Destination": "/cache",
++       "Mode": "ro",
++       "Propagation": "rprivate",
++       "RW": false,
++       "Source": "/scratch/cache",
++       "Type": "volume",
+      },
+    ],
+    "networks": {},
+    "path": "bun",
+    "solver": {
+
+- Expected  - 8
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/solver-cohort.test.ts:97:43)
+(fail) native multi-mount solver identity accepts permutations without changing raw snapshots or fields [1.12ms]
+(pass) native multi-mount solver retains field binding [0.16ms]
+(pass) native multi-mount solver retains missing binding [0.21ms]
+(pass) native multi-mount solver retains additional binding [0.08ms]
+103 |     if (fault === 'field') native.Mounts[0].Propagation = 'rshared';
+104 |     if (fault === 'missing') native.Mounts.pop();
+105 |     if (fault === 'additional') native.Mounts.push({ ...native.Mounts[0], Destination: '/extra' });
+106 |     if (fault === 'duplicate') native.Mounts.push(structuredClone(native.Mounts[0]));
+107 |     if (fault === 'identity') native.Id = 'f'.repeat(64);
+108 |     if (fault === 'duplicate' || fault === 'identity') expect(() => parseSolverSnapshot(native, ID)).toThrow();
+                                                                                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  solver: {
+    id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    name: "/wbs-solver-018f3f08-2ef7-7d1c-b645-14f877575d66",
+    labels: {
+      "wbs-managed-solver": "true",
+      "wbs-attempt-token": "018f3f08-2ef7-7d1c-b645-14f877575d66",
+      "wbs-caller-id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "wbs-project-id": "018f3f08-2ef7-7d1c-b645-14f877575d66",
+      "wbs-objective": "pri",
+    },
+    image: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    imageRef: "registry/solver@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    phase: "terminal",
+    exitCode: 0,
+    state: {
+      Running: false,
+      Restarting: false,
+      Paused: false,
+      Dead: false,
+      Status: "exited",
+      Pid: 0,
+      ExitCode: 0,
+      OOMKilled: false,
+      Error: "",
+      StartedAt: "2026-01-01T00:00:00Z",
+      FinishedAt: "2026-01-01T00:01:00Z",
+    },
+  },
+  config: {
+    Image: "registry/solver@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    Labels: {
+      "wbs-managed-solver": "true",
+      "wbs-attempt-token": "018f3f08-2ef7-7d1c-b645-14f877575d66",
+      "wbs-caller-id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "wbs-project-id": "018f3f08-2ef7-7d1c-b645-14f877575d66",
+      "wbs-objective": "pri",
+    },
+    Env: [],
+  },
+  host: {
+    RestartPolicy: {
+      Name: "no",
+      MaximumRetryCount: 0,
+    },
+    PidMode: "",
+    Privileged: false,
+    CapAdd: null,
+  },
+  mounts: [
+    {
+      Type: "volume",
+      Source: "/scratch/cache",
+      Destination: "/cache",
+      RW: false,
+      Mode: "ro",
+      Propagation: "rprivate",
+    }, {
+      Type: "tmpfs",
+      Source: "",
+      Destination: "/attempts",
+      RW: true,
+      Mode: "rw",
+      Propagation: "rprivate",
+    }, {
+      Type: "volume",
+      Source: "/scratch/cache",
+      Destination: "/cache",
+      RW: false,
+      Mode: "ro",
+      Propagation: "rprivate",
+    }
+  ],
+  path: "bun",
+  args: [ "worker" ],
+  networks: {},
+}
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/solver-cohort.test.ts:108:102)
+(fail) native multi-mount solver retains duplicate binding [0.17ms]
+(pass) native multi-mount solver retains identity binding [0.06ms]
+
+ 4 pass
+ 2 filtered out
+ 2 fail
+ 9 expect() calls
+Ran 6 tests across 1 file. [42.00ms]

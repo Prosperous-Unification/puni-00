@@ -1,5 +1,11 @@
 # Source mount identity during parked restoration
 
+Historical ordering scope: the earlier source-only ordering exception and unrelated
+array-order refusal premise are superseded by verify-native-mount-identity.md.
+Their proof receipts remain historical and are not counted as current guards.
+Startup, lifecycle, exact raw membership and parked full-member validation remain
+required. Current inventory ordering applies uniformly to every native container.
+
 This follow-up integrates the native source binding packet on root05e6dc1df's
 compatible solver restoration implementation. The shared composition fixture now
 rotates source mounts on every native observation, including after solver removal

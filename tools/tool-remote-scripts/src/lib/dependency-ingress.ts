@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { orderMounts } from './docker-inventory';
 import {
   assertDependencyOwner,
   captureOwnedSiteFile,
@@ -104,7 +105,8 @@ async function inspectEdge(call: RunDocker, expectedId?: string): Promise<EdgeId
     !Array.isArray(mounts)
   )
     throw new Error('dependency ingress edge identity/startup is unsupported');
-  const caddyMounts = mounts
+  const orderedMounts = orderMounts(mounts);
+  const caddyMounts = orderedMounts
     .map(readFields)
     .filter(
       (mount) =>
@@ -134,7 +136,8 @@ async function inspectEdge(call: RunDocker, expectedId?: string): Promise<EdgeId
       Args: container['Args'],
       // Proof: restoring raw Config leaked the Caddy environment sentinel; combined owner composition failed.
       configSha256: createHash('sha256').update(JSON.stringify(config)).digest('hex'),
-      Mounts: mounts,
+      // Proof: native-ingress-order omission refused the Caddy native permutation positive.
+      Mounts: orderedMounts,
       State: state,
     },
   };

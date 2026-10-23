@@ -972,7 +972,11 @@ async function createSourceCompositionFixture(solverImage?: string, inert = fals
       Pid: 100,
       StartedAt: '2026-10-23T00:00:00Z',
     },
-    Mounts: [{ Type: 'bind', Source: `${f.root}/caddy`, Destination: '/etc/caddy', RW: false }],
+    Mounts: [
+      { Type: 'bind', Source: `${f.root}/caddy`, Destination: '/etc/caddy', RW: false },
+      { Type: 'bind', Source: `${f.root}/caddy-data`, Destination: '/data', RW: true },
+      { Type: 'bind', Source: `${f.root}/caddy-logs`, Destination: '/var/log/caddy', RW: true },
+    ],
   };
   const source = sourceFixture();
   source.Id = '7'.repeat(64);
@@ -990,6 +994,8 @@ async function createSourceCompositionFixture(solverImage?: string, inert = fals
     throw new Error('missing solver fixture');
   const retained = solverInventory[0] as typeof f.container;
   Object.assign(edge.HostConfig, { Init: true, PidMode: '', Privileged: false, CapAdd: null });
+  await mkdir(`${f.root}/caddy-data`);
+  await mkdir(`${f.root}/caddy-logs`);
   const edgeProof = await f.bindNamespace(edge.Id, 'none');
   await mkdir(`${edgeProof.root}/namespace/etc`);
   await rename(`${edgeProof.root}/namespace/config`, `${edgeProof.root}/namespace/etc/caddy`);
@@ -1020,14 +1026,16 @@ async function createSourceCompositionFixture(solverImage?: string, inert = fals
       }
       if (args.includes('wget')) return JSON.stringify(live);
     }
+    if (args[0] === 'inspect') {
+      for (const container of [source, edge]) {
+        const firstMount = container.Mounts.shift();
+        if (firstMount === undefined) throw new Error('native fixture mount absent');
+        container.Mounts.push(firstMount);
+      }
+    }
     if (args[0] === 'inspect' && (args[1] === edge.Id || args[1] === 'wbs-caddy-1'))
       return JSON.stringify([edge]);
     if (args[0] === 'stop' && args.at(-1) === source.Id) events.push('source');
-    if (args[0] === 'inspect') {
-      const firstMount = source.Mounts.shift();
-      if (firstMount === undefined) throw new Error('source fixture mount absent');
-      source.Mounts.push(firstMount);
-    }
     if (args[0] === 'inspect' && f.containers.includes(retained)) {
       const current: unknown = JSON.parse(await solver.ports.runDocker(['inspect', retained.Id]));
       if (!Array.isArray(current) || current.length !== 1)

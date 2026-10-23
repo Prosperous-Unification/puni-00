@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { parseSolverContainer, solverInspectArgs } from './solver-cohort';
+import { parseSolverContainer, parseSolverSnapshot, solverInspectArgs } from './solver-cohort';
 
 const ID = 'a'.repeat(64);
 const TOKEN = '018f3f08-2ef7-7d1c-b645-14f877575d66';
@@ -69,3 +69,66 @@ test('refuses unknown renamed relabeled restarting paused and ambiguous members'
       parseSolverContainer(JSON.stringify({ ...observation(), ...variant }), ID),
     ).toThrow();
 });
+
+function nativeObservation() {
+  const observed = observation();
+  return {
+    Id: observed.id,
+    Name: observed.name,
+    Image: observed.image,
+    Path: 'bun',
+    Args: ['worker'],
+    Config: { Image: observed.imageRef, Labels: observed.labels, Env: [] },
+    HostConfig: { RestartPolicy: observed.restart, PidMode: '', Privileged: false, CapAdd: null },
+    RestartCount: observed.restartCount,
+    State: {
+      ...observed.state,
+      Running: false,
+      Status: 'exited',
+      Pid: 0,
+      FinishedAt: '2026-01-01T00:01:00Z',
+    },
+    Mounts: [
+      {
+        Type: 'volume',
+        Source: '/scratch/cache',
+        Destination: '/cache',
+        RW: false,
+        Mode: 'ro',
+        Propagation: 'rprivate',
+      },
+      {
+        Type: 'tmpfs',
+        Source: '',
+        Destination: '/attempts',
+        RW: true,
+        Mode: 'rw',
+        Propagation: 'rprivate',
+      },
+    ],
+    NetworkSettings: { Networks: {} },
+  };
+}
+test('native multi-mount solver identity accepts permutations without changing raw snapshots or fields', () => {
+  const native = nativeObservation();
+  const before = structuredClone(native);
+  const snapshot = parseSolverSnapshot(native, ID);
+  expect(native).toEqual(before);
+  expect(snapshot.mounts).not.toBe(native.Mounts);
+  expect(snapshot.mounts).toContain(native.Mounts[0]);
+  native.Mounts.reverse();
+  expect(parseSolverSnapshot(native, ID)).toEqual(snapshot);
+});
+for (const fault of ['field', 'missing', 'additional', 'duplicate', 'identity'])
+  test(`native multi-mount solver retains ${fault} binding`, () => {
+    const native = nativeObservation();
+    const baseline = parseSolverSnapshot(structuredClone(native), ID);
+    if (fault === 'field') native.Mounts[0].Propagation = 'rshared';
+    if (fault === 'missing') native.Mounts.pop();
+    if (fault === 'additional') native.Mounts.push({ ...native.Mounts[0], Destination: '/extra' });
+    if (fault === 'duplicate') native.Mounts.push(structuredClone(native.Mounts[0]));
+    if (fault === 'identity') native.Id = 'f'.repeat(64);
+    if (fault === 'duplicate' || fault === 'identity')
+      expect(() => parseSolverSnapshot(native, ID)).toThrow();
+    else expect(parseSolverSnapshot(native, ID)).not.toEqual(baseline);
+  });

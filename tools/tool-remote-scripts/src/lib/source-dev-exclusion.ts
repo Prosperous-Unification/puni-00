@@ -341,7 +341,7 @@ export async function withSourceDevExcluded<T>(
   }
 }
 
-/** Complete audit identity with mount ordering only for the live capability's exact raw source. */
+/** Shared complete inventory identity after independent live source/raw-member validation. */
 export async function identifySourceAuditInventory(
   owner: DependencyOwner,
   layout: EnvLayout,

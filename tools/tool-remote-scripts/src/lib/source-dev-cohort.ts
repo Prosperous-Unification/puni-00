@@ -1,4 +1,4 @@
-import { identifyInventory } from './docker-inventory';
+import { identifyInventory, orderMounts } from './docker-inventory';
 import { type EnvLayout, sourceDevContract } from './env';
 import {
   assertSame,
@@ -26,24 +26,15 @@ export interface SourceDevMember {
   state: Record<string, unknown>;
 }
 
-/**
- * Docker mount array order is not identity. Derives a fresh destination-ordered array
- * for the exact three source targets, retaining every native field and raw mount reference.
- * Duplicate, missing and foreign targets refuse before any identity comparison.
- */
+/** Validates the fixed source target set using the shared full-native mount ordering. */
 export function orderSourceMounts(raw: unknown): unknown[] {
-  if (!Array.isArray(raw)) throw new Error('source dev mounts missing');
-  const targets = raw.map((mount: unknown) => readString(readFields(mount)['Destination']));
-  // Proof: source-target fault admitted duplicate targets; decoder and startup negatives failed.
-  assertSame(['/data', '/run/wbs-solver', '/src'], [...targets].sort(), 'source dev mount targets');
-  // Proof: source-mount-order fault retained native ordering; source/composed permutation positives failed.
-  return raw
-    .map((mount: unknown) => mount)
-    .sort((left, right) =>
-      readString(readFields(left)['Destination']).localeCompare(
-        readString(readFields(right)['Destination']),
-      ),
-    );
+  const mounts = orderMounts(raw);
+  assertSame(
+    ['/data', '/run/wbs-solver', '/src'],
+    mounts.map((mount) => readString(mount['Destination'])),
+    'source dev mount targets',
+  );
+  return mounts;
 }
 
 /**
@@ -219,25 +210,14 @@ export function assertSourceDevExcluded(member: SourceDevMember): void {
   );
 }
 
-/**
- * Pure identity projection after independent source validation; grants no audit recognition.
- * Only the exact raw member receives a fresh mount ordering. Every compared field comes
- * from this actual inventory, never from a captured expected member.
- */
+/** Asserts exact raw source membership before shared inventory identity; grants no audit recognition. */
 export function identifySourceInventory(inventory: readonly unknown[], source: unknown): unknown {
   assertSame(
     1,
     inventory.filter((raw) => raw === source).length,
     'source raw inventory membership',
   );
-  // Proof: source-only-scope fault admitted reordered unrelated mounts; complete-inventory negative failed.
-  return identifyInventory(
-    inventory.map((raw) =>
-      raw === source
-        ? { ...readFields(raw), Mounts: orderSourceMounts(readFields(raw)['Mounts']) }
-        : raw,
-    ),
-  );
+  return identifyInventory(inventory);
 }
 
 /** Read-only identity of a still-terminal captured source; creates no token or namespace exemption. */

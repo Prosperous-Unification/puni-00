@@ -432,3 +432,60 @@ for (const missing of ['Image', 'Env', 'StartedAt'] as const) {
     expect(await readFile(f.layout.siteCaddyPath, 'utf8')).toBe(f.originals['site.caddy']);
   });
 }
+
+test('Caddy native mount permutations preserve complete ingress identity and raw inputs', async () => {
+  const f = await fixture();
+  f.container.Mounts.push(
+    { Type: 'bind', Source: `${f.root}/caddy-data`, Destination: '/data', RW: true },
+    { Type: 'bind', Source: `${f.root}/caddy-config`, Destination: '/config', RW: true },
+  );
+  Reflect.set(f.container.Mounts[1], 'Propagation', 'rprivate');
+  f.setFault((args) => {
+    if (args[0] !== 'inspect') return;
+    const first = f.container.Mounts.shift();
+    if (first === undefined) throw new Error('Caddy mount fixture absent');
+    f.container.Mounts.push(first);
+  });
+  await withDependencyOwner(
+    { sha: 'a'.repeat(40), layouts: [f.layout] },
+    async (owner) => {
+      await fenceDependencyIngress(owner, [f.layout], f.runner, performance.now() + 10000);
+      await inspectDependencyIngress(owner, [f.layout], f.runner, performance.now() + 10000);
+    },
+    f.root,
+  );
+  expect(f.container.Mounts).toHaveLength(3);
+  expect(f.container.Mounts.some((mount) => Reflect.get(mount, 'Propagation') === 'rprivate')).toBe(
+    true,
+  );
+});
+for (const fault of ['field', 'duplicate', 'missing', 'additional'])
+  test(`Caddy ingress native mount ${fault} drift refuses`, async () => {
+    const f = await fixture();
+    f.container.Mounts.push({
+      Type: 'bind',
+      Source: `${f.root}/caddy-data`,
+      Destination: '/data',
+      RW: true,
+    });
+    await withDependencyOwner(
+      { sha: 'a'.repeat(40), layouts: [f.layout] },
+      async (owner) => {
+        await fenceDependencyIngress(owner, [f.layout], f.runner, performance.now() + 10000);
+        if (fault === 'field') Reflect.set(f.container.Mounts[1], 'Propagation', 'rshared');
+        if (fault === 'duplicate') f.container.Mounts.push(structuredClone(f.container.Mounts[1]));
+        if (fault === 'missing') f.container.Mounts.pop();
+        if (fault === 'additional')
+          f.container.Mounts.push({
+            Type: 'bind',
+            Source: `${f.root}/extra`,
+            Destination: '/extra',
+            RW: true,
+          });
+        await refuses(
+          inspectDependencyIngress(owner, [f.layout], f.runner, performance.now() + 10000),
+        );
+      },
+      f.root,
+    );
+  });

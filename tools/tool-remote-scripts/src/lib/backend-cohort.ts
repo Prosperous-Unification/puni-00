@@ -358,12 +358,10 @@ async function observeBackendCohort(
     // Proof: deleting this audit admits the unmanaged-writer mount and effects; its negative fails (exit 1).
     const image = backends.blue?.imageRef ?? backends.green?.imageRef;
     if (image === undefined) throw new Error('backend fence lost pinned audit image');
-    // Proof: backend-inventory-order omission fails the composed source mount-permutation regression.
     const inventory =
       source !== undefined
         ? await identifySourceAuditInventory(source.owner, layout, source.exclusion, containers)
-        : // Proof: parked-backend-order omission refused native source permutations during restoration.
-          parked === undefined
+        : parked === undefined
           ? identifyInventory(containers)
           : identifyParkedSourceInventory(containers, parked.layout, parked.member);
     if (!performAudit && source !== undefined) {

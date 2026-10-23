@@ -81,7 +81,6 @@ export async function captureParkedDependencies(
   );
   const solverIds = new Set(snapshots.map((snapshot) => snapshot.solver.id));
   const nonsolver = initial.filter((raw) => !solverIds.has(readIdentity(readFields(raw)['Id'])));
-  // Proof: parked-order omission compared raw source arrays; full restoration permutation positive failed.
   const baseline = identifySourceInventory(nonsolver, sourceRaw);
   const records = await Promise.all(
     [

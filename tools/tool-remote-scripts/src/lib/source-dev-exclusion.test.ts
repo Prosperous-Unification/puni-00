@@ -371,7 +371,14 @@ test('source private evidence retains hashes without container environment bytes
         expect(await readFile(`${directory}/${name}`, 'utf8')).not.toContain('PRIVATE_SENTINEL');
 });
 
-for (const fault of ['omitted', 'mount-erased', 'mount-reordered', 'mount-field'] as const)
+for (const fault of [
+  'omitted',
+  'mount-erased',
+  'mount-field',
+  'mount-missing',
+  'mount-added',
+  'mount-duplicate',
+] as const)
   test(`source complete audit inventory refuses ${fault} unrelated mounted member`, async () => {
     const f = await fixture();
     const foreign = structuredClone(f.source);
@@ -391,7 +398,16 @@ for (const fault of ['omitted', 'mount-erased', 'mount-reordered', 'mount-field'
           performance.now() + 10000,
           async (token) => {
             const masked = structuredClone(foreign);
-            if (fault === 'mount-reordered') masked.Mounts.reverse();
+            if (fault === 'mount-missing') masked.Mounts.pop();
+            else if (fault === 'mount-added')
+              masked.Mounts.push({
+                Type: 'bind',
+                Source: '/foreign',
+                Destination: '/extra',
+                RW: true,
+              });
+            else if (fault === 'mount-duplicate')
+              masked.Mounts.push(structuredClone(masked.Mounts[0]));
             else if (fault === 'mount-field')
               Reflect.set(masked.Mounts[0], 'Propagation', 'rshared');
             else masked.Mounts = [];
@@ -402,7 +418,9 @@ for (const fault of ['omitted', 'mount-erased', 'mount-reordered', 'mount-field'
                 token,
                 fault === 'omitted' ? [f.source] : [f.source, masked],
               ),
-              /complete audit inventory/,
+              fault === 'mount-duplicate'
+                ? /mount destination duplicated/
+                : /complete audit inventory/,
             );
             expect(
               await inspectExcludedSourceMember(owner, f.layouts.prod, token, f.inventory),
@@ -922,3 +940,34 @@ for (const operation of ['inspection', 'recognition'] as const)
         f.root,
       );
     });
+
+test('complete source audit accepts source and unrelated mount permutations with exact raw recognition', async () => {
+  const f = await fixture(true);
+  const unrelated = structuredClone(f.source);
+  unrelated.Id = 'f'.repeat(64);
+  unrelated.Name = '/unrelated';
+  unrelated.Config.Image = 'unrelated:1';
+  unrelated.Config.Labels['com.docker.compose.service'] = 'unrelated';
+  f.inventory.push(unrelated);
+  await withDependencyOwner(
+    { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+    (owner) =>
+      withSourceDevExcluded(
+        owner,
+        f.layouts,
+        'a'.repeat(40),
+        f.docker,
+        performance.now() + 10000,
+        async (token) => {
+          const observed = structuredClone(f.inventory);
+          for (const container of observed) container.Mounts.reverse();
+          const before = structuredClone(observed);
+          expect(await inspectExcludedSourceMember(owner, f.layouts.prod, token, observed)).toBe(
+            observed[0],
+          );
+          expect(observed).toEqual(before);
+        },
+      ),
+    f.root,
+  );
+});
