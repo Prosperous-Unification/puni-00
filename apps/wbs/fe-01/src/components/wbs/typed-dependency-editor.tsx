@@ -9,7 +9,7 @@ import type {
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
-import { serializeDependencyEndpoint } from './dependency-selection';
+import { encodeDependencyEndpoint, serializeDependencyEndpoint } from './dependency-selection';
 import type { CommitOutcome } from './live-editing';
 import { didLand } from './live-editing';
 import type { TreeRow } from './wbs-rows';
@@ -244,6 +244,45 @@ export function buildLocalDependencyEditor(
         step,
       };
     }),
+  };
+}
+
+/** Retains the persisted coordinate exactly, including scope across hierarchy refreshes. */
+export function buildPersistedSuccessorEditor(
+  projectId: string,
+  endpoint: ReadEndpoint,
+  rows: readonly TreeRow[],
+  steps: readonly StepView[],
+): DependencyEndpointEditor {
+  const coordinate = endpoint.captured?.endpoint ?? endpoint;
+  const row = rows.find((candidate) => candidate.id === coordinate.workItemId);
+  let persisted: ScopedDependencyEndpoint;
+  if (coordinate.scope === 'whole') {
+    persisted = { projectId, scope: 'whole', workItemId: coordinate.workItemId };
+  } else {
+    // Proof: bypassing this guard failed the missing persisted local successor identity test (2026-10-23).
+    if (coordinate.stepId === undefined)
+      throw new Error('Missing persisted dependency step identity');
+    persisted = {
+      projectId,
+      scope: coordinate.scope,
+      workItemId: coordinate.workItemId,
+      stepId: coordinate.stepId,
+    };
+  }
+  const editor =
+    row === undefined ? undefined : buildLocalDependencyEditor(projectId, row, rows, steps);
+  return {
+    heading: editor?.heading ?? coordinate.workItemId,
+    // Proof: forcing Whole failed mounted exact node and descendant-step initialization on both surfaces (2026-10-23).
+    preferredKey: encodeDependencyEndpoint(persisted),
+    unavailable: 'Persisted successor scope unavailable. Choose a current scope.',
+    choices:
+      editor?.choices.map((choice) => ({
+        ...choice,
+        // Proof: step-only keys silently rebound stale node drafts to descendant-step; both mounted hierarchy-refresh cases failed (2026-10-23).
+        key: encodeDependencyEndpoint(choice.endpoint),
+      })) ?? [],
   };
 }
 

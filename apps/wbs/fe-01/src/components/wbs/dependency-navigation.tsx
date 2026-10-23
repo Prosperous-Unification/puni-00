@@ -1,9 +1,11 @@
+import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type { TypedDependencyType, TypedDependencyView } from '@/lib/wbs-api';
 
 import type { CommitOutcome } from './live-editing';
 import { didLand } from './live-editing';
+import type { DependencyEndpointEditor } from './typed-dependency-editor';
 import { endpointText, relationshipName } from './typed-dependency-editor';
 
 /** Links captured endpoints by stable identity; labels never participate in navigation lookup. */
@@ -31,7 +33,7 @@ export function DependencyNavigation({ dependency }: { dependency: TypedDependen
 }
 
 /**
- * Captured relationships keep their observed endpoints fixed; an owner may change only FS/SS/FF.
+ * Captured predecessors stay fixed; owners may edit the local successor scope and FS/SS/FF.
  * Without a writer they remain inspectable without endpoint lookup.
  * Focus enters Back; Escape/ArrowLeft call the owner's picker-focus restoration.
  */
@@ -39,12 +41,20 @@ export function CapturedDependencyDetails({
   dependency,
   onClose,
   onSave,
+  successor,
 }: {
   dependency: TypedDependencyView;
   onClose: () => void;
-  onSave?: (type: TypedDependencyType) => Promise<CommitOutcome>;
+  onSave?: (
+    type: TypedDependencyType,
+    successor: ScopedDependencyEndpoint,
+  ) => Promise<CommitOutcome>;
+  successor?: DependencyEndpointEditor;
 }) {
   const [type, setType] = useState(() => readRelationship(dependency.type));
+  const [manualKey, setManualKey] = useState<string | null>(null);
+  const successorKey = manualKey ?? successor?.preferredKey;
+  const chosenSuccessor = successor?.choices.find((choice) => choice.key === successorKey);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const retired = useRef(false);
@@ -80,9 +90,32 @@ export function CapturedDependencyDetails({
       }}
     >
       <DependencyNavigation dependency={dependency} />
-      <p>Relationship: {dependency.type}. Changing captured remote scopes is unavailable here.</p>
+      <p>Relationship: {dependency.type}. The captured remote predecessor stays fixed.</p>
       {onSave !== undefined && (
         <>
+          <label>
+            This work item
+            <select
+              value={successorKey ?? ''}
+              // Proof: enabling this select while pending failed both mounted pending-scope assertions (2026-10-23).
+              disabled={busy}
+              onChange={(event) => {
+                setManualKey(event.target.value);
+              }}
+            >
+              {successor?.choices.map((choice) => (
+                <option key={choice.key} value={choice.key}>
+                  {choice.label}
+                </option>
+              ))}
+              {chosenSuccessor === undefined && (
+                <option value={successorKey ?? ''} disabled>
+                  {successor?.unavailable}
+                </option>
+              )}
+            </select>
+          </label>
+          {chosenSuccessor === undefined && <p role="alert">{successor?.unavailable}</p>}
           <label>
             Relationship
             <select
@@ -102,11 +135,12 @@ export function CapturedDependencyDetails({
           {message !== '' && <p role="alert">{message}</p>}
           <button
             type="button"
-            // Proof: forcing enabled failed both mounted pending captured edit cases at the duplicate-Save assertion (2026-10-23).
-            disabled={busy}
+            // Proof: allowing unavailable scopes enabled Save in both mounted stale hierarchy cases; pending captured edit cases also prove duplicate-Save refusal (2026-10-23).
+            disabled={busy || chosenSuccessor === undefined}
             onClick={() => {
+              if (chosenSuccessor === undefined) return;
               setBusy(true);
-              void onSave(type).then((outcome) => {
+              void onSave(type, chosenSuccessor.endpoint).then((outcome) => {
                 // Proof: removing this fence let a pending completion close the reopened desktop/phone editor (2026-10-23).
                 if (retired.current) return;
                 setBusy(false);

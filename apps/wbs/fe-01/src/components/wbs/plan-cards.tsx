@@ -58,7 +58,10 @@ import { statusActions } from './status-cell';
 import { StepBlockageSection } from './step-blockage';
 import { nodeReadingOf, type StepNodeReadings, StepReadingInline } from './step-reading';
 import { cardIndentFor } from './table-frame';
-import { buildLocalDependencyEditor } from './typed-dependency-editor';
+import {
+  buildLocalDependencyEditor,
+  buildPersistedSuccessorEditor,
+} from './typed-dependency-editor';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import { useDependencySearch } from './use-dependency-search';
 import type { TreeRow } from './wbs-rows';
@@ -2433,19 +2436,29 @@ function CardDependsField({
                     // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted phone, 2026-10-23).
                     key={`${dependency.id}:${String(editorSession.current.generation)}`}
                     dependency={dependency}
+                    successor={
+                      dependency.successor.projectId === projectId
+                        ? buildPersistedSuccessorEditor(
+                            projectId,
+                            dependency.successor,
+                            dependencyRows,
+                            steps,
+                          )
+                        : undefined
+                    }
                     onClose={closeEditor}
                     onSave={
                       // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted phone, 2026-10-23).
                       dependency.successor.projectId === projectId &&
                       saveTypedDependency !== undefined
-                        ? (type) =>
+                        ? (type, target) =>
                             saveTypedDependency(
                               dependency.id,
                               serializePersistedDependencyEndpoint(
                                 dependency.predecessor,
                                 projectId,
                               ),
-                              serializePersistedDependencyEndpoint(dependency.successor, projectId),
+                              serializeDependencyEndpoint(target, projectId),
                               type,
                             )
                         : undefined

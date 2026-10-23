@@ -13,6 +13,7 @@ import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 import { CapturedDependencyDetails } from './dependency-navigation';
 import { serializePersistedDependencyEndpoint } from './dependency-selection';
 import { chartTypedDependencies } from './plan-chart-input';
+import { buildPersistedSuccessorEditor } from './typed-dependency-editor';
 import type { SubscriptionHandlers } from './wbs-table';
 publishApplicationRuntimeForEachTest();
 afterEach(() => {
@@ -26,7 +27,8 @@ async function mount(
   calendarMissing = false,
   scope: 'whole' | 'node' | 'descendant-step' = 'node',
   owned = true,
-  successorScope: 'whole' | 'node' = 'whole',
+  successorScope: 'whole' | 'node' | 'descendant-step' = 'whole',
+  parent = successorScope === 'descendant-step',
 ) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 });
   const api = fakeProjectApi();
@@ -35,6 +37,8 @@ async function mount(
     afterId: null,
     name: 'Local successor',
   });
+  if (parent)
+    await api.createWorkItem('p1', { parentId: row.id, afterId: null, name: 'Local child' });
   const local = {
     endpoint: {
       projectId: 'p1',
@@ -72,11 +76,25 @@ async function mount(
     stepReference: scope === 'descendant-step' ? null : '080.s2-dev',
     stepNodeId: scope === 'descendant-step' ? null : 'sn1.remote-row.remote-dev',
   };
+  const retainedNodes = (await api.tree('p1')).stepNodes;
   let capture = remote;
   let present = true;
   let notify: (() => void) | undefined;
   const tree: ProjectApi['tree'] = async (projectId) => ({
     ...(await api.tree(projectId)),
+    // Retain the observed persisted endpoint node while the hierarchy refreshes.
+    // This isolates editor staleness from the separate node-read integrity refusal.
+    ...(successorScope === 'node'
+      ? {
+          stepNodes: [
+            ...new Map(
+              [...(retainedNodes ?? []), ...((await api.tree(projectId)).stepNodes ?? [])].map(
+                (node) => [node.id, node],
+              ),
+            ).values(),
+          ],
+        }
+      : {}),
     ...(calendarMissing
       ? {
           scheduleError: {
@@ -154,6 +172,11 @@ async function mount(
         projectAbbreviation: 'RENAMED',
         qualifiedReference: 'RENAMED.080.s2-dev',
       };
+      if (notify === undefined) throw new Error('No subscription');
+      notify();
+    },
+    grow: async () => {
+      await api.createWorkItem('p1', { parentId: row.id, afterId: null, name: 'New child' });
       if (notify === undefined) throw new Error('No subscription');
       notify();
     },
@@ -576,9 +599,18 @@ for (const phone of [false, true]) {
     update.mockImplementation((...args) => httpProjectApi('token').updateTypedDependency(...args));
     openEdit();
     fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'FF' } });
+    const scope = screen.getByLabelText('This work item');
+    fireEvent.change(scope, {
+      target: {
+        value: within(scope).getByRole('option', { name: 'Dev step' }).getAttribute('value'),
+      },
+    });
     fireEvent.click(editor().getByRole('button', { name: 'Save' }));
     await screen.findByText(/Dependency refused/);
     expect(screen.getByLabelText('Relationship')).toHaveValue('FF');
+    expect(
+      within(screen.getByLabelText('This work item')).getByRole('option', { selected: true }),
+    ).toHaveTextContent('Dev step');
     expect(editor().getByRole('button', { name: 'Save' })).toBeEnabled();
     expect(
       await screen.findByText('Dependencies between projects are not enabled on this server.'),
@@ -601,16 +633,26 @@ for (const phone of [false, true]) {
       expect(update).toHaveBeenCalledTimes(1);
     });
     expect(editor().getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByLabelText('This work item')).toBeDisabled();
     fireEvent.click(editor().getByRole('button', { name: 'Save' }));
     expect(update).toHaveBeenCalledTimes(1);
     openEdit();
     fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'SS' } });
+    const selector = screen.getByLabelText('This work item');
+    fireEvent.change(selector, {
+      target: {
+        value: within(selector).getByRole('option', { name: 'Dev step' }).getAttribute('value'),
+      },
+    });
     await act(async () => {
       if (finish === undefined) throw new Error('No pending edit');
       finish();
       await Promise.resolve();
     });
     expect(screen.getByLabelText('Relationship')).toHaveValue('SS');
+    expect(
+      within(screen.getByLabelText('This work item')).getByRole('option', { selected: true }),
+    ).toHaveTextContent('Dev step');
     expect(editor().getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 
@@ -643,6 +685,7 @@ for (const phone of [false, true])
       screen.getByRole('button', { name: phone ? /^Edit .*REMOTE/ : /^Edit dependency: .*REMOTE/ }),
     );
     const dialog = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+    expect(dialog.queryByLabelText('This work item')).toBeNull();
     expect(dialog.queryByLabelText('Relationship')).toBeNull();
     expect(dialog.queryByRole('button', { name: 'Save' })).toBeNull();
     expect(update).not.toHaveBeenCalled();
@@ -714,3 +757,152 @@ it('rejects an unknown captured relationship instead of offering a writable defa
     ),
   ).toThrow('Unknown dependency relationship SF');
 });
+
+for (const phone of [false, true]) {
+  for (const initial of ['whole', 'node'] as const)
+    it(`edits persisted local successor scope from ${initial} on ${phone ? 'phone' : 'desktop'}`, async () => {
+      const fixture = await mount(phone, undefined, false, 'node', true, initial);
+      fireEvent.click(
+        screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+      );
+      const dialog = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+      const selector = dialog.getByLabelText('This work item');
+      expect(within(selector).getByRole('option', { selected: true })).toHaveTextContent(
+        initial === 'whole' ? 'Whole work item' : 'Dev step',
+      );
+      const option = within(selector).getByRole('option', {
+        name: initial === 'whole' ? 'Dev step' : 'Whole work item',
+      });
+      fireEvent.change(selector, { target: { value: option.getAttribute('value') } });
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() => {
+        expect(fixture.update).toHaveBeenCalledExactlyOnceWith(
+          'p1',
+          'external',
+          {
+            projectId: 'remote-stable',
+            scope: 'node',
+            workItemId: 'remote-row',
+            stepId: 'remote-dev',
+          },
+          initial === 'whole'
+            ? { scope: 'node', stepNodeId: `sn1.${fixture.row.id}.step-dev` }
+            : { scope: 'whole', workItemId: fixture.row.id },
+          'FS',
+        );
+      });
+      for (const call of [fixture.add, fixture.discover, fixture.search, fixture.resolve])
+        expect(call).not.toHaveBeenCalled();
+    });
+}
+
+for (const phone of [false, true]) {
+  const open = () =>
+    fireEvent.click(
+      screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+    );
+  it(`initializes exact persisted descendant-step successor on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { update, row } = await mount(phone, undefined, false, 'node', true, 'descendant-step');
+    open();
+    const dialog = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+    expect(
+      within(dialog.getByLabelText('This work item')).getByRole('option', { selected: true }),
+    ).toHaveTextContent('All descendant work items · Dev');
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith(
+        'p1',
+        'external',
+        {
+          projectId: 'remote-stable',
+          scope: 'node',
+          workItemId: 'remote-row',
+          stepId: 'remote-dev',
+        },
+        { scope: 'descendant-step', workItemId: row.id, stepId: 'step-dev' },
+        'FS',
+      );
+    });
+  });
+  for (const initial of ['whole', 'node'] as const)
+    it(`refuses stale ${initial === 'whole' ? 'draft' : 'persisted'} node after hierarchy refresh on ${phone ? 'phone' : 'desktop'}`, async () => {
+      const fixture = await mount(phone, undefined, false, 'node', true, initial);
+      open();
+      const dialog = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+      if (initial === 'whole') {
+        const selector = dialog.getByLabelText('This work item');
+        fireEvent.change(selector, {
+          target: {
+            value: within(selector).getByRole('option', { name: 'Dev step' }).getAttribute('value'),
+          },
+        });
+      }
+      await act(fixture.grow);
+      await waitFor(() => expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled());
+      expect(dialog.getByRole('alert')).toHaveTextContent(/scope unavailable/);
+      expect(fixture.update).not.toHaveBeenCalled();
+      const selector = dialog.getByLabelText('This work item');
+      fireEvent.change(selector, {
+        target: {
+          value: within(selector)
+            .getByRole('option', { name: /All descendant work items · Dev/ })
+            .getAttribute('value'),
+        },
+      });
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() => {
+        expect(fixture.update).toHaveBeenCalledWith(
+          'p1',
+          'external',
+          {
+            projectId: 'remote-stable',
+            scope: 'node',
+            workItemId: 'remote-row',
+            stepId: 'remote-dev',
+          },
+          { scope: 'descendant-step', workItemId: fixture.row.id, stepId: 'step-dev' },
+          'FS',
+        );
+      });
+    });
+}
+
+it('rejects a persisted local successor missing its step identity', () => {
+  expect(() =>
+    buildPersistedSuccessorEditor('p1', { scope: 'node', workItemId: 'absent' }, [], []),
+  ).toThrow('Missing persisted dependency step identity');
+});
+
+for (const phone of [false, true])
+  it(`changes parent Whole to local descendant-step on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const fixture = await mount(phone, undefined, false, 'node', true, 'whole', true);
+    fireEvent.click(
+      screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+    );
+    const dialog = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+    const selector = dialog.getByLabelText('This work item');
+    fireEvent.change(selector, {
+      target: {
+        value: within(selector)
+          .getByRole('option', { name: /All descendant work items · Dev/ })
+          .getAttribute('value'),
+      },
+    });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(fixture.update).toHaveBeenCalledExactlyOnceWith(
+        'p1',
+        'external',
+        {
+          projectId: 'remote-stable',
+          scope: 'node',
+          workItemId: 'remote-row',
+          stepId: 'remote-dev',
+        },
+        { scope: 'descendant-step', workItemId: fixture.row.id, stepId: 'step-dev' },
+        'FS',
+      );
+    });
+    for (const call of [fixture.add, fixture.discover, fixture.search, fixture.resolve])
+      expect(call).not.toHaveBeenCalled();
+  });

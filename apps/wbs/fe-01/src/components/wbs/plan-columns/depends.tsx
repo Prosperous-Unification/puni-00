@@ -29,7 +29,10 @@ import {
   useHiddenChips,
 } from '../reference-set-field';
 import { RemoteDependencyEditor } from '../remote-dependency-editor';
-import { buildLocalDependencyEditor } from '../typed-dependency-editor';
+import {
+  buildLocalDependencyEditor,
+  buildPersistedSuccessorEditor,
+} from '../typed-dependency-editor';
 import { dependencyWords, endpointText, TypedDependencyEditor } from '../typed-dependency-editor';
 import { useCardOpenOn } from '../use-card-open-on';
 import { useDependencySearch } from '../use-dependency-search';
@@ -1110,11 +1113,21 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted desktop, 2026-10-23).
                     key={`${dependency.id}:${String(editorSession.current.generation)}`}
                     dependency={dependency}
+                    successor={
+                      dependency.successor.projectId === live.current.projectId
+                        ? buildPersistedSuccessorEditor(
+                            live.current.projectId,
+                            dependency.successor,
+                            dependencyRows,
+                            dependencySteps,
+                          )
+                        : undefined
+                    }
                     onClose={close}
                     onSave={
                       // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted desktop, 2026-10-23).
                       dependency.successor.projectId === live.current.projectId
-                        ? (type) =>
+                        ? (type, target) =>
                             live.current.run((write) =>
                               write.perform(['tree'], () =>
                                 live.current.commands.updateTypedDependency(
@@ -1123,10 +1136,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                                     dependency.predecessor,
                                     live.current.projectId,
                                   ),
-                                  serializePersistedDependencyEndpoint(
-                                    dependency.successor,
-                                    live.current.projectId,
-                                  ),
+                                  serializeDependencyEndpoint(target, live.current.projectId),
                                   type,
                                 ),
                               ),
