@@ -31,6 +31,13 @@ test('synthetic mounted copy preserves incoming identities and replays without f
     harness.sqlite
       .query('SELECT * FROM external_dependency WHERE successor_project_id!=? ORDER BY id')
       .all(owner);
+  const readOwnerHistory = () =>
+    harness.sqlite
+      .query<{ id: string; undone: number }, [string]>(
+        'SELECT id,undone FROM command_journal WHERE project_id=? ORDER BY seq',
+      )
+      .all(owner);
+  const ownerHistory = readOwnerHistory();
   const foreignRelationships = readForeignRelationships();
   const foreignHistory = readForeignHistory();
   const revision = readRevision();
@@ -57,27 +64,26 @@ test('synthetic mounted copy preserves incoming identities and replays without f
   expect(readRevision()).toBe(revision + 1);
   expect(readForeignHistory()).toEqual(foreignHistory);
   expect(readForeignRelationships()).toEqual(foreignRelationships);
-  const journal = harness.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
-    )
-    .get(owner);
-  if (journal === null) throw new Error('mounted copy journal missing');
+  const copiedHistory = readOwnerHistory();
+  expect(copiedHistory).toHaveLength(ownerHistory.length + 1);
+  const journal = copiedHistory.at(-1);
+  if (journal === undefined) throw new Error('mounted copy journal missing');
+  expect(ownerHistory.some((entry) => entry.id === journal.id)).toBe(false);
+  expect(copiedHistory).toEqual([...ownerHistory, { id: journal.id, undone: 0 }]);
   expect((await fixture.request(`${route}/undo`)).status).toBe(200);
   expect(await readIncidentRows(owner)).toEqual(original);
   expect(harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(copiedId)).toBeNull();
   expect(readRevision()).toBe(revision + 2);
+  expect(readForeignHistory()).toEqual(foreignHistory);
+  expect(readForeignRelationships()).toEqual(foreignRelationships);
+  expect(readOwnerHistory()).toEqual([...ownerHistory, { id: journal.id, undone: 1 }]);
   expect((await fixture.request(`${route}/redo`)).status).toBe(200);
   expect(await readIncidentRows(owner)).toEqual(after);
   expect(harness.sqlite.query('SELECT id FROM work_item WHERE id=?').get(copiedId)).toEqual({
     id: copiedId,
   });
   expect(readRevision()).toBe(revision + 3);
-  expect(
-    harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(journal.id),
-  ).toEqual({
-    undone: 0,
-  });
+  expect(readOwnerHistory()).toEqual(copiedHistory);
   expect(readForeignHistory()).toEqual(foreignHistory);
   expect(readForeignRelationships()).toEqual(foreignRelationships);
 });
