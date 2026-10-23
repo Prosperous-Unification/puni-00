@@ -1278,3 +1278,96 @@ for (const transport of ['HTTP', 'MCP'] as const) {
     });
   }
 }
+
+// Proof: dropping scheduleError in wbs-client's successful response forwarding
+// failed both calendar parity cases against the unmodified mounted HTTP body.
+for (const transport of ['HTTP', 'MCP'] as const) {
+  test(`${transport} authored external edge propagates real calendar unavailability through generated MCP`, async () => {
+    const fixture = await openFixture();
+    try {
+      const { predecessor, successor } = fixture;
+      const committed = await submit(fixture, transport, [fixture.command]);
+      expect(committed.status).toBe(200);
+      const relationship = (await fixture.inspect()).relationship;
+      if (relationship === null) throw new Error('outcome relationship missing');
+      const path = `/api/projects/${successor.projectId}/work-items`;
+      const scheduled = await fixture.http('GET', path);
+      expect(scheduled.status).toBe(200);
+      expect(scheduled.body).toMatchObject({
+        scheduleError: null,
+        workItems: [
+          { id: successor.workItemId, schedule: { earliestStart: 2, earliestFinish: 4 } },
+        ],
+      });
+      const patch = await fixture.http('PATCH', `/api/projects/${predecessor.projectId}`, {
+        startDate: null,
+      });
+      expect(patch.status).toBe(200);
+      const beforeRead = await fixture.inspect();
+      for (const endpoint of [predecessor, successor]) {
+        const direct = await fixture.http('GET', `/api/projects/${endpoint.projectId}/work-items`);
+        expect(direct.status).toBe(200);
+        const reading = await fixture.call('getApiProjectsByIdWork-items', {
+          id: endpoint.projectId,
+        });
+        expect(reading.isError).not.toBe(true);
+        const tree: unknown = JSON.parse(reading.text);
+        expect(tree).toEqual(direct.body);
+        expect(tree).toMatchObject({
+          scheduleError: {
+            kind: 'dependency_calendar_missing',
+            projects: [{ projectId: predecessor.projectId, name: 'Predecessor' }],
+          },
+          slices: [],
+          workItems: [{ id: endpoint.workItemId, schedule: null, dates: null }],
+          connectedDependencies: [
+            {
+              id: relationship.id,
+              predecessor: { endpoint: wholeEndpoint(predecessor) },
+              successor: { endpoint: wholeEndpoint(successor) },
+            },
+          ],
+        });
+      }
+      const afterRead = await fixture.inspect();
+      expect(afterRead.effects).toEqual(beforeRead.effects);
+      expect(afterRead.pushes).toEqual(beforeRead.pushes);
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  test(`${transport} authored external edge retains Fast placement when real optimizer admission refuses`, async () => {
+    const fixture = await openFixture();
+    try {
+      const committed = await submit(fixture, transport, [fixture.command]);
+      expect(committed.status).toBe(200);
+      const before = await fixture.inspect();
+      const patch = { optimizationEnabled: true, scheduleEngine: 'optimized' };
+      const path = `/api/projects/${fixture.predecessor.projectId}`;
+      const direct = await fixture.http('PATCH', path, patch);
+      expect(direct).toEqual({ status: 409, body: { error: 'optimizer_unavailable' } });
+      const refused = await fixture.call('patchApiProjectsById', {
+        id: fixture.predecessor.projectId,
+        ...patch,
+      });
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toContain('HTTP 409 optimizer_unavailable');
+      const after = await fixture.inspect();
+      expect(after.effects).toEqual(before.effects);
+      expect(after.pushes).toEqual(before.pushes);
+      const reading = await fixture.call('getApiProjectsByIdWork-items', {
+        id: fixture.successor.projectId,
+      });
+      expect(reading.isError).not.toBe(true);
+      expect(JSON.parse(reading.text)).toMatchObject({
+        scheduleError: null,
+        workItems: [
+          { id: fixture.successor.workItemId, schedule: { earliestStart: 2, earliestFinish: 4 } },
+        ],
+      });
+    } finally {
+      await fixture.close();
+    }
+  });
+}
