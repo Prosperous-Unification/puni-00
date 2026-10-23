@@ -33,9 +33,9 @@ cross-project-dependencies --json` reported one valid change with existing
 long-requirement warnings. `git diff --check` passed.
 
 This is a bounded lifecycle proof. It
-does not establish missing or unreadable required save evidence rollback, full
-active writer integration, navigation access after deletion, client rendering,
-or the canonical h2puni host gate. Parent task 8.3 remains open.
+does not establish missing or unreadable required save evidence rollback,
+production active-semantic rollout, navigation access after deletion, client
+rendering, or the canonical h2puni host gate. Parent task 8.3 remains open.
 
 ## Integrated-head receipt (2026-10-23)
 
