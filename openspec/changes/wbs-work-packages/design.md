@@ -3,19 +3,19 @@
 Read on 2026-10-24 on `main` at `1de277850` (fresh worktree; counts are `git grep` on that
 tree, the schema is the 89 be-01 migrations applied in memory in order, all of them cleanly):
 
-| Need                    | Exists today                                                                                                                                                                                                                                                                                         | Missing                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| The old level           | `project` (21 columns: name, owner, restricted, estimate method, PERT weights, rounding, dep reach, start date, solution ref, optimization, engine, objective, timezone, revision, audit) and 8 more `project*` tables; 20 tables carry `project_id`; 25 indexes and 10 triggers name it             | the word for it                                        |
-| The engagement level    | nothing; `organization` owns roots through `*_organization` side tables; `space` is a lens (ADR 0033)                                                                                                                                                                                                | `project` in the new sense                             |
-| Settings                | columns on `project`; `calendar_marker.project_id`; `step.code` unique per project; `work_item_type` global per organization; `project_priority_band`, `project_team_capacity`, `project_resource_capacity` per project                                                                              | a catalogue, inheritance, provenance                   |
-| Routes                  | 25 `/api/projects…` paths, 5 more with a `projects` segment (`/api/spaces/:id/projects…`, `/api/organization/projects/:id/rank`, `/api/organization/project-rank`), 39 operationIds naming `Project`, MCP tools derived from them                                                                    | `/api/work-packages`, `/api/projects` in the new sense |
-| Documents               | `PLAN_DOCUMENT_VERSION = 10` with top-level `project`; import classifier reads 1–10; `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 8` (saved-plan input, `CanonicalProject`); `SCHEDULE_BODY_SCHEMA_VERSION = 1`; `SCHEDULER_CONTRACT_VERSION = 17`; `SOLVER_WIRE_VERSION = 4` with `projectId` on the wire | the bumps                                              |
-| Realtime                | gw-01 subscription `project:<id>` (presence rosters hang off it); events `project_settings_changed`, `project_changed`; fe-01 `lib/project-stream.ts`                                                                                                                                                | the renamed names                                      |
-| Audit                   | `organization_audit.subject_kind` CHECK includes `project`; action `restricted_project_recovery`                                                                                                                                                                                                     | a CHECK rebuild                                        |
-| Non-additive migrations | lint forbids `RENAME COLUMN`, `DROP TABLE`, `DROP COLUMN`; `WAIVERS` keyed by folder with a required gate script; precedent `20260831120000_rename_role_to_step` gated by `bin/assert-no-prod-release.sh`; `backup-db-cli.ts` writes a verified snapshot (path, sha256, bytes, migrations)           | a waiver for a window that may have a prod release     |
-| Deploy                  | dev: one container `wbs-dev-src`, migrates at boot, poller follows `main`; prod: blue/green image swap; the organization-activation runbook already stops the container, backs up and restarts                                                                                                       | a stop-the-world procedure for a rename                |
-| Twilight readers        | Navigator `plan-reference.ts` reads `document.project.id` (fixtures v7–v10) and names `POST /api/projects/:id/commands`; Dash's and Burokrat's `projectId` are Nx project ids                                                                                                                        | a v11 reader                                           |
-| puni-plan tooling       | no live script calls `/api/projects` (90 files mention it: RESUME, batch notes, evidence); the wbs-dev MCP client lists tools by name                                                                                                                                                                | nothing to build; names to relearn                     |
+| Need                    | Exists today                                                                                                                                                                                                                                                                                                                                                                                    | Missing                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| The old level           | `project` (21 columns: name, owner, restricted, estimate method, PERT weights, rounding, dep reach, start date, solution ref, optimization, engine, objective, timezone, revision, audit) and 8 more `project*` tables; 20 tables carry `project_id`; 25 indexes and 10 triggers name it                                                                                                        | the word for it                                        |
+| The engagement level    | nothing; `organization` owns roots through `*_organization` side tables; `space` is a lens (ADR 0033)                                                                                                                                                                                                                                                                                           | `project` in the new sense                             |
+| Settings                | columns on `project`; `calendar_marker.project_id`; `step.code` unique per project; `work_item_type` global per organization; `project_priority_band`, `project_team_capacity`, `project_resource_capacity` per project                                                                                                                                                                         | a catalogue, inheritance, provenance                   |
+| Routes                  | 25 `/api/projects…` paths, 5 more with a `projects` segment (`/api/spaces/:id/projects…`, `/api/organization/projects/:id/rank`, `/api/organization/project-rank`), 39 operationIds naming `Project`, MCP tools derived from them                                                                                                                                                               | `/api/work-packages`, `/api/projects` in the new sense |
+| Documents               | `PLAN_DOCUMENT_VERSION = 10` with top-level `project`; import classifier reads 1–10; `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 8` (saved-plan input, `CanonicalProject`); `SCHEDULE_BODY_SCHEMA_VERSION = 1`; `SCHEDULER_CONTRACT_VERSION = 17`; `SOLVER_WIRE_VERSION = 4`, whose wire names only `personId`/`resourceId`; in flight: budgets (#663) holds plan document 11 and saved-plan input 9 | the bumps                                              |
+| Realtime                | gw-01 subscription `project:<id>` (presence rosters hang off it); events `project_settings_changed`, `project_changed`; fe-01 `lib/project-stream.ts`                                                                                                                                                                                                                                           | the renamed names                                      |
+| Audit                   | `organization_audit.subject_kind` CHECK includes `project`; action `restricted_project_recovery`                                                                                                                                                                                                                                                                                                | a CHECK rebuild                                        |
+| Non-additive migrations | lint forbids `RENAME COLUMN`, `DROP TABLE`, `DROP COLUMN`; `WAIVERS` keyed by folder with a required gate script; precedent `20260831120000_rename_role_to_step` gated by `bin/assert-no-prod-release.sh`; `backup-db-cli.ts` writes a verified snapshot (path, sha256, bytes, migrations)                                                                                                      | a waiver for a window that may have a prod release     |
+| Deploy                  | dev: one container `wbs-dev-src`, migrates at boot, poller follows `main`; prod: blue/green image swap; the organization-activation runbook already stops the container, backs up and restarts                                                                                                                                                                                                  | a stop-the-world procedure for a rename                |
+| Twilight readers        | Navigator `plan-reference.ts` reads `document.project.id` (fixtures v7–v10) and names `POST /api/projects/:id/commands`; Dash's and Burokrat's `projectId` are Nx project ids                                                                                                                                                                                                                   | a v12 reader                                           |
+| puni-plan tooling       | no live script calls `/api/projects` (90 files mention it: RESUME, batch notes, evidence); the wbs-dev MCP client lists tools by name                                                                                                                                                                                                                                                           | nothing to build; names to relearn                     |
 
 ## Goals / Non-Goals
 
@@ -25,8 +25,8 @@ across organization → space → project → work package; spaces group project
 and teams; dev data survives each slice; everything that breaks is named here.
 
 **Non-Goals:** per-project access (`wbs-permissions`); a space-level override of anything;
-budgets (`wbs-budgets`); cross-work-package dependencies themselves; merging step rows across
-work packages; any compatibility layer, alias, redirect or dual-version writer.
+budgets (`wbs-budgets`); cross-work-package dependencies themselves; any compatibility
+layer, alias, redirect or dual-version writer.
 
 ## Decisions
 
@@ -75,18 +75,30 @@ work packages; any compatibility layer, alias, redirect or dual-version writer.
 
 ### Assumed decisions (E10 onward; each the reading closest to E1–E9; Dany overturns by id)
 
-- **E10. Allocated numbers.** Migration stamps `20261101100000_rename_project_to_work_package`
-  (slice 1), `20261101110000_add_project` (slice 2), `20261101120000_add_setting_value`
-  and `20261101120100_space_holds_projects_people_teams` (slice 3). Newest on `main` is
-  `20261023100000_add_claim_lease`; the budgets branch (#663) renames its measure migrations
-  past it with October stamps, so November stamps sort after everything in flight. Re-check
-  against every open branch when each slice starts. Versions: `PLAN_DOCUMENT_VERSION` 10 → 11
-  (slice 1) → 12 (slice 2) → 13 (slice 3); `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 8 → 9 (slice
-  1. → 10 (slice 3); `SOLVER_WIRE_VERSION` 4 → 5 (slice 1, `projectId` is on the wire);
-     `SCHEDULER_CONTRACT_VERSION` 17 stays unless slice 1 changes a hashed byte (the canonical
-     schedule input names no `projectId` today; task 1.3 proves it either way). Rejected: one
-     document bump at the end (E4 wants slice 1 shipped renamed, and a document that still says
-     `project` at the old level would be a dual vocabulary for weeks).
+- **E10. Allocated numbers.** Migration folders are
+  `<merge-date>100000_rename_project_to_work_package` (slice 1),
+  `<merge-date>100000_add_project` (slice 2), `<merge-date>100000_add_setting_value` and
+  `<merge-date>100100_space_holds_projects_people_teams` (slice 3).
+  _Stamps revised 2026-10-24 after review:_ each slice's migration is stamped with the real
+  date it merges, never a future date, and newer than every folder applied on dev (checked
+  that day). Reason: `libs/wbs/adapters/store-sqlite/src/migrate.ts` applies pending folders in
+  sorted order and does not refuse a pending folder that sorts before an applied one, so a
+  future stamp applied on dev before later real-dated migrations splits dev's order from a
+  fresh database's order and can make the `--capture` rollback refuse. Newest on `main` today
+  is `20261023100000_add_claim_lease`.
+  Versions: `PLAN_DOCUMENT_VERSION` 12 (slice 1), 13 (slice 2), 14 (slice 3).
+  _Plan document versions revised 2026-10-24 after review:_ the budgets change (#663,
+  `wbs-measure-budgets`) holds version 11 (`PLAN_DOCUMENT_VERSION = 11`,
+  `LEGACY_PLAN_DOCUMENT_VERSION = 10`) and lands first; this change keeps its v11 classifier
+  branch and builds on it. `feat/cross-project-dependencies` is still at 10 and renumbers when
+  it lands. The same branch also holds `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9`, so the
+  saved-plan input goes 9 → 10 at slice 1 and → 11 at slice 3 (assumed by the same reasoning;
+  overturn with E10). `SOLVER_WIRE_VERSION` stays 4 (E26). `SCHEDULER_CONTRACT_VERSION` 17
+  stays unless slice 1 changes a hashed byte (the canonical schedule input names no
+  `projectId` today; task 1.3 proves it either way). Landing order (budgets #663 before slice
+  1, `feat/cross-project-dependencies` renumbering after) is decided before slice 1 starts.
+  Rejected: one document bump at the end (E4 wants slice 1 shipped renamed, and a document
+  that still says `project` at the old level would be a dual vocabulary for weeks).
 - **E11. The rename vocabulary** is one ordered map, applied by case family and word boundary:
   `project` → `work_package` (SQL), `workPackage` (identifiers, JSON keys, document fields),
   `WorkPackage` (types, operationId segments), `work-package` (paths, module directories,
@@ -119,8 +131,11 @@ work packages; any compatibility layer, alias, redirect or dual-version writer.
   (every key has all five spellings and none collides with an existing identifier); `check`
   fails on an injected residual in a non-excluded file and passes on an excluded one (R5
   negative, watched); `apply` twice equals `apply` once. The reviewer reruns `check` on the PR
-  head; hand fixes (articles, plural grammar, sorted fields, prettier wrapping) follow `apply`
-  and are reviewed as an ordinary diff. Rejected: a one-off sed in a PR description (not
+  head. _Review rule added 2026-10-24 after review:_ the mechanical commit is reproducible: the
+  reviewer runs `tool-rename-work-package apply` on that commit's parent and the resulting
+  diff is byte-identical to the commit; hand fixes (articles, plural grammar, sorted fields,
+  prettier wrapping) go in a separate commit after it and are reviewed as an ordinary diff.
+  Rejected: a one-off sed in a PR description (not
   rerunnable, not testable).
 - **E13. Slice 1 migration.** One `migration.sql`: `ALTER TABLE … RENAME TO` for the nine
   tables, `ALTER TABLE … RENAME COLUMN project_id TO work_package_id` for the twenty, `DROP
@@ -155,14 +170,22 @@ INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and
   colours, back up with the same CLI from the new image against the volume, run the gate,
   deploy the release with the ordinary swap tooling (`--dry-run` first); rollback is the
   backup plus a redeploy of the previous release. Slices 2 and 3 reuse the window and the
-  gate (their migrations rebuild tables, E15/E20). Rejected: running the rename under the
+  gate (their migrations rebuild tables, E15/E20). Lint for slices 2 and 3: the compatible
+  rebuild form (`-- migration-lint: compatible-table-rebuild` with `-- foreign-keys-off-rebuild`,
+  a `_NEW` table and a `CHECK (violations = 0)` guard), whose `DROP TABLE` needs no waiver
+  (`tools/tool-git-hooks/src/hooks/migration-lint.ts` lifts only the labels a `WAIVERS` entry
+  names); a waiver with the same gate only if a `DROP COLUMN` or `RENAME COLUMN` statement
+  remains. Rejected: running the rename under the
   blue/green swap (the outgoing colour would fail every query the instant the rename commits).
 - **E15. Slice 2 storage.** `project(id PK, organization_id NOT NULL → organization, name NOT
-NULL CHECK (length(name) > 0), revision, created_at NOT NULL, updated_at, created_by NOT
-NULL)` with `UNIQUE (organization_id, name)` and `UNIQUE (id, organization_id)`; born
-  organization-aware like `space` (no side table). `work_package.project_id NOT NULL →
-project(id)` through a table rebuild of `work_package` (lint waiver with the same gate;
-  `ADD COLUMN … NOT NULL` without a default is refused and a default would be a made-up
+NULL CHECK (length(name) > 0), revision, created_at NOT NULL, updated_at, created_by)` with
+  `UNIQUE (organization_id, name)` and `UNIQUE (id, organization_id)`; born
+  organization-aware like `space` (no side table). _Revised 2026-10-24 after review:_
+  `created_by` is nullable, with the JSDoc "null = the migration back-fill (no actor)";
+  reason: the back-fill has no actor and inventing one would be a made-up default (R5); every
+  project created through `createProject` carries its real actor. `work_package.project_id NOT
+NULL → project(id)` through a compatible table rebuild of `work_package` (lint form as in
+  E14; `ADD COLUMN … NOT NULL` without a default is refused and a default would be a made-up
   owner, R5). Back-fill inside the migration: for every organization holding at least one work
   package, one project named "Default project" with a fresh uuid, then every work package of
   that organization points at it; a guard refuses while any work package lacks an organization
@@ -185,37 +208,44 @@ project(id)` through a table rebuild of `work_package` (lint waiver with the sam
   409 `name_taken` / 404; `DELETE /api/projects/:id` → 204 / 409 `not_empty` / 404; `POST
 /api/work-packages/:id/move {projectId}` → 200 / 404 (either side, organization-scoped) /
   409 `cross_organization` / 409 `dependency_crosses_project { dependencyIds }` once
-  cross-work-package dependencies exist / 409 `type_not_in_project { typeIds }` and 409
-  `step_code_not_in_project { codes }` from slice 3. Each write is one immediate transaction
-  under the write coordinator, bumps the project's revision and appends one `organization_audit`
-  row (`project_created`, `project_renamed`, `project_deleted`, `work_package_moved`; subject
+  cross-work-package dependencies exist / 409 `type_not_allowed_in_project { typeIds }` (E22)
+  and 409 `step_code_not_in_project { codes }` (E21) from slice 3; an applied move re-keys the
+  package's per-step rows to the target project's steps by code. Each write is one
+  immediate transaction under the write coordinator, bumps the project's revision and
+  appends one `organization_audit` row (`project_created`, `project_renamed`, `project_deleted`, `work_package_moved`; subject
   kind `project` in the new sense, unambiguous because slice 1 rewrote the old rows to
   `work_package`). Authority today: admin or super-admin for project writes; `moveWorkPackage`
   also needs edit on the work package (the restricted-owner rule); every member lists projects
   (E7's "plain membership sees nothing" arrives with `wbs-permissions`). mcp-01 derives the
   tools (`postApiProjects`, `postApiWorkPackagesByIdMove`, …). The work package read gains
-  `projectId`; the plan document gains `project: { id, name }` at version 12, informational on
+  `projectId`; the plan document gains `project: { id, name }` at version 13, informational on
   import: the import request names the target project, never the file.
 - **E18. The setting catalogue (E9).** `@wbs/domain` `settings/catalogue.ts`: `SETTING_CATALOGUE`
   entries `{ key, value (ArkType), definedAt: 'project', overridableAt: ReadonlySet<Level> }`
   for `timezone` (IANA zone; overridable at `work_package`), `pertWeights` (three positive
-  numbers; `work_package`), `calendarMarkers` (a set, E19; `work_package`), `stepCodes` (a set
-  of codes; fixed), `workItemTypes` (fixed; E22); `budgetFactor` is listed by name in the
-  catalogue's JSDoc as reserved for `wbs-budgets` and gets its entry there (an entry without
-  a value type is dead code). Levels: `organization | space | project | work_package`.
+  numbers; `work_package`), `calendarMarkers` (a set, E19; `work_package`),
+  `allowedWorkItemTypes` (a set of directory type ids, empty meaning all; fixed at project;
+  E22); the step set is a project entity, not a setting (E21); `budgetFactor` is listed by
+  name in the catalogue's JSDoc as reserved for `wbs-budgets` and gets its entry there (an
+  entry without a value type is dead code). Levels: `organization | space | project | work_package`.
   Storage: `setting_value(scope_kind, scope_id, key, value_json, revision, created_at,
 updated_at, created_by)` PK `(scope_kind, scope_id, key)`, `scope_kind` CHECK over the
   levels; a write of a key at a level the catalogue does not allow is refused at the boundary
   (`409 not_overridable_here`), and a value that fails the key's type is `422`. Resolution:
-  `resolveSetting(chain, key)` in core, `chain = { organizationId, spaceIds, projectId,
-workPackageId? }`, walks work package → project → spaces → organization → catalogue default
-  and answers `{ value, provenance: { level, id } | { level: 'default' } }`; it refuses
+  `resolveSetting(chain, key)` in core, `chain: ScopeChain`, walks work package → project →
+  spaces → organization → catalogue default and answers `{ value, provenance: { level, id } | { level: 'default' } }`; it refuses
   `ambiguous_space_value` when two spaces of the chain hold different values for a
   space-overridable key (inert today, E24). Reads: `GET /api/work-packages/:id/settings` and
   `GET /api/projects/:id/settings` answer every catalogue key resolved with provenance;
   writes: `PATCH …/settings { key: value | null }` where `null` clears the override (back to
-  inherited). Rejected: nullable columns per level (E9 names that as the thing not to do);
-  a settings JSON blob per row (no per-key provenance or type).
+  inherited). _Shared chain type, added 2026-10-24 after review:_ this change and
+  `wbs-permissions` use one `ScopeChain` value type in `@wbs/domain`, `{ organizationId,
+spaceIds, projectId, workPackageId? }`, defined by whichever change lands first (expected:
+  `wbs-permissions` slice 1); `resolveSetting(chain, key)` (nearest wins, provenance
+  `{ level, id }`) and `effectiveRoleAt(chain)` (strongest wins) both take it, so the chain
+  is built once per request and never twice with different rules. Rejected: nullable columns
+  per level (E9 names that as the thing not to do); a settings JSON blob per row (no per-key
+  provenance or type).
 - **E19. Calendar markers are a set that adds, never hides.** `calendar_marker(scope_kind,
 scope_id, date, name, color, …)` replaces `work_package_id`; a work package's calendar is
   its project's markers plus its own, each read with its provenance; a work package cannot
@@ -232,21 +262,34 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   window). `estimateMethod`, `estimateRounding`, `depReach`, `startDate`, engine, objective and
   optimization stay work-package columns: E6 names them nowhere, and they are plan inputs, not
   shared configuration. Rejected: keeping the columns as a cache (two sources of truth).
-- **E21. Step codes are a project-wide vocabulary; step rows stay per work package.** The
-  project's `stepCodes` set is the authoritative list; a work package's steps must use codes
-  from it (`createStep`/`setStepCode` with an absent code → `409 code_not_in_project { code }`;
-  fe-01 offers "add to project" to an admin). Back-fill: the default project's set is the
-  union of its work packages' codes. Estimates and attempts key on step ids, allowances and
-  estimate units differ per work package, so merging step rows across work packages has no
-  rule and is a non-goal. Likely to be debated; overturn by id.
-- **E22. Work item types become project-scoped.** `work_item_type.project_id NOT NULL`
-  (rebuild in the slice 3 window), unique by name within a project, `work_item_type_organization`
-  dropped (the project names the organization); back-fill: every type goes to its
-  organization's default project. `moveWorkPackage` refuses `type_not_in_project` naming the
-  types a work item of the package carries that the target lacks by name; the regrouping
-  creates them in the target first through the directory routes. ADR 0009 (a type does not
-  inherit) is untouched. Rejected: keeping types organization-wide with a per-project allow
-  list (two tables for one fact).
+- **E21. Steps are project entities.** _Revised 2026-10-24 after review (option a; was: a
+  project-wide code vocabulary over per-work-package step rows, refusing a fresh code with
+  `code_not_in_project`)._ The step set (code, name, order) is defined once on the project;
+  a work package holds one row per project step for what genuinely differs per package, its
+  allowance and its estimate unit, keyed by the project's step id. There is no second
+  vocabulary table and no `code_not_in_project` refusal: creating, renaming or reordering a
+  step is a project write, visible to every work package of the project at once. Reason: E6's
+  "project-wide, not overridable" means one step vocabulary per engagement, which is also what
+  #601's `twib validate workflow-binding --steps <codes>` wants (one list per engagement).
+  Migration (slice 3): for each default project, today's per-work-package steps are lifted
+  into project steps deduplicated by code in first-occurrence order (work packages by
+  `created_at` then id, then steps by order; the first occurrence's name wins); each
+  package's allowance and estimate-unit rows, its step nodes, estimates, attempts and claims
+  are re-keyed to the project step of the same code. `moveWorkPackage` refuses
+  `step_code_not_in_project { codes }` while the target lacks a code the package uses, and
+  re-keys by code when it applies. Merging step rows across work packages is thereby
+  decided, not a non-goal.
+- **E22. Work item types stay directory-global; a project allows a subset.** _Revised
+  2026-10-24 after review (was: project-scoped types with `work_item_type.project_id`)._
+  Types stay named globally and unique across the directory (`CONTEXT.md`), directory
+  commands stay organization-level and #699's matrix is unchanged. The project holds an
+  allow-list of directory type ids as the `allowedWorkItemTypes` setting resolved through
+  `resolveSetting` (E18), fixed at project; an empty list allows every type. Assigning a type
+  outside the list on create or update, and `moveWorkPackage` into a project whose list lacks
+  a type a work item of the package carries, refuse `409 type_not_allowed_in_project
+{ typeIds }`. Back-fill: no row (every default project allows all). ADR 0009 (a type does
+  not inherit) is untouched. Rejected: project-scoped types (it splits one directory word into
+  one per project and breaks the organization-level directory commands).
 - **E23. Spaces hold projects; persons and teams belong to spaces.** Slice 3 replaces
   `space_work_package` with `space_project(space_id, project_id, organization_id, position,
 …)` → `project(id, organization_id)`, back-filled by mapping each space's work packages to
@@ -275,11 +318,13 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   `feat/cross-project-dependencies` (addresses `PUNI.080.39` name a work package); that branch
   rebases onto the slice 1 names before it lands and its dependency rows become
   cross-work-package rows inside one project (E2). A project has no owner column (E7).
-- **E26. Solver wire and supervisor protocol rename too.** `projectId` on the wire becomes
-  `workPackageId`, `SOLVER_WIRE_VERSION` 4 → 5, solver-py's six Python lines follow; the solver
-  image is rebuilt and the dev supervisor mapping repinned in the same window (dev runbook's
-  solver mapping preflight). Rejected: leaving the wire alone (E4 says every surface, and a
-  wire field that lies about its level is the first thing the next reader trips on).
+- **E26. The solver wire carries no project id.** _Revised 2026-10-24 after review (was: the
+  wire renames `projectId`, `SOLVER_WIRE_VERSION` 4 → 5, a solver image rebuild and repin)._
+  On `main`, `solver-wire.v4.json` names only `personId` and `resourceId`; the `projectId` is
+  host-side, `ElsewhereBooking.projectId` in `libs/wbs/domain/domain/src/schedule.ts`, and the
+  script renames it like any TypeScript identifier. `SOLVER_WIRE_VERSION` stays 4, solver-py
+  is unchanged and no image is rebuilt or repinned; the existing golden request test proves
+  the wire bytes are unchanged after `apply`.
 - **E27. Dev cleanup is an operator step, not a migration.** `work-package-cleanup-cli.ts
 report|apply <rules.json> --expect-count=N` in be-01: a work package is doomed when its
   owner account's login is one of `claire-qa-22aug`, `planner-qa-0822`, `ada` or matches
@@ -314,12 +359,12 @@ is the share of those lines that mention Nx vocabulary (`nx run`, `project.json`
 | core                                              |   261 |  3,009 | script; `module/project` → `module/work-package` (indexed README)                       |
 | contracts                                         |    63 |    356 | script; 25 + 5 paths, 39 operationIds, document and saved-plan shapes, versions         |
 | domain + validation                               |    92 |    445 | script; `CanonicalProject`, roll-up, contract versions                                  |
-| realtime adapter + other adapters                 |    22 |     37 | script; solver wire (E26)                                                               |
+| realtime adapter + other adapters                 |    22 |     37 | script; the solver wire is untouched (E26)                                              |
 | be-01 `src` and tests                             |   186 |  4,108 | script                                                                                  |
 | gw-01                                             |    26 |    237 | script; `work-package:<id>`                                                             |
 | mcp-01                                            |    15 |     77 | script; tool names follow operationIds; its own store names no project                  |
 | fe-01                                             |   341 |  3,319 | script; `modules/project` → `modules/work-package` (indexed README), stream, preference |
-| twilight-structure                                |   106 |    833 | Navigator only (reader, JSDoc, README, a v11 fixture); the rest is Nx-ish               |
+| twilight-structure                                |   106 |    833 | Navigator only (reader, JSDoc, README, a v12 fixture); the rest is Nx-ish               |
 | libs/shared + libs/website                        |    26 |     66 | hand check; expected Nx-ish or unrelated                                                |
 | tools, deploy, infra, ops, bin                    |   134 |  1,204 | 536 Nx-ish; the rest hand-checked (devsync, smoke, fleet manifests)                     |
 | docs                                              |   230 |  5,585 | 573 Nx-ish; current docs by script, dated records excluded (E11)                        |
@@ -340,16 +385,17 @@ script text; none in Dash, Burokrat or a puni-plan script.
 
 ## Document and saved-plan bumps (b)
 
-- Version 11 (slice 1): top-level `project` → `workPackage`, every nested `projectId` →
-  `workPackageId`; the classifier reads 1–11 and converts a ≤ 10 file's `project` on read as
-  it converts 7's zone or 10's resources; export writes 11 only; `unsupported_version` for
-  12+. Navigator reads 11 and keeps 7–10.
-- Version 12 (slice 2): adds `project: { id, name }` of the engagement, informational.
-- Version 13 (slice 3): `workPackage.settings` carries each catalogue key as `{ value,
+- Version 11 is the budgets change's (#663, E10); its classifier branch is preserved.
+- Version 12 (slice 1): top-level `project` → `workPackage`, every nested `projectId` →
+  `workPackageId`; the classifier reads 1–12 and converts a ≤ 11 file's `project` on read as
+  it converts 7's zone or 10's resources; export writes 12 only; `unsupported_version` for
+  13+. Navigator reads 12 and keeps 7–11.
+- Version 13 (slice 2): adds `project: { id, name }` of the engagement, informational.
+- Version 14 (slice 3): `workPackage.settings` carries each catalogue key as `{ value,
 provenance }`; import writes only the work package's own overrides and leaves inherited
   values inherited.
-- Saved plans: `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 8 → 9 (`CanonicalProject` →
-  `CanonicalWorkPackage`, keys renamed; a stored 8 body upgrades on read), → 10 at slice 3
+- Saved plans: `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 9 (budgets) → 10 (`CanonicalProject` →
+  `CanonicalWorkPackage`, keys renamed; a stored ≤ 9 body upgrades on read), → 11 at slice 3
   (resolved settings with provenance in the input). `SCHEDULE_BODY_SCHEMA_VERSION` stays 1
   (it keys dates by work item id; task 1.3 checks).
 
@@ -369,7 +415,7 @@ nothing about who may see which project changes (E7).
 
 E18–E22. Slice 2 moves only ownership; slice 3 brings the catalogue, `setting_value`,
 `resolveSetting`, provenance on every settings read, the marker scope, the step-code
-vocabulary and project-scoped types.
+step set as a project entity and the project's work item type allow-list.
 
 ## Spaces (e)
 
@@ -381,14 +427,14 @@ E23–E24.
   re-list tools (the wbs-dev MCP client, Navigator's documentation, puni-plan notes).
 - `project:<id>` subscriptions and the two event names; an old fe-01 tab reconnects to
   nothing and must reload.
-- Plan documents: an exported file is version 11; the running import still reads older files.
-- Saved plans read through the 8 → 9 upgrade; nothing is lost.
-- Navigator: `document.project.id` becomes `document.workPackage.id` at 11; the v7–v10
+- Plan documents: an exported file is version 12; the running import still reads older files.
+- Saved plans read through the upgrade to 10; nothing is lost.
+- Navigator: `document.project.id` becomes `document.workPackage.id` at 12; the v7–v11
   readers stay. Dash and Burokrat: nothing (their `projectId` is Nx's).
-- The solver wire (E26): a solver image built for wire 4 refuses wire 5 requests loudly.
+- The solver wire: nothing (E26).
 - fe-01: the remembered open work package is forgotten once.
-- `feat/cross-project-dependencies` rebases onto the new names (its plan document 11 collides
-  with this one; whichever lands second renumbers).
+- `feat/cross-project-dependencies` rebases onto the new names; it is still at plan document
+  10 and renumbers past this change's versions when it lands (E10).
 - Audit history reads `work_package` for old rows; the `restricted_project_recovery` action
   name changes.
 - Spaces' member routes break twice (slice 1, slice 3).
@@ -407,16 +453,15 @@ day.
   under E8 and documented in one runbook section.
 - The script cannot decide prose that means the engagement; the allow-list and the hand diff
   are reviewed, and `check` lists what is left rather than hiding it.
-- E21 and E22 change authoring flows (a new step code or type is a project write first);
-  the cheapest honest reading of "project-wide, not overridable", flagged for Dany.
+- E21 changes authoring flows (adding, renaming or reordering a step is a project write
+  that every work package of the project sees); E22 adds one refusal on type assignment
+  when a project narrows its allow-list. Both revised after review; flagged for Dany.
 - Whether prod records a release could not be read from this machine; the gate decides on the
   day, and the procedure covers both outcomes.
 
 ## Open Questions
 
 - E5's deletion list: Dany confirms the owner logins and name patterns in E27 before `apply`.
-- E21: should adding a step with a fresh code append to the project's vocabulary in the same
-  transaction instead of refusing?
 - The dependency shape of `feat/cross-project-dependencies` was skimmed read-only (abbreviation
   side table, stable endpoint identities, typed external rows); its rebase is that branch's
   work.

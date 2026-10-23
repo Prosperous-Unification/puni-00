@@ -1,9 +1,12 @@
 ## 0. Dany reads E10 to E29
 
-- [ ] 0.1 Dany confirms or amends design.md E10 to E29, in particular E21 (step codes as a
-      project vocabulary, refusal on a fresh code), E22 (project-scoped work item types), E26
-      (solver wire rename) and E27 (the deletion rule). Slice 1 is built on the assumptions;
-      an amendment lands as a follow-up slice.
+- [ ] 0.1 Dany confirms or amends design.md E10 to E29, in particular the 2026-10-24
+      revisions of E10 (merge-date stamps; plan documents 12–14 after budgets' 11), E15
+      (nullable `created_by`), E21 (steps as project entities), E22 (directory-global types
+      with a project allow-list) and E26 (no solver wire change), and E27 (the deletion
+      rule). Slice 1 is built on the assumptions; an amendment lands as a follow-up slice.
+- [ ] 0.2 Landing order decided before slice 1 starts: budgets #663 (plan document 11,
+      saved-plan input 9) lands first; `feat/cross-project-dependencies` renumbers after.
 
 ## 1. The rename (slice 1, `feat/wbs-work-packages-1`)
 
@@ -13,7 +16,7 @@
       Green: `rename-map.ts`, `allow-list.ts`, `cli.ts apply|check|report`, Nx project
       `tool-rename-work-package` with `test`, `lint`, `typecheck`. R5 fault: the allow-list
       made to match every path; `check` stops failing on the injected residual; watched.
-- [ ] 1.2 Red: `migration-lint.test.ts` refuses `20261101100000_rename_project_to_work_package`
+- [ ] 1.2 Red: `migration-lint.test.ts` refuses `<merge-date>100000_rename_project_to_work_package`
       without `bin/assert-rename-window.sh`; `assert-rename-window.test.ts` (fresh report
       passes; sha mismatch, missing report, unreadable state dir refuse). Green: the gate
       script and the `WAIVERS` entry. R5 faults: the `existsSync` requirement removed; the
@@ -27,25 +30,29 @@
       `down.sql`. R5 faults: the guard replaced by `CHECK (1)`; one trigger left under its old
       name (the `claim_step_project_*` pair); watched.
 - [ ] 1.4 Run `tool-rename-work-package apply` over store-sqlite, store-memory, conformance,
-      core, contracts, domain, validation, adapters, be-01, gw-01, mcp-01, fe-01; hand fixes;
-      `check` exits 0. Tests that prove it: the whole existing suite under the new names, the
+      core, contracts, domain, validation, adapters, be-01, gw-01, mcp-01, fe-01 as one
+      mechanical commit; hand fixes in a separate commit after it; `check` exits 0. Review
+      rule: the reviewer runs `apply` on the mechanical commit's parent and the diff must be
+      byte-identical to that commit. Tests that prove it: the whole existing suite under the new names, the
       OpenAPI scenario (no `projects` segment, no `Project` operationId, no `projectId`
       property), the gateway subscription scenario (`project:<id>` refused, `work-package:<id>`
       admitted). R5 fault: `project:` left admitted in `ws.controller.ts`; the subscription test
       fails; watched.
-- [ ] 1.5 Plan document 11 and saved-plan input 9: `plan-document-shapes.test.ts` (export is
-      11 with `workPackage`; a 10 file converts on read; 12 refused `unsupported_version`),
-      `canonical-plan-input.test.ts` (8 → 9 upgrade; an 8 body compares equal to its 9
-      re-save). R5 faults: the 10 → 11 converter dropped (import of the v10 fixture fails);
+- [ ] 1.5 Plan document 12 and saved-plan input 10 (on top of budgets' 11 and 9):
+      `plan-document-shapes.test.ts` (export is 12 with `workPackage`; 10 and 11 files convert
+      on read, budgets' v11 branch kept; 13 refused `unsupported_version`),
+      `canonical-plan-input.test.ts` (9 → 10 upgrade; a 9 body compares equal to its 10
+      re-save). R5 faults: the 11 → 12 converter dropped (import of the v11 fixture fails);
       the upgrade step removed (`input_version_unreadable`); watched.
-- [ ] 1.6 Solver wire 5 (E26): `build-solver-request.test.ts`, `parse-solver-response.test.ts`
-      (wire 4 refused naming both), solver-py tests under `workPackageId`; the solver image
-      rebuild and the dev mapping repin recorded in the runbook. R5 fault: the version check
-      removed; a wire-4 response is accepted; watched.
-- [ ] 1.7 Twilight Navigator: `plan-reference.test.ts` reads `plan-export.v11.json` and keeps
-      v7–v10; JSDoc and README name `/api/work-packages`. R5 fault: the v11 reader keyed on
-      `project` again; the v11 fixture fails; watched.
-- [ ] 1.8 Docs and terms: `CONTEXT.md` (done in planning; re-check), `LLM_README.md` tables
+- [ ] 1.6 Solver wire unchanged (E26): `ElsewhereBooking.projectId` is renamed host-side by
+      the script; `SOLVER_WIRE_VERSION` stays 4 and the existing golden request test passes
+      byte-identical after `apply`; no solver-py change, no image rebuild or repin.
+- [ ] 1.7 Twilight Navigator: `plan-reference.test.ts` reads `plan-export.v12.json` and keeps
+      v7–v11; JSDoc and README name `/api/work-packages`. R5 fault: the v12 reader keyed on
+      `project` again; the v12 fixture fails; watched.
+- [ ] 1.8 Docs and terms: `CONTEXT.md` (the work package, project and step-set terms done in
+      planning; the remaining definition bodies that still say "project" for one WBS are
+      swept by hand under `check`), `LLM_README.md` tables
       line, current docs by script, module READMEs under the renamed module directories;
       `check-indexes working . HEAD` exits 0; `openspec validate --all --json` passes.
 - [ ] 1.9 Runbook `docs/runbook-dev-deploy.md#work-package-rename-window` (stop, backup, gate,
@@ -57,10 +64,11 @@
 
 - [ ] 2.1 Red: `add-project.db.test.ts` (one "Default project" per organization holding work
       packages, none for an empty organization, every work package re-homed, the column
-      `project_id` NOT NULL, the cross-organization trigger refuses, the guard refuses an unmapped work
-      package, `down.sql` refuses while a non-default project holds work packages). Green:
-      `20261101110000_add_project` with the waiver entry; the uuid generation follows the
-      organization back-fill precedent. R5 faults: the trigger dropped; the `NOT NULL` dropped;
+      `project_id` NOT NULL, back-filled `created_by IS NULL`, the cross-organization trigger
+      refuses, the guard refuses an unmapped work package, `down.sql` refuses while a
+      non-default project holds work packages). Green: `<merge-date>100000_add_project` in the
+      compatible rebuild form (a waiver only if a `DROP COLUMN`/`RENAME COLUMN` statement
+      remains); the uuid generation follows the organization back-fill precedent. R5 faults: the trigger dropped; the `NOT NULL` dropped;
       watched.
 - [ ] 2.2 Red: `ProjectStore` conformance (`projects.create:name-taken`, `projects.delete:not-empty`,
       `projects.move:cross-organization`) on SQLite and the memory twin. Green: the port,
@@ -73,11 +81,12 @@
       dependency branch lands). Green: routes, contracts, OpenAPI, MCP tools by derivation,
       `createWorkPackage` requiring `projectId` (422/404). R5 faults: the move's
       organization check removed; the audit append removed; watched.
-- [ ] 2.4 Plan document 12 (`project: { id, name }`, informational on import) with its test;
+- [ ] 2.4 Plan document 13 (`project: { id, name }`, informational on import) with its test;
       the work package read carries `projectId`.
 - [ ] 2.5 fe-01: picker grouped by project, a projects page (create, rename, delete, move),
-      refusals rendered as states; browser test on the real stack. UI reviewed by eye (pretty
-      UI and fluent UX) before merge.
+      refusals rendered as states; browser test on the real stack. R5 fault: the handler that
+      renders `409 not_empty` as a state removed; the browser test naming that refusal fails;
+      watched. UI reviewed by eye (pretty UI and fluent UX) before merge.
 - [ ] 2.6 Runbook window executed on dev (backup, gate, deploy, health); `verify.md`.
 
 ## 3. Settings inheritance and spaces (slice 3, `feat/wbs-work-packages-3`)
@@ -86,36 +95,42 @@
       sets as E18, a property that `resolveSetting` over random chains answers the nearest
       allowed level with provenance, space inert, `ambiguous_space_value` only for a
       space-overridable key). Green: `catalogue.ts`, `resolve-setting.ts`. R5 fault: the
-      `overridableAt` check removed (a work-package row for `stepCodes` resolves); watched.
+      `overridableAt` check removed (a work-package row for `allowedWorkItemTypes` resolves);
+      watched.
 - [ ] 3.2 Red: `add-setting-value.db.test.ts` (the lift creates rows only for non-default values,
-      drops the columns, every work package reads the same; `calendar_marker` scoped;
-      `work_item_type.project_id` back-filled and unique per project; `step` codes union per
-      default project). Green: `20261101120000_add_setting_value`, waiver, `down.sql` refusing
-      while any override row exists. R5 faults: the "differs from default" predicate inverted
-      (defaults get rows, overrides none; the read-back test fails); the per-project type
-      uniqueness dropped; watched.
+      drops the columns, every work package reads the same; `calendar_marker` scoped; steps
+      lifted into project steps deduplicated by code in first-occurrence order with every
+      package row, step node, estimate, attempt and claim re-keyed; no allow-list row written).
+      Green: `<merge-date>100000_add_setting_value` in the compatible rebuild form (a waiver
+      only if a `DROP COLUMN`/`RENAME COLUMN` statement remains), `down.sql` refusing while any
+      override row exists. R5 faults: the "differs from default" predicate inverted (defaults
+      get rows, overrides none; the read-back test fails); the code dedupe removed (duplicate
+      project steps observed); watched.
 - [ ] 3.3 Red: `SettingStore` conformance (write refused `not_overridable_here`, `null` clears,
       type failure 422) and `settings.routes.test.ts` (the inherited/overridden/cleared
       scenario, provenance on every key). Green: port, both stores, routes, contracts, MCP by
       derivation. R5 fault: provenance hard-coded to `work_package`; the inherited scenario
       fails; watched.
 - [ ] 3.4 Calendar markers (E19): union with provenance, project marker not deletable through a
-      work package route; step codes (E21): `code_not_in_project` on create and set-code, the
-      union back-fill; work item types (E22): project-scoped directory routes,
-      `type_not_in_project` on move. Tests named in the spec scenarios. R5 faults: the
-      vocabulary check removed; the move's type check removed; watched.
+      work package route; steps (E21): step create, rename and reorder as project routes,
+      per-package allowance and estimate unit, `step_code_not_in_project` and re-key on move;
+      work item types (E22): the `allowedWorkItemTypes` setting, `type_not_allowed_in_project`
+      on assignment and on move, directory routes unchanged. Tests named in the spec
+      scenarios. R5 faults: the allow-list check removed (a `spike` assignment succeeds); the
+      move's step-code check removed; watched.
 - [ ] 3.5 Red: `space-holds-projects.db.test.ts` (back-fill dedupe and order,
       `space_work_package` gone, `space_person`/`space_team` with organization scoping) and
       `space.routes.test.ts` (projects routes in the new sense, people and teams add/remove/list,
       schedule input hashes unchanged throughout, roll-ups folded per project with work package
-      rows beneath). Green: `20261101120100_space_holds_projects_people_teams`, store, routes,
+      rows beneath). Green: `<merge-date>100100_space_holds_projects_people_teams`, store, routes,
       contracts. R5 faults: the dedupe removed (duplicate key failure observed instead of the
       ordered result); the organization scope on `space_person` removed; watched.
-- [ ] 3.6 Plan document 13 (settings with provenance; import writes only `work_package`
-      provenance values) and saved-plan input 10; tests as in 1.5.
+- [ ] 3.6 Plan document 14 (settings with provenance; import writes only `work_package`
+      provenance values) and saved-plan input 11; tests as in 1.5.
 - [ ] 3.7 fe-01: provenance in the settings modal ("inherited from project X", clear
       override), project-level settings page, spaces page with projects, persons and teams;
-      browser test; UI reviewed by eye.
+      browser test. R5 fault: the handler that renders `409 not_overridable_here` as a state
+      removed; the browser test naming that refusal fails; watched. UI reviewed by eye.
 - [ ] 3.8 Runbook window executed on dev; `verify.md`.
 
 ## 4. Dev cleanup and curated regrouping (runbook, between slice 1 and slice 2's window)

@@ -276,22 +276,23 @@ together keeping their order. Frozen work items move with the rest; nothing chan
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 
 **Step**:
-A named kind of work a project estimates separately, unique by name within it and carrying a
-**step code**; every project starts with `Dev` and `QA`
+A named kind of work a project defines once for all its work packages, each estimating it
+separately; unique by name within the project and carrying a **step code**; every project
+starts with `Dev` and `QA`
 ([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
 definition, not an occurrence: its work within one leaf is a **step node**.
 _Avoid_: discipline, type, category
 
 **Step code**:
-A step's short, immutable name for references, unique within its work package and drawn from
-its project's step code vocabulary — `dev`, `qa`, `review`: a
+A step's short, immutable name for references, unique within its project — `dev`, `qa`,
+`review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
 reserved for ordinal references.
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
-One leaf work item's occurrence of one project step — the addressable unit that carries that
+One leaf work item's occurrence of one step — the addressable unit that carries that
 pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
 leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
 no tree position, title, type or number of its own ([ADR
@@ -391,7 +392,8 @@ _Avoid_: component, system, area, service team
 
 **Work item type**:
 A word for what a work item **is** — `epic`, `story`, `spike` — named globally and unique
-across the directory. A work item carries at most one, and none is allowed. Unlike a Tag it
+across the directory; a project may narrow which of them its work items may carry to an
+allow-list, none meaning all. A work item carries at most one, and none is allowed. Unlike a Tag it
 does not inherit at all ([ADR
 0009](docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md)): a row's type is the row's
 own, and an ancestor's says nothing about it.
@@ -667,8 +669,8 @@ two.
 _Avoid_: project entry, option, row, list item, package summary
 
 **Entry meta**:
-The muted parenthetical on a project entry in the picker: who owns the project and the
-day it was created. Shown to tell same-named projects apart, never searched.
+The muted parenthetical on a work package entry in the picker: who owns the work package and
+the day it was created. Shown to tell same-named work packages apart, never searched.
 _Avoid_: subtitle, caption, details
 
 **Estimate**:
@@ -677,15 +679,15 @@ one step node. Workday-unit trios may be fractions; minute-unit trios are whole 
 item with children has no estimates of its own.
 _Avoid_: points, effort, sizing, days (as the only unit)
 
-**Project-step allowance**:
-The percentage on a project step, default zero, applied to each leaf's combined base estimate
-before project rounding. It does not change optimistic, realistic or pessimistic entries, and a
-parent does not apply it again.
-_Avoid_: contingency estimate, per-work-item allowance
+**Step allowance**:
+The percentage a work package holds for one of its project's steps, default zero, applied to
+each leaf's combined base estimate before estimate rounding. It does not change optimistic,
+realistic or pessimistic entries, and a parent does not apply it again.
+_Avoid_: project-step allowance, contingency estimate, per-work-item allowance
 
 **Charged estimate**:
-The effort for an estimated step node after its project-step allowance is applied to the
-combined base and the figure is rounded in the step's unit: by the project's estimate
+The effort for an estimated step node after its step allowance is applied to the
+combined base and the figure is rounded in the step's unit: by the work package's estimate
 rounding for workdays, to the whole minute for minutes. Unknown remains unknown and
 contributes zero scheduling duration; a stated zero stays estimated.
 _Avoid_: base estimate, raw estimate
@@ -696,8 +698,8 @@ folded step's cell shows and takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
 
 **Final days**:
-One step's **charged estimate** for one work item: apply the project's estimate method to its
-**estimate**, then the **project-step allowance**, then **estimate rounding**. Shown beside the
+One step's **charged estimate** for one work item: apply the work package's estimate method
+to its **estimate**, then the **step allowance**, then **estimate rounding**. Shown beside the
 **trio shorthand** when the two differ, summed across steps into the work item's total days, and
 summed across descendants for a work item with children without a second allowance.
 _Avoid_: PERT number, computed figure, effective estimate
@@ -709,7 +711,7 @@ override says otherwise; read only under the `pert` estimate method.
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
-A project's answer to how one workday-unit step's combined figure, after its project-step
+A work package's answer to how one workday-unit step's combined figure, after its step
 allowance, becomes the days it is charged: `floor`, `round`, `ceil`, or `exact` for the
 fraction itself. `ceil` by default and applied per step before any sum; minute-unit steps are
 charged to the minute ([ADR 0011](docs/adr/0011-final-days-are-whole-days-rounded-per-step.md),
@@ -905,7 +907,7 @@ project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in project-step order that somebody estimated — the one a legacy
+A work item's first slice in step order that somebody estimated — the one a legacy
 dependency waits on where project Dependency reach is `anchor-slice`
 ([spec](openspec/changes/archive/2026-08-30-dep-waits-on-first-role/specs/wbs-domain/spec.md)).
 Where nothing is estimated, it is the work item's zero-duration scheduled finish after its
@@ -937,14 +939,14 @@ higher priority cannot use.
 _Avoid_: priority, importance, urgency, severity, weight
 
 **Priority band**:
-One rung of what a project calls its priority numbers: a start value, a label, and the number
+One rung of what a work package calls its priority numbers: a start value, a label, and the number
 choosing that label writes. The band above ends the one below and the highest ends nowhere, so
 every priority resolves to exactly one band
 ([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: priority level, priority range, severity level, tier
 
 **Priority ladder**:
-A project's five bands, in rank order: a vocabulary and never a constraint
+A work package's five bands, in rank order: a vocabulary and never a constraint
 ([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: priority scheme, priority config, priority scale
 
@@ -1241,11 +1243,11 @@ keeps what it was reaching for. Arriving on the open card, or leaving the trigge
 pending takeover; with nothing open a trigger opens at once. One rule for every card.
 _Avoid_: hover intent, switch delay, debounce, grace period
 
-**Project fact**:
-Words a mark carries that say something about **this project** — who a tag was inherited
+**Work package fact**:
+Words a mark carries that say something about **this work package** — who a tag was inherited
 from, how many days a row can slip, where a link goes. Shown the moment the pointer
 arrives, because the reader came to the plan to learn it.
-_Avoid_: data hint, content tooltip, instant hint
+_Avoid_: project fact, data hint, content tooltip, instant hint
 
 **Tool hint**:
 Words a control carries that say what **the control** does — a toolbar button, a column
@@ -1255,7 +1257,7 @@ _Avoid_: UI tooltip, chrome hint, slow hint
 
 **Wait ring**:
 The mark drawn beside the cursor while a tool hint is waiting to open, and the only sign
-that one exists. It is not a control and it never appears for a project fact.
+that one exists. It is not a control and it never appears for a work package fact.
 _Avoid_: spinner, loader, progress indicator, countdown
 
 **Press quiet**:
@@ -1523,11 +1525,12 @@ SQLite's own, taken by `BEGIN IMMEDIATE` on the file. What be-01's writes wait b
 one excludes other processes, the other orders this one's own writers.
 _Avoid_: using this name for the coordinator
 
-**Restricted project**:
-A project readable by current members of its organization but ordinarily editable only by
-its creator while that creator remains a member. A current super-admin may make an audited
-recovery edit; an unrestricted project is editable by current members, admins and super-admins.
-_Avoid_: private, locked project
+**Restricted work package**:
+A work package readable by current members of its organization but ordinarily editable only
+by its creator while that creator remains a member. A current super-admin may make an audited
+recovery edit; an unrestricted work package is editable by current members, admins and
+super-admins.
+_Avoid_: restricted project, private, locked project
 
 **External ref**:
 One link out of a work item to where that work also exists — an external system, a URL and a
@@ -1629,18 +1632,19 @@ person first. Ranked work packages by position, then every unranked one by creat
 _Avoid_: project rank, project priority
 
 **Influencer**:
-A readable, dated project above another in project rank that shares a person with that project
-or a higher project reached through it. Its displayed bookings can move the lower project.
+A readable, dated work package above another in work package rank that shares a person with
+that work package or a higher one reached through it. Its displayed bookings can move the
+lower work package.
 _Avoid_: upstream dependency
 
 **Influencer closure**:
-The influencers reached by repeatedly following shared-person edges toward higher project ranks.
-An undated project stops traversal because it neither consumes nor supplies bookings.
-_Avoid_: recursive project dependencies
+The influencers reached by repeatedly following shared-person edges toward higher work package
+ranks. An undated work package stops traversal because it neither consumes nor supplies bookings.
+_Avoid_: recursive project dependencies, recursive work package dependencies
 
 **Elsewhere**:
-The bookings a project's scheduler works around: those of the people it names, made by the
-projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
+The bookings a work package's scheduler works around: those of the people it names, made by
+the work packages that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
 _Avoid_: foreign load
 
 **Shared people**:

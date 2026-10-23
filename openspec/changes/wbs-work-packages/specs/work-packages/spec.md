@@ -54,7 +54,7 @@ entries, history events and saved plans SHALL keep working.
 
 ### Requirement: A rename migration runs only inside a proven window
 
-`migration-lint` SHALL refuse the slice 1, 2 and 3 migrations unless `bin/assert-rename-window.sh`
+`migration-lint` SHALL refuse the slice 1 migration unless `bin/assert-rename-window.sh`
 exists. The gate SHALL pass only when no prod release is recorded or a backup report of the
 live database is fresh (its sha256 equals the file's now and its migration set equals the
 applied set), and SHALL refuse a missing, unreadable or stale report and a missing or
@@ -65,35 +65,42 @@ unreadable state directory.
 - **WHEN** a row is written after `backup-db-cli.ts` produced the report
 - **THEN** the gate exits 1 naming the sha mismatch
 
+#### Scenario: Slices 2 and 3 need no waiver
+
+- **WHEN** the slice 2 migration rebuilds `work_package` in the compatible rebuild form with
+  no `DROP COLUMN` or `RENAME COLUMN` statement
+- **THEN** `migration-lint` passes it without a `WAIVERS` entry, and its window still runs
+  the gate before deploy
+
 #### Scenario: The waiver needs its gate
 
 - **WHEN** `bin/assert-rename-window.sh` is deleted from the tree
 - **THEN** `migration-lint` refuses the waived migration
 
-### Requirement: The plan document is version 11, then 12, then 13
+### Requirement: The plan document is version 12, then 13, then 14
 
-Export SHALL write only the newest version: 11 after slice 1 (`workPackage` replaces
-`project`, every `projectId` is `workPackageId`), 12 after slice 2 (adds the engagement as
-`project: { id, name }`), 13 after slice 3 (`workPackage.settings` carries each catalogue key
+Version 11 is the budgets change's. Export SHALL write only the newest version: 12 after
+slice 1 (`workPackage` replaces `project`, every `projectId` is `workPackageId`), 13 after
+slice 2 (adds the engagement as `project: { id, name }`), 14 after slice 3 (`workPackage.settings` carries each catalogue key
 with provenance). Import SHALL read every version from 1 to the newest, converting older
 shapes on read, and SHALL refuse a newer one with `400 unsupported_version`.
 
-#### Scenario: A version 10 file imports as a work package
+#### Scenario: A version 11 file imports as a work package
 
-- **WHEN** a version 10 file whose top-level `project` names timezone `Europe/Kyiv` is imported
+- **WHEN** a version 11 file whose top-level `project` names timezone `Europe/Kyiv` is imported
   into project P
 - **THEN** a work package is created in P with that timezone as its own override
 
 #### Scenario: Navigator reads the new export and the old fixtures
 
-- **WHEN** `twilight-navigator` turns a version 11 export and the v7–v10 fixtures into plan
+- **WHEN** `twilight-navigator` turns a version 12 export and the v7–v11 fixtures into plan
   reference records
 - **THEN** each record's plan id is the work package id of its file
 
 ### Requirement: Saved plans read across the input schema bump
 
-`CANONICAL_PLAN_INPUT_SCHEMA_VERSION` SHALL be 9 after slice 1 and 10 after slice 3. A body
-stored at 8 SHALL upgrade on read and compare equal to itself re-saved; no stored body SHALL
+`CANONICAL_PLAN_INPUT_SCHEMA_VERSION` SHALL be 10 after slice 1 and 11 after slice 3. A body
+stored at 9 or earlier SHALL upgrade on read and compare equal to itself re-saved; no stored body SHALL
 be rewritten.
 
 #### Scenario: An old saved plan still compares
@@ -131,30 +138,36 @@ package SHALL reference exactly one project of its own organization, enforced in
 ### Requirement: Slice 2 back-fills one default project per organization
 
 The migration SHALL create one project named "Default project" per organization holding
-work packages, point every work package at it, and mark nothing as special.
+work packages, point every work package at it, and mark nothing as special. A back-filled
+project's `created_by` SHALL be null (no actor); a project created through `POST
+/api/projects` SHALL carry its creator.
 
 #### Scenario: Back-fill
 
 - **WHEN** organizations A (3 work packages) and B (0) exist before the migration
-- **THEN** A has one project "Default project" holding all 3, B has none, and renaming or
-  deleting A's project once empty is allowed like any other
+- **THEN** A has one project "Default project" holding all 3 with `created_by IS NULL`, B
+  has none, and renaming or deleting A's project once empty is allowed like any other; a
+  project an admin creates afterwards has `created_by` equal to that admin's account
 
 ### Requirement: A work package moves between projects of its organization
 
 `POST /api/work-packages/:id/move { projectId }` SHALL re-home the work package in one
 transaction, bump both projects' revisions and append `work_package_moved` to the audit. It
 SHALL refuse `409 cross_organization`, `409 dependency_crosses_project { dependencyIds }`,
-`409 type_not_in_project { typeIds }` and `409 step_code_not_in_project { codes }`.
+`409 type_not_allowed_in_project { typeIds }` and `409 step_code_not_in_project { codes }`,
+and on success SHALL re-key W's per-step rows to the target project's steps by code.
 
 #### Scenario: Move refused by a type
 
-- **WHEN** a work item of W carries type `spike` and the target project has no type named
-  `spike`
-- **THEN** the move answers `409 type_not_in_project { typeIds: [<spike id>] }` and W stays
+- **WHEN** a work item of W carries type `spike` and the target project's allow-list is
+  `{epic, story}`
+- **THEN** the move answers `409 type_not_allowed_in_project { typeIds: [<spike id>] }` and
+  W stays
 
 #### Scenario: Move applied
 
-- **WHEN** W's types and step codes exist in the target and no dependency leaves the project
+- **WHEN** the target allows W's types, has a step of every code W uses, and no dependency
+  leaves the project
 - **THEN** W's `projectId` is the target, both revisions rose by one, and the audit holds one
   `work_package_moved` row
 
@@ -175,8 +188,8 @@ step SHALL be inert.
 
 #### Scenario: A fixed setting refuses the work package
 
-- **WHEN** `PATCH /api/work-packages/W/settings { stepCodes: [...] }`
-- **THEN** `409 not_overridable_here` and W's project vocabulary is unchanged
+- **WHEN** `PATCH /api/work-packages/W/settings { allowedWorkItemTypes: [...] }`
+- **THEN** `409 not_overridable_here` and W's project allow-list is unchanged
 
 #### Scenario: The space step is inert
 
@@ -206,27 +219,39 @@ provenance; a project marker SHALL NOT be removable through a work package route
 - **THEN** `GET /api/work-packages/W/calendar-markers` answers both with their provenance and
   `DELETE /api/work-packages/W/calendar-markers/<holiday>` answers `404`
 
-### Requirement: Step codes are a project vocabulary
+### Requirement: Steps are project entities
 
-A step's code SHALL be one of its project's `stepCodes`; a step write with another code
-SHALL be refused `409 code_not_in_project { code }`. The slice 3 back-fill SHALL set each
-default project's vocabulary to the union of its work packages' codes.
+A project SHALL define its step set (code, name, order) once; a work package SHALL hold
+only its allowance and estimate unit per project step, keyed by the project's step id.
+Creating, renaming or reordering a step SHALL be a project write seen by every work package
+of the project. The slice 3 migration SHALL lift steps into projects by code and re-key
+every row that names a step.
 
-#### Scenario: Refusal and union
+#### Scenario: Lift and re-key
 
-- **WHEN** P's vocabulary is `{dev, qa}` and a step with code `ops` is created in W of P
-- **THEN** `409 code_not_in_project { code: 'ops' }`; and after the back-fill of a default
-  project whose work packages used `{dev}` and `{dev, qa}` its vocabulary is `{dev, qa}`
+- **WHEN** default project P holds W1 (created first) with steps `dev` (allowance 10) and
+  `qa`, and W2 with `qa` and `ops`
+- **THEN** P's steps are `dev`, `qa`, `ops` (deduplicated by code, first-occurrence order);
+  W1 reads allowance 10 on `dev`, and every step node, estimate, attempt and claim of W1 and
+  W2 reads the same as before
 
-### Requirement: Work item types belong to a project
+#### Scenario: A step added once is everywhere
 
-Each work item type SHALL belong to one project and be unique by name within it; the slice 3
-back-fill SHALL move every type into its organization's default project.
+- **WHEN** an admin adds step `review` to project P holding W1 and W2
+- **THEN** both W1 and W2 list `review` with allowance 0
 
-#### Scenario: Back-fill and scope
+### Requirement: Work item types stay directory-wide and a project allows a subset
 
-- **WHEN** organization A had types `epic` and `story` before the migration
-- **THEN** both belong to A's default project and a second `epic` in that project is refused
+Work item types SHALL stay named globally and unique across the directory. A project SHALL
+hold `allowedWorkItemTypes`, resolved through `resolveSetting`, where an empty list allows
+every type; assigning a type outside it on create or update SHALL be refused `409
+type_not_allowed_in_project { typeIds }`. The slice 3 migration SHALL write no allow-list.
+
+#### Scenario: Allow-list
+
+- **WHEN** project P allows `{epic, story}` and a work item of W in P is given type `spike`
+- **THEN** `409 type_not_allowed_in_project { typeIds: [<spike id>] }`; and in a project with
+  no allow-list the same write succeeds
 
 ### Requirement: Spaces hold projects
 
@@ -268,13 +293,3 @@ schedule SHALL change.
 - **WHEN** `report` counts 330, one more doomed work package is created, and `apply
 --expect-count=330` runs
 - **THEN** it exits non-zero naming 331 and deletes nothing
-
-### Requirement: The solver wire names the work package
-
-`SOLVER_WIRE_VERSION` SHALL be 5 and every wire field SHALL say `workPackageId`; a response
-with another wire version SHALL be refused by the parser.
-
-#### Scenario: Wire mismatch
-
-- **WHEN** a solver answers `wireVersion: 4`
-- **THEN** `parse-solver-response` refuses it naming both versions

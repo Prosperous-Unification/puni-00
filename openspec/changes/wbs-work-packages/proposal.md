@@ -12,7 +12,7 @@ deploy; after the first tenant, a compatibility layer forever.
 - From: `project` as table, `/api/projects/...`, `postApiProjects…` tools,
   `project:<id>` subscriptions, plan document, audit subject, fe-01 words.
 - To: `work_package`, `/api/work-packages/...`, `postApiWorkPackages…`, `work-package:<id>`,
-  plan document 11 with `workPackage`, saved-plan input schema 9.
+  plan document 12 with `workPackage`, saved-plan input schema 10.
 - Impact: breaking everywhere; Navigator and the wbs-dev MCP tool names change; dev data
   migrates in place.
 
@@ -20,13 +20,13 @@ deploy; after the first tenant, a compatibility layer forever.
 
 - To: `project(organization_id, name)`; every work package has exactly one project; a
   "Default project" per organization is back-filled; `createProject`, `patchProject`,
-  `deleteProject`, `moveWorkPackage` with typed refusals; plan document 12.
+  `deleteProject`, `moveWorkPackage` with typed refusals; plan document 13.
 
 **Settings inherit; spaces group projects, persons and teams** (slice 3)
 
 - To: a setting catalogue and `resolveSetting`, organization, space, project, work package, every read naming its provenance; timezone, calendar markers and PERT weights
-  overridable at the work package; step codes and work item types fixed at the project. A
-  space still owns nothing.
+  overridable at the work package; steps and a work item type allow-list owned by the
+  project. A space still owns nothing.
 
 **Dev cleanup and regrouping** (slice 4) are a runbook, not a migration.
 
@@ -34,14 +34,14 @@ deploy; after the first tenant, a compatibility layer forever.
 
 Per-project access (`wbs-permissions`); any space-level override; budgets (`wbs-budgets`);
 cross-work-package dependencies themselves (`feat/cross-project-dependencies` rebases onto
-these names); merging step rows across work packages; keeping any old name, route or document
+these names); keeping any old name, route or document
 version alive.
 
 ## Constraints
 
-- Slice 1 renames tables and columns; slice 2 rebuilds `work_package` with `project_id NOT
-NULL`. Each ships under a migration-lint waiver, a stop-the-world window and a verified
-  backup as the rollback.
+- Slice 1 renames tables and columns under a migration-lint waiver; slice 2 rebuilds
+  `work_package` with `project_id NOT NULL`. Each ships in a stop-the-world window with a
+  verified backup as the rollback.
 - Ids stay stable; one project per work package, one organization per project; no
   per-project access invented.
 - The rename is a rerunnable script under `tools/`; residuals are listed, never hidden. Old
