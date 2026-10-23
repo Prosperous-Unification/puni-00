@@ -132,13 +132,19 @@ names an instance SHALL also carry, when a report exists, `report` as stored, an
 the latest measured capacity or null, the latest report's `observedAt` or null, and `state`
 one of `no_report`, `measured`, `unreachable` or `stale` (`stale` once
 `now - observedAt > 3 × cadenceSeconds`, whatever the outcome). The project settings resources section and the directory page
-SHALL show, beside a capacity whose resource names an instance, the instance's kind and name
-and the report in one of the rendered states: `no report yet`, `measured <capacity> <unit>,
-<usage> in use, <age>`, `unreachable <age>: <reason>`, each marked `stale` once
-`now - observedAt > 3 × cadenceSeconds`; a resource without an instance SHALL show nothing
-extra. An admin's "adopt measured" action SHALL write `setResourceCapacity { resource, units:
-capacityUnits }` for that project through the ordinary command path (journalled, undoable);
-nothing SHALL adopt a measurement without that act.
+SHALL show, beside a capacity whose resource names an instance, the report in one of the
+rendered states: `no report yet`, `measured <capacity> <unit>, <usage> in use, <age>`,
+`unreachable <age>: <reason>`, each marked `stale` once `now - observedAt > 3 ×
+cadenceSeconds`; a resource without an instance SHALL show nothing extra. An organization
+admin SHALL see the instance's kind and name; a member or a viewer SHALL see that a compute
+provider fulfils the resource, unnamed, because the resources read carries only `providerId`
+and the instances list is admin-only. "Adopt measured" SHALL write `setResourceCapacity {
+resource, units: capacityUnits }` for that project, the explicit command a project writer
+could always send for declared capacity; the UI SHALL offer Adopt to organization admins only.
+`setResourceCapacity` is not journalled, so the plan's undo does not reverse it: the UI's Undo
+SHALL be a compensating `setResourceCapacity` with the previous value (or `null` when it was
+unstated), offered only while the declared value still equals the adopted one. Nothing SHALL
+adopt a measurement without that act.
 
 #### Scenario: The chip beside the capacity
 
@@ -150,8 +156,15 @@ nothing SHALL adopt a measurement without that act.
 #### Scenario: Adopting the measurement
 
 - **WHEN** an admin clicks adopt on that row
-- **THEN** one `setResourceCapacity { resource: <h4claw ram>, units: 15 }` lands in P's
-  journal, the schedule recomputes from 15, and undo restores 32
+- **THEN** one `setResourceCapacity { resource: <h4claw ram>, units: 15 }` is applied, the
+  schedule recomputes from 15, and the row offers Undo, which sends
+  `setResourceCapacity { resource: <h4claw ram>, units: 32 }` and restores 32
+
+#### Scenario: Undo is withdrawn once another writer states a different number
+
+- **WHEN** after the adoption another writer states `h4claw ram` at 20 GB for P and the
+  section reads again
+- **THEN** the row reads `20 GB` and offers no Undo, so 32 is never written over 20
 
 #### Scenario: A resource without an instance
 

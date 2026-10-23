@@ -62,6 +62,7 @@
       "@wbs/domain/saved-plan-default-name": [
         "./libs/wbs/domain/domain/src/saved-plan-default-name.ts"
       ],
+      "@wbs/domain/compute-provider": ["./libs/wbs/domain/domain/src/compute-provider.ts"],
       "@wbs/domain/canonical-schedule-input": [
         "./libs/wbs/domain/domain/src/canonical-schedule-input.ts"
       ],

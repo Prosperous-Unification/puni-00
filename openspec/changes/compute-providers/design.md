@@ -137,11 +137,14 @@ project resources read and the project settings show, beside each stated capacit
 resource names an instance, the latest report: `measured 15 GB, 8 in use, 2 min ago` or
 `unreachable 40 min: ssh: connection timed out` or `no report yet`, and `stale` once
 `now - observedAt > 3 × cadenceSeconds`. An admin "adopt measured" action writes the ordinary
-`setResourceCapacity { resource, units: capacityUnits }` for the chosen project: journalled,
-undoable, visible to the engines and the claim path as any typed number. Nothing adopts on
-its own. Why this and not a per-resource "follow measured" flag: O1 and O3 forbid a reference
+`setResourceCapacity { resource, units: capacityUnits }` for the chosen project, the explicit
+command any project writer could always send for declared capacity, visible to the engines and
+the claim path as any typed number; the UI offers Adopt to organization admins only.
+`setResourceCapacity` is not journalled, so the plan's undo does not reverse it: the UI's Undo
+is a compensating `setResourceCapacity` with the previous value (or `null`), offered only while
+the declared value still equals the adopted one. Nothing adopts on its own. Why this and not a per-resource "follow measured" flag: O1 and O3 forbid a reference
 that constrains claims, and a flag whose effect is a capacity the engines read would be one;
-the adopt command keeps every planning input a human-typed, journalled fact and still gives
+the adopt command keeps every planning input a human-typed, explicit fact and still gives
 the admin the opt-in the owner asked for. A later change may add the flag if adoption proves
 tedious; the command is its building block.
 

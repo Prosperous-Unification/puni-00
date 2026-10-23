@@ -104,12 +104,19 @@ namespace. The pool loader case and its proof are slice 2's; slice 4 adds the WB
 
 ## 5. fe-01: panel, resources section, directory row (after `wbs-resources` 1.5)
 
-- [ ] 5.1 Organization "Compute providers" panel: list, register, rename or relocate, remove
+- [x] 5.1 Organization "Compute providers" panel: list, register, rename or relocate, remove
       with the `in_use` confirmation naming the resources; loading, empty and query-failure
       states. Red: rendering tests per state; eye review per the UI acceptance rule.
-- [ ] 5.2 Project settings resources section: provider chip and report states (`no report
+- [x] 5.2 Project settings resources section: provider chip and report states (`no report
 yet`, measured, unreachable, stale at 3 × cadence), the adopt action writing
       `setResourceCapacity`. Red: the four states and the stale boundary at exactly
       3 × cadence; the adopt command lands once and undo restores. R5 fault line: render a
       missing report as `measured 0` and the no-report case passes; watched, restored,
-      `Proof:`. Directory row chip. Eye review.
+      `Proof:`. Eye review. As shipped: an admin picks the instance in a select that names it
+      and its kind; a member or viewer sees the reference unnamed, because the instances list
+      is admin-only and the resources read carries the id alone. Undo is a second
+      `setResourceCapacity` with the previous units or `null`, because the command is not
+      journalled. The directory row chip moved to 5.3.
+- [ ] 5.3 Directory row chip (kind and instance name). Not done in slice 5: the directory page
+      has no resource row and no directory-scoped resources read exists; both are
+      `wbs-resources` task 1.5.

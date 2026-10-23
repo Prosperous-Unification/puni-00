@@ -260,6 +260,13 @@ export default defineConfig(({ command, mode }) => ({
         __dirname,
         '../../../libs/wbs/domain/domain/src/saved-plan-default-name.ts',
       ),
+      // And an eighth, for compute providers: `compute-provider.ts` holds the
+      // stale-at-three-cadences rule be-01 states a report with, and imports
+      // only a type, so the settings section reads a report as be-01 does.
+      '@wbs/domain/compute-provider': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/compute-provider.ts',
+      ),
     },
   },
   server: {
