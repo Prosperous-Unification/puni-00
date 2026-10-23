@@ -283,7 +283,12 @@ set of each UTC day for 60 days, the last set of each UTC week for 52 weeks, new
 status-named sets always kept, refusal on a failed or empty listing, re-list after deletion,
 then `rclone backend cleanup` of multipart uploads older than 24 h) on a daily
 `sqlite-backup-remote-prune.timer` at 04:47Z under the hourly job's lock. Local recovery
-followed the script's own verified `prune` path after the newest local sets were uploaded.
+followed the script's own verified `prune` path after every local generation was uploaded:
+108 files re-downloaded and matched, 92 removed, four sets retained, `/dev/sda1` from
+705 MB to 21 GB free. A manual run at 21:54Z completed in 5 m 56 s and the next scheduled
+run at 22:17Z in 5 m 24 s, each with a 985 MB `wbs-dev` generation, a healthy `status.json`
+and `check` exit 0. The first `prune-remote --dry-run` planned to keep 38 sets (152 files,
+8.4 GiB) and expire 775 sets (3,097 files, 143.5 GiB); the timer applies it on 2026-10-24.
 
 **Not done here.** The bucket lifecycle rule still lacks `AbortIncompleteMultipartUpload`
 and `ExpiredObjectDeleteMarker` (the session's permission classifier refused direct bucket
