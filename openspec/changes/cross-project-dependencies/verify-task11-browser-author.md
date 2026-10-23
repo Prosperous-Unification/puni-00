@@ -38,3 +38,13 @@ All commands ran in this isolated worktree. Nx commands used `NX_DAEMON=false NX
 `bun install --frozen-lockfile` failed with ENOSPC. Only this task's partial `node_modules` installation was removed, recovering its allocated disk. Checks reused the existing root dependency tree through an untracked worktree `node_modules` symlink; the root and worktree `bun.lock` hashes match (`ce438c27003f3ac7cbf0ab95019c9058dfcb10707be6310871de680cda8b471b`), but a fresh frozen install is unverified. The initial sandbox browser attempt could not run its localhost stack; browser receipts use the localhost-capable execution boundary. Logs retain existing NO_COLOR/FORCE_COLOR and Vite configuration warnings.
 
 This bounded desktop whole-to-whole FS slice does not establish phone creation, node/descendant endpoint creation, abbreviation editing and stable navigation, every task 11.1 scenario, production activation, full frontend/solver/API/conformance gates, deployment or release readiness. Those checks, build and exact-SHA host gate were not run. No push or integration is part of this packet.
+
+## Integrated branch verification (2026-10-23)
+
+Independent Astra rereview approved the corrected Bun harness and the real
+picker, accepted HTTP, SQLite identity, reload and completion path at
+`0026d73a5`. On the combined feature branch at `5d93fe7bc`,
+`bunx nx run wbs-fe-01:e2e-cross-project --skip-nx-cache` exited 0 with
+**7 passed in 1.2 minutes**. Full OpenSpec validation reported **274 passed,
+0 failed**. This does not establish hosted CI, production authoring activation,
+the full Task 11.1 matrix or the exact-SHA host gate.
