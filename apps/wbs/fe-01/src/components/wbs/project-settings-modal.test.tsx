@@ -232,6 +232,7 @@ describe('one modal for the project’s five settings', () => {
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]);
     // The first section is showing, and it is the teams'.
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
@@ -277,10 +278,12 @@ describe('one modal for the project’s five settings', () => {
     fireEvent.keyDown(tab('Optimization'), { key: 'ArrowRight' });
     expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Timezone'), { key: 'ArrowRight' });
+    expect(tab('Resources')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Resources'), { key: 'ArrowRight' });
     expect(tab('General')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Teams'), { key: 'End' });
-    expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(tab('Timezone'), { key: 'Home' });
+    expect(tab('Resources')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Resources'), { key: 'Home' });
     expect(tab('General')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -569,6 +572,7 @@ describe('closing over an edit', () => {
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]) {
       fireEvent.click(tab(name));
       await settle();

@@ -23,6 +23,7 @@ const SUBJECT_KINDS: readonly OrganizationAuditSubjectKind[] = [
   'machine_credential',
   'trusted_issuer',
   'organization_limits',
+  'compute_provider',
 ];
 
 /**

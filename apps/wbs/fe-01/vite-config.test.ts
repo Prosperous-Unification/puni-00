@@ -316,6 +316,7 @@ describe('the app and the run resolve the same modules', () => {
         domain,
         'saved-plan-default-name.ts',
       ),
+      '@wbs/domain/compute-provider': resolve(APP_ROOT, domain, 'compute-provider.ts'),
     };
     // Proof: with both maps resolving their legacy `../../libs/*` targets,
     // this failed with every shared alias under `apps/libs/*` instead of

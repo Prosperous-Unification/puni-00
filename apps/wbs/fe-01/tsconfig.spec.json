@@ -50,7 +50,8 @@
       "@wbs/domain/node-reading": ["../../../libs/wbs/domain/domain/src/node-reading.ts"],
       "@wbs/domain/saved-plan-default-name": [
         "../../../libs/wbs/domain/domain/src/saved-plan-default-name.ts"
-      ]
+      ],
+      "@wbs/domain/compute-provider": ["../../../libs/wbs/domain/domain/src/compute-provider.ts"]
     }
   },
   "include": [

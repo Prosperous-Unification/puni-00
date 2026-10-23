@@ -172,12 +172,14 @@ for (const viewport of [
 
     const frames: { section: string; top: number; titleTop: number }[] = [];
     for (const section of [
+      'General',
       'Teams',
       'Priorities',
       'Steps',
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]) {
       await dialog.getByRole('tab', { name: section }).click();
       await expect(dialog.getByRole('tab', { name: section })).toHaveAttribute(
@@ -231,9 +233,9 @@ test('the section tabs fit a phone, whole and apart, at 44px', async ({ page }) 
     });
   });
   // Proof: removing General from the rendered sections made this count fail
-  // (six instead of seven). The existing wrap check failed on main at
+  // (seven instead of eight). The existing wrap check failed on main at
   // b0072a456 when an unwrapped Teams tab was cut short at 375px.
-  expect(tabs).toHaveLength(7);
+  expect(tabs).toHaveLength(8);
   for (const tab of tabs) {
     expect(tab.cut, `${tab.name} is cut short`).toBe(false);
     expect(tab.pastEdge, `${tab.name} runs past the modal's edge`).toBe(false);

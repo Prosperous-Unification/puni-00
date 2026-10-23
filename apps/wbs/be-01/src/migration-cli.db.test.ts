@@ -1240,7 +1240,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022212000_add_cross_project_dependency_activation' &&
           name !== '20261022213000_add_optimization_boundary_certificates' &&
           name !== '20261022130000_add_organization_limits' &&
-          name !== '20261022130100_widen_organization_audit_organization_limits',
+          name !== '20261022130100_widen_organization_audit_organization_limits' &&
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1306,7 +1308,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022212000_add_cross_project_dependency_activation' &&
           name !== '20261022213000_add_optimization_boundary_certificates' &&
           name !== '20261022130000_add_organization_limits' &&
-          name !== '20261022130100_widen_organization_audit_organization_limits',
+          name !== '20261022130100_widen_organization_audit_organization_limits' &&
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers',
       ),
     );
     const after = openDatabase(dbPath);

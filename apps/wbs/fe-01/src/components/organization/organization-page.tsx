@@ -7,6 +7,7 @@ import { useFeatureReachable } from '@/lib/session-features';
 import { cn } from '@/lib/utils';
 
 import { AccessState } from './access-state';
+import { ComputeProvidersSlot } from './compute-providers-panel';
 import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
@@ -83,6 +84,8 @@ export function OrganizationPage({
               {/* Proof: omitted composition failed the mounted provisioning-token composition test (2026-10-15). */}
               <ProvisioningTokensPanel onAccessLost={setLoss} />
               <MachineCredentialsSlot role={role} userId={userId} onAccessLost={setLoss} />
+              {/* Proof: 2026-10-23, omitting this slot failed `composes the compute providers panel for an admin`. */}
+              <ComputeProvidersSlot role={role} onAccessLost={setLoss} />
               {/*
                * Proof: 2026-10-11, leaving this panel out failed `shows whether
                * the organization shares its people`.

@@ -359,6 +359,19 @@ export function bindStores(
         projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
       };
     },
+    async setResourceProvider(resourceId, providerId, organizationId, stamp) {
+      const written = await fixtureDirectory.setResourceProvider(
+        resourceId,
+        providerId,
+        organizationId,
+        stamp,
+      );
+      if (!written.ok) return written;
+      return {
+        ...written,
+        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+      };
+    },
     // Occupancies live in the source's claim table, out of the fixture's sight,
     // and refuse an unconfirmed removal and go with a confirmed one, as SQLite's do.
     async usageOfResource(resourceId) {

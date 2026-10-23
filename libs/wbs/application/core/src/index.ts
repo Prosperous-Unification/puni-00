@@ -80,6 +80,7 @@ export * from './module/capacity/capacity.resource';
 export * from './module/directory/directory.resource';
 export * from './module/plan-commands/command-bindings';
 export * from './module/realtime/gateway-broadcaster';
+export * from './ports/compute-providers';
 export * from './ports/credential-rules';
 export * from './ports/email-delivery';
 export * from './ports/email-verification';
