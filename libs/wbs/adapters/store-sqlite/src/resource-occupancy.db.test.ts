@@ -222,6 +222,12 @@ for (const store of STORES) {
         for (let index = 0; index < 8; index += 1)
           expect(await run([claim(index, `a${String(index)}`)])).toMatchObject({ ok: true });
         const ninth = await run([claim(8, 'a8')]);
+        const holders = Array.from({ length: 8 }, (_, index) => ({
+          personId: `a${String(index)}`,
+          name: `agent a${String(index)}`,
+          runId: null,
+          workItemId: leaf(index),
+        })).sort((left, right) => left.workItemId.localeCompare(right.workItemId));
         expect(ninth).toEqual({
           ok: false,
           at: 0,
@@ -231,15 +237,47 @@ for (const store of STORES) {
             resourceId: RAM,
             asked: 4,
             free: 0,
-            holders: Array.from({ length: 8 }, (_, index) => ({
-              personId: `a${String(index)}`,
-              name: `agent a${String(index)}`,
-              runId: null,
-              workItemId: leaf(index),
-            })).sort((left, right) => left.workItemId.localeCompare(right.workItemId)),
+            holders,
+            resources: [{ resourceId: RAM, asked: 4, free: 0, holders }],
           },
         });
         expect(await occupied(RAM)).toBe(32);
+      } finally {
+        await close();
+      }
+    });
+
+    it('names both resources a claim is short of', async () => {
+      const { run, claim, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setResourceCapacity', resourceId: WORKTREE, units: 1 },
+          ...[0, 1].flatMap((index): PlanCommand[] => [
+            { kind: 'setDemand', workItemId: leaf(index), resourceId: RAM, units: 6 },
+            { kind: 'setDemand', workItemId: leaf(index), resourceId: WORKTREE, units: 1 },
+          ]),
+        ]);
+        expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+        const holder = { personId: 'a0', name: 'agent a0', runId: 'run-0', workItemId: leaf(0) };
+        expect(await run([claim(1, 'a1')])).toEqual({
+          ok: false,
+          at: 0,
+          kind: 'claimWorkItem',
+          reason: 'resources_exhausted',
+          detail: {
+            resourceId: RAM,
+            asked: 6,
+            free: 2,
+            holders: [holder],
+            resources: [
+              { resourceId: RAM, asked: 6, free: 2, holders: [holder] },
+              { resourceId: WORKTREE, asked: 1, free: 0, holders: [holder] },
+            ],
+          },
+        });
+        expect(await occupied(RAM)).toBe(6);
+        expect(await occupied(WORKTREE)).toBe(1);
       } finally {
         await close();
       }
