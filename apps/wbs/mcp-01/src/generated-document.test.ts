@@ -255,6 +255,16 @@ test('refuses a generated operation whose name was lost before MCP derivation', 
   expect(() => toolsFromDocument(document)).toThrow('no operationId');
 });
 
+test('keeps runtime dependency capability in the document and out of generated MCP tools', () => {
+  const document = documentFromShapes(httpShapes);
+  expect(document.paths['/api/runtime/dependency-capability']?.['get']?.operationId).toBe(
+    'getDependencyCapability',
+  );
+  expect(toolsFromDocument(document).map((tool) => tool.name)).not.toContain(
+    'getDependencyCapability',
+  );
+});
+
 test('optional operational deny paths cannot become tools in external documents', () => {
   const document = documentFromShapes(httpShapes);
   document.paths['/health'] = {

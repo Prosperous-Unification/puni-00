@@ -133,7 +133,13 @@ const excludes = (pattern: string, path: string): boolean =>
 // They remain outside the required external exclusion set because they are optional
 // in documents supplied by older or third-party servers.
 // Proof: removing these deny paths exposed getHealth in the external-document production derivation test.
-const optionalOperationalPaths = ['/health', '/metrics'] as const;
+// Proof: removing the dependency-capability path exposed getDependencyCapability
+// in the generated-document production derivation (12 pass / 2 fail, 2026-10-23).
+const optionalOperationalPaths = [
+  '/health',
+  '/metrics',
+  '/api/runtime/dependency-capability',
+] as const;
 const exclusionFor = (path: string): string | undefined =>
   [...EXCLUDED_PATHS, ...optionalOperationalPaths].find((candidate) => excludes(candidate, path));
 

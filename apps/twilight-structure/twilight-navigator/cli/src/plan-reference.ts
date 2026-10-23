@@ -9,7 +9,7 @@ import {
   type PlanTask,
   PlanTasks,
 } from '@twilight-burokrat/contracts';
-import { type PlanDocument, planDocument } from '@wbs/contracts';
+import { type PlanDocumentV10, planDocumentV10 } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';
 import {
@@ -43,12 +43,12 @@ const PlanDocumentHeader = type({
 });
 /**
  * Navigator's v7 wire contract: steps predate estimate units and always carry workdays.
- * WBS's current document schema supplies the unchanged fields; the versioned header and
+ * WBS's pinned v10 document schema supplies the unchanged fields; the versioned header and
  * step and work-item shapes retain the historical wire contract.
  */
 // Proof: retaining the v9 stepBlockages requirement broke valid v7 and v8 exports
 // in plan-reference.test.ts (injected schema dependency fault, 2026-10-14).
-const HistoricalPlanDocument = planDocument
+const HistoricalPlanDocument = planDocumentV10
   .omit(
     'document',
     'steps',
@@ -59,14 +59,14 @@ const HistoricalPlanDocument = planDocument
     'directory',
   )
   .and({
-    directory: planDocument.get('directory').omit('resources'),
+    directory: planDocumentV10.get('directory').omit('resources'),
     document: {
       format: "'wbs-plan'",
       version: '7',
       exportedAt: 'string',
     },
-    steps: planDocument.get('steps', 0).exclude('undefined').omit('estimateUnit').array(),
-    workItems: planDocument.get('workItems', 0).exclude('undefined').omit('charged').array(),
+    steps: planDocumentV10.get('steps', 0).exclude('undefined').omit('estimateUnit').array(),
+    workItems: planDocumentV10.get('workItems', 0).exclude('undefined').omit('charged').array(),
   })
   // Proof: removing deep rejection made the root unknown-key case and all six v7
   // estimateUnit/charged refusal cases exit 0 instead of 1 (plan-reference.test.ts, 2026-10-13).
@@ -75,11 +75,11 @@ const HistoricalPlanDocument = planDocument
 /** Current wire contract; nested unknown keys remain a refused input. */
 // Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
 // Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
-const Version8PlanDocument = planDocument
+const Version8PlanDocument = planDocumentV10
   .omit('document', 'stepBlockages', 'resourceCapacities', 'demands', 'directory')
   .and({
     document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' },
-    directory: planDocument.get('directory').omit('resources'),
+    directory: planDocumentV10.get('directory').omit('resources'),
   })
   .onDeepUndeclaredKey('reject');
 
@@ -92,25 +92,25 @@ const Version8PlanDocument = planDocument
 // through plan-reference.test.ts production dispatch (2026-10-15).
 // Proof: reading v9 through the v10 schema refused both v9 positives on the absent resource
 // lists (plan-reference.test.ts, 2026-10-20).
-const Version9PlanDocument = planDocument
+const Version9PlanDocument = planDocumentV10
   .omit('document', 'resourceCapacities', 'demands', 'directory')
   .and({
     document: { format: "'wbs-plan'", version: '9', exportedAt: 'string' },
-    directory: planDocument.get('directory').omit('resources'),
+    directory: planDocumentV10.get('directory').omit('resources'),
   })
   .onDeepUndeclaredKey('reject');
 
-/** Strict current external wire shape, without historical defaults or discarded keys. */
+/** Strict v10 wire shape; later WBS schemas cannot widen Navigator's supported inputs. */
 // Proof: removing deep rejection accepted `refuses v10 unknown nested key` through
 // plan-reference.test.ts production dispatch (2026-10-20).
-const Version10PlanDocument = planDocument.onDeepUndeclaredKey('reject');
+const Version10PlanDocument = planDocumentV10.onDeepUndeclaredKey('reject');
 
 /**
  * Checks only direct archival facts at Navigator's external export boundary. Retained facts
  * on done nodes and negative instants are valid; progress and eligibility are not derived.
  * @throws when a direct fact has no existing leaf owner or step, repeats a pair, or has an unsafe instant.
  */
-function validateBlockageFacts(document: PlanDocument): void {
+function validateBlockageFacts(document: PlanDocumentV10): void {
   const owners = new Set(document.workItems.map(({ id }) => id));
   const parents = new Set(document.workItems.map(({ parentId }) => parentId));
   const steps = new Set(document.steps.map(({ id }) => id));
@@ -133,12 +133,12 @@ function validateBlockageFacts(document: PlanDocument): void {
 }
 
 interface DecodedPlanExport {
-  document: PlanDocument;
+  document: PlanDocumentV10;
   wireVersion: 7 | 8 | 9 | 10;
 }
 
 /** The resource facts a document before version 10 carries: none. */
-function noResourceFacts(): Pick<PlanDocument, 'resourceCapacities' | 'demands'> {
+function noResourceFacts(): Pick<PlanDocumentV10, 'resourceCapacities' | 'demands'> {
   return { resourceCapacities: [], demands: [] };
 }
 
@@ -180,7 +180,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
     }
     if (header.document.version === 9) {
       const document = parseOrThrow(Version9PlanDocument, parsed);
-      const current: PlanDocument = {
+      const current: PlanDocumentV10 = {
         ...document,
         ...noResourceFacts(),
         document: { ...document.document, version: 10 },
@@ -226,7 +226,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
  * @throws when a parent, an estimate's step or a step code is missing or repeated, since the
  * export would then not describe one tree.
  */
-export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8 | 9 | 10): PlanTasks {
+export function derivePlanTasks(document: PlanDocumentV10, wireVersion: 7 | 8 | 9 | 10): PlanTasks {
   const steps = [...document.steps]
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
     .map((step) => ({
