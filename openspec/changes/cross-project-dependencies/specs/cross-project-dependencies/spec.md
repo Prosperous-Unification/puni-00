@@ -1069,3 +1069,23 @@ claim that installed launchers adopted source changes.
 - **WHEN** source admission tests pass without an installed-byte and prior-holder drain audit
 - **THEN** participant observation remains activation blocked
 - **AND** no owner publication, Caddy mutation or activation is performed
+
+#### Scenario: Devsync retains the lock across its production child spawn
+
+- **GIVEN** the unlocked devsync parent acquired or inherited the canonical edge lock
+- **WHEN** it starts the real flock executor and locked Bun child
+- **THEN** it explicitly passes the kernel descriptor with its matching token
+- **AND** the locked child verifies and reuses that description while excluding competing processes
+
+#### Scenario: Provisioning stages Compose bytes before configure admission
+
+- **GIVEN** bootstrap completed and candidate base Compose bytes were uploaded
+- **WHEN** configure observes retained owner state or another shared-edge writer
+- **THEN** live `base.yml` remains unchanged and the staged candidate remains separate
+- **AND** admitted configure commits through a sibling file and final rename under the canonical lock
+
+#### Scenario: Manual deployment refuses retained ownership before fetch
+
+- **GIVEN** retained owner or interrupted-publication state exists
+- **WHEN** the manual SSH deployment holds the canonical outer lock
+- **THEN** it refuses before invoking Git fetch or acquiring the poll lock

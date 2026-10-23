@@ -458,9 +458,34 @@ export async function runDevSyncLock(
     : [];
   // Proof: removing `-E 75` failed the production-invocation test's exact argv
   // assertion: Expected began "-E", "75"; Received began "-n", devsync.lock.
-  const run =
-    await $`${flockPath} -E ${LOCK_BUSY_EXIT_CODE} -n ${lockPath} ${bunPath} ${scriptPath} --locked ${sha} ${pathArgs}`.nothrow();
-  return run.exitCode;
+  const inherited = process.env['WBS_EDGE_LOCK_FD'];
+  // withEdgeAdmission validated the descriptor against canonical state before
+  // this launcher. Remap it explicitly: Bun shell does not preserve extra FDs
+  // across its second spawn, even though the environment token survives.
+  // Proof: omitting this mapping failed the standalone and inherited-FD8 real
+  // launchers plus the completing locked-child exclusion test (3 failures).
+  const child = Bun.spawn(
+    [
+      flockPath,
+      '-E',
+      String(LOCK_BUSY_EXIT_CODE),
+      '-n',
+      lockPath,
+      bunPath,
+      scriptPath,
+      '--locked',
+      sha,
+      ...pathArgs,
+    ],
+    {
+      env: { ...process.env, WBS_EDGE_LOCK_FD: inherited === undefined ? undefined : '3' },
+      stdio:
+        inherited === undefined
+          ? ['inherit', 'inherit', 'inherit']
+          : ['inherit', 'inherit', 'inherit', Number(inherited)],
+    },
+  );
+  return child.exited;
 }
 
 /**

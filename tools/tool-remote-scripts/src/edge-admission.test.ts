@@ -309,3 +309,38 @@ test('manual dev deploy takes edge.lock before poll.lock and cannot reach fetch 
     await holder.exited;
   }
 });
+
+for (const marker of ['edge-owner.json', 'edge-owner.pending']) {
+  test(`manual dev deploy refuses ${marker} before fetch`, async () => {
+    const state = await mkdtemp(join(tmpdir(), 'edge-manual-marker-'));
+    roots.push(state);
+    await writeFile(join(state, marker), 'retained');
+    const source = await readFile(join(repository, 'bin/dev-deploy.sh'), 'utf8');
+    const invocation = source
+      .split('\n')
+      .find((line) => line.includes('flock /home/puni1/wbs-dev/state/poll.lock bash -c'));
+    if (invocation === undefined) throw new Error('manual deploy SSH writer invocation missing');
+    const remote = invocation
+      .trim()
+      .slice(1, -3)
+      .replaceAll('/home/puni1/wbs/state', state)
+      .replaceAll('/home/puni1/wbs-dev/state/poll.lock', join(state, 'poll.lock'));
+    const commands = join(state, 'commands');
+    await mkdir(commands);
+    await writeFile(
+      join(commands, 'git'),
+      '#!/bin/sh\ntouch "$WBS_EDGE_STATE/fetched"\nexit 42\n',
+      { mode: 0o755 },
+    );
+    const executablePath = process.env['PATH'];
+    if (executablePath === undefined) throw new Error('test requires PATH');
+    const child = Bun.spawn(['bash', '-c', remote], {
+      env: { ...process.env, WBS_EDGE_STATE: state, PATH: `${commands}:${executablePath}` },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(await new Response(child.stderr).text()).toContain('shared edge owner admission closed');
+    expect(await child.exited).toBe(1);
+    expect(await Bun.file(join(state, 'fetched')).exists()).toBe(false);
+  });
+}

@@ -1186,3 +1186,16 @@ admission cannot prove that it or other installed launchers adopted this protoco
 Participant inspection remains blocked pending installed writer identity/drain,
 installed-byte audit, retained publication and continuous participant exclusion.
 Operational details live in the prod runbook's shared edge admission section.
+
+The admission prerequisite's review correction retains the actual kernel open
+description through devsync's unlocked parent, real `flock`, and locked Bun child
+by explicitly mapping it to child descriptor 3. Passing the environment token
+through Bun shell alone loses the descriptor at the second spawn on pinned Bun
+1.4.2. The child still verifies inode identity and calls real flock. The manual
+SSH launcher now checks both retained paths under the outer lock before fetch.
+
+Provisioning uploads base Compose bytes to a unique, non-live staging path.
+`configure.sh` moves that candidate to a sibling of live `base.yml`, then renames
+it into place while retaining shared-edge admission. The sibling step keeps the
+final move within one filesystem even if `/tmp` is mounted separately. A retained
+marker or competing writer leaves both live configuration and staged bytes intact.

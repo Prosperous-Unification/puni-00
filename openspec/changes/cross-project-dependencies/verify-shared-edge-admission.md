@@ -86,3 +86,58 @@ Configured ESLint over every changed TypeScript file exited 0. Format is checked
 again by the normal commit hooks over all staged supported files. The shell
 provisioners retain their standalone `sh` invocation; the Linux `test -ef`
 extension is documented beside its shellcheck exception and exercised with `sh`.
+
+## Review correction: child handoff, provisioning gap and prefetch admission
+
+Read-only Astra review of `6ab3fe284` found three gaps missed by its green tests.
+The source prerequisite was not review-ready at that SHA. This correction:
+
+- Reproduced standalone devsync inode mismatch and inherited-FD8 `EBADF` through
+  the actual unlocked CLI, real flock binary and locked Bun child. Explicit extra
+  stdio mapping now carries the actual open description into child FD 3. Both
+  launchers reach their intended MCP environment preflight. A separate real child
+  completes with exit 0 and verifies that a competing process cannot obtain the
+  edge lock. Omitting the mapping again failed all three tests (3 failures).
+- Reproduced direct SCP replacement of live `base.yml` after bootstrap but before
+  refused configure (2 failures: retained marker and occupied edge lock). The
+  transport now uploads a unique staged file; admitted configure moves through a
+  sibling and commits under its existing edge lock. Tests run the actual ordered
+  transport plan against local SSH/SCP substitutes, using shipped bootstrap and
+  configure admission prefixes, and stop before host package/service operations.
+  They verify successful commit, closed admission, competing writer refusal, and
+  real flock exclusion at each move. No external SSH or provisioning occurred.
+- Reproduced manual owner/orphan marker admission reaching fake Git fetch (2
+  failures). The shipped remote command now checks both retained paths before
+  fetch under its canonical outer lock.
+
+The pinned Bun 1.4.2 runtime also returned `EPERM` for FileSink stdin writes in the
+local sandbox, independently reproduced with `cat`. Supplying the same secret
+payload as subprocess Blob stdin allows the local transport fixture to run without
+remote access or relaxed permissions. An unsandboxed test attempt was rejected by
+automatic approval review due to possible remote provisioning; no such action ran,
+and all provisioning fixtures subsequently ran within the sandbox with local-only
+transport substitutes.
+
+Installed-owner adoption, prior-holder drain, marker publication, continuous
+exclusion and activation remain unproven. This follow-up adds no publisher or
+activation command and changes no host.
+
+Correction verification commands and observed output:
+
+```sh
+bun test tools/tool-remote-scripts/src/edge-admission.test.ts tools/tool-devsync/src/edge-admission.test.ts tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-devsync/src/sync.test.ts tools/tool-bootstrap/src/configure-caddy.test.ts tools/tool-bootstrap/src/push.test.ts tools/tool-bootstrap/src/push-edge-admission.test.ts
+# 396 passed, 0 failed, 4825 assertions, 8 files
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck --projects=tool-remote-scripts,tool-devsync,tool-bootstrap
+# 3 successful targets, exit 0
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t build --projects=tool-remote-scripts,tool-bootstrap --skip-nx-cache
+# fresh affected builds and dependencies; exit 0
+bunx openspec validate cross-project-dependencies --json
+# valid, existing long-requirement warnings only
+shellcheck bin/dev-deploy.sh tools/tool-bootstrap/src/configure.sh
+bash -n bin/dev-deploy.sh tools/tool-bootstrap/src/configure.sh
+# both exit 0
+```
+
+Configured ESLint passed every corrected TypeScript file. Normal commit hooks
+repeat staged lint, format and repository guards. The integrated host gate,
+installed adoption audit and independent rereview remain outstanding.

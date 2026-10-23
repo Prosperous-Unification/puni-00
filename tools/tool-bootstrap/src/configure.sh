@@ -82,6 +82,17 @@ die() { printf '[configure] %s\n' "$*" >&2; exit 1; }
 id "$WBS_USER" >/dev/null 2>&1 || die "user '$WBS_USER' does not exist"
 [ -n "${REGISTRY_PASS:-}" ] || die "REGISTRY_PASS must be set"
 
+# The transport stages outside live configuration. Move to a sibling first so
+# the final rename stays atomic even when /tmp is on another filesystem.
+# Proof: direct live scp made both marker and concurrent-writer transport tests
+# replace base.yml before configure admission; the staged sequence preserves it.
+if [ "${WBS_BASE_COMPOSE_STAGE+x}" = x ]; then
+  mkdir -p "$WBS_ROOT"
+  base_next="$WBS_ROOT/base.yml.next.$$"
+  mv -- "$WBS_BASE_COMPOSE_STAGE" "$base_next"
+  mv -- "$base_next" "$WBS_ROOT/base.yml"
+fi
+
 log "installing docker + htpasswd"
 apt-get update -y
 apt-get install -y --no-install-recommends \
@@ -432,9 +443,9 @@ esac
 ## already running behind Caddy. On a genuinely fresh host with nothing
 ## running yet, that same line would just fail: no such host to log in to.
 ##
-## `$WBS_ROOT/base.yml` is not written by this script — see
+## `$WBS_ROOT/base.yml` is committed from the transport's staged file — see
 ## deploy/compose/base.yml's own comment on why it is copied verbatim
-## (tool-bootstrap's push.ts scp's it here) rather than inlined the way
+## (tool-bootstrap's push.ts stages it) rather than inlined the way
 ## Caddyfile/site.caddy are: this file is real Compose YAML, not a few lines
 ## of shell heredoc, and duplicating it inline would just be a second copy to
 ## keep in sync.

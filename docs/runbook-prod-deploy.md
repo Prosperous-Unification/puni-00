@@ -948,3 +948,15 @@ writer, drain prior holders, verify installed bytes and retain the marker under
 `edge.lock`; until then participant observation remains `activation: blocked`.
 The shared `wbs-caddy-1` also serves unrelated applications and registry traffic;
 this prerequisite does not stop, restart, reload or repoint it.
+
+Devsync explicitly maps the admitted descriptor into child FD 3 before starting
+`flock` and the locked Bun executor. The environment token alone is insufficient
+on pinned Bun 1.4.2: Bun shell's second spawn drops the original descriptor. Manual
+dev deployment checks retained markers under the outer edge lock before fetch.
+
+Provisioning uploads base Compose bytes to a unique `/tmp/wbs-base-<uuid>.yml`
+staging file. Configure admission precedes moving those bytes to a sibling of
+live `base.yml` and atomically renaming the sibling into place. Refused configure
+leaves the live file unchanged and retains the staged file for diagnosis; no
+staged candidate grants admission or activation. This does not install or prove
+adoption by any existing host writer.
