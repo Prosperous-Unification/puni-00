@@ -212,8 +212,10 @@ for (const operation of ['add', 'update', 'remove'] as const)
       }
     } finally {
       setRequestAdmissionObserver(undefined);
-      release();
-      await held;
+      if (held !== undefined) {
+        release();
+        await held;
+      }
       separate.close();
       dispatch.mockRestore();
       projectEvidence.mockRestore();
