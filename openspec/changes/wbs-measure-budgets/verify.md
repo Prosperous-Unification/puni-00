@@ -578,13 +578,45 @@ restored; the adjacent `Proof:` comments carry the same.
 | the upgrade's three guards                           | each removed alone                            | domain `refuses a version-8 body without a project object or a measures list`                                                                                              |
 | schema 9 admitted on read                            | 9 left out of `SUPPORTED_INPUT_BODY_VERSIONS` | be-01 `saved plan compare names a change in a trio, a budget, a basis and the factor` (501)                                                                                |
 
-The memory and SQLite capture reads (`savedPlanCapture.readPlanInput:complete`) failed when the
-seeded trio and budget were first added (the SQLite revision moved by two), which is how the
-conformance case covers them; reads replaced by `[]` were not separately injected.
+The memory and SQLite capture reads are covered by the conformance case
+`savedPlanCapture.readPlanInput:complete`, which failed when the seeded trio and budget were first
+added (the SQLite revision moved by two), and each read replaced by `[]` was injected as its
+`Proof:` comment says: memory (`store-memory/src/source.ts`, `source-conformance.test.ts`) went
+from 75 pass to 8 fail (verified by the PR #681 reviewer); SQLite
+(`store-sqlite/src/saved-plan-capture.ts`, `source-conformance.db.test.ts`) went from 75 pass to
+68 pass, 7 fail for the trio read and for the budget read alone, naming
+`savedPlanCapture.readPlanInput:complete` (re-run 2026-10-23 for the review).
 
 ### Skipped or unverified
 
 - The h2puni gate was not run (shared laptop; a slice-6 worker runs beside it).
-- Twilight Navigator, Burokrat and Dash still read plan documents up to version 10 (D63 lag);
-  they were not changed and not rerun, since no legacy-shape export changed a byte.
+- Twilight Navigator, Burokrat and Dash still read plan documents up to version 10 (D63 lag,
+  tracked as task 4.6); they were not changed and not rerun, since no legacy-shape export
+  changed a byte.
 - fe-01's full suites were not run: no fe-01 file changed; its contract-facing `wbs-api.test.ts` was.
+
+### Review of PR #681 (2026-10-23)
+
+Each fault was injected into production code, the named test watched failing, and the code
+restored.
+
+| Finding                                                                              | Fix                                                                                                                                                                    | Proof                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 legacy access refused a plan's own v11 export when a legacy organization exists | `ImportedPlanResource.measureDefinitionsWithin` and `addMeasureWithin` resolve the legacy organization under legacy access (null only when none exists); D65 corrected | answering null under legacy access again: be-01 `before activation, with a legacy organization: re-import of its own v11 export succeeds and matches its definitions` got 409 where 201 was expected (7 pass, 1 fail); the no-legacy-organization case `refuses a defined measure under legacy access, writing no project` (memory contract) still passes |
+| S2-2 import accepted a money basis in another currency than its definition           | `prepareImport` refuses `basis.currency !== definition.currency` with `invalid_body` at `<path>.currency`, for facts and trios                                         | equality dropped: `refuses a version-11 file whose measures do not hold together: a fact basis …` and `… a trio basis in another currency than its definition` failed (100 pass, 2 fail)                                                                                                                                                                  |
+| S3-1 Navigator, Burokrat and Dash refuse v11                                         | recorded in D63 as a tracked follow-up, task 4.6; tools unchanged                                                                                                      | n/a (documentation)                                                                                                                                                                                                                                                                                                                                       |
+| S3-2 no atomic-rollback test for a created definition                                | be-01 `rolls back a definition it created when a later definition refuses, writing nothing`                                                                            | `ImportService.import` committing on a `resolveMeasures` refusal (`commit: true`): org-b held `gpu_minutes` (gpu 1, expected 0; 7 pass, 1 fail)                                                                                                                                                                                                           |
+| S3-3 verify.md disagreed with the capture `Proof:` comments                          | paragraph above rewritten; both comments carry the counts                                                                                                              | memory 75 pass → 8 fail (reviewer); SQLite trio read and budget read each `[]`: 75 pass → 68 pass, 7 fail, naming `savedPlanCapture.readPlanInput:complete`                                                                                                                                                                                               |
+| S3-4 docs restated rules and lacked the legacy rule                                  | `docs/wbs/measures-and-budgets.md` links D65 and states the legacy-access rule and the D63 follow-up                                                                   | `check-indexes` (below)                                                                                                                                                                                                                                                                                                                                   |
+| S3-5 D66 silent on captures taken between slices                                     | D66 notes the spurious factor change and "added" trios/budgets, and why one merge avoids it                                                                            | n/a (documentation)                                                                                                                                                                                                                                                                                                                                       |
+
+Reruns after the fixes (`env -u CLAUDECODE`): `nx run wbs-core:test --skip-nx-cache` succeeded
+(1280 tests across 112 files); store-memory `import.service.test.ts` 39 pass; store-sqlite
+`import.service.db.test.ts`, `saved-plan-capture.db.test.ts`, `work-item.db.test.ts` 108 pass;
+be-01 `import.controller` 5, `import-export-organization.controller` 34,
+`measure-export.controller` 8, `saved-plan.controller` 44, `saved-plan-organization.controller`
+10 and the eleven `service/saved-plan*` files 81 pass, 0 fail; contracts 499 pass (boot memory
+331 MB, alone 329 MB, bound 500 MB); typecheck and lint for wbs-core, wbs-be-01,
+wbs-store-sqlite and wbs-store-memory succeeded; `bunx nx format:check --all` exit 0; Burokrat
+`check-indexes working . HEAD` exit 0; `openspec validate --all --json` exit 0 (252 and 18
+passed, 0 failed). The h2puni gate was not run (shared laptop).

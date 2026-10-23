@@ -157,9 +157,10 @@ const MEASURE_SHAPE_FIELDS = [
 /**
  * Matches every measure definition the file names by key among the
  * organization's and defines the ones it lacks (`wbs-measure-budgets` design
- * D63). Under legacy access the created project is owned by no organization,
- * so the file's definitions are matched against the seeded four it answers
- * and none is defined (design D19).
+ * D63, D65). Under legacy access the organization is the legacy one, which
+ * owns the created project before activation; only when none exists is the
+ * created project owned by no organization, so the file's definitions are
+ * matched against the seeded four it answers and none is defined (design D19).
  *
  * Every fact, trio and budget was checked against the file's definitions by
  * `prepareImport`; a matched definition has the same shape, so the figures

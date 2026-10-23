@@ -190,8 +190,9 @@ export async function readPlanInputIn(
   // On the snapshot with the facts, so a saved plan pairs each budget with
   // the figures it bounds (`wbs-measure-budgets` design D66).
   // Proof: with either read replaced by `[]`, the SQLite run of the
-  // conformance case `savedPlanCapture.readPlanInput:complete` captured none;
-  // watched 2026-10-23.
+  // conformance case `savedPlanCapture.readPlanInput:complete` captured none
+  // (source-conformance.db.test.ts: 75 pass became 68 pass, 7 fail, for each
+  // read alone); watched 2026-10-23.
   const measureEstimates = await new MeasureEstimateRepository(db, OPEN).listByProject(projectId);
   const budgets = await new WorkItemBudgetRepository(db, OPEN).listByProject(projectId);
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);

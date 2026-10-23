@@ -364,3 +364,84 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
     ].sort(),
   );
 });
+
+it('rolls back a definition it created when a later definition refuses, writing nothing', async () => {
+  const source = await exported('ada', await measuredPlan());
+  await batch('grace', '/api/directory/commands', [
+    { ...GPU, key: 'render_minutes', name: 'Render minutes', scale: 'real' },
+  ]);
+  // After `gpu_minutes`, which org-b lacks and the import creates first.
+  source.measureDefinitions?.push({
+    key: 'render_minutes',
+    name: 'Render minutes',
+    unit: 'min',
+    kind: 'duration',
+    scale: 'integer',
+    threePoint: true,
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+    order: 7,
+    currency: null,
+  });
+  const counted = () =>
+    h.sqlite
+      .query<{ projects: number; gpu: number }, []>(
+        "SELECT (SELECT COUNT(*) FROM project) AS projects, (SELECT COUNT(*) FROM measure WHERE organization_id = 'org-b' AND key = 'gpu_minutes') AS gpu",
+      )
+      .get();
+  const before = counted();
+  const refused = await h.call('grace', 'POST', '/api/projects/import', source);
+  // Proof: with `ImportService.import` committing on a `resolveMeasures`
+  // refusal (`commit: true`), this case found org-b holding `gpu_minutes`
+  // (gpu 1, expected 0); watched 2026-10-23.
+  expect({ refused, after: counted() }).toMatchObject({
+    refused: {
+      status: 409,
+      body: {
+        error: 'source_refused',
+        path: 'measureDefinitions[3].scale',
+        detail: 'measure_shape_mismatch',
+      },
+    },
+    after: { projects: before?.projects, gpu: 0 },
+  });
+});
+
+it('before activation, with a legacy organization: re-import of its own v11 export succeeds and matches its definitions', async () => {
+  // This file's setup activates; legacy access needs a harness that has not.
+  h.close();
+  h = OrganizationHarness.openComposed();
+  await h.register('ada');
+  h.sqlite.run(
+    "INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-legacy', 'Legacy', 1, 1)",
+  );
+  const source = await exported('ada', await measuredPlan());
+  const imported = await h.call('ada', 'POST', '/api/projects/import', source);
+  const projectId = (imported.body as { projectId?: string }).projectId ?? '';
+  const legacyMeasures = h.sqlite
+    .query<{ key: string }, []>(
+      "SELECT key FROM measure WHERE organization_id = 'org-legacy' AND key IN ('tokens', 'cost', 'gpu_minutes') ORDER BY key",
+    )
+    .all()
+    .map(({ key }) => key);
+  expect({
+    version: source.document.version,
+    definitions: source.measureDefinitions?.map(({ key }) => key),
+    status: imported.status,
+    owner: h.sqlite
+      .query<{ organization_id: string }, [string]>(
+        'SELECT organization_id FROM project_organization WHERE resource_id = ?',
+      )
+      .get(projectId)?.organization_id,
+    // Matched, not defined a second time.
+    legacyMeasures,
+  }).toEqual({
+    version: 11,
+    definitions: ['tokens', 'cost', 'gpu_minutes'],
+    status: 201,
+    owner: 'org-legacy',
+    legacyMeasures: ['cost', 'gpu_minutes', 'tokens'],
+  });
+  expect(await authored(await exported('ada', projectId))).toBe(await authored(source));
+});

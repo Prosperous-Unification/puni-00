@@ -866,10 +866,16 @@ function prepareMeasures(
     basis: PlanDocumentImport['measureFacts'][number]['basis'],
     path: string,
   ): Refusal | null => {
-    const money = definitions.get(key)?.kind === 'money';
+    const definition = definitions.get(key);
     if (basis === null) return null;
-    if (!money) return refuses('invalid_body', path);
-    if (!isCurrencyCode(basis.currency)) return refuses('invalid_body', `${path}.currency`);
+    if (definition?.kind !== 'money') return refuses('invalid_body', path);
+    // A command derives the basis currency from the definition (`money-basis.ts`),
+    // so a basis naming another one is a figure no command could have written.
+    // Proof: with the equality dropped, `refuses a version-11 file whose
+    // measures do not hold together` (prepare-import.test.ts) prepared an EUR
+    // fact and an EUR trio on a USD `cost`; watched 2026-10-23.
+    if (!isCurrencyCode(basis.currency) || basis.currency !== definition.currency)
+      return refuses('invalid_body', `${path}.currency`);
     if (basis.rateCardDigest === '' || basis.rateCardDigest.length > LONGEST_RATE_CARD_DIGEST)
       return refuses('invalid_body', `${path}.rateCardDigest`);
     return null;

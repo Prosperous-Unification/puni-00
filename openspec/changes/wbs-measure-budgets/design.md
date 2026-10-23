@@ -373,7 +373,10 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
   release, Twilight Navigator (which reads 7–10) and saved files keep reading it and the v9/v10
   golden hashes stand. Known lag: Navigator, Burokrat's `planDocumentVersion` and Dash refuse a
   version-11 file loudly until they admit it; nothing silently drops measures any more (D22
-  closed).
+  closed). Admitting version 11 there is a tracked follow-up (task 4.6), deliberately outside
+  slice 7: Navigator's `NAVIGATOR_PLAN_DOCUMENT_VERSIONS` (`plan-reference.ts`, `[7, 8, 9, 10]`),
+  Burokrat's `planDocumentVersion` (`navigator-records.ts`, `6 | 7 | 8 | 9 | 10`) and Dash's
+  plan reads each gain 11 with their own tests.
 - **D64 Row readings never enter the document.** The row read's `measureEstimates`, `budgets`,
   `mixedRateCards` and `moneyBases` are readings (summed, expected, remaining) and are stripped
   from every exported row, as spans are; slices 3–5 had let them ride along on the plan branch
@@ -384,8 +387,13 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
   with `path: measureDefinitions[i].<field>` and `detail: measure_shape_mismatch`, writing
   nothing. Name, order and default visibility stay the organization's. A definition it lacks is
   created there (decided by `decideMeasureCreate`; projects are told the directory changed).
-  Under legacy access the created project is owned by no organization, so only the four it
-  answers match and any other definition refuses `source_refused` / `unknown_measure` (D19).
+  Under legacy access the organization is the legacy one when it exists: before activation the
+  `project_organization_bridge` trigger gives it every created project, the imported one
+  included, and legacy-access directory commands already define measures there, so matching and
+  creating happen there as for scoped access (PR #681 review S2-1: refusing there made a plan's
+  own export unimportable). Only with no legacy organization is the created project owned by
+  none, so only the four it answers match and any other definition refuses `source_refused` /
+  `unknown_measure` (D19).
   `prepareImport` checks every fact, trio and budget against the file's own definitions as the
   commands would (keys, scale, three-point, scheduling, derived, money basis, leaves, one per
   place); a matched definition has the same shape, so nothing is decided twice. Files older than
@@ -400,7 +408,11 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
   upgrades with none of them, a factor of 1 and unpriced facts, and stored bytes are never
   rewritten. Compare reports trios and budgets under `measures` and the factor under
   `settings`. Definitions are not captured: the key is the name a capture shows. A schema-9 body
-  is new bytes, so new captures hash differently from schema-8 ones by design.
+  is new bytes, so new captures hash differently from schema-8 ones by design. Had slices 2–4
+  reached production before slice 7, plans saved in between would hold trios, budgets and a
+  factor the schema-8 capture left out, so compare against a later capture would show a
+  spurious factor change and "added" trios and budgets; the plan branch lands on `main` as one
+  merge, so no such capture exists.
 - **D67 Golden fixtures state the default factor.** The core export fixture's project had
   `budgetFactor: 1.5` to prove slice 4's strip; under D63 that factor is version-11 data, so the
   legacy-shape fixtures state 1 and the version-11 cases state 1.5. The v9 and v10 golden

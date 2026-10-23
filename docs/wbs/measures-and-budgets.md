@@ -36,12 +36,16 @@ and the decisions (D1–D67) in its
   other than 1 exports as plan document **version 11**, which carries the definitions those
   name, the facts and trios with their basis, the budgets and the factor. Any other plan
   exports version 10, byte for byte as before (design D63).
-- Importing version 11 matches each definition by key: one the organization holds must agree on
-  kind, scale, unit, currency, three points, derived and scheduling, or the import answers
-  `409 source_refused` with `detail: measure_shape_mismatch` at the first differing field and
-  writes nothing; one it lacks is defined. Older versions import as before onto the seeded
-  definitions (design D65).
-- Twilight Navigator reads versions 7 to 10 and refuses a version-11 file until it admits it.
+- Importing version 11 matches each definition by key and never remaps: a held definition of
+  another shape refuses the import, writing nothing, and a missing one is defined; older
+  versions import onto the seeded definitions. The rule and its refusal are
+  [design D65](../../openspec/changes/wbs-measure-budgets/design.md).
+- Under legacy access (before activation) the organization an import matches and defines in
+  is the legacy organization, which owns the imported project, so a plan's own export
+  re-imports; only with no legacy organization does the import match the seeded four and
+  refuse any other definition `unknown_measure` (design D65).
+- Twilight Navigator, Burokrat and Dash refuse a version-11 file until they admit it, a
+  tracked follow-up (design D63).
 - Saved plans capture trios, budgets, bases and the factor (plan input schema 9), so compare
   names a change in any of them (design D66).
 

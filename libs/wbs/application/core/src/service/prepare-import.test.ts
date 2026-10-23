@@ -1104,6 +1104,20 @@ const MEASURE_FAULTS = [
     { code: 'invalid_body', path: 'measureFacts[0].basis.currency', detail: null },
   ],
   [
+    'a fact basis in another currency than its definition',
+    (body: PlanFixture) => {
+      at(body.measureFacts).basis = { currency: 'EUR', rateCardDigest: 'sha256:a' };
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].basis.currency', detail: null },
+  ],
+  [
+    'a trio basis in another currency than its definition',
+    (body: PlanFixture) => {
+      at(body.measureEstimates, 1).basis = { currency: 'EUR', rateCardDigest: 'sha256:a' };
+    },
+    { code: 'invalid_body', path: 'measureEstimates[1].basis.currency', detail: null },
+  ],
+  [
     'an empty rate card digest',
     (body: PlanFixture) => {
       at(body.measureFacts).basis = { currency: 'USD', rateCardDigest: '' };

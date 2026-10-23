@@ -768,8 +768,9 @@ async function capturePlanInput(
     stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
     // Proof: either read replaced with `[]` made the memory run of the
-    // conformance case `savedPlanCapture.readPlanInput:complete` capture none;
-    // watched 2026-10-23.
+    // conformance case `savedPlanCapture.readPlanInput:complete` capture none
+    // (source-conformance.test.ts: 75 pass became 8 fail, verified by the
+    // PR #681 review); watched 2026-10-23.
     stores.measureEstimates.listByProject(projectId),
     stores.budgets.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
