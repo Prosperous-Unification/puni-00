@@ -20,7 +20,7 @@ afterEach(closeFixture);
 
 type Fixture = Awaited<ReturnType<typeof openFixture>>;
 
-function batch(fixture: Fixture, commands: readonly unknown[]) {
+function sendBatch(fixture: Fixture, commands: readonly unknown[]) {
   return fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, { commands });
 }
 
@@ -33,9 +33,9 @@ function patchFirst(fixture: Fixture) {
 }
 
 async function addLink(fixture: Fixture) {
-  expect((await batch(fixture, [{ kind: 'addTypedDependency', ...fixture.input }])).status).toBe(
-    200,
-  );
+  expect(
+    (await sendBatch(fixture, [{ kind: 'addTypedDependency', ...fixture.input }])).status,
+  ).toBe(200);
   const link = harness.sqlite
     .query<{ id: string }, [string]>(
       'SELECT id FROM external_dependency WHERE successor_project_id=?',
@@ -45,7 +45,7 @@ async function addLink(fixture: Fixture) {
   return link.id;
 }
 
-async function foreignEndpoint() {
+async function createForeignEndpoint() {
   await harness.register('grace');
   harness.organization('org-b');
   harness.member('org-b', 'grace', 'super_admin');
@@ -119,8 +119,21 @@ test('active mounted restricted readable predecessor needs no edit permission', 
   expect(denied.status).toBe(403);
   expect(await denied.json()).toMatchObject({ error: 'forbidden' });
   expect(readTables()).toEqual(before);
+  const predecessorBefore = harness.sqlite
+    .query<{ name: string; notes: string | null; priority: number }, [string]>(
+      'SELECT name, notes, priority FROM work_item WHERE id=?',
+    )
+    .get(fixture.predecessor.workItemId);
+  if (predecessorBefore === null) throw new Error('fixture predecessor missing');
   const sent = pushes.length;
   await addLink(fixture);
+  expect(
+    harness.sqlite
+      .query<{ name: string; notes: string | null; priority: number }, [string]>(
+        'SELECT name, notes, priority FROM work_item WHERE id=?',
+      )
+      .get(fixture.predecessor.workItemId),
+  ).toEqual(predecessorBefore);
   expect(pushes.length).toBeGreaterThan(sent);
   expect(harness.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
 });
@@ -139,7 +152,7 @@ for (const fault of [
   test(`active mounted ${fault} conceals facts and rolls back every table and publication`, async () => {
     const pushes: string[] = [];
     const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
-    const foreign = await foreignEndpoint();
+    const foreign = await createForeignEndpoint();
     const foreignStep = harness.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? LIMIT 1')
       .get(foreign.projectId);
@@ -160,7 +173,7 @@ for (const fault of [
                 };
     const before = readTables();
     const sent = [...pushes];
-    const response = await batch(fixture, [
+    const response = await sendBatch(fixture, [
       patchFirst(fixture),
       { kind: 'addTypedDependency', ...fixture.input, predecessor },
     ]);
@@ -199,7 +212,7 @@ for (const operation of ['add', 'update'] as const)
     });
     try {
       const kind = operation === 'add' ? 'addTypedDependency' : 'updateTypedDependency';
-      const response = await batch(fixture, [
+      const response = await sendBatch(fixture, [
         patchFirst(fixture),
         {
           kind,
@@ -224,7 +237,7 @@ for (const operation of ['update', 'remove'] as const)
     const pushes: string[] = [];
     const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
     expect(
-      (await batch(fixture, [{ kind: 'createWorkItem', name: 'Local predecessor' }])).status,
+      (await sendBatch(fixture, [{ kind: 'createWorkItem', name: 'Local predecessor' }])).status,
     ).toBe(200);
     const local = harness.sqlite
       .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Local predecessor'")
@@ -275,7 +288,7 @@ for (const operation of ['update', 'remove'] as const)
     );
     try {
       const kind = operation === 'update' ? 'updateTypedDependency' : 'removeTypedDependency';
-      const response = await batch(fixture, [
+      const response = await sendBatch(fixture, [
         patchFirst(fixture),
         operation === 'remove'
           ? { kind, dependencyId }
@@ -373,7 +386,7 @@ for (const fault of ['membership', 'revocation'] as const)
       return pending;
     });
     setRequestAdmissionObserver(markResolved);
-    const pending = batch(fixture, [
+    const pending = sendBatch(fixture, [
       patchFirst(fixture),
       { kind: 'addTypedDependency', ...fixture.input },
     ]);

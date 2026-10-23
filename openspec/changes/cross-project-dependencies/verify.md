@@ -5574,3 +5574,14 @@ and `tsc --build --force apps/wbs/fe-01/tsconfig.json` exited 0
 (`/tmp/puni-integrated-persisted-edit-typecheck.log`). This proves frontend
 serialization and the mounted inactive refusal, not accepted production
 backend persistence, browser geometry or full task 9.2.
+
+## Mounted active authoring authorization (2026-10-23)
+
+The reviewed test-only [task 4.2 authorization packet](verify-active-authoring-42.md)
+proves current HTTP writer authority, readable restricted predecessor use,
+foreign/absent endpoint concealment, second-owner refusal, old-endpoint
+revalidation, queued membership and token revocation, transaction rollback and
+publication silence through 11 watched production faults. After integration and
+reviewer refinements, its mounted suite passed 13/13 with 201 assertions;
+changed-file ESLint, Prettier and diff check passed. Production authoring remains
+inactive. The full 4.2 matrix, MCP parity and activation acceptance remain open.

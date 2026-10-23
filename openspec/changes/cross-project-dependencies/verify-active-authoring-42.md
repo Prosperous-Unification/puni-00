@@ -90,3 +90,14 @@ The old-endpoint negatives prove the modeled refusal occurs at endpoint evidence
 not that later graph checks are absent. No full host gate, build, full backend test
 suite, full CI secrets scan, OpenSpec validation or migration lint was run for this test-only packet; the
 isolated integrated candidate still requires the repository's host gate and CI.
+
+Independent Astra High review approved the packet with no Critical or Important
+finding and reran the mounted suite: 13/13, 200 assertions. Its minor follow-up
+renamed the two test helpers and added an explicit predecessor authored-field
+snapshot across the successful restricted-predecessor add. The integrated
+one-file rerun then passed 13/13 with 201 assertions; changed-file ESLint,
+Prettier and `git diff --check` passed. The integrated three-file current-authority
+and command-admission suite passed 247/247 with 2,722 assertions. Scoped
+`bunx openspec validate cross-project-dependencies --json` reported one valid
+change and zero failures (existing long-requirement warnings). The reviewer did
+not rerun the mutation matrix or broader checks.
