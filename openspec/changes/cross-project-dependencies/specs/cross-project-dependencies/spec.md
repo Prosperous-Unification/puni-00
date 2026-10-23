@@ -1364,3 +1364,34 @@ This source prerequisite SHALL NOT claim legacy process drain or activation.
 - **WHEN** the runtime descriptor identity or retained owner bytes change
 - **THEN** subsequent owner boundaries and successful callback completion refuse
 - **AND** interruption retains owner markers for attended recovery
+
+### Requirement: Persistent owner-bound selected WBS ingress closure
+
+The ingress-inclusive owner operation SHALL persist whole-site 503 configurations
+for selected WBS hosts, retain original bytes and file identities before effects,
+and reload only the captured full shared Caddy identity. It SHALL preserve all
+unselected and unrelated configurations and SHALL verify actual live admin routes
+against independently adapted persistent configuration. Failure SHALL retain
+ownership, current files and uncertainty without automatic restoration.
+
+#### Scenario: Selected ingress closes persistently
+
+- **WHEN** the explicit ingress-inclusive operation closes a selected WBS host
+- **THEN** its persistent site file imports access-log and serves only whole-site 503
+- **AND** fresh live configuration equals the independently adapted persistent root
+- **AND** unrelated sites and unselected WBS configuration are unchanged
+
+#### Scenario: Zero-exit reload does not close ingress
+
+- **WHEN** reload exits successfully but the actual selected live routes remain open
+- **THEN** the owner refuses success and retains changed site files and evidence
+
+#### Scenario: Interrupted publication or lost identity retains uncertainty
+
+- **WHEN** owner/container/file identity is lost or publication/reload is interrupted
+- **THEN** subsequent effects refuse and no automatic restore or Caddy recreation runs
+
+#### Scenario: Disposable actual Caddy restart retains closure
+
+- **WHEN** an isolated actual Caddy fixture restarts after successful closure
+- **THEN** selected fixture hosts still return 503 and unrelated fixture hosts retain their responses

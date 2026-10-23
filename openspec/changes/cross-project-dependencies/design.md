@@ -1328,3 +1328,32 @@ checking its owner and adding the descriptor to all owner boundary checks for
 that callback. Protected work must remain inside it. This only excludes adopted
 guarded source executables: old unguarded live processes still require census,
 stop/drain and restart-authority adoption. S1/S2/O4 and activation remain open.
+
+### Owner-bound persistent WBS ingress exclusion
+
+A new explicit ingress-inclusive operation closes selected WBS sites before the
+managed gateway/backend slice. The existing managed-only operation stays intact.
+Capture the live shared Caddy's full immutable container ID, fixed non-resume
+Caddyfile startup and canonical read-only `/etc/caddy` directory bind. Snapshot
+all regular configuration files privately. Adapt that persistent root/import
+configuration and require equality with fresh live admin JSON before changing
+anything; unknown files, unreadable state, aliases and unexplained drift refuse.
+
+Retain original file identities/bytes and durable owner intent before replacing
+only selected `site.caddy`/`site-dev.caddy`. A narrow owner-only publisher writes
+exclusive UUID siblings without following links, syncs file/directory, verifies
+expected original identity/bytes before rename and reads back exact replacement.
+The replacement is an explicit whole-site 503 plus the shared access-log import.
+No unselected WBS, registry, AIVN or unrelated config may change. Adapt the new
+persistent configuration, require explicit selected-host static 503 routes and
+structural equality of every unrelated live route/configuration, then reload
+only the captured full container ID. Fresh admin JSON must equal the independently
+adapted expected configuration; a zero-exit no-op is not success. Fresh inspection
+repeats owner, container, disk and live-config checks. Retained evidence cannot
+recreate a live owner. Any interruption preserves current files, pending owner
+and uncertainty; no restore, shared Caddy stop/recreate or activation occurs.
+
+Disposable actual-Caddy acceptance uses unique names/directories and fixture
+hostnames only. Mock Docker output proves boundary/retention behavior, never
+actual serving or restart persistence. Actual serving/reload/restart acceptance
+remains separately pending until observed under the canonical host lock.

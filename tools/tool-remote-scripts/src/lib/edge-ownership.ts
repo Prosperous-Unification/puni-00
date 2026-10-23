@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, readdir, realpath } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { constants } from 'node:fs';
+import { lstat, open, readdir, realpath, rename } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import type { RunDocker } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
@@ -216,4 +217,145 @@ export async function withOwnerSolverRuntime<T>(
       ownership.locks.splice(ownership.locks.indexOf(lock), 1);
     }
   });
+}
+
+/** Exact trusted UTF-8 config file observation; identities are strings to retain full inode precision. */
+export interface OwnedSiteFile {
+  path: string;
+  device: string;
+  inode: string;
+  mode: number;
+  contents: string;
+}
+
+/** Opens without following links and binds exact bytes to an existing canonical regular inode. */
+// Proof: replacing this boundary with a following reader admitted the actual symlink-site production negative (exit 1).
+export async function captureOwnedSiteFile(path: string): Promise<OwnedSiteFile> {
+  const named = await lstat(path, { bigint: true });
+  if (!named.isFile() || (await realpath(path)) !== path)
+    throw new Error('ingress configuration requires canonical regular files');
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const opened = await file.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== named.dev || opened.ino !== named.ino)
+      throw new Error('ingress configuration inode changed while opening');
+    const contents = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+      await file.readFile(),
+    );
+    const final = await lstat(path, { bigint: true });
+    if (final.dev !== opened.dev || final.ino !== opened.ino || !final.isFile())
+      throw new Error('ingress configuration inode changed while reading');
+    return {
+      path,
+      device: String(opened.dev),
+      inode: String(opened.ino),
+      mode: Number(opened.mode & 0o777n),
+      contents,
+    };
+  } finally {
+    await file.close();
+  }
+}
+
+/** Retains private ingress evidence under the exact live owner; never a reconstructed authority. */
+export async function retainIngressRecord(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  label: 'original' | 'intent' | 'complete',
+  record: object,
+): Promise<{ path: string; contents: string }> {
+  await assertDependencyOwner(owner, layout);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  const path = join(
+    ownership.directory,
+    `edge-owner-${String(++ownership.sequence).padStart(6, '0')}-ingress-${label}.json`,
+  );
+  const contents = `${JSON.stringify({ owner: ownership.publication, record })}\n`;
+  await publishRecord(path, contents);
+  await assertDependencyOwner(owner, layout);
+  return { path, contents };
+}
+
+/**
+ * Replaces only this owner's selected canonical site file. Retains original bytes
+ * and write intent first; exclusive private UUID sibling, file/directory fsync and
+ * exact inode/byte readback establish persistence. Failure retains sibling/current
+ * files and evidence; never restores an old file or removes owner state.
+ */
+export async function publishOwnedSiteFile(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  original: OwnedSiteFile,
+  contents: string,
+): Promise<OwnedSiteFile> {
+  await assertDependencyOwner(owner, layout);
+  // Proof: omitted selected path validation; a genuine captured registry file was overwritten (exit 1).
+  if (
+    original.path !== layout.siteCaddyPath ||
+    basename(original.path) !== (layout.env === 'prod' ? 'site.caddy' : 'site-dev.caddy')
+  )
+    throw new Error('owner site publication path is outside selected scope');
+  const parent = dirname(original.path);
+  const parentIdentity = await lstat(parent, { bigint: true });
+  if (!parentIdentity.isDirectory() || (await realpath(parent)) !== parent)
+    throw new Error('owner site publication parent is not canonical');
+  // Proof: omitted original equality guards; changed-original publication replaced unknown bytes (exit 1).
+  if (JSON.stringify(await captureOwnedSiteFile(original.path)) !== JSON.stringify(original))
+    throw new Error('owner site original file changed');
+  const sibling = join(parent, `.${basename(original.path)}.dependency-${randomUUID()}`);
+  // Proof: omitted original/intent publications; actual rename port refused absent private durable evidence (exit 1).
+  await retainIngressRecord(owner, layout, 'original', original);
+  await retainIngressRecord(owner, layout, 'intent', { original, contents, sibling });
+  // Proof: replacing exclusive no-follow creation with following creation admitted the injected sibling symlink (exit 1).
+  const file = await open(
+    sibling,
+    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+    0o600,
+  );
+  let published: OwnedSiteFile;
+  try {
+    await file.writeFile(contents);
+    // Proof: omitted staged fsync; actual rename port refused unsynced source (exit 1).
+    await file.sync();
+    await assertDependencyOwner(owner, layout);
+    if (JSON.stringify(await captureOwnedSiteFile(original.path)) !== JSON.stringify(original))
+      throw new Error('owner site original changed before publication');
+    const currentParent = await lstat(parent, { bigint: true });
+    if (
+      currentParent.dev !== parentIdentity.dev ||
+      currentParent.ino !== parentIdentity.ino ||
+      (await realpath(parent)) !== parent
+    )
+      throw new Error('owner site parent changed before publication');
+    const created = await file.stat({ bigint: true });
+    await retainIngressRecord(owner, layout, 'intent', {
+      original,
+      contents,
+      sibling,
+      created: { device: String(created.dev), inode: String(created.ino) },
+    });
+    await assertDependencyOwner(owner, layout);
+    await rename(sibling, original.path);
+    const directory = await open(parent, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      // Proof: omitted directory fsync; successful-publication effect test failed its persistence observation (exit 1).
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+    published = await captureOwnedSiteFile(original.path);
+    // Proof: omitted readback equality; zero-exit no-op rename returned success and failed the refusal assertion (exit 1).
+    if (
+      published.device !== String(created.dev) ||
+      published.inode !== String(created.ino) ||
+      published.contents !== contents
+    )
+      throw new Error('owner site publication readback differs');
+  } finally {
+    await file.close();
+  }
+  await assertDependencyOwner(owner, layout);
+  await retainIngressRecord(owner, layout, 'complete', { site: published });
+  return published;
 }

@@ -832,3 +832,11 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] Add canonical runtime admission to the actual supervisor CLI for its full process lifetime, preserving read-only preflight and edge-held installer readiness.
 - [x] Add owner-scoped runtime lock callback, owner boundary checks and child-process contention/race/interruption proofs.
 - [x] Record focused checks and watched production omissions in [verify-solver-runtime-admission.md](verify-solver-runtime-admission.md). Old unguarded process adoption/drain, effective restart authority, S1/S2/O4 and parent 10.2 remain open.
+
+### Owner-bound persistent ingress exclusion (bounded task 10.2)
+
+- [x] I1 Prove exact Caddy identity/startup/bind, persistent-root/live equality and private original retention; implement ingress preflight and owner-only canonical site publication with real file negatives.
+- [x] I2 Prove selected whole-site 503 and unrelated config preservation, captured-ID reload/no-op refusal, interruption retention and fresh owner-bound inspection. Wire a new explicit ingress-inclusive mode before managed gateway/backend effects, preserving managed-only mode.
+- [x] I3a Prepare a unique-name/path disposable actual-Caddy serving/reload/restart acceptance runner; record local tool/daemon capability and focused R5 proofs in verify-dependency-ingress.md.
+- [ ] I3b Complete independent source and actual-Caddy fixture review before host execution.
+- [ ] I4 Observe reviewed actual-Caddy host acceptance under the canonical heavy lock and integrated exact-SHA gate; parent complete participant exclusion/activation stays open.

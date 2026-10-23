@@ -1031,3 +1031,29 @@ releases its kernel locks. Retained records cannot recreate the expired live
 owner, resume an attempt or authorize cleanup. Preserve current Docker state and
 all evidence for attended recovery; a later complete ownership/handoff and
 compatible restoration workflow is required before admission can reopen.
+
+## Selected-site ingress closure under dependency ownership
+
+The separately built `activate-dependencies.js --fence-ingress-managed <full-sha>
+<prod|dev> [prod|dev]` operation persists whole-site 503 responses for selected
+WBS sites before managed gateway/backend exclusion. The earlier `--fence-managed`
+operation keeps its managed-only behavior. Both retain ownership and block
+activation; neither establishes the complete participant roster or grants a
+restoration/exposure operation.
+
+The inclusive operation requires the shared edge's fixed Caddyfile startup and
+canonical read-only config bind, and requires independently adapted persistent
+configuration to equal fresh live admin configuration before writing. It retains
+private original file identities/bytes, adapts the replacement configuration,
+checks explicit selected-site maintenance and unrelated configuration equality,
+then reloads only the captured full container ID and reads back the actual admin
+configuration. It never stops or recreates the shared edge. Config bodies and
+original credentials stay in private evidence rather than diagnostic output.
+
+An interruption can leave selected files persistently closed while the running
+edge still serves an earlier configuration. Preserve every owner/ingress record,
+current file and any named UUID sibling; no automatic restoration is safe. The
+source operation has no recovery, marker cleanup or restart path. Disposable
+actual-Caddy acceptance is a separate reviewed host action under the heavy lock;
+its fixture result does not prove installed production writer adoption or full
+continuous participant exclusion.
