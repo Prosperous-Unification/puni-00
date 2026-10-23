@@ -31,9 +31,10 @@ export const BOOTED_INTERNAL_SECRET = 'x'.repeat(32);
 /**
  * be-01 as `bootBe01` composes it for production, over a fresh migrated file.
  *
- * Only the socket is skipped: requests reach the composed app through
- * `handle`, so what answers is the production composition rather than a test
- * harness's own wiring of the same parts.
+ * By default only the socket is skipped: requests reach `bootBe01`'s composed
+ * app through `handle`. The optional synthetic-command callback replaces the
+ * app's batch work-item authoring and dependency-client admission only in this
+ * test fixture; it does not change the production boot composition.
  */
 export class BootedBrowserProcess {
   private readonly tokens = new Map<string, string>();

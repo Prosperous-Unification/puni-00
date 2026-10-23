@@ -1,0 +1,108 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [90.50ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [3051.74ms]
+(pass) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [114.85ms]
+(pass) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [43.27ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [8.55ms]
+(pass) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3024.54ms]
+(pass) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [25.25ms]
+(pass) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [130.01ms]
+(pass) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [182.71ms]
+(pass) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [26.94ms]
+(pass) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [63.99ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [10.35ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [9.36ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [12.56ms]
+707 |       error: 'external_dependencies_inactive',
+708 |       at: 0,
+709 |       kind: 'addTypedDependency',
+710 |     });
+711 |     expect(viaMcp.isError).toBe(true);
+712 |     expect(viaMcp.text).toContain('HTTP 409 external_dependencies_inactive');
+                              ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 409 external_dependencies_inactive"
+Received: "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.\n{\"at\":0,\"kind\":\"addTypedDependency\",\"error\":\"not_found\"}"
+
+      at <anonymous> (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:712:25)
+(fail) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [102.26ms]
+371 |     throw new Error('organization-bound parity session missing');
+372 |   const access = sessions['dany'];
+373 |   const before = await fixture('write-state', {});
+374 |   const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+375 |   expect(viaMcp.isError).toBe(true);
+376 |   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 409"
+Received: "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.\n{\"at\":1,\"kind\":\"addTypedDependency\",\"error\":\"not_found\"}"
+
+      at refuseCommands (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:376:23)
+      at async <anonymous> (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:768:17)
+(fail) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [132.36ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [1227.05ms]
+338 |     const answer = await tool(
+339 |       access,
+340 |       `postApiProjectsById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
+341 |       { id: ids.launch, ...body },
+342 |     );
+343 |     expect({ error: answer.isError, text: answer.isError ? answer.text : '' }).toEqual({
+                                                                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": false,
+-   "text": "",
++   "error": true,
++   "text":
++ "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.
++ {"at":0,"kind":"addTypedDependency","error":"not_found"}"
++ ,
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at projectOperation (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:343:80)
+      at async <anonymous> (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:889:13)
+(fail) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [1152.33ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [1365.32ms]
+371 |     throw new Error('organization-bound parity session missing');
+372 |   const access = sessions['dany'];
+373 |   const before = await fixture('write-state', {});
+374 |   const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+375 |   expect(viaMcp.isError).toBe(true);
+376 |   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 400"
+Received: "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.\n{\"at\":1,\"kind\":\"addTypedDependency\",\"error\":\"not_found\"}"
+
+      at refuseCommands (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:376:23)
+      at async <anonymous> (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:966:19)
+(fail) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [113.63ms]
+1026 |       id: successorProjectId,
+1027 |       commands: [command],
+1028 |     });
+1029 |     // Proof: replacing the serialized predecessor.projectId in wbs-client.ts
+1030 |     // with "missing" made this generated command return 404 (17 pass, 5 fail).
+1031 |     expect(viaMcp.isError).toBe(false);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-connected-delegation-command-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1031:28)
+(fail) MCP organization delegation against a booted be-01 > consented HTTP and generated MCP commands commit active whole FS with the same authority [114.39ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [4.23ms]
+
+ 17 pass
+ 5 fail
+ 334 expect() calls
+Ran 22 tests across 1 file. [17.67s]

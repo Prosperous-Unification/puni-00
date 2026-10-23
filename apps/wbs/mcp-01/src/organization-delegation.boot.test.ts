@@ -1044,9 +1044,10 @@ describe('MCP organization delegation against a booted be-01', () => {
       successor_work_item_id: successorId,
       type: 'FS',
     });
-    expect(firstState[7].some((entry) => JSON.stringify(entry).includes(relationshipId))).toBe(
-      true,
+    const addedJournal = firstState[7].find((entry) =>
+      JSON.stringify(entry).includes(relationshipId),
     );
+    expect(addedJournal).toMatchObject({ project_id: successorProjectId, user_id: 'u-dany' });
     const caller = await oauth.callerSessionFor(access);
     const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, [
       'read',
@@ -1068,6 +1069,13 @@ describe('MCP organization delegation against a booted be-01', () => {
     const secondState = (await fixture('write-state', {})) as Record<string, unknown>[][];
     expect(secondState[4]).toHaveLength(1);
     expect(secondState[4].at(0)).toMatchObject({ id: relationshipId, type: 'SS' });
+    const updatedJournal = secondState[7].find(
+      (entry) =>
+        entry['project_id'] === successorProjectId &&
+        entry['kind'] === 'update_typed_dependency' &&
+        JSON.stringify(entry).includes(relationshipId),
+    );
+    expect(updatedJournal).toMatchObject({ project_id: successorProjectId, user_id: 'u-dany' });
     const reading = await tool(access, 'getApiProjectsByIdWork-items', { id: successorProjectId });
     expect(reading.isError).toBe(false);
     expect(JSON.parse(reading.text)).toMatchObject({
