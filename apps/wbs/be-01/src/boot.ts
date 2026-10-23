@@ -10,6 +10,7 @@ import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import {
+  computeProvidersOver,
   ConsentCredentialRepository,
   currentMembershipAccess,
   DomainClaimRepository,
@@ -621,6 +622,11 @@ export async function bootBe01(
                 discovery: trustedIssuerDiscovery({ fetch: globalThis.fetch }),
                 configuredIssuer: configuredIssuerOf(opts.oidc),
               },
+              // Proof: omitting this binding made `serves compute provider
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire compute providers`;
+              // watched 2026-10-22.
+              computeProviders: computeProvidersOver(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),

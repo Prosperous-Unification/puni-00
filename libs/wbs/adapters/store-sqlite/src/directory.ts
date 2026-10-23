@@ -19,6 +19,7 @@ import type {
   Resource,
   ResourceAdded,
   ResourcePatch,
+  ResourceProviderSet,
   ResourceRemoved,
   ResourceUsageRows,
   ResourceWritten,
@@ -46,6 +47,7 @@ import {
   assignment,
   claim,
   claimOccupancy,
+  computeProvider,
   externalIdentity,
   externalSystem,
   externalSystemOrganization,
@@ -59,6 +61,7 @@ import {
   projectResourceCapacity,
   projectTeamCapacity,
   resource,
+  resourceCapacityReport,
   resourceOrganization,
   service,
   serviceOrganization,
@@ -922,6 +925,59 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
+   * Sets or clears a resource's provider reference in one transaction with
+   * its checks (`compute-providers` P3); a changed reference deletes the
+   * report the old instance sent.
+   */
+  async setResourceProvider(
+    resourceId: string,
+    providerId: string | null,
+    organizationId: string | null,
+    stamp: WriteStamp,
+  ): Promise<ResourceProviderSet> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): ResourceProviderSet => {
+        const held = tx
+          .select({ providerId: resource.providerId })
+          .from(resource)
+          .where(eq(resource.id, resourceId))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        if (providerId !== null) {
+          const instance = tx
+            .select({ organizationId: computeProvider.organizationId })
+            .from(computeProvider)
+            .where(eq(computeProvider.id, providerId))
+            .get();
+          // Proof: with this check removed, `refuses an id no instance holds,
+          // unchanged` in `compute-provider.controller.db.test.ts` failed on
+          // the foreign key with 500 instead of 404; watched 2026-10-22.
+          if (instance === undefined) return { ok: false, reason: 'unknown_provider' };
+          // Proof: with this check removed, `refuses a stranger's instance,
+          // unchanged` in `compute-provider.controller.db.test.ts` stored B's
+          // instance on A's resource; watched 2026-10-22.
+          if (instance.organizationId !== organizationId)
+            return { ok: false, reason: 'provider_not_in_organization' };
+        }
+        if (held.providerId !== providerId) {
+          tx.update(resource)
+            .set({ providerId, ...auditOnUpdate(stamp) })
+            .where(eq(resource.id, resourceId))
+            .run();
+          // Proof: with this deletion removed, `drops the old instance report
+          // when the reference moves` in `compute-provider.controller.db.test.ts`
+          // kept one report; watched 2026-10-22.
+          tx.delete(resourceCapacityReport)
+            .where(eq(resourceCapacityReport.resourceId, resourceId))
+            .run();
+        }
+        return { ok: true, projectIds: this.projectsNamingResource(tx, resourceId) };
+      });
+    });
+  }
+
+  /**
    * What names one resource right now — a fast path for the confirmation.
    * {@link DirectoryRepository.removeResource} decides.
    */
@@ -1017,6 +1073,11 @@ export class DirectoryRepository implements DirectoryStore {
       .where(eq(projectResourceCapacity.resourceId, resourceId))
       .orderBy(asc(projectResourceCapacity.projectId))
       .all();
+    const referenced = reader
+      .select({ providerId: resource.providerId })
+      .from(resource)
+      .where(eq(resource.id, resourceId))
+      .get();
     const occupying = reader
       .select({ workItemId: claim.workItemId })
       .from(claimOccupancy)
@@ -1032,6 +1093,12 @@ export class DirectoryRepository implements DirectoryStore {
       // `refuses deleting a resource a claim holds` (resource-occupancy.db.test.ts)
       // deleted it; watched 2026-10-20.
       occupancies: new Set(occupying.map(({ workItemId }) => workItemId)).size,
+      // A resource read away mid-removal names no instance; the removal's own
+      // not-found answer covers it.
+      // Proof: with null answered here, `names the resource's instance when
+      // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
+      // read `providerId: null`; watched 2026-10-22.
+      providerId: referenced?.providerId ?? null,
     };
   }
 

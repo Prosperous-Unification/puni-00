@@ -1112,6 +1112,12 @@ export function PlanToolbar({
           // removed the refused step`. Watched, 2026-09-13.
           onRefused: () => refreshOrMarkStale(),
         }}
+        resources={{
+          projectId,
+          // A declared capacity moves dates, so an adopt rereads the plan
+          // the way a team's capacity does.
+          onChanged: () => refreshOrMarkStale('tree'),
+        }}
         estimating={{
           // The method is reported, not set: `Plan with` on the bar is the one
           // control for it, and a second would be two answers to one question.

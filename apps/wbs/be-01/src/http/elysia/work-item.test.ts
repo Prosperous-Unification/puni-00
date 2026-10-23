@@ -1,3 +1,4 @@
+import { NO_COMPUTE_PROVIDERS } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { expect, spyOn, test } from 'bun:test';
@@ -20,7 +21,10 @@ function fixture(readOnly = false) {
     uow: writes.uow,
     announcements: writes.announcements,
   });
-  const endpoints = workItemRoutes(plan.service, runner, nodeDigest, legacyOrganizationAccess);
+  const endpoints = workItemRoutes(plan.service, runner, nodeDigest, legacyOrganizationAccess, {
+    reports: NO_COMPUTE_PROVIDERS.reports,
+    clock: { now: () => 0 },
+  });
   const app = mountEndpoints(endpoints, {
     appOrigin: 'http://localhost',
     reportUnexpectedFailure: () => undefined,

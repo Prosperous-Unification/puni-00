@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from 'bun:test';
 
 import { createPlanCommandRunner } from '../module/plan-commands/composition';
+import { NO_COMPUTE_PROVIDERS } from '../ports/compute-providers';
 import { inMemoryServices } from '../testing/harness';
 import { localCommandAccess } from '../testing/organization-access-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
@@ -24,6 +25,7 @@ function fixture() {
       runner,
       { sha256: () => Promise.resolve('0'.repeat(64)) },
       legacyOrganizationAccess,
+      { reports: NO_COMPUTE_PROVIDERS.reports, clock: { now: () => 0 } },
     ),
   };
 }

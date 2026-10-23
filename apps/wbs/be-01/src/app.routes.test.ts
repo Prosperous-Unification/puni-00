@@ -198,6 +198,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
+  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -231,6 +232,7 @@ const SIGNED_IN_OPERATIONS = [
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMachine-credentialsById',
@@ -244,6 +246,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiSpacesById',
   'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
@@ -257,6 +260,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
@@ -284,6 +288,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationSession-policy',
 ] as const;
 const INTERNAL_OPERATIONS = [
@@ -322,6 +327,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMachine-credentialsById',
   'deleteApiOrganizationMembersByUserId',
@@ -335,6 +341,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiSpacesByIdProjectsByProjectId',
   'getApiProjectsByIdHistory',
   'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
@@ -347,6 +354,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiDirectoryCommands',
+  'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
@@ -372,6 +380,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationSession-policy',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
@@ -396,6 +405,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationMachine-credentials',
   'getApiOrganizationSession-policy',
   'getApiOrganizationTrusted-issuers',
+  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',

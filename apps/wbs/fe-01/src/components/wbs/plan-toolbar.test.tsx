@@ -1237,6 +1237,7 @@ describe('the project’s settings behind one control', () => {
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]);
   });
 });

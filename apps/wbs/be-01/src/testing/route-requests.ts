@@ -22,6 +22,17 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     issuer: 'https://route-probe.test',
     audience: 'route-probe',
   },
+  'postApiOrganizationCompute-providers': {
+    kind: 'ssh_host',
+    name: 'route-probe',
+    locator: 'route-probe',
+  },
+  'patchApiOrganizationCompute-providersById': { name: 'route-probe' },
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report': {
+    observedAt: 1,
+    cadenceSeconds: 300,
+    outcome: { kind: 'unreachable', reason: 'route-probe' },
+  },
   'postApiOrganizationMachine-credentials': {
     source: 'api_key',
     name: 'route-probe',

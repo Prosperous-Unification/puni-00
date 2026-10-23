@@ -80,7 +80,9 @@ describe('resources in an organization', () => {
     expect(read).toEqual({
       status: 200,
       body: {
-        resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
+        resources: [
+          { id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB', providerId: null },
+        ],
         capacities: [],
         demands: [],
       },
@@ -101,7 +103,9 @@ describe('resources in an organization', () => {
     expect(await h.call('ada', 'GET', `/api/projects/${own}/resources`)).toEqual({
       status: 200,
       body: {
-        resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
+        resources: [
+          { id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB', providerId: null },
+        ],
         capacities: [{ resourceId: ram, units: 32 }],
         demands: [{ workItemId: 'w-a', resourceId: ram, units: 4 }],
       },

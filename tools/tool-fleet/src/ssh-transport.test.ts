@@ -8,6 +8,7 @@ import {
   readSshTransport,
   renderApiForwardArguments,
   renderControllerTransport,
+  renderRemoteCommandArguments,
   renderSshDiscoveryVariables,
   type SshTransport,
   SshTransportRefusal,
@@ -368,6 +369,45 @@ describe('renderApiForwardArguments', () => {
 
   it('refuses a forward host that ssh could read as an option', () => {
     expect(() => renderApiForwardArguments(transport, '-oProxyCommand=sh', 40123, 6443)).toThrow(
+      SshTransportRefusal,
+    );
+  });
+});
+
+describe('renderRemoteCommandArguments', () => {
+  it('runs one quoted remote command under the pinned options, ignoring any user ssh config', () => {
+    expect(
+      renderRemoteCommandArguments(
+        { ...transport, jump: { user: 'puni1', address: '10.1.0.3' } },
+        '10.1.0.4',
+        'cat /proc/meminfo',
+        10,
+      ),
+    ).toEqual([
+      '-F',
+      'none',
+      '-o',
+      'UserKnownHostsFile=/home/puni1/.puni/fleet/ops/known_hosts',
+      '-o',
+      'GlobalKnownHostsFile=/dev/null',
+      '-o',
+      'StrictHostKeyChecking=yes',
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ProxyCommand=ssh -o UserKnownHostsFile=/home/puni1/.puni/fleet/ops/known_hosts -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes -o BatchMode=yes -l puni1 -W %h:%p 10.1.0.3',
+      '-o',
+      'ConnectTimeout=10',
+      '-l',
+      'puni-fleet',
+      '--',
+      '10.1.0.4',
+      'cat /proc/meminfo',
+    ]);
+  });
+
+  it('refuses a command host that ssh could read as an option', () => {
+    expect(() => renderRemoteCommandArguments(transport, '-oProxyCommand=sh', 'true', 10)).toThrow(
       SshTransportRefusal,
     );
   });

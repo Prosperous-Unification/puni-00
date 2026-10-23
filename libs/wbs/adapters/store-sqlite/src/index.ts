@@ -11,6 +11,7 @@ export * from './chain-snapshot';
 export * from './changes';
 export * from './command-access';
 export * from './command-journal';
+export * from './compute-provider';
 export * from './connected-captured-optimization-reader';
 export * from './connected-optimization-cache';
 export * from './consent-credential';

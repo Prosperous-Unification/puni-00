@@ -240,7 +240,7 @@ test.describe('the project settings control, in a browser', () => {
     const dialog = page.getByRole('dialog', { name: 'Project settings' });
     await expect(dialog).toBeVisible();
     // Proof: removing General from the rendered sections made this exact list fail
-    // while the remaining tabs still worked; Timezone remains last.
+    // while the remaining tabs still worked; Resources follows Timezone.
     await expect(dialog.getByRole('tab')).toHaveText([
       'General',
       'Teams',
@@ -249,6 +249,7 @@ test.describe('the project settings control, in a browser', () => {
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]);
 
     // The arrow keys walk the list and select as they go — a real keydown on a

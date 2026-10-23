@@ -25,7 +25,11 @@ export type DirectoryRefusal =
   | 'unknown_service'
   | 'unknown_team'
   /** `accountId` naming no account, or one that is not a member of the person's organization. */
-  | 'unknown_account';
+  | 'unknown_account'
+  /** `patchResource.providerId` naming no provider instance (`compute-providers` P3). */
+  | 'unknown_provider'
+  /** `patchResource.providerId` naming another organization's provider instance. */
+  | 'provider_not_in_organization';
 
 /**
  * What a directory write answered.
