@@ -18,7 +18,7 @@ Running 1 test using 1 worker
   ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision (15.5s)
 
 
-  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision 
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision
 
     Error: response.json: Target page, context or browser has been closed
 
@@ -57,7 +57,7 @@ Running 1 test using 1 worker
     Error Context: test-results/cross-project-refresh.real-8cd0d--upstream-estimate-revision/error-context.md
 
   1 failed
-    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision 
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision
 Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "successor-only dated"" exited with non-zero status code
 
 

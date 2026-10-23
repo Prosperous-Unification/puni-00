@@ -78,7 +78,9 @@ it. The final receipt below records both application typechecks passing.
 - File-scoped ESLint: exit 0, no diagnostics.
   [Lint receipt](evidence/task-5.2-closure/scoped-lint.log).
 - Changed TypeScript and closure-document Prettier check and `git diff --check`:
-  exit 0. Commit hooks additionally check all staged file formats.
+  exit 0 after normalizing the three retained Playwright failure logs to LF
+  and removing trailing horizontal whitespace. The test outcomes and diagnostic
+  text were preserved. Commit hooks additionally check all staged file formats.
 - `bunx openspec validate --all --json`: exit 0, **274 passed / 0 failed**;
   existing informational warnings remain.
   [Summary](evidence/task-5.2-closure/openspec-summary.json).
