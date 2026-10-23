@@ -882,7 +882,10 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
   await writeFile(`${f.root}/caddy/log-redact.caddy`, '(access-log) {\n log\n}\n');
   await writeFile(`${f.root}/caddy/site.caddy`, site('prod.owner.test', 'prod'));
   await writeFile(`${f.root}/caddy/site-dev.caddy`, site('dev.owner.test', 'dev'));
-  await writeFile(`${f.root}/caddy/registry.caddy`, site('registry.owner.test', 'registry'));
+  await writeFile(
+    `${f.root}/caddy/registry.caddy`,
+    site('registry.owner.test', '{$REGISTRY_SECRET}'),
+  );
   const prod = {
     ...f.layout,
     siteAddress: 'prod.owner.test',
@@ -920,7 +923,11 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
                           handle: [
                             {
                               handler: 'static_response',
-                              body: closed ? 'WBS dependency maintenance' : label,
+                              body: closed
+                                ? 'WBS dependency maintenance'
+                                : label === 'registry'
+                                  ? 'COMPOSED_ADAPTED_SENTINEL'
+                                  : label,
                               status_code: closed ? 503 : 200,
                             },
                           ],
@@ -944,7 +951,11 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
     Path: 'caddy',
     Args: ['run', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'],
     Image: imageId,
-    Config: { Env: [], Image: 'caddy:2', Labels: {} },
+    Config: {
+      Env: ['COMPOSED_CADDY_SENTINEL=secret', 'REGISTRY_SECRET=COMPOSED_ADAPTED_SENTINEL'],
+      Image: 'caddy:2',
+      Labels: {},
+    },
     HostConfig: {},
     NetworkSettings: { Networks: {} },
     RestartCount: 0,
@@ -1050,7 +1061,7 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
   for (const directory of [f.root, selectedDev.stateDir])
     for (const name of await readdir(directory))
       if (name.endsWith('.json'))
-        expect(await readFile(`${directory}/${name}`, 'utf8')).not.toContain(
-          'COMPOSED_PRIVATE_SENTINEL',
+        expect(await readFile(`${directory}/${name}`, 'utf8')).not.toMatch(
+          /COMPOSED_(?:PRIVATE|CADDY|ADAPTED)_SENTINEL/,
         );
 });

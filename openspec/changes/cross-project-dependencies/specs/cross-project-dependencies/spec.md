@@ -1428,3 +1428,25 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 
 - **WHEN** source-dev discovery observes additional dev backend or gateway colour topology
 - **THEN** whole-source exclusion refuses without treating that topology as excluded
+
+#### Scenario: Complete inventory membership includes unrelated participants
+
+- **WHEN** a caller omits an unrelated mounted container or alters its writable mount observation
+- **THEN** source token recognition refuses against an independent complete inventory before audit bypass
+
+#### Scenario: Pending inspection outlives its token
+
+- **WHEN** recognition starts while a token is live but finishes after its callback and final inspection expire it
+- **THEN** source recognition, source inspection and solver recognition refuse proof
+
+#### Scenario: Credential-bearing inspection fails safely
+
+- **WHEN** full Docker inspection contains malformed credential-bearing JSON
+- **THEN** diagnostics contain no input excerpts or sensitive cause
+- **AND** composed source, solver, gateway and Caddy inspection records retain hashes of environment-bearing observations
+- **AND** adapted Caddy configuration remains in memory while durable evidence retains its hashes
+
+#### Scenario: Running source retains a prior restart finish
+
+- **WHEN** a running source container retains a historical finish at or before its current start
+- **THEN** whole-source exclusion accepts that lifecycle and still requires a current coherent terminal readback after stopping it

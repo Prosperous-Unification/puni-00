@@ -92,3 +92,12 @@ for (const fault of ['unfinished-exit', 'unstarted-running', 'early-finish'] as 
     }
     expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow();
   });
+
+test('source running after restart retains coherent historical finish time', () => {
+  const source = sourceFixture();
+  source.RestartCount = 2;
+  source.State.FinishedAt = '2026-10-22T23:59:00Z';
+  expect(decodeSourceDev(source, envLayout('dev')).restartCount).toBe(2);
+  source.State.FinishedAt = '2026-10-23T00:01:00Z';
+  expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('timestamp lifecycle');
+});

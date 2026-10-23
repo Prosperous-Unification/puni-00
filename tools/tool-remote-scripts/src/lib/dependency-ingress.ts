@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdir, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -8,7 +9,7 @@ import {
   captureOwnedSiteFile,
   type DependencyOwner,
   type OwnedSiteFile,
-  ownerDocker,
+  ownerDockerHashed,
   publishOwnedSiteFile,
   retainIngressRecord,
 } from './edge-ownership';
@@ -31,7 +32,7 @@ interface IngressReceipt {
 }
 const receipts = new WeakMap<DependencyOwner, IngressReceipt>();
 /**
- * Raw parser excerpts can disclose credentials; only retained private bytes diagnose malformed input.
+ * Raw parser excerpts can disclose credentials; retained private hashes identify malformed observations.
  * Proof: bypassing this scrub exposed the sentinel in malformed-inspect production output (exit 1).
  */
 function parsePrivateJson(contents: string): unknown {
@@ -131,7 +132,8 @@ async function inspectEdge(call: RunDocker, expectedId?: string): Promise<EdgeId
       Image: image,
       Path: container['Path'],
       Args: container['Args'],
-      Config: config,
+      // Proof: restoring raw Config leaked the Caddy environment sentinel; combined owner composition failed.
+      configSha256: createHash('sha256').update(JSON.stringify(config)).digest('hex'),
       Mounts: mounts,
       State: state,
     },
@@ -207,7 +209,8 @@ function createCall(
   runDocker: RunDocker,
   deadline: number,
 ): RunDocker {
-  const guarded = ownerDocker(owner, layout, async (args, signal) => {
+  // Proof: restoring raw Docker readbacks leaked Caddy environment bytes; combined owner composition failed.
+  const guarded = ownerDockerHashed(owner, layout, async (args, signal) => {
     try {
       return await runDocker(args, signal);
     } catch {
@@ -286,7 +289,13 @@ export async function fenceDependencyIngress(
     throw new Error('dependency ingress persistent/live configuration differs before mutation');
   const hosts = layouts.map((selected) => selected.siteAddress);
   const original = selectRoutes(live, hosts);
-  await retainIngressRecord(owner, layout, 'original', { edge, files, adapted, live });
+  // Proof: restoring raw adapted/live configuration leaked the expanded credential sentinel; combined composition failed.
+  await retainIngressRecord(owner, layout, 'original', {
+    edge,
+    files,
+    adaptedSha256: createHash('sha256').update(JSON.stringify(adapted)).digest('hex'),
+    liveSha256: createHash('sha256').update(JSON.stringify(live)).digest('hex'),
+  });
   await retainIngressRecord(owner, layout, 'intent', {
     edge,
     sites: layouts.map((selected) => selected.siteCaddyPath),
@@ -335,7 +344,13 @@ export async function fenceDependencyIngress(
     throw new Error('dependency ingress edge changed after reload');
   await assertFiles(files, edge.directory);
   const record = { edge, layouts, files, expected };
-  const publication = await retainIngressRecord(owner, layout, 'complete', record);
+  // Proof: restoring raw expected configuration leaked the expanded credential sentinel; combined composition failed.
+  const publication = await retainIngressRecord(owner, layout, 'complete', {
+    edge,
+    layouts,
+    files,
+    expectedSha256: createHash('sha256').update(JSON.stringify(expected)).digest('hex'),
+  });
   receipts.set(owner, { ...record, publication: publication.path, contents: publication.contents });
 }
 /** Fresh owner-bound inspection; retained JSON alone cannot recreate this live capability. */

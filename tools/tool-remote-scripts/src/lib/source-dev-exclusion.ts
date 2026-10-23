@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { parseDockerInspection } from './docker-inspection-json';
+import { identifyInventory } from './docker-inventory';
 import { assertDependencyOwner, type DependencyOwner, ownerDockerHashed } from './edge-ownership';
 import { type EnvLayout, sourceDevContract } from './env';
 import { assertSame, publishRecord, readFields, readIdentity, readRecord } from './managed-cohort';
@@ -52,7 +54,7 @@ function findSource(inventory: readonly unknown[], layout: EnvLayout): unknown {
     const name = container['Name'];
     const service = labels['com.docker.compose.service'];
     const networks = readFields(readFields(container['NetworkSettings'])['Networks']);
-    // Proof: removing this guard admitted an additional dev backend beside source; corrected transitional negative failed (exit 1).
+    // Proof: removing this guard admitted an additional dev backend in the actual initial inventory; initial inventory negative failed.
     if (
       [name, service].some(
         (value) => typeof value === 'string' && /^\/?dev-(?:be|gw)-01/.test(value),
@@ -89,7 +91,7 @@ async function inspectInventory(scope: SourceScope): Promise<unknown[]> {
   if (ids.length === 0 || new Set(ids).size !== ids.length)
     throw new Error('source dev inventory missing or duplicated');
   for (const id of ids) readIdentity(id);
-  const inventory: unknown = JSON.parse(
+  const inventory: unknown = parseDockerInspection(
     await runDockerBefore(['inspect', ...ids], scope.docker, scope.deadline),
   );
   if (!Array.isArray(inventory) || inventory.length !== ids.length)
@@ -113,7 +115,7 @@ async function observeMember(
   ).trim();
   // Proof: omitted tag resolution admitted image substitution; source refuses omitted image failed (exit 1).
   assertSame(member.image, resolved, 'source dev mutable image tag resolution');
-  const inspected: unknown = JSON.parse(
+  const inspected: unknown = parseDockerInspection(
     await runDockerBefore(['image', 'inspect', member.image], scope.docker, scope.deadline),
   );
   if (!Array.isArray(inspected) || inspected.length !== 1)
@@ -255,12 +257,18 @@ export async function inspectExcludedSourceMember(
   if (scope?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
   assertSame(scope.layouts.prod, layout, 'source dev backend layout');
   await assertScope(scope);
+  const current = await inspectInventory(scope);
+  // Proof: omitting complete equality admitted an omitted unrelated writer and erased unrelated mounts; both complete-inventory negatives failed.
+  assertSame(identifyInventory(current), identifyInventory(inventory), 'complete audit inventory');
   const raw = findSource(inventory, scope.layouts.dev);
   const observed = await observeMember(scope, inventory);
-  // Proof: identity omission admitted full-ID/start/restart-count drift in the same inventory; all three negatives failed.
+  // Proof: retained-member equality omission admitted coherent caller finish/exit-code drift; both terminal-identity negatives failed.
   assertSame(scope.member, observed, 'source dev audit inventory member');
   assertSourceDevExcluded(observed);
   await inspectScope(scope);
+  // Proof: final live-scope omission returned in-flight source proof after callback expiry; gated recognition/inspection negatives failed.
+  if (exclusions.get(token) !== scope)
+    throw new Error('source dev exclusion expired during inspection');
   return raw;
 }
 
@@ -273,4 +281,7 @@ export async function inspectSourceDevExclusion(
   // Proof: owner-comparison omission admitted the foreign live owner; foreign-owner recognition negative failed (exit 1).
   if (scope?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
   await inspectScope(scope);
+  // Proof: final live-scope omission returned in-flight source proof after callback expiry; gated recognition/inspection negatives failed.
+  if (exclusions.get(token) !== scope)
+    throw new Error('source dev exclusion expired during inspection');
 }

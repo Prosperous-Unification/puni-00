@@ -3,6 +3,7 @@ import { lstat, open, opendir, realpath } from 'node:fs/promises';
 
 import { assertDigestPinnedRef, containerName } from './docker';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { parseDockerInspection } from './docker-inspection-json';
 import type { EnvLayout } from './env';
 import { writeNewMigrationCapture } from './migration-capture-file';
 
@@ -241,7 +242,7 @@ export async function inspectManagedCohort(
     await inspectInventory?.([], cohort);
     return cohort;
   }
-  const inspected: unknown = JSON.parse(
+  const inspected: unknown = parseDockerInspection(
     await runDockerBefore(['inspect', ...identities], runDocker, deadline),
   );
   // Proof: omitting cardinality admitted a missing inspected member past publication; missing-inspect-entry failed.

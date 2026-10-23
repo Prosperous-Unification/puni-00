@@ -868,3 +868,5 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [ ] X5b Independent final source review and separately reviewed physical runner/acceptance. Parent O4/10.2 and adoption stay open.
 
 Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bind full native terminal/inert snapshots and retained hashes, and recognize only exact same-inventory objects. No stopped/tmpfs exemption is introduced.
+
+- [x] X6 Implement the requested independent review corrections: full unrelated inventory binding, private inspection diagnostics and Caddy records, restarted-source lifecycle, final in-flight token expiry, current independent omission proofs, and fresh source checks. Separate physical acceptance and parent activation/adoption remain open.

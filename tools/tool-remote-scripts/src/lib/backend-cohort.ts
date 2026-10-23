@@ -5,6 +5,7 @@ import { posix } from 'node:path';
 import { type DatabaseMount, resolveDatabaseHost } from './backend-config';
 import type { Color } from './deploy-contract';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { identifyInventory } from './docker-inventory';
 import type { DependencyOwner } from './edge-ownership';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
@@ -351,7 +352,7 @@ async function observeBackendCohort(
     // Proof: deleting this audit admits the unmanaged-writer mount and effects; its negative fails (exit 1).
     const image = backends.blue?.imageRef ?? backends.green?.imageRef;
     if (image === undefined) throw new Error('backend fence lost pinned audit image');
-    const inventory = inventoryIdentity(containers);
+    const inventory = identifyInventory(containers);
     if (!performAudit && source !== undefined) {
       await inspectExcludedSourceMember(source.owner, layout, source.exclusion, containers);
       if (source.solver !== undefined)
@@ -403,33 +404,6 @@ async function observeBackendCohort(
   const cohort = observations.at(0);
   if (cohort === undefined) throw new Error('backend fence inventory did not complete');
   return cohort;
-}
-
-function inventoryIdentity(containers: readonly unknown[]): unknown {
-  return containers
-    .map((raw) => {
-      const container = readFields(raw);
-      const state = readFields(container['State']);
-      return {
-        id: readIdentity(container['Id']),
-        name: container['Name'],
-        image: container['Image'],
-        config: container['Config'],
-        host: container['HostConfig'],
-        mounts: container['Mounts'],
-        networks: readFields(container['NetworkSettings'])['Networks'],
-        restarts: container['RestartCount'],
-        process: {
-          running: state['Running'],
-          paused: state['Paused'],
-          restarting: state['Restarting'],
-          dead: state['Dead'],
-          pid: state['Pid'],
-          startedAt: state['StartedAt'],
-        },
-      };
-    })
-    .sort((left, right) => left.id.localeCompare(right.id));
 }
 
 /** Caller holds deploy.lock. Namespace audits never replace a fresh complete joint inventory readback. */

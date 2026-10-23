@@ -1,3 +1,4 @@
+import { parseDockerInspection } from './docker-inspection-json';
 import {
   readBoolean,
   readClosed,
@@ -56,7 +57,7 @@ export function solverInspectArgs(id: string): string[] {
 
 /** Validates identity, restart authority and coherent native lifecycle before any kill or acceptance. */
 export function parseSolverContainer(stdout: string, expectedId: string): SolverContainer {
-  const record = readClosed(JSON.parse(stdout), [
+  const record = readClosed(parseDockerInspection(stdout), [
     'id',
     'name',
     'labels',

@@ -27,12 +27,13 @@ async function fixture() {
     Destination: mount.target,
     RW: mount.writable,
   }));
+  const inventory = [source];
   const commands: string[][] = [];
   let fault = '';
   const docker = (args: string[]) => {
     commands.push(args);
-    if (args[0] === 'ps') return Promise.resolve(source.Id);
-    if (args[0] === 'inspect') return Promise.resolve(JSON.stringify([source]));
+    if (args[0] === 'ps') return Promise.resolve(inventory.map((member) => member.Id).join('\n'));
+    if (args[0] === 'inspect') return Promise.resolve(JSON.stringify(inventory));
     if (args[0] === 'image')
       return Promise.resolve(
         args.includes('--format')
@@ -67,6 +68,7 @@ async function fixture() {
     root,
     layouts,
     source,
+    inventory,
     docker,
     commands,
     setFault: (value: string) => {
@@ -229,6 +231,7 @@ test('owner audit admits only exact live source while ordinary and unrelated sto
           foreign.Name = '/unrelated';
           foreign.Config.Image = 'unrelated:1';
           foreign.Config.Labels['com.docker.compose.service'] = 'unrelated';
+          f.inventory.push(foreign);
           await rejects(
             auditUnmanagedMountsUnderOwner(
               owner,
@@ -358,4 +361,216 @@ test('source private evidence retains hashes without container environment bytes
     for (const name of await readdir(directory))
       if (name.endsWith('.json') || name.endsWith('.pending'))
         expect(await readFile(`${directory}/${name}`, 'utf8')).not.toContain('PRIVATE_SENTINEL');
+});
+
+for (const fault of ['omitted', 'mount-erased'] as const)
+  test(`source complete audit inventory refuses ${fault} unrelated mounted member`, async () => {
+    const f = await fixture();
+    const foreign = structuredClone(f.source);
+    foreign.Id = 'f'.repeat(64);
+    foreign.Name = '/unrelated';
+    foreign.Config.Image = 'unrelated:1';
+    foreign.Config.Labels['com.docker.compose.service'] = 'unrelated';
+    f.inventory.push(foreign);
+    await withDependencyOwner(
+      { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+      (owner) =>
+        withSourceDevExcluded(
+          owner,
+          f.layouts,
+          'a'.repeat(40),
+          f.docker,
+          performance.now() + 10000,
+          async (token) => {
+            const masked = structuredClone(foreign);
+            masked.Mounts = [];
+            await rejects(
+              inspectExcludedSourceMember(
+                owner,
+                f.layouts.prod,
+                token,
+                fault === 'omitted' ? [f.source] : [f.source, masked],
+              ),
+              /complete audit inventory/,
+            );
+            expect(
+              await inspectExcludedSourceMember(owner, f.layouts.prod, token, f.inventory),
+            ).toBe(f.source);
+          },
+        ),
+      f.root,
+    );
+  });
+
+for (const boundary of ['container', 'image'] as const)
+  test(`source malformed ${boundary} inspection diagnostics exclude credential excerpts`, async () => {
+    const f = await fixture();
+    let caught: unknown;
+    const docker: typeof f.docker = (args) =>
+      (boundary === 'container' && args[0] === 'inspect') ||
+      (boundary === 'image' && args[0] === 'image' && !args.includes('--format'))
+        ? Promise.resolve('[{"Config":{"Env":[PRIVATE_SOURCE_SENTINEL]}}]')
+        : f.docker(args);
+    try {
+      await withDependencyOwner(
+        { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+        (owner) =>
+          withSourceDevExcluded(
+            owner,
+            f.layouts,
+            'a'.repeat(40),
+            docker,
+            performance.now() + 10000,
+            () => Promise.resolve(),
+          ),
+        f.root,
+      );
+    } catch (cause) {
+      caught = cause;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(String(caught)).not.toContain('PRIVATE_SOURCE_SENTINEL');
+    if (caught instanceof Error) {
+      expect(caught.stack).not.toContain('PRIVATE_SOURCE_SENTINEL');
+      expect(caught.cause).toBeUndefined();
+    }
+    expect(f.commands.some((command) => command[0] === 'update')).toBe(false);
+  });
+
+test('source actual initial inventory refuses additional dev backend before effects', async () => {
+  const f = await fixture();
+  let entered = false;
+  const backend = structuredClone(f.source);
+  backend.Id = 'f'.repeat(64);
+  backend.Name = '/dev-be-01-blue';
+  backend.Config.Image = `registry/wbs-be-01@sha256:${'e'.repeat(64)}`;
+  backend.Config.Labels['com.docker.compose.service'] = 'dev-be-01-blue';
+  f.inventory.push(backend);
+  await rejects(
+    withDependencyOwner(
+      { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+      (owner) =>
+        withSourceDevExcluded(
+          owner,
+          f.layouts,
+          'a'.repeat(40),
+          f.docker,
+          performance.now() + 10000,
+          () => {
+            entered = true;
+            return Promise.resolve();
+          },
+        ),
+      f.root,
+    ),
+    /transitional/,
+  );
+  expect(entered).toBe(false);
+  expect(f.commands.some((command) => command[0] === 'update' || command[0] === 'stop')).toBe(
+    false,
+  );
+});
+
+for (const operation of ['recognition', 'inspection'] as const)
+  test(`in-flight source ${operation} cannot return proof after token expiry`, async () => {
+    const { inspectSourceDevExclusion } = await import('./source-dev-exclusion');
+    const f = await fixture();
+    let resume: () => void = () => {
+      throw new Error('missing gate');
+    };
+    let announce: () => void = () => {
+      throw new Error('missing start');
+    };
+    const gate = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    let paused = false;
+    let pending: Promise<unknown> | undefined;
+    const docker: typeof f.docker = (args) => {
+      if (paused && args[0] === 'ps') {
+        paused = false;
+        announce();
+        return gate.then(() => f.docker(args));
+      }
+      return f.docker(args);
+    };
+    await withDependencyOwner(
+      { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+      async (owner) => {
+        await withSourceDevExcluded(
+          owner,
+          f.layouts,
+          'a'.repeat(40),
+          docker,
+          performance.now() + 10000,
+          async (token) => {
+            paused = true;
+            pending =
+              operation === 'recognition'
+                ? inspectExcludedSourceMember(owner, f.layouts.prod, token, f.inventory)
+                : inspectSourceDevExclusion(owner, token);
+            await started;
+          },
+        );
+        if (pending === undefined) throw new Error('missing pending inspection');
+        resume();
+        await rejects(pending, /live|expired/);
+      },
+      f.root,
+    );
+  });
+
+for (const fault of ['finish', 'exit-code'] as const)
+  test(`retained source terminal identity refuses caller ${fault} drift`, async () => {
+    const f = await fixture();
+    await withDependencyOwner(
+      { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+      (owner) =>
+        withSourceDevExcluded(
+          owner,
+          f.layouts,
+          'a'.repeat(40),
+          f.docker,
+          performance.now() + 10000,
+          async (token) => {
+            const caller = structuredClone(f.source);
+            if (fault === 'finish') caller.State.FinishedAt = '2026-10-23T02:00:00Z';
+            else caller.State.ExitCode = 42;
+            await rejects(
+              inspectExcludedSourceMember(owner, f.layouts.prod, token, [caller]),
+              /source dev audit inventory member/,
+            );
+          },
+        ),
+      f.root,
+    );
+  });
+
+test('whole source exclusion accepts an already restarted source with historical finish', async () => {
+  const f = await fixture();
+  f.source.RestartCount = 2;
+  f.source.State.FinishedAt = '2026-10-22T23:59:00Z';
+  let entered = false;
+  await withDependencyOwner(
+    { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+    (owner) =>
+      withSourceDevExcluded(
+        owner,
+        f.layouts,
+        'a'.repeat(40),
+        f.docker,
+        performance.now() + 10000,
+        () => {
+          entered = true;
+          return Promise.resolve();
+        },
+      ),
+    f.root,
+  );
+  expect(entered).toBe(true);
+  expect(f.source.RestartCount).toBe(2);
+  expect(f.source.State.Pid).toBe(0);
 });

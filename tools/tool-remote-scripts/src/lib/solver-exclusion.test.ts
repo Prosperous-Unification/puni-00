@@ -957,3 +957,86 @@ test('solver full capture refuses shared PID before callback', async () => {
   );
   expect(entered).toBe(false);
 });
+
+test('solver malformed native full inspection diagnostics exclude credential excerpts', async () => {
+  const f = await fixture();
+  let caught: unknown;
+  const ports: SolverPorts = {
+    ...f.ports,
+    runDocker: (args, signal) =>
+      args[0] === 'inspect' && args[1] !== '--format'
+        ? Promise.resolve('[{"Config":{"Env":[PRIVATE_SOLVER_SENTINEL]}}]')
+        : f.ports.runDocker(args, signal),
+  };
+  try {
+    await withDependencyOwner(
+      f.plan,
+      (owner) =>
+        withSolverDrainUnderOwner(owner, f.layouts, f.pins, ports, performance.now() + 10000, () =>
+          Promise.resolve(),
+        ),
+      f.root,
+    );
+  } catch (cause) {
+    caught = cause;
+  }
+  expect(caught).toBeInstanceOf(Error);
+  expect(String(caught)).not.toContain('PRIVATE_SOLVER_SENTINEL');
+  if (caught instanceof Error) {
+    expect(caught.stack).not.toContain('PRIVATE_SOLVER_SENTINEL');
+    expect(caught.cause).toBeUndefined();
+  }
+});
+
+test('in-flight solver recognition cannot return proof after token expiry and runtime release', async () => {
+  const { inspectExcludedSolverMembers } = await import('./solver-exclusion');
+  const f = await fixture();
+  let paused = false;
+  let pending: Promise<unknown> | undefined;
+  let resume: () => void = () => {
+    throw new Error('missing gate');
+  };
+  let announce: () => void = () => {
+    throw new Error('missing start');
+  };
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    announce = resolve;
+  });
+  const ports: SolverPorts = {
+    ...f.ports,
+    runHost: (command, signal) => {
+      if (paused && command.kind === 'show') {
+        paused = false;
+        announce();
+        return gate.then(() => f.ports.runHost(command, signal));
+      }
+      return f.ports.runHost(command, signal);
+    },
+  };
+  await withDependencyOwner(
+    f.plan,
+    async (owner) => {
+      await withSolverDrainUnderOwner(
+        owner,
+        f.layouts,
+        f.pins,
+        ports,
+        performance.now() + 10000,
+        async (token) => {
+          const parsed: unknown = JSON.parse(await ports.runDocker(['inspect', ID]));
+          if (!Array.isArray(parsed)) throw new Error('missing inventory');
+          paused = true;
+          pending = inspectExcludedSolverMembers(owner, f.layouts.prod, token, parsed);
+          await started;
+        },
+      );
+      if (pending === undefined) throw new Error('missing pending recognition');
+      resume();
+      await refuses(pending, 'live');
+    },
+    f.root,
+  );
+});

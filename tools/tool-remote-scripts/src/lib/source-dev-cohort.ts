@@ -125,11 +125,13 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
     throw new Error('source dev lifecycle incoherent');
   // Proof: removing timestamp coherence admitted unfinished exit, unstarted running and early finish; all three lifecycle negatives failed.
   const zero = '0001-01-01T00:00:00Z';
+  // Docker preserves a prior FinishedAt across restart; only a future finish conflicts with a current running start.
+  // Proof: omitting running timestamp ordering admitted a future finish; historical-finish boundary test failed.
   const started = readString(state['StartedAt']);
   const finished = readString(state['FinishedAt']);
   if (
     state['Running']
-      ? started === zero || finished !== zero
+      ? started === zero || (finished !== zero && Date.parse(finished) > Date.parse(started))
       : state['Status'] === 'created'
         ? started !== zero || finished !== zero || state['ExitCode'] !== 0
         : started === zero || finished === zero || Date.parse(finished) < Date.parse(started)

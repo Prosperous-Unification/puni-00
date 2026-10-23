@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { parseDockerInspection } from './docker-inspection-json';
 import {
   assertDependencyOwner,
   assertDependencyOwnerDirectory,
@@ -224,7 +225,7 @@ export async function withSolverDrainUnderOwner<T>(
     async function captureSnapshots(): Promise<SolverSnapshot[]> {
       const snapshots: SolverSnapshot[] = [];
       for (const retained of cohort) {
-        const inspected: unknown = JSON.parse(await run(['inspect', retained.id]));
+        const inspected: unknown = parseDockerInspection(await run(['inspect', retained.id]));
         if (!Array.isArray(inspected) || inspected.length !== 1)
           throw new Error('solver full inspection requires exact member');
         const snapshot = parseSolverSnapshot(inspected[0], retained.id);
@@ -316,5 +317,8 @@ export async function inspectExcludedSolverMembers(
   if (members.length !== scope.snapshots.length)
     throw new Error('solver audit missing captured inventory member');
   await scope.inspect();
+  // Proof: final live-scope omission returned in-flight solver proof after runtime release; gated solver recognition negative failed.
+  if (exclusions.get(token) !== scope)
+    throw new Error('solver exclusion is not live after inspection');
   return members;
 }
