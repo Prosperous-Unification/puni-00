@@ -49,11 +49,23 @@ function fixture(suspend?: boolean) {
   const patches: any[][] = [];
   const call = async (args: readonly string[]) => {
     await Promise.resolve();
-    if (args.includes('get')) return JSON.stringify(objects[args[args.indexOf('get') + 1]]);
+    if (args.includes('get')) {
+      const resource = args[args.indexOf('get') + 1];
+      return JSON.stringify(
+        resource.startsWith('job/')
+          ? objects['jobs'].items.find(
+              (job: any) => resource === `job/${String(job.metadata.name)}`,
+            )
+          : objects[resource],
+      );
+    }
     if (!args.includes('patch')) throw new Error('unexpected command');
     const operations = JSON.parse(args[args.indexOf('-p') + 1]) as any[];
     patches.push(operations);
-    const backup = objects['cronjob/sqlite-backup'];
+    const resource = args[args.indexOf('patch') + 1];
+    const backup = resource.startsWith('job/')
+      ? objects['jobs'].items.find((job: any) => resource === `job/${String(job.metadata.name)}`)
+      : objects['cronjob/sqlite-backup'];
     const draft = structuredClone(backup);
     for (const operation of operations) {
       const keys = operation.path
@@ -72,7 +84,8 @@ function fixture(suspend?: boolean) {
       if (operation.op === 'remove') delete parent[key];
     }
     draft.metadata.resourceVersion = String(Number(backup.metadata.resourceVersion) + 1);
-    objects['cronjob/sqlite-backup'] = draft;
+    if (resource.startsWith('job/')) Object.assign(backup, draft);
+    else objects['cronjob/sqlite-backup'] = draft;
     return JSON.stringify(draft);
   };
   return { objects, identity, call, patches };
@@ -187,6 +200,7 @@ test('drains actual UID descendants and refuses unrelated unlabelled source read
           name: 'backup-job',
           namespace: 'wbs',
           uid: 'job',
+          resourceVersion: '1',
           ownerReferences: [
             { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
           ],
@@ -344,43 +358,73 @@ test('restore mismatch retains token and suspension', async () => {
   ).toBe('token');
 });
 
-test('drain timeout retains suspended owner without deleting a foreign Pod', async () => {
-  const { drainController } = await import('./controller-lifecycle');
-  const cluster = fixture();
-  const owner = await prepared(cluster);
-  const suspended = await suspendController(owner, null, cluster.call, authority());
-  cluster.objects['jobs'] = {
-    items: [
-      {
-        metadata: {
-          name: 'backup-job',
-          namespace: 'wbs',
-          uid: 'job',
-          ownerReferences: [
-            { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
-          ],
+for (const withPod of [false, true])
+  test(`drain timeout retains suspended owner and reports survivors (Pod ${String(withPod)})`, async () => {
+    const { drainController } = await import('./controller-lifecycle');
+    const cluster = fixture();
+    const owner = await prepared(cluster);
+    const suspended = await suspendController(owner, null, cluster.call, authority());
+    cluster.objects['jobs'] = {
+      items: [
+        {
+          metadata: {
+            name: 'backup-job',
+            namespace: 'wbs',
+            uid: 'job',
+            resourceVersion: '1',
+            deletionTimestamp: '2026-10-23T01:00:00Z',
+            finalizers: ['test.puni.dev/hold'],
+            ownerReferences: [
+              { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+            ],
+          },
+          spec: { template: { spec: {} } },
         },
-      },
-    ],
-  };
-  cluster.objects['pods'] = { items: [] };
-  const deleted: unknown[] = [];
-  const call = async (args: readonly string[], input?: string) => {
-    if (!args.includes('delete')) return cluster.call(args);
-    deleted.push(JSON.parse(input ?? '{}').preconditions);
-    return '{}';
-  };
-  await expect(
-    drainController(suspended, call, authority(), {
+      ],
+    };
+    cluster.objects['pods'] = {
+      items: withPod
+        ? [
+            {
+              metadata: {
+                name: 'backup-pod',
+                namespace: 'wbs',
+                uid: 'pod',
+                deletionTimestamp: '2026-10-23T01:00:00Z',
+                finalizers: ['test.puni.dev/pod-hold'],
+                ownerReferences: [
+                  { kind: 'Job', name: 'backup-job', uid: 'job', controller: true },
+                ],
+              },
+              spec: {},
+              status: { phase: 'Running' },
+            },
+          ]
+        : [],
+    };
+    const deleted: unknown[] = [];
+    const call = async (args: readonly string[], input?: string) => {
+      if (!args.includes('delete')) return cluster.call(args);
+      deleted.push(JSON.parse(input ?? '{}').preconditions);
+      return '{}';
+    };
+    const timeout = drainController(suspended, call, authority(), {
       attempts: 2,
       sleep: async () => {
         await Promise.resolve();
       },
-    }),
-  ).rejects.toThrow('did not converge');
-  expect(deleted).toEqual([{ uid: 'job' }, { uid: 'job' }]);
-  expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
-});
+    });
+    await expect(timeout).rejects.toThrow('Job/backup-job (job)');
+    await expect(timeout).rejects.toThrow('attempts=2');
+    await expect(timeout).rejects.toThrow('test.puni.dev/hold');
+    await expect(timeout).rejects.toThrow('2026-10-23T01:00:00Z');
+    if (withPod) {
+      await expect(timeout).rejects.toThrow('Running');
+      await expect(timeout).rejects.toThrow('test.puni.dev/pod-hold');
+    }
+    expect(deleted).toEqual(withPod ? [] : [{ uid: 'job' }, { uid: 'job' }]);
+    expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+  });
 
 for (const interrupted of ['restore-applied', 'restored'])
   test(`restart finishes exact restoration after ${interrupted} acknowledgment crash`, async () => {
@@ -462,4 +506,273 @@ test('unknown lifecycle fields refuse before any cluster transport', async () =>
     ),
   ).rejects.toThrow('malformed controller lifecycle');
   expect(calls).toBe(0);
+});
+
+for (const autonomous of [false, true])
+  test(`drain suspends a reconciling Job before graceful delayed Pod deletion (controller termination ${String(autonomous)})`, async () => {
+    const { drainController } = await import('./controller-lifecycle');
+    const cluster = fixture();
+    const owner = await prepared(cluster);
+    const durable = authority();
+    const suspended = await suspendController(owner, null, cluster.call, durable);
+    const job = {
+      metadata: {
+        name: 'backup-job',
+        namespace: 'wbs',
+        uid: 'job',
+        resourceVersion: '1',
+        ownerReferences: [
+          { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+        ],
+      },
+      spec: { suspend: false, template: { spec: {} } },
+    };
+    const pod = {
+      metadata: {
+        name: 'backup-pod',
+        namespace: 'wbs',
+        uid: 'pod',
+        ownerReferences: [{ kind: 'Job', name: 'backup-job', uid: 'job', controller: true }],
+      },
+      spec: {},
+    };
+    const bystander = {
+      metadata: {
+        name: 'bystander',
+        namespace: 'wbs',
+        uid: 'bystander',
+        ownerReferences: [{ kind: 'Job', name: 'backup-job', uid: 'job', controller: false }],
+      },
+      spec: {},
+    };
+    cluster.objects['jobs'] = { items: [job] };
+    cluster.objects['pods'] = { items: [pod, bystander] };
+    let terminating = 0;
+    let replacements = 0;
+    let inventories = 0;
+    let emptyInventories = 0;
+    const call = async (args: readonly string[], input?: string) => {
+      if (autonomous && args.includes('patch') && args.includes('job/backup-job')) {
+        terminating = 1;
+        Object.assign(pod.metadata, { deletionTimestamp: '2026-10-23T01:00:00Z' });
+      }
+      if (
+        args.includes('get') &&
+        args.includes('jobs') &&
+        cluster.objects['jobs'].items.length === 0
+      )
+        emptyInventories++;
+      if (args.includes('get') && args.includes('pods')) {
+        inventories++;
+        if (terminating > 0 && ++terminating === 4) {
+          cluster.objects['pods'].items = [bystander];
+          if (!job.spec.suspend) {
+            replacements++;
+            cluster.objects['pods'].items.push(structuredClone(pod));
+            terminating = 0;
+          }
+        }
+      }
+      if (args.includes('get') && args.includes('job/backup-job')) return JSON.stringify(job);
+      if (!args.includes('delete')) return cluster.call(args);
+      if (autonomous && args.some((a) => a.includes('/pods/')))
+        throw new Error('must wait already terminating Pod');
+      const options = JSON.parse(input ?? '{}');
+      expect(options).toEqual({
+        apiVersion: 'v1',
+        kind: 'DeleteOptions',
+        preconditions: { uid: args.some((a) => a.includes('/pods/')) ? 'pod' : 'job' },
+        propagationPolicy: 'Orphan',
+      });
+      if (args.some((a) => a.includes('/pods/'))) {
+        if (terminating === 0) terminating = 1;
+      } else cluster.objects['jobs'].items = [];
+      return '{}';
+    };
+    await drainController(suspended, call, durable, {
+      attempts: 9,
+      sleep: async () => {
+        await Promise.resolve();
+      },
+    });
+    expect(replacements).toBe(0);
+    expect(job.spec.suspend).toBe(true);
+    expect(cluster.objects['jobs'].items).toEqual([]);
+    expect(cluster.objects['pods'].items).toEqual([bystander]);
+    expect(inventories).toBeGreaterThanOrEqual(5);
+    expect(emptyInventories).toBe(2);
+  });
+
+for (const fault of [
+  'UID',
+  'resourceVersion',
+  'ownerReferences',
+  'spec',
+  'readback',
+  'revalidation',
+  'Lease',
+  'NotFound',
+  'Forbidden',
+])
+  test(`drain refuses Job ${fault} before descendant deletion`, async () => {
+    const { drainController } = await import('./controller-lifecycle');
+    const cluster = fixture();
+    const owner = await prepared(cluster);
+    const suspended = await suspendController(owner, null, cluster.call, authority());
+    const job: any = {
+      metadata: {
+        name: 'backup-job',
+        namespace: 'wbs',
+        uid: 'job',
+        resourceVersion: '1',
+        ownerReferences: [
+          { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+        ],
+      },
+      spec: { template: { spec: {} } },
+    };
+    cluster.objects['jobs'] = { items: [job] };
+    cluster.objects['pods'] = { items: [] };
+    let deleted = false;
+    let patched = false;
+    let reads = 0;
+    const call = async (args: readonly string[]) => {
+      if (args.includes('delete')) {
+        deleted = true;
+        throw new Error('unexpected deletion');
+      }
+      if (args.includes('job/backup-job') && args.includes('get')) {
+        reads++;
+        if (fault === 'NotFound' || fault === 'Forbidden') throw new Error(fault);
+        if (fault === 'readback' || (fault === 'revalidation' && reads === 2))
+          job.spec.suspend = false;
+      }
+      if (args.includes('job/backup-job') && args.includes('patch')) {
+        if (fault === 'UID') job.metadata.uid = 'foreign';
+        if (fault === 'resourceVersion') job.metadata.resourceVersion = '9';
+        if (fault === 'ownerReferences') job.metadata.ownerReferences = [];
+        if (fault === 'spec') job.spec.parallelism = 9;
+        patched = true;
+      }
+      return cluster.call(args);
+    };
+    await expect(
+      drainController(
+        suspended,
+        call,
+        {
+          ...authority(),
+          assertLease: async () => {
+            await Promise.resolve();
+            if (fault === 'Lease' && patched) throw new Error('Lease lost');
+          },
+        },
+        {
+          attempts: 3,
+          sleep: async () => {
+            await Promise.resolve();
+          },
+        },
+      ),
+    ).rejects.toThrow();
+    expect(deleted).toBe(false);
+    if (['UID', 'resourceVersion', 'ownerReferences', 'spec'].includes(fault))
+      expect(job.spec.suspend).toBeUndefined();
+    expect(suspended.stage).toBe('suspended');
+    expect(cluster.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+  });
+
+test('foreign source Pod preflight refuses before any owned Job patch or deletion', async () => {
+  const { drainController } = await import('./controller-lifecycle');
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  const suspended = await suspendController(owner, null, cluster.call, authority());
+  const patches = cluster.patches.length;
+  cluster.objects['jobs'] = {
+    items: [
+      {
+        metadata: {
+          name: 'backup-job',
+          namespace: 'wbs',
+          uid: 'job',
+          resourceVersion: '1',
+          ownerReferences: [
+            { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+          ],
+        },
+        spec: { template: { spec: {} } },
+      },
+    ],
+  };
+  cluster.objects['pods'] = {
+    items: [
+      {
+        metadata: { name: 'foreign-reader', namespace: 'wbs', uid: 'foreign' },
+        spec: {
+          volumes: [
+            { name: 'db', persistentVolumeClaim: { claimName: 'wbs-data', readOnly: true } },
+          ],
+        },
+        status: { phase: 'Running' },
+      },
+    ],
+  };
+  let deletes = 0;
+  const call = async (args: readonly string[]) => {
+    if (args.includes('delete')) {
+      deletes++;
+      throw new Error('unexpected deletion');
+    }
+    return cluster.call(args);
+  };
+  await expect(
+    drainController(suspended, call, authority(), {
+      attempts: 3,
+      sleep: async () => {
+        await Promise.resolve();
+      },
+    }),
+  ).rejects.toThrow('foreign source consumer Pod');
+  expect(cluster.patches).toHaveLength(patches);
+  expect(deletes).toBe(0);
+  expect(cluster.objects['jobs'].items[0].spec.suspend).toBeUndefined();
+});
+
+test('drain timeout bounds survivor count and serialized metadata', async () => {
+  const { drainController } = await import('./controller-lifecycle');
+  const cluster = fixture();
+  const owner = await prepared(cluster);
+  const suspended = await suspendController(owner, null, cluster.call, authority());
+  cluster.objects['jobs'] = {
+    items: Array.from({ length: 25 }, (_, index) => ({
+      metadata: {
+        name: `job-${String(index)}`,
+        uid: `uid-${String(index)}`,
+        namespace: 'wbs',
+        resourceVersion: '1',
+        finalizers: ['x'.repeat(5000)],
+        ownerReferences: [
+          { kind: 'CronJob', name: 'sqlite-backup', uid: 'backup', controller: true },
+        ],
+      },
+      spec: { template: { spec: {} } },
+    })),
+  };
+  cluster.objects['pods'] = { items: [] };
+  const call = async (args: readonly string[]) =>
+    args.includes('delete') ? '{}' : cluster.call(args);
+  try {
+    await drainController(suspended, call, authority(), {
+      attempts: 2,
+      sleep: async () => {
+        await Promise.resolve();
+      },
+    });
+    throw new Error('expected bounded timeout');
+  } catch (failure) {
+    if (!(failure instanceof Error)) throw failure;
+    expect(failure.message).toContain('omitted=5');
+    expect(failure.message).not.toContain('Job/job-24');
+    expect(failure.message.length).toBeLessThan(22_000);
+  }
 });

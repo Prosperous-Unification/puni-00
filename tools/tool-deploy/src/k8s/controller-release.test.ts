@@ -116,11 +116,12 @@ const persist = () => writeFileSync(store, JSON.stringify(objects));
 if (args.includes('get')) {
   const resource = args[args.indexOf('get')+1];
   if (resource.includes('deployments,statefulsets')) { console.log(JSON.stringify({items:[objects['deployment/wbs-backend'],backup,...objects.jobs.items,...(objects.foreignControllers??[])]})); process.exit(0); }
+  if(resource.startsWith('job/')){const job=objects.jobs.items.find(j=>resource==='job/'+j.metadata.name); if(!job)throw new Error('NotFound'); console.log(JSON.stringify(job));process.exit(0);}
   if (!(resource in objects)) throw new Error('Forbidden resource '+resource);
   const response=JSON.stringify(objects[resource]);
   if(resource==='pods'&&(objects.swapStorage||objects.swapOwner)){
     objects.podReads=(objects.podReads??0)+1;
-    if(objects.podReads===2){ if(objects.swapStorage){objects['pvc/wbs-data'].metadata.uid='replacement-pvc';objects['pv/disk'].spec.claimRef.uid='replacement-pvc';} if(objects.swapOwner==='template')backup.spec.schedule='foreign'; if(objects.swapOwner==='token')backup.metadata.annotations['puni.dev/storage-owner']='foreign'; }
+    if(objects.podReads===4){ if(objects.swapStorage){objects['pvc/wbs-data'].metadata.uid='replacement-pvc';objects['pv/disk'].spec.claimRef.uid='replacement-pvc';} if(objects.swapOwner==='template')backup.spec.schedule='foreign'; if(objects.swapOwner==='token')backup.metadata.annotations['puni.dev/storage-owner']='foreign'; }
     persist();
   }
   console.log(response); process.exit(0);
@@ -132,7 +133,10 @@ if (args.includes('patch')) {
   const interval = intervals.find(p=>p?.ownership.token===token);
   if (!interval) throw new Error('missing durable interval');
   const cleanup = operations.some(p=>p.op==='remove' && p.path.includes('storage-owner'));
-  const expected = cleanup?'cleanup-pending':backup.metadata.annotations['puni.dev/storage-owner']?'restore-pending':'suspend-pending';
+  const jobResource=args[args.indexOf('patch')+1];
+  const isJob=jobResource.startsWith('job/');
+  const selected=isJob?objects.jobs.items.find(j=>jobResource==='job/'+j.metadata.name):backup;
+  const expected = isJob?'suspended':cleanup?'cleanup-pending':backup.metadata.annotations['puni.dev/storage-owner']?'restore-pending':'suspend-pending';
   if (interval.stage!==expected) throw new Error('missing durable '+expected);
   if (objects.race) {
     const fault=objects.race; delete objects.race;
@@ -142,7 +146,7 @@ if (args.includes('patch')) {
     if(fault==='token')backup.metadata.annotations['puni.dev/storage-owner']='foreign';
     persist();
   }
-  const draft = structuredClone(backup);
+  const draft = structuredClone(selected);
   for (const operation of operations) {
     const keys = operation.path.slice(1).split('/').map(k=>k.replaceAll('~1','/').replaceAll('~0','~'));
     let parent=draft;
@@ -152,8 +156,8 @@ if (args.includes('patch')) {
     if (operation.op==='add'||operation.op==='replace') parent[key]=operation.value;
     if (operation.op==='remove') delete parent[key];
   }
-  draft.metadata.resourceVersion=String(Number(backup.metadata.resourceVersion)+1);
-  objects['cronjob/sqlite-backup']=draft; persist(); console.log(JSON.stringify(draft)); process.exit(0);
+  draft.metadata.resourceVersion=String(Number(selected.metadata.resourceVersion)+1);
+  if(isJob)Object.assign(selected,draft);else objects['cronjob/sqlite-backup']=draft; persist(); console.log(JSON.stringify(draft)); process.exit(0);
 }
 if (args.includes('delete')) {
   const options=JSON.parse(await Bun.stdin.text());
@@ -565,6 +569,7 @@ function descendants(fixture: ReturnType<typeof mounted>, foreignPod = false) {
         name: 'backup-job',
         namespace: 'wbs-solver',
         uid: 'backup-job-uid',
+        resourceVersion: '1',
         ownerReferences: [
           { kind: 'CronJob', name: 'sqlite-backup', uid: 'sqlite-backup-uid', controller: true },
         ],
@@ -649,6 +654,7 @@ for (const readonly of [false, true])
   test(`mounted unlabelled ${readonly ? 'readonly' : 'writable'} source consumer refuses`, async () => {
     const fixture = mounted(false);
     try {
+      descendants(fixture);
       const spec = structuredClone(
         fixture.objects['cronjob/sqlite-backup'].spec.jobTemplate.spec.template.spec,
       );
@@ -678,6 +684,15 @@ for (const readonly of [false, true])
       expect(fixture.fake.calls).not.toContain('rollbackSchema');
       fixture.load();
       expect(fixture.objects['pods'].items).toHaveLength(1);
+      expect(fixture.objects['jobs'].items[0].spec.suspend).toBeUndefined();
+      const calls = readFileSync(join(fixture.root, 'calls.jsonl'), 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as string[]);
+      expect(calls.some((args) => args.includes('patch') && args.includes('job/backup-job'))).toBe(
+        false,
+      );
+      expect(calls.some((args) => args.includes('delete'))).toBe(false);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }

@@ -77,7 +77,17 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   Job completion.
 - **Backup controller intervals.** The coordinator records exact `sqlite-backup` UID,
   template, token and absent/false/true suspension in journal schema 4, then suspends
-  conditionally and drains actual UID-owned Jobs/Pods. Unlabelled source consumers,
+  conditionally and drains actual UID-owned Jobs/Pods. Complete Job/Pod preflight
+  refuses foreign source consumers before owned Job mutation. Each owned Job is CAS-suspended
+  using its UID, resourceVersion, full owner references and spec, then read back before
+  freshly inventorying Pods. The coordinator revalidates the suspended Job before each
+  UID-preconditioned orphan delete, waits already terminating Pods and requires two fresh
+  empty descendant inventories. Timeout reports bounded survivor identities, Pod phases,
+  deletion timestamps, finalizers and attempt count, then parks the interval.
+  Kubectl exposes untyped failures here: even a NotFound race refuses and retains the
+  journal/Lease for attended recovery; stderr text never grants disappearance authority.
+  The disposable lab uses a 60-second drain budget and seeds an active owned Job with a
+  three-second SIGTERM delay. Unlabelled source consumers,
   including readers, refuse. Each source task repeats unfiltered inspection. The
   forward interval is restored before backend rollout changes the backup image. An
   eligible abort reuses an active interval or retains a separate rollback interval

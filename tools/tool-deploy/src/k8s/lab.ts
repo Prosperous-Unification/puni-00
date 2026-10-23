@@ -838,6 +838,91 @@ async function expectRestored(
   );
 }
 
+/** Seeds an active real Job controller so the disposable rehearsal includes replacement and graceful termination behavior. */
+async function seedDrainJob(): Promise<void> {
+  const uid = (
+    await k([
+      '-n',
+      NAMESPACES.backend,
+      'get',
+      'cronjob/sqlite-backup',
+      '-o',
+      'jsonpath={.metadata.uid}',
+    ])
+  ).trim();
+  if (uid === '') throw new Error('lab backup CronJob UID is missing');
+  const draft = await k([
+    '-n',
+    NAMESPACES.backend,
+    'create',
+    'job',
+    'f8-owned-backup',
+    '--from=cronjob/sqlite-backup',
+    '--dry-run=client',
+    '-o',
+    'json',
+  ]);
+  const job = await k(
+    [
+      'patch',
+      '--local',
+      '-f',
+      '-',
+      '--type=json',
+      '-p',
+      JSON.stringify([
+        {
+          op: 'add',
+          path: '/metadata/ownerReferences',
+          value: [
+            {
+              apiVersion: 'batch/v1',
+              kind: 'CronJob',
+              name: 'sqlite-backup',
+              uid,
+              controller: true,
+              blockOwnerDeletion: true,
+            },
+          ],
+        },
+        {
+          op: 'replace',
+          path: '/spec/template/spec/containers/0/command',
+          value: [
+            'bun',
+            '-e',
+            'process.on("SIGTERM", () => setTimeout(() => process.exit(0), 3000)); setInterval(() => {}, 1000)',
+          ],
+        },
+        { op: 'remove', path: '/spec/template/spec/containers/0/env' },
+      ]),
+      '-o',
+      'json',
+    ],
+    draft,
+  );
+  await k(['create', '-f', '-'], job);
+  await k([
+    '-n',
+    NAMESPACES.backend,
+    'wait',
+    'job/f8-owned-backup',
+    '--for=jsonpath={.status.active}=1',
+    '--timeout=90s',
+  ]);
+  await k([
+    '-n',
+    NAMESPACES.backend,
+    'wait',
+    'pod',
+    '-l',
+    'job-name=f8-owned-backup',
+    '--for=condition=Ready',
+    '--timeout=90s',
+  ]);
+  log('seeded real CronJob-owned backup Job with a 3s SIGTERM delay and ordinary Pod grace');
+}
+
 async function main(): Promise<void> {
   mkdirSync(state, { recursive: true, mode: 0o700 });
   await preflight();
@@ -866,7 +951,7 @@ async function main(): Promise<void> {
       anonymousProjectsStatus: 200 as const,
       rolloutTimeoutSeconds: 90,
       jobTimeoutSeconds: 180,
-      drainTimeoutMs: 5000,
+      drainTimeoutMs: 60_000,
       leaseDurationSeconds: 20,
       log,
     };
@@ -925,6 +1010,7 @@ async function main(): Promise<void> {
       'a backend digest outside solverImages refused by the committed F6 policy',
     );
 
+    await seedDrainJob();
     log('scenario 1: induced health failure rolls back before writes reopen');
     let writers = watchWriters();
     const failed = await executeRelease(

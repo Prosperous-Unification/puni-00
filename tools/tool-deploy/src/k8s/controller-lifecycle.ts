@@ -329,9 +329,127 @@ function sourceConsumer(spec: unknown): boolean {
     );
   });
 }
+function describeSurvivor(kind: 'Pod' | 'Job', resource: Fields): string {
+  const metadata = fields(resource['metadata']);
+  const status = 'status' in resource ? fields(resource['status']) : {};
+  const details = {
+    phase: 'phase' in status ? status['phase'] : null,
+    deletionTimestamp: 'deletionTimestamp' in metadata ? metadata['deletionTimestamp'] : null,
+    finalizers: 'finalizers' in metadata ? metadata['finalizers'] : [],
+  };
+  // Proof: removing details failed timeout diagnostics; removing the per-resource limit failed the bounded metadata regression.
+  return `${kind}/${text(metadata['name'])} (${text(metadata['uid'])}) ${serializeStorage(details).slice(0, 1000)}`;
+}
+interface DrainPod {
+  name: string;
+  uid: string;
+  terminating: boolean;
+  diagnostic: string;
+}
+function collectDescendants(
+  pods: unknown[],
+  owned: ReadonlyMap<string, string>,
+  owner: StorageOwnership,
+): DrainPod[] {
+  const descendants: DrainPod[] = [];
+  for (const entry of pods) {
+    const pod = fields(entry);
+    const metadata = fields(pod['metadata']);
+    const name = text(metadata['name']);
+    const uid = text(metadata['uid']);
+    if (metadata['namespace'] !== owner.namespace) throw new Error('foreign Pod namespace');
+    if (
+      [...owned].some(([jobUid, jobName]) => controllerReference(metadata, 'Job', jobName, jobUid))
+    )
+      descendants.push({
+        name,
+        uid,
+        terminating: 'deletionTimestamp' in metadata,
+        diagnostic: describeSurvivor('Pod', pod),
+      });
+    else if (sourceConsumer(pod['spec']) && !isTerminalPod(pod))
+      throw new Error('foreign source consumer Pod');
+  }
+  return descendants;
+}
+interface DrainJob {
+  name: string;
+  uid: string;
+  spec: Fields;
+  references: unknown;
+}
+function assertDrainJob(job: Fields, expected: DrainJob, owner: StorageOwnership): Fields {
+  const metadata = fields(job['metadata']);
+  same(metadata['uid'], expected.uid, 'Job UID');
+  same(metadata['name'], expected.name, 'Job name');
+  same(metadata['namespace'], owner.namespace, 'Job namespace');
+  same(metadata['ownerReferences'], expected.references, 'Job owner references');
+  same(job['spec'], expected.spec, 'Job spec');
+  return metadata;
+}
+async function readDrainJob(expected: DrainJob, owner: StorageOwnership, call: Call) {
+  const job = fields(
+    JSON.parse(await call(['-n', owner.namespace, 'get', `job/${expected.name}`, '-o', 'json'])),
+  );
+  // Proof: removing this readback check let the Job readback fault reach descendant deletion.
+  assertDrainJob(job, expected, owner);
+  return job;
+}
+async function assertDrainOwner(
+  owner: StorageOwnership,
+  call: Call,
+  authority: ControllerAuthority,
+) {
+  await authority.assertLease();
+  const backup = await observe(owner, call);
+  if (backup.token !== owner.token || backup.spec['suspend'] !== true)
+    throw new Error('owned backup suspension lost during drain');
+  await authority.assertLease();
+}
+async function suspendDrainJob(
+  job: Fields,
+  owner: StorageOwnership,
+  call: Call,
+  authority: ControllerAuthority,
+): Promise<DrainJob> {
+  const metadata = fields(job['metadata']);
+  const spec = fields(job['spec']);
+  const expected = {
+    name: text(metadata['name']),
+    uid: text(metadata['uid']),
+    spec,
+    references: metadata['ownerReferences'],
+  };
+  // Proof: bypassing Job suspension made the reconciling Job regression exhaust its budget with replacement Pods.
+  if (spec['suspend'] !== true) {
+    await assertDrainOwner(owner, call, authority);
+    await call([
+      '-n',
+      owner.namespace,
+      'patch',
+      `job/${expected.name}`,
+      '--type=json',
+      '-p',
+      JSON.stringify([
+        // Proof: removing each UID/RV/owner/spec CAS test changed suspension in its corresponding Job race regression.
+        { op: 'test', path: '/metadata/uid', value: expected.uid },
+        { op: 'test', path: '/metadata/resourceVersion', value: text(metadata['resourceVersion']) },
+        { op: 'test', path: '/metadata/ownerReferences', value: expected.references },
+        { op: 'test', path: '/spec', value: spec },
+        { op: 'add', path: '/spec/suspend', value: true },
+      ]),
+    ]);
+    await authority.assertLease();
+  }
+  const suspended = { ...expected, spec: { ...spec, suspend: true } };
+  await readDrainJob(suspended, owner, call);
+  await authority.assertLease();
+  return suspended;
+}
 /**
  * Drains only actual CronJob→Job→Pod controller UID descendants. Deletes use API UID
- * preconditions and orphan propagation, never a label selector. Two consecutive unfiltered
+ * preconditions and orphan propagation after CAS suspension/readback of every owned Job.
+ * Revalidates Job spec/ownership before deletion. Two consecutive unfiltered
  * inventories must be empty; unknown source consumers, including readers, refuse.
  */
 export async function drainController(
@@ -347,13 +465,12 @@ export async function drainController(
     throw new Error('drain needs a bounded convergence budget of at least two');
   const owner = lifecycle.ownership;
   let empty = 0;
+  let survivors: string[] = [];
+  const suspendedJobs = new Map<string, DrainJob>();
   for (let attempt = 0; attempt < options.attempts; attempt++) {
     await authority.assertLease();
-    const backup = await observe(owner, call);
-    if (backup.token !== owner.token || backup.spec['suspend'] !== true)
-      throw new Error('owned backup suspension lost during drain');
+    await assertDrainOwner(owner, call, authority);
     const jobs = list(JSON.parse(await call(['-n', owner.namespace, 'get', 'jobs', '-o', 'json'])));
-    const pods = list(JSON.parse(await call(['-n', owner.namespace, 'get', 'pods', '-o', 'json'])));
     const owned = new Map<string, string>();
     for (const entry of jobs) {
       const job = fields(entry);
@@ -361,8 +478,11 @@ export async function drainController(
       const name = text(metadata['name']);
       const uid = text(metadata['uid']);
       if (metadata['namespace'] !== owner.namespace) throw new Error('foreign Job namespace');
-      if (controllerReference(metadata, 'CronJob', owner.owner.name, owner.owner.uid))
+      if (controllerReference(metadata, 'CronJob', owner.owner.name, owner.owner.uid)) {
+        const prior = suspendedJobs.get(uid);
+        if (prior !== undefined) assertDrainJob(job, prior, owner);
         owned.set(uid, name);
+      }
       // Proof: terminal-history-acceptance omission blocked retained production manifests before the next source barrier.
       else if (
         sourceConsumer(fields(fields(job['spec'])['template'])['spec']) &&
@@ -370,28 +490,43 @@ export async function drainController(
       )
         throw new Error('foreign source consumer Job');
     }
-    const descendants: { name: string; uid: string }[] = [];
-    for (const entry of pods) {
-      const pod = fields(entry);
-      const metadata = fields(pod['metadata']);
-      const name = text(metadata['name']);
-      const uid = text(metadata['uid']);
-      if (metadata['namespace'] !== owner.namespace) throw new Error('foreign Pod namespace');
-      if (
-        [...owned].some(([jobUid, jobName]) =>
-          controllerReference(metadata, 'Job', jobName, jobUid),
-        )
-      )
-        descendants.push({ name, uid });
-      else if (sourceConsumer(pod['spec']) && !isTerminalPod(pod))
-        throw new Error('foreign source consumer Pod');
+    // Proof: skipping this preflight patched an owned Job before the foreign source Pod regression refused.
+    collectDescendants(
+      list(JSON.parse(await call(['-n', owner.namespace, 'get', 'pods', '-o', 'json']))),
+      owned,
+      owner,
+    );
+    for (const entry of jobs) {
+      const job = fields(entry);
+      const uid = text(fields(job['metadata'])['uid']);
+      if (owned.has(uid))
+        suspendedJobs.set(uid, await suspendDrainJob(job, owner, call, authority));
     }
+    const pods = list(JSON.parse(await call(['-n', owner.namespace, 'get', 'pods', '-o', 'json'])));
+    const descendants = collectDescendants(pods, owned, owner);
+    survivors = [
+      ...descendants.map((pod) => pod.diagnostic),
+      ...jobs
+        .map(fields)
+        .filter((job) => owned.has(text(fields(job['metadata'])['uid'])))
+        .map((job) => describeSurvivor('Job', job)),
+    ];
     await authority.assertLease();
     const targets =
       descendants.length > 0
-        ? descendants.map((pod) => ({ ...pod, kind: 'pods', prefix: '/api/v1' }))
+        ? descendants
+            // Proof: removing this filter attempted deletion of a controller-terminating Pod in the delayed termination regression.
+            .filter((pod) => !pod.terminating)
+            .map((pod) => ({ ...pod, kind: 'pods', prefix: '/api/v1' }))
         : [...owned].map(([uid, name]) => ({ uid, name, kind: 'jobs', prefix: '/apis/batch/v1' }));
     for (const target of targets) {
+      await assertDrainOwner(owner, call, authority);
+      for (const uid of owned.keys()) {
+        const expected = suspendedJobs.get(uid);
+        if (expected === undefined) throw new Error('missing suspended Job identity');
+        // Proof: removing this revalidation let the Job revalidation fault reach deletion.
+        await readDrainJob(expected, owner, call);
+      }
       await authority.assertLease();
       await call(
         [
@@ -410,16 +545,20 @@ export async function drainController(
           propagationPolicy: 'Orphan',
         }),
       );
+      if (target.kind === 'jobs') owned.delete(target.uid);
     }
-    empty = targets.length === 0 ? empty + 1 : 0;
+    // Proof: counting delete targets as empty returned early for a controller-terminating Pod; accepting one empty inventory failed the exact two-inventory assertion.
+    empty = survivors.length === 0 ? empty + 1 : 0;
     if (empty >= 2) {
       await authority.assertLease();
       return;
     }
     await options.sleep();
   }
-  // Proof: drain-convergence removal lost the mounted bounded-timeout refusal after exactly four delete attempts.
-  throw new Error('backup controller drain did not converge within its bounded budget');
+  // Proof: removing convergence lost the mounted timeout, removing survivor facts failed timeout diagnostics, and removing the count limit failed the bounded metadata regression.
+  throw new Error(
+    `backup controller drain did not converge within its bounded budget; attempts=${String(options.attempts)}; survivors: ${survivors.slice(0, 20).join('; ')}${survivors.length > 20 ? `; omitted=${String(survivors.length - 20)}` : ''}`,
+  );
 }
 
 /** Validates both retained interval histories against the enclosing authoritative release. */

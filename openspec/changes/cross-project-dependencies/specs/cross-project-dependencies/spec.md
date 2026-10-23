@@ -603,7 +603,7 @@ shutdown and before source replay, capture or migration, it SHALL checkpoint the
 exact original backup UID/resourceVersion/template, token and absent/false/true
 suspension; conditionally suspend with UID/resourceVersion/spec/annotation guards;
 read back and durably acknowledge suspension; and drain only actual CronJob→Job→Pod
-UID-owned descendants with UID-preconditioned deletes and bounded convergence.
+UID-owned descendants with UID-preconditioned deletes and bounded convergence. Before any owned Job mutation, the coordinator SHALL validate complete unfiltered Job and Pod inventories and refuse foreign source consumers. Before deleting descendants, the coordinator SHALL suspend each UID-owned Job with atomic UID/resourceVersion/owner-reference/spec tests, read back the exact suspended identity and spec, and revalidate it before deletion. Pod inventory SHALL follow Job suspension. Already terminating Pods SHALL retain ordinary termination grace; deletion SHALL use orphan propagation without force or zero grace. Two fresh consecutive inventories SHALL contain no owned Jobs or Pods before success. Exhausting the bound SHALL report attempt count and bounded surviving owned resource names, UIDs, Pod phases, deletion timestamps and finalizers, and retain the authoritative journal and Lease. Unclassified API failures, including NotFound without a typed status boundary, SHALL refuse rather than imply disappearance.
 Repeated unfiltered inventories SHALL refuse unrelated live or deleting source consumers, including
 readers, without deleting them. Strictly terminal retained Job/Pod history SHALL
 remain readable without granting ownership or deletion authority; active or
@@ -619,6 +619,12 @@ rollout. Completed forward history SHALL survive authorized image-template chang
 active history SHALL never weaken its original template guards. Uncertain controller
 history SHALL retain the release barrier and print pinned manual inspection facts
 instead of invoking generic schema reversal or writer restart.
+
+#### Scenario: Active backup Job reconciles while Pods terminate
+
+- **WHEN** an owned backup Job has an active Pod and ordinary Pod termination is delayed
+- **THEN** the coordinator conditionally suspends and reads back the Job before fresh Pod inventory and graceful deletion, preventing replacement Pod creation
+- **AND** unrelated non-controller bystanders remain untouched, changed Job state or lost Lease refuses, and two fresh inventories prove owned descendants absent
 
 #### Scenario: Patch commits before acknowledgment and coordinator restarts
 

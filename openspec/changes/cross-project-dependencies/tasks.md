@@ -533,3 +533,13 @@ parent 7.3 and separate 7.4/8.4 obligations remain open.
 
 - [x] Red/green gateway and MCP frozen own-role empty-semantic declarations and DB/config/main-independent argument-free subprocesses; independently break role, semantics, configuration import, startup import, argument guard and both freezes.
 - [ ] Complete configured gateway/MCP test, lint, typecheck and build, shared/backend controls, formatting and OpenSpec validation; record receipts in verify.md. Parent 10.1 remains open; activation, participant fencing and production authoring are unchanged.
+
+## Backup Job drain reconciliation correction
+
+- [x] Reproduce active Job replacement and delayed ordinary Pod termination against the production drain path.
+- [x] CAS-suspend owned Jobs, read back and revalidate identity/spec, then freshly inventory and gracefully drain Pods before orphan-deleting Jobs.
+- [x] Prove guard removal fails, retain bystanders, and report timeout survivors without releasing journal or Lease.
+- [x] Seed a real owned backup Job and realistic bounded grace in the disposable k3s lab.
+- [ ] Run the revised disposable k3s lab on a host with the required toolchain; retain exact-head evidence.
+
+Evidence: [drain correction verification](verify-k8s-job-drain.md).
