@@ -392,7 +392,12 @@ remain authoritative.
 ### Requirement: Connected schedule arrangement consumes the captured placement
 
 `arrangeBySchedule` SHALL use the final connected target placement from the command's
-borrowed observation, preserving held rows and foreign projects. It SHALL refuse a
+borrowed observation, preserving held rows and foreign projects. Held rows SHALL
+retain their positions, revisions and ordinal sibling slots; eligible rows SHALL
+reuse their original slots when their positions represent the requested order.
+Valid duplicate positions SHALL use finite replacement positions when possible;
+if immutable held anchors prevent the requested full reader order, the command
+SHALL return `arrangement_positions_unavailable` as an atomic 409 conflict. It SHALL refuse a
 selected enabled Optimized target whose retained selection has no published decision
 with `schedule_not_ready`, even when the read displays Fast provisionally. Missing
 component anchors SHALL return `dependency_calendar_missing` as a command conflict.
@@ -419,3 +424,19 @@ existing single arrangement journal entry and stored-position undo/redo.
 - **WHEN** the selected objective is published, including a quantisation-floor decision
 - **THEN** arrangement uses the final target placement, rather than the component baseline
   or the target's retained earlier optimization stage
+
+#### Scenario: Held slots survive sparse, fractional and tied positions
+
+- **WHEN** eligible siblings exchange schedule order around a held sibling
+- **THEN** the mounted tree keeps the held sibling between the eligible rows,
+  with its exact position and revision unchanged, including sparse/fractional slots
+- **AND** a second press writes nothing, while undo/redo restore the exact positions
+
+#### Scenario: Valid duplicate positions cannot always fit between fixed anchors
+
+- **WHEN** valid duplicate eligible positions can be reordered around a held anchor
+- **THEN** the command assigns finite positions whose actual `(position, id)` reader
+  ordering matches the intended full sibling order
+- **WHEN** that order cannot fit between immutable held anchors with equal positions
+- **THEN** it returns `arrangement_positions_unavailable` without position, journal,
+  event or sequence changes

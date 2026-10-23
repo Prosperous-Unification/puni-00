@@ -82,7 +82,10 @@ import {
   workedStepsOf,
   type WorkItemStatus,
 } from '@wbs/domain';
-import { arrangeBySchedule as arrangeSiblingsBySchedule } from '@wbs/domain/arrange-siblings';
+import {
+  arrangeBySchedule as arrangeSiblingsBySchedule,
+  arrangeInSlots,
+} from '@wbs/domain/arrange-siblings';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
@@ -520,6 +523,8 @@ export type WorkItemRefusal =
    * write.
    */
   | 'calendar_range'
+  /** Connected sibling order cannot fit finite positions around immutable held slots. */
+  | 'arrangement_positions_unavailable'
   | 'dependency_calendar_missing'
   | 'schedule_not_ready'
   /** The selected engine's adapter is not installed in this deployment. */
@@ -5478,14 +5483,14 @@ export class WorkItemService {
       )
         return { ok: false, reason: 'schedule_not_ready' };
       rows = view.metadata.workItems;
-      arrangement = arrangeSiblingsBySchedule(
-        // Proof: using all captured rows failed both mounted held-sibling cases
-        // with a missing scheduled start (2026-10-23).
+      const allocation = arrangeInSlots(
+        rows,
         prepareCapturedScheduleParts(view.reads).input.rows,
-        // Proof: substituting component baseline failed all three selected ready/floor
-        // final-placement consumer cases in connected-arrange.test.ts (2026-10-23).
         view.placement.schedule.workItems,
       );
+      // The allocator refuses before any position or journal write, including a collected batch.
+      if (!allocation.ok) return { ok: false, reason: 'arrangement_positions_unavailable' };
+      arrangement = allocation.arrangement;
     } else {
       rows = await this.opts.workItems.listByProject(projectId);
       const stored = await this.opts.estimates.listByProject(projectId);

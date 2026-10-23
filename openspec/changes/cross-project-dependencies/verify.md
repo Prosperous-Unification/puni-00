@@ -5357,3 +5357,56 @@ diagnostics. This establishes full core ESLint success; it does not erase the
 unexplained configured Nx target failures. Final backend project typecheck also
 exited 0 after the last test edits. Pre-commit format, secret, private-nesting and
 inactive Tool Wiki checks ran normally; no hooks were bypassed.
+
+## Connected arrangement held-slot repair (2026-10-23)
+
+Independent review of `a9d9d8b42` found the held-row claim above was incomplete:
+the eligible-only planner respaced moved rows to 10/20, so a held row at 200
+fell to the bottom; an ID tie at position 20 also changed the mounted reader
+order. The old test inspected a position-only SQL order and happened to pass its
+particular tie. This repair keeps the parent scheduling/8.4 tasks open.
+
+The connected command now uses domain `arrangeInSlots`. It first assigns the
+schedule-ordered eligible siblings to their original numeric slots in each full
+sibling group. If ADR 0016's valid duplicate positions cannot represent that
+order, it allocates eligible runs using the closest IEEE-754 keys around held
+anchors, respecting the reader's position/ID tie rule. Held positions and
+revisions remain untouched. The complete intended reader order and finite keys
+are verified before any mutation. An impossible order between immutable equal
+held anchors returns typed HTTP/command 409 `arrangement_positions_unavailable`;
+the route shape and frontend refusal vocabulary include it. Ordinary isolated
+and shared-only planner semantics are unchanged.
+
+Fresh evidence:
+
+- RED: mounted sparse 100/200/300, fractional 10.25/20.5/30.75 and z-held ID-tie
+  10/20/30 cases all failed the actual GET order with the previous implementation
+  (3 fail, `/tmp/connected-arrange-slots-red.log`).
+- The mounted repaired cases assert actual GET order, exact eligible slot reuse,
+  held position/revision, no-op table equality and undo/redo. Additional mounted
+  cases cover representable duplicate slots with finite readback, and an impossible
+  pair of equal held anchors with both direct and earlier-collected-edit rollback.
+- Domain cases cover both numeric extrema (no infinity leakage) and held child
+  slots below a parent. Existing arrangement property and legacy/hold service
+  suites remain in the focused invocation.
+- Watched remap fault (legacy respaced positions substituted) fails all three
+  mounted sparse/fractional/tie slot cases. Watched final-order validation removal
+  changes the mounted impossible case from typed 409 to 200. Watched finite check
+  removal admits infinite placements at both numeric extrema (2 fail).
+  Receipts: `/tmp/connected-slots-proof-{remap,order,finite}.log`;
+  adjacent `Proof:` comments name each fault and observed test.
+- Focused invocation: `bun test` over
+  `apps/wbs/be-01/src/controller/connected-arrange.controller.db.test.ts`,
+  core `service/{connected-arrange,arrange-by-schedule,work-item-status-command}.test.ts`
+  and domain `{arrange-siblings,arrange-siblings.property,arrange-siblings-in-slots}.test.ts`,
+  with `--timeout=10000`: 94 passing tests before the final collected-refusal assertion;
+  final rerun recorded below.
+- Backend and frontend TypeScript project builds exit 0; changed-file ESLint exits 0. Final formatting/OpenSpec results are recorded below. Canonical host gate,
+  fresh CI and independent rereview remain separate. Production authoring and
+  capacity activation remain unchanged.
+
+Final repair rerun: **94 pass, 0 fail, 292 assertions** across seven files
+(`/tmp/connected-slots-tests.log`). Changed-file ESLint, backend/frontend project
+typechecks, all changed-file Prettier checks, `git diff --check` and
+`openspec validate --all --json` exit 0. This bounded repair has not run a canonical
+host gate or fresh CI and requires independent rereview.

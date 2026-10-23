@@ -449,6 +449,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_system':
     case 'cycle':
     case 'frozen':
+    case 'arrangement_positions_unavailable':
     case 'dependency_calendar_missing':
     case 'schedule_not_ready':
     case 'engine_unavailable':
