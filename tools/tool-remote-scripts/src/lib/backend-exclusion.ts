@@ -10,6 +10,7 @@ import {
 } from './backend-cohort';
 import { assertNoBackendFence } from './backend-fence';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { assertDependencyOwner, type DependencyOwner, ownerDocker } from './edge-ownership';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
 import { withLock } from './lock';
@@ -182,92 +183,122 @@ export async function fenceBackends(
     throw new Error('backend fence requires full git SHA and finite positive deadline');
   // Proof: holding the actual flock makes both backend executor/inspector refuse before Docker.
   return await withLock(`${layout.stateDir}/deploy.lock`, async () => {
-    const deadline = performance.now() + totalMs;
-    await assertRoot(layout);
-    await assertNoBackendFence(layout.stateDir);
-    // Proof: missing-gateway and resumed-gateway production invocations refuse before backend publication/effects.
-    await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
-    const gateway = await gatewayBinding(layout);
-    const cohort = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
-    try {
-      await publishRecord(`${layout.stateDir}/dependency-backend-fence.json`, MARKER);
-      const intent: Intent = {
-        format: 'dependency-backend-intent',
-        version: 1,
-        attempt: randomUUID(),
-        environment: layout.env,
-        root: layout.root,
-        network: layout.network,
-        sha,
-        cohort,
-        gateway,
-      };
-      const contents = serializeRecord(intent);
-      // Proof: deleting this publication fails every-backend-effect-before-durable-intent (exit 1).
-      await publishRecord(`${layout.stateDir}/${INTENT}`, contents);
-      assertSame(
-        cohort,
-        await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof),
-        'pre-effect cohort',
-      );
-      for (const color of COLORS) {
-        const backend = cohort[color];
-        if (backend === null) continue;
-        // Proof: suppressing update fails both-colours success at independent policy readback (exit 1).
-        await runDockerBefore(['update', '--restart=no', backend.id], runDocker, deadline);
-        const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
-        const expected: Cohort = structuredClone(cohort);
-        const updated = expected[color];
-        if (updated === null) throw new Error('backend fence lost known cohort member');
-        updated.restartPolicy = { name: 'no', maximumRetryCount: 0 };
-        // Proof: deleting this readback admits stop after skipped restart; skipped-restart negative fails (exit 1).
-        assertSame(expected, observed, 'restart update readback');
-        cohort[color] = observed[color];
-      }
-      for (const color of COLORS) {
-        const backend = cohort[color];
-        if (backend === null) continue;
-        // Proof: suppressing stop fails both-colours success at fresh process/PID exclusion (exit 1).
-        await runDockerBefore(['stop', '--time', '10', backend.id], runDocker, deadline);
-        const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
-        assertSame(
-          projectIdentities(cohort),
-          projectIdentities(observed),
-          'stop identity readback',
-        );
-        const stopped = observed[color];
-        if (stopped === null) throw new Error('backend fence lost stopped member');
-        assertExcluded({ blue: stopped, green: null });
-        for (const other of COLORS)
-          if (other !== color) assertSame(cohort[other], observed[other], 'unaffected member');
-        cohort[color] = stopped;
-      }
-      const stopped = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
-      assertSame(cohort, stopped, 'fresh stopped cohort');
-      assertExcluded(stopped);
-      const completion: BackendCompletion = {
-        format: 'dependency-backend-complete',
-        version: 1,
-        attempt: intent.attempt,
-        intentSha256: digestIntent(contents),
-        cohort: stopped,
-        gateway,
-      };
-      await publishRecord(`${layout.stateDir}/${COMPLETE}`, serializeRecord(completion));
-      const retained = await readCompletion(layout);
-      assertSame(completion, retained.completion, 'completion readback');
-      // Proof: substituting historical stopped state admits completion-drift; its production-path negative fails (exit 1).
-      const final = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
-      assertSame(stopped, final, 'final current cohort');
-      assertExcluded(final);
-      return completion;
-    } catch (cause) {
-      throw new Error(
-        `backend fence failed after publication; retain all dependency-backend records and current Docker state; explicit attended recovery required; no restart or automatic cleanup: ${cause instanceof Error ? cause.message : String(cause)}`,
-        { cause },
-      );
-    }
+    return await fenceBackendCore(
+      layout,
+      sha,
+      runDocker,
+      performance.now() + totalMs,
+      namespaceProof,
+    );
   });
+}
+
+/** Live owner path; takes no nested flock and grants no activation authority. */
+export async function fenceBackendsUnderOwner(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  sha: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+): Promise<BackendCompletion> {
+  await assertDependencyOwner(owner, layout, sha);
+  return fenceBackendCore(
+    layout,
+    sha,
+    ownerDocker(owner, layout, runDocker),
+    deadline,
+    namespaceProof,
+  );
+}
+
+async function fenceBackendCore(
+  layout: EnvLayout,
+  sha: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace,
+): Promise<BackendCompletion> {
+  await assertRoot(layout);
+  await assertNoBackendFence(layout.stateDir);
+  // Proof: missing-gateway and resumed-gateway production invocations refuse before backend publication/effects.
+  await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
+  const gateway = await gatewayBinding(layout);
+  const cohort = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+  try {
+    await publishRecord(`${layout.stateDir}/dependency-backend-fence.json`, MARKER);
+    const intent: Intent = {
+      format: 'dependency-backend-intent',
+      version: 1,
+      attempt: randomUUID(),
+      environment: layout.env,
+      root: layout.root,
+      network: layout.network,
+      sha,
+      cohort,
+      gateway,
+    };
+    const contents = serializeRecord(intent);
+    // Proof: deleting this publication fails every-backend-effect-before-durable-intent (exit 1).
+    await publishRecord(`${layout.stateDir}/${INTENT}`, contents);
+    assertSame(
+      cohort,
+      await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof),
+      'pre-effect cohort',
+    );
+    for (const color of COLORS) {
+      const backend = cohort[color];
+      if (backend === null) continue;
+      // Proof: suppressing update fails both-colours success at independent policy readback (exit 1).
+      await runDockerBefore(['update', '--restart=no', backend.id], runDocker, deadline);
+      const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+      const expected: Cohort = structuredClone(cohort);
+      const updated = expected[color];
+      if (updated === null) throw new Error('backend fence lost known cohort member');
+      updated.restartPolicy = { name: 'no', maximumRetryCount: 0 };
+      // Proof: deleting this readback admits stop after skipped restart; skipped-restart negative fails (exit 1).
+      assertSame(expected, observed, 'restart update readback');
+      cohort[color] = observed[color];
+    }
+    for (const color of COLORS) {
+      const backend = cohort[color];
+      if (backend === null) continue;
+      // Proof: suppressing stop fails both-colours success at fresh process/PID exclusion (exit 1).
+      await runDockerBefore(['stop', '--time', '10', backend.id], runDocker, deadline);
+      const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+      assertSame(projectIdentities(cohort), projectIdentities(observed), 'stop identity readback');
+      const stopped = observed[color];
+      if (stopped === null) throw new Error('backend fence lost stopped member');
+      assertExcluded({ blue: stopped, green: null });
+      for (const other of COLORS)
+        if (other !== color) assertSame(cohort[other], observed[other], 'unaffected member');
+      cohort[color] = stopped;
+    }
+    const stopped = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+    assertSame(cohort, stopped, 'fresh stopped cohort');
+    assertExcluded(stopped);
+    const completion: BackendCompletion = {
+      format: 'dependency-backend-complete',
+      version: 1,
+      attempt: intent.attempt,
+      intentSha256: digestIntent(contents),
+      cohort: stopped,
+      gateway,
+    };
+    await publishRecord(`${layout.stateDir}/${COMPLETE}`, serializeRecord(completion));
+    const retained = await readCompletion(layout);
+    assertSame(completion, retained.completion, 'completion readback');
+    // Proof: substituting historical stopped state admits completion-drift; its production-path negative fails (exit 1).
+    const final = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+    assertSame(stopped, final, 'final current cohort');
+    assertExcluded(final);
+    return completion;
+  } catch (cause) {
+    throw new Error(
+      `backend fence failed after publication; retain all dependency-backend records and current Docker state; explicit attended recovery required; no restart or automatic cleanup: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
 }
 
 /** Read-only lock-owned proof; historical completion alone never establishes present exclusion. */

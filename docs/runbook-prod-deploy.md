@@ -1008,3 +1008,26 @@ supervisor runtime/bundle/config/systemd and installer shared-edge admission are
 explicitly unsupported restart surfaces. Captured equality proves neither actual
 interpreter selection nor absence of old/manual writers, live host attribution,
 process drain or continuous exclusion. Tasks 10.1/10.2 remain open.
+
+## Dedicated managed dependency owner slice
+
+`activate-dependencies.js --fence-managed <full-sha> <prod|dev> [prod|dev]`
+is an explicit maintenance operation, built separately from swap. There is no
+implicit mutation, activation mode or swap bypass. It takes the shared edge lock,
+selected dev poll/devsync locks and sorted environment deploy locks once, then
+publishes a private, synced `edge-owner.pending` containing the attempt and exact
+managed plan. Each Docker boundary retains numbered intent and response records;
+existing gateway/backend intents retain the exact managed cohort snapshots.
+
+Success reports `managed-excluded` and `activation: blocked`. It establishes only
+the existing managed gateway/backend fences. Installed-writer adoption, ingress,
+MCP, solver, replay/background and restart authority remain unresolved. It never
+creates a complete participant proof, changes SQLite activation, restores a
+process or exposes traffic. No live invocation is authorized by source delivery.
+
+Both success and interruption retain the pending owner, numbered records and
+managed fence records. Ordinary deployment remains closed after the process
+releases its kernel locks. Retained records cannot recreate the expired live
+owner, resume an attempt or authorize cleanup. Preserve current Docker state and
+all evidence for attended recovery; a later complete ownership/handoff and
+compatible restoration workflow is required before admission can reopen.

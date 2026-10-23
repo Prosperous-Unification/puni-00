@@ -6,12 +6,16 @@ import { expect, test } from 'bun:test';
 import { createNamespaceFixture } from '../fixtures/namespace-audit';
 import {
   fenceBackends as runFenceBackends,
+  fenceBackendsUnderOwner,
   inspectBackendFence as runInspectBackendFence,
 } from './backend-exclusion';
 import { assertNoBackendFence } from './backend-fence';
+import { excludeManagedDependencies } from './dependency-activation-owner';
 import type { RunDocker } from './docker-deadline';
+import { assertNoEdgeOwner } from './edge-admission';
+import { withDependencyOwner } from './edge-ownership';
 import { type EnvLayout, envLayout } from './env';
-import { fenceGateways } from './gateway-exclusion';
+import { fenceGateways, fenceGatewaysUnderOwner } from './gateway-exclusion';
 import { withLock } from './lock';
 import { verifyContainerNamespace } from './mount-audit';
 
@@ -597,3 +601,75 @@ for (const colors of ['blue-only', 'two-colour-distinct-family', 'hardlinked-fam
     expect(f.calls.some((args) => ['update', 'stop'].includes(args[0] ?? ''))).toBe(false);
   });
 }
+
+test('live owner excludes real managed gateway/backend once and retains all evidence', async () => {
+  const f = await fixture();
+  for (const name of ['fence', 'intent', 'complete'])
+    await unlink(`${f.root}/dependency-gateway-${name}.json`);
+  f.gateway.State.Running = true;
+  f.gateway.State.Pid = 123;
+  f.gateway.State.Status = 'running';
+  f.gateway.HostConfig.RestartPolicy.Name = 'unless-stopped';
+  let effects = 0;
+  const runner: RunDocker = async (args, signal) => {
+    if (['update', 'stop'].includes(args[0] ?? '')) {
+      const names = await readdir(f.root);
+      const intents = names.filter((name) => /^edge-owner-.*-intent.json$/.test(name)).sort();
+      const latest = intents.at(-1);
+      if (latest === undefined) throw new Error('owner intent missing');
+      expect(await readFile(`${f.root}/${latest}`, 'utf8')).toContain(
+        args.at(-1) ?? 'missing target',
+      );
+      effects++;
+    }
+    return f.runner(args, signal);
+  };
+  await withDependencyOwner(
+    { sha, layouts: [f.layout] },
+    async (owner) => {
+      await refuses(
+        fenceGatewaysUnderOwner(owner, f.layout, 'f'.repeat(40), runner, performance.now() + 60000),
+        'SHA differs',
+      );
+      await fenceGatewaysUnderOwner(owner, f.layout, sha, runner, performance.now() + 60000);
+      await fenceBackendsUnderOwner(
+        owner,
+        f.layout,
+        sha,
+        runner,
+        performance.now() + 60000,
+        namespaceFor(f.layout),
+      );
+      await refuses(
+        withLock(`${f.root}/deploy.lock`, () => Promise.resolve(undefined)),
+        'lock held',
+      );
+    },
+    f.root,
+  );
+  expect(effects).toBe(4);
+  expect(f.gateway.State.Running).toBe(false);
+  expect(f.container.State.Running).toBe(false);
+  await refuses(assertNoEdgeOwner(f.root), 'admission closed');
+  expect(await readFile(`${f.root}/dependency-backend-complete.json`, 'utf8')).toContain(id);
+  expect(f.calls.some((args) => ['start', 'restart', 'rm', 'exec'].includes(args[0] ?? ''))).toBe(
+    false,
+  );
+});
+
+test('dedicated coordinator reports only managed exclusion and keeps pending marker', async () => {
+  const f = await fixture();
+  for (const name of ['fence', 'intent', 'complete'])
+    await unlink(`${f.root}/dependency-gateway-${name}.json`);
+  const completion = await excludeManagedDependencies(
+    { sha, layouts: [f.layout] },
+    f.runner,
+    namespaceFor(f.layout),
+    f.root,
+  );
+  expect(completion.state).toBe('managed-excluded');
+  expect(completion.activation).toBe('blocked');
+  expect(completion.unresolved).toContain('solver');
+  await refuses(assertNoEdgeOwner(f.root), 'admission closed');
+  expect(f.container.State.Running).toBe(false);
+});

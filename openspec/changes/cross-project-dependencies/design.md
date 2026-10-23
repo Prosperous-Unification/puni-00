@@ -1282,3 +1282,26 @@ activation, rollback or host adoption is implemented by this prerequisite.
 Task 10.2 still requires actual coordinator-owned solver stop/drain and admission closure before protected storage work. Inventory and fence the effective supervisor service, Restart=always/user-manager and manual launch paths, every supported installer/replacement caller and the active managed solver attempts. Keep those restart/install/request barriers continuously enforced with the other required backend/gateway/MCP/ingress/replay/background participant barriers through maintenance, activation decision and final pre-exposure recheck. Existing canonical edge admission and retained owner guards are necessary but source lock adoption or a one-time stop cannot prove the whole interval. Missing, unreadable, changed, unrecognized or incomplete authority refuses, retaining evidence for attended recovery; no narrower exclusion promise is introduced.
 
 Restoration names an independently pinned compatible supervisor Bun/bundle/config/unit/solver-image mapping and admitted compatible participants. Under retained admission, verify actual installed/mapping identities, effective restart configuration, readiness and final pre-exposure exclusion readback before reopening requests. A failed or uncertain restoration retains barriers and the manual completion procedure. [ADR 0057](../../../docs/adr/0057-cross-project-dependency-activation-is-monotone.md) remains binding: possible semantic activation or uncertain exposure preserves the current store and requires attended compatible recovery; incapable old writers cannot return merely because live edges are absent. Only the separately proven eligible dormant rollback may reverse exact captured additions and compare the full ledger. The ordered S1–S4 tasks require production-path watched negatives and separate live acceptance; nothing in this docs reconciliation claims implementation or host authority.
+
+### Dedicated dependency owner: first managed exclusion slice
+
+`activate-dependencies.ts` has an explicit `--fence-managed` operation. It owns
+canonical edge.lock, dev poll.lock/devsync.lock when selected, then prod/dev
+ordered deploy.lock descriptions once. An exclusive synced `edge-owner.pending`
+binds a fresh attempt and exact reviewed SHA/layout plan before any Docker work.
+Only an in-memory owner bound to those live descriptions and exact retained bytes
+can call owner fence cores; serialized plans, hashes, environment tokens and
+historical receipts cannot recreate authority. Every Docker call publishes and
+reads back a numbered intent before execution and retains its response afterward.
+Owner identity and marker bytes are checked on both sides of the boundary.
+
+This slice returns only `managed-excluded`, retaining all markers even on success.
+Existing fence intents preserve exact gateway/backend preflight snapshots and
+readbacks. An interruption retains pending intent and current physical state;
+there is no resume, cleanup, restoration, exposure or activation operation. The
+live capability expires on callback exit. Future owners must establish ingress,
+MCP, solver, replay/background and restart exclusion, complete installed-writer
+adoption/drain and participant roster proofs, then perform atomic activation and
+compatible restoration under continuous ownership. Handoff must explicitly bind
+that complete proof and independently read it back; this slice cannot mint it.
+Ordinary swap admission remains closed throughout and after this operation.

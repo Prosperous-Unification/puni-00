@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import { assertDependencyOwner, type DependencyOwner, ownerDocker } from './edge-ownership';
 import type { EnvLayout } from './env';
 import { assertNoGatewayFence } from './gateway-fence';
 import { withLock } from './lock';
@@ -169,81 +170,97 @@ export async function fenceGateways(
     throw new Error('gateway fence requires full git SHA and finite positive deadline');
   // Proof: bypassing lock acquisition let the mounted concurrent-operation negative execute under a held real flock.
   return await withLock(`${layout.stateDir}/deploy.lock`, async () => {
-    const deadline = performance.now() + totalMs;
-    await assertRoot(layout);
-    await assertNoGatewayFence(layout.stateDir);
-    const cohort = await inspectCohort(layout, runDocker, deadline);
-    try {
-      await publishRecord(`${layout.stateDir}/dependency-gateway-fence.json`, MARKER);
-      const intent: Intent = {
-        format: 'dependency-gateway-intent',
-        version: 1,
-        attempt: randomUUID(),
-        environment: layout.env,
-        root: layout.root,
-        network: layout.network,
-        sha,
-        cohort,
-      };
-      const contents = serializeRecord(intent);
-      await publishRecord(`${layout.stateDir}/${INTENT}`, contents);
-      assertSame(cohort, await inspectCohort(layout, runDocker, deadline), 'pre-effect cohort');
-      for (const color of COLORS) {
-        const gateway = cohort[color];
-        if (gateway === null) continue;
-        // Proof: suppressing update made the mounted successful fence fail its policy readback; stalled update retains intent at its shared deadline.
-        await runDockerBefore(['update', '--restart=no', gateway.id], runDocker, deadline);
-        const observed = await inspectCohort(layout, runDocker, deadline);
-        const expected: Cohort = structuredClone(cohort);
-        const updated = expected[color];
-        if (updated === null) throw new Error('gateway fence lost known cohort member');
-        updated.restartPolicy = { name: 'no', maximumRetryCount: 0 };
-        assertSame(expected, observed, 'restart update readback');
-        cohort[color] = observed[color];
-      }
-      for (const color of COLORS) {
-        const gateway = cohort[color];
-        if (gateway === null) continue;
-        // Proof: suppressing exact-ID stop made the mounted successful fence refuse running/PID state.
-        await runDockerBefore(['stop', '--time', '10', gateway.id], runDocker, deadline);
-        const observed = await inspectCohort(layout, runDocker, deadline);
-        assertSame(
-          projectIdentities(cohort),
-          projectIdentities(observed),
-          'stop identity readback',
-        );
-        const stopped = observed[color];
-        if (stopped === null) throw new Error('gateway fence lost stopped member');
-        assertExcluded({ blue: stopped, green: null });
-        for (const other of COLORS)
-          if (other !== color) assertSame(cohort[other], observed[other], 'unaffected member');
-        cohort[color] = stopped;
-      }
-      const stopped = await inspectCohort(layout, runDocker, deadline);
-      assertSame(cohort, stopped, 'fresh stopped cohort');
-      assertExcluded(stopped);
-      const completion: GatewayCompletion = {
-        format: 'dependency-gateway-complete',
-        version: 1,
-        attempt: intent.attempt,
-        intentSha256: digestIntent(contents),
-        cohort: stopped,
-      };
-      await publishRecord(`${layout.stateDir}/${COMPLETE}`, serializeRecord(completion));
-      const retained = await readCompletion(layout);
-      assertSame(completion, retained.completion, 'completion readback');
-      // Proof: reusing stopped observations admitted completion-drift; the mounted final-current-state negative failed.
-      const final = await inspectCohort(layout, runDocker, deadline);
-      assertSame(stopped, final, 'final current cohort');
-      assertExcluded(final);
-      return completion;
-    } catch (cause) {
-      throw new Error(
-        `gateway fence failed after publication; retain all dependency-gateway records and current Docker state; explicit attended recovery required; no restart or automatic cleanup: ${cause instanceof Error ? cause.message : String(cause)}`,
-        { cause },
-      );
-    }
+    return await fenceGatewayCore(layout, sha, runDocker, performance.now() + totalMs);
   });
+}
+
+/** Live owner path; takes no nested flock and grants no activation authority. */
+export async function fenceGatewaysUnderOwner(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  sha: string,
+  runDocker: RunDocker,
+  deadline: number,
+): Promise<GatewayCompletion> {
+  await assertDependencyOwner(owner, layout, sha);
+  return fenceGatewayCore(layout, sha, ownerDocker(owner, layout, runDocker), deadline);
+}
+
+async function fenceGatewayCore(
+  layout: EnvLayout,
+  sha: string,
+  runDocker: RunDocker,
+  deadline: number,
+): Promise<GatewayCompletion> {
+  await assertRoot(layout);
+  await assertNoGatewayFence(layout.stateDir);
+  const cohort = await inspectCohort(layout, runDocker, deadline);
+  try {
+    await publishRecord(`${layout.stateDir}/dependency-gateway-fence.json`, MARKER);
+    const intent: Intent = {
+      format: 'dependency-gateway-intent',
+      version: 1,
+      attempt: randomUUID(),
+      environment: layout.env,
+      root: layout.root,
+      network: layout.network,
+      sha,
+      cohort,
+    };
+    const contents = serializeRecord(intent);
+    await publishRecord(`${layout.stateDir}/${INTENT}`, contents);
+    assertSame(cohort, await inspectCohort(layout, runDocker, deadline), 'pre-effect cohort');
+    for (const color of COLORS) {
+      const gateway = cohort[color];
+      if (gateway === null) continue;
+      // Proof: suppressing update made the mounted successful fence fail its policy readback; stalled update retains intent at its shared deadline.
+      await runDockerBefore(['update', '--restart=no', gateway.id], runDocker, deadline);
+      const observed = await inspectCohort(layout, runDocker, deadline);
+      const expected: Cohort = structuredClone(cohort);
+      const updated = expected[color];
+      if (updated === null) throw new Error('gateway fence lost known cohort member');
+      updated.restartPolicy = { name: 'no', maximumRetryCount: 0 };
+      assertSame(expected, observed, 'restart update readback');
+      cohort[color] = observed[color];
+    }
+    for (const color of COLORS) {
+      const gateway = cohort[color];
+      if (gateway === null) continue;
+      // Proof: suppressing exact-ID stop made the mounted successful fence refuse running/PID state.
+      await runDockerBefore(['stop', '--time', '10', gateway.id], runDocker, deadline);
+      const observed = await inspectCohort(layout, runDocker, deadline);
+      assertSame(projectIdentities(cohort), projectIdentities(observed), 'stop identity readback');
+      const stopped = observed[color];
+      if (stopped === null) throw new Error('gateway fence lost stopped member');
+      assertExcluded({ blue: stopped, green: null });
+      for (const other of COLORS)
+        if (other !== color) assertSame(cohort[other], observed[other], 'unaffected member');
+      cohort[color] = stopped;
+    }
+    const stopped = await inspectCohort(layout, runDocker, deadline);
+    assertSame(cohort, stopped, 'fresh stopped cohort');
+    assertExcluded(stopped);
+    const completion: GatewayCompletion = {
+      format: 'dependency-gateway-complete',
+      version: 1,
+      attempt: intent.attempt,
+      intentSha256: digestIntent(contents),
+      cohort: stopped,
+    };
+    await publishRecord(`${layout.stateDir}/${COMPLETE}`, serializeRecord(completion));
+    const retained = await readCompletion(layout);
+    assertSame(completion, retained.completion, 'completion readback');
+    // Proof: reusing stopped observations admitted completion-drift; the mounted final-current-state negative failed.
+    const final = await inspectCohort(layout, runDocker, deadline);
+    assertSame(stopped, final, 'final current cohort');
+    assertExcluded(final);
+    return completion;
+  } catch (cause) {
+    throw new Error(
+      `gateway fence failed after publication; retain all dependency-gateway records and current Docker state; explicit attended recovery required; no restart or automatic cleanup: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
 }
 
 /** Read-only lock-owned proof; historical completion alone never establishes present exclusion. */

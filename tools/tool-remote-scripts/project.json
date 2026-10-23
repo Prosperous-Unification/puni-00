@@ -11,7 +11,8 @@
         "commands": [
           "bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js",
           "bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js",
-          "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js"
+          "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js",
+          "bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js"
         ],
         "parallel": false
       },

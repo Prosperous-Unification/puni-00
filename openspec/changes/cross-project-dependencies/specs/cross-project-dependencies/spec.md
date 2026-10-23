@@ -1308,3 +1308,31 @@ Restoration SHALL admit only an independently pinned compatible supervisor/runti
 - **WHEN** recovery proves the separately admitted dormant rollback contract before semantic exposure
 - **THEN** only exact captured migration additions are reversed and the complete name/hash ledger is compared
 - **AND** possible activation or uncertain exposure prohibits automatic schema reversal, snapshot restore or old-writer restart
+
+### Requirement: Dedicated retained dependency owner lifecycle
+
+The dedicated deployment owner SHALL publish durable attempt-bound exact plan
+intent under canonical ordered locks before managed exclusion. Only its live
+in-memory capability SHALL authorize owner operations. Every Docker boundary
+SHALL retain readable intent before execution and check live ownership and exact
+retained bytes before and after execution. Success SHALL report only managed
+exclusion with unresolved participant obligations and SHALL retain evidence.
+
+#### Scenario: Managed exclusion retains ordinary admission closure
+
+- **WHEN** the dedicated managed fence completes
+- **THEN** gateway/backend exclusion receipts and the exact owner plan remain
+- **AND** ordinary deployment refuses and no activation or restoration occurs
+
+#### Scenario: Interrupted or lost owner cannot continue
+
+- **WHEN** an operation loses its live lock identity, marker readback or callback lifetime
+- **THEN** subsequent owner effects refuse and all existing evidence remains
+- **AND** retained JSON, digest, boolean or environment token cannot recreate ownership
+
+#### Scenario: Future activation requires complete continuous exclusion
+
+- **WHEN** only the managed backend/gateway slice has completed
+- **THEN** the owner cannot issue a complete participant proof or activate storage
+- **AND** future handoff requires complete installed writer, ingress, MCP, solver,
+  replay/background and restart exclusion through the final exposure readback
