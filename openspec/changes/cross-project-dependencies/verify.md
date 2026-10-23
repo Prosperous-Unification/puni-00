@@ -6543,3 +6543,14 @@ Adding that exact consumer to the established index restored the full module
 graph test to 11 passed/0 failed; Prettier and `git diff --check` passed. This
 is a metadata repair for an existing fail-closed check. The old-SHA gate is
 not a verdict on this corrected head.
+
+## SQLite abbreviation migration baseline reconciliation (2026-10-23)
+
+[The ledger packet](verify-sqlite-migration-baseline.md) moves the test's
+pre-abbreviation baseline past two newly merged compute-provider migrations.
+The full configured SQLite suite passed 2,248 tests with one existing skip and
+zero failures; the focused migration file passed 15 tests. Deleting one
+retained provider ledger row in the production rollback path made the test
+fail when reapplying the existing provider table. Astra High independently
+reviewed the baseline and ledger proof with no blocking finding. The exact-SHA
+host gate remains pending for the integrated head.
