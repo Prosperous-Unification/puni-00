@@ -115,3 +115,24 @@ Correction verification:
 - `NODE_OPTIONS=--max-old-space-size=4096 NX_DAEMON=false bunx nx run wbs-be-01:typecheck --skip-nx-cache`: exit 0, including its module typecheck dependency.
 - Changed source ESLint and changed-file Prettier: exit 0. `git diff --check 7f33d2021`: exit 0 with all correction files, including evidence, staged.
 - The existing 188-test gateway receipt remains unchanged; production changes in this correction are an adjacent proof comment only. No build or host gate was run here.
+
+## Integrated-head receipt (2026-10-23)
+
+After independent Astra High review approved the corrected bounded packet, the
+source and both retained replay proofs were integrated atop main `0bc90a4` as
+`5ce86b0be` and `579f2fcf7`. The append-only OpenSpec conflict resolution
+preserved the existing client-compatibility, installed-image and completed
+retained-delivery receipts alongside this new egress requirement.
+
+On exact local `579f2fcf7`, the configured uncached
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-gw-01:test --skip-nx-cache --outputStyle=static`
+reported 188 passed, 0 failed and 3,783 assertions across 29 files. The
+mounted SQLite `bun test src/http/elysia/retained-gateway-dependency.db.test.ts`
+reported 1 passed and 10 assertions. Configured uncached gateway lint,
+typecheck and build all completed successfully, including its shared-validation
+build prerequisite. `openspec validate --all --json` reported 273 items and no
+invalid item, `bunx nx format:check --all` exited zero, and
+`git diff --check ac7bf3a0..579f2fcf7` exited zero. The sandbox initially
+refused Nx state writes in the external worktree; the actual configured runs
+above used the authorized writable invocation. Exact-head CI, h2puni full gate,
+participant exclusion and activation remain outstanding.
