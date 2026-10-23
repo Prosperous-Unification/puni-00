@@ -190,3 +190,33 @@ and build plus three prerequisite targets passed again, exit 0, at
 nine filesystem/platform cases (30 assertions), found no remaining P1/P2/P3
 and approved this explicitly Linux x64 source and controlled h2 fixture scope.
 Actual host acceptance, complete exclusion and final integrated gate remain open.
+
+## Integrated source checks and first actual host attempt
+
+After combining reviewed ingress, lifetime runtime admission, V1 backend and MCP
+fixtures, focused deployment tests at `b4b523ba9` passed **219 cases across
+12 files, 1,071 assertions**, zero failures. Uncached configured deployment
+lint/typecheck/build and their three prerequisite targets passed. The separately
+named actual installer-operation suite at `d16c5d980` passed **46 cases, 344
+assertions**; OpenSpec validation passed **277/277** entries. These are integrated
+local results, not the final host gate. Logs:
+`/tmp/puni-owner-ingress-runtime-b4b523ba9.log`,
+`/tmp/puni-owner-ingress-runtime-checks-b4b523ba9.log` and
+`/tmp/puni-owner-installer-integrated-d16c5d980.log`.
+
+The first controlled actual-Caddy h2 attempt at
+`d16c5d980657db2ad7aa549b6440e907038ece46` ran under the canonical heavy
+lock and exited 1. Persistent adaptation/admin reload equality, selected-host
+503 and all unrelated fixture-host HTTP assertions completed before restart.
+After restarting the exact owned fixture, its probe to the initially captured
+ephemeral loopback port refused connections. Exact-ID/label cleanup completed
+and the heavy lock reported no holder afterward. No live production edge was
+mutated. Retained output: `/tmp/puni-dependency-ingress-d16c5d980-host-failed.log`;
+private fixture evidence remains on the host.
+
+The fixture now freshly validates and uses the ownership-checked container's
+loopback port mapping after restart, retaining both mappings in its acceptance
+receipt. Port reallocation is the current hypothesis, not established by the
+failed log. All HTTP/status/body, exact-ID, deadline and cleanup checks remain
+unchanged. Scoped ESLint, uncached typecheck, formatting and independent Astra
+review passed; actual restart persistence remains pending the corrected run.

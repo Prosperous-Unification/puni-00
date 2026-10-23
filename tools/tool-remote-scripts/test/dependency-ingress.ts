@@ -103,14 +103,18 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
     ).trim();
     if (!/^[a-f0-9]{64}$/.test(created)) throw new Error('Docker did not return a full fixture ID');
     id = created;
-    const inspection = await inspectOwned();
-    const bindings = readFields(readFields(inspection['NetworkSettings'])['Ports'])['8443/tcp'];
-    if (!Array.isArray(bindings) || bindings.length !== 1)
-      throw new Error('fixture port binding is ambiguous');
-    const binding = readFields(bindings[0]);
-    const port = readString(binding['HostPort']);
-    if (binding['HostIp'] !== '127.0.0.1' || !/^[0-9]+$/.test(port))
-      throw new Error('fixture port is not loopback');
+    function readPort(inspection: Record<string, unknown>): string {
+      const bindings = readFields(readFields(inspection['NetworkSettings'])['Ports'])['8443/tcp'];
+      if (!Array.isArray(bindings) || bindings.length !== 1)
+        throw new Error('fixture port binding is ambiguous');
+      const binding = readFields(bindings[0]);
+      const port = readString(binding['HostPort']);
+      if (binding['HostIp'] !== '127.0.0.1' || !/^[0-9]+$/.test(port))
+        throw new Error('fixture port is not loopback');
+      return port;
+    }
+    const initialPort = readPort(await inspectOwned());
+    let port = initialPort;
     async function request(host: string, status: number, body: string): Promise<void> {
       let last: unknown;
       for (let attempt = 0; attempt < 100; attempt++) {
@@ -165,7 +169,7 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
     await inspectOwned();
     // Only the invocation-owned disposable server is restarted to test disk persistence.
     await fixtureDocker(['restart', id]);
-    await inspectOwned();
+    port = readPort(await inspectOwned());
     await request(layout.siteAddress, 503, 'WBS dependency maintenance');
     await request('dev.owner.test', 200, 'dev original');
     await request('registry.owner.test', 201, 'registry unchanged');
@@ -176,6 +180,8 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
         state: 'passed',
         image: CADDY_IMAGE,
         fixtureId: id,
+        initialPort,
+        restartedPort: port,
         serving503: true,
         unselectedPreserved: true,
         restartPersistence: true,
