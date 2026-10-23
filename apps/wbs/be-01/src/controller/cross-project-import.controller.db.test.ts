@@ -7,6 +7,7 @@ import { OrganizationHarness } from '../testing/organization-harness';
 const stringMatcher: unknown = expect.any(String);
 const numberMatcher: unknown = expect.any(Number);
 const contains = (values: unknown[]): unknown => expect.arrayContaining(values);
+const matches = (fields: Record<string, unknown>): unknown => expect.objectContaining(fields);
 
 let harness: OrganizationHarness;
 afterEach(async () => {
@@ -503,6 +504,10 @@ for (const fault of [
     else expectPublicationCount(before, pushes);
   });
 
+/**
+ * Proof: dropping unmapped declarations when any mapping exists passed the old
+ * four-leaf assertion; the complete five-endpoint assertion failed (2026-10-23).
+ */
 for (const mapped of [false, true])
   test(`reused display address ${mapped ? 'binds only through explicit mapping' : 'never replaces absent UUID'}`, async () => {
     let pushes = 0;
@@ -513,7 +518,7 @@ for (const mapped of [false, true])
         return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
       },
     });
-    const { remote, source } = await connectedTransferFixture(harness);
+    const { remote, source, downstream, unrelated } = await connectedTransferFixture(harness);
     harness.sqlite.query("UPDATE work_item SET frozen_number='080' WHERE id=?").run(remote.leafId);
     const { document, classified } = await exported(source.projectId);
     harness.sqlite
@@ -595,6 +600,11 @@ for (const mapped of [false, true])
     }
     const parsed = await classifyPlanDocument(request);
     if (!parsed.ok) throw new Error(`reused address fixture refused: ${parsed.path}`);
+    const revisions = harness.sqlite
+      .query<{ id: string; revision: number }, [string]>(
+        'SELECT id,revision FROM work_item WHERE project_id=? ORDER BY id',
+      )
+      .all(remote.projectId);
     const before = transferSnapshot(harness);
     const histories = snapshotHistory();
     pushes = 0;
@@ -607,13 +617,109 @@ for (const mapped of [false, true])
       expect(admitted.ok).toBe(true);
       if (!admitted.ok)
         throw new Error(`explicit replacement refused: ${JSON.stringify(admitted)}`);
+      const copiedRows = harness.sqlite
+        .query<{ id: string; name: string }, [string]>(
+          'SELECT id,name FROM work_item WHERE project_id=?',
+        )
+        .all(admitted.projectId);
+      const copiedSteps = harness.sqlite
+        .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position')
+        .all(admitted.projectId);
+      const expected = classified.typedDependencies.flatMap(({ predecessor, successor, type }) => {
+        if (!('kind' in predecessor) || predecessor.kind !== 'external') return [];
+        const sourceId = successor.workItem;
+        const sourceRow = harness.sqlite
+          .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE id=?')
+          .get(sourceId);
+        if (sourceRow === null) throw new Error('original successor absent');
+        const copiedRow = copiedRows.find(({ name }) => name === sourceRow.name);
+        if (copiedRow === undefined) throw new Error('copied successor absent');
+        const successorStep =
+          successor.scope === 'whole'
+            ? null
+            : copiedSteps.at(source.stepIds.indexOf(successor.step))?.id;
+        if (successorStep === undefined) throw new Error('copied successor step absent');
+        return [
+          {
+            predecessor_project_id: remote.projectId,
+            predecessor_work_item_id:
+              predecessor.workItemId === remote.leafId ? replacementId : predecessor.workItemId,
+            predecessor_scope: predecessor.scope,
+            predecessor_step_id: predecessor.scope === 'whole' ? null : predecessor.stepId,
+            successor_project_id: admitted.projectId,
+            successor_work_item_id: copiedRow.id,
+            successor_scope: successor.scope,
+            successor_step_id: successorStep,
+            type,
+          },
+        ];
+      });
+      expect(expected).toHaveLength(5);
+      const incoming = harness.sqlite
+        .query(
+          'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id,type FROM external_dependency WHERE successor_project_id=?',
+        )
+        .all(admitted.projectId);
+      expect(incoming.map((edge) => JSON.stringify(edge)).sort()).toEqual(
+        expected.map((edge) => JSON.stringify(edge)).sort(),
+      );
       expect(
         harness.sqlite
-          .query(
-            'SELECT predecessor_work_item_id FROM external_dependency WHERE successor_project_id=? AND predecessor_scope<>? ORDER BY id',
-          )
-          .all(admitted.projectId, 'descendant-step'),
-      ).toEqual(Array.from({ length: 4 }, () => ({ predecessor_work_item_id: replacementId })));
+          .query('SELECT id,revision FROM work_item WHERE project_id=? ORDER BY id')
+          .all(remote.projectId),
+      ).toEqual(
+        revisions.map((row) => ({
+          ...row,
+          revision:
+            row.revision +
+            expected.filter((edge) => edge.predecessor_work_item_id === row.id).length,
+        })),
+      );
+      const eventBefore = before.find(({ name }) => name === 'event_log');
+      if (eventBefore === undefined) throw new Error('event log snapshot absent');
+      const publications: unknown = harness.sqlite
+        .query<{ subscription: string; message: string }, []>(
+          'SELECT subscription,message FROM event_log ORDER BY id',
+        )
+        .all()
+        .slice(eventBefore.rows.length)
+        .map(({ subscription, message }) => ({
+          subscription,
+          message: JSON.parse(message) as unknown,
+        }));
+      const projects = [
+        remote.projectId,
+        source.projectId,
+        downstream.projectId,
+        unrelated.projectId,
+        admitted.projectId,
+      ];
+      const consequences = projects.flatMap((projectId) =>
+        [remote.projectId, admitted.projectId]
+          .filter((causeProjectId) => causeProjectId !== projectId)
+          .map((causeProjectId) => ({
+            subscription: `project:${projectId}`,
+            message: { type: 'elsewhere_changed', projectId, causeProjectId },
+          })),
+      );
+      expect(publications).toHaveLength(consequences.length + 2);
+      expect(publications).toEqual(
+        contains([
+          ...consequences,
+          {
+            subscription: `project:${admitted.projectId}`,
+            message: matches({ type: 'project_settings_changed' }),
+          },
+          {
+            subscription: `project:${admitted.projectId}`,
+            message: matches({
+              type: 'tree_replaced',
+              workItems: contains(copiedRows.map(({ id }) => matches({ id }))),
+            }),
+          },
+        ]),
+      );
+      expect(pushes).toBe(consequences.length + 2);
       expectOriginalRows(before, admitted.projectId);
       expectPublicationCount(before, pushes);
     }

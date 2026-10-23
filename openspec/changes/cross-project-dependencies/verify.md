@@ -6040,3 +6040,55 @@ Success-side event-sequencer/abbreviation-counter values are not newly asserted;
 refusals snapshot them exactly. Current endpoint/graph changes and injected
 post-creation all-effects rollback remain later whole-transfer slices. Synthetic
 storage proofs do not establish public activation or complete task 8.1.
+
+### Slice 3 review correction — retain unmapped prerequisites (2026-10-23)
+
+Astra High identified that the partial-mapping success oracle inspected only four
+mapped leaf relationships. It could miss a dropped, unmapped remote-parent
+`descendant-step` prerequisite. The correction compares all five complete imported
+predecessor/successor project, row, scope, step and relationship-type tuples against
+the original downloaded declarations with only the four explicitly mapped leaf
+UUIDs replaced. Revision expectations now derive from those five intended tuples,
+so the remote parent must increment once and the replacement leaf four times.
+The publication oracle additionally requires the complete five-project component's
+eight exact `elsewhere_changed` recipient/cause pairs, one imported settings event,
+one imported tree event and ten push calls. History and refusal snapshots remain
+unchanged; production remains dormant and parent 8.1 remains unchecked.
+
+Watched fault: in `prepare-import.ts`, after mapping lookup, temporarily add
+`if (document.externalMappings.length > 0 && mapping === undefined) continue`.
+The old partial-mapping test passed incorrectly (**1 pass, 105 assertions**).
+With the complete oracle, that identical fault failed (**1 fail**) showing exactly
+the missing remote-parent/remote-step descendant-step SS tuple and its remapped
+successor endpoint. After byte-for-byte source restoration, the selected control
+passed (**1 pass, 111 assertions**). All three runs used
+`bun test ./apps/wbs/be-01/src/controller/cross-project-import.controller.db.test.ts --timeout=30000 -t 'reused display address binds only'`.
+Logs: `/tmp/identity-unmapped-{before,after,control}.log`. No mutation was retained.
+
+The first configured correction check caught unnecessary successor-union fallback
+accesses (`never`) and Bun matcher's untyped return values. The final test uses
+precise v11 internal successor fields and `unknown`-typed matcher helpers; no
+suppressions or production edits were needed. Changed-file ESLint passed after
+these corrections. The earlier slice's installation, full gate and activation
+limitations still apply.
+
+Final correction checks:
+
+- Same three-file mounted import/export plus scoped SQLite command recorded above:
+  **60 pass, 0 fail, 703 assertions**, 23.54 seconds. Log:
+  `/tmp/identity-correction-focused-final.log`.
+- `bunx openspec validate cross-project-dependencies --json`: valid, no errors;
+  the same 17 existing long-requirement warnings. Log:
+  `/tmp/identity-correction-openspec.log`.
+- Following the final type-only matcher overload annotation, the selected
+  partial-mapping control again passed (**1 pass, 111 assertions**), and direct
+  `bunx tsc --build --force apps/wbs/be-01/tsconfig.json` passed. Logs:
+  `/tmp/identity-correction-typed-control.log` and
+  `/tmp/identity-correction-direct-typecheck.log`.
+- Final uncached configured
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p wbs-be-01 --parallel=1 --skipNxCache --outputStyle=static`:
+  backend lint/typecheck and the three module typechecks passed (1m 2s). Log:
+  `/tmp/identity-correction-configured-final.log`.
+- Explicit changed-path Prettier check, `git diff --check` and byte comparison
+  against the original production preparation source passed. Normal commit hooks
+  remain enabled; no hook bypass was used.
