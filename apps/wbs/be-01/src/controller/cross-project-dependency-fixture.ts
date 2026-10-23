@@ -173,8 +173,8 @@ export async function runSemantic<T extends { ok: boolean }>(
   });
 }
 
-export async function seedIncidents() {
-  const fixture = await openFixture();
+export async function seedIncidents(options?: Parameters<typeof openFixture>[0]) {
+  const fixture = await openFixture(options);
   expect(
     (
       await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {

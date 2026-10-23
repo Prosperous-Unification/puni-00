@@ -22,6 +22,8 @@ export function selectCopiedDependencies(
       throw new Error('copied relationship owner differs from its successor');
   // Proof: incident OR failed exact selected membership; both-inside omitted X's
   // prerequisite in the mounted copy test (8 links instead of 9), 2026-10-22.
+  // Proof: the synthetic mounted HTTP copy/history test caught both-inside (zero
+  // retained prerequisites) and incident OR (HTTP 500 instead of 200), 2026-10-23.
   return dependencies.filter(
     (dependency) =>
       dependency.successor.projectId === selection.sourceProjectId &&
