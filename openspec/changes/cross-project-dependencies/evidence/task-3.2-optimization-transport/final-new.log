@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+(pass) generated MCP preserves real connected terminal optimization tree [6529.02ms]
+(pass) generated MCP preserves real connected required-engine-unavailable tree [3955.72ms]
+(pass) HTTP rejects unsupported addTypedDependency at the shared shape boundary [3415.46ms]
+(pass) MCP rejects unsupported addTypedDependency at the shared shape boundary [3380.58ms]
+(pass) HTTP rejects unsupported updateTypedDependency at the shared shape boundary [3379.15ms]
+(pass) MCP rejects unsupported updateTypedDependency at the shared shape boundary [3617.48ms]
+
+ 6 pass
+ 66 filtered out
+ 0 fail
+ 36 expect() calls
+Ran 6 tests across 1 file. [27.35s]

@@ -9,6 +9,25 @@ function requireOk(reply: { status: number }): void {
 const pushes: string[] = [];
 const harness = OrganizationHarness.openComposedWith({
   now: () => 1_792_368_000_000,
+  withOptimizer: process.env['MCP_PARITY_OPTIMIZER'] === 'installed',
+  solverVersion: '0.4.0',
+  spawn: () => {
+    const child = Bun.spawn([process.execPath, '-e', 'process.exit(1)'], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    return Promise.resolve({
+      pid: child.pid,
+      stdout: child.stdout,
+      stderr: child.stderr,
+      exited: child.exited,
+      kill: () => {
+        child.kill();
+      },
+      verdict: () => undefined,
+    });
+  },
   ...(process.env['MCP_PARITY_ACTIVE'] === 'true' ? { syntheticExternalCommands: true } : {}),
   pushFetch: (url) => {
     pushes.push(url);
@@ -78,7 +97,21 @@ const controlToken = crypto.randomUUID();
 const backend = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
-  fetch: (request) => {
+  fetch: async (request) => {
+    if (new URL(request.url).pathname === '/_parity/optimization') {
+      if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
+        return new Response(null, { status: 403 });
+      if (request.method !== 'POST') return new Response(null, { status: 405 });
+      // Model persisted required-engine settings even when this process lacks the adapter.
+      harness.sqlite
+        .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
+        .run(successor.projectId);
+      if (process.env['MCP_PARITY_OPTIMIZER'] === 'installed') {
+        harness.triggerOptimization(successor.projectId);
+        await harness.drainOptimization();
+      }
+      return Response.json({ prepared: true });
+    }
     if (new URL(request.url).pathname === '/_parity/state') {
       if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
         return new Response(null, { status: 403 });

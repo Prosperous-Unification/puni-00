@@ -7,6 +7,7 @@ import { createServer } from './server';
 import type { WbsRequest } from './wbs-client';
 
 interface FixtureFaults {
+  optimizer?: 'installed' | 'absent';
   readinessTimeout?: number;
   onSpawn?: (backend: ParityBackend) => void;
   readDocument?: typeof readDocument;
@@ -23,7 +24,11 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
     [process.execPath, 'apps/wbs/be-01/src/testing/mcp-command-parity-backend.ts'],
     {
       cwd: new URL('../../../../', import.meta.url).pathname,
-      env: { ...process.env, MCP_PARITY_ACTIVE: String(active) },
+      env: {
+        ...process.env,
+        MCP_PARITY_ACTIVE: String(active),
+        MCP_PARITY_OPTIMIZER: faults.optimizer,
+      },
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'inherit',
@@ -162,6 +167,14 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
       call,
       command,
       inspect,
+      prepareOptimization: async () => {
+        const reply = await fetch(`${apiUrl}/_parity/optimization`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${ready.controlToken}` },
+        });
+        if (reply.status !== 200)
+          throw new Error(`optimization preparation failed: ${String(reply.status)}`);
+      },
       forwarded,
       apiUrl,
       key: ready.key,
@@ -1370,4 +1383,120 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       await fixture.close();
     }
   });
+}
+
+// Proof: dropping optimization or changing failed→idle in production wbs-client forwarding
+// each failed terminal HTTP/MCP equality; dropping scheduleError failed required-engine equality (2026-10-23).
+for (const optimizer of ['installed', 'absent'] as const) {
+  test(`generated MCP preserves real connected ${optimizer === 'installed' ? 'terminal optimization' : 'required-engine-unavailable'} tree`, async () => {
+    const fixture = await openFixture(true, ['read', 'write'], { optimizer });
+    try {
+      const committed = await submit(fixture, 'MCP', [fixture.command]);
+      expect(committed.status).toBe(200);
+      await fixture.prepareOptimization();
+      const before = await fixture.inspect();
+      if (before.relationship === null) throw new Error('optimization relationship missing');
+      const direct = await fixture.http(
+        'GET',
+        `/api/projects/${fixture.successor.projectId}/work-items`,
+      );
+      expect(direct.status).toBe(200);
+      const reading = await fixture.call('getApiProjectsByIdWork-items', {
+        id: fixture.successor.projectId,
+      });
+      expect(reading.isError).not.toBe(true);
+      const tree: unknown = JSON.parse(reading.text);
+      expect(tree).toEqual(direct.body);
+      expect(tree).toMatchObject({
+        connectedDependencies: [
+          {
+            id: before.relationship.id,
+            predecessor: { endpoint: wholeEndpoint(fixture.predecessor) },
+            successor: { endpoint: wholeEndpoint(fixture.successor) },
+          },
+        ],
+      });
+      if (optimizer === 'installed') {
+        expect((tree as { optimization: { inputHash: string } }).optimization.inputHash).toMatch(
+          /^[a-f0-9]{64}$/,
+        );
+        expect(tree).toMatchObject({
+          scheduleError: null,
+          optimization: {
+            engine: 'optimized',
+            enabled: true,
+            displayed: 'fast',
+            generation: 1,
+            variants: {
+              pri: { state: 'failed', reason: 'internal-error' },
+              time: { state: 'failed', reason: 'internal-error' },
+            },
+            scope: {
+              kind: 'connected-stage',
+              projectId: fixture.successor.projectId,
+              fixed: fixture.predecessor.steps.map((stepId, index) => ({
+                projectId: fixture.predecessor.projectId,
+                workItemId: fixture.predecessor.workItemId,
+                stepId,
+                start: index,
+                finish: index + 1,
+              })),
+            },
+          },
+          workItems: [
+            { id: fixture.successor.workItemId, schedule: { earliestStart: 2, earliestFinish: 4 } },
+          ],
+        });
+      } else {
+        expect(tree).toMatchObject({
+          scheduleError: {
+            kind: 'engine_unavailable',
+            engine: 'optimized',
+            projects: [fixture.successor.projectId],
+            reason: 'adapter_missing',
+          },
+          slices: [],
+          workItems: [{ id: fixture.successor.workItemId, schedule: null, dates: null }],
+        });
+        expect(tree).not.toHaveProperty('optimization');
+      }
+      const after = await fixture.inspect();
+      expect(after.effects).toEqual(before.effects);
+      expect(after.pushes).toEqual(before.pushes);
+    } finally {
+      await fixture.close();
+    }
+  });
+}
+
+// Proof: independently widening each production FS/SS/FF schema to string made its
+// HTTP case return 422 and MCP report HTTP 422 unsupported_relationship_type instead of 400 (2026-10-23).
+for (const kind of ['addTypedDependency', 'updateTypedDependency'] as const) {
+  for (const transport of ['HTTP', 'MCP'] as const) {
+    test(`${transport} rejects unsupported ${kind} at the shared shape boundary`, async () => {
+      const fixture = await openFixture();
+      try {
+        const before = await fixture.inspect();
+        const refused = await submit(fixture, transport, [
+          {
+            ...fixture.command,
+            kind,
+            type: 'SF',
+            ...(kind === 'updateTypedDependency' ? { dependencyId: 'not-reached' } : {}),
+          },
+        ]);
+        if (transport === 'HTTP') expect(refused.status).toBe(400);
+        else {
+          expect(refused.status).toBe(0);
+          expect(refused.text).toContain('HTTP 400');
+        }
+        expect(refused.text).toContain('invalid_body');
+        const after = await fixture.inspect();
+        expect(after.effects).toEqual(before.effects);
+        expect(after.pushes).toEqual(before.pushes);
+      } finally {
+        await fixture.close();
+      }
+    });
+  }
 }

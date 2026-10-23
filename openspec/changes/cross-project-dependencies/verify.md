@@ -5798,3 +5798,17 @@ actual-send removal and wrong-subscription lookup faults both fail after admitte
 presence. See [the delivery report](evidence/real-socket-delivery/report.md) for
 commands, exact observations and limits. Browser reconciliation and rollout remain
 open; parent 5.2 stays unchecked.
+
+## Task 3.2 bounded optimization transport and shared shape negatives — 2026-10-23
+
+The [optimization transport packet](verify-task-3.2-optimization-transport.md)
+adds production-owned connected terminal and required-engine-unavailable tree
+parity through generated MCP and mounted HTTP, with full read-side table/push
+preservation. Five independently restored production faults caught omitted
+optimization, changed terminal states, omitted engine errors, and loss of the
+shared add/update input-boundary 400 contract (HTTP and MCP each became 422).
+Final added cases passed 6/6; existing calendar/admission controls and the new
+cases passed 10/10 before the final assertion lint cleanup. Shared command and
+mounted controller suites passed 28/28; configured MCP lint/typecheck, backend
+typecheck and changed-fixture lint passed. No production behavior changed.
+Tasks 3.2/4.2 remain open pending independent review and complete reconciliation.
