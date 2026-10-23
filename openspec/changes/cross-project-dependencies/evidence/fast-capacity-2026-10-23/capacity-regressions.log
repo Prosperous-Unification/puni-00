@@ -1,0 +1,57 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-resources.test.ts:
+(pass) two leaves want the one staging environment > serialises them, and the second names staging and its units [20.65ms]
+(pass) two leaves want the one staging environment > runs them together when the capacity is two [1.24ms]
+(pass) two leaves want the one staging environment > serialises them on the weighted path too, naming staging [10.52ms]
+(pass) two leaves want the one staging environment > refuses an optimized answer that runs both at once [8.81ms]
+(pass) a divisible resource > admits two of three 16 GB leaves into 32 GB, and the third waits [2.23ms]
+(pass) a demand vector is acquired whole, at one instant > waits for both resources rather than holding one while the other is busy [3.68ms]
+(pass) a demand vector is acquired whole, at one instant > holds no team slot while it waits for a resource [2.01ms]
+(pass) what a caller hands the engine > leaves a demand on an unstated capacity unconstrained [0.77ms]
+(pass) what a caller hands the engine > clamps a demand to its capacity, and a stated 0 charges nothing [0.24ms]
+(pass) what a caller hands the engine > sorts each vector by resource id [0.32ms]
+(pass) what a caller hands the engine > refuses a demand on a resource it was handed no capacity for [0.75ms]
+(pass) what a caller hands the engine > refuses a demand below one unit, a resource named twice and an unsorted vector [1.22ms]
+(pass) no resource stated, no change > keeps every golden corpus case byte for byte, no resource stated [26.59ms]
+(pass) no resource stated, no change > places every corpus slice where it was when a capacity is stated that nothing demands [18.88ms]
+
+libs/wbs/domain/domain/src/schedule-priority.test.ts:
+(pass) priority orders the leveller’s queue > starts the smaller priority first when two work items want one person [1.72ms]
+(pass) priority orders the leveller’s queue > puts a work item nobody has given a priority behind one somebody has [1.03ms]
+(pass) priority orders the leveller’s queue > asks priority before float, and float still decides between equals [5.07ms]
+(pass) priority never overrides a hard constraint > still waits for a predecessor [2.07ms]
+(pass) priority never overrides a hard constraint > still waits for its own floor [1.06ms]
+(pass) priority never overrides a hard constraint > keeps a work item’s own steps in step order [1.13ms]
+(pass) priority never overrides a hard constraint > gives a slice somebody sized at zero no place in the queue, whatever its priority [1.04ms]
+(pass) a priority written up the tree reaches the leaves > carries a parent’s priority to a leaf that has none [1.09ms]
+(pass) a priority written up the tree reaches the leaves > lets a leaf’s own priority beat its parent’s, in both directions [5.90ms]
+(pass) a priority written up the tree reaches the leaves > gives the nearer ancestor’s priority to a leaf between two [4.09ms]
+(pass) a plan that priorities nothing is scheduled exactly as it was > answers what the engine answered before priority existed [7.90ms]
+(pass) a contention tie falls to tree order > gives the person to the work item that reads first, not to the smaller number [1.17ms]
+(pass) a contention tie falls to tree order > answers the same plan whichever order the two rows arrive in [1.33ms]
+
+libs/wbs/domain/domain/src/schedule-typed-dependency.test.ts:
+(pass) Fast with typed finish-to-start dependencies > holds a later successor step and lets the earlier one run [1.33ms]
+(pass) Fast with typed finish-to-start dependencies > lets a Dev handoff overlap the predecessor’s QA [0.53ms]
+(pass) Fast with typed finish-to-start dependencies > waits for every leaf of a whole parent predecessor [4.58ms]
+(pass) Fast with typed finish-to-start dependencies > gives an unestimated predecessor node no time [1.06ms]
+(pass) Fast with typed finish-to-start dependencies > keeps a legacy link’s dynamic reach beside a typed one [7.54ms]
+(pass) Fast with a typed endpoint the plan does not hold > refuses rather than dropping the relationship [6.59ms]
+
+libs/wbs/domain/domain/src/schedule-joint-capacity.test.ts:
+(pass) a block labelled with two teams waits for both of them > starts when the later pool frees a slot, not when the earlier one does [1.20ms]
+(pass) a block labelled with two teams waits for both of them > re-asks every pool after another pool advances the candidate [1.00ms]
+(pass) a block labelled with two teams waits for both of them > names whichever team ran out, not the first of the set [0.59ms]
+(pass) a block labelled with two teams waits for both of them > takes a slot from every pool it names, so both are busy behind it [0.74ms]
+(pass) a block labelled with two teams waits for both of them > edges every reservation either pool stepped over, and reports no float it has not got [1.30ms]
+(pass) a block labelled with two teams waits for both of them > chooses a tied pool and referent only from blockers that finish by the accepted start [1.43ms]
+(pass) a block labelled with two teams waits for both of them > names no team on a slice no pool held up [0.92ms]
+(pass) a block labelled with two teams waits for both of them > refuses a block wider than the narrowest of its pools, and says which one [1.29ms]
+(pass) a block labelled with two teams waits for both of them > visits a bounded number of events, and the bound is the fixpoint’s own [4.19ms]
+(pass) which end the capacity arrow points at when two blockers tie > names the blocker placed first, not the one whose key sorts first [1.55ms]
+
+ 43 pass
+ 0 fail
+ 150 expect() calls
+Ran 43 tests across 4 files. [1072.00ms]

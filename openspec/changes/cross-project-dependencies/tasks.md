@@ -497,3 +497,11 @@ under 6.1/6.2 now consumes captured final target placement, preserves held/forei
 rows, refuses missing anchors and selected unready optimization, and retains atomic
 journal/replay behavior. Evidence is in `verify.md` under “Connected arrangement
 consumer”. Parent 6.1/6.2 remain open for their broader obligations.
+
+Task 6.1 bounded mounted Fast resource capacity (2026-10-23): composed migrated
+SQLite now proves two connected Fast projects retain capacity one versus two for
+the same resource catalog identity, producing serial versus overlapping leaves
+through installed mounted readers. A watched resource-only namespace fault moved
+A's second leaf from day one to zero; restoration passed. Public IDs and resource
+facts remain unchanged. See verify.md, “Task 6.1 bounded mounted Fast resource
+capacity”; parent 6.1 stays open and synthetic authority does not activate writers.

@@ -5649,3 +5649,57 @@ truncate traversal and fail the intended event assertions. On the integrated
 branch, the cause, topology and earlier event suites pass 20/20 with 359
 assertions. This proves backend invalidation, not changed schedule dates or
 actual gateway/browser delivery; task 5.2 remains open.
+
+## Task 6.1 bounded mounted Fast resource capacity (2026-10-23)
+
+The composed `OrganizationHarness` now exercises migrated SQLite through the
+installed connected runtime and mounted work-item/resources HTTP readers in
+`connected-fast-capacity.controller.db.test.ts`. Two Fast projects have the same
+Monday anchor and resource catalog identity `machine`; A has capacity one and B
+has capacity two. Each owns two one-day leaves demanding one unit. A whole/whole
+SS bridge connects the component without imposing a finish/start delay. Literal
+placements assert A starts `[0, 1]`, B starts `[0, 0]`, with unchanged public
+project/work-item/step/resource IDs, capacities, demands and capacity blocker label.
+Synthetic dependency authority is test-only evidence, not activation approval.
+
+Watched negative: in `connected-plan.ts`, changed the capacity encoder predicate
+from `kind === 'person' && capture.mode === 'shared'` to
+`kind === 'resource' || (kind === 'person' && capture.mode === 'shared')`, removing
+project scope only for resources. The mounted test exited 1: A's second leaf had
+start/finish `0/1` instead of `1/2`. Restored the production file with `git restore`
+and the same final test exited 0 (one pass, eight assertions). No production
+change was needed. The adjacent test `Proof:` names the fault and observation.
+
+Commands and captured output are under
+[evidence/fast-capacity-2026-10-23](evidence/fast-capacity-2026-10-23):
+
+- `bun test apps/wbs/be-01/src/controller/connected-fast-capacity.controller.db.test.ts --timeout=10000`:
+  resource-scope mutation exits 1 (`capacity-resource-scope-fault.log`); restoration
+  exits 0 (`capacity-restored.log`).
+- `bun test apps/wbs/be-01/src/controller/connected-fast-capacity.controller.db.test.ts apps/wbs/be-01/src/controller/connected-arrange.controller.db.test.ts libs/wbs/application/core/src/service/connected-plan.test.ts --timeout=10000`:
+  exit 0, 43 tests, 219 assertions (`capacity-focused.log`), including held-subtree cases.
+- `bun test libs/wbs/domain/domain/src/schedule-typed-dependency.test.ts libs/wbs/domain/domain/src/schedule-priority.test.ts libs/wbs/domain/domain/src/schedule-joint-capacity.test.ts libs/wbs/domain/domain/src/schedule-resources.test.ts --timeout=10000`:
+  exit 0, 43 tests, 150 assertions (`capacity-regressions.log`).
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: exit 0, including all
+  configured module checks (`capacity-typecheck.log`). Nx used its documented
+  in-process plugin fallback after sandbox socket denial.
+- `bunx eslint apps/wbs/be-01/src/controller/connected-fast-capacity.controller.db.test.ts`:
+  exit 0 after correcting three numeric template expressions (`capacity-file-lint-fixed.log`).
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint` and retry with
+  `NX_ISOLATE_PLUGINS=false` plus `--verbose`: both exit 1 with no ESLint diagnostic,
+  only Nx's child-command failure (`capacity-lint.log`, `capacity-lint-retry.log`).
+  The exact underlying configured command `bunx eslint apps/wbs/be-01/src`
+  then exits 0 with no diagnostic (`capacity-direct-lint.log`). The configured
+  Nx lint wrapper remains unsuccessful; its failure cause was not established.
+- `bunx prettier --check apps/wbs/be-01/src/controller/connected-fast-capacity.controller.db.test.ts openspec/changes/cross-project-dependencies/tasks.md openspec/changes/cross-project-dependencies/verify.md`:
+  exit 0 (`capacity-format.log`).
+- `bunx openspec validate cross-project-dependencies --strict`: exit 1 for sixteen
+  existing long-requirement warnings (`capacity-openspec.log`); no spec was edited.
+  Normal `bunx openspec validate cross-project-dependencies` exits 0 with those
+  warnings (`capacity-openspec-normal.log`).
+
+This closes the mounted project-local resource capacity acceptance gap only.
+Team namespace, distinct estimate settings and shared people remain covered by
+existing detached/domain suites; this packet adds no mounted proofs for those
+independent invariants. Task 6.1 remains open for its broader obligations.
+No build, full host gate, push, merge or production activation was attempted.

@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-arrange.controller.db.test.ts:
+(pass) connected arrangement uses final captured foreign dates, leaves held and foreign rows, and replays stored positions [1717.71ms]
+(pass) connected arrangement refuses missing target calendar atomically [822.49ms]
+(pass) connected arrangement refuses missing foreign calendar atomically [1288.82ms]
+(pass) connected selected optimized pending arrangement refuses without admission or writes [1443.28ms]
+(pass) missing calendar rolls back an earlier collected edit [1087.36ms]
+(pass) connected arrangement refuses a cycle atomically [1150.73ms]
+(pass) shared connected arrangement honors foreign people without moving a held sibling [1525.48ms]
+(pass) connected arrangement preserves held slots at 100 [2492.30ms]
+(pass) connected arrangement preserves held slots at 10.25 [2257.27ms]
+(pass) connected arrangement preserves held slots at 10 [1712.01ms]
+(pass) connected arrangement allocates valid duplicate slots around an immutable held anchor [1770.04ms]
+(pass) connected arrangement refuses an impossible order between equal held anchors without any write [870.20ms]
+
+apps/wbs/be-01/src/controller/connected-fast-capacity.controller.db.test.ts:
+(pass) mounted connected Fast keeps identical resource catalog IDs in distinct project capacity pools [1220.16ms]
+
+libs/wbs/application/core/src/service/connected-plan.test.ts:
+(pass) connected detached Fast placement > uses one real placement for A.design B.build A.test [18.97ms]
+(pass) connected detached Fast placement > retains own Wednesday floor and projects back to each own anchor [8.65ms]
+(pass) connected detached Fast placement > retains graph and capture when a required calendar is missing [1.01ms]
+(pass) connected detached Fast placement > inspects the nontarget required optimized member before calendar refusal [1.22ms]
+(pass) connected detached Fast placement > ignores stored optimized preference when disabled and allows real Fast comparison [8.79ms]
+(pass) connected detached Fast placement > retains authored held endpoints but schedules no held work and needs no empty anchor [1.89ms]
+(pass) connected detached Fast placement > selects either target without placement or calendar changes and refuses absent target [6.78ms]
+(pass) connected detached Fast placement > allows a lower ranked remote prerequisite before a high priority successor [4.96ms]
+(pass) connected detached Fast placement > shares people only in shared mode and restores actual person identity and own waiting counts [9.01ms]
+(pass) connected detached Fast placement > uses own rounding, units, allowance, team capacity and width before injective namespacing [7.68ms]
+(pass) connected detached Fast placement > keeps identical resource catalog IDs project local and restores binding identities [8.98ms]
+(pass) connected detached Fast placement > retains fractional effort and translates a weekend manual floor and deadline under own anchor [9.65ms]
+(pass) connected detached Fast placement > uses the earliest anchor independent of project rank and capture order [9.34ms]
+(pass) connected detached Fast placement > reduces partial held parent selectors without losing authored pairs [6.33ms]
+(pass) connected detached Fast placement > keeps unknown, zero and stepless nodes as real zero duration boundaries [11.34ms]
+(pass) connected detached Fast placement > requires an active shared-person peer anchor even without its external endpoint [1.05ms]
+(pass) connected detached Fast placement > refuses wrong relationship ownership and mismatched local captured evidence [1.11ms]
+(pass) connected detached Fast placement > refuses foreign project rows, absent endpoint project and cross owned endpoint identity [1.77ms]
+(pass) connected detached Fast placement > applies each project minute conversion, estimate method and allowance exactly once [4.48ms]
+(pass) connected detached Fast placement > preserves signed fractional numeric calendar constraints without date round trips [0.80ms]
+(pass) connected detached Fast placement > refuses corrupted project identity and nonfinite rank, and throws unknown scheduling failures [1.61ms]
+(pass) connected detached Fast placement > models real node cycles without hiding graph evidence [1.16ms]
+(pass) connected detached Fast placement > expands partly held parent relationships to surviving leaves only [4.95ms]
+(pass) connected detached Fast placement > keeps own steps and local reach before resolving remote FS SS FF selectors [20.87ms]
+(pass) connected detached Fast placement > validates rank before an engine refusal and target membership before any unavailable return [1.41ms]
+(pass) connected detached Fast placement > resolves every project local dependency under its own reach and step order [10.33ms]
+(pass) connected detached Fast placement > refuses absent prepared calendars and broken reverse identities on real placements [5.58ms]
+(pass) selects actual mixed-engine stages before projection and keeps earlier boundaries detached: A [46.18ms]
+(pass) selects actual mixed-engine stages before projection and keeps earlier boundaries detached: B [25.64ms]
+(pass) ranks real stages by ID ties, observes enabled Fast, skips disabled and empty members [10.12ms]
+
+ 43 pass
+ 0 fail
+ 219 expect() calls
+Ran 43 tests across 3 files. [26.01s]
