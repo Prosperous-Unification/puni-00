@@ -47,11 +47,30 @@ one failed across 235 files; this packet does not rewrite that failed gate as gr
 The first local complete configured frontend attempt (`NX_DAEMON=false
 NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:test --skip-nx-cache
 --outputStyle=static`) exited 130 after task scheduling, before test output.
-Its cause is unverified. A repeat is pending; complete configured frontend
-acceptance remains open.
+Its cause is unverified. The repeat's execution session subsequently became
+unavailable with only scheduling output in its log; an unsandboxed process check
+found no matching Nx or Vitest process. Its exact exit status was not captured,
+so that repeat is inconclusive.
+
+A fresh invocation of the same configured command outside the sandbox completed
+on unchanged committed `960f88403e5936de0e8fdac0a30b26ca72f3d6d1`, with
+durable log and exit capture:
+
+- Node dependency target: 84 files, 1023 passed, 0 failed, 47.84 seconds.
+- Full UTC DOM suite: 235 files, 4696 passed, 0 failed, 1213.98 seconds.
+- Pacific/Auckland suite: 4 files, 5 passed, 0 failed, 7.55 seconds.
+- Nx: both tasks passed, exit 0, cache bypassed, total 21 minutes 10 seconds.
+
+The local evidence is `/tmp/frontend-v1-full-final.log` and
+`/tmp/frontend-v1-full-final.exit` (the latter contains `0`). Scoped Prettier and
+`git diff --check` passed. Normal code commit hooks passed, including scoped lint,
+formatting, secrets and nesting checks; Tool Wiki explicitly reported its existing
+inactive activation root without claiming certification. No test timeout or runner
+configuration was changed for these runs.
 
 Dependencies reuse the existing workspace installation through an ignored
 `node_modules` symlink; no fresh frozen install was performed. Vite emitted its
-existing `__dirname` native-config warning. No host gate, whole-repository gate,
+existing native-config warnings for `__dirname` and an extensionless config import,
+plus the existing `NO_COLOR`/`FORCE_COLOR` warning. No host gate, whole-repository gate,
 push, live database work or deployment is claimed here. Integrated exact-SHA host
 acceptance belongs to the parent delivery.
