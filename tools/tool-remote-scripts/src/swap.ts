@@ -38,6 +38,10 @@ import {
   maintenanceConfig,
 } from './lib/backend-maintenance';
 import { admitDormantDependencies } from './lib/dependency-admission';
+import {
+  inspectDependencyParticipants,
+  parseDependencyParticipantInvocation,
+} from './lib/dependency-participants';
 import { probeDependencyCapabilities } from './lib/dependency-preflight';
 import {
   assertDigestPinnedRef,
@@ -2452,6 +2456,11 @@ export function parseBackendFenceInvocation(
 }
 
 async function main(): Promise<void> {
+  if (parseDependencyParticipantInvocation(process.argv.slice(2))) {
+    const observation = await inspectDependencyParticipants(CURRENT_ENV, sh);
+    console.log(JSON.stringify(observation));
+    return;
+  }
   const backendFence = parseBackendFenceInvocation(process.argv.slice(2));
   if (backendFence !== null) {
     const completion =

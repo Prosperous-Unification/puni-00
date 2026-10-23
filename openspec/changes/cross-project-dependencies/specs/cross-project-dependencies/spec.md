@@ -1016,3 +1016,29 @@ membership SHALL refuse without implying that a store is excluded.
   MUST refuse before backend intent or effects
 - **AND** a missing directory receipt or changed captured host identity before or
   after census MUST refuse rather than adopt a newly resolved family
+
+### Requirement: Compose participant observation cannot grant activation
+
+The dedicated backend participant inspection SHALL hold one selected deploy lock and share one bounded deadline across fresh retained backend/gateway proof and full Docker/network/process/live-Caddy readbacks. It SHALL return only a versioned blocked observation with unresolved obligations, never activation authority or a participant-proof digest.
+
+#### Scenario: Dedicated read-only invocation
+
+- **WHEN** `be --inspect-dependency-participants` runs
+- **THEN** it inspects retained proof and the full topology twice before returning
+- **AND** it refuses changes to container, image, process, network, restart, retained-record or live-Caddy evidence
+- **AND** any other tier, extra flag or malformed inspection flag refuses before ordinary image or planning work
+- **AND** it does not publish records, change restart policy, stop application containers, reload ingress or enable authoring
+
+#### Scenario: Ingress target resolution is bounded by observed Docker networks
+
+- **GIVEN** the full live Caddy configuration includes primary, alternate or catch-all reverse-proxy routes
+- **WHEN** participant inspection enumerates their upstreams
+- **THEN** each static target resolves unambiguously through a container name, IP or alias advertised on a Caddy-attached network
+- **AND** edge hosts/DNS overrides, dynamic targets, unresolved/ambiguous addresses, unknown Caddy apps/handlers or unsupported proxy transports refuse observation
+
+#### Scenario: Unsupported process obligations stay explicit
+
+- **WHEN** inspection observes source-run `wbs-dev-src`, missing or unreadable evidence, an incomplete inventory or a foreign network participant
+- **THEN** it refuses to issue the managed Compose observation
+- **AND** any returned observation still names unresolved ingress, restart authority, MCP, retained clients, host processes and continuous exclusion
+- **AND** it never claims a complete participant proof or permits activation

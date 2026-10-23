@@ -696,3 +696,9 @@ Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.
 - [x] Watch independent namespace-invocation, namespace identity, mount completeness, inventory cardinality/membership and post-audit identity comparison omissions fail; cover opaque/rebound/read-only/nested/hardlinked aliases, tools/receipt/timeout/reap failures and unsupported security/init/PID targets.
 
 - [x] Correct managed Source rebinding with actual managed-mode census, captured main/directory anchors, exact directory receipt/readback; watch blue-only, split-colour and all-hardlinked-directory lifecycle failures plus six independent check omissions.
+
+### Bounded Task 10.1/10.2 read-only Compose participant observation (2026-10-23)
+
+- [x] Add the dedicated `be --inspect-dependency-participants` early invocation under one selected deploy lock, refreshing retained managed backend/gateway evidence and the unfiltered Docker/network/process/full live Caddy topology twice under one bounded deadline. Return only a versioned blocked observation with explicit unresolved obligations; refuse source-run dev, unresolved ingress and changed evidence.
+- [x] Add focused production observer/census and real CLI refusal tests; watch independent source-run, network-member, alternate-ingress, PID-association, evidence-refresh and real-lock guard faults fail. Evidence and limits: [verify-compose-participants.md](verify-compose-participants.md).
+- [ ] Complete positive real-Docker/retained-proof CLI acceptance, independent review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open; this observation enables no activation, receipt, restart-authority control, MCP/client exclusion or continuous participant fencing.

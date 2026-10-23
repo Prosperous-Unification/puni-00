@@ -892,3 +892,27 @@ membership, mount/config/security/network and PID/start/restart identity before
 intent publication. Unsupported privileged, capability-expanded, no-init or
 host-PID containers require attended maintenance or a dedicated daemon; there is
 no BuildKit exemption and this command never stops unrelated services.
+
+## Compose dependency participant observation
+
+After retaining the managed gateway and backend fences above, the dedicated
+read-only inspection uses the same installed environment bundle and layout:
+
+```sh
+bun /home/puni1/wbs/bin/swap.js be --inspect-dependency-participants
+```
+
+It owns the selected deploy lock once and refreshes retained proof and the full
+Docker container/network/process plus live Caddy configuration twice under one
+60-second Docker budget. Mixed tiers, flags and image arguments refuse before
+ordinary planning. Unknown ingress, source-run `wbs-dev-src`, edge DNS/hosts
+overrides, unsupported proxy transports and aliases unavailable on Caddy's
+networks refuse; it never narrows the shared live configuration to one site's
+primary route.
+
+Returned JSON is a version 1 observation with `activation: "blocked"`, hashes
+instead of sensitive inspection/configuration bodies, and unresolved ingress,
+restart authority, MCP, retained clients, host processes and continuous exclusion
+obligations. It publishes no receipt, changes no restart policy, stops no
+application container and reloads no proxy. A successful observation grants no
+activation or deployment bypass; retain all fence evidence for attended recovery.
