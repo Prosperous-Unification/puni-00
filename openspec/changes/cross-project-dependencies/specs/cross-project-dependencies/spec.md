@@ -1402,7 +1402,7 @@ The explicit source-inclusive callable SHALL exclude the whole fixed source dev
 container under the same joint prod/dev owner and continuous solver runtime lock.
 It SHALL inhibit restart, stop the exact captured full ID, and freshly require a
 coherent terminal private PID namespace with PID zero before protected work.
-Typed null/false init SHALL remain supported for this whole-container exclusion.
+Native omitted Init and typed null/false/true Init SHALL remain supported for this whole-container exclusion. Omission SHALL remain absent in the bound host snapshot; own undefined or malformed present values SHALL refuse. Managed namespace admission SHALL continue to require explicit init:true.
 Retained evidence SHALL contain hashes rather than container environment bytes.
 
 Only live opaque source and solver tokens SHALL recognize their exact raw members
@@ -1450,6 +1450,14 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 
 - **WHEN** a running source container retains a historical finish at or before its current start
 - **THEN** whole-source exclusion accepts that lifecycle and still requires a current coherent terminal readback after stopping it
+
+#### Scenario: Native optional source Init preserves exact shape and all namespace guards
+
+- **GIVEN** complete native source inspection omits HostConfig.Init and retains the inherited image entrypoint and supported effective argv
+- **WHEN** the source-only owner boundary observes exclusion
+- **THEN** it accepts omission without adding a key and still requires private PID, restart inhibition, coherent terminal/PID-zero and complete same-inventory recognition
+- **AND** an own undefined or malformed Init, shared PID namespace, unfinished terminal lifecycle or absent-to-present Init shape drift refuses
+- **AND** native mutable-tag substitution still refuses independently before effects; initialized managed participant requirements remain unchanged
 
 ### Requirement: Adopted solver requires explicit ordinary edge policy
 

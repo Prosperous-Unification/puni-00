@@ -1,5 +1,6 @@
 import { type SolverContainer, solverIdentity, solverInspectArgs } from '../src/lib/solver-cohort';
 import { isStoppedSolverUnit, readSolverUnitProjection } from '../src/lib/solver-unit-observation';
+import { FixtureCommandFailure } from './fixture-failure';
 
 /** Fixture transport only: bounded real subprocess, exact argv, no shell expansion. */
 export async function boundedCommand(
@@ -43,7 +44,8 @@ export async function boundedCommand(
       child.exited,
     ]);
     if (abort.aborted) throw new Error('fixture command deadline/cancellation');
-    if (code !== 0) throw new Error(`fixture command ${argv[0]} exit ${String(code)}`);
+    // Proof: typed-command omission lost operation/exit through a real exit-17 subprocess; diagnostic negative failed.
+    if (code !== 0) throw new FixtureCommandFailure(argv, code);
     return stdout;
   } catch (cause) {
     // Proof: malformed UTF8 and deadline tests require rejection without a live pipe child.

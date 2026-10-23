@@ -30,6 +30,8 @@ it('requires real Caddy boundaries in the CI and host test target', () => {
   expect(project.targets['test'].options.command).toContain(
     'test/source-exclusion-topology.test.ts',
   );
+  expect(project.targets['test'].options.command).toContain('test/source-exclusion-native.test.ts');
+  expect(project.targets['test'].options.command).toContain('test/fixture-failure.test.ts');
   expect(project.targets['test'].options.command).not.toContain('test/source-exclusion.ts');
   expect(project.targets['test:source-exclusion'].cache).toBeFalse();
   expect(project.targets['test:source-exclusion'].options.command).toBe(

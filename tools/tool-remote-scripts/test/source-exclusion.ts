@@ -19,6 +19,13 @@ import {
   type SourceDevExclusion,
   withSourceDevExcluded,
 } from '../src/lib/source-dev-exclusion';
+import {
+  describeFixtureFailure,
+  FixtureFailure,
+  type FixtureStage,
+  requireFixtureRefusal,
+  withFixtureStage,
+} from './fixture-failure';
 import { runSolverDrainAcceptance, type SolverDrainFixture } from './solver-drain';
 import { renderManagedParticipant, renderSourceTopology } from './source-exclusion-topology';
 import {
@@ -72,7 +79,9 @@ export async function runSourceExclusionAcceptance(): Promise<void> {
     requireProof(typeof value === 'string', `${source} required`);
     process.env[target] = value;
   }
-  await runSolverDrainAcceptance(runIntegratedFixture);
+  await runSolverDrainAcceptance((fixture) =>
+    withFixtureStage('fixture-images', () => runIntegratedFixture(fixture)),
+  );
 }
 async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> {
   const { token, root, sha, deadline, execute, record } = fixture;
@@ -134,7 +143,8 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
   const sourcePin = pin('SOURCE');
   let tagIntended = false;
   const cleanupFailures: string[] = [];
-  let failure: unknown;
+  let failure: FixtureFailure | undefined;
+  let stage: FixtureStage = 'fixture-files';
   async function actual(id: string): Promise<Record<string, unknown>> {
     const inspected: unknown = parseFixtureInspection(await command(['inspect', id]));
     requireProof(
@@ -307,6 +317,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     };
     for (const [name, contents] of Object.entries(files))
       await writeFile(join(caddy, name), contents, { mode: 0o600, flag: 'wx' });
+    stage = 'fixture-networks';
     for (const physical of networks) {
       physical.intended = true;
       physical.id = readIdentity(
@@ -326,6 +337,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       typeof networkId === 'string' && networkId !== '',
       'physical dev network ID absent',
     );
+    stage = 'fixture-source-create';
     // Only the UUID tag is created; production's mutable source tag is never mutated.
     const existing = await command([
       'image',
@@ -395,6 +407,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
         );
       },
     };
+    stage = 'fixture-managed-create';
     for (const tier of ['be', 'gw'] as const) {
       const image = pin(tier === 'be' ? 'BACKEND' : 'GATEWAY');
       const rendered = renderManagedParticipant(tier, layouts.prod, token);
@@ -433,6 +446,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       'initialized backend fixture write required before exclusion',
     );
     await record('managed-real-writes', { writers });
+    stage = 'fixture-edge-create';
     const caddyPin = pin('CADDY');
     const edgeId = await create(caddyName, caddyPin.reference, caddyPin.id, [
       '--init',
@@ -448,12 +462,16 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       '--mount',
       `type=bind,src=${root}/caddy-config,dst=/config`,
     ]);
+    stage = 'fixture-edge-attach';
     const devNetwork = networks.find((physical) => physical.name === layouts.dev.network);
     requireProof(devNetwork !== undefined, 'planned dev network absent');
     await ownNetwork(devNetwork);
     await effect(['network', 'connect', devNetwork.id, edgeId], edgeId);
+    stage = 'fixture-source-start';
     await start(sourceId);
+    stage = 'fixture-edge-start';
     await start(edgeId);
+    stage = 'fixture-tag-negative';
     const negative = {
       prod: { ...layouts.prod, stateDir: join(root, 'negative-prod') },
       dev: { ...layouts.dev, stateDir: join(root, 'negative-dev') },
@@ -475,19 +493,18 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       'owned tag changed before negative',
     );
     await command(['tag', substitution.reference, sourceTag]);
-    let tagRefused = false;
     try {
-      await withDependencyOwner(
-        { sha, layouts: [negative.prod, negative.dev] },
-        async (owner) => {
-          await withSourceDevExcluded(owner, negative, sha, transport, deadline, () => {
-            throw new Error('tag negative entered callback');
-          });
-        },
-        join(root, 'negative-owner'),
+      await requireFixtureRefusal('fixture-tag-negative', 'source-tag-resolution', () =>
+        withDependencyOwner(
+          { sha, layouts: [negative.prod, negative.dev] },
+          async (owner) => {
+            await withSourceDevExcluded(owner, negative, sha, transport, deadline, () => {
+              throw new Error('tag negative entered callback');
+            });
+          },
+          join(root, 'negative-owner'),
+        ),
       );
-    } catch (cause) {
-      tagRefused = String(cause).includes('mutable image tag resolution');
     } finally {
       requireProof(
         (await command(['image', 'inspect', '--format', '{{.Id}}', sourceTag])).trim() ===
@@ -496,12 +513,12 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       );
       await command(['tag', sourcePin.reference, sourceTag]);
     }
-    requireProof(tagRefused, 'actual source tag substitution was not refused');
     await record('actual-tag-substitution-refused', {
-      tagRefused,
+      tagRefused: true,
       sourceImage: sourcePin.id,
       substitutionImage: substitution.id,
     });
+    stage = 'fixture-source-writes';
     const parent = await waitFile(join(layouts.dev.root, 'data', 'parent'));
     const descendant = await waitFile(join(layouts.dev.root, 'data', 'descendant'));
     await Bun.sleep(100);
@@ -521,6 +538,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       descendantSha256: hash(descendant),
       proof: 'scratch bun run dev namespace only',
     });
+    stage = 'fixture-ingress-readiness';
     await request(edgeId, layouts.prod.siteAddress, 200);
     await request(edgeId, layouts.dev.siteAddress, 200);
     const scans: { id: string; done: boolean; reaped: boolean }[] = [];
@@ -555,6 +573,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       | { owner: Parameters<typeof inspectSourceDevExclusion>[0]; source: SourceDevExclusion }
       | undefined;
     const callback = { finished: false };
+    stage = 'fixture-composition';
     const completion = await excludeSourceAndManagedDependencies(
       { sha, layouts: [layouts.prod, layouts.dev] },
       fixture.pins,
@@ -562,6 +581,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       transport,
       deadline,
       async (owner, source) => {
+        stage = 'fixture-protected-callback';
         retained = { owner, source };
         await request(edgeId, layouts.prod.siteAddress, 503);
         await request(edgeId, layouts.dev.siteAddress, 503);
@@ -611,7 +631,6 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
             `type=bind,src=${unrelatedRoot},dst=/opaque`,
           ],
         );
-        let unrelatedRefused = false;
         try {
           const main = await lstat(join(layouts.prod.root, 'db', 'wbs.db'), { bigint: true });
           const directory = await lstat(join(layouts.prod.root, 'db'), { bigint: true });
@@ -631,28 +650,28 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
               readFields(rawUnrelated)['Name'] === `/source-exclusion-unrelated-${token}`,
             'unrelated negative child omitted from complete census',
           );
-          await auditUnmanagedMounts(
-            [rawUnrelated],
-            { blue: null, green: null },
-            {
-              path: '/data/wbs.db',
-              host: join(layouts.prod.root, 'db', 'wbs.db'),
-              fileIdentity: `${String(main.dev)}:${String(main.ino)}`,
-              directoryIdentity: `${String(directory.dev)}:${String(directory.ino)}`,
-            },
-            pin('BACKEND').reference,
-            transport,
-            deadline,
-            namespace,
+          await requireFixtureRefusal('fixture-protected-callback', 'unrelated-namespace', () =>
+            auditUnmanagedMounts(
+              [rawUnrelated],
+              { blue: null, green: null },
+              {
+                path: '/data/wbs.db',
+                host: join(layouts.prod.root, 'db', 'wbs.db'),
+                fileIdentity: `${String(main.dev)}:${String(main.ino)}`,
+                directoryIdentity: `${String(directory.dev)}:${String(directory.ino)}`,
+              },
+              pin('BACKEND').reference,
+              transport,
+              deadline,
+              namespace,
+            ),
           );
-        } catch (cause) {
-          unrelatedRefused = String(cause).includes('no running namespace');
         } finally {
           await effect(['rm', unrelated], unrelated);
         }
-        requireProof(unrelatedRefused, 'planned unrelated stopped mount was omitted or admitted');
-        await record('unrelated-mounted-child-refused', { id: unrelated, unrelatedRefused });
+        await record('unrelated-mounted-child-refused', { id: unrelated, unrelatedRefused: true });
         callback.finished = true;
+        stage = 'fixture-composition';
         return 'protected-interval-completed';
       },
       namespace,
@@ -665,13 +684,12 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       'real namespace scanner DONE/REAPED absent',
     );
     requireProof(retained !== undefined, 'source token not captured');
-    let expired = false;
-    try {
-      await inspectSourceDevExclusion(retained.owner, retained.source);
-    } catch (cause) {
-      expired = String(cause).includes('source dev exclusion is not live for owner');
-    }
-    requireProof(expired, 'source token survived callback expiry');
+    const expiredToken = retained;
+    stage = 'fixture-token-expiry';
+    await requireFixtureRefusal('fixture-token-expiry', 'source-token-expired', () =>
+      inspectSourceDevExclusion(expiredToken.owner, expiredToken.source),
+    );
+    const expired = true;
     await record('integrated-completion', {
       completion,
       scans,
@@ -682,7 +700,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       networkId,
     });
   } catch (cause) {
-    failure = cause;
+    failure = cause instanceof FixtureFailure ? cause : new FixtureFailure(stage, cause);
   } finally {
     cleaning = true;
     cleanupDeadline = performance.now() + 60000;
@@ -708,7 +726,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
           await effect(['rm', '--force', id], id);
         }
       } catch (cause) {
-        cleanupFailures.push(String(cause));
+        cleanupFailures.push(describeFixtureFailure(cause, 'fixture-component-cleanup'));
       }
     }
     if (tagIntended)
@@ -720,7 +738,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
         );
         await command(['image', 'rm', sourceTag]);
       } catch (cause) {
-        cleanupFailures.push(String(cause));
+        cleanupFailures.push(describeFixtureFailure(cause, 'fixture-component-cleanup'));
       }
     for (const physical of networks)
       if (physical.intended)
@@ -728,7 +746,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
           const owned = await ownNetwork(physical);
           await command(['network', 'rm', readIdentity(owned['Id'])]);
         } catch (cause) {
-          cleanupFailures.push(String(cause));
+          cleanupFailures.push(describeFixtureFailure(cause, 'fixture-component-cleanup'));
         }
     try {
       const remaining = (
@@ -750,14 +768,18 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
         'unexpected labelled component survived cleanup',
       );
     } catch (cause) {
-      cleanupFailures.push(String(cause));
+      cleanupFailures.push(describeFixtureFailure(cause, 'fixture-component-cleanup'));
     }
     await record('component-cleanup', { cleanupFailures, networks, created });
   }
   if (cleanupFailures.length > 0)
-    throw new AggregateError([failure, ...cleanupFailures], 'integrated cleanup failed');
-  if (failure !== undefined)
-    throw new Error('integrated source exclusion acceptance failed', { cause: failure });
+    throw new FixtureFailure(
+      'fixture-component-cleanup',
+      new AggregateError([failure, ...cleanupFailures], 'integrated cleanup failed', {
+        cause: failure,
+      }),
+    );
+  if (failure !== undefined) throw failure;
   // Private runtime/state/source trees remain alongside hash-only receipts for attended review.
   await record('private-evidence', { files: await readdir(root) });
 }

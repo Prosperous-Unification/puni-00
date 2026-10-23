@@ -10,6 +10,7 @@ import { withDependencyOwner } from '../src/lib/edge-ownership';
 import { envLayout, sourceDevContract } from '../src/lib/env';
 import { inspectManagedCohort } from '../src/lib/managed-cohort';
 import { withSourceDevExcluded } from '../src/lib/source-dev-exclusion';
+import { requireFixtureRefusal } from './fixture-failure';
 import { renderManagedParticipant, renderSourceTopology } from './source-exclusion-topology';
 
 async function fixture() {
@@ -161,4 +162,24 @@ test('rendered stopped gateway remains admissible in strict ordinary unmanaged m
     },
   );
   expect(f.gw.State.Running).toBe(false);
+});
+
+test('strict ordinary stopped namespace refusal retains its closed fixture category', async () => {
+  const f = await fixture();
+  await mkdir(`${f.root}/opaque`);
+  f.gw.Mounts = [{ Type: 'bind', Source: `${f.root}/opaque`, Destination: '/opaque', RW: true }];
+  const diagnostic = await requireFixtureRefusal(
+    'fixture-protected-callback',
+    'unrelated-namespace',
+    () =>
+      auditUnmanagedMounts(
+        [f.gw],
+        { blue: null, green: null },
+        f.database,
+        f.be.Config.Image,
+        f.docker,
+        performance.now() + 5000,
+      ),
+  );
+  expect(diagnostic.chain[0]?.category).toBe('unrelated-namespace');
 });

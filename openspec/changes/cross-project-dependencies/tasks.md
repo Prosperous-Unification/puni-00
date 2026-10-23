@@ -885,3 +885,8 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 
 - [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).
 - [ ] XS2 Integrate reviewed ordinary policy and typed refusal-terminal packets, complete independent runner review, then execute only the root-authorized exact SHA and record physical evidence. X5b/D5b/S1/S2/O4 and parent 10.2 remain open.
+
+### Native source shape and bounded diagnostic correction
+
+- [x] X7a Model native omitted source Init without manufacturing a field; prove inherited full-native owner/tag behavior, malformed present values, private PID/terminal guards and shape drift. Preserve managed init:true. Add private bounded stage/category/command-exit cause diagnostics and strict expected-refusal recovery, with configured local suites and watched faults. [Local receipt](verify-source-native-init.md).
+- [ ] X7b Independently review the exact corrected source SHA and complete the separately authorized physical rerun. The first physical failure's exact cause remains unverified; no source acceptance or parent 10.2 completion is claimed.

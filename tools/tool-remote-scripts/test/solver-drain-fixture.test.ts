@@ -4,8 +4,9 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
-import { initializeOrdinaryEdgePolicy } from '../src/lib/edge-policy';
+import { initializeOrdinaryEdgePolicy, readOrdinaryEdgePolicy } from '../src/lib/edge-policy';
 import { withSolverRuntimeAdmission } from '../src/lib/solver-runtime-admission';
+import { summarizeFixtureFailure } from './fixture-failure';
 
 async function waitFor(path: string): Promise<void> {
   const deadline = performance.now() + 3000;
@@ -117,7 +118,19 @@ test('policy creator refuses missing policy before reading its missing manifest'
       { env: { ...process.env, WBS_EDGE_STATE: edge }, stdout: 'ignore', stderr: 'ignore' },
     );
     expect(await child.exited).toBe(1);
-    expect(await readFile(join(root, 'refused.json'), 'utf8')).toContain('edge-policy.json');
+    let policyCause: unknown;
+    try {
+      await readOrdinaryEdgePolicy(edge);
+    } catch (cause) {
+      policyCause = cause;
+    }
+    expect(policyCause).toBeInstanceOf(Error);
+    const expected = summarizeFixtureFailure(policyCause);
+    const receipt = await readFile(join(root, 'refused.json'), 'utf8');
+    const expectedHash = expected.chain.at(0)?.fingerprint;
+    if (expectedHash === undefined) throw new Error('expected policy failure fingerprint absent');
+    expect(receipt).toContain(expectedHash);
+    expect(receipt).not.toContain('edge-policy.json');
     expect(await Bun.file(join(root, 'ready.json')).exists()).toBe(false);
   } finally {
     await rm(root, { recursive: true });
@@ -141,6 +154,53 @@ test('creator ordinary manifest failure exits 1 with a startup-error reason', as
     expect(JSON.parse(await readFile(join(root, 'refused.json'), 'utf8'))).toMatchObject({
       reason: 'startup-error',
     });
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+test('creator malformed manifest diagnostic never retains JSON payloads', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'solver-creator-private-'));
+  const edge = join(root, 'edge');
+  await mkdir(edge);
+  try {
+    await writeFile(
+      join(root, 'manifest.json'),
+      '{"PRIVATE_JSON_CONFIG": MALFORMED_PRIVATE_SENTINEL}',
+    );
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        join(import.meta.dir, 'solver-drain-fixture.ts'),
+        `--config=${join(root, 'config.json')}`,
+      ],
+      { env: { ...process.env, WBS_EDGE_STATE: edge }, stdout: 'ignore', stderr: 'ignore' },
+    );
+    expect(await child.exited).toBe(1);
+    const receipt = await readFile(join(root, 'refused.json'), 'utf8');
+    expect(receipt).not.toContain('MALFORMED_PRIVATE_SENTINEL');
+    expect(receipt).not.toContain('PRIVATE_JSON_CONFIG');
+    expect(receipt).toContain('fingerprint');
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+test('creator invalid CLI exits with a private diagnostic instead of an arbitrary error string', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'solver-creator-cli-'));
+  try {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        join(import.meta.dir, 'solver-drain-fixture.ts'),
+        '--PRIVATE_CREDENTIAL_ARGUMENT',
+      ],
+      { env: { ...process.env, WBS_EDGE_STATE: root }, stdout: 'ignore', stderr: 'pipe' },
+    );
+    const stderr = await new Response(child.stderr).text();
+    expect(await child.exited).toBe(1);
+    expect(stderr).not.toContain('PRIVATE_CREDENTIAL_ARGUMENT');
+    expect(stderr).toContain('fingerprint');
   } finally {
     await rm(root, { recursive: true });
   }

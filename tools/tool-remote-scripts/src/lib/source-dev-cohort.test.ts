@@ -101,3 +101,31 @@ test('source running after restart retains coherent historical finish time', () 
   source.State.FinishedAt = '2026-10-23T00:01:00Z';
   expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('timestamp lifecycle');
 });
+
+test('source decoder preserves native omitted Init without manufacturing a value', () => {
+  const source = sourceFixture();
+  Reflect.deleteProperty(source.HostConfig, 'Init');
+  const member = decodeSourceDev(source, envLayout('dev'));
+  expect(Object.hasOwn(member.host, 'Init')).toBe(false);
+});
+for (const invalid of [undefined, 'false', 0])
+  test(`source decoder rejects own malformed Init ${String(invalid)}`, () => {
+    const source = sourceFixture();
+    Reflect.set(source.HostConfig, 'Init', invalid);
+    expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('typed init');
+  });
+for (const mode of ['host', 'container:other'])
+  test(`source omitted Init still refuses shared PID ${mode}`, () => {
+    const source = sourceFixture();
+    Reflect.deleteProperty(source.HostConfig, 'Init');
+    source.HostConfig.PidMode = mode;
+    expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('private PID');
+  });
+test('source omitted Init still refuses unfinished terminal lifecycle', () => {
+  const source = sourceFixture();
+  Reflect.deleteProperty(source.HostConfig, 'Init');
+  source.State.Running = false;
+  source.State.Pid = 0;
+  source.State.Status = 'exited';
+  expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('timestamp lifecycle');
+});

@@ -7,6 +7,7 @@ import {
   withSolverRuntimeAdmission,
 } from '../src/lib/solver-runtime-admission';
 import { parseSolverSupervisorArgs } from '../src/solver-supervisor';
+import { describeFixtureFailure } from './fixture-failure';
 import { boundedCommand } from './solver-drain-transport';
 
 /** Disposable creator: no supervisor listener, adoption or global orphan sweep. */
@@ -54,13 +55,18 @@ if (import.meta.main) {
     await runCreator();
   } catch (cause) {
     const argument = process.argv.at(2);
-    if (!argument?.startsWith('--config=/')) throw cause;
+    if (!argument?.startsWith('--config=/')) {
+      // Proof: creator-cli-privacy fault lost the private diagnostic; invalid-CLI negative failed.
+      console.error(describeFixtureFailure(cause));
+      process.exit(1);
+    }
     await writeFile(
       join(dirname(argument.slice('--config='.length)), 'refused.json'),
       JSON.stringify({
         pid: process.pid,
         reason: isRetainedEdgeOwnerRefusal(cause) ? cause.reason : 'startup-error',
-        error: String(cause),
+        // Proof: creator-receipt-privacy fault retained raw JSON diagnostics; malformed-manifest negative failed.
+        error: describeFixtureFailure(cause),
       }),
       { mode: 0o600 },
     );

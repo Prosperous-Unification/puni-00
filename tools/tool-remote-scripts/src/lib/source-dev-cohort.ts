@@ -25,7 +25,11 @@ export interface SourceDevMember {
   state: Record<string, unknown>;
 }
 
-/** Fixed source contract admits no-init containers because whole private namespace extinction supplies exclusion. */
+/**
+ * Fixed source contract admits native omitted/null/boolean Init because whole private PID
+ * namespace extinction supplies exclusion. Omission remains absent in the captured host;
+ * changing its presence or value is identity drift. Managed namespace scanners still require init:true.
+ */
 export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMember {
   const container = readFields(raw);
   const contract = sourceDevContract(layout);
@@ -62,9 +66,15 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
   assertSame(argv.slice(1), container['Args'], 'source dev effective arguments');
   const host = readFields(container['HostConfig']);
   const caps = host['CapAdd'];
-  // Proof: source decoder PID sharing negatives reject host and container namespaces.
+  // Proof: absent-init and own-undefined-init faults failed native owner/decoder negatives;
+  // manufactured-init failed exact omitted-shape preservation. PID sharing negatives remain mandatory.
   if (
-    !(host['Init'] === null || host['Init'] === false || host['Init'] === true) ||
+    !(
+      !Object.hasOwn(host, 'Init') ||
+      host['Init'] === null ||
+      host['Init'] === false ||
+      host['Init'] === true
+    ) ||
     host['PidMode'] !== '' ||
     host['Privileged'] !== false ||
     !(caps === null || (Array.isArray(caps) && caps.length === 0))

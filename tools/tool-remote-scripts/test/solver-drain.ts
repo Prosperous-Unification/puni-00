@@ -35,6 +35,7 @@ import {
   SOLVER_SUPERVISOR_UNIT,
 } from '../src/lib/solver-supervisor-install-contract';
 import { observeSolverUnit } from '../src/lib/solver-unit-observation';
+import { describeFixtureFailure, summarizeFixtureFailure } from './fixture-failure';
 import {
   assertFixtureContainer,
   assertFixtureStoppedUnit,
@@ -195,8 +196,7 @@ export async function runSolverDrainAcceptance(
   let unitIntended = false;
   let failure: unknown;
   const cleanupFailures: string[] = [];
-  const describe = (cause: unknown) =>
-    cause instanceof Error ? `${cause.name}: ${cause.message}` : JSON.stringify(cause);
+  const describe = describeFixtureFailure;
   async function record(label: string, proof: unknown): Promise<void> {
     observations.push({ label, proof });
     await receiptFile.truncate(0);
@@ -212,7 +212,7 @@ export async function runSolverDrainAcceptance(
           imageId,
           attempts,
           observations,
-          failure: failure === undefined ? null : describe(failure),
+          failure: failure === undefined ? null : summarizeFixtureFailure(failure),
           cleanupFailures,
         },
         null,
@@ -598,7 +598,7 @@ export async function runSolverDrainAcceptance(
       try {
         await action();
       } catch (cause) {
-        cleanupFailures.push(`${label}: ${describe(cause)}`);
+        cleanupFailures.push(`${label}: ${describe(cause, 'fixture-solver-cleanup')}`);
       }
     }
     if (unitIntended)
