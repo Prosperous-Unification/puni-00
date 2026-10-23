@@ -1,5 +1,8 @@
 import { classifyPlanDocument } from '@wbs/core/module/plan-document/plan-document.resource';
-import { afterEach, expect, test } from 'bun:test';
+import { DrizzleEventLogStore } from '@wbs/store-sqlite';
+import { afterEach, expect, spyOn, test } from 'bun:test';
+// eslint-disable-next-line no-restricted-imports -- this test inspects the borrowed Drizzle transaction before its injected recording failure.
+import { sql } from 'drizzle-orm';
 
 import { connectedTransferFixture, transferSnapshot } from '../testing/connected-transfer-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -725,3 +728,233 @@ for (const mapped of [false, true])
     }
     expect(snapshotHistory()).toEqual(histories);
   });
+
+/**
+ * Proof: bypassing ImportedPlanResource's endpoint-shape refusal made both
+ * shape cases throw instead of returning their indexed modeled refusal.
+ * Bypassing its complete graph refusal admitted the current-cycle case.
+ * Returning commit:true for dependencyRefusal in ImportService leaked staged
+ * rows in the missing-step snapshot (independent faults, 2026-10-23).
+ */
+for (const fault of [
+  'missing-row',
+  'missing-step',
+  'node-on-parent',
+  'descendant-on-leaf',
+  'cycle',
+] as const)
+  test(`downloaded artifact refuses current ${fault} with indexed diagnosis and no effects`, async () => {
+    let pushes = 0;
+    harness = OrganizationHarness.openComposedWith({
+      syntheticTransferImports: true,
+      pushFetch: () => {
+        pushes += 1;
+        return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+      },
+    });
+    const { remote, source } = await connectedTransferFixture(harness);
+    if (fault === 'cycle') {
+      harness.sqlite
+        .query(
+          "DELETE FROM external_dependency WHERE successor_project_id=? AND id<>'incoming-node-a'",
+        )
+        .run(source.projectId);
+      harness.sqlite.query('DELETE FROM typed_dependency WHERE project_id=?').run(source.projectId);
+      harness.sqlite.query('DELETE FROM dependency WHERE project_id=?').run(source.projectId);
+    }
+    const downloaded = await exported(source.projectId);
+    const stepId = remote.stepIds.at(0);
+    if (stepId === undefined) throw new Error('fixture remote step absent');
+    if (fault === 'missing-row') {
+      harness.sqlite
+        .query('UPDATE work_item SET parent_id=? WHERE id=?')
+        .run(remote.parentId, remote.tailId);
+      harness.sqlite
+        .query(
+          'DELETE FROM external_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=?',
+        )
+        .run(remote.leafId, remote.leafId);
+      harness.sqlite
+        .query(
+          'DELETE FROM typed_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=?',
+        )
+        .run(remote.leafId, remote.leafId);
+      harness.sqlite
+        .query('DELETE FROM dependency WHERE predecessor_id=? OR successor_id=?')
+        .run(remote.leafId, remote.leafId);
+      harness.sqlite.query('DELETE FROM estimate WHERE work_item_id=?').run(remote.leafId);
+      harness.sqlite.query('DELETE FROM work_item WHERE id=?').run(remote.leafId);
+    } else if (fault === 'missing-step') {
+      harness.sqlite
+        .query('DELETE FROM external_dependency WHERE predecessor_step_id=? OR successor_step_id=?')
+        .run(stepId, stepId);
+      harness.sqlite
+        .query('DELETE FROM typed_dependency WHERE predecessor_step_id=? OR successor_step_id=?')
+        .run(stepId, stepId);
+      harness.sqlite.query('DELETE FROM estimate WHERE step_id=?').run(stepId);
+      harness.sqlite.query('DELETE FROM step WHERE id=?').run(stepId);
+    } else if (fault === 'node-on-parent') {
+      harness.sqlite
+        .query(
+          "INSERT INTO work_item(id,project_id,parent_id,position,name,created_at,updated_at) VALUES ('new-child',?,?,0,'New child',1,1)",
+        )
+        .run(remote.projectId, remote.leafId);
+    } else if (fault === 'descendant-on-leaf') {
+      harness.sqlite.query('UPDATE work_item SET parent_id=NULL WHERE id=?').run(remote.leafId);
+    } else {
+      // The persisted remote node already reaches its tail. This reverse edge
+      // corrupts that real component; copied outgoing history is never an edge.
+      harness.sqlite
+        .query(
+          "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('late-cycle',?,?,?,'whole','whole','FS')",
+        )
+        .run(remote.projectId, remote.tailId, remote.leafId);
+    }
+    const index = downloaded.classified.typedDependencies.findIndex(({ predecessor }) => {
+      if (!('kind' in predecessor) || predecessor.kind !== 'external') return false;
+      if (fault === 'cycle') return true;
+      if (fault === 'missing-row') return predecessor.workItemId === remote.leafId;
+      if (fault === 'descendant-on-leaf') return predecessor.scope === 'descendant-step';
+      return (
+        predecessor.scope !== 'whole' &&
+        predecessor.stepId === stepId &&
+        (fault === 'missing-step' || predecessor.scope === 'node')
+      );
+    });
+    expect(index).toBeGreaterThanOrEqual(0);
+    const before = transferSnapshot(harness);
+    pushes = 0;
+    const admitted = await importTransfer(downloaded.classified);
+    expect(admitted).toEqual({
+      ok: false,
+      code:
+        fault === 'missing-row' || fault === 'missing-step'
+          ? 'unknown_ref'
+          : 'invalid_typed_dependency',
+      path: `typedDependencies[${String(index)}]${fault === 'cycle' ? '' : '.predecessor'}`,
+      detail:
+        fault === 'node-on-parent'
+          ? 'node_on_parent'
+          : fault === 'descendant-on-leaf'
+            ? 'descendant_step_on_leaf'
+            : fault === 'cycle'
+              ? 'cycle'
+              : null,
+    });
+    expect(transferSnapshot(harness)).toEqual(before);
+    expect(pushes).toBe(0);
+  });
+
+/**
+ * Proof: replacing the catch-path ROLLBACK with COMMIT in sqliteUnitOfWork
+ * retained the imported project/rows/links and predecessor revisions, failing
+ * the complete-table snapshot after the injected durable-event error (2026-10-23).
+ */
+test('downloaded artifact rolls back staged import and first durable elsewhere event on recording failure', async () => {
+  let pushes = 0;
+  harness = OrganizationHarness.openComposedWith({
+    syntheticTransferImports: true,
+    pushFetch: () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
+  });
+  const { remote, source } = await connectedTransferFixture(harness);
+  const downloaded = await exported(source.projectId);
+  const before = transferSnapshot(harness);
+  const revisions = harness.sqlite
+    .query<{ id: string; revision: number }, [string]>(
+      'SELECT id,revision FROM work_item WHERE project_id=? ORDER BY id',
+    )
+    .all(remote.projectId);
+  const originalProjects = new Set(
+    harness.sqlite
+      .query<{ id: string }, []>('SELECT id FROM project')
+      .all()
+      .map(({ id }) => id),
+  );
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- the spy invokes the original with its actual store receiver.
+  const recordEventIn = DrizzleEventLogStore.prototype.recordEventIn;
+  let injected = false;
+  pushes = 0;
+  const recording = spyOn(DrizzleEventLogStore.prototype, 'recordEventIn').mockImplementation(
+    function (this: DrizzleEventLogStore, ...args) {
+      const recorded = recordEventIn.apply(this, args);
+      if (
+        typeof args[2] !== 'object' ||
+        args[2] === null ||
+        !('type' in args[2]) ||
+        args[2].type !== 'elsewhere_changed'
+      )
+        return recorded;
+      injected = true;
+      const tx = args[0];
+      const copied = tx
+        .all<{ id: string }>(sql`SELECT id FROM project`)
+        .find(({ id }) => !originalProjects.has(id));
+      if (copied === undefined) throw new Error('staged import project absent');
+      expect(tx.all(sql`SELECT * FROM work_item WHERE project_id=${copied.id}`)).toHaveLength(3);
+      expect(tx.all(sql`SELECT * FROM step WHERE project_id=${copied.id}`)).toHaveLength(
+        source.stepIds.length,
+      );
+      expect(
+        tx.all(sql`SELECT * FROM project_abbreviation WHERE project_id=${copied.id}`),
+      ).toHaveLength(1);
+      expect(
+        tx.all(sql`SELECT * FROM project_organization WHERE resource_id=${copied.id}`),
+      ).toHaveLength(1);
+      expect(
+        tx.all(sql`SELECT * FROM typed_dependency WHERE project_id=${copied.id}`),
+      ).toHaveLength(1);
+      expect(tx.all(sql`SELECT * FROM dependency WHERE project_id=${copied.id}`)).toHaveLength(1);
+      expect(
+        tx.all(sql`SELECT * FROM external_dependency WHERE successor_project_id=${copied.id}`),
+      ).toHaveLength(5);
+      for (const row of revisions) {
+        const count = tx.get<{ count: number }>(
+          sql`SELECT count(*) AS count FROM external_dependency WHERE successor_project_id=${copied.id} AND predecessor_work_item_id=${row.id}`,
+        );
+        expect(
+          tx.get<{ revision: number }>(sql`SELECT revision FROM work_item WHERE id=${row.id}`),
+        ).toEqual({
+          revision: row.revision + count.count,
+        });
+      }
+      for (const name of ['project_abbreviation_counter', 'event_log', 'event_sequencer']) {
+        const staged = tx
+          .all(sql.raw(`SELECT * FROM ${name}`))
+          .map((row) => JSON.stringify(row))
+          .sort();
+        expect(staged).not.toEqual(before.find((table) => table.name === name)?.rows);
+      }
+      expect(
+        tx.get<{ message: string }>(
+          sql`SELECT message FROM event_log WHERE subscription=${recorded.subscription} AND seq=${recorded.seq}`,
+        ),
+      ).toEqual({ message: JSON.stringify(args[2]) });
+      expect(
+        tx.get<{ next_seq: number }>(
+          sql`SELECT next_seq FROM event_sequencer WHERE subscription=${recorded.subscription}`,
+        ),
+      ).toEqual({ next_seq: recorded.seq + 1 });
+      expect(pushes).toBe(0);
+      throw new Error('injected after durable elsewhere insertion');
+    },
+  );
+  try {
+    await importTransfer(downloaded.classified).then(
+      () => {
+        throw new Error('expected injected recording failure');
+      },
+      (cause: unknown) => {
+        expect(cause).toBeInstanceOf(Error);
+        expect(cause).toMatchObject({ message: 'injected after durable elsewhere insertion' });
+      },
+    );
+  } finally {
+    recording.mockRestore();
+  }
+  expect(injected).toBe(true);
+  expect(transferSnapshot(harness)).toEqual(before);
+  expect(pushes).toBe(0);
+});
