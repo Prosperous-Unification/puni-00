@@ -2,12 +2,14 @@
 // the schema Job has 512 MiB for its parent and CLI together (2026-10-23).
 import {
   type DependencyActivation,
+  type DependencyActivationReceipt,
   parseDependencyReceipt,
 } from '@wbs/contracts/dependency-runtime';
 import type { ExternalDependencyAuthoring } from '@wbs/core';
 import { sql } from 'drizzle-orm';
 
-import type { Drizzle } from './db';
+import { type Drizzle, openExistingConnection } from './db';
+import { readMigrationFolders } from './migrate-down';
 
 const MIGRATION = '20261022212000_add_cross_project_dependency_activation';
 const MARKER = `CREATE TABLE cross_project_dependency_activation (
@@ -112,4 +114,76 @@ export function readDependencyAuthoring(db: Drizzle): ExternalDependencyAuthorin
       return inspectDependencyActivation(db).state === 'ENABLED' ? 'active' : 'inactive';
     },
   };
+}
+
+/**
+ * Persists already validated exact owner attribution and ENABLED authority atomically.
+ * Owns an existing-only connection and BEGIN IMMEDIATE; never nests a caller transaction,
+ * creates a database, disables authority or dispatches deployment work. Identical retries
+ * return the same durable authority; conflicting attribution and corrupt trusted state throw.
+ * The supplied migration folder must be the owner's pinned candidate migration artifact.
+ *
+ * Only the deployment owner may dispatch this after actual complete continuous participant
+ * fencing and durable activation intent. This storage primitive grants no participant-proof,
+ * adoption or activation permission. Its readback is inside the write transaction; the owner
+ * must independently inspect committed authority after dispatch while retaining all fences.
+ */
+export function activateDependencies(
+  dbPath: string,
+  migrationsFolder: string,
+  receipt: DependencyActivationReceipt,
+): Extract<DependencyActivation, { state: 'ENABLED' }> {
+  // Proof: substituting a creating connection made the absent-database negative create a file (2026-10-23).
+  const connection = openExistingConnection(dbPath);
+  try {
+    const { db } = connection;
+    // Proof: removing transaction controls left a receipt after the injected marker-flip failure (2026-10-23).
+    db.run('BEGIN IMMEDIATE');
+    try {
+      const migrations = readMigrationFolders(migrationsFolder);
+      const ledger = db.all<{ name: unknown; hash: unknown }>(
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+      );
+      // Proof: removing this guard admitted edited/missing/duplicate/unknown ledger identities;
+      // removing external identity membership admitted omission from both artifact and ledger (2026-10-23).
+      if (
+        !migrations.some(
+          (migration) => migration.name === '20261022211000_add_external_dependencies',
+        ) ||
+        ledger.length !== migrations.length ||
+        migrations.some(
+          (migration, index) =>
+            migration.name !== ledger[index]?.name || migration.hash !== ledger[index]?.hash,
+        )
+      )
+        throw new Error('dependency activation migration identities differ');
+      const authority = inspectDependencyActivation(db);
+      // The owner has already validated receipt; field order comes from the shared decoder.
+      const serialized = JSON.stringify(parseDependencyReceipt(receipt));
+      if (authority.state === 'ENABLED') {
+        // Proof: removing equality admitted the conflicting activationId negative (2026-10-23).
+        if (JSON.stringify(authority.receipt) !== serialized)
+          throw new Error('conflicting dependency activation receipt');
+        db.run('COMMIT');
+        return authority;
+      }
+      db.run(
+        sql`INSERT INTO cross_project_dependency_activation_receipt (id,receipt) VALUES (1,${serialized})`,
+      );
+      db.run(
+        "UPDATE cross_project_dependency_activation SET state='ENABLED' WHERE id=1 AND state='DISABLED'",
+      );
+      const admitted = inspectDependencyActivation(db);
+      // Proof: removing equality committed the trigger-rewritten activationId in receipt-readback failure (2026-10-23).
+      if (admitted.state !== 'ENABLED' || JSON.stringify(admitted.receipt) !== serialized)
+        throw new Error('dependency activation receipt readback differs');
+      db.run('COMMIT');
+      return admitted;
+    } catch (cause) {
+      db.run('ROLLBACK');
+      throw cause;
+    }
+  } finally {
+    connection.close();
+  }
 }
