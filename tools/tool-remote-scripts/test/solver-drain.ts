@@ -31,12 +31,13 @@ import {
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_UNIT,
 } from '../src/lib/solver-supervisor-install-contract';
+import { observeSolverUnit } from '../src/lib/solver-unit-observation';
 import {
   assertFixtureContainer,
   assertFixtureUnitAuthority,
   boundedCommand,
-  FIXTURE_UNIT_PROPERTIES,
   removeFixtureContainer,
+  runFixtureDockerCommand,
   runFixtureEffect,
   scopeDiscovery,
   translateExecution,
@@ -95,7 +96,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
     ).trim() === '',
     'relevant source must be committed and clean',
   );
-  for (const executable of ['docker', 'systemctl', '/bin/sleep', '/bin/rm'])
+  for (const executable of ['docker', 'systemctl', 'busctl', '/bin/sleep', '/bin/rm'])
     requireProof(Bun.which(executable) !== null, `required tool unavailable: ${executable}`);
   const imageId = (
     await command(['docker', 'image', 'inspect', '--format', '{{.Id}}', image])
@@ -286,15 +287,9 @@ export async function runSolverDrainAcceptance(): Promise<void> {
   }
   let physicalGroup = '';
   let logicalGroup = '';
-  async function show(): Promise<string> {
+  async function show(signal?: AbortSignal): Promise<string> {
     await assertUnitFile();
-    const output = await execute([
-      'systemctl',
-      '--user',
-      'show',
-      service,
-      ...FIXTURE_UNIT_PROPERTIES.map((property) => `--property=${property}`),
-    ]);
+    const output = await observeSolverUnit(service, execute, signal);
     const fields = new Map<string, string>();
     for (const line of output.trimEnd().split('\n')) {
       const equals = line.indexOf('=');
@@ -352,7 +347,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
       ['systemctl', '--user', action, service],
       service,
       async () => {
-        await show();
+        await show(signal);
       },
       (argv) => execute(argv, signal),
     );
@@ -451,7 +446,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
         return { ...observed, path };
       },
       runHost: async (request, signal) => {
-        if (request.kind === 'show') return show();
+        if (request.kind === 'show') return show(signal);
         await unitEffect('stop', signal);
         await recoverInventory();
         requireProof(
@@ -503,13 +498,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
         );
         const id = args.at(-1);
         requireProof(id !== undefined, 'exact ID missing');
-        requireProof(
-          [solverInspectArgs(id).slice(1), ['kill', id], ['wait', id]].some(
-            (expected) => JSON.stringify(args) === JSON.stringify(expected),
-          ),
-          'unexpected exact-ID argv',
-        );
-        return runFixtureEffect(args, id, ownContainer, (guarded) =>
+        return runFixtureDockerCommand(args, id, ownContainer, (guarded) =>
           execute(['docker', ...guarded], signal),
         );
       },

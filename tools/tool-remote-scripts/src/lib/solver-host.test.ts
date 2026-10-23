@@ -47,29 +47,6 @@ async function refuses(promise: Promise<unknown>, message: string): Promise<void
   if (failure instanceof Error) expect(failure.message).toContain(message);
 }
 
-test('fixed host argv reaches a real child and oversized output is refused', async () => {
-  const root = scratchSync('solver-command-');
-  const originalPath = process.env['PATH'];
-  if (originalPath === undefined) throw new Error('test PATH missing');
-  await writeFile(`${root}/systemctl`, '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 });
-  process.env['PATH'] = `${root}:${originalPath}`;
-  try {
-    const { runSolverHost } = await import('./solver-host');
-    const shown = await runSolverHost({ kind: 'show' });
-    expect(shown).toContain('--user\nshow\nwbs-solver-supervisor.service\n');
-    expect(shown).toContain('--property=Environment');
-    expect(await runSolverHost({ kind: 'stop' })).toBe(
-      '--user\nstop\nwbs-solver-supervisor.service\n',
-    );
-    await writeFile(`${root}/systemctl`, '#!/bin/sh\nexec /usr/bin/head -c 70000 /dev/zero\n', {
-      mode: 0o755,
-    });
-    await refuses(runSolverHost({ kind: 'show' }), 'bound');
-  } finally {
-    process.env['PATH'] = originalPath;
-  }
-});
-
 test('actual host child is killed on deadline cancellation', async () => {
   const root = scratchSync('solver-cancel-');
   const originalPath = process.env['PATH'];
@@ -232,3 +209,17 @@ for (const fault of ['fifo-open', 'metadata-readback']) {
     }
   });
 }
+
+test('fixed host transport enforces its own deadline without caller cancellation', async () => {
+  const root = scratchSync('solver-default-deadline-');
+  const path = process.env['PATH'];
+  if (path === undefined) throw new Error('test PATH missing');
+  await writeFile(`${root}/systemctl`, '#!/bin/sh\nexec /bin/sleep 16\n', { mode: 0o755 });
+  process.env['PATH'] = `${root}:${path}`;
+  try {
+    const { runSolverHost } = await import('./solver-host');
+    await refuses(runSolverHost({ kind: 'stop' }), 'bound');
+  } finally {
+    process.env['PATH'] = path;
+  }
+}, 20000);

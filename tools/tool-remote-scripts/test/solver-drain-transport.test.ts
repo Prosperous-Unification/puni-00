@@ -1,6 +1,11 @@
 import { expect, test } from 'bun:test';
 
-import { boundedCommand, scopeDiscovery, translateExecution } from './solver-drain-transport';
+import {
+  boundedCommand,
+  runFixtureDockerCommand,
+  scopeDiscovery,
+  translateExecution,
+} from './solver-drain-transport';
 
 test('discovery retains original census and adds only owner filter', () => {
   const census = [
@@ -280,4 +285,46 @@ test('effective preflight blocks actual guarded unit start and cleanup stop effe
       );
       expect(effects).toBe(0);
     }
+});
+
+test('native full inspect remains unchanged and ownership guarded in the runner transport', async () => {
+  const id = 'a'.repeat(64);
+  const run = (args: string[]) => boundedCommand(['/bin/printf', '%s', JSON.stringify(args)], 1000);
+  expect(await runFixtureDockerCommand(['inspect', id], id, () => Promise.resolve(), run)).toBe(
+    JSON.stringify(['inspect', id]),
+  );
+  let executed = false;
+  for (const args of [
+    ['inspect', '--all'],
+    ['inspect', id, 'foreign'],
+  ]) {
+    let refused = false;
+    try {
+      await runFixtureDockerCommand(
+        args,
+        id,
+        () => Promise.resolve(),
+        () => {
+          executed = true;
+          return Promise.resolve('');
+        },
+      );
+    } catch {
+      refused = true;
+    }
+    expect(refused).toBe(true);
+  }
+  await refuses(
+    runFixtureDockerCommand(
+      ['inspect', id],
+      id,
+      () => Promise.reject(new Error('foreign owner')),
+      () => {
+        executed = true;
+        return Promise.resolve('');
+      },
+    ),
+    'foreign owner',
+  );
+  expect(executed).toBe(false);
 });

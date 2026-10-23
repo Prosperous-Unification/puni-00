@@ -1,4 +1,4 @@
-import { type SolverContainer, solverIdentity } from '../src/lib/solver-cohort';
+import { type SolverContainer, solverIdentity, solverInspectArgs } from '../src/lib/solver-cohort';
 
 /** Fixture transport only: bounded real subprocess, exact argv, no shell expansion. */
 export async function boundedCommand(
@@ -155,30 +155,8 @@ export async function removeFixtureContainer(
   return effect(['rm', id]);
 }
 
-export const FIXTURE_UNIT_PROPERTIES = [
-  'LoadState',
-  'Id',
-  'Names',
-  'FragmentPath',
-  'DropInPaths',
-  'Transient',
-  'NeedDaemonReload',
-  'ExecStart',
-  'ExecStartPre',
-  'ExecStartPost',
-  'ExecStop',
-  'ExecStopPost',
-  'Restart',
-  'KillMode',
-  'Environment',
-  'ActiveState',
-  'SubState',
-  'MainPID',
-  'ControlPID',
-  'InvocationID',
-  'ControlGroup',
-  'Job',
-];
+export { SOLVER_UNIT_PROPERTIES as FIXTURE_UNIT_PROPERTIES } from '../src/lib/solver-unit-observation';
+import { SOLVER_UNIT_PROPERTIES as FIXTURE_UNIT_PROPERTIES } from '../src/lib/solver-unit-observation';
 
 /** Effective prestart authority rejects global/prefix drop-ins before any fixture command executes. */
 export function assertFixtureUnitAuthority(
@@ -208,4 +186,22 @@ export function assertFixtureUnitAuthority(
   }))
     if (fields.get(property) !== value)
       throw new Error(`fixture authority property differs: ${property}`);
+}
+
+/** Only reviewed exact-ID observations/effects follow the independent fixture ownership check. */
+export async function runFixtureDockerCommand(
+  args: string[],
+  id: string,
+  verify: (id: string) => Promise<void>,
+  run: (args: string[]) => Promise<string>,
+): Promise<string> {
+  // Proof: exact-argv omission admits broad/extra-argument inspect in solver-drain-transport.test.ts.
+  if (
+    ![solverInspectArgs(id).slice(1), ['inspect', id], ['kill', id], ['wait', id]].some(
+      (expected) => JSON.stringify(args) === JSON.stringify(expected),
+    )
+  )
+    throw new Error('unexpected exact-ID argv');
+  // Proof: ownership omission admits foreign full inspect in solver-drain-transport.test.ts.
+  return runFixtureEffect(args, id, verify, run);
 }

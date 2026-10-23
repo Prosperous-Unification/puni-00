@@ -855,6 +855,7 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] Prepare disposable solver actual-host runner with ownership-scoped transport,
       real runtime admission, systemd serialization, cgroup and Docker lifecycle.
 - [x] Prove runner refusals, command bounds and fixture-only effects locally.
+- [x] Repair shared native omitted-empty-hook observations and exact ownership-guarded full Docker inspection in the disposable runner; [focused evidence and watched omissions](verify-systemd-empty-hooks.md).
 - [ ] Independently review then execute exact-SHA runner under host heavy lock;
       retain private receipt and distinguish positive host proof from fault packet.
 

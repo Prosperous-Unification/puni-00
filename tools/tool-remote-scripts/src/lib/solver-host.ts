@@ -13,6 +13,7 @@ import {
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_UNIT,
 } from './solver-supervisor-install-contract';
+import { observeSolverUnit, SOLVER_UNIT_PROPERTIES } from './solver-unit-observation';
 
 export interface SolverPins {
   readonly version: 1;
@@ -57,30 +58,6 @@ export interface SolverPorts {
   readonly observeProcess: typeof observeSolverProcess;
   readonly observeCgroup: typeof observeSolverCgroup;
 }
-const PROPERTIES = [
-  'LoadState',
-  'Id',
-  'Names',
-  'FragmentPath',
-  'DropInPaths',
-  'Transient',
-  'NeedDaemonReload',
-  'ExecStart',
-  'ExecStartPre',
-  'ExecStartPost',
-  'ExecStop',
-  'ExecStopPost',
-  'Restart',
-  'KillMode',
-  'Environment',
-  'ActiveState',
-  'SubState',
-  'MainPID',
-  'ControlPID',
-  'InvocationID',
-  'ControlGroup',
-  'Job',
-];
 
 /** Requires externally supplied closed pins; observed installed hashes never become expected hashes. */
 export function decodeSolverPins(value: unknown): SolverPins {
@@ -225,13 +202,13 @@ export function parseSolverUnit(
   for (const line of stdout.trimEnd().split('\n')) {
     const equals = line.indexOf('=');
     const key = line.slice(0, equals);
-    if (equals < 1 || !PROPERTIES.includes(key) || Object.hasOwn(fields, key))
+    if (equals < 1 || !SOLVER_UNIT_PROPERTIES.includes(key) || Object.hasOwn(fields, key))
       throw new Error('solver service properties are unknown or duplicate');
     fields[key] = line.slice(equals + 1);
   }
   // Proof: unit-environment fault accepted a different edge admission namespace (solver-exclusion.test.ts).
   if (
-    Object.keys(fields).length !== PROPERTIES.length ||
+    Object.keys(fields).length !== SOLVER_UNIT_PROPERTIES.length ||
     fields['LoadState'] !== 'loaded' ||
     fields['Id'] !== SOLVER_SUPERVISOR_SERVICE ||
     fields['Names'] !== SOLVER_SUPERVISOR_SERVICE ||
@@ -289,20 +266,21 @@ export async function runSolverHost(
   command: SolverHostCommand,
   signal?: AbortSignal,
 ): Promise<string> {
-  const argv =
-    command.kind === 'stop'
-      ? ['systemctl', '--user', 'stop', SOLVER_SUPERVISOR_SERVICE]
-      : [
-          'systemctl',
-          '--user',
-          'show',
-          SOLVER_SUPERVISOR_SERVICE,
-          ...PROPERTIES.map((property) => `--property=${property}`),
-        ];
+  if (command.kind === 'show')
+    return observeSolverUnit(SOLVER_SUPERVISOR_SERVICE, runSolverCommand, signal);
+  return runSolverCommand(['systemctl', '--user', 'stop', SOLVER_SUPERVISOR_SERVICE], signal);
+}
+
+async function runSolverCommand(argv: string[], signal?: AbortSignal): Promise<string> {
+  // Proof: extending the default deadline admitted the 16s child in solver-host.test.ts.
+  const abort =
+    signal === undefined
+      ? AbortSignal.timeout(15000)
+      : AbortSignal.any([signal, AbortSignal.timeout(15000)]);
   const child = Bun.spawn(argv, {
     stdout: 'pipe',
     stderr: 'pipe',
-    signal,
+    signal: abort,
     killSignal: 'SIGKILL',
     env: process.env,
   });
@@ -332,14 +310,15 @@ export async function runSolverHost(
       readBounded(child.stderr),
       child.exited,
     ]);
-    if (code !== 0) throw new Error(`solver fixed host command ${command.kind} failed`);
+    if (abort.aborted) throw new Error('solver host command deadline/cancellation');
+    if (code !== 0) throw new Error('solver fixed host command failed');
     return stdout;
-  } catch (cause) {
+  } catch {
     // Proof: reader-cleanup fault left the malformed-output executable child alive (solver-host.test.ts).
     // Every reader failure must terminate and reap this exact child before rejection.
     if (child.exitCode === null) child.kill('SIGKILL');
     await child.exited;
-    throw cause;
+    throw new Error('solver host command failed or exceeded bound');
   }
 }
 
