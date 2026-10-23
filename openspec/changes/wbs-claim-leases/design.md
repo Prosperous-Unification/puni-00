@@ -119,6 +119,11 @@ limit)`.
 
 ## Known edges (review notes, 2026-10-23)
 
+- The heartbeat's reported `leaseExpiresAt` can name an instant that never committed. Its reads before the turn and its
+  standing read share be-01's one writer connection, so while a project batch holds `BEGIN IMMEDIATE` across awaits the
+  heartbeat sees that batch's uncommitted renewal; if the batch then rolls back, the stored expiry is up to one lease
+  earlier than the answer said. Clients therefore heartbeat on a fixed cadence well inside `CLAIM_LEASE_MS` and never
+  schedule from `leaseExpiresAt`. A later slice can move the standing read into the turn or onto a read-only connection.
 - **Live credential** (L8) means unrevoked: a credential whose secrets have all expired
   still counts as live, so its leases are not ended at revocation of a sibling, and they run
   out at their own expiry. `lease_revoked_at` is never cleared: an agent given a new
