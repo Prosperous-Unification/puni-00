@@ -7246,3 +7246,29 @@ new source packet also passed scoped formatting and normal hooks. The next
 broad gate must check its complete candidate tree. Actual solver-host acceptance,
 installed-authority audit, complete exclusion/restoration, final exact-SHA h2
 gate, CI and deployment remain open.
+
+## Mounted execution claim fixture reconciliation — 2026-10-24
+
+At `95901af48e13296e6ac9c949065e4ebfd73054c4`, Bun 1.4.2 reproduced both
+`cross-project-execution-observation.controller.db.test.ts` failures: zero
+passed, two failed, 22 assertions. Each strict snapshot differed only by the
+received claimed row's `leaseExpiresAt: null`. The current Startable HTTP
+contract and `StampedClaim` reader require this nullable field; the synthetic
+claim has no lease. Adding that expected field restores the precise contract
+without changing production behavior, deep comparisons, writer injection or
+resource occupancy checks. This mechanical fixture repair needs no new spec.
+
+The same focused command, `bun test --preload ./tools/test/scratch/preload.ts
+./apps/wbs/be-01/src/controller/cross-project-execution-observation.controller.db.test.ts
+--timeout=30000`, then passed both cases with zero failures and 24 assertions
+in 5.55 seconds. Baseline and repaired output:
+`/tmp/puni-execution-lease-fixture-before.log` and
+`/tmp/puni-execution-lease-fixture-after.log`.
+
+Focused ESLint passed. Uncached `NX_DAEMON=false NX_ISOLATE_PLUGINS=false
+bunx nx run wbs-be-01:typecheck --skip-nx-cache --outputStyle=static` passed
+the backend and its module prerequisite in 16.2 seconds; output:
+`/tmp/puni-execution-lease-fixture-typecheck.log`. Scoped Prettier and normal
+commit hooks passed. No safety check changed, so no new R5 fault proof applies.
+The full backend suite and broad host gate were not rerun for this fixture
+repair; these focused results do not establish a passing integrated host gate.

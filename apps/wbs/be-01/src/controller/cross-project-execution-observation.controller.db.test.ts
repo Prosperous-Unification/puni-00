@@ -175,6 +175,7 @@ function buildSnapshot(canStart: boolean, isClaimed: boolean) {
             runId: 'target-run',
             parentClaimId: null,
             claimedAt: 30,
+            leaseExpiresAt: null,
           },
         ]
       : [],
