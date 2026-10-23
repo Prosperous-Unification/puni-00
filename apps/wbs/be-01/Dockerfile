@@ -7,7 +7,7 @@
 # Dockerfile cannot read a file, so `toolchain-pins.test.ts` holds this line
 # to it. The lockfile is still v1 text: Bun 1.4 reads and writes v1 for an
 # existing lockfile and only starts new ones at v2.
-FROM oven/bun:1.4.2 AS deps
+FROM oven/bun:1.4.4 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 # --production: be-01 runs its TypeScript source directly under Bun (no

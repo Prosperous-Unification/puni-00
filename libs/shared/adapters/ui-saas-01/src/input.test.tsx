@@ -16,4 +16,17 @@ describe('<Input>', () => {
     const markup = renderToStaticMarkup(<Input aria-label="Find" />);
     expect(/class="([^"]*)"/.exec(markup)?.[1]?.split(' ')).toContain('w-full');
   });
+
+  // Proof (2026-10-24): with `border-control-edge` put back to `border-input` in
+  // `input.tsx`, this failed on `expect(received).toContain(expected)` with
+  // `Expected to contain: "border-control-edge"`; fe-01's `control-edge.spec.ts`
+  // was the only guard before (ui-review-chrome-edges F-152).
+  it('draws its box on the one control edge', () => {
+    const classes = /class="([^"]*)"/
+      .exec(renderToStaticMarkup(<Input aria-label="Find" />))?.[1]
+      ?.split(' ');
+    expect(classes).toContain('border');
+    expect(classes).toContain('border-control-edge');
+    expect(classes).not.toContain('border-input');
+  });
 });

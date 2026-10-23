@@ -1,0 +1,85 @@
+# Verify
+
+All runs 2026-10-17 in `/home/df/wd/puni/ui-chrome-edges`, Chromium on Linux,
+`E2E_PORT_SHIFT=700`, from `origin/main` e8894d014.
+
+## Commands and results
+
+- Vitest, touched files only (the full suite runs in CI): `app-router`, `styles`,
+  `button`, `plan-toolbar`, `project-page`, `directory-page`, `completion-prompt`,
+  `account-menu`, `saved-plan-compare`, `company-sign-in-link` — 10 files, 260 tests passed.
+- `bunx nx run wbs-fe-01:typecheck`, `lint:fast` — passed. `bunx prettier --check` on touched files — clean.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — all valid.
+- Playwright `gantt.spec.ts -g "opaque hairline" --repeat-each 2` — 2 passed.
+- Playwright `dark-mode header toolbar-panels control-edge mobile layout chrome-frames` — 160 passed.
+- Playwright `settings-layout settings-vocabulary project-settings directory home sign-in
+spaces steps status gantt hints keyboard` — 154 passed, 1 skipped, 2 failed: `home.spec.ts`
+  (another worker's project was opened later by the same account; passed alone) and
+  `settings-vocabulary.spec.ts` F-123, whose precondition `Estimating fits at 1024×768` now
+  holds because the fieldset lost its groove and padding; its viewport moved to 1024×700 and
+  both passed on rerun.
+
+## R5 proofs (observed failures)
+
+Each new case was run against the unchanged source, or with the named fault injected:
+
+- F-152/F-137 `Find: outside · Expected: >= 3 · Received: 1.22…` (light), `1.44…` (dark).
+- F-154 home card `section[data-no-project-open] · Top edge in its ink oklch(0.129 0.042 264.695)` (light), `oklch(0.984 0.003 247.858)` (dark).
+- F-153 frame reset removed: `button[data-gantt-label] · 2px outset`; labels patched past:
+  `button "Close" · 2px outset`; only `fieldset` dropped: `fieldset "A dependency waits for…" · 2px groove`.
+- F-155 `Plan is not marked · Expected: >= 3 · Received: 1` (both palettes); `no-underline` removed:
+  `page links keep the link underline · Received: ["Plan", "Directory", "Spaces"]`.
+- F-160 `Expected: ["14px","14px","14px"] · Received: ["12px","12px","14px"]`.
+- F-161 glyph column removed: `Collapse all starts elsewhere · Expected: <= 1 · Received: 22`.
+
+Not re-verified: the F-123 case's own proof at its new 1024×700 viewport.
+
+## Round 2 (review of #564: B1, B2, F-166, F-168, F-171), 2026-10-18
+
+- `chrome-frames.spec.ts` now refuses a control box on the surface line and checks the chrome's 6px
+  corner on the Board and onboarding. It also sweeps onboarding (`create_organization`,
+  `verification_required`, `join_organization`, mocked) and the phone card's Earliest start,
+  Priority and Depends on sheets.
+- Proofs observed on 555d6fc25:
+  - Board: `button "Return to Plan" radius 0px`.
+  - Onboarding: `input "" · Top edge on the surface line`.
+  - Card sheet: `input[data-cell] "Earliest start for 010"`, `input "Why 010 may not start earlier"`
+    and `button "Save"` · `Top edge on the surface line`.
+  - With the onboarding fields fixed and its buttons left bare: `button "Sign out" radius 0px` and
+    `button "Create organization" radius 0px`.
+- Playwright `chrome-frames mobile step-board organization gantt gantt-attempts header control-edge
+dark-mode quiet-load`: 171 passed, 1 skipped.
+- Vitest: 16 touched files (onboarding, organization gate, Board, Gantt panel, chart seam, attempt
+  panel, chrome, app), 678 passed. `typecheck` and `lint:fast` pass, prettier is clean, and
+  `validate --all` passes 249/249.
+- Not covered by a browser check: the Gantt marker list (Close mark list, ✓ ✎ ◑ ✕), the fault
+  cards' Reload and the marker composer. These are code changes only, covered by their unit tests.
+
+## Round 3 (review of #564 round 2: B3, F-174), 2026-10-18
+
+- The `chrome-frames.spec.ts` card-sheet case now taps `Customize 010 - Sign-up form` in the Depends
+  on sheet for 020. It runs the sweep and the 6px-corner check on the Customize editor.
+- Proofs observed on b78849a8b:
+  - `select "Whole work item…" · Top edge on the surface line`, for all three selects.
+  - With the selects on the control edge and the buttons left bare: `button "Back to dependency
+picker" radius 0px`, `button "Cancel" radius 0px`, `button "Add" radius 0px`.
+- Playwright `chrome-frames mobile deps-cell external-refs reference-cells`: 65 passed.
+  `plan-table-review` (the grid's Customize editor) and the capture pass: 17 passed.
+- Vitest `typed-dependency-editor`, `plan-dependencies`, `plan-cards`: 250 passed. `typecheck` passes.
+
+## Synced with main (2026-10-24, head after merging main 1de277850)
+
+- Main deleted `apps/wbs/fe-01/src/components/ui/{button,control,input}.tsx` (#600, the kit
+  `libs/shared/adapters/ui-saas-01` owns the primitives). The round's edits to them were re-ported
+  into `ui-saas-01/src/{button.tsx,control.ts,input.tsx}` byte for byte (assumption U1 in PR #566:
+  the edge lives in the kit for every consumer; `--input` stays in the kit vocabulary, open for
+  Dany). Nine fe-01 files import the primitives from `@ui/saas-01`.
+- Kit tests added: `control.test.ts` and `input.test.tsx` pin `border-control-edge` on the select
+  class and the `Input` box. Proof: with `border-control-edge` put back to `border-input` in
+  `control.ts` and `input.tsx`, both failed on `Expected to contain: "border-control-edge"`;
+  restored, 4 pass.
+- By eye (session a33e0b, scratch Playwright capture, not committed): desktop Project settings
+  with one radio ring per option on Estimating and Steps; the 375px priorities ladder with
+  `Starts at` / range / `Writes` labels; an input, a native select, an outline and a default button
+  on one card sharing the control edge in light and in dark.
+- `chrome-frames.spec.ts` walks seven settings tabs (main added Resources).
