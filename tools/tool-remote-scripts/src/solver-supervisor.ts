@@ -1,4 +1,9 @@
-import { withSolverRuntimeAdmission } from './lib/solver-runtime-admission';
+import { assertNoEdgeOwner, edgeStateDirectory } from './lib/edge-admission';
+import { readOrdinaryEdgePolicy } from './lib/edge-policy';
+import {
+  withSolverPolicyAdmission,
+  withSolverRuntimeAdmission,
+} from './lib/solver-runtime-admission';
 import { decodeSolverSupervisorConfig } from './lib/solver-supervisor-config';
 import {
   type SolverSupervisorRuntimeOptions,
@@ -106,15 +111,22 @@ export function assertSolverSupervisorMapping(
   }
 }
 
-export function parseSolverSupervisorArgs(argv: readonly string[]): string {
-  if (argv.length !== 1 || !argv[0]?.startsWith('--config=')) {
+export type SolverSupervisorArgs =
+  { config: string; admission: 'ordinary' } | { config: string; admission: 'policy' };
+
+// Proof: startup-arguments omission admitted another admission value in solver-supervisor.test.ts (exit 1).
+export function parseSolverSupervisorArgs(argv: readonly string[]): SolverSupervisorArgs {
+  if (
+    (argv.length !== 1 && (argv.length !== 2 || argv[1] !== '--admission=policy')) ||
+    !argv[0]?.startsWith('--config=')
+  ) {
     throw defect('expected exactly --config=/absolute/path');
   }
   const path = argv[0].slice('--config='.length);
   if (!path.startsWith('/') || path.length > 4096 || path.includes('\0')) {
     throw defect('config path must be a bounded absolute path');
   }
-  return path;
+  return { config: path, admission: argv.length === 2 ? 'policy' : 'ordinary' };
 }
 
 export function decodeSolverSupervisorConfigBytes(
@@ -163,7 +175,7 @@ export async function runSolverSupervisor(
   argv: readonly string[],
   dependencies: SolverSupervisorEntrypointDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<void> {
-  const path = parseSolverSupervisorArgs(argv);
+  const { config: path } = parseSolverSupervisorArgs(argv);
   const options = decodeSolverSupervisorConfigBytes(await dependencies.read(path));
   await dependencies.start({
     ...options,
@@ -178,25 +190,43 @@ export async function runSolverSupervisor(
 
 if (import.meta.main) {
   const argv = process.argv.slice(2);
-  const operation = argv.some((argument) => argument.startsWith('--preflight='))
-    ? (async (): Promise<void> => {
-        const expected = parseSolverSupervisorMappingPreflight(argv);
-        assertSolverSupervisorMapping(await readConfig(expected.config), expected);
-        console.log(`[wbs-solver-supervisor] ${expected.env} mapping preflight ok`);
-      })()
-    : // Proof: omitted CLI admission reached missing config under retained markers;
-      // solver-runtime-admission.proc.test.ts observed owner callbacks during paused startup.
-      withSolverRuntimeAdmission(async () => {
-        await runSolverSupervisor(argv);
-        // startSolverSupervisor returns at readiness. Retain the descriptor after
-        // that return and through all listener/request continuations. No signal
-        // handler unlocks it: the kernel closes it only when this process exits.
-        // Proof: removing lifetime wait lets the real ready CLI lose its lock
-        // in solver-runtime-admission.proc.test.ts (SIGTERM/SIGKILL cases).
-        await new Promise<never>(() => {
-          setInterval(() => undefined, 60_000);
-        });
-      });
+  const operation =
+    argv.length === 1 && argv[0] === '--check-edge-policy'
+      ? (async () => {
+          const directory = edgeStateDirectory();
+          // Proof: readonly-policy-check omission accepted absent policy in
+          // solver-runtime-admission.proc.test.ts (exit 1).
+          await readOrdinaryEdgePolicy(directory);
+          // Proof: readonly-marker omission accepted retained owner in solver-runtime-admission.proc.test.ts (exit 1).
+          await assertNoEdgeOwner(directory);
+          console.log('[wbs-solver-supervisor] ordinary edge policy ok');
+        })()
+      : argv.some((argument) => argument.startsWith('--preflight='))
+        ? (async (): Promise<void> => {
+            const expected = parseSolverSupervisorMappingPreflight(argv);
+            assertSolverSupervisorMapping(await readConfig(expected.config), expected);
+            console.log(`[wbs-solver-supervisor] ${expected.env} mapping preflight ok`);
+          })()
+        : // Proof: omitted CLI admission reached missing config under retained markers;
+          // solver-runtime-admission.proc.test.ts observed owner callbacks during paused startup.
+          (async () => {
+            const { admission } = parseSolverSupervisorArgs(argv);
+            // Proof: cli-policy-mode omission reached config without a policy in
+            // solver-runtime-admission.proc.test.ts (exit 1).
+            const admit =
+              admission === 'policy' ? withSolverPolicyAdmission : withSolverRuntimeAdmission;
+            await admit(async () => {
+              await runSolverSupervisor(argv);
+              // startSolverSupervisor returns at readiness. Retain the descriptor after
+              // that return and through all listener/request continuations. No signal
+              // handler unlocks it: the kernel closes it only when this process exits.
+              // Proof: removing lifetime wait lets the real ready CLI lose its lock
+              // in solver-runtime-admission.proc.test.ts (SIGTERM/SIGKILL cases).
+              await new Promise<never>(() => {
+                setInterval(() => undefined, 60_000);
+              });
+            });
+          })();
   operation.catch((error: unknown) => {
     const message = error instanceof Error ? error.message : 'unknown failure';
     console.error(`[wbs-solver-supervisor] startup failed: ${message}`);

@@ -871,3 +871,11 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bind full native terminal/inert snapshots and retained hashes, and recognize only exact same-inventory objects. No stopped/tmpfs exemption is introduced.
 
 - [x] X6 Implement the requested independent review corrections: full unrelated inventory binding, private inspection diagnostics and Caddy records, restarted-source lifecycle, final in-flight token expiry, current independent omission proofs, and fresh source checks. Separate physical acceptance and parent activation/adoption remain open.
+
+### Ordinary edge policy prerequisite to compatible restoration
+
+- [x] P1a Implement the closed mandatory ordinary policy reader and exclusive explicit initializer, with bounded canonical regular-file read, identity checks, durable publication and watched negatives.
+- [x] P1b Add explicit policy startup under existing runtime lifetime admission, read-only policy preflight, staged installer preflight, strict adopted unit argv and matching actual drain fixture admission. Preserve legacy ordinary startup without treating legacy unit argv as adopted.
+- [ ] P1c Complete independent exact-SHA source review and authorized host acceptance. [Source evidence](verify-ordinary-edge-policy.md). No live initialization, installation or adoption claimed.
+- [ ] P2 Implement complete restoring/active policy verification before accepting either phase.
+- [ ] P3 Integrate compatible restoration controllers and prove S4 reopening. Parent 10.2-S4 remains open.

@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
+import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
 import { buildSolverSupervisorInstallOperation } from './lib/solver-supervisor-install-operation';
 
 const roots: string[] = [];
@@ -31,6 +32,7 @@ async function fixture() {
   const staging = join(root, 'stage');
   for (const directory of [state, staging, join(root, 'commands')]) await mkdir(directory);
   await writeFile(join(state, 'edge.lock'), '');
+  await initializeOrdinaryEdgePolicy(state);
   await writeFile(join(root, 'foreign.lock'), '');
   const files = [0, 1, 2, 3].map((index) => ({
     local: '',
@@ -43,6 +45,11 @@ if [ "\${1:-}" = --version ]; then
   exit 0
 fi
 if flock -n "$WBS_EDGE_STATE/edge.lock" true; then echo 'replacement escaped lock' >&2; exit 91; fi
+if [ "\${2:-}" = --check-edge-policy ]; then
+  if [ "\${FAULT:-}" = policy ]; then echo 'policy preflight refused' >&2; exit 103; fi
+  printf checked > "$HOST_ROOT/policy.checked"
+  exit 0
+fi
 source_path="\${@: -2:1}"
 destination_path="\${@: -1}"
 if [ "$(stat -c %d "$source_path")" != "$(stat -c %d "$(dirname "$destination_path")")" ]; then echo 'cross-device publication would copy live bytes' >&2; exit 96; fi
@@ -346,7 +353,8 @@ for (const [local, fault] of [
     const root = host.root;
     for (const directory of ['dist/tool-remote-scripts', 'deploy/solver-supervisor'])
       await mkdir(join(root, directory), { recursive: true });
-    await writeFile(join(root, 'dist/tool-remote-scripts/solver-supervisor.js'), 'reviewed bundle');
+    const reviewedBundle = `import { readOrdinaryEdgePolicy } from ${JSON.stringify(new URL('./lib/edge-policy.ts', import.meta.url).pathname)}; if(process.argv[2] !== '--check-edge-policy') throw new Error('expected policy preflight'); await readOrdinaryEdgePolicy(process.env.WBS_EDGE_STATE);`;
+    await writeFile(join(root, 'dist/tool-remote-scripts/solver-supervisor.js'), reviewedBundle);
     await writeFile(
       join(root, 'deploy/solver-supervisor/wbs-solver-supervisor.service'),
       'reviewed unit',
@@ -462,7 +470,7 @@ if [ "\${FAULT:-}" = staged-config ] && [[ "$remote" = */2 ]]; then printf corru
       expect(stdout + stderr).toMatch(/attempt=\S*install-[a-f0-9-]+/);
       expect(stdout + stderr).toContain(expectedConfigHash);
       expect(stdout + stderr).toContain(
-        new Bun.CryptoHasher('sha256').update('reviewed bundle').digest('hex'),
+        new Bun.CryptoHasher('sha256').update(reviewedBundle).digest('hex'),
       );
       expect(stdout + stderr).toContain(
         new Bun.CryptoHasher('sha256').update('reviewed unit').digest('hex'),
@@ -472,7 +480,7 @@ if [ "\${FAULT:-}" = staged-config ] && [[ "$remote" = */2 ]]; then printf corru
       expect({ code, output: stdout + stderr }).toMatchObject({ code: 0 });
       expect(
         await readFile(join(root, 'home/.local/lib/wbs-solver/solver-supervisor.js'), 'utf8'),
-      ).toBe('reviewed bundle');
+      ).toBe(reviewedBundle);
       expect((await run()).code).toBe(0);
       const uploads = (await readFile(join(root, 'uploads'), 'utf8')).trim().split('\n');
       expect(uploads).toHaveLength(8);
@@ -491,7 +499,7 @@ if [ "\${FAULT:-}" = staged-config ] && [[ "$remote" = */2 ]]; then printf corru
       expect(stdout + stderr).toContain('partial or uncertain');
       expect(stdout + stderr).toMatch(/attempt=\S*install-[a-f0-9-]+/);
       expect(stdout + stderr).toContain(
-        new Bun.CryptoHasher('sha256').update('reviewed bundle').digest('hex'),
+        new Bun.CryptoHasher('sha256').update(reviewedBundle).digest('hex'),
       );
       expect(stdout + stderr).not.toContain('installed, verified, and ready');
       expect(await Bun.file(join(root, 'service')).exists()).toBe(true);
@@ -504,7 +512,7 @@ if [ "\${FAULT:-}" = staged-config ] && [[ "$remote" = */2 ]]; then printf corru
       );
       expect(stdout + stderr).toMatch(/attempt=\S*install-[a-f0-9-]+/);
       expect(stdout + stderr).toContain(
-        new Bun.CryptoHasher('sha256').update('reviewed bundle').digest('hex'),
+        new Bun.CryptoHasher('sha256').update(reviewedBundle).digest('hex'),
       );
       expect(await Bun.file(join(root, 'service')).exists()).toBe(false);
     }
@@ -543,7 +551,12 @@ test('publication stages beside each destination across real filesystems before 
     script,
     (await readFile(script, 'utf8')).replace(
       '/bin/mv "$@"',
-      `source_path="\${@: -2:1}"
+      `if [ "\${2:-}" = --check-edge-policy ]; then
+  if [ "\${FAULT:-}" = policy ]; then echo 'policy preflight refused' >&2; exit 103; fi
+  printf checked > "$HOST_ROOT/policy.checked"
+  exit 0
+fi
+source_path="\${@: -2:1}"
 destination_path="\${@: -1}"
 source_identity=$(stat -c '%d:%i' "$source_path")
 /bin/mv "$@"
@@ -610,4 +623,22 @@ test('sibling collision preserves another attempt and cleans only created direct
   expect((await readdir(host.root)).filter((name) => name.startsWith('.solver-stage-'))).toEqual([
     '.solver-stage-2',
   ]);
+});
+
+test('policy refusal precedes every installed replacement; successful install preserves policy identity', async () => {
+  const host = await fixture();
+  const path = join(host.state, 'edge-policy.json');
+  const before = await stat(path);
+  const bytes = await readFile(path, 'utf8');
+  const refused = await host.run('policy');
+  expect(refused.code).not.toBe(0);
+  expect(refused.output).toContain('policy preflight refused');
+  await host.expectOriginal();
+  expect((await stat(path)).ino).toBe(before.ino);
+  expect(await readFile(path, 'utf8')).toBe(bytes);
+  const accepted = await fixture();
+  const acceptedPath = join(accepted.state, 'edge-policy.json');
+  const original = await stat(acceptedPath);
+  expect((await accepted.run()).code).toBe(0);
+  expect((await stat(acceptedPath)).ino).toBe(original.ino);
 });

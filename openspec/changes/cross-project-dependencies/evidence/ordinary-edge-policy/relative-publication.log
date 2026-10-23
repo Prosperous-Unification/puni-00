@@ -1,0 +1,40 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern initialize-late
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+270 |         try { await fs.lstat(directory + '/edge-policy.json'); throw new Error('foreign publication'); }
+271 |         catch (cause) { if (!(cause instanceof Error) || cause.code !== 'ENOENT') throw cause; }
+272 |       }
+273 |     `;
+274 |     const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+275 |     expect(await new Response(child.stderr).text()).toBe('');
+                                                          ^
+error: expect(received).toBe(expected)
+
+- ""
++ "42 |       let refused = false;
++ 43 |       try { await ("initialize-late" === 'read' ? policy.readOrdinaryEdgePolicy(directory) : policy.initializeOrdinaryEdgePolicy(directory)); }
++ 44 |       catch (cause) { refused = true; if ("initialize-late" === 'initialize' && !String(cause).includes('before publication')) throw cause; }
++ 45 |       if (!refused || !swapped) throw new Error('parent replacement admitted or boundary absent');
++ 46 |       if ("initialize-late" !== 'read') {
++ 47 |         try { await fs.lstat(directory + '/edge-policy.json'); throw new Error('foreign publication'); }
++                                                                               ^
++ error: foreign publication
++       at /tmp/puni-ordinary-edge-policy/[eval]:47:74
++ 
++ Bun v1.4.2 (Linux x64)
++ "
+
+- Expected  - 1
++ Received  + 12
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:275:53)
+(fail) policy initialize-late refuses swapped parent even with same hardlinked policy [31.15ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [64.00ms]
+
+Exit: 1

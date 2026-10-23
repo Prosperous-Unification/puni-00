@@ -99,6 +99,9 @@ case "$(${quote(staged[0])} --version)" in
   ${SOLVER_SUPERVISOR_BUN_VERSIONS.map(quote).join('|')}) ;;
   *) printf '%s\\n' 'staged solver Bun runtime is not supported' >&2; exit 1 ;;
 esac
+# Proof: installer-policy omission published despite policy refusal; solver-supervisor-install-operation.test.ts exited 1.
+# Explicit first adoption initializes policy separately; normal installation only reads it.
+WBS_EDGE_STATE=${state} ${quote(staged[0])} ${quote(staged[1])} --check-edge-policy
 # Proof: unlocking before first-install parent creation failed its real lock competitor.
 # Destination parents are first-install mutations and belong inside edge admission.
 ${[...parentModes].map(([parent, mode]) => `install -d -m ${mode} -- ${quote(parent)}`).join('\n')}

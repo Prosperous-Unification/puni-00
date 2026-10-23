@@ -8,9 +8,10 @@ import {
   withDependencyOwner,
   withOwnerSolverRuntime,
 } from './edge-ownership';
+import { initializeOrdinaryEdgePolicy } from './edge-policy';
 import { envLayout } from './env';
 import { withCanonicalLock } from './lock';
-import { withSolverRuntimeAdmission } from './solver-runtime-admission';
+import { withSolverPolicyAdmission, withSolverRuntimeAdmission } from './solver-runtime-admission';
 
 for (const marker of ['edge-owner.pending', 'edge-owner.json']) {
   test(`runtime refuses retained ${marker} before its callback`, async () => {
@@ -154,3 +155,30 @@ async function refuses(
   }
   expect(refused).toBe(true);
 }
+
+test('policy runtime requires policy before callback and shares ordinary lifetime lock', async () => {
+  const directory = scratchSync('solver-policy-');
+  await refuses(
+    withSolverPolicyAdmission(() => Promise.reject(new Error('callback entered')), directory),
+    'callback entered',
+    true,
+  );
+  await initializeOrdinaryEdgePolicy(directory);
+  await withSolverPolicyAdmission(async () => {
+    await refuses(
+      withSolverRuntimeAdmission(() => Promise.resolve(), directory),
+      'lock held',
+    );
+  }, directory);
+  await withSolverRuntimeAdmission(async () => {
+    await refuses(
+      withSolverPolicyAdmission(() => Promise.resolve(), directory),
+      'lock held',
+    );
+  }, directory);
+  await writeFile(`${directory}/edge-owner.pending`, 'retained');
+  await refuses(
+    withSolverPolicyAdmission(() => Promise.reject(new Error('callback entered')), directory),
+    'admission closed',
+  );
+});

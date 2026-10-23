@@ -1395,3 +1395,31 @@ An explicit callable composes ingress for both environments, solver drain, sourc
 Solver namespace-audit recognition uses a second opaque live token, scoped to the existing runtime lock. Full native terminal/inert inspection is projected into the unchanged solver lifecycle grammar and bound by durable private snapshot hashes. Source/solver tokens recognize only their exact raw members of the same backend inventory; unknown stopped mounts remain strict. Docker inspection receipts retain hashes so full Config.Env bytes remain in memory only.
 
 Review correction: source audit recognition compares the supplied complete inventory identity with independent fresh complete inventory before granting recognition. Private full-inspection JSON failures expose fixed field-oriented diagnostics without parser excerpts or causes. Composed Caddy inspection receipts and durable edge configuration identity retain hashes; live config remains in memory for exact comparison. Running source containers may retain a historical FinishedAt at or before the current StartedAt, matching Docker restart state. Terminal evidence remains current and ordered.
+
+### Mandatory ordinary edge policy prerequisite (P1)
+
+The canonical edge directory contains one mandatory `edge-policy.json`, with
+exactly `{format:"dependency-edge-policy",version:1,phase:"ordinary",edgeState}`.
+`edgeState` equals the canonical absolute directory. Additional fields, different
+versions and `restoring`/`active` phases refuse; those phases require the complete
+P2 verifier before support can be added. This document grants no store scanner,
+dormancy, restoration or compatible-controller authority.
+
+An explicit dry-run-default `initialize-edge-policy` command performs first
+adoption only. Execute takes canonical `edge.lock`, refuses retained owner
+markers, exclusively creates the policy, syncs file and directory, then reads it
+independently. Every existing path refuses. Partial publication remains evidence;
+there is no reset, repair or implicit installer initialization.
+
+Adopted supervisor unit argv ends with `--config=<fixed> --admission=policy`.
+Legacy argv remains usable only as ordinary startup and is not adopted by the
+strict unit observer. Policy startup takes the same lifetime
+`solver-runtime.lock`, reads the mandatory bounded policy, refuses owner markers,
+then reads config, sweeps and binds. The read-only `--check-edge-policy` mode uses
+the same reader and marker refusal without taking the lifetime lock or reading
+config. The installer invokes the staged Bun and staged bundle in this mode
+under existing edge admission after staged hash/runtime validation and before
+installed-file replacement. Policy is preserved separately from the four
+installed artifacts. First adoption therefore requires explicit initialization,
+installation, then a separate installed audit. These source prerequisites do not
+complete S4 restoration or authorize live adoption.

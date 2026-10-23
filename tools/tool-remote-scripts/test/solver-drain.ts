@@ -13,6 +13,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { withDependencyOwner } from '../src/lib/edge-ownership';
+import { initializeOrdinaryEdgePolicy } from '../src/lib/edge-policy';
 import { envLayout } from '../src/lib/env';
 import { parseSolverContainer, solverInspectArgs } from '../src/lib/solver-cohort';
 import { withSolverDrainUnderOwner } from '../src/lib/solver-exclusion';
@@ -22,7 +23,7 @@ import {
   observeSolverProcess,
   type SolverPorts,
 } from '../src/lib/solver-host';
-import { withSolverRuntimeAdmission } from '../src/lib/solver-runtime-admission';
+import { withSolverPolicyAdmission } from '../src/lib/solver-runtime-admission';
 import { parseManagedContainerList } from '../src/lib/solver-supervisor-docker-output';
 import {
   SOLVER_SUPERVISOR_BUN,
@@ -310,9 +311,9 @@ export async function runSolverDrainAcceptance(): Promise<void> {
       translateExecution(
         fields.get('ExecStart') ?? '',
         physicalBun,
-        `${physicalBun} ${bundle} --config=${config}`,
+        `${physicalBun} ${bundle} --config=${config} --admission=policy`,
         SOLVER_SUPERVISOR_BUN,
-        `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+        `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
       ),
     );
     fields.set(
@@ -374,7 +375,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
       devSourceSha: sha,
       images: [{ callerName: 'be-01-blue', callerImage: image, solverImage: image }],
     });
-    const unitBytes = `[Unit]\nDescription=Disposable solver drain ${token}\n[Service]\nType=simple\nExecStart=${physicalBun} ${bundle} --config=${config}\nExecStopPost=/bin/rm -f ${socket}\nEnvironment=WBS_EDGE_STATE=${edgeState}\nRestart=always\nRestartPreventExitStatus=78\nKillMode=control-group\nTimeoutStopSec=15\n`;
+    const unitBytes = `[Unit]\nDescription=Disposable solver drain ${token}\n[Service]\nType=simple\nExecStart=${physicalBun} ${bundle} --config=${config} --admission=policy\nExecStopPost=/bin/rm -f ${socket}\nEnvironment=WBS_EDGE_STATE=${edgeState}\nRestart=always\nRestartPreventExitStatus=78\nKillMode=control-group\nTimeoutStopSec=15\n`;
     // Independent expected byte hashes precede every installed fixture copy.
     const pins = {
       version: 1 as const,
@@ -384,6 +385,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
       configSha256: digest(configBytes),
       unitSha256: digest(unitBytes),
     };
+    await initializeOrdinaryEdgePolicy(edgeState);
     await writeFile(physicalBun, bunBytes, { mode: 0o755, flag: 'wx' });
     await writeFile(bundle, bundleBytes, { mode: 0o755, flag: 'wx' });
     await writeFile(config, configBytes, { mode: 0o600, flag: 'wx' });
@@ -509,7 +511,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
         await withSolverDrainUnderOwner(owner, layouts, pins, ports, deadline, async () => {
           const admission = { entered: false };
           try {
-            await withSolverRuntimeAdmission(() => {
+            await withSolverPolicyAdmission(() => {
               admission.entered = true;
               return Promise.resolve();
             }, edgeState);

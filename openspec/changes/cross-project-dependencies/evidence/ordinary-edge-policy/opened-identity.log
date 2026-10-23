@@ -1,0 +1,40 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern opened-path
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+140 |         process.exitCode = 2;
+141 |       } catch (cause) { if (!(cause instanceof Error)) throw cause; if (fault === 'opened-path' && !cause.message.includes('file identity')) throw cause; }
+142 |     `;
+143 |     const child = Bun.spawn([process.execPath, '-e', program], { stderr: 'pipe', stdout: 'pipe' });
+144 |     const stderr = await new Response(child.stderr).text();
+145 |     expect(stderr).toBe('');
+                         ^
+error: expect(received).toBe(expected)
+
+- ""
++ "77 |       current.ino !== opened.ino ||
++ 78 |       current.size !== opened.size ||
++ 79 |       current.mtimeMs !== opened.mtimeMs ||
++ 80 |       current.ctimeMs !== opened.ctimeMs
++ 81 |     )
++ 82 |       throw new Error('edge policy changed while reading');
++                      ^
++ error: edge policy changed while reading
++       at readOrdinaryEdgePolicy (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:82:17)
++ 
++ Bun v1.4.2 (Linux x64)
++ "
+
+- Expected  - 1
++ Received  + 12
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:145:20)
+(fail) production policy opened-path fault refuses and preserves publication evidence [31.18ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [67.00ms]
+
+Exit: 1

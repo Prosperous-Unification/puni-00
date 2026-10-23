@@ -1,0 +1,26 @@
+Command: bun test tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern actual read-only policy preflight
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+305 |     expect(await child.exited).toBe(0);
+306 |     expect(await new Response(child.stdout).text()).toContain('ordinary edge policy ok');
+307 |   });
+308 |   await writeFile(`${directory}/edge-owner.pending`, 'retained');
+309 |   const refused = spawn(false, ['--check-edge-policy']);
+310 |   expect(await refused.exited).toBe(1);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:310:32)
+(fail) actual read-only policy preflight never reads config or takes runtime lifetime lock [80.18ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [121.00ms]
+
+Exit: 1

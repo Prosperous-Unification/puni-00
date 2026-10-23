@@ -173,7 +173,7 @@ describe('host-wide solver supervisor contract', () => {
       `${root}deploy/solver-supervisor/wbs-solver-supervisor.service`,
     ).text();
     expect(unit).toContain(
-      `ExecStart=${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+      `ExecStart=${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     );
     expect(unit).toContain('Restart=always');
     expect(unit).toContain('Environment=WBS_EDGE_STATE=/home/puni1/wbs/state');

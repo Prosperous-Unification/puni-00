@@ -1,0 +1,26 @@
+Command: bun test tools/tool-remote-scripts/test/solver-drain-fixture.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern policy creator refuses
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:
+113 |         '--admission=policy',
+114 |       ],
+115 |       { env: { ...process.env, WBS_EDGE_STATE: edge }, stdout: 'ignore', stderr: 'ignore' },
+116 |     );
+117 |     expect(await child.exited).toBe(78);
+118 |     expect(await readFile(join(root, 'refused.json'), 'utf8')).toContain('edge-policy.json');
+                                                                     ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "edge-policy.json"
+Received: "{\"pid\":131,\"error\":\"Error: ENOENT: no such file or directory, open '/tmp/solver-creator-policy-D7YqaH/manifest.json'\"}"
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/test/solver-drain-fixture.test.ts:118:64)
+(fail) policy creator refuses missing policy before reading its missing manifest [30.09ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [66.00ms]
+
+Exit: 1

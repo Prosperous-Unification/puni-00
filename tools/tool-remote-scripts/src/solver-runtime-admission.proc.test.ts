@@ -225,3 +225,122 @@ test('installed bundle refuses marker and occupied runtime before config; mappin
     expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
   });
 });
+
+for (const fault of [
+  'missing',
+  'unreadable',
+  'active',
+  'restoring',
+  'pending',
+  'owner',
+  'occupied',
+  'valid',
+] as const) {
+  test(`actual policy CLI ${fault} reaches only its admitted boundary`, async () => {
+    const { directory, spawn } = await fixture();
+    const path = `${directory}/edge-policy.json`;
+    if (fault !== 'missing')
+      await writeFile(
+        path,
+        JSON.stringify({
+          format: 'dependency-edge-policy',
+          version: 1,
+          phase: fault === 'active' || fault === 'restoring' ? fault : 'ordinary',
+          edgeState: directory,
+        }),
+      );
+    if (fault === 'unreadable') await chmod(path, 0);
+    if (fault === 'pending' || fault === 'owner')
+      await writeFile(
+        `${directory}/${fault === 'pending' ? 'edge-owner.pending' : 'edge-owner.json'}`,
+        'retained',
+      );
+    const run = async () => {
+      const child = spawn(false, [
+        `--config=${directory}/absent-config.json`,
+        '--admission=policy',
+      ]);
+      expect(await child.exited).toBe(1);
+      const stderr = await new Response(child.stderr).text();
+      if (fault === 'valid') expect(stderr).toContain('absent-config.json');
+      else {
+        expect(stderr).not.toContain('absent-config.json');
+        expect(stderr).toContain(
+          fault === 'occupied'
+            ? 'lock held'
+            : fault === 'owner' || fault === 'pending'
+              ? 'admission closed'
+              : fault === 'active' || fault === 'restoring'
+                ? 'invalid ordinary edge policy'
+                : 'edge-policy.json',
+        );
+      }
+      expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
+    };
+    try {
+      if (fault === 'occupied') await withCanonicalLock(`${directory}/solver-runtime.lock`, run);
+      else await run();
+    } finally {
+      if (fault === 'unreadable') await chmod(path, 0o600);
+    }
+  });
+}
+
+test('actual read-only policy preflight never reads config or takes runtime lifetime lock', async () => {
+  const { directory, spawn } = await fixture();
+  const absent = spawn(false, ['--check-edge-policy']);
+  expect(await absent.exited).toBe(1);
+  expect(await new Response(absent.stderr).text()).toContain('edge-policy.json');
+  await writeFile(
+    `${directory}/edge-policy.json`,
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'ordinary',
+      edgeState: directory,
+    }),
+  );
+  await withCanonicalLock(`${directory}/solver-runtime.lock`, async () => {
+    const child = spawn(false, ['--check-edge-policy']);
+    expect(await child.exited).toBe(0);
+    expect(await new Response(child.stdout).text()).toContain('ordinary edge policy ok');
+  });
+  await writeFile(`${directory}/edge-owner.pending`, 'retained');
+  const refused = spawn(false, ['--check-edge-policy']);
+  expect(await refused.exited).toBe(1);
+  expect(await new Response(refused.stderr).text()).toContain('admission closed');
+  expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
+});
+
+for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
+  test(`actual policy CLI holds lifetime admission until ${signal}`, async () => {
+    const { directory, spawn } = await fixture();
+    await writeFile(
+      `${directory}/edge-policy.json`,
+      JSON.stringify({
+        format: 'dependency-edge-policy',
+        version: 1,
+        phase: 'ordinary',
+        edgeState: directory,
+      }),
+    );
+    const child = spawn(true, [`--config=${directory}/config.json`, '--admission=policy']);
+    try {
+      await until(() => Bun.file(`${directory}/docker.calls`).exists());
+      await until(() =>
+        lstat(`${directory}/s.sock`).then(
+          (socket) => socket.isSocket(),
+          () => false,
+        ),
+      );
+      await refuses(
+        withCanonicalLock(`${directory}/solver-runtime.lock`, () => Promise.resolve()),
+        'lock held',
+      );
+    } finally {
+      child.kill(signal);
+      await child.exited;
+    }
+    await withCanonicalLock(`${directory}/solver-runtime.lock`, () => Promise.resolve());
+  });
+}

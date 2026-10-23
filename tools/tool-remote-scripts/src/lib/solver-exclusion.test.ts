@@ -37,7 +37,7 @@ function unit(active: boolean, edgeState: string) {
     NeedDaemonReload: 'no',
     ExecStart: exec(
       SOLVER_SUPERVISOR_BUN,
-      `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+      `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     ),
     ExecStartPre: '',
     ExecStartPost: '',
@@ -539,6 +539,13 @@ test('unrecognized effective unit and namespace refuse before stop', async () =>
     ['Transient', 'yes'],
     ['NeedDaemonReload', 'yes'],
     ['ExecStartPre', '/unknown'],
+    [
+      'ExecStart',
+      exec(
+        SOLVER_SUPERVISOR_BUN,
+        `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+      ),
+    ],
     ['Environment', 'WBS_EDGE_STATE=/different/state'],
     ['KillMode', 'process'],
   ]) {

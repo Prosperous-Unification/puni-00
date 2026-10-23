@@ -206,6 +206,7 @@ export function parseSolverUnit(
       throw new Error('solver service properties are unknown or duplicate');
     fields[key] = line.slice(equals + 1);
   }
+  // Proof: adopted-unit omission accepted legacy argv in solver-exclusion.test.ts (exit 1).
   // Proof: unit-environment fault accepted a different edge admission namespace (solver-exclusion.test.ts).
   if (
     Object.keys(fields).length !== SOLVER_UNIT_PROPERTIES.length ||
@@ -225,7 +226,7 @@ export function parseSolverUnit(
     !execMatches(
       fields['ExecStart'] ?? '',
       SOLVER_SUPERVISOR_BUN,
-      `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+      `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     ) ||
     !execMatches(
       fields['ExecStopPost'] ?? '',

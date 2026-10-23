@@ -29,7 +29,7 @@ function unit(active: boolean, edgeState: string) {
     NeedDaemonReload: 'no',
     ExecStart: exec(
       SOLVER_SUPERVISOR_BUN,
-      `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+      `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     ),
     ExecStartPre: '',
     ExecStartPost: '',

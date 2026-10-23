@@ -1450,3 +1450,30 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 
 - **WHEN** a running source container retains a historical finish at or before its current start
 - **THEN** whole-source exclusion accepts that lifecycle and still requires a current coherent terminal readback after stopping it
+
+### Requirement: Adopted solver requires explicit ordinary edge policy
+
+An adopted supervisor SHALL require the closed version-1 ordinary policy bound to its canonical edge directory, read under its process-lifetime runtime lock before config, sweep or listener startup. Missing, unreadable, malformed, oversized, aliased, nonregular, replaced or drifting policy state SHALL refuse. Unsupported restoring or active phases SHALL refuse until their complete verifier exists. Legacy ordinary startup SHALL remain separate from adopted unit authority.
+
+#### Scenario: Policy startup refuses before config
+
+- **GIVEN** policy-mode startup with absent config and absent or unsupported policy, a retained owner marker, or occupied runtime lock
+- **WHEN** the actual supervisor CLI starts
+- **THEN** it refuses at admission before reading config, sweeping or binding
+- **AND** valid ordinary policy without markers reaches the config boundary while retaining the runtime lock until process exit
+
+#### Scenario: First adoption publishes policy explicitly
+
+- **GIVEN** an explicit initializer invocation, dry-run by default
+- **WHEN** execute is selected
+- **THEN** it takes canonical edge.lock, refuses owner markers, exclusively publishes through a retained directory descriptor, syncs file and directory and independently verifies the created identity
+- **AND** existing paths and partial failures retain evidence without replacement, reset or repair
+
+#### Scenario: Installer preserves policy and verifies it before replacement
+
+- **GIVEN** validated staged supervisor Bun and bundle hashes and runtime version under edge admission
+- **WHEN** normal installation proceeds
+- **THEN** the staged Bun runs the staged bundle with exactly --check-edge-policy before final-file replacement
+- **AND** the read-only preflight requires the same ordinary policy and no retained markers without reading config or taking the runtime lifetime lock
+- **AND** policy remains separate from the four installed artifacts and normal installation never initializes it
+- **AND** adopted unit observation requires fixed config followed by --admission=policy and refuses legacy argv

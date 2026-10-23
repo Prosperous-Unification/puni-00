@@ -1,0 +1,31 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern closed ordinary
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+23 |     { ...policy(directory), phase: 'active' },
+24 |     { ...policy(directory), phase: 'restoring' },
+25 |     { ...policy(directory), edgeState: '/foreign' },
+26 |     { ...policy(directory), version: 2 },
+27 |   ]) {
+28 |     expect(() => decodeOrdinaryEdgePolicy(value, directory)).toThrow();
+                                                                  ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  format: "dependency-edge-policy",
+  version: 1,
+  phase: "ordinary",
+  edgeState: "/tmp/wbs-test-1338962-lF8Z1y/edge-policy-c7WXEZ",
+}
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:28:62)
+(fail) closed ordinary namespace binds the exact state [0.72ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [37.00ms]
+
+Exit: 1
