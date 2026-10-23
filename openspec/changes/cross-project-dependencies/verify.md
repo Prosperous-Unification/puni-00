@@ -6903,3 +6903,11 @@ Watched file/refusal and poisoned-barrel negatives, generated command/exclusion
 parity, import RSS and the disposable 512 MiB probe are recorded in the
 [MCP startup memory packet](verify-mcp-startup-memory.md). This bounded source
 observation does not close parent transport delivery, activation or Task 11.
+
+## Task 5.2 blocked-hold fanout (2026-10-23)
+
+The mounted [blocked-hold verification packet](verify-hold-fanout.md) records
+the missing downstream invalidation before the fix, semantic hold fingerprint,
+isolated/shared A→B→C block/clear/undo/redo and rollback acceptance, and the
+watched omission fault. Independent Astra review approved the bounded packet;
+parent 5.2 and the integrated exact-SHA gate remain open.

@@ -681,7 +681,10 @@ Task 5.2 bounded bare-step add/name-only rename fanout (2026-10-23):
 [the verification packet](verify-step-fanout.md) records service-preflight
 capture, isolated/shared no-person acceptance, durable rollback and after-commit
 delivery, with independent add/rename/eager-placement production negatives.
-Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.
+The reviewed [blocked-hold fanout packet](verify-hold-fanout.md) adds the
+missing semantic hold fingerprint and mounted isolated/shared A→B→C block,
+clear, undo/redo and rollback proofs. Parent 5.2 stays unchecked pending final
+writer-coverage reconciliation and the integrated gate.
 
 ### Bounded task 10.2 managed Compose backend exclusion (2026-10-23)
 
