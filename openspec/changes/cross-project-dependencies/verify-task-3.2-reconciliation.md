@@ -1,5 +1,10 @@
 # Task 3.2 source reconciliation — 2026-10-23
 
+The original audit below is historical. The [transport acceptance reconciliation](verify-task-3.2-closure.md)
+supersedes its remaining-intersections assessment after the consented scope and
+connected outcome packets were integrated. Task 4.2 authority acceptance and
+Task 10 activation retain their own open obligations.
+
 Audited feature commit `2ddea72eede2ea6ea5a843077bfaa3955cd031d3` in an
 isolated worktree. No independently missing production transport behavior was
 identified; this packet changes documentation only and leaves task 3.2 open.

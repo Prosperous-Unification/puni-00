@@ -6861,3 +6861,23 @@ event-insert rollback and delivery after writer release. The observation hook
 runs after service preflights and preserves removal's existing late hook.
 Independent add, rename and eager-placement faults fail the mounted cases.
 Task 5.2, the broader writer audit and exact-SHA host gate remain open.
+
+## Task 3.2 integrated transport evidence reconciliation — 2026-10-23
+
+The [transport acceptance reconciliation](verify-task-3.2-closure.md) maps
+shared shapes, local aliases, stable scoped HTTP/generated MCP writes, typed
+refusals, real calendar and optimization outcomes, consented delegation and
+existing watched faults on `1549fb90e205c93712f3767e911bda8747a20863`.
+Fresh complete files passed: parity **81/81, 980 assertions**; ordered OAuth
+**26/26, 812 assertions**. Shared shape/controller tests passed **28/28,
+211 assertions**; configured MCP lint/typecheck passed uncached; OpenSpec
+passed **274/274**. The configured MCP test target exited 1 after the shared
+disk reached ENOSPC during backend temporary-directory creation and Nx output
+writing; no complete suite verdict was produced. That environmental failure
+requires a rerun after disk recovery.
+
+This supersedes historical transport-gap assessments; the complete authority
+matrix remains Task 4.2 and capability negotiation/activation remain Tasks
+10.x. No production/test behavior changed or new safety check was introduced.
+The 3.2 checkbox remains open pending the configured-suite rerun, root review
+and the integrated exact-SHA host gate. No push, merge or deployment occurred.

@@ -87,11 +87,15 @@ TDD slice and independent review unit, not a two-minute keystroke.
 - [x] 3.1 Add `libs/wbs/application/core/src/ports/project-address-search.ts`, `libs/wbs/adapters/store-sqlite/src/project-address-search.ts` and HTTP shapes/routes beside current project/work-item routes. Return bounded authorized project identity/abbreviation/name and scoped endpoint/step metadata; exact qualified lookup resolves stable IDs. Extend `apps/wbs/fe-01/src/lib/wbs-api.ts`. Add `apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts`: `alphabetic prefix is bounded and organization scoped`, `manual punctuation and lowercase resolve`, `selected project scopes steps and work items`, `numeric input is not external discovery`, `foreign and absent addresses have identical refusal`. Negative: remove organization/project predicates, response bounds or boundary grammar separately and observe mounted search tests leak, mis-scope or admit malformed input. Search results confer no write capability.
 - [ ] 3.2 Extend existing dependency/command HTTP shapes under `libs/wbs/domain/contracts/src/http`, `document-from-shapes.ts`, core HTTP handlers and backend controller composition with explicit stable project IDs. Preserve local payload interpretation and batch aliases. Propagate typed endpoint/not-found/conflict, calendar-unavailable and optimization outcomes. Update OpenAPI and generated MCP tools using `apps/wbs/mcp-01/README.md`. Tests: existing shared shape suites plus `apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts` cases `HTTP and MCP admit equivalent external endpoints`, `old local payload keeps its meaning`, `unknown scope SF and malformed IDs refuse`. Negative: remove shared shape validation and demonstrate refusal fails through mounted HTTP/MCP paths, not a duplicated validator.
 
-Task 3.2 source reconciliation (2026-10-23): shared command shapes, generated
-MCP transport, local aliases/history and bounded active FS/SS/FF parity already
-exist. Fresh checks and the remaining active authority/scope/outcome intersections
-are recorded in [verify-task-3.2-reconciliation.md](verify-task-3.2-reconciliation.md).
-The parent checkbox remains open; this reconciliation adds no runtime behavior.
+Task 3.2 transport reconciliation (2026-10-23): shared command shapes,
+generated MCP transport, local aliases/history, consented scoped writes and
+calendar/optimization outcomes are implemented and mapped to integrated
+acceptance in [verify-task-3.2-closure.md](verify-task-3.2-closure.md). This
+supersedes the transport gaps in the earlier source audit and historical bounded
+packets. Task 4.2 retains its complete authority matrix; Tasks 10.x retain
+capability negotiation and activation. The 3.2 checkbox remains open pending the
+configured MCP suite rerun, root review and the integrated exact-SHA host gate. No runtime behavior changes
+in this reconciliation.
 
 ### Task 4: Unified relationships, admission and actual graph — WBS 010.05
 
