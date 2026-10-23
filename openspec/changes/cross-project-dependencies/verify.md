@@ -6821,3 +6821,33 @@ Disabling only the production revision comparison independently made all four
 cases return unsafe HTTP 200. Restored cases preserve every table except the
 selected stale journal and publish nothing. Production activation and the
 parent Task 4.4 remain open.
+
+## Pinned K3s MCP runtime-log invocation repair (2026-10-23)
+
+Infra-check run `39939093650` passed `fleet-check`, then failed the image-based
+K3s rehearsal while reading the exact terminated MCP container log. The pinned
+node returned `No help topic for 'crictl'` to `docker exec <node> k3s crictl
+...`; the failure was not a missing-key assertion or an absent log. The lab
+correctly refused to infer success from the pod's nonzero exit or empty
+`kubectl logs` output.
+
+The locked `docker.io/rancher/k3s:v1.36.4-k3s1` image digest
+`sha256:edad48e12bf81c3a09ac1c05c0c0ffaaa22145980b989d6fae84543a76b83657`
+contains `/bin/crictl` (`v1.36.0-k3s1`). A networkless read-only container
+invoked `/bin/crictl --config=/dev/null --timeout=1s
+--runtime-endpoint=unix:///run/k3s/containerd/containerd.sock logs <exact ID>`:
+its parser accepted the command and reached the expected missing socket in
+that standalone container. This proves command availability and syntax, not
+successful log retrieval on a running K3s node. The lab now invokes that
+absolute binary, supplies the explicit empty config and continues to require
+the exact runtime ID, bounded deadline, nonzero exit, matching log and repeat
+pod identity.
+
+The new production-loop test first failed with the old wrapper invocation:
+**0 pass, 1 fail**, showing `k3s`, `crictl` where `/bin/crictl`,
+`--config=/dev/null` were required. With the corrected command, the entire
+`lab-mcp-observation.test.ts` suite passed **61/61, 1120 assertions**.
+Configured `tool-deploy:lint` and `tool-deploy:typecheck` passed. Prettier and
+`git diff --check` passed after formatting. A fresh image-based CI rehearsal
+and integrated exact-SHA host gate remain pending; this local command probe
+does not certify them.

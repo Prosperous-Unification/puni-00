@@ -169,8 +169,10 @@ export async function observeMissingMcpKey(
             'docker',
             'exec',
             effects.node,
-            'k3s',
-            'crictl',
+            // Proof: restoring `k3s crictl` failed the direct-applet test (0 pass, 1 fail);
+            // the pinned node's wrapper returned "No help topic for 'crictl'" in infra-check 39939093650.
+            '/bin/crictl',
+            '--config=/dev/null',
             `--timeout=${String(remaining)}ms`,
             '--runtime-endpoint=unix:///run/k3s/containerd/containerd.sock',
             ...args,

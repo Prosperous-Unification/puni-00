@@ -417,6 +417,29 @@ it('reads the selected container stderr stream emitted by crictl', async () => {
   expect(await run.observe()).toContain(required);
 });
 
+it('invokes the pinned node CRI applet directly for the selected runtime ID', async () => {
+  const run = rehearsal([
+    ok(listed(pod('old'))),
+    ok(listed(pod())),
+    ok(required),
+    ok(listed(pod())),
+  ]);
+  expect(await run.observe()).toContain(firstContainer);
+  const commands = run.calls.filter(({ args }) => args[0] === 'docker');
+  expect(commands).toHaveLength(1);
+  expect(commands[0]?.args.slice(0, 5)).toEqual([
+    'docker',
+    'exec',
+    'k3d-puni-f8-lab-server-0',
+    '/bin/crictl',
+    '--config=/dev/null',
+  ]);
+  expect(commands[0]?.args).toContain(
+    '--runtime-endpoint=unix:///run/k3s/containerd/containerd.sock',
+  );
+  expect(commands[0]?.args.at(-1)).toBe(firstContainer.slice('containerd://'.length));
+});
+
 const selectedLog = '/var/log/pods/wbs_mcp-new_new/mcp/0.log';
 function missingLog(
   path: string,
