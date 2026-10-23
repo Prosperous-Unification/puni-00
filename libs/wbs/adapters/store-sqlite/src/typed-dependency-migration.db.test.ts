@@ -233,8 +233,11 @@ describe(TYPED, () => {
    * Proof: the three guard statements removed from `down.sql` made this case
    * fail on `Received function did not throw` — the rollback dropped the typed
    * row and its ledger entry; watched 2026-09-27.
+   * Repeated at the pinned typed migration head with a scratch down script,
+   * 2026-10-24: the same missing-throw failure remains observable.
    */
   it('refuses rollback with typed rows and retains the row and migration record', () => {
+    rollbackTo(path, FOLDER, TYPED);
     withDatabase((sqlite) => {
       seed(sqlite);
       insert(sqlite, 'first');
@@ -259,9 +262,7 @@ describe(TYPED, () => {
             'SELECT id, hash, created_at, name FROM __drizzle_migrations ORDER BY id',
           )
           .all(),
-        // Newer migrations with nothing recorded reverse before the typed rows
-        // refuse; the typed record and everything older stay.
-      ).toEqual(applied.filter(({ name }) => name === null || name <= TYPED));
+      ).toEqual(applied);
     });
   });
 
@@ -270,8 +271,11 @@ describe(TYPED, () => {
    * case still fails, on `no such index: typed_dependency_by_successor_step`
    * rather than the table, because the index drops that follow are not
    * `IF EXISTS` either; watched 2026-09-27.
+   * Repeated with the fixture pinned before removing its table, 2026-10-24;
+   * a scratch guard omission reached that index error, not a newer down script.
    */
   it('refuses rollback when the typed table is missing', () => {
+    rollbackTo(path, FOLDER, TYPED);
     withDatabase((sqlite) => {
       sqlite.run('DROP TABLE typed_dependency');
     });

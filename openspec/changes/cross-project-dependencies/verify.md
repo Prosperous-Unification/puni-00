@@ -7272,3 +7272,51 @@ the backend and its module prerequisite in 16.2 seconds; output:
 commit hooks passed. No safety check changed, so no new R5 fault proof applies.
 The full backend suite and broad host gate were not rerun for this fixture
 repair; these focused results do not establish a passing integrated host gate.
+
+## Main claim-lease integration oracle reconciliation — 2026-10-24
+
+At `c64a5500ea80d266a9daf33e1f9ac45be2b409e4`, a fresh Bun 1.4.2 run of
+`dependency-client.test.ts`, `transaction-boundary.types.test.ts`,
+`optimization-boundary-certificate-migration.db.test.ts`,
+`project-abbreviation-migration.db.test.ts` and
+`typed-dependency-migration.db.test.ts` reproduced **23 passed, eight failed,
+94 assertions** in 6.30 seconds. Output:
+`/tmp/puni-main-integration-oracles-before.log`.
+
+The protected operation matrix now includes `postApiClaimsRenew`; the exact
+mapped command resource keys include `releaseExpiredLeases`, retaining the raw
+graph/store escape negatives. Historical certificate and typed-table rollback
+fixtures first roll back to their tested migration head, before injecting
+faults, so the newer claim-lease down script cannot mask the target guard or
+change a supposedly unchanged ledger. All ledger comparisons stay exact; the
+typed retained-row case compares the complete pinned ledger. Certificate
+refusals also name their expected table/schema guard. The project abbreviation
+round trip intentionally applies every current migration and now expects the
+claim-lease name/hash and its reversal explicitly. Only test oracles/fixtures
+changed; this restores precise existing contracts and requires no new spec.
+
+With `--preload ./tools/test/scratch/preload.ts --timeout=30000`, the same five
+files plus `cross-project-execution-observation.controller.db.test.ts` passed
+**33 tests, zero failures, 126 assertions** in 7.97 seconds. Output:
+`/tmp/puni-main-integration-oracles-after.log`.
+
+R5 fault trials used copied migration folders and temporary copies of the
+existing tests; no tracked migration SQL changed. Removing the typed down
+guard made the retained-row case fail with no throw and the missing-table
+case fail with `no such index` instead of its required `no such table`.
+Separately removing certificate retention or schema predicates made the
+retained/replaced cases fail with no throw. Outputs:
+`/tmp/puni-main-oracles-typed-guard-fault.log`,
+`/tmp/puni-main-oracles-certificate-retention-fault.log` and
+`/tmp/puni-main-oracles-certificate-schema-fault.log`. All temporary test and
+migration copies were removed after the trials.
+
+Full OpenSpec validation passed **277/277**, output:
+`/tmp/puni-main-oracles-openspec.json`. Uncached `NX_DAEMON=false
+NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p
+wbs-contracts,wbs-core,wbs-store-sqlite --parallel=1 --skip-nx-cache
+--outputStyle=static` passed all six requested targets and the core module
+prerequisite in 4 minutes 39 seconds; output:
+`/tmp/puni-main-oracles-checks.log`. Scoped formatting and normal commit hooks
+passed. The full backend suite and broad host gate were not rerun; focused
+verification does not establish a passing integrated host gate.

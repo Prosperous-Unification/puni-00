@@ -54,6 +54,7 @@ test('composition keeps source capabilities outside feature callbacks', async ()
       'listCrossReferenceKinds',
       'openCommandGraph',
       'refuseOutsideScope',
+      'releaseExpiredLeases',
       'resolveAccess',
     ]);
     expect('graphOf' in resources).toBe(false);

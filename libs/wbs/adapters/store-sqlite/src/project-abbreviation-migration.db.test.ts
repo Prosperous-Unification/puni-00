@@ -14,6 +14,7 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const MIGRATION = '20261022210000_add_project_abbreviations';
 const EXTERNAL = '20261022211000_add_external_dependencies';
 const CERTIFICATES = '20261022213000_add_optimization_boundary_certificates';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const AUTHORITY = '20261022212000_add_cross_project_dependency_activation';
 const BASE = '20261022140100_widen_organization_audit_compute_providers';
 let directory: string;
@@ -109,11 +110,23 @@ it('backfills every project and rollback preserves old project rows and complete
         .update(readFileSync(join(FOLDER, CERTIFICATES, 'migration.sql')))
         .digest('hex'),
     },
+    {
+      name: CLAIM_LEASE,
+      hash: createHash('sha256')
+        .update(readFileSync(join(FOLDER, CLAIM_LEASE, 'migration.sql')))
+        .digest('hex'),
+    },
   ]);
   expect(raw((sqlite) => codes(sqlite).find((row) => row.project_id === 'q')?.namespace)).toBe(
     'org:a',
   );
-  expect(rollbackTo(path, FOLDER, BASE)).toEqual([CERTIFICATES, AUTHORITY, EXTERNAL, MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASE)).toEqual([
+    CLAIM_LEASE,
+    CERTIFICATES,
+    AUTHORITY,
+    EXTERNAL,
+    MIGRATION,
+  ]);
   expect(
     raw((sqlite) => ({
       projects: sqlite.query('SELECT * FROM project ORDER BY id').all(),

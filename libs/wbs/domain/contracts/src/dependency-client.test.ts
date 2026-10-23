@@ -101,6 +101,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'patchApiProjectsByIdStepsByStepId',
       'patchApiSaved-plansById',
       'patchApiSpacesById',
+      'postApiClaimsRenew',
       'postApiDirectoryCommands',
       'postApiOnboardingEmailChallenges',
       'postApiOnboardingEmailChallengesConfirm',
