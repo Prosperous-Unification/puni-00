@@ -505,3 +505,12 @@ through installed mounted readers. A watched resource-only namespace fault moved
 A's second leaf from day one to zero; restoration passed. Public IDs and resource
 facts remain unchanged. See verify.md, “Task 6.1 bounded mounted Fast resource
 capacity”; parent 6.1 stays open and synthetic authority does not activate writers.
+
+Task 5.2 bounded real socket delivery (2026-10-23): the mounted completion command
+now has production PushClient→HTTP push→gateway subscription→real websocket proof.
+Authorized B/C streams equal their durable ledger envelopes, unrelated/foreign
+observers remain silent and B readiness refreshes. Actual-send removal and wrong
+subscription lookup fail independently. Evidence and limits:
+[evidence/real-socket-delivery/report.md](evidence/real-socket-delivery/report.md).
+Browser reconciliation, remaining writer coverage and rollout remain open;
+parent 5.2 stays unchecked.

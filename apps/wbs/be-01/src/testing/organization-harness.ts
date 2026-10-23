@@ -679,6 +679,7 @@ export class OrganizationHarness {
     solverVersion = '0.1.0',
     openReadOnlyConnection,
     pushFetch = () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    internalAuthSecret,
     onFanoutCapture,
     onCapturedFanout,
     onBorrowedUnitOfWork,
@@ -733,7 +734,7 @@ export class OrganizationHarness {
       logger: createLogger({ service: 'be-01' }),
       jwtKey: TEST_JWT_KEY,
       gwUrl: 'http://gw.invalid',
-      internalAuthSecret: 's'.repeat(32),
+      internalAuthSecret: internalAuthSecret ?? 's'.repeat(32),
       pushFetch,
       ...(now === undefined ? {} : { now }),
       ...(trustedIssuers === undefined
@@ -899,7 +900,7 @@ export class OrganizationHarness {
         announcements: services.announcements,
         committedFanout: services.committedFanout,
       },
-      internalAuthSecret: 'x'.repeat(32),
+      internalAuthSecret: internalAuthSecret ?? 'x'.repeat(32),
     });
     const harness = new OrganizationHarness(
       dir,
@@ -1176,6 +1177,8 @@ export interface ComposedHarnessOptions {
   /** Replaces only the admitted command WorkItemService; production composition stays inactive. */
   readonly syntheticExternalCommands?: true;
   readonly sessionBinding?: boolean;
+  /** One secret for the mounted backend and its outbound production push client. */
+  readonly internalAuthSecret?: string;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;
   withOptimizer?: boolean;

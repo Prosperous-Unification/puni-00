@@ -5788,3 +5788,13 @@ dates. The 6.2 audit freshly passed 83 tests with 768 assertions across five
 files. Optimization lifecycle, historical connected evidence, browser
 acceptance, activation and the exact-head host/CI gate remain separate open
 tasks; neither checkbox claims those outcomes.
+
+### Task 5.2 bounded real socket delivery (2026-10-23)
+
+Mounted completion now crosses the production PushClient and gateway subprocess
+through actual authorized B/C websocket streams, compares durable envelopes,
+keeps unrelated/foreign observers silent and rereads B readiness. Independent
+actual-send removal and wrong-subscription lookup faults both fail after admitted
+presence. See [the delivery report](evidence/real-socket-delivery/report.md) for
+commands, exact observations and limits. Browser reconciliation and rollout remain
+open; parent 5.2 stays unchecked.
