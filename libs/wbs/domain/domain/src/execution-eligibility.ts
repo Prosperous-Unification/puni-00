@@ -60,8 +60,10 @@ export function executionEligibilityOf(
       if (!predecessor.facts.done) successor.finishBlockers.push(blocker);
     } else if (
       edge.type === 'FS'
-        ? !predecessor.facts.done
-        : !predecessor.facts.started && !predecessor.facts.done
+        ? // Proof: bypassing FS completion made all four mounted local/remote readiness cases advertise canStart before completion.
+          !predecessor.facts.done
+        : // Proof: bypassing SS actual-start/done made all four mounted local/remote readiness cases advertise canStart before a start.
+          !predecessor.facts.started && !predecessor.facts.done
     ) {
       successor.startBlockers.push(blocker);
     }
