@@ -68,3 +68,28 @@ identity projections, including composed inventory comparisons; preserve raw
 observations, every field and unrelated-member strictness. Later configuration,
 network or mount-field drift must still refuse. Implementation, independent
 review and a new exact-SHA physical retry remain required.
+
+## Shared mount-order finding before the next retry
+
+A further read-only exact-container observation repeated native Caddy inspection
+20 times without service/configuration effects. It produced four distinct hashes
+for native mount array order and one hash for the complete mount entries sorted
+by destination. Configuration, host settings and process identity each retained
+one hash. Only hashes/schema metadata were exported to the private audit.
+
+This disproves the earlier assumption that unrelated mount order should remain
+an identity discriminator. It also affects the fixture's Caddy member, so a
+source-only exception cannot complete native acceptance. Astra approved one shared
+inventory mount projection for every native container: validate complete entries
+and canonical absolute unique destinations, sort a new array, preserve every
+field/value and leave raw inputs untouched. Caddy's separate ingress identity
+must use that same projection. Source raw-member recognition and parked
+full-member/lifecycle validation remain required. Actual unrelated field,
+membership, security and process drift must still refuse.
+
+The order-only unrelated refusal will be replaced with permutation acceptance;
+duplicate, malformed, missing/additional and per-target-field fault tests remain
+required. Historical source-only receipts describe their original bounded
+contract and are not current proof for a superseded order-only check. The shared
+correction, its independent review and the new exact-SHA fixture retry remain
+open. No combined native acceptance or production change is claimed here.
