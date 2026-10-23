@@ -408,7 +408,7 @@ function resolveEndpoint(
 /**
  * Why a step-node graph cannot be ordered: a relationship that joins a node to
  * itself, or a directed cycle. `relationshipIds` names the authored edges that
- * lie on the cyclic remainder, in the order they were resolved and without
+ * belong to a directed cycle, in the order they were resolved and without
  * repeats; it is empty when workflow and legacy edges alone close the cycle.
  */
 export interface StepNodeCycle {
@@ -426,9 +426,11 @@ export interface StepNodeCycle {
  * it would leave, before anything is persisted (design.md, "Model and
  * validation").
  *
- * Kahn's algorithm over positions. The nodes left with an incoming edge after
- * the sort are those on or behind a cycle; the authored edges between two of
- * them are the ones reported.
+ * Kahn's algorithm over positions first detects whether a cycle exists. A
+ * strongly connected component pass over the remainder then reports only
+ * edges whose endpoints share a component: downstream blocked edges and
+ * bridges between distinct cycles are not witnesses. The component traversals
+ * use explicit stacks, so graph depth does not consume the JavaScript call stack.
  *
  * Throws on an edge whose end is not one of `graph.nodes`: a graph that names
  * a node it does not hold was not built by {@link resolveStepNodeGraph}, and
@@ -438,6 +440,7 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
   const formatNodeKey = (end: SliceEdgeEnd): string => `${end.leafId}#${String(end.at)}`;
   const indegree = new Map<string, number>();
   const successors = new Map<string, string[]>();
+  const predecessors = new Map<string, string[]>();
   for (const graphNode of graph.nodes) {
     const leafId = graphNode.kind === 'step' ? graphNode.ref.workItemId : graphNode.workItemId;
     indegree.set(formatNodeKey({ leafId, at: graphNode.at }), 0);
@@ -459,6 +462,9 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
     const out = successors.get(from);
     if (out === undefined) successors.set(from, [to]);
     else out.push(to);
+    const incoming = predecessors.get(to);
+    if (incoming === undefined) predecessors.set(to, [from]);
+    else incoming.push(from);
   }
 
   // Proof: the self-pair branch disabled made `refuses a self-node pair` fail on
@@ -490,11 +496,64 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
   // `refuses a cycle a legacy edge closes against a typed one` and the anchor
   // case fail on `Received: null`; watched 2026-09-27.
   if (indegree.size === 0) return null;
-  const onCycle = graph.edges.filter(
-    (edge) =>
-      indegree.has(formatNodeKey(edge.predecessor)) && indegree.has(formatNodeKey(edge.successor)),
-  );
+  const components = findStrongComponents(indegree, successors, predecessors);
+  // Proof: removing this filter, then separately replacing component equality
+  // with successor membership, made the downstream/bridge domain cases include
+  // unrelated IDs and the mounted `current cycle` test report [1] instead of [0]
+  // (independent faults, 2026-10-23).
+  // Proof: removing the component-presence check included `independent` in
+  // `excludes an independent acyclic edge beside a legacy-only cycle`
+  // instead of the required empty authored witness (2026-10-23).
+  const onCycle = graph.edges.filter((edge) => {
+    const component = components.get(formatNodeKey(edge.predecessor));
+    return component !== undefined && component === components.get(formatNodeKey(edge.successor));
+  });
   return { kind: 'cycle', relationshipIds: collectAuthoredIds(onCycle) };
+}
+
+/**
+ * Kosaraju's two traversals partition Kahn's remainder. A same-component edge
+ * lies on a cycle, including a singleton component's self edge; a downstream
+ * singleton or a bridge has no return path and cannot supply a witness.
+ */
+function findStrongComponents(
+  remaining: ReadonlyMap<string, number>,
+  successors: ReadonlyMap<string, readonly string[]>,
+  predecessors: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<string, string> {
+  const visited = new Set<string>();
+  const finished: string[] = [];
+  for (const key of remaining.keys()) {
+    const pending = [{ key, exiting: false }];
+    while (pending.length > 0) {
+      const visit = pending.pop();
+      if (visit === undefined) throw new Error('the traversal stack emptied while it had length');
+      if (visit.exiting) {
+        finished.push(visit.key);
+      } else if (!visited.has(visit.key)) {
+        visited.add(visit.key);
+        pending.push({ key: visit.key, exiting: true });
+        for (const successor of successors.get(visit.key) ?? [])
+          if (remaining.has(successor) && !visited.has(successor))
+            pending.push({ key: successor, exiting: false });
+      }
+    }
+  }
+  const components = new Map<string, string>();
+  for (const key of finished.reverse()) {
+    if (components.has(key)) continue;
+    const pending = [key];
+    while (pending.length > 0) {
+      const predecessor = pending.pop();
+      if (predecessor === undefined)
+        throw new Error('the component stack emptied while it had length');
+      if (components.has(predecessor)) continue;
+      components.set(predecessor, key);
+      for (const incoming of predecessors.get(predecessor) ?? [])
+        if (remaining.has(incoming) && !components.has(incoming)) pending.push(incoming);
+    }
+  }
+  return components;
 }
 
 function collectAuthoredIds(edges: readonly StepNodeGraphEdge[]): string[] {

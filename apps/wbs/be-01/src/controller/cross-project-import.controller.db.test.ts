@@ -733,6 +733,9 @@ for (const mapped of [false, true])
  * Proof: bypassing ImportedPlanResource's endpoint-shape refusal made both
  * shape cases throw instead of returning their indexed modeled refusal.
  * Bypassing its complete graph refusal admitted the current-cycle case.
+ * Removing the domain SCC edge filter, then separately replacing endpoint
+ * component equality with membership, misdiagnosed current cycle at [1]
+ * instead of the original external [0] (independent faults, 2026-10-23).
  * Returning commit:true for dependencyRefusal in ImportService leaked staged
  * rows in the missing-step snapshot (independent faults, 2026-10-23).
  */
@@ -759,8 +762,6 @@ for (const fault of [
           "DELETE FROM external_dependency WHERE successor_project_id=? AND id<>'incoming-node-a'",
         )
         .run(source.projectId);
-      harness.sqlite.query('DELETE FROM typed_dependency WHERE project_id=?').run(source.projectId);
-      harness.sqlite.query('DELETE FROM dependency WHERE project_id=?').run(source.projectId);
     }
     const downloaded = await exported(source.projectId);
     const stepId = remote.stepIds.at(0);
@@ -822,6 +823,16 @@ for (const fault of [
       );
     });
     expect(index).toBeGreaterThanOrEqual(0);
+    if (fault === 'cycle') {
+      expect(index).toBe(0);
+      expect(downloaded.classified.typedDependencies.map((link) => link.id)).toEqual([
+        'incoming-node-a',
+        'internal-node',
+      ]);
+      expect(downloaded.classified.workItems.flatMap((row) => row.dependsOn)).toEqual([
+        source.leafId,
+      ]);
+    }
     const before = transferSnapshot(harness);
     pushes = 0;
     const admitted = await importTransfer(downloaded.classified);
