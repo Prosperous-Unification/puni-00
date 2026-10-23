@@ -5810,5 +5810,20 @@ shared add/update input-boundary 400 contract (HTTP and MCP each became 422).
 Final added cases passed 6/6; existing calendar/admission controls and the new
 cases passed 10/10 before the final assertion lint cleanup. Shared command and
 mounted controller suites passed 28/28; configured MCP lint/typecheck, backend
-typecheck and changed-fixture lint passed. No production behavior changed.
-Tasks 3.2/4.2 remain open pending independent review and complete reconciliation.
+typecheck and changed-fixture lint passed. Independent Astra High review approved
+the bounded packet without findings; the integrated six-case rerun passed 6/6.
+No production behavior changed. Tasks 3.2/4.2 remain open pending complete
+reconciliation and delivery gates.
+
+## Task 4.4 independent final replay graph consumer proof — 2026-10-23
+
+[The bounded final-consumer packet](evidence/task-4.4-final-replay/verify.md)
+adds mounted undo/redo final-only graph findings after genuine healthy graph
+inspection and staged reattachment. Removing only the final `walkStack` cycle
+consumer, while retaining the earlier typed guard and genuine graph calls,
+produced unsafe HTTP 200, persisted patch/relationship/journal/event changes and
+publication in both directions. Restoration passes; complete table comparisons
+allow exactly the established selected stale-entry pruning. The delta spec now
+states that exception explicitly. Production behavior is unchanged. Independent
+Astra High review approved the bounded proof after an evidence count correction.
+Parent 4.4, activation and full host/CI delivery gates remain open.

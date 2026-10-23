@@ -108,13 +108,15 @@ Connected placement SHALL translate each project's workday coordinates through i
 
 ### Requirement: Structural writes and history preserve external graph integrity
 
-Dependency-affecting edits, tree and step mutations, dynamic anchor changes, undo/redo and batches SHALL validate the complete resulting connected graph in their transaction. Refusal SHALL preserve authored state, revisions, journal and events. First-child hand-down SHALL carry incident endpoint mappings atomically without changing their scope.
+Dependency-affecting edits, tree and step mutations, dynamic anchor changes, undo/redo and batches SHALL validate the complete resulting connected graph in their transaction. Refusal SHALL preserve authored state, revisions and events. Journal contents SHALL remain unchanged except that a stale undo/redo refusal prunes exactly its selected stale history entry after rolling back the replay; other entries, including remote project history, SHALL remain unchanged. First-child hand-down SHALL carry incident endpoint mappings atomically without changing their scope.
 
 #### Scenario: Undo would now create a cycle
 
 - **GIVEN** another project has added a relationship since an edge was removed
 - **WHEN** undo would restore that edge and close a connected cycle
 - **THEN** undo refuses atomically with the conflict visible
+- **AND** all replayed writes, including an earlier patch in the same compound entry, roll back without publication
+- **AND** only the selected stale history entry is pruned; every other journal entry remains unchanged
 
 #### Scenario: Hand-down keeps external endpoint identity
 

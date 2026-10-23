@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import type { StoredTypedDependency } from '@wbs/core';
 import { readCommand, readPayload, readPreconditions } from '@wbs/core/service/compensating';
+import { ConnectedDependencyGraphReader } from '@wbs/core/service/connected-dependency-graph';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { formatStepNodeId } from '@wbs/domain';
 import { afterEach, expect, test } from 'bun:test';
 import { decodeJwt } from 'jose';
@@ -759,8 +761,8 @@ test('synthetic mounted undo refuses a legally destroyed predecessor before rest
 });
 
 for (const direction of ['undo', 'redo'] as const)
-  for (const closesCycle of [false, true])
-    test(`synthetic mounted compound ${direction} ${closesCycle ? 'refuses a remote-only cycle atomically and prunes exactly its selected journal' : 'restores the exact relationship and flips its selected journal'}`, async () => {
+  for (const observation of ['healthy', 'remote-cycle', 'final-finding'] as const)
+    test(`synthetic mounted compound ${direction} ${observation === 'remote-cycle' ? 'refuses a remote-only cycle atomically and prunes exactly its selected journal' : observation === 'final-finding' ? 'refuses a final-only graph finding after healthy reattachment' : 'restores the exact relationship and flips its selected journal'}`, async () => {
       const pushes: string[] = [];
       const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
       const a = fixture.predecessor;
@@ -817,7 +819,7 @@ for (const direction of ['undo', 'redo'] as const)
         ).toBe(200);
       const readRelationship = () =>
         harness.sqlite
-          .query(
+          .query<{ id: string }, [string]>(
             'SELECT id,type,predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id FROM external_dependency WHERE successor_project_id=?',
           )
           .get(b.projectId);
@@ -842,6 +844,8 @@ for (const direction of ['undo', 'redo'] as const)
         ).status,
       ).toBe(200);
       const relationship = direction === 'undo' ? original : readRelationship();
+      const relationshipId = relationship?.id;
+      if (typeof relationshipId !== 'string') throw new Error('fixture relationship ID absent');
       expect(relationship).toMatchObject({
         id: expect.any(String) as unknown,
         type: 'FS',
@@ -875,7 +879,7 @@ for (const direction of ['undo', 'redo'] as const)
           .query('SELECT id,revision FROM work_item WHERE id IN (?,?) ORDER BY id')
           .all(a.workItemId, b.workItemId);
       const revisions = readGuardedRevisions();
-      if (closesCycle)
+      if (observation === 'remote-cycle')
         expect(
           (await fixture.request(`${remoteRoute}/commands`, { commands: [createAddCommand(x, y)] }))
             .status,
@@ -886,9 +890,58 @@ for (const direction of ['undo', 'redo'] as const)
         .query('SELECT notes,revision,updated_at FROM work_item WHERE id=?')
         .get(b.workItemId);
       const beforePushes = [...pushes];
-      const response = await fixture.request(`${route}/${direction}`);
+      // Saved method keeps the genuine connected graph and its receiver active.
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const originalCycle = DependencyGraphGuard.prototype.findCycle;
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const originalRead = ConnectedDependencyGraphReader.prototype.read;
+      let captured: Awaited<ReturnType<ConnectedDependencyGraphReader['read']>> | undefined;
+      let proposedReads = 0;
+      let finalReads = 0;
+      if (observation === 'final-finding') {
+        ConnectedDependencyGraphReader.prototype.read = async function (projectIds, changes) {
+          captured = await originalRead.call(this, projectIds, changes);
+          return captured;
+        };
+        DependencyGraphGuard.prototype.findCycle = async function (projectId, change) {
+          const cycle = await originalCycle.call(this, projectId, change);
+          expect(projectId).toBe(b.projectId);
+          expect(cycle).toBeNull();
+          if (change !== undefined && Object.keys(change).length > 0) {
+            proposedReads++;
+            return cycle;
+          }
+          finalReads++;
+          expect(proposedReads).toBeGreaterThan(0);
+          if (captured === undefined) throw new Error('fixture staged graph absent');
+          const restoredRelationship = {
+            id: relationshipId,
+            projectId: b.projectId,
+            predecessor: readNode(a),
+            successor: readNode(b),
+            type: 'FS' as const,
+          };
+          expect(captured.external.find(({ id }) => id === relationshipId)).toEqual(
+            restoredRelationship,
+          );
+          expect(
+            captured.projects
+              .find(({ projectId }) => projectId === b.projectId)
+              ?.state.rows.find(({ id }) => id === b.workItemId)?.notes,
+          ).toBe(direction === 'undo' ? '' : 'Compound replay patch');
+          return { kind: 'cycle', relationshipIds: ['final-observation-only'] };
+        };
+      }
+      let response: Response;
+      try {
+        response = await fixture.request(`${route}/${direction}`);
+      } finally {
+        DependencyGraphGuard.prototype.findCycle = originalCycle;
+        ConnectedDependencyGraphReader.prototype.read = originalRead;
+      }
       const body: unknown = await response.json();
-      if (!closesCycle) {
+      if (observation === 'final-finding') expect(finalReads).toBe(1);
+      if (observation === 'healthy') {
         expect({ status: response.status, body }).toMatchObject({ status: 200 });
         expect(readRelationship()).toEqual(relationship);
         expect(
@@ -903,7 +956,13 @@ for (const direction of ['undo', 'redo'] as const)
       }
       expect({ status: response.status, body }).toEqual({
         status: 409,
-        body: { error: 'stale_undo', detail: 'that relationship would now be refused: cycle.' },
+        body: {
+          error: 'stale_undo',
+          detail:
+            observation === 'final-finding'
+              ? 'that would now close a dependency cycle between steps.'
+              : 'that relationship would now be refused: cycle.',
+        },
       });
       expect(
         harness.sqlite

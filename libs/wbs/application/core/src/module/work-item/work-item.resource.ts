@@ -7494,6 +7494,10 @@ export class WorkItemService {
         // Proof: with typedRefusal suppressed, also suppressing this consumer made both
         // synthetic mounted compound remote-cycle walks commit HTTP 200, patch B and
         // restore A→B; domain, revision, event and journal rows changed (2026-10-23).
+        // Proof: suppressing only this consumer made both mounted final-only graph
+        // finding replays return 200, persist the preceding patch and relationship,
+        // flip history and publish; the genuine earlier typed guard stayed active
+        // and staged reattachment was observed before injection (2026-10-23).
         const cycle = await this.findDependencyCycle(projectId, actorId);
         if (cycle !== null) {
           await this.opts.journal.discard(entry.id);
