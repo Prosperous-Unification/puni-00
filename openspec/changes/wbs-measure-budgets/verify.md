@@ -850,3 +850,73 @@ Checks (`env -u CLAUDECODE` throughout; local Bun 1.4.4):
 The merge commit's lint hook ran out of the default 4 GB Node heap on the merge's 208 staged
 scripts; it passed with `NODE_OPTIONS=--max-old-space-size=10240`. The full be-01 suite and the
 h2puni/h4claw gate were not run (CI carries them).
+
+## Review fixes A 2026-10-24
+
+Branch `feat/wbs-measure-budgets-fixes-a` (from the main sync, #696, with `origin/main` merged:
+#695 Bun 1.4.4, #566, #601; no conflicts). Items: derived coverage per step node (A-1) and
+single-point trios seeding nothing (D68); import refuses an unpriced money fact or trio (B-1,
+detail `rate_card_required`); the panel reads a derived budget mixed trios block as blocked
+(B-3); the spec states `measure_in_use` with no cascade (A-2/B-2); `Proof:` comments and
+negatives for the measure guards, journal clears and store drift throws (A-3); definitions
+admin-only (D70); the backup is the rollback (D72).
+
+### Failure proofs
+
+Each fault was injected into production code, the named test watched failing, and the code
+restored; the adjacent `Proof:` comments carry the same.
+
+| Guard                                                  | Fault injected                       | Test that observed it                                                                                               | Result          |
+| ------------------------------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| readBudgets three-point trios only (D68)               | single-point trios kept              | domain `derives nothing from a single-point tokens trio, the legacy token estimate`                                 | 18 pass 1 fail  |
+| readBudgets coverage per step node (A-1)               | node keyed by work item alone        | domain `derives no budget where a step spends without a trio beside another step's`                                 | 18 pass 1 fail  |
+| prepareImport unpriced money basis (B-1)               | refusal answers null                 | core `refuses a version-11 file whose measures do not hold together: an unpriced money fact` / `… trio`             | 102 pass 2 fail |
+| budgetReadingOf blocked by mixed trios (B-3)           | estimates arm disabled               | fe-01 `reads a derived budget mixed trios keep from being read as blocked` (rendered "No budget.")                  | 21 pass 1 fail  |
+| MeasureDefinitions.addWithin admin role (D70)          | role check made to pass              | be-01 `refuses a member every definition write, an admin and a super-admin allowed` (200)                           | 1 fail          |
+| MeasureDefinitions.patchWithin admin role (D70)        | role check made to pass              | same (200)                                                                                                          | 1 fail          |
+| MeasureDefinitions.removeWithin admin role (D70)       | role check made to pass              | same (409 `measure_in_use` instead of 403)                                                                          | 1 fail          |
+| resolveMeasures admin role on create (D70)             | role check made to pass              | be-01 `refuses a member's import that would define a measure, writing nothing` (201)                                | 1 fail          |
+| decideMeasureCreate measure_key_taken                  | held-key test removed                | domain `refuses a key the organization already holds`                                                               | 13 pass 1 fail  |
+| decideMeasureCreate second_scheduling_measure          | test removed                         | domain `refuses a second scheduling measure`                                                                        | 13 pass 1 fail  |
+| decideMeasureCreate unit_required                      | test removed                         | domain `refuses an empty or whitespace unit label`                                                                  | 13 pass 1 fail  |
+| decideMeasurePatch measure_key_immutable               | test removed                         | domain `refuses a patch that changes the key`                                                                       | 13 pass 1 fail  |
+| decideMeasurePatch measure_shape_immutable             | refusal answers the target unchanged | domain `refuses a patch that changes the kind or the scale`                                                         | 13 pass 1 fail  |
+| decideMeasurePatch scheduling_measure_fixed            | test removed                         | domain `refuses a second scheduling measure and keeps time scheduling`                                              | 13 pass 1 fail  |
+| decideMeasurePatch second_scheduling_measure           | other-holder test made `false`       | same                                                                                                                | 13 pass 1 fail  |
+| decideMeasurePatch unit_required                       | test removed                         | domain `refuses an empty or whitespace unit label`                                                                  | 13 pass 1 fail  |
+| decideMeasurePatch currency                            | rule answers null                    | domain `keeps a money measure priced and refuses a currency elsewhere`                                              | 13 pass 1 fail  |
+| refuseMeasureRemoval seeded                            | test removed                         | domain `refuses removing a seeded definition, or one anything references`                                           | 13 pass 1 fail  |
+| refuseMeasureRemoval references                        | reference count ignored              | same                                                                                                                | 13 pass 1 fail  |
+| decideMeasureFact unknown_measure                      | lookup falls back to `cost`          | domain `refuses a key the organization does not define`                                                             | 9 pass 1 fail   |
+| decideMeasureFact derived_measure                      | test removed                         | domain `refuses a fact, and a clear, on a derived measure` (+ unowned case)                                         | 8 pass 2 fail   |
+| readCommand clear_budget                               | check removed                        | core `refuses a budget clear that names no whole budget` (+ budget/basis case)                                      | 42 pass 2 fail  |
+| readCommand clear_measure_estimate                     | check removed                        | core `refuses a measure estimate clear that names no whole step node and key` (+ estimate case)                     | 42 pass 2 fail  |
+| readCommand removedMeasureEstimates                    | check removed                        | core `refuses a subtree replay whose removed trios name no whole step node and key` (+ estimate case)               | 42 pass 2 fail  |
+| WorkItemBudgetRepository.listByProject policy          | check made to pass                   | store-sqlite `rejects a stored budget policy outside the two after constraint-bypassing corruption`                 | 12 pass 1 fail  |
+| basisOf half basis                                     | throw answers no basis               | store-sqlite `rejects a stored figure carrying half a money basis after constraint-bypassing corruption`            | 12 pass 1 fail  |
+| metricOrThrow                                          | check made to pass                   | store-sqlite `rejects a stored fact naming neither a metric nor a definition after constraint-bypassing corruption` | 12 pass 1 fail  |
+| MeasureEstimateRepository.set single-point consistency | check made to pass                   | store-sqlite `refuses to write a single-point trio that is not an equal tokens trio, writing nothing` (resolved)    | 12 pass 1 fail  |
+
+### Checks
+
+`env -u CLAUDECODE` throughout; local Bun 1.4.4; each test file run alone.
+
+| Command                                                                                                                       | Result                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| domain `budget`, `measure-definition`, `measure-fact`                                                                         | 19, 14, 10 pass; 0 fail                                     |
+| core `prepare-import`, `compensating`                                                                                         | 104, 44 pass; 0 fail                                        |
+| core measure, estimate, fact and budget command tests, plan-document, headroom, startable, progress, saved-plan-input, freeze | all pass, 0 fail                                            |
+| store-memory and store-sqlite `import.service` (source contract)                                                              | 39, 39 pass; 0 fail                                         |
+| store-sqlite `targeted-readers`, `step-measure`, `measure-schema`, budget and estimate migration, `audit`                     | 13, 11, 19, 7, 8, 6 pass; 0 fail                            |
+| be-01 `measure-organization`, `measure-refusal`, `measure-export`, `budget-headroom` (db)                                     | 10, 5, 9, 7 pass; 0 fail                                    |
+| be-01 `import.controller`, `import-export-organization` (db), `boot.db`                                                       | 5, 34, 38 pass; 0 fail                                      |
+| contracts `definitions`, mcp-01 `openapi-tools`                                                                               | 2, 32 pass; 0 fail                                          |
+| fe-01 `vitest run` `test-tiers`, `measure-panel`, `measure-reading`                                                           | 52 passed across 3 files                                    |
+| `nx run-many -t typecheck,typecheck:module` over core, store-sqlite, contracts, store-memory, domain, be-01, fe-01, mcp-01    | succeeded                                                   |
+| `nx run tool-devsync:test --skip-nx-cache`, `tool-devsync:typecheck`                                                          | 921 tests across 49 files, exit 0; succeeded                |
+| Burokrat `check-indexes working . HEAD`; `pilot-policy.test.ts`                                                               | exit 0 (existing store-memory README debt); 24 pass, 0 fail |
+| `bunx nx format:check --all`; `bunx openspec validate --all --json`                                                           | exit 0; exit 0 (278 passed, 0 failed)                       |
+
+D70 changed the role of the writing user in `measure-organization`, `measure-refusal` and
+`measure-export` to `admin`; members are the negatives. Not run: the full be-01 and fe-01 suites
+and the host gate (CI carries them).
