@@ -280,3 +280,57 @@ it.each([false, true])(
     expect([upstream, downstream, tail].map(({ id }) => events(id))).toEqual(after);
   },
 );
+
+it('number-only edits refresh dependency labels without retargeting or foreign events', async () => {
+  const { harness, upstream, downstream, tail, foreign, events } = await fixture();
+  harness.sqlite.run('UPDATE work_item SET frozen_number = ? WHERE id = ?', [
+    '090',
+    upstream.rowId,
+  ]);
+  const incoming = (body: unknown) =>
+    (body as { connectedDependencies: readonly { id: string }[] }).connectedDependencies.find(
+      ({ id }) => id === 'up-down',
+    );
+  const relationships = harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all();
+  const before = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${downstream.id}/work-items?full=true`,
+  );
+  expect(before.status).toBe(200);
+  expect(incoming(before.body)).toMatchObject({
+    id: 'up-down',
+    predecessor: {
+      endpoint: { workItemId: upstream.rowId },
+      workItemNumber: '090',
+      qualifiedReference: 'UPS.090',
+    },
+  });
+  const changed = await harness.call('ada', 'POST', `/api/projects/${upstream.id}/commands`, {
+    commands: [{ kind: 'unfreezeWorkItem', workItemId: upstream.rowId }],
+  });
+  expect(changed.status).toBe(200);
+  // Proof: dropping incident traversal made this mounted number-only command retain no successor events.
+  for (const project of [downstream, tail])
+    expect(events(project.id)).toEqual([
+      { type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id },
+    ]);
+  expect(events(foreign.id)).toEqual([]);
+  expect(harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all()).toEqual(
+    relationships,
+  );
+  const refreshed = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${downstream.id}/work-items?full=true`,
+  );
+  expect(refreshed.status).toBe(200);
+  expect(incoming(refreshed.body)).toMatchObject({
+    id: 'up-down',
+    predecessor: {
+      endpoint: { workItemId: upstream.rowId },
+      workItemNumber: '010',
+      qualifiedReference: 'UPS.010',
+    },
+  });
+});
