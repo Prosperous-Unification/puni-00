@@ -165,3 +165,48 @@ test('passes the caller signal to the provider and caches no cancelled read', as
   expect(await nameOfRejection(delivery.read(org('a'), url, aborted.signal))).toBe('AbortError');
   expect(reads).toEqual([url]);
 });
+
+test('a read cancelled while waiting clears its timer, refunds its token and throws AbortError', async () => {
+  let release: () => void = () => {
+    throw new Error('no read is pending');
+  };
+  const { reader, reads } = counting(
+    () =>
+      new Promise<DeliveryReading>((resolve) => {
+        release = () => {
+          resolve(reading);
+        };
+      }),
+  );
+  const timers = { scheduled: 0, cleared: 0 };
+  const tracked = (ms: number, fire: () => void) => {
+    timers.scheduled++;
+    const cancel = schedule(ms, fire);
+    return () => {
+      timers.cleared++;
+      cancel();
+    };
+  };
+  const delivery = new DeliveryGate(reader, () => 0, tracked, {
+    ...DELIVERY_GATE_LIMITS,
+    cacheTtlMs: 0,
+    concurrentReads: 1,
+    busyWaitMs: 60_000,
+    organizationReads: 2,
+  });
+  const first = delivery.read(org('a'), url, open());
+  const caller = new AbortController();
+  const waiting = delivery.read(org('a'), url, caller.signal);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(timers).toEqual({ scheduled: 1, cleared: 0 });
+  caller.abort(new DOMException('closed', 'AbortError'));
+  expect(await nameOfRejection(waiting)).toBe('AbortError');
+  expect(timers).toEqual({ scheduled: 1, cleared: 1 });
+  release();
+  expect((await first).kind).toBe('served');
+  const refunded = delivery.read(org('a'), url, open());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  release();
+  expect((await refunded).kind).toBe('served');
+  expect(reads).toHaveLength(2);
+});

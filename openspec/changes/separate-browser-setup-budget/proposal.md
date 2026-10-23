@@ -34,4 +34,4 @@ None; these operational limits are reversible.
 
 ## Impact
 
-The browser shard workflow, its existing production-YAML contract tests, and a narrow OpenSpec verification record. This correction is necessary to complete the autonomously authorized delivery-tracking validation; final implementation merge, production deployment and secrets remain unauthorized.
+The browser shard workflow, its existing production-YAML contract tests, and a narrow OpenSpec verification record. This correction is necessary to complete the autonomously authorized delivery-tracking validation; it is merged under the 2026-10-24 goal, and production deployment and secrets stay outside it.

@@ -1096,6 +1096,15 @@ jobs:
     # Ubuntu package provisioning took 9–12 minutes. A successful layout shard took
     # 19.5 minutes, so retain 25 for layout, allow 15 for provisioning and five for
     # organization validation, plus five for checkout, dependency install and artifacts.
+    #
+    # Four shards since 2026-09-08: Playwright shards by file, not duration, and
+    # two shards measured 21.4m vs 7.1m. Doubling narrows the imbalance so the
+    # worst shard falls toward the mean; it does not make the suite cheaper.
+    # Queue wait measured 0.0m across 24 jobs, so extra shards do not queue (the
+    # aggregate's long "wait" is `needs:` fan-in, not runner shortage). A cap that
+    # cancels saves no minutes and yields no verdict: the answer is headroom or
+    # sharding, never retries. `retries` in apps/wbs/fe-01/playwright.config.ts
+    # stays 0 because a check people re-run until it is green cannot fail.
     strategy:
       fail-fast: false
       matrix:

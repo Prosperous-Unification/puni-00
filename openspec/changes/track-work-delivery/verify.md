@@ -1,6 +1,6 @@
 # Verification: work delivery observations
 
-Local implementation evidence collected on 2026-10-23. This record distinguishes focused local checks, the live read-only demonstration, and final PR acceptance. Production deployment, secret changes and implementation merge are not authorized.
+Local implementation evidence collected on 2026-10-23. This record distinguishes focused local checks, the live read-only demonstration, and final PR acceptance. Production deployment and secret changes are outside this change; the implementation is merged under the 2026-10-24 goal.
 
 Initial base `d28f33101012d8e770c55e293bf69d2899695539`; branch `plan-puni-delivery-tracking`. Main `1de2778500f7c62f48f32fc568ec2a6c949334bb` was integrated in `894433af1063d9463312c44d32d85a7ff021067e`. Reviewed implementation range: `1de277850..78b78d6ea`. Core/adapter/API/UI commits remain separately reviewable in that range. Final review approved the implementation; publication and required CI acceptance are recorded separately below.
 
@@ -378,7 +378,7 @@ Ruling: separate implementation verification (Task5/OpenSpec) from publication/C
 The published delivery head obtained a passing required gate but exhausted the existing browser job deadline three times after slow Ubuntu package downloads. The directly blocking correction is recorded separately in [browser validation budgets](../separate-browser-setup-budget/proposal.md), with its [proof record](../separate-browser-setup-budget/verify.md). Delivery model, API and UI behavior are unchanged by that correction. Final required verdicts remain in the PR receipt described above.
 
 ```text
-Ruling: correct the directly blocking browser CI budget in a separate narrow OpenSpec packet within this PR — three observed setup-starved attempts prevent final validation, while the user authorized autonomous completion and avoidance of bottlenecks — costs one new-head CI cycle and a longer worst-case job allowance; test scope, retries, reducer, runner and main enforcement stay unchanged. Chosen budgets50mjob/15msetup/25mlayout/5morganization, retaining existing25mmaximum forlayout rather than narrowing slow shardsto20m. No new domain terms or irreversible ADR. Optionaldesignartifactomittedbecausefourdeclarationsandtheproofsequencearefullyspecifiedintasks.
+Ruling: correct the directly blocking browser CI budget in a separate narrow OpenSpec packet within this PR — three observed setup-starved attempts prevent final validation, while the user authorized autonomous completion and avoidance of bottlenecks — costs one new-head CI cycle and a longer worst-case job allowance; test scope, retries, reducer, runner and main enforcement stay unchanged. Chosen budgets 50m job / 15m setup / 25m layout / 5m organization, retaining the existing 25m maximum for layout rather than narrowing slow shards to 20m. No new domain terms or irreversible ADR. Optional design artifact omitted because four declarations and the proof sequence are fully specified in tasks.
 ```
 
 ```text

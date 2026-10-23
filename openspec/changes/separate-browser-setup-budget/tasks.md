@@ -7,4 +7,4 @@
 
 - [x] 2.1 Record commands, original three timeouts, declaration mutations, Actions faults/controls and limitations in `verify.md`; obtain one scoped review and address blocking findings. Validate OpenSpec and normal commit hooks. Finish the local implementation and proof record before publication.
 
-Final acceptance follows publication: publish the correction once with the delivery PR, obtain actual complete browser and required gate verdicts on the final head, and retain the external receipt on the PR without an evidence-only source commit. No merge or deployment is authorized.
+Final acceptance follows publication: publish the correction once with the delivery PR, obtain actual complete browser and required gate verdicts on the final head, and retain the external receipt on the PR without an evidence-only source commit. Merged under the 2026-10-24 goal; deployment stays outside this change.

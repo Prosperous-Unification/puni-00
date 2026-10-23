@@ -148,6 +148,7 @@ export class DeliveryGate {
       const admit = () => {
         settle('admitted');
       };
+      // Proof: dropping the refund, the `cancelTimer()` in settle, or the `throwIfAborted()` after it each failed 'a read cancelled while waiting clears its timer, refunds its token and throws AbortError' (rate-limited, cleared 0, no rejection; 2026-10-24).
       const cancel = () => {
         settle('cancelled');
       };

@@ -330,8 +330,13 @@ describe('authorized saved-reference delivery', () => {
     expect(reads).toHaveLength(1);
   });
   it('cancels the provider read when the request aborts', async () => {
-    holdReads = new Promise(() => undefined);
     const closed = new AbortController();
+    // Like the real adapter, the held read ends with AbortError once the request closes.
+    holdReads = new Promise((_resolve, reject) => {
+      closed.signal.addEventListener('abort', () => {
+        reject(new DOMException('closed', 'AbortError'));
+      });
+    });
     const answer = h
       .request(path(), {
         headers: {
@@ -345,6 +350,7 @@ describe('authorized saved-reference delivery', () => {
     expect(readerSignals[0]?.aborted).toBe(false);
     closed.abort();
     expect(readerSignals[0]?.aborted).toBe(true);
-    void answer;
+    const settled = await answer;
+    expect(settled instanceof Response ? settled.status : settled).toBe(499);
   });
 });

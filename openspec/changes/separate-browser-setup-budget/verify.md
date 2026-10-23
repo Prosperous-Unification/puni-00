@@ -10,7 +10,7 @@
 
 ## Task completion and spec sync
 
-All three local implementation/proof/review tasks are complete. The final ordinary PR pipeline remains a publication acceptance requirement; this source record does not claim that future verdict. `browser-validation-budget` is an active delta and is not synced or archived. The implementation merge is not authorized.
+All three local implementation/proof/review tasks are complete. The final ordinary PR pipeline remains a publication acceptance requirement; this source record does not claim that future verdict. `browser-validation-budget` is an active delta and is not synced or archived. The implementation is merged under the 2026-10-24 goal.
 
 ## Original production failures
 

@@ -30,7 +30,7 @@ Assumptions, recorded rather than asked (constructor options with these defaults
 
 - A1 cache TTL 60 s. A refresh inside the TTL returns the cached reading; its unchanged `observedAt` says so. Refresh does not invalidate the cache.
 - A2 30 provider reads per 10 minutes per organization (bucket refills one read per 20 s); cache hits are free. Refusal: 429 `delivery_rate_limited` with `retryAfterSeconds` and a `Retry-After` header.
-- A3 4 concurrent provider reads per process; an excess read waits up to 5 s for a slot, then 503 `delivery_busy`. A read that never reached the provider refunds its token.
+- A3 4 concurrent provider reads per process; an excess read waits up to 5 s for a slot, then 503 `delivery_busy`. A read that never reached the provider refunds its token. Concurrent reads of one URL inside the TTL are not coalesced: until the first answer is cached, each costs a token and up to 32 GETs. Single-flight is a follow-up.
 
 ### Deferred: lighter lookup for the delivery route
 
