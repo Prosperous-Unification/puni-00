@@ -1305,3 +1305,12 @@ adoption/drain and participant roster proofs, then perform atomic activation and
 compatible restoration under continuous ownership. Handoff must explicitly bind
 that complete proof and independently read it back; this slice cannot mint it.
 Ordinary swap admission remains closed throughout and after this operation.
+
+Owner lifecycle review correction: initialized namespace scanner and cleanup
+processes use an owner-scoped streaming DockerExec port as well as the ordinary
+Docker command port. Durable intent precedes each exec, actual DONE/REAPED token
+observations are retained, and marker/description identity is rechecked before
+any next session. A lost owner refuses even cleanup session creation and retains
+uncertainty for attended recovery. Canonical owner locks use kernel no-follow
+opening plus synchronous opened-regular-inode/path validation before any holder
+record write; legacy lock callers retain their prior contract.

@@ -98,3 +98,64 @@ commands completed. Tool-wiki explicitly returned `status: inactive`,
 certification is claimed. Migration hooks and doc-caps skipped because this slice
 contains no matching migration/LLM_README changes. `git diff --check` passed.
 The candidate commit also runs the installed normal hooks without bypass.
+
+## Astra P2 corrections: initialized exec ownership and safe lock opening
+
+The initial review found two gaps in candidate `0601c657e`: namespace scanner /
+cleanup sessions used the separate streaming DockerExec port outside the owner,
+and the old lock helper could truncate a symlink target before the owner callback
+rejected the path. Neither initial source packet approval nor host acceptance is
+claimed. These corrections supersede the earlier callback-only canonical-lock
+proof and the earlier composed fixture's command-port-only coverage.
+
+The symlink target-preservation test first failed on the reviewed source:
+`retained evidence` became the empty string despite an eventual canonical-lock
+refusal. Owner acquisition now selects a dedicated `withCanonicalLock` helper.
+Its kernel open uses `O_NOFOLLOW`; synchronous opened-file regularity,
+canonical-name and device/inode checks precede holder writes, with a second
+identity check after the real flock. Refused validation closes the descriptor
+without truncating a holder record it never wrote. Existing `withLock` callers
+continue selecting the legacy acquisition contract. A disposable child injects
+real file replacement at open and locked validation boundaries while executing
+the actual production helper and real flock; both retained files stay intact.
+This is an I/O-boundary fault injection, not a copied lock verifier.
+
+Owner backend fencing now supplies an owner-scoped DockerExec port to the real
+namespace audit adapter. The coordinator passes this port through to managed
+backend fencing. Scanner and cleanup sessions each get a nonce-bound durable
+intent before process creation, live marker/description checks and retained
+actual DONE/REAPED protocol observations after successful execution. Marker loss
+after a scanner refuses the next cleanup session, leaves the scanner intent
+without a fabricated readback and prevents backend completion. Missing scanner
+reap evidence remains a refusal under the real namespace adapter. This does not
+authorize a session after lost ownership or claim successful cleanup in that case.
+
+The composed fixture now exercises both command and streaming exec boundaries,
+requires a nonce-bearing independently readable intent inside the exec port,
+observes scanner and cleanup calls, and requires retained DONE/REAPED evidence.
+It uses the existing real filesystem namespace audit adapter with a fake Docker
+exec boundary; no real Docker daemon or production process was invoked.
+
+Watched independent production faults, each restored before final checks:
+
+| Fault                                                           | Observed failing production-path acceptance                                               |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Substitute legacy lock acquisition for strict owner acquisition | Symlink target was truncated before refusal; target-preservation assertion failed, exit 1 |
+| Remove kernel `O_NOFOLLOW`                                      | Real symlink open lost its required ELOOP cause, exit 1                                   |
+| Remove opened-inode validations                                 | Replacement at the real open boundary reached callback instead of refusing, exit 1        |
+| Truncate unconditionally in acquisition `finally`               | Replacement at the locked boundary erased the retained opened file, exit 1                |
+| Bypass owner-scoped streaming exec wrapper                      | Composed namespace exec port lacked a nonce-bound durable intent, exit 1                  |
+| Remove owner boundary interval checks                           | Marker loss allowed further scanner/cleanup sessions and backend completion, exit 1       |
+| Omit streaming protocol retention                               | Real composed owner acceptance lost its retained DONE/REAPED observation, exit 1          |
+
+Final restored-source checks:
+
+- Expanded focused Bun acceptance: **277 passed, 0 failed, 1,186 assertions** across seven files: owner, canonical lock, gateway/backend exclusion, mount audit, dedicated CLI and shared edge admission.
+- Uncached project `typecheck` and `lint` with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`: passed.
+- Project `build`: passed; the changed remote script bundles ran, three unchanged dependency builds used local cache.
+- `openspec validate cross-project-dependencies --json`: 1 passed/0 failed, existing warnings retained.
+- Formatting, staged normal hooks and clean commit status are reported with the correction commit. No bypass is used.
+
+No live Docker/h2/production fence, deployment, activation, installation, marker
+cleanup or restoration ran. Independent rereview and integrated exact-SHA host
+acceptance remain pending; all earlier limits still apply.

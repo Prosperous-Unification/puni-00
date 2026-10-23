@@ -12,12 +12,14 @@ import {
 import { assertNoBackendFence } from './backend-fence';
 import { excludeManagedDependencies } from './dependency-activation-owner';
 import type { RunDocker } from './docker-deadline';
+import type { DockerExec } from './docker-exec';
 import { assertNoEdgeOwner } from './edge-admission';
 import { withDependencyOwner } from './edge-ownership';
 import { type EnvLayout, envLayout } from './env';
 import { fenceGateways, fenceGatewaysUnderOwner } from './gateway-exclusion';
 import { withLock } from './lock';
 import { verifyContainerNamespace } from './mount-audit';
+import { GROUP_PROGRAM } from './mount-exec-program';
 
 const id = 'a'.repeat(64);
 const imageId = `sha256:${'b'.repeat(64)}`;
@@ -150,7 +152,16 @@ async function fixture() {
   await bindNamespace(id);
   namespaces.set(
     root,
-    async (subject, destinations, database, candidate, docker, databasePath, bounds) => {
+    async (
+      subject,
+      destinations,
+      database,
+      candidate,
+      docker,
+      databasePath,
+      bounds,
+      execDocker,
+    ) => {
       if (subject === null || typeof subject !== 'object')
         throw new Error('fixture namespace subject absent');
       const identity: unknown = Reflect.get(subject, 'Id');
@@ -214,14 +225,29 @@ async function fixture() {
         inspect,
         databasePath,
         bounds,
-        proof.exec,
+        execDocker ?? proof.exec,
       );
     },
   );
+  const execCalls: string[][] = [];
+  const exec: DockerExec = async (args, nonce, consume, signal) => {
+    const proof = mountedNamespaces.get(args[4] ?? '');
+    if (proof === undefined) throw new Error('missing owned namespace fixture');
+    const intents = (await readdir(root))
+      .filter((name) => /^edge-owner-.*-intent.json$/.test(name))
+      .sort();
+    const latest = intents.at(-1);
+    if (latest === undefined) throw new Error('owned exec intent missing');
+    expect(await readFile(`${root}/${latest}`, 'utf8')).toContain(nonce);
+    execCalls.push(args);
+    await proof.exec(args, nonce, consume, signal);
+  };
   await fenceGateways(layout, sha, runner);
   calls.length = 0;
   return {
     gateway,
+    exec,
+    execCalls,
     bindNamespace,
     namespaceCalls,
     root,
@@ -639,6 +665,7 @@ test('live owner excludes real managed gateway/backend once and retains all evid
         runner,
         performance.now() + 60000,
         namespaceFor(f.layout),
+        f.exec,
       );
       await refuses(
         withLock(`${f.root}/deploy.lock`, () => Promise.resolve(undefined)),
@@ -648,6 +675,16 @@ test('live owner excludes real managed gateway/backend once and retains all evid
     f.root,
   );
   expect(effects).toBe(4);
+  expect(f.execCalls.some((args) => args.at(11) === GROUP_PROGRAM)).toBe(true);
+  expect(f.execCalls.some((args) => args.at(11) !== GROUP_PROGRAM)).toBe(true);
+  const readbacks = await Promise.all(
+    (await readdir(f.root))
+      .filter((name) => /^edge-owner-.*-readback.json$/.test(name))
+      .map((name) => readFile(`${f.root}/${name}`, 'utf8')),
+  );
+  expect(readbacks.some((receipt) => receipt.includes('DONE') && receipt.includes('REAPED'))).toBe(
+    true,
+  );
   expect(f.gateway.State.Running).toBe(false);
   expect(f.container.State.Running).toBe(false);
   await refuses(assertNoEdgeOwner(f.root), 'admission closed');
@@ -666,10 +703,93 @@ test('dedicated coordinator reports only managed exclusion and keeps pending mar
     f.runner,
     namespaceFor(f.layout),
     f.root,
+    f.exec,
   );
   expect(completion.state).toBe('managed-excluded');
   expect(completion.activation).toBe('blocked');
   expect(completion.unresolved).toContain('solver');
   await refuses(assertNoEdgeOwner(f.root), 'admission closed');
   expect(f.container.State.Running).toBe(false);
+});
+
+test('owner marker loss after namespace scanner prevents cleanup exec and backend completion', async () => {
+  const f = await fixture();
+  let executions = 0;
+  const exec: DockerExec = async (args, nonce, consume, signal) => {
+    executions++;
+    await f.exec(args, nonce, consume, signal);
+    await writeFile(`${f.root}/edge-owner.pending`, 'lost during namespace exec');
+  };
+  await refuses(
+    withDependencyOwner(
+      { sha, layouts: [f.layout] },
+      async (owner) => {
+        await fenceBackendsUnderOwner(
+          owner,
+          f.layout,
+          sha,
+          f.runner,
+          performance.now() + 60000,
+          namespaceFor(f.layout),
+          exec,
+        );
+      },
+      f.root,
+    ),
+  );
+  expect(executions).toBe(1);
+  expect(await Bun.file(`${f.root}/dependency-backend-complete.json`).exists()).toBe(false);
+  expect(await Bun.file(`${f.root}/dependency-backend-intent.json`).exists()).toBe(false);
+  const intents = (await readdir(f.root))
+    .filter((name) => /^edge-owner-.*-intent.json$/.test(name))
+    .sort();
+  const last = intents.at(-1);
+  if (last === undefined) throw new Error('scanner intent missing');
+  expect(await readFile(`${f.root}/${last}`, 'utf8')).toContain('exec');
+  expect(await Bun.file(`${f.root}/${last.replace('-intent', '-readback')}`).exists()).toBe(false);
+  expect(await readFile(`${f.root}/edge-owner.pending`, 'utf8')).toBe('lost during namespace exec');
+});
+
+test('owner namespace cannot complete when initialized scanner reap evidence is absent', async () => {
+  const f = await fixture();
+  const exec: DockerExec = (args, nonce, consume, signal) => {
+    let skipsNonce = false;
+    return f.exec(
+      args,
+      nonce,
+      (token) => {
+        if (skipsNonce) {
+          skipsNonce = false;
+          return false;
+        }
+        if (token === 'REAPED') {
+          skipsNonce = true;
+          return false;
+        }
+        return consume(token);
+      },
+      signal,
+    );
+  };
+  await refuses(
+    withDependencyOwner(
+      { sha, layouts: [f.layout] },
+      async (owner) => {
+        await fenceBackendsUnderOwner(
+          owner,
+          f.layout,
+          sha,
+          f.runner,
+          performance.now() + 60000,
+          namespaceFor(f.layout),
+          exec,
+        );
+      },
+      f.root,
+    ),
+  );
+  expect(f.execCalls.length).toBeGreaterThan(0);
+  expect(await Bun.file(`${f.root}/dependency-backend-complete.json`).exists()).toBe(false);
+  expect(f.calls.some((args) => ['update', 'stop'].includes(args[0] ?? ''))).toBe(false);
+  expect(await Bun.file(`${f.root}/edge-owner.pending`).exists()).toBe(true);
 });

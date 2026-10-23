@@ -10,7 +10,13 @@ import {
 } from './backend-cohort';
 import { assertNoBackendFence } from './backend-fence';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
-import { assertDependencyOwner, type DependencyOwner, ownerDocker } from './edge-ownership';
+import { type DockerExec, runDockerExec } from './docker-exec';
+import {
+  assertDependencyOwner,
+  type DependencyOwner,
+  ownerDocker,
+  ownerDockerExec,
+} from './edge-ownership';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
 import { withLock } from './lock';
@@ -201,14 +207,35 @@ export async function fenceBackendsUnderOwner(
   runDocker: RunDocker,
   deadline: number,
   namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+  execDocker: DockerExec = runDockerExec,
 ): Promise<BackendCompletion> {
   await assertDependencyOwner(owner, layout, sha);
+  // Proof: bypassing ownerDockerExec made composed acceptance reach scanner without nonce-bound durable intent (exit 1).
+  const verifyOwnedNamespace: typeof verifyContainerNamespace = (
+    container,
+    destinations,
+    databaseHostPath,
+    image,
+    docker,
+    databasePath,
+    bounds,
+  ) =>
+    namespaceProof(
+      container,
+      destinations,
+      databaseHostPath,
+      image,
+      docker,
+      databasePath,
+      bounds,
+      ownerDockerExec(owner, layout, execDocker),
+    );
   return fenceBackendCore(
     layout,
     sha,
     ownerDocker(owner, layout, runDocker),
     deadline,
-    namespaceProof,
+    verifyOwnedNamespace,
   );
 }
 

@@ -160,13 +160,14 @@ async function refuses(promise: Promise<unknown>, message?: string): Promise<voi
 test('symlink lock refuses before owner publication', async () => {
   const { symlink } = await import('node:fs/promises');
   const { root, plan } = fixture();
-  await writeFile(`${root}/foreign.lock`, '');
+  await writeFile(`${root}/foreign.lock`, 'retained evidence');
   await symlink(`${root}/foreign.lock`, `${root}/edge.lock`);
   await refuses(
     withDependencyOwner(plan, () => Promise.resolve(undefined), root),
     'canonical lock',
   );
   expect(await Bun.file(`${root}/edge-owner.pending`).exists()).toBe(false);
+  expect(await readFile(`${root}/foreign.lock`, 'utf8')).toBe('retained evidence');
 });
 
 test('pending owner refuses before callbacks and existing evidence survives interruption', async () => {

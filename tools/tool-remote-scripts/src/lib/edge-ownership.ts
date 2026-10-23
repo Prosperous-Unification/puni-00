@@ -3,9 +3,10 @@ import { lstat, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import type { RunDocker } from './docker-deadline';
+import type { DockerExec } from './docker-exec';
 import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
 import type { EnvLayout } from './env';
-import { assertInheritedLock, withLock } from './lock';
+import { assertInheritedLock, withCanonicalLock } from './lock';
 import { publishRecord, readRecord } from './managed-cohort';
 
 /** Reviewed managed-fence scope only; never a complete participant or activation proof. */
@@ -80,10 +81,8 @@ export async function withDependencyOwner<T>(
   async function acquire(index: number): Promise<T> {
     const path = paths.at(index);
     if (path !== undefined)
-      return withLock(path, async (descriptor) => {
-        // Proof: omitted canonical lock guard; symlink-lock publisher reached callback (exit 1).
-        if ((await realpath(path)) !== path || !(await lstat(path)).isFile())
-          throw new Error('dependency owner requires canonical lock');
+      // Proof: substituting legacy withLock truncates retained foreign symlink evidence before refusal (exit 1).
+      return withCanonicalLock(path, async (descriptor) => {
         locks.push({ path, descriptor });
         try {
           return await acquire(index + 1);
@@ -157,5 +156,29 @@ export function ownerDocker(
     await publishRecord(`${prefix}-readback.json`, `${JSON.stringify({ response })}\n`);
     await assertDependencyOwner(owner, layout);
     return response;
+  };
+}
+
+/** Owner-bound initialized exec session; retains actual DONE/REAPED protocol observations. */
+export function ownerDockerExec(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  execDocker: DockerExec,
+): DockerExec {
+  return async (args, nonce, consume, signal) => {
+    await ownerDocker(owner, layout, async (_command, boundedSignal) => {
+      const tokens: string[] = [];
+      await execDocker(
+        args,
+        nonce,
+        (token) => {
+          // Proof: omitted protocol retention; composed owner acceptance lost DONE/REAPED evidence (exit 1).
+          tokens.push(token);
+          return consume(token);
+        },
+        boundedSignal,
+      );
+      return JSON.stringify({ nonce, tokens });
+    })(args, signal);
   };
 }

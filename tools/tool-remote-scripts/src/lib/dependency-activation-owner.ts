@@ -1,5 +1,6 @@
 import { fenceBackendsUnderOwner } from './backend-exclusion';
 import type { RunDocker } from './docker-deadline';
+import { type DockerExec, runDockerExec } from './docker-exec';
 import { edgeStateDirectory } from './edge-admission';
 import { type DependencyOwnerPlan, withDependencyOwner } from './edge-ownership';
 import { fenceGatewaysUnderOwner } from './gateway-exclusion';
@@ -14,6 +15,7 @@ export async function excludeManagedDependencies(
   runDocker: RunDocker,
   namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
   directory = edgeStateDirectory(),
+  execDocker: DockerExec = runDockerExec,
 ) {
   plan = structuredClone(plan);
   return withDependencyOwner(
@@ -24,7 +26,15 @@ export async function excludeManagedDependencies(
         left.env === right.env ? 0 : left.env === 'prod' ? -1 : 1,
       )) {
         await fenceGatewaysUnderOwner(owner, layout, plan.sha, runDocker, deadline);
-        await fenceBackendsUnderOwner(owner, layout, plan.sha, runDocker, deadline, namespaceProof);
+        await fenceBackendsUnderOwner(
+          owner,
+          layout,
+          plan.sha,
+          runDocker,
+          deadline,
+          namespaceProof,
+          execDocker,
+        );
       }
       return {
         state: 'managed-excluded' as const,
