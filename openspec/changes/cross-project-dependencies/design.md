@@ -903,7 +903,7 @@ authority requires both the exact claim and immutable runtime support; refusal i
 Valid disabled authority preserves legacy admission. Missing, malformed or unreadable
 trusted authority is an infrastructure failure. Health, authentication and immutable
 binary observations remain exempt because they carry no project resource state.
-The shared operation document adds a conditional claim header and 409 alternative.
+The shared operation document adds the 409 alternative. Header parameter publication is deferred because the current MCP tool parser accepts only path/query inputs.
 Standalone generic adapter fixtures may omit the callable; production buildApp cannot.
 
 This packet does not advertise semantic support, activate authoring, alter the

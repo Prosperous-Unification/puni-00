@@ -6205,3 +6205,17 @@ Final local checks: all changed/new files passed `bunx prettier --check`; `git d
 --check` passed. After the production binary-support test strengthening, both Nx
 typechecks passed again and normal OpenSpec validation remained valid (17 existing
 long-requirement warnings; none names the new HTTP requirement).
+
+Downstream caller correction: actual `bun test apps/wbs/mcp-01/src/shape-document.test.ts`
+initially failed 4 of 6 cases because MCP rejects OpenAPI header parameters. The
+conditional header parameter was removed from generated OpenAPI; exact shared
+constants and typed 409 remain. Header declaration and client/MCP claim handling
+are deferred. Existing document parameter expectations return to their original
+contract; no vendor extension or new tool input is introduced.
+
+Post-correction checks:
+
+- `bun test apps/wbs/mcp-01/src/shape-document.test.ts apps/wbs/mcp-01/src/openapi-tools.test.ts` — 38 pass, 0 fail, 409 assertions; actual generated schema/tool parsing remains compatible.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:test:unit` — 606 pass, 0 fail, 2609 assertions. One existing emitted-step 409 assertion was extended with the new exact refusal arm. A preceding root-level directory-filter test command incorrectly also collected stale generated `dist/out-tsc` tests and failed; its output is not treated as source-test evidence. The configured Nx target selected only source files and passed.
+- First implementation commit `c2145d12e` passed normal lefthook formatting, staged lint, secrets and nesting checks. The configured Tool Wiki hook reported its explicit inactive/non-certified state because the external activation root is not provisioned. No hooks were bypassed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-contracts,wbs-mcp-01` — all three typechecks and backend module typecheck passed after the OpenAPI correction. Correction files passed formatting and `git diff --check`.

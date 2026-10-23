@@ -1,17 +1,12 @@
 import type { JsonSchema } from 'arktype';
 
-import {
-  DEPENDENCY_SEMANTICS,
-  DEPENDENCY_SEMANTICS_HEADER,
-  dependencyClientRefusal,
-  requiresDependencyClient,
-} from '../dependency-client';
+import { dependencyClientRefusal, requiresDependencyClient } from '../dependency-client';
 import { bodyMediaFor, type EndpointShape, queryModeFor } from './endpoint-shape';
 import { assertInlineSchema } from './schema-shape';
 
 export interface DocumentParameter {
   name: string;
-  in: 'path' | 'query' | 'header';
+  in: 'path' | 'query';
   required: boolean;
   schema: JsonSchema;
   style?: 'form';
@@ -119,13 +114,6 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
         }
       }
     }
-    if (requiresDependencyClient(shape))
-      parameters.push({
-        name: DEPENDENCY_SEMANTICS_HEADER,
-        in: 'header',
-        required: false,
-        schema: { const: DEPENDENCY_SEMANTICS },
-      });
     const responses: DocumentOperation['responses'] = {};
     for (const response of shape.responses) {
       const content =

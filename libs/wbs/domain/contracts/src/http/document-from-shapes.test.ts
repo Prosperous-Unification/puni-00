@@ -54,12 +54,6 @@ describe('documentFromShapes', () => {
     expect(operation?.parameters).toEqual([
       { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
       { name: 'preview', in: 'query', required: false, schema: { type: 'string' } },
-      {
-        name: 'X-WBS-Dependency-Semantics',
-        in: 'header',
-        required: false,
-        schema: { const: 'cross-project-dependencies-v1' },
-      },
     ]);
     expect(operation?.responses['400']?.content?.['application/json']?.schema).toEqual(
       batch.refusals[0].schema.jsonSchema,
@@ -239,12 +233,6 @@ test('documents arbitrary singleton query keys as one exploded form object', () 
       style: 'form',
       explode: true,
       schema: openQuery.query.jsonSchema,
-    },
-    {
-      name: 'X-WBS-Dependency-Semantics',
-      in: 'header',
-      required: false,
-      schema: { const: 'cross-project-dependencies-v1' },
     },
   ]);
 });
