@@ -2,6 +2,8 @@ import {
   allowanceHundredthsOf,
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
+  CAPACITY_REPORT_OUTCOMES,
+  COMPUTE_PROVIDER_KINDS,
   DOMAIN_CLAIM_STATUSES,
   type EstimateUnit,
   HOLDS,
@@ -1852,10 +1854,17 @@ export const resource = sqliteTable(
     name: text('name').notNull(),
     kind: text('kind', { enum: RESOURCE_KINDS }).notNull(),
     unitLabel: text('unit_label').notNull(),
+    /**
+     * The provider instance that fulfils this resource, or null
+     * (`compute-providers` P3, `20261022140000_add_resource_provider`). Never
+     * read by a schedule, a claim or an export (P4).
+     */
+    providerId: text('provider_id').references((): AnySQLiteColumn => computeProvider.id),
     ...auditColumns(),
   },
   (t) => [
     uniqueIndex('resource_name').on(t.name),
+    index('resource_provider').on(t.providerId),
     check('resource_kind', sql`${t.kind} IN ('exclusive', 'divisible')`),
   ],
 );
@@ -3358,9 +3367,11 @@ export const savedPlanOrganization = sqliteTable(
  * widened the vocabulary for enterprise SSO and made the table append-only
  * through triggers, which this declaration cannot express;
  * `20261022110000_widen_organization_audit_machine_credentials` added the
- * machine-credential and trusted-issuer acts, and
+ * machine-credential and trusted-issuer acts;
  * `20261022130100_widen_organization_audit_organization_limits` the
- * operator's limits changes.
+ * operator's limits changes; and
+ * `20261022140100_widen_organization_audit_compute_providers` the compute
+ * provider acts.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3379,11 +3390,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
@@ -3924,3 +3935,61 @@ export const stepParallel = sqliteTable(
     ),
   ],
 );
+
+/**
+ * One **Provider instance** (`compute-providers` P2): what one organization
+ * registered as fulfilling its resources' units, with a display-only locator
+ * WBS never dials. Added by `20261022140000_add_resource_provider`, whose
+ * `down.sql` refuses while any instance, reference or report exists.
+ */
+export const computeProvider = sqliteTable(
+  'compute_provider',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    kind: text('kind', { enum: COMPUTE_PROVIDER_KINDS }).notNull(),
+    name: text('name').notNull(),
+    locator: text('locator').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [uniqueIndex('compute_provider_name').on(t.organizationId, t.name)],
+);
+
+export type ComputeProviderRow = typeof computeProvider.$inferSelect;
+
+/**
+ * The latest **Capacity report** of one resource (`compute-providers` P5):
+ * one row per resource, replaced by a newer `observed_at`, never a history.
+ * Which unit columns are set is fixed by `outcome` (the migration's
+ * `resource_capacity_report_outcome_columns` CHECK).
+ */
+export const resourceCapacityReport = sqliteTable(
+  'resource_capacity_report',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => computeProvider.id),
+    observedAt: integer('observed_at').notNull(),
+    cadenceSeconds: integer('cadence_seconds').notNull(),
+    outcome: text('outcome', { enum: CAPACITY_REPORT_OUTCOMES }).notNull(),
+    capacityUnits: integer('capacity_units'),
+    usageUnits: integer('usage_units'),
+    reason: text('reason'),
+    reportedByPersonId: text('reported_by_person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    reportedAt: integer('reported_at').notNull(),
+  },
+  (t) => [
+    index('resource_capacity_report_provider').on(t.providerId),
+    index('resource_capacity_report_person').on(t.reportedByPersonId),
+  ],
+);
+
+export type ResourceCapacityReportRow = typeof resourceCapacityReport.$inferSelect;

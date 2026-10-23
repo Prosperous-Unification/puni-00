@@ -442,6 +442,7 @@ export const commandNormalizers = {
       patch: present({
         name: asOptionalText(patch.name, 'name'),
         unitLabel: patch.unitLabel === undefined ? undefined : asUnitLabel(patch.unitLabel),
+        providerId: 'providerId' in patch ? asIdOrNull(patch.providerId, 'providerId') : undefined,
       }),
     });
   },

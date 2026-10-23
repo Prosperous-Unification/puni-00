@@ -26,6 +26,8 @@ import type {
   SpaceStore,
 } from '@wbs/core';
 import type {
+  CapacityReports,
+  ComputeProviderAdministration,
   MachineCredentialAdministration,
   Scope,
   TrustedIssuerAdministration,
@@ -36,8 +38,10 @@ import {
   clockOf,
   INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
   INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
+  NO_COMPUTE_PROVIDERS,
 } from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
+import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
@@ -234,6 +238,17 @@ export interface AppOptions {
     readonly administration: TrustedIssuerAdministration;
     readonly discovery: TrustedIssuerDiscovery;
     readonly configuredIssuer: () => Promise<string | null>;
+  };
+  /**
+   * Compute provider instances and capacity reports (`compute-providers`).
+   * Absent (the memory twin), no instance exists: administration answers as
+   * before activation, every resource reads `providerId: null`, and a report
+   * names no instance. Production and the organization harnesses wire the
+   * SQLite store (`boot.db.test.ts`).
+   */
+  computeProviders?: {
+    readonly administration: ComputeProviderAdministration;
+    readonly reports: CapacityReports;
   };
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
@@ -563,6 +578,12 @@ export function mountedEndpoints(
       opts.trustedIssuers?.configuredIssuer ?? (() => Promise.resolve(null)),
       opts.clock,
     ),
+    ...computeProviderRoutes(
+      opts.organizations,
+      (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).administration,
+      (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
+      opts.clock,
+    ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(
@@ -643,7 +664,10 @@ export function mountedEndpoints(
       opts.stepParallels,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations, {
+      reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
+      clock: opts.clock,
+    }),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
       new SpaceResource({

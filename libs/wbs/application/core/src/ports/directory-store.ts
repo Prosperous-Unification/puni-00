@@ -34,6 +34,7 @@ export type {
   PersonWithTeams,
   Resource,
   ResourcePatch,
+  ResourcePatchInput,
   ServiceTeam,
   TeamPatch,
   TeamWithServices,
@@ -269,6 +270,17 @@ export type MachineCredentialReach =
  */
 export type ResourceAdded = { ok: true; resource: Resource } | { ok: false; reason: 'taken' };
 
+/**
+ * What setting a resource's provider reference answered (`compute-providers`
+ * P3): the projects whose demands or capacities name the resource, or why it
+ * was refused: `unknown_provider` for an id no instance holds,
+ * `provider_not_in_organization` for another organization's instance (or any
+ * instance under legacy access, which has no organization).
+ */
+export type ResourceProviderSet =
+  | { ok: true; projectIds: TouchedProjects }
+  | { ok: false; reason: 'not_found' | 'unknown_provider' | 'provider_not_in_organization' };
+
 /** What a resource patch answered, with the projects whose demands or capacities name it. */
 export type ResourceWritten =
   | { ok: true; resource: Resource; projectIds: TouchedProjects }
@@ -286,6 +298,8 @@ export interface ResourceUsageRows {
   demands: readonly Demand[];
   capacities: readonly { projectId: string; units: number }[];
   occupancies: number;
+  /** The provider instance the resource names, or null (`compute-providers` P3). */
+  providerId: string | null;
 }
 
 /** What a resource removal's own transaction decided; `in_use` carries what it read. */
@@ -572,6 +586,19 @@ export interface DirectoryStore {
     patch: ResourcePatch,
     stamp: WriteStamp,
   ): Promise<ResourceWritten>;
+  /**
+   * Sets or clears the provider instance that fulfils a resource
+   * (`compute-providers` P3), checking in the same transaction that the
+   * instance is `organizationId`'s (null under legacy access). A changed or
+   * cleared reference deletes the resource's capacity report, which was the
+   * old instance's. Nothing in planning reads the reference (P4).
+   */
+  setResourceProvider(
+    resourceId: string,
+    providerId: string | null,
+    organizationId: string | null,
+    stamp: WriteStamp,
+  ): Promise<ResourceProviderSet>;
   /**
    * What points at one resource right now — a fast path for the confirmation,
    * never the authority for it. {@link DirectoryStore.removeResource} decides.
