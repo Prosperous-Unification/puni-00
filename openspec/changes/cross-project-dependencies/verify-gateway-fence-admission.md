@@ -39,7 +39,7 @@ under the same lock and independently prove physical exclusion.
   permission-denied marker, missing/file/unreadable roots and absence controls.
   Command: `bun test tools/tool-remote-scripts/src/swap-gateway-fence.test.ts --preload ./tools/test/scratch/preload.ts`.
 - Existing swap/writer-barrier/maintenance/migration regression run plus the
-  earlier 72-case matrix: **373 pass, zero fail**, 79.35 seconds. Command:
+  earlier 80-case matrix: **373 pass, zero fail**, 79.35 seconds. Command:
   `bun test tools/tool-remote-scripts/src/swap-gateway-fence.test.ts tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/swap-maintenance.db.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000`.
   Existing host-IO fixtures now explicitly supply disposable trusted state roots.
 
@@ -65,3 +65,40 @@ validation remains outstanding.
 No host gate, installed bundle acceptance, live process observation, physical
 exclusion, marker lifecycle, activation, push or deployment was performed. The
 isolated integrated exact-SHA host gate and independent review remain required.
+
+## Review correction: searchable roots and marker symlinks
+
+Astra review held the first packet: `stat(root)` alone did not prove directory
+readability (mode `0111` could admit an absent marker), and `readFile` ENOENT
+could mistake a dangling marker symlink for absence. Both were production-path
+fail-closed gaps.
+
+- Red with new mounted filesystem faults: **88 pass, 24 fail**. New cases cover
+  traverse-only state directories, dangling marker links and valid-target marker
+  links for every tier selection and both real entry points. The traverse-only
+  fixture independently checks `readdirSync` refusal, ensuring the test process
+  actually lacks read access rather than assuming permissions from mode bits.
+- The reader now opens, reads one directory entry and closes the directory to
+  establish actual process readability. It uses `lstat` to distinguish marker
+  absence from symlinks and refuses every nonregular marker. `readFile` failures,
+  including ENOENT after an observed entry, always refuse.
+- Independent actual-directory-read removal: eight traverse-only negatives fail
+  with observation/execution or commit effects. Restore.
+- Independent `lstat` replacement with `stat`: eight dangling-link negatives
+  fail with observation/execution or commit effects. Restore.
+- Independent regular-file-check removal: sixteen link diagnostic negatives
+  fail (valid-target links are misclassified as retained regular intent, dangling
+  links as unreadable regular intent; both still refuse). Restore.
+- Restored focused matrix: **112 pass, zero fail**. No marker creation, clearing,
+  process stop, exclusion, semantic activation or deployment was added.
+
+Correction verification: the complete focused matrix plus existing swap,
+writer-barrier, maintenance and migration tests passed **405 tests, zero fail**
+in 78.75 seconds using the five-file command above. Configured Nx lint,
+typecheck and build passed again (four of six tasks served from Nx cache; the
+changed runtime had also passed its uncached typecheck/build during this
+correction). Changed-file formatting and diff checks passed. The configured
+project test was retried and remains blocked at Caddy image preparation by
+Docker socket permission denial. Standard OpenSpec passed with the same 18
+warnings; strict validation failed with an issue array identical to the base.
+Independent rereview and the integrated exact-SHA host gate remain outstanding.

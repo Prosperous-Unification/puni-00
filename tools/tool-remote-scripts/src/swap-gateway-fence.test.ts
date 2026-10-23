@@ -1,4 +1,12 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -24,6 +32,9 @@ for (const tiers of selections) {
       'missing-root',
       'file-root',
       'unreadable-root',
+      'traverse-only-root',
+      'dangling-symlink',
+      'symlink',
       'absent',
     ] as const) {
       test(`gateway fence ${boundary} ${tiers.join(',')} ${fault}`, async () => {
@@ -46,6 +57,17 @@ for (const tiers of selections) {
           writeFileSync(root, 'invalid root');
         }
         if (fault === 'unreadable-root') chmodSync(root, 0);
+        if (fault === 'traverse-only-root') {
+          chmodSync(root, 0o111);
+          // The negative requires actual denied readability, not just nominal mode bits.
+          expect(() => readdirSync(root)).toThrow();
+        }
+        if (fault === 'dangling-symlink') symlinkSync(join(root, 'absent-target'), path);
+        if (fault === 'symlink') {
+          const target = join(root, 'intent.json');
+          writeFileSync(target, marker);
+          symlinkSync(target, path);
+        }
         const effects: string[] = [];
         const io: SwapExecutionIo = {
           barrierStateDir: root,
@@ -98,7 +120,7 @@ for (const tiers of selections) {
         } catch (cause) {
           failure = cause instanceof Error ? cause.message : String(cause);
         } finally {
-          if (fault === 'unreadable-root') chmodSync(root, 0o700);
+          if (fault === 'unreadable-root' || fault === 'traverse-only-root') chmodSync(root, 0o700);
           if (fault === 'unreadable-file') chmodSync(path, 0o600);
         }
         if (fault === 'absent') {
@@ -106,6 +128,8 @@ for (const tiers of selections) {
           expect(failure).not.toContain('gateway fence');
         } else {
           expect(failure).toContain('gateway fence');
+          if (fault === 'dangling-symlink' || fault === 'symlink')
+            expect(failure).toContain('not a regular file');
           if (['malformed', 'extra-field', 'wrong-version', 'array'].includes(fault))
             expect(failure).toContain('malformed gateway fence');
           expect(effects).toEqual(boundary === 'run' ? ['lock'] : []);

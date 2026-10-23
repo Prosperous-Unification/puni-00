@@ -930,7 +930,7 @@ This prerequisite SHALL NOT create/clear markers, stop participants or activate 
 
 #### Scenario: Trusted state cannot be established
 
-- **GIVEN** deployment state is absent, unreadable or not a directory, or the marker is unreadable or malformed
+- **GIVEN** deployment state is absent, unreadable (including a traverse-only directory) or not a directory, or the marker is unreadable, malformed or a symlink (including a dangling link)
 - **WHEN** ordinary swap admission runs
 - **THEN** it refuses with the relevant state or marker path before effects
 

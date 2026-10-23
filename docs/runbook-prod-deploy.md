@@ -748,7 +748,10 @@ lock before observing or planning any tier. Direct executor calls also check
 before phase, Docker or configuration effects. This applies to gateway-only,
 frontend-only, backend-only and mixed runs. Only an absent marker in a readable,
 existing state directory permits admission. Missing/unreadable state,
-unreadable/malformed markers and valid retained markers refuse with the path.
+unreadable/malformed markers, symlink markers (including dangling links), and valid
+retained markers refuse with the path. The reader verifies actual directory
+readability, including a traverse-only directory; mode bits alone are not the
+access authority.
 The closed v1 marker has exactly two fields:
 `{"format":"dependency-gateway-fence","version":1}`.
 
