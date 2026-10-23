@@ -1047,3 +1047,37 @@ then write after that response. The unresolved post-read/pre-send race belongs t
 deployment owner's participant exclusion/activation protocol. No claim here proves
 safe activation, excludes old processes, recalls bytes already accepted by Bun or
 changes backend/gateway/MCP semantic support.
+
+### Bounded managed Compose gateway physical exclusion prerequisite (2026-10-23)
+
+Intent: close the physical managed gateway overlap window before any future
+semantic activation. The outcome is a retained, lock-owned proof for exactly the
+blue/green names in the selected Compose environment. Non-goals are activation,
+ordinary-deploy integration or bypass, evidence clearance, gateway recreation,
+backend/MCP/browser/background exclusion and claims about unmanaged gateways.
+The approved prerequisite requires an attended operation and all existing
+container prerequisites; neither a marker nor historical completion proves
+current exclusion. Requested git SHA records provenance only.
+
+The executor owns `deploy.lock` and dispatches dedicated fence/inspection modes
+before ordinary image/registry/planning work. It inventories all full container
+IDs, validates expected names and complete Docker process/image/security/network/
+Compose identity, then exclusively fsyncs/readbacks the unchanged v1 two-field
+marker and separately versioned intent. Intent binds attempt, layout, SHA, exact
+membership/absence, original restart policies and process identity. Reobservation
+precedes exact-ID restart-policy updates, followed by exact-ID bounded stops;
+every effect has a complete cohort readback under one shared Docker deadline.
+A fresh stopped/PID0/no-restart cohort is bound into an exclusive completion by
+attempt and SHA256 of the exact intent bytes. A final complete fresh observation
+is required before return; read-only inspection repeats it and trusts no historical
+receipt alone. Both absent proves an empty managed cohort only.
+
+Publication or later failure retains current Docker state and all published
+evidence, with no automatic restart, cleanup, policy restoration or retry.
+Marker-only is interrupted, intent without completion uncertain, and orphan or
+changed evidence corrupt. Ordinary admission refuses every retained record,
+including orphan companions. The deploy lock cannot fence external Docker
+administrators/controllers, so the bounded proof assumes their cooperation;
+continuous participant exclusion and activation remain parent 10.1/10.2 work.
+Operational procedure and limits live in the managed Compose gateway exclusion
+section of `docs/runbook-prod-deploy.md`.

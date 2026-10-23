@@ -756,8 +756,73 @@ The closed v1 marker has exactly two fields:
 `{"format":"dependency-gateway-fence","version":1}`.
 
 Presence is a conservative deployment barrier, not proof of physical gateway
-exclusion or semantic activation. This prerequisite ships no marker creation or
-clearing, process stop, container quiescence or activation. A future deploy-owned
-lifecycle must publish intent under the same deploy lock before exclusion and
-retain it through interruption; it must independently prove physical exclusion
-before any semantic activation. This reader does not establish that lifecycle.
+exclusion or semantic activation. Retained `dependency-gateway-intent.json` or
+`dependency-gateway-complete.json` also refuses ordinary admission, including an
+orphan companion without its marker. The explicit lifecycle below is the only
+writer in this packet; it grants no activation or ordinary-swap bypass.
+
+## Managed Compose gateway exclusion
+
+This is an attended, disruptive prerequisite for the environment's two managed
+Compose gateway names only. It stops their existing sockets. It does not prove
+that every gateway, MCP process, browser, backend or background worker is excluded.
+Do not run it as an ordinary deploy or as an activation command. No live execution
+has been established by the repository tests.
+
+```sh
+bun /home/puni1/wbs/bin/swap.js gw --fence-dependency-gateways --execute --sha=<full-40-hex-git-sha>
+bun /home/puni1/wbs/bin/swap.js gw --inspect-dependency-gateway-fence
+```
+
+Use the environment's installed bundle and `WBS_ENV` layout. The requested SHA is
+provenance, not proof of the installed bundle or image's source revision. These
+commands reject mixed tiers, image/preflight/activation/dry-run flags, duplicate
+flags and each other. Dispatch happens before ordinary registry/image/plan work;
+each command acquires the same environment `state/deploy.lock` itself.
+
+A new attempt requires a canonical, readable, existing state directory and all
+three records absent. The executor inventories all containers using unfiltered,
+full-ID `docker ps -a`, accounts for every returned inspect identity, and resolves
+the two expected managed names. Extra managed names/services, inconsistent Compose
+projects, incomplete inventory and unsupported process states refuse. Each managed
+member must have a digest-pinned gateway image resolving to its exact image ID,
+matching Compose service and nonempty project labels, exactly the environment
+network and its full network ID, init enabled, private PID namespace, no privilege
+or added capabilities, a complete restart policy, and stable process/start identity.
+Old existing containers without these prerequisites require separate attended
+preparation; this command never recreates them. Two absent names prove only an empty
+managed cohort.
+
+Under that lock the executor exclusively publishes, fsyncs and reads back the exact
+v1 two-field marker, then a separate closed/versioned `dependency-gateway-intent.json`.
+Intent binds its unique attempt, environment/root/network, requested SHA, both
+colour identities or explicit absences, original restart policies and process state.
+It reobserves before effects, runs `docker update --restart=no <full-id>` for every
+member with full cohort readback after each update, then bounded
+`docker stop --time 10 <full-id>` with identity and stopped-state readbacks.
+All Docker calls share a 60-second attempt budget; a timed-out local client does
+not prove a daemon-side operation stopped or failed.
+
+Before completion it freshly inventories the full cohort and requires stable
+image/name/network/label/start identity, unchanged restart count, `Running=false`,
+`Paused=false`, `Restarting=false`, PID 0, exited/created status and restart policy
+`no` with zero policy retry count. It exclusively publishes and reads back
+`dependency-gateway-complete.json`, bound to the attempt and SHA256 of the exact
+persisted intent bytes, then freshly proves the same current cohort again.
+Inspection validates all records and repeats that complete physical observation;
+a completion file by itself is historical evidence only.
+
+A marker alone classifies an interruption before durable intent. Intent without
+completion is uncertain. A completion without marker/intent, changed intent bytes,
+foreign records, malformed/unreadable state or current Docker drift refuses.
+Every failure after marker publication retains existing records and current Docker
+state. There is no automatic cleanup, restart, policy restoration, retry, marker
+clearance or activation. Keep the three records and inspect exact container IDs
+and restart policies with the pinned executor available; recovery requires an
+explicit attended compatible procedure outside this packet. Never delete evidence
+or restart a previously fenced gateway to make an ordinary deploy pass.
+
+The lock coordinates this deploy executor only. Docker administrators and other
+controllers must respect the exclusion interval; a fresh observation is not a
+continuous daemon-side lease. Representative Docker timing and a disposable real
+Docker/websocket lifecycle proof remain necessary before operational acceptance.

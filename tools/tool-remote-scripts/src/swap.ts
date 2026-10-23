@@ -89,6 +89,7 @@ import {
 } from './lib/docker';
 import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-deadline';
 import { drain } from './lib/drain';
+import { fenceGateways, inspectGatewayFence } from './lib/gateway-exclusion';
 import { assertNoGatewayFence } from './lib/gateway-fence';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
@@ -2386,7 +2387,48 @@ function imagesFor(tiers: Tier[]): { tier: Tier; image: string }[] {
   });
 }
 
+/** Dedicated lock-owned prerequisite commands cannot mix with ordinary swap modes or flags. */
+export function parseGatewayFenceInvocation(
+  args: string[],
+): { mode: 'fence'; sha: string } | { mode: 'inspect' } | null {
+  const flags = args.slice(1);
+  if (
+    !flags.some(
+      (flag) =>
+        flag.startsWith('--fence-dependency-gateways') ||
+        flag.startsWith('--inspect-dependency-gateway-fence'),
+    )
+  )
+    return null;
+  const failure =
+    'gateway fence requires only gw and exactly --fence-dependency-gateways --execute --sha=<40 hex> or --inspect-dependency-gateway-fence';
+  // Proof: removing this admission let be enter the dedicated gateway command; mounted subprocess refusal failed.
+  if (args[0] !== 'gw' || new Set(flags).size !== flags.length) throw new Error(failure);
+  if (flags.length === 1 && flags[0] === '--inspect-dependency-gateway-fence')
+    return { mode: 'inspect' };
+  const sha = flags.find((flag) => /^--sha=[a-f0-9]{40}$/.test(flag));
+  if (
+    flags.length !== 3 ||
+    !flags.includes('--fence-dependency-gateways') ||
+    !flags.includes('--execute') ||
+    sha === undefined
+  )
+    throw new Error(failure);
+  return { mode: 'fence', sha: sha.slice(6) };
+}
+
 async function main(): Promise<void> {
+  const gatewayFence = parseGatewayFenceInvocation(process.argv.slice(2));
+  if (gatewayFence !== null) {
+    const completion =
+      gatewayFence.mode === 'fence'
+        ? await fenceGateways(CURRENT_ENV, gatewayFence.sha, sh)
+        : await inspectGatewayFence(CURRENT_ENV, sh);
+    console.log(
+      `[swap-gw] managed Compose gateway cohort physically excluded; attempt=${completion.attempt}; blue=${completion.cohort.blue?.id ?? 'absent'}; green=${completion.cohort.green?.id ?? 'absent'}; retained fence; no activation`,
+    );
+    return;
+  }
   const tiers = parseTierList(process.argv[2] ?? '');
   const activateStepBlockage = process.argv.includes('--activate-step-blockage');
   // Proof: omitted invocation admission; all five incompatible CLI combinations lost the named refusal.

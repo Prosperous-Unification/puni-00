@@ -6,7 +6,7 @@ import { lstat, opendir, readFile, stat } from 'node:fs/promises';
  * The closed v1 marker is exactly `{format: 'dependency-gateway-fence', version: 1}`.
  * Presence is a conservative barrier, never evidence that any gateway is excluded.
  * This reader neither creates nor clears intent; the deploy lock must cover publication
- * and ordinary admission when a future lifecycle owns that transition.
+ * and ordinary admission; the explicit managed exclusion lifecycle owns that transition.
  * Missing/unreadable trusted state and malformed, unreadable or symlink markers throw.
  * Directory readability is established using actual process access, including ACLs/privileges,
  * rather than inferring access from mode bits. Marker absence is checked without following links.
@@ -26,6 +26,23 @@ export async function assertNoGatewayFence(root: string): Promise<void> {
     throw new Error(`cannot inspect gateway fence state directory ${root}; admission refused`, {
       cause,
     });
+  }
+  // Proof: ignoring companions admitted both orphan records in mounted ordinary admission negatives.
+  // Companion records without a marker are corrupt retained attempts, never clean admission.
+  for (const companion of ['dependency-gateway-intent.json', 'dependency-gateway-complete.json']) {
+    const companionPath = `${root}/${companion}`;
+    try {
+      await lstat(companionPath);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') continue;
+      throw new Error(
+        `cannot inspect gateway fence companion ${companionPath}; admission refused`,
+        { cause },
+      );
+    }
+    throw new Error(
+      `retained gateway fence companion ${companionPath}; admission refused; explicit recovery required`,
+    );
   }
   const path = `${root}/dependency-gateway-fence.json`;
   let identity: Stats;

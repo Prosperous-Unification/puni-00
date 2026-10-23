@@ -649,3 +649,10 @@ Task 5.2 remains open for its broader writer audit, socket/browser acceptance an
 - [x] Exercise mounted isolated/shared absence, unreadability and contradictory required foreign evidence on the actual captured read, including exact read-connection ownership, complete durable no-write and all-push no-publication assertions, and healthy restored saves.
 - [x] Watch independent missing-status fallback, fact-agreement, persisted abbreviation fallback, owned rollback and close removal failures; restore and record [bounded evidence](verify-mounted-save-refusal.md).
 - [ ] Complete integrated isolated exact-SHA host gate. Independent Astra High review approved the bounded packet; parent 8.3 remains open.
+
+### Bounded task 10.1/10.2 managed Compose gateway physical exclusion (2026-10-23)
+
+- [x] Red/green dedicated explicit fence/inspection CLI modes, mutual flag/tier exclusion and actual deploy-lock ownership; refuse ordinary admission for orphan companion records.
+- [x] Inventory full unfiltered Docker identities and enforce exact managed cohort, image resolution, Compose labels/network, init/private PID/unprivileged/no-capability prerequisites and stable process/start identity before publication.
+- [x] Publish/readback exclusive fsynced marker, closed intent and intent-hash/attempt-bound completion; perform exact-ID restart disable/readback, bounded stop/readback, complete fresh stopped proof and final/inspection reobservation. Retain all evidence/current state after publication failures.
+- [ ] Complete real Docker/websocket evidence and isolated integrated-SHA host gate. Configured scoped verification and watched R5 faults passed; independent Astra High review found no blocker. Parent 10.1/10.2 remain open; no live execution, activation, ordinary bypass, clearance or broad participant exclusion is granted. Evidence: [verify-gateway-exclusion.md](verify-gateway-exclusion.md).

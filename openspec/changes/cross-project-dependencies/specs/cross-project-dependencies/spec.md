@@ -939,3 +939,29 @@ This prerequisite SHALL NOT create/clear markers, stop participants or activate 
 - **GIVEN** a readable existing deployment state directory with no gateway fence marker
 - **WHEN** ordinary swap admission runs
 - **THEN** execution reaches the existing observation and executor path
+
+### Requirement: Managed Compose gateway physical exclusion is explicit and retained
+
+The Compose executor SHALL own the deploy lock for explicit managed-gateway fence and inspection modes, rejecting mixed tiers/flags before ordinary image or planning work. It SHALL retain separate closed/versioned intent and completion beside the unchanged v1 marker. Ordinary swaps SHALL refuse any retained record. These modes SHALL NOT activate semantics, clear evidence, restart/recreate gateways or bypass ordinary admission.
+
+#### Scenario: Exact existing managed cohort is physically stopped
+
+- **GIVEN** the readable canonical state root has no retained records and unfiltered complete Docker inventory proves the two expected Compose gateway names or explicit absences with strict image, Compose, network, init, PID, privilege, restart and process identities
+- **WHEN** the operator explicitly invokes `gw --fence-dependency-gateways --execute --sha=<full SHA>`
+- **THEN** the executor exclusively fsyncs and reads back marker and intent before effects, reobserves identity, disables restart on exact full IDs with readbacks and then stops those exact IDs within the shared Docker deadline
+- **AND** fresh full-cohort proof requires stopped/PID0/no-restart state and stable identities before exclusive completion bound to the exact intent bytes and attempt, followed by final fresh proof
+- **AND** both names absent proves only an empty managed cohort, never complete participant exclusion
+
+#### Scenario: Interrupted or lying effect retains evidence and current state
+
+- **GIVEN** marker publication has begun
+- **WHEN** publication/readback, identity, restart update, stop or final fresh observation fails or times out
+- **THEN** the executor refuses and retains published records and current Docker state without automatic restart, cleanup, policy restoration, retry or activation
+- **AND** marker-only is interrupted, intent without completion uncertain, and orphan/foreign/changed records corrupt
+
+#### Scenario: Historical completion cannot substitute for current exclusion
+
+- **GIVEN** retained intent and completion bind the same attempt and exact intent SHA256
+- **WHEN** `gw --inspect-dependency-gateway-fence` runs under the deploy lock
+- **THEN** it validates closed records and freshly inventories/proves the same complete managed cohort
+- **AND** a resumed/replaced/missing/extra member or changed image, name, label, network, process/start identity or restart policy refuses
