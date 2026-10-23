@@ -303,3 +303,32 @@ test('integer-valid response that reconciles a fixed foreign start is invalid ou
     reason: 'invalid-output',
   });
 });
+
+test('fractional contradictory request accepts an actual child boundary proof after canonical revalidation', () => {
+  const captured = stage(true);
+  const prepared = buildConnectedSolverRequest(
+    captured,
+    { inputHash: 'fractional', questionHash: 'fractional-time' },
+    { solverVersion: '0.4.0', budgetMs: 100 },
+    'time',
+  );
+  if (prepared.kind !== 'boundary-infeasible') throw new Error('expected contradiction');
+  const outcome = evaluateConnectedSolverOutcome(
+    captured,
+    prepared.request,
+    response(prepared.request, 'boundary-infeasible'),
+  );
+  expect(outcome.kind).toBe('boundary-infeasible');
+  if (outcome.kind !== 'boundary-infeasible') throw new Error('expected child boundary proof');
+  expect(outcome.certificate.evidence.kind).toBe('solver-proven-infeasible');
+  const forged = {
+    ...prepared.request,
+    scope: {
+      ...prepared.request.scope,
+      fixed: prepared.request.scope.fixed.map((fixed) => ({ ...fixed, start: fixed.start + 1 })),
+    },
+  };
+  expect(
+    evaluateConnectedSolverOutcome(captured, forged, response(forged, 'boundary-infeasible')),
+  ).toEqual({ kind: 'failed', reason: 'internal-error' });
+});

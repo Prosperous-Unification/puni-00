@@ -593,3 +593,10 @@ backend acceptance remain open.
 - [x] Add the required per-connection writer boundary, bind the synchronous physical socket writer, bound pending frames/deadlines, retire on overflow/expiry/rejection/drop and preserve connection cancellation; distinguish accepted Bun backpressure from dropped frames.
 - [x] Independently remove queue order, capacity, deadline, cancellation, failure-cause reporting, physical-drop accounting, invalid-limit refusal, push counting, replay awaiting/retirement and presence awaiting guards; watch each corresponding production-path negative fail and restore the control.
 - [ ] Complete configured gateway test/lint/typecheck/build, formatting, strict OpenSpec validation, independent review and integrated isolated host gate. Parent 10.1 remains open: no retained-session authority inspection, activation, v1 advertisement, client claims or authoring enablement. Evidence: [verify-retained-delivery.md](verify-retained-delivery.md).
+
+Bounded task 7.3/7.4 installed-image acceptance source packet (2026-10-23): the
+smoke now requires feasible and fractional connected authenticated child binds in
+both image modes. Focused tests and independent validator/bind-removal proofs are
+recorded in [installed solver image acceptance](verify-task-7-installed-solver-image.md).
+Actual image/digest and disposable Python relabel acceptance remain pending;
+parent tasks 7.3/7.4 stay open.

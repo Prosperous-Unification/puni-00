@@ -777,7 +777,9 @@ export const revalidateConnectedSolverResult = (
     { solverVersion: request.solverVersion, budgetMs: request.budgetMs },
     request.objective,
   );
-  if (prepared.kind !== 'request')
+  // Proof: requiring only request rejected the actual child boundary proof for the
+  // canonical fractional 10/9 request (connected-solver-outcome.test.ts, 10 pass / 1 fail).
+  if (prepared.kind === 'failed')
     return refuse('malformed-request', `connected stage preparation is ${prepared.kind}`);
   // Proof: bypassing this correspondence check accepted an unknown response
   // after the request dropped its authored boundary (8 pass / 1 fail).

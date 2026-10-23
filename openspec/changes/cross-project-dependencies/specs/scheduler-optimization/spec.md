@@ -440,3 +440,27 @@ existing single arrangement journal entry and stored-position undo/redo.
 - **WHEN** that order cannot fit between immutable held anchors with equal positions
 - **THEN** it returns `arrangement_positions_unavailable` without position, journal,
   event or sequence changes
+
+### Requirement: Installed solver image acceptance covers connected questions
+
+The solver image smoke SHALL require authenticated supervisor binds through the
+installed image worker for both a feasible connected A→B→C stage and a fractional
+fixed-boundary contradiction. Both built-image and supplied immutable-image modes
+SHALL require these binds and retain their existing owned-resource cleanup.
+
+#### Scenario: Feasible connected image question
+
+- **GIVEN** fixed A at 0..1, B duration 1 and fixed C at 2..3
+- **WHEN** the installed worker answers B's connected stage
+- **THEN** acceptance requires the exact connected project and question identity,
+  B at 1..2 and replay preserving both foreign placements
+
+#### Scenario: Fractional contradiction reaches the installed worker
+
+- **GIVEN** fixed A finishing at 0.2, B duration 1 and fixed C starting at 1.2
+- **WHEN** the builder validates the quantum-48 lower-10/upper-9 request
+- **THEN** the smoke sends those request bytes to the authenticated child
+- **AND** acceptance requires its exact-scope `boundary-infeasible` response and
+  solver-proven evidence from production outcome evaluation
+- **AND** unknown, ordinary infeasible, malformed, foreign or invalid-boundary
+  evidence fails acceptance without substituting a prepared terminal

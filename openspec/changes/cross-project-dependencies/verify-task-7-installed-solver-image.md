@@ -1,0 +1,59 @@
+# Bounded tasks 7.3/7.4 installed solver image acceptance
+
+2026-10-23. Source base: `de89f662d`. Isolated clone:
+`/tmp/puni-connected-image-acceptance`. Parent tasks 7.3/7.4 remain open.
+
+The image client now dispatches two connected questions in addition to baseline
+and shared-person. Both smoke modes require four authenticated supervisor binds,
+using independent UUID attempt tokens and the existing owned-resource cleanup.
+The connected fixture uses production request construction and outcome evaluation.
+Its feasible B stage pins A=0..1 and C=2..3 and requires B=1..2. The fractional
+question preserves A.finish=0.2, B.duration=1, C.start=1.2, Q=48 and lower=10,
+upper=9. The validated contradictory request is sent to the child; acceptance
+requires solver-proven boundary evidence. No direct prepared terminal is used.
+
+A new regression exposed an existing adapter defect: connected revalidation
+refused every builder-prepared contradiction before comparing canonical bytes.
+It now permits a validated contradictory request through the same exact canonical
+comparison and wire revalidation. Forged foreign placement still refuses.
+
+## Observed local validation
+
+- `bun test apps/wbs/be-01/scripts/solver-image-scenario.test.ts apps/wbs/be-01/scripts/connected-solver-image-scenario.test.ts libs/wbs/domain/contracts/solver/src/connected-solver-outcome.test.ts libs/wbs/domain/contracts/solver/src/revalidate-solver-result.test.ts`:
+  70 pass, 0 fail, 184 assertions.
+- `bun test apps/wbs/be-01/scripts/solver-image-smoke.test.ts`:
+  42 pass, 0 fail, 143 assertions. The sandbox refuses Unix socket listening
+  (`EPERM`); this focused fake-Docker test was rerun outside that sandbox.
+- Focused ESLint over six changed TypeScript files: exit 0. The module-boundary
+  rule explicitly skipped because no cached Nx project graph existed; this is
+  not evidence for module-boundary validation.
+- `openspec validate cross-project-dependencies --json`: 1 passed / 0 failed,
+  retaining existing long-requirement warnings.
+- `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh` and
+  `bash -n apps/wbs/be-01/scripts/solver-image-smoke.sh`: exit 0.
+
+## Observed negative proofs
+
+- Before connected binds existed, the expanded fake-Docker suite had 36 pass /
+  6 fail: both client inventories and all four connected failure injections.
+- Removing only the feasible bind: 0 pass / 4 fail in the selected built/supplied
+  inventory and feasible-client-fault cases. Removing only the fractional bind:
+  0 pass / 4 fail in the corresponding selected cases. Both edits were restored.
+- Bypassing `verifyConnectedImageResponse`: 0 pass / 5 fail, including local/foreign
+  scope, wrong input/question hashes, malformed output, unknown/ordinary infeasible,
+  invalid B placement and forged external pins. The validator was restored.
+- Before the canonical contradiction adapter fix, the new actual-child regression
+  had 10 pass / 1 fail: expected boundary-infeasible, received failed. Restoring
+  canonical comparison still refuses forged foreign pins. Independently bypassing
+  that comparison made the actual-child fractional regression fail (0 pass /
+  1 fail), admitting the forged request instead of internal-error. It was restored.
+
+## Remaining acceptance
+
+No Docker image was built or run in this bounded local packet. No image digest is
+claimed. The actual authenticated installed-image run and a disposable image whose
+Python boundary-infeasible branch is relabeled remain unverified. The parent is
+coordinating an isolated h2puni checkout after its existing heavy-lock gate and
+architecture review. No build on h1claw, production activation, services,
+coordinator, migrations or Python implementation changes occurred. Configured
+broad Nx checks and the canonical exact-head host gate remain pending coordination.

@@ -275,6 +275,30 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
   shared-person \
   "$shared_attempt_token"
 
+# Proof: removing this bind fails the client inventory and connected-feasible-run fault tests
+# in both built and supplied image modes; each authenticated child owns a fresh token.
+connected_feasible_token="$(cat /proc/sys/kernel/random/uuid)"
+attempt_tokens+=("$connected_feasible_token")
+docker run --rm "${client_pull[@]}" --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver:ro" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  connected-feasible \
+  "$connected_feasible_token"
+
+# Proof: removing this bind fails the client inventory and connected-fractional-run fault tests
+# in both built and supplied image modes; each authenticated child owns a fresh token.
+connected_fractional_token="$(cat /proc/sys/kernel/random/uuid)"
+attempt_tokens+=("$connected_fractional_token")
+docker run --rm "${client_pull[@]}" --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver:ro" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  connected-fractional \
+  "$connected_fractional_token"
+
 # CI runs the portable launcher half above. The canonical h2puni gate sets this
 # flag because its puni1 user session owns the persistent systemd timer used by
 # the real supervisor-restart proof.

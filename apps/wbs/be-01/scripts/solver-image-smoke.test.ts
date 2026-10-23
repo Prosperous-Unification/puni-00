@@ -64,6 +64,8 @@ case "$1" in
     ;;
   run)
     if [ "\${WBS_FAKE_FAULT:-}" = solver-run ] && [[ "$*" == *'--entrypoint wbs-solver'* ]]; then exit 86; fi
+    if [ "\${WBS_FAKE_FAULT:-}" = connected-feasible-run ] && [[ "$*" == *'connected-feasible'* ]]; then exit 88; fi
+    if [ "\${WBS_FAKE_FAULT:-}" = connected-fractional-run ] && [[ "$*" == *'connected-fractional'* ]]; then exit 89; fi
     if [ "\${WBS_FAKE_FAULT:-}" = shared-client-run ] && [[ "$*" == *'shared-person'* ]]; then exit 87; fi
     ;;
   container)
@@ -90,6 +92,8 @@ esac
 type SmokeFault =
   | 'solver-run'
   | 'shared-client-run'
+  | 'connected-feasible-run'
+  | 'connected-fractional-run'
   | 'rm-ignored'
   | 'delete-fails-after-untag'
   | 'inspect-broken'
@@ -195,8 +199,11 @@ describe('solver-image-smoke image lifecycle', () => {
     const clients = smoke.dockerCalls.filter((call) =>
       call.includes('solver-supervisor-image-client.ts'),
     );
-    expect(clients).toHaveLength(2);
+    expect(clients).toHaveLength(4);
     expect(clients[1]).toContain(' shared-person ');
+    expect(clients[2]).toContain(' connected-feasible ');
+    expect(clients[3]).toContain(' connected-fractional ');
+    expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(4);
     const removed = smoke.dockerCalls.filter((call) => call.startsWith('image rm '));
     expect(removed).toHaveLength(3);
     expect(removed[0]).toMatch(
@@ -281,7 +288,7 @@ describe('solver-image-smoke image lifecycle', () => {
 });
 
 describe('solver-image-smoke supplied immutable image', () => {
-  it('inspects the exact local digest, runs both authenticated clients with it and preserves it', () => {
+  it('inspects the exact local digest, runs all four authenticated clients with it and preserves it', () => {
     const smoke = runSmoke(undefined, { supplied: true });
     expect(smoke.exitCode).toBe(0);
     expect(smoke.stderr).toBe('');
@@ -289,7 +296,7 @@ describe('solver-image-smoke supplied immutable image', () => {
     expect(smoke.hostCalls).toHaveLength(1);
     expect(smoke.hostCalls[0]).toContain(`solver-supervisor-image-host.ts ${SUPPLIED_IMAGE} `);
     const inspected = smoke.dockerCalls.filter((call) => call.startsWith('container inspect '));
-    expect(inspected).toHaveLength(3);
+    expect(inspected).toHaveLength(5);
     expect(
       smoke.dockerCalls.filter((call) => call.startsWith('rm ') || call.startsWith('stop ')),
     ).toEqual([]);
@@ -301,12 +308,15 @@ describe('solver-image-smoke supplied immutable image', () => {
     const clients = smoke.dockerCalls.filter((call) =>
       call.includes('solver-supervisor-image-client.ts'),
     );
-    expect(clients).toHaveLength(2);
+    expect(clients).toHaveLength(4);
     for (const client of clients) {
       expect(client).toContain(`--entrypoint bun ${SUPPLIED_IMAGE} `);
       expect(client).toContain('--pull=never');
     }
     expect(clients[1]).toContain(' shared-person ');
+    expect(clients[2]).toContain(' connected-feasible ');
+    expect(clients[3]).toContain(' connected-fractional ');
+    expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(4);
     expect(smoke.dockerCalls.some((call) => /^(build|tag|push|pull|image rm) /.test(call))).toBe(
       false,
     );
@@ -406,3 +416,20 @@ describe('solver-image-smoke supplied immutable image', () => {
     expect(smoke.stderr).toContain('container');
   });
 });
+
+for (const supplied of [false, true]) {
+  it.each([
+    ['connected-feasible-run', 88],
+    ['connected-fractional-run', 89],
+  ] as const)(
+    `fails and cleans up %s in ${supplied ? 'supplied' : 'built'} image mode`,
+    (fault, code) => {
+      const smoke = runSmoke(fault, { supplied });
+      expect(smoke.exitCode).toBe(code);
+      expect(smoke.survivingTags).toEqual(supplied ? [SUPPLIED_IMAGE] : []);
+      expect(
+        smoke.dockerCalls.some((call) => call.startsWith('container inspect wbs-solver-')),
+      ).toBe(true);
+    },
+  );
+}
