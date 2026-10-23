@@ -3,6 +3,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ConnectedPlanProjection } from '../service/connected-plan-projection';
 import type { ConnectedReadiness } from '../service/connected-readiness';
+import type { StoredAttempt } from './attempt-values';
 import type { CalendarMarker } from './calendar-marker-store';
 import type { DirectoryCatalogRows } from './directory-values';
 import type { MembershipRefusal } from './organization-access';
@@ -10,9 +11,8 @@ import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
 import type { StoredStepBlockage } from './step-blockage-store';
-import type { StoredAttempt } from './step-node-attempt-store';
 import type { StoredStepParallel } from './step-parallel-store';
-import type { Step } from './step-store';
+import type { Step } from './step-values';
 import type { LabelledWorkItem } from './work-item-values';
 
 /** The entire protected read is refused; this outcome carries no project projection or cache value. */
