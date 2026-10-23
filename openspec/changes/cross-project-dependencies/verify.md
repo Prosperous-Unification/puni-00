@@ -5828,6 +5828,10 @@ states that exception explicitly. Production behavior is unchanged. Independent
 Astra High review approved the bounded proof after an evidence count correction.
 Parent 4.4, activation and full host/CI delivery gates remain open.
 
+## Task 4.4 mounted structural edit revocation — 2026-10-23
+
+The [bounded mounted proof](evidence/task-4.4-structural-revocation/verify.md) covers both queued compound hand-down undo and redo after the structural project becomes restricted. Each direction returns typed 403 without changing tables, history, events, audit or pushes. Independent application and repository refusal bypasses each made both directions return unsafe 200; the exact fault outputs and restored checks are retained there. Production behavior is unchanged. Parent 4.4 and full host/CI gates remain open.
+
 ## Task 7.3 bounded mounted interleaving and stage-state acceptance — 2026-10-23
 
 [The interleaving packet](verify-task-7.3-interleaving.md) adds two optimized

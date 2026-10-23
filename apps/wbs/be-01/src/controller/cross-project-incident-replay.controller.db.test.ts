@@ -1,8 +1,17 @@
 import type { StoredTypedDependency } from '@wbs/core';
 import { readCommand } from '@wbs/core/service/compensating';
-import { afterEach, expect, test } from 'bun:test';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { closeFixture, harness, openFixture, readTables } from './cross-project-dependency-fixture';
+import { openDatabase } from '../repository/db';
+import {
+  closeFixture,
+  harness,
+  openFixture,
+  readTables,
+  setRequestAdmissionObserver,
+} from './cross-project-dependency-fixture';
 
 afterEach(closeFixture);
 
@@ -20,6 +29,16 @@ interface IncidentRow {
   successor_step_id: string | null;
   created_at: number;
   created_by: string;
+}
+
+function deferSignal() {
+  let resolve = (): void => {
+    throw new Error('signal not initialized');
+  };
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
 }
 
 for (const corruptAudit of [false, true]) {
@@ -222,3 +241,206 @@ for (const corruptAudit of [false, true]) {
     expect(readRemoteJournal()).toEqual(remoteJournal);
   });
 }
+
+// Proof: bypassing PlanCommands.walk's refusal consumer or ProjectRepository's
+// classified==='refused' rejection independently made both queued directions
+// return unsafe HTTP 200 after structural restriction (2026-10-23).
+for (const direction of ['undo', 'redo'] as const)
+  test(`mounted compound ${direction} refuses queued structural project edit revocation atomically`, async () => {
+    const pushes: string[] = [];
+    const fixture = await openFixture({ pushes });
+    const route = `/api/projects/${fixture.owner.projectId}`;
+    await harness.register('grace');
+    harness.member('org-a', 'grace', 'member');
+    harness.sqlite.run(
+      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
+      [fixture.principal.id],
+    );
+    harness.sqlite.run('UPDATE project SET owner_id=? WHERE id IN (?,?)', [
+      harness.userId('grace'),
+      fixture.owner.projectId,
+      fixture.successor.projectId,
+    ]);
+    harness.sqlite.run('UPDATE project SET restricted=1 WHERE id=?', [fixture.successor.projectId]);
+    const policies = () =>
+      harness.sqlite
+        .query<{ id: string; owner_id: string; restricted: number }, [string, string]>(
+          'SELECT id,owner_id,restricted FROM project WHERE id IN (?,?) ORDER BY id',
+        )
+        .all(fixture.owner.projectId, fixture.successor.projectId);
+    expect(policies()).toEqual(
+      [
+        { id: fixture.owner.projectId, owner_id: harness.userId('grace'), restricted: 0 },
+        { id: fixture.successor.projectId, owner_id: harness.userId('grace'), restricted: 1 },
+      ].sort((left, right) => left.id.localeCompare(right.id)),
+    );
+    const cookie = fixture.principal.organizationBinding?.cookie;
+    if (cookie == null) throw new Error('organization binding missing');
+    const readable = await harness.request(
+      `/api/projects/${fixture.successor.projectId}/address-candidates`,
+      {
+        headers: {
+          cookie: `__Host-wbs_organization=${encodeURIComponent(cookie)}`,
+          authorization: `Bearer ${harness.token('ada')}`,
+          'X-WBS-Expected-Organization': 'org-a',
+        },
+      },
+    );
+    expect(readable.status).toBe(200);
+    expect(
+      (
+        await fixture.request(`${route}/commands`, {
+          commands: [{ kind: 'createWorkItem', name: 'Replay peer' }],
+        })
+      ).status,
+    ).toBe(200);
+    const peer = harness.sqlite
+      .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Replay peer'")
+      .get();
+    if (peer === null) throw new Error('replay peer missing');
+    const node = (address: { projectId: string; workItemId: string }) => {
+      const step = harness.sqlite
+        .query<{ id: string }, [string]>(
+          'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+        )
+        .get(address.projectId);
+      if (step === null) throw new Error('incident endpoint step missing');
+      return { ...address, scope: 'node' as const, stepId: step.id };
+    };
+    await harness.publicWrites().uow.run(async (scope) => {
+      await scope.stores.typedDependencies.add(
+        {
+          id: 'revoked-incoming',
+          projectId: fixture.owner.projectId,
+          type: 'SS',
+          predecessor: node(fixture.predecessor),
+          successor: node(fixture.owner),
+        },
+        { at: 10, by: fixture.principal.id },
+      );
+      await scope.stores.typedDependencies.add(
+        {
+          id: 'revoked-outgoing',
+          projectId: fixture.successor.projectId,
+          type: 'FF',
+          predecessor: node(fixture.owner),
+          successor: node(fixture.successor),
+        },
+        { at: 10, by: fixture.principal.id },
+      );
+      return { commit: true, value: undefined };
+    });
+    const compound = await fixture.request(`${route}/commands`, {
+      commands: [
+        { kind: 'createWorkItem', parentId: fixture.owner.workItemId, name: 'Revoked first child' },
+        { kind: 'patchWorkItem', workItemId: peer.id, patch: { notes: 'Revoked compound patch' } },
+      ],
+    });
+    expect(compound.status).toBe(200);
+    const child = harness.sqlite
+      .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Revoked first child'")
+      .get();
+    if (child === null) throw new Error('revoked first child missing');
+    const readLinks = () =>
+      harness.sqlite
+        .query<
+          { id: string; predecessor_work_item_id: string; successor_work_item_id: string },
+          []
+        >(
+          'SELECT id,predecessor_work_item_id,successor_work_item_id FROM external_dependency ORDER BY id',
+        )
+        .all();
+    expect(readLinks()).toEqual([
+      {
+        id: 'revoked-incoming',
+        predecessor_work_item_id: fixture.predecessor.workItemId,
+        successor_work_item_id: child.id,
+      },
+      {
+        id: 'revoked-outgoing',
+        predecessor_work_item_id: child.id,
+        successor_work_item_id: fixture.successor.workItemId,
+      },
+    ]);
+    const readSelected = () =>
+      harness.sqlite
+        .query<{ id: string; undone: number }, [string]>(
+          'SELECT id,undone FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+        )
+        .get(fixture.owner.projectId);
+    const selected = readSelected();
+    if (selected === null) throw new Error('compound journal missing');
+    expect(selected.undone).toBe(0);
+    expect((await fixture.request(`${route}/undo`)).status).toBe(200);
+    expect(readSelected()).toEqual({ ...selected, undone: 1 });
+    expect(readLinks()).toEqual([
+      {
+        id: 'revoked-incoming',
+        predecessor_work_item_id: fixture.predecessor.workItemId,
+        successor_work_item_id: fixture.owner.workItemId,
+      },
+      {
+        id: 'revoked-outgoing',
+        predecessor_work_item_id: fixture.owner.workItemId,
+        successor_work_item_id: fixture.successor.workItemId,
+      },
+    ]);
+    expect((await fixture.request(`${route}/redo`)).status).toBe(200);
+    expect(readSelected()).toEqual(selected);
+    expect(readLinks().find(({ id }) => id === 'revoked-outgoing')?.predecessor_work_item_id).toBe(
+      child.id,
+    );
+    if (direction === 'redo') {
+      expect((await fixture.request(`${route}/undo`)).status).toBe(200);
+      expect(readSelected()).toEqual({ ...selected, undone: 1 });
+    }
+    const entered = deferSignal();
+    const unblock = deferSignal();
+    const held = harness.holdWriteTurn(unblock.promise, entered.resolve);
+    await entered.promise;
+    const resolved = deferSignal();
+    const queued = deferSignal();
+    const descriptor = Object.getOwnPropertyDescriptor(WriteCoordinator.prototype, 'enter');
+    if (descriptor === undefined) throw new Error('write coordinator entry missing');
+    const enter = descriptor.value as WriteCoordinator['enter'];
+    const queue = spyOn(WriteCoordinator.prototype, 'enter').mockImplementation(function <T>(
+      this: WriteCoordinator,
+      work: () => Promise<T>,
+    ): Promise<T> {
+      const pending = enter.call(this, work) as Promise<T>;
+      queued.resolve();
+      return pending;
+    });
+    const graph = spyOn(DependencyGraphGuard.prototype, 'findCycle');
+    const separate = openDatabase(harness.databasePath());
+    setRequestAdmissionObserver(resolved.resolve);
+    const pending = fixture.request(`${route}/${direction}`);
+    try {
+      await resolved.promise;
+      await queued.promise;
+      queue.mockRestore();
+      separate.run('UPDATE project SET restricted=1 WHERE id=?', [fixture.owner.projectId]);
+      expect(policies().every(({ owner_id }) => owner_id === harness.userId('grace'))).toBe(true);
+      const before = readTables();
+      const links = readLinks();
+      const journal = readSelected();
+      const sent = [...pushes];
+      unblock.resolve();
+      await held;
+      const response = await pending;
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: 'forbidden' });
+      expect(readTables()).toEqual(before);
+      expect(readLinks()).toEqual(links);
+      expect(readSelected()).toEqual(journal);
+      expect(pushes).toEqual(sent);
+      expect(graph).not.toHaveBeenCalled();
+    } finally {
+      setRequestAdmissionObserver(undefined);
+      queue.mockRestore();
+      unblock.resolve();
+      await held;
+      separate.close();
+      graph.mockRestore();
+    }
+  }, 15_000);

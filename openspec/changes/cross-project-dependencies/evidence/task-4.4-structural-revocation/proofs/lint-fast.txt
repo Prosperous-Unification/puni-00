@@ -1,0 +1,15 @@
+
+> nx run wbs-be-01:"lint:fast"
+
+> bunx eslint apps/wbs/be-01/src --cache --cache-location .nx/eslintcache-wbs-be-01
+
+
+
+
+ NX   Successfully ran target lint:fast for project wbs-be-01
+
+
+  Run duration:      4.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     4.9s (1 task)
+  Recoverable time:  <1ms
