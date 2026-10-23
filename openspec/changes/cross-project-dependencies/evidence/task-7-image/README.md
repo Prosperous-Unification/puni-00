@@ -256,3 +256,46 @@ the same two-file Bun command above with fake Docker and owned dummy processes.
 Configured tools TypeScript, graph-aware scoped ESLint, ShellCheck, scoped Prettier,
 whitespace checks and OpenSpec validation passed (1 change valid, existing warnings).
 Actual installed-image/host proofs and parent Tasks 7.3/7.4 remain pending.
+
+## Review correction: preserve the admission inode until caller quiescence
+
+Astra reproduced an inner cleanup ordering flaw after the previous correction:
+the shell collected and unlinked `composed-attempts` before stopping its Docker
+caller. A later `appendFileSync` could recreate that pathname on a new inode, while
+the retained hardlink still pointed to the old admission bytes. Outer recovery
+could then remove only old children and discard the new pathname's evidence.
+
+Inner cleanup now stops and reads back the exact caller before collecting or
+unlinking its admission pathname. If caller shutdown cannot be proved, it preserves
+the composed pathname and socket directory, fails cleanup, and emits no receipt.
+Other independently owned cleanup continues.
+
+After caller/supervisor quiescence, outer recovery checks that any extant composed
+admission pathname is a regular file on the same device and inode as retained
+`attempts`. It repeats that check before socket evidence deletion. Divergence
+refuses recovery: both raw files remain; the caller-time failure records its exact
+path and bounded bytes in the receipt (and `divergent-attempts` snapshot when
+available). It does not claim a successful reconciliation or delete the divergent
+path. An operator can inspect both token sets before completing exact cleanup.
+
+The regression uses actual hardlinks on `/run`: it unlinks the composed pathname,
+then fake caller removal recreates it and a late owned child. The old runner
+accepted this shape; the corrected runner rejects it and retains both files.
+A second case recreates the pathname during admitted-child cleanup and must also
+reject. The unchanged-inode case requires both recorded children released.
+Inner fake-Docker cases prove a token appended during caller removal remains in
+the retained inode and is cleaned, and a caller-stop refusal retains the pathname.
+
+Four independent production mutations each failed the selected tests, then were
+restored: bypass post-quiescence inode identity; bypass pre-deletion inode identity;
+restore premature inner collect/unlink; unlink after caller-stop refusal.
+Logs: `/tmp/task7-inode-negative-{inode-read,inode-delete,inner-order,
+inner-retention}.log`. The initial repro log is `/tmp/task7-inode-red.log`.
+The fake test's exact UUID socket artifact from its red run was removed by its
+owned teardown; no broad cleanup or real Docker operation occurred.
+
+Final restored two-file fake regression after the inode correction: 113 passed,
+0 failed, 376 assertions, 60.27 seconds (`/tmp/task7-inode-full-final.log`).
+Configured tools TypeScript, graph-aware scoped ESLint, ShellCheck, scoped Prettier,
+whitespace checks and OpenSpec validation passed (1 valid change, existing warnings).
+No real Docker/h2 execution, gate or push occurred. Parent Tasks 7.3/7.4 remain open.

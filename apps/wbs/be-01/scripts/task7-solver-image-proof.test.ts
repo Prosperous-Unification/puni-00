@@ -3,12 +3,14 @@
 import { spawn } from 'node:child_process';
 import {
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -525,3 +527,66 @@ test('smoke retains inventory changed after final snapshot before release', asyn
       rmSync(attempt.inventoryPath, { recursive: true, force: true });
   }
 });
+
+for (const recreate of ['original', 'caller', 'child'])
+  test(`recovery handles ${recreate} admission hardlink replacement`, async () => {
+    const nonce = 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff';
+    const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const early = '11111111-2222-4333-8444-555555555555';
+    const late = '66666666-7777-4888-8999-aaaaaaaaaaaa';
+    const socket = `/run/user/${String(process.getuid?.())}/wbs-solver-smoke.${nonce}`;
+    mkdirSync(socket, { mode: 0o700 });
+    const inventory = `/run/user/${String(process.getuid?.())}/wbs-solver-proof-inventory-${nonce}`;
+    mkdirSync(inventory, { mode: 0o700 });
+    try {
+      writeFileSync(
+        join(inventory, 'resources'),
+        `invocation\t${nonce}\nattempt\t${token}\ncontainer\twbs-solver-smoke-caller-${token}\ndirectory\t${socket}\n`,
+      );
+      writeFileSync(join(inventory, 'attempts'), `${early}\n`);
+      linkSync(join(inventory, 'attempts'), join(socket, 'composed-attempts'));
+      if (recreate === 'caller') unlinkSync(join(socket, 'composed-attempts'));
+      mkdirSync(join(folder, 'store'));
+      for (const name of [`wbs-solver-smoke-caller-${token}`, `wbs-solver-${early}`])
+        writeFileSync(join(folder, 'store', name), 'owned');
+      writeFileSync(
+        join(folder, 'bin/docker'),
+        `#!/bin/sh
+for argument do last="$argument"; done
+case "$1 $2" in
+'container inspect')
+ if [ -e "$PROOF_TEST_DIRECTORY/store/$last" ]; then exit 0; fi
+ echo 'No such container' >&2; exit 1 ;;
+'rm --force')
+ if [ "$last" = '${recreate === 'child' ? `wbs-solver-${early}` : `wbs-solver-smoke-caller-${token}`}' ]; then
+   ${recreate === 'child' ? `rm '${socket}/composed-attempts'` : ':'}
+   printf '${late}\\n' >> '${socket}/composed-attempts'
+   touch "$PROOF_TEST_DIRECTORY/store/wbs-solver-${late}"
+ fi
+ rm "$PROOF_TEST_DIRECTORY/store/$last" ;;
+*) exit 9 ;;
+esac
+`,
+        { mode: 0o700 },
+      );
+      const attempt = new Attempt(folder);
+      if (recreate !== 'original') {
+        await expect(attempt.recoverNested(inventory, nonce)).rejects.toThrow(
+          'nested admission pathname diverged from retained inode',
+        );
+        expect(readFileSync(join(socket, 'composed-attempts'), 'utf8')).toBe(`${late}\n`);
+        expect(readFileSync(join(inventory, 'attempts'), 'utf8')).toBe(`${early}\n`);
+        expect(readdirSync(join(folder, 'store'))).toContain(`wbs-solver-${late}`);
+        if (recreate === 'caller')
+          expect(readFileSync(join(folder, 'inventory.json'), 'utf8')).toContain(
+            'divergentAdmissionPath',
+          );
+      } else {
+        await attempt.recoverNested(inventory, nonce);
+        expect(readdirSync(join(folder, 'store'))).toEqual([]);
+      }
+    } finally {
+      rmSync(socket, { recursive: true, force: true });
+      rmSync(inventory, { recursive: true, force: true });
+    }
+  });

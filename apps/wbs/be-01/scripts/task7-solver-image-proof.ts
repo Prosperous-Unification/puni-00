@@ -1,6 +1,14 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  rmdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
@@ -211,6 +219,25 @@ async function stopSupervisor(identity: string) {
     }
   }
   requireProof(!stillRunning(), 'owned supervisor outlived bounded TERM/KILL');
+}
+
+/** An extant composed pathname must still refer to the retained regular-file inode. */
+function assertAdmissionLink(inventory: string, directories: readonly string[]) {
+  const retained = lstatSync(resolve(inventory, 'attempts'));
+  requireProof(retained.isFile(), 'retained admission inventory is not a regular file');
+  for (const directory of directories) {
+    let linked;
+    try {
+      linked = lstatSync(resolve(directory, 'composed-attempts'));
+    } catch (failure) {
+      if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT') continue;
+      throw failure;
+    }
+    requireProof(
+      linked.isFile() && linked.dev === retained.dev && linked.ino === retained.ino,
+      'nested admission pathname diverged from retained inode',
+    );
+  }
 }
 
 class Attempt {
@@ -442,6 +469,8 @@ class Attempt {
     // Proof: bypassed quiescence read an unreadable admission file while caller removal was denied.
     if (callerStopped && supervisorStopped) {
       try {
+        // Proof: bypassed inode check accepted unlink/recreation during caller stop.
+        assertAdmissionLink(inventory, directories);
         recordedAttempts = readFileSync(resolve(inventory, 'attempts'), 'utf8');
         requireProof(
           recordedAttempts === '' || recordedAttempts.endsWith('\n'),
@@ -462,6 +491,20 @@ class Attempt {
         );
         containers.push(...attempts.map((token) => `wbs-solver-${token}`));
       } catch (failure) {
+        for (const directory of directories) {
+          const path = resolve(directory, 'composed-attempts');
+          try {
+            const admission = lstatSync(path);
+            if (admission.isFile() && admission.size <= 256) {
+              const bytes = readFileSync(path, 'utf8');
+              this.record({ divergentAdmissionPath: path, bytes });
+              if (snapshot !== undefined)
+                writeFileSync(resolve(snapshot, 'divergent-attempts'), bytes);
+            }
+          } catch (captureFailure) {
+            failures.push(String(captureFailure));
+          }
+        }
         failures.push(String(failure));
         recordedAttempts = undefined;
       }
@@ -479,6 +522,8 @@ class Attempt {
     let stable = callerStopped && supervisorStopped && recordedAttempts !== undefined;
     if (stable) {
       try {
+        // Proof: bypassed pre-delete inode check accepted recreation during child cleanup.
+        assertAdmissionLink(inventory, directories);
         requireProof(
           // Proof: bypassed static equality accepted an ownership append during child cleanup.
           readFileSync(resolve(inventory, 'resources'), 'utf8') === manifest,

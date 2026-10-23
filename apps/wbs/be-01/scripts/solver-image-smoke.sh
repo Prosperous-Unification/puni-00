@@ -193,10 +193,20 @@ cleanup() {
   local status=$?
   local cleanup_failed=0
   local token termination_failed=0 supervisor_status
-  if ! collect_composed_attempts "$status"; then cleanup_failed=1; fi
-  # Proof: ignoring removal failure lost the required diagnosis in both inventory-rm-fails cases.
-  if ! rm "$composed_inventory"; then
-    echo '[solver-image-smoke] could not remove composed attempt inventory' >&2
+  local caller_stopped=0
+  # Proof: premature collect/unlink failed the late-admission hardlink test.
+  # The caller can append before connecting: quiesce it before reading or unlinking the inventory.
+  if remove_owned_container "$caller_name"; then
+    caller_stopped=1
+    if ! collect_composed_attempts "$status"; then cleanup_failed=1; fi
+    # Proof: ignoring removal failure lost the required diagnosis in both inventory-rm-fails cases.
+    if ! rm "$composed_inventory"; then
+      echo '[solver-image-smoke] could not remove composed attempt inventory' >&2
+      cleanup_failed=1
+    fi
+  else
+    # Proof: unlinking on stop failure failed retained-pathname negative.
+    echo '[solver-image-smoke] caller stop failed; retained composed admission pathname' >&2
     cleanup_failed=1
   fi
   if [ -n "$supervisor_pid" ]; then
@@ -219,8 +229,6 @@ cleanup() {
       fi
     fi
   fi
-  # Proof: adding removal of an unrelated container failed the owned-resource inventory test.
-  if ! remove_owned_container "$caller_name"; then cleanup_failed=1; fi
   for token in "${attempt_tokens[@]}"; do
     if ! remove_owned_container "wbs-solver-$token"; then cleanup_failed=1; fi
   done
@@ -233,7 +241,7 @@ cleanup() {
     if ! remove_owned_container "$baseline_name"; then cleanup_failed=1; fi
   fi
   # Proof: ignoring rmdir refusal made socket-rmdir-fails exit 0.
-  if ! rmdir "$socket_directory"; then cleanup_failed=1; fi
+  if [ "$caller_stopped" -eq 1 ] && ! rmdir "$socket_directory"; then cleanup_failed=1; fi
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
   # observed the build and registry tags left in the fake Docker store.
   # Proof: adding supplied-image removal here failed the artifact preservation test.

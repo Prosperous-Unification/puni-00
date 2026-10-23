@@ -85,7 +85,7 @@ case "$1" in
     if [ "\${WBS_FAKE_FAULT:-}" = connected-fractional-run ] && [[ "$*" == *'connected-fractional'* ]]; then exit 89; fi
     if [[ "$*" == *'connected-composed'* ]]; then
       cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts"
-      cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts"
+      if [ "\${WBS_FAKE_FAULT:-}" != caller-late-append ]; then cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts"; fi
       case "\${WBS_FAKE_FAULT:-}" in
         connected-composed-run) exit 90 ;;
         inventory-missing) rm "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
@@ -108,6 +108,7 @@ case "$1" in
       echo 'No such container' >&2; exit 1
     fi
     if [ "\${WBS_FAKE_FAULT:-}" = inspect-container-broken ]; then echo 'permission denied' >&2; exit 1; fi
+    if [ "\${WBS_FAKE_FAULT:-}" = caller-late-append ] && [[ "$3" == *caller* ]] && [ ! -e "$WBS_FAKE_CONTAINER_STORE/caller-stopped" ]; then exit 0; fi
     if [ "\${WBS_FAKE_FAULT:-}" = caller-rm-fails ] && [[ "$3" == *caller* ]]; then exit 0; fi
     if [ "\${WBS_FAKE_FAULT:-}" != container-rm-fails ] && [ "\${WBS_FAKE_FAULT:-}" != container-rm-ignored ]; then echo 'No such container' >&2; exit 1; fi
     [[ "\${WBS_FAKE_FAULT:-}" == container-rm-* ]] ;;
@@ -118,6 +119,10 @@ case "$1" in
       rm "$WBS_FAKE_CONTAINER_STORE/$last"; exit 0
     fi
     if [[ "$last" == *baseline* ]]; then rm "$WBS_FAKE_CONTAINER_STORE/$last"; exit 0; fi
+    if [ "\${WBS_FAKE_FAULT:-}" = caller-late-append ] && [[ "$last" == *caller* ]]; then
+      printf '66666666-7777-4888-8999-aaaaaaaaaaaa\\n' >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts"
+      touch "$WBS_FAKE_CONTAINER_STORE/caller-stopped"
+    fi
     if [ "\${WBS_FAKE_FAULT:-}" = caller-rm-fails ]; then exit 1; fi
     [ "\${WBS_FAKE_FAULT:-}" != container-rm-fails ] ;;
 esac
@@ -160,6 +165,7 @@ type SmokeFault =
   | 'first-inspect-broken'
   | 'container-rm-fails'
   | 'caller-rm-fails'
+  | 'caller-late-append'
   | 'inspect-container-broken'
   | 'container-rm-ignored'
   | 'supervisor-kill-fails'
@@ -182,6 +188,7 @@ interface SmokeRun {
 
 let root: string;
 let retainedDirectory: string | undefined;
+let retainedSocket: string | undefined;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'wbs-solver-image-smoke-'));
@@ -189,6 +196,10 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
+  if (retainedSocket) {
+    rmSync(retainedSocket, { recursive: true, force: true });
+    retainedSocket = undefined;
+  }
   if (retainedDirectory) {
     rmSync(retainedDirectory, { recursive: true, force: true });
     retainedDirectory = undefined;
@@ -253,6 +264,7 @@ function runSmoke(
   const socketDirectory = options.retain
     ? `/run/user/${String(process.getuid?.())}/wbs-solver-smoke.11111111-2222-4333-8444-555555555555`
     : join(root, 'socket');
+  if (options.retain) retainedSocket = socketDirectory;
   const bashEnvironment = join(root, 'bash-env');
   writeFileSync(
     bashEnvironment,
@@ -304,7 +316,7 @@ function runSmoke(
     retainedAttempts: options.retain ? readFileSync(join(retained, 'attempts'), 'utf8') : '',
     dockerCalls: readFileSync(dockerLog, 'utf8').trim().split('\n').filter(Boolean),
     hostCalls: readFileSync(hostLog, 'utf8').trim().split('\n').filter(Boolean),
-    survivingContainers: readdirSync(containers),
+    survivingContainers: readdirSync(containers).filter((name) => name !== 'caller-stopped'),
     socketExists: existsSync(socketDirectory),
     survivingTags: readdirSync(store).map((name) => readFileSync(join(store, name), 'utf8')),
   };
@@ -678,4 +690,20 @@ it('refuses malformed cleanup token before Docker', () => {
   expect(smoke.exitCode).not.toBe(0);
   expect(smoke.stderr).toContain('cleanup receipt token must be a UUID');
   expect(smoke.dockerCalls).toEqual([]);
+});
+
+it('collects late admission only after caller stop without recreating its hardlink', () => {
+  const smoke = runSmoke('caller-late-append', { supplied: true, retain: true });
+  expect(smoke.exitCode).toBe(0);
+  expect(smoke.retainedAttempts).toContain('66666666-7777-4888-8999-aaaaaaaaaaaa\n');
+  expect(smoke.dockerCalls).toContain(
+    'container inspect wbs-solver-66666666-7777-4888-8999-aaaaaaaaaaaa',
+  );
+  expect(smoke.socketExists).toBe(false);
+});
+it('retains composed inventory pathname when caller cannot stop', () => {
+  const smoke = runSmoke('caller-rm-fails', { supplied: true });
+  expect(smoke.exitCode).not.toBe(0);
+  expect(existsSync(join(root, 'socket', 'composed-attempts'))).toBe(true);
+  expect(smoke.socketExists).toBe(true);
 });
