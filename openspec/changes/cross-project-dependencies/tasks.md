@@ -592,7 +592,8 @@ backend acceptance remain open.
 - [x] Red: reproduce premature internal-push response/count, delayed replay overtaken by later events/ack and detached presence rejection through gateway controller integrations; introduce the strict awaitable delivery contract and await every producer.
 - [x] Add the required per-connection writer boundary, bind the synchronous physical socket writer, bound pending frames/deadlines, retire on overflow/expiry/rejection/drop and preserve connection cancellation; distinguish accepted Bun backpressure from dropped frames.
 - [x] Independently remove queue order, capacity, deadline, cancellation, failure-cause reporting, physical-drop accounting, invalid-limit refusal, push counting, replay awaiting/retirement and presence awaiting guards; watch each corresponding production-path negative fail and restore the control.
-- [ ] Complete configured gateway test/lint/typecheck/build, formatting, strict OpenSpec validation, independent review and integrated isolated host gate. Parent 10.1 remains open: no retained-session authority inspection, activation, v1 advertisement, client claims or authoring enablement. Evidence: [verify-retained-delivery.md](verify-retained-delivery.md).
+- [x] Complete configured gateway test/lint/typecheck/build and independent Astra review of the corrected synchronous pre-write expiry guard; evidence: [verify-retained-delivery.md](verify-retained-delivery.md).
+- [ ] Complete integrated isolated host gate and strict OpenSpec validation. Parent 10.1 remains open: no retained-session authority inspection, activation, v1 advertisement, client claims or authoring enablement.
 
 Bounded task 7.3/7.4 installed-image acceptance source packet (2026-10-23): the
 smoke now requires feasible and fractional connected authenticated child binds in

@@ -108,3 +108,14 @@ passed **85 tests, 0 failures, 3273 assertions**, exit 0. Fresh
 `bunx tsc --build --force apps/wbs/gw-01/tsconfig.json` also exited 0. Normal
 commit hooks and changed-file formatting are required for the correction commit;
 configured Nx targets remain pending rather than inferred from these checks.
+
+## Integrated configured checks
+
+On the feature tree including both retained-delivery commits (`d496c8608`,
+`7f33d2021`), `bunx nx run wbs-gw-01:test --skip-nx-cache` passed 174 tests and
+3,736 assertions. A serial uncached `bunx nx run-many -t lint typecheck build -p
+wbs-gw-01 --parallel=1 --skip-nx-cache` passed all three targets. The normal
+integration hooks passed. The correction was independently reviewed by Astra
+High after the expiry negative was restored. These checks do not establish
+retained semantic authority or the exact-head h2puni gate. Strict OpenSpec
+validation still reports the same 18 pre-existing requirement-length warnings.

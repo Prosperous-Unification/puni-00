@@ -6321,3 +6321,25 @@ boundary; the uncached backend typecheck and its module prerequisite then passed
 in 14.5 seconds. The exact three mounted revocation cases passed 3/3 with 100
 assertions after the correction. Exact-head host gate and CI remain pending.
 Production authoring remains dormant and parent 4.2 is open.
+
+### 2026-10-23 bounded retained gateway delivery and client editor checks
+
+The [retained-delivery packet](verify-retained-delivery.md) records the awaited
+per-socket writer, bounded queue, physical-drop accounting and watched expiry
+fault. Its integrated configured gateway test passed 174 tests / 3,736
+assertions; serial uncached lint, typecheck and build passed. Astra High reviewed
+the corrected source. Retained semantic authority, participant exclusion and
+activation remain open under parent 10.1.
+
+The [remote predecessor editor packet](verify-9-2-predecessor-scope.md) was
+integrated with desktop and phone editing while preserving stable remote
+identity. The restored-source configured frontend unit target passed 82 files /
+1,012 tests. A separate integrated serial uncached frontend lint and typecheck
+run passed. Exact-head CI/host gate and parent 9.2 remain open.
+
+The [installed solver-image source packet](verify-task-7-installed-solver-image.md)
+adds two connected authenticated child questions to both smoke modes and a
+canonical contradiction revalidation correction. Focused scenarios passed
+70 tests / 184 assertions; fake-Docker smoke passed 42 tests / 143 assertions.
+The actual installed image/digest and disposable Python relabel negatives are
+pending. Parent 7.3/7.4 remain open.

@@ -57,3 +57,13 @@ coordinating an isolated h2puni checkout after its existing heavy-lock gate and
 architecture review. No build on h1claw, production activation, services,
 coordinator, migrations or Python implementation changes occurred. Configured
 broad Nx checks and the canonical exact-head host gate remain pending coordination.
+
+After integration as feature commit `fb544208a`, the serial uncached
+`bunx nx run-many -t lint typecheck -p wbs-be-01,wbs-contracts --parallel=1
+--skip-nx-cache --outputStyle=static` passed both projects and the backend
+module prerequisite. The isolated source checkout used the earlier
+`de89f662d` base and its first configured backend typecheck failed at a
+pre-existing `string | undefined` test fixture; the current feature tree
+already contains its explicit guard in `791a6b305`. This integrated run
+establishes the combined tree's typecheck without changing the image packet.
+The actual image and exact-head host gate remain pending.
