@@ -64,3 +64,21 @@ tool-remote-scripts:lint --skip-nx-cache`: passed.
   progressing when this first record was written. No full source pass is claimed.
 - Fresh changed-file lint, Prettier and `git diff --check` passed before this
   source commit. Full configured Caddy/remote host gates remain unrun here.
+
+The first clean-source real Docker attempt at
+`05aa51c15c022821c7aa5ecac2015827845dbf4f` failed before any fence effects:
+actual application `/health` never became ready within 15 seconds. Owned container
+and network cleanup was verified in `/tmp/backend-fence-docker-05aa51c15.json`.
+Inspecting the actual installed default `src/main.ts` established that startup
+migration is disabled unless explicitly requested; the acceptance-created DB had
+only its seed table. The disposable fixture now explicitly enables startup
+migration during application preparation and captures logs/state on a health
+failure. This does not add any migration to the production fence operation.
+Docker also verified that registry-qualified `docker.io/wbs-be-01@...` and
+`docker.io/wbs-gw-01@...` resolve to the exact already installed bare RepoDigests;
+production strict image validation remains unchanged, with no pull or build.
+
+The initial full source sandbox run completed: 1,260 passed, 2 skipped, 8 failed,
+7,445 assertions, 370.44s. The failures are Unix socket fixtures denied by the
+sandbox. A full elevated rerun was started to establish the actual suite result;
+no full-suite green is inferred from that restricted run.

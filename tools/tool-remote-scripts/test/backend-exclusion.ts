@@ -115,6 +115,8 @@ async function runAcceptance(): Promise<void> {
     names.push(name);
     const environment = [
       'NODE_ENV=test',
+      // Disposable application preparation only; fenceBackends never invokes a migration.
+      'MIGRATE_ON_STARTUP=true',
       'AUTH_MODE=local',
       'APP_ORIGIN=http://127.0.0.1',
       'PORT=3100',
@@ -197,6 +199,12 @@ async function runAcceptance(): Promise<void> {
         );
       await Bun.sleep(100);
     }
+    if (!healthy)
+      await record('actual-backend-health-timeout', {
+        identity,
+        logs: await docker(['logs', '--tail', '50', identity]),
+        state: await docker(['inspect', '--format', '{{json .State}}', identity]),
+      });
     assert(healthy, 'actual backend application health deadline exceeded');
     const response = await fetch(`http://${address}/api/auth/register`, {
       method: 'POST',
