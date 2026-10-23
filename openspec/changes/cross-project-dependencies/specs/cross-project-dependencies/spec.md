@@ -848,3 +848,24 @@ Gateway push, presence, replay and control frames SHALL share one awaitable per-
 - **WHEN** its application queue reaches capacity or its deadline expires
 - **THEN** the connection is retired, all waiting producers settle, and queued successors never start
 - **AND** cancellation before or during delivery prevents new physical writes even if a delayed adapter later settles
+
+### Requirement: Resource clients retain typed dependency incompatibility
+
+The shared HTTP client SHALL decode exact protected-resource 409 dependency
+admission envelopes into typed compatibility failures retaining required semantics.
+The plan UI SHALL display compatibility guidance for refused reads. This SHALL NOT
+send semantic claims, enable authoring or advertise capability.
+
+#### Scenario: Browser retained across activation sees a compatibility instruction
+
+- **WHEN** a resource read returns 409 with exactly `error: "client_dependency_incompatible"` and `required: "cross-project-dependencies-v1"`
+- **THEN** the shared client returns `dependency_incompatible` with that required semantic
+- **AND** the mounted plan read displays a compatible-client instruction and no successful plan export
+- **AND** browser requests still omit the dependency semantics claim
+
+#### Scenario: Compatibility decoding preserves other boundaries
+
+- **WHEN** the envelope has missing, extra or wrong fields, arrives at another status or answers an exempt operation
+- **THEN** it retains the ordinary response-boundary failure rather than claiming dependency incompatibility
+- **AND** ordinary declared 409 conflicts retain their operation-specific refusal
+- **AND** cancellation during compatibility decoding returns controlled cancellation

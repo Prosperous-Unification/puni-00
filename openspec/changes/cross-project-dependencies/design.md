@@ -997,3 +997,19 @@ recipient is surfaced while other recipients have already been dispatched. Lease
 revocation awaits its presence/control deliveries. This is transport preparation,
 not an existing-socket semantic fence; task 10.1 remains open and binary semantic
 advertisement remains empty.
+
+### Bounded task 10.1 browser compatibility decoding prerequisite (2026-10-23)
+
+Intent: preserve exact resource admission incompatibility at the browser boundary
+and show a useful plan read failure. This prerequisite does not claim client V1
+support: the production project stream still has a legacy handshake, and the
+current incapable gateway refuses every offered protocol. Claim sending,
+negotiation, activation and authoring remain outside this packet.
+
+The shared client validates the existing admission schema only for protected 409
+responses, with a closed two-key envelope, and preserves `required` in a typed
+`dependency_incompatible` boundary failure. It is a runtime/client compatibility
+condition shared by resource operations, rather than an operation-specific business
+refusal. Existing operation-specific 409 alternatives continue through their own
+schemas. Cancellation retains precedence after validation. The plan read presenter
+uses the typed condition for visible compatible-client guidance.

@@ -2148,6 +2148,8 @@ const auth = (token: string): HeadersInit => ({ 'x-wbs-token': token });
 
 export function wbsFailureCode(failure: ClientFailure): string {
   switch (failure.code) {
+    case 'dependency_incompatible':
+      return 'dependency_incompatible';
     case 'cancelled':
     case 'invalid_request':
     case 'invalid_response':

@@ -91,6 +91,8 @@ export function unreachable(value: never): never {
 /** Boundary failures remain distinct from validated application refusal messages. */
 export function failureMessage(failure: ClientFailure): string {
   switch (failure.code) {
+    case 'dependency_incompatible':
+      return 'This client cannot open plans with dependencies between projects. Reload with a compatible client.';
     case 'cancelled':
       return '';
     case 'transport':

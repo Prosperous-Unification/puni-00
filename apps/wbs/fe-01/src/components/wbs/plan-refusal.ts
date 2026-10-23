@@ -1,4 +1,4 @@
-import { unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
 import {
   agentPersonLimitSentence,
   capacityLimitSentence,
@@ -879,6 +879,9 @@ export const PLAN_REFUSALS: RefusalWords = {
 export const refusalSentence = (thrown: unknown): string => {
   if (thrown instanceof WbsRequestError) {
     const problem = thrown.problem;
+    // Proof: bypassing this arm hid the compatible-client instruction in the mounted real HTTP plan test (2026-10-23).
+    if (problem.kind === 'failure' && problem.failure.code === 'dependency_incompatible')
+      return failureMessage(problem.failure);
     if (
       problem.kind === 'refusal' &&
       problem.operation === 'postApiProjectsByIdOptimizationRetry' &&

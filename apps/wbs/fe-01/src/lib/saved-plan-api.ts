@@ -87,6 +87,8 @@ export interface SavedPlanApi {
 /** Converts a typed client-boundary failure into the existing status-line code. */
 export function savedPlanFailureCode(failure: ClientFailure): string {
   switch (failure.code) {
+    case 'dependency_incompatible':
+      return 'dependency_incompatible';
     case 'cancelled':
     case 'transport':
     case 'invalid_request':

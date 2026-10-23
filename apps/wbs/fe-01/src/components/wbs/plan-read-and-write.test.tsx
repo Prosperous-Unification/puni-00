@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
+import { httpProjectApi, WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -3131,4 +3131,36 @@ describe('the mounted Type cell', () => {
       expect(document.querySelector('[data-type-conflict]')).toBeNull();
     });
   });
+});
+
+// Removing either decoding or presentation must hide the compatible-client instruction.
+itDom('shows resource dependency incompatibility through the real HTTP client', async () => {
+  const send = vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          error: 'client_dependency_incompatible',
+          required: 'cross-project-dependencies-v1',
+        }),
+        { status: 409 },
+      ),
+    ),
+  );
+  try {
+    render(
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(httpProjectApi('token'))}
+      />,
+    );
+    await screen.findByText(
+      'This client cannot open plans with dependencies between projects. Reload with a compatible client.',
+    );
+    expect(document.querySelector('[data-export]')).toBeNull();
+    for (const [, init] of send.mock.calls) {
+      expect(new Headers(init?.headers).has('X-WBS-Dependency-Semantics')).toBe(false);
+    }
+  } finally {
+    send.mockRestore();
+  }
 });

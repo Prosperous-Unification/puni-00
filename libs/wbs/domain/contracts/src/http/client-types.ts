@@ -1,3 +1,4 @@
+import type { DependencyClientRefusal } from '../dependency-client';
 import type { EndpointShape, ParamsOf } from './endpoint-shape';
 import type { SchemaShape } from './schema-shape';
 
@@ -62,8 +63,18 @@ export type ClientTransport = (
   input: TransportInput,
 ) => Promise<Response | TransportReply>;
 
-/** A failure at the client boundary is distinct from a validated application refusal. */
+/**
+ * A failure at the client boundary is distinct from an operation-specific refusal.
+ * Dependency incompatibility preserves the validated admission requirement; it
+ * grants no semantic support and must not trigger an automatic claim or retry.
+ */
 export type ClientFailure =
+  | {
+      code: 'dependency_incompatible';
+      required: DependencyClientRefusal['required'];
+      status: 409;
+      headers: Headers;
+    }
   | { code: 'cancelled' }
   | { code: 'transport'; cause: unknown }
   | { code: 'invalid_request'; part: 'params' | 'query' | 'body' }

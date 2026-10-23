@@ -1,3 +1,4 @@
+import { dependencyClientRefusal, requiresDependencyClient } from '../dependency-client';
 import { ClientConfigurationError } from './client-error';
 import type {
   Client,
@@ -194,7 +195,10 @@ async function invokeAfterPreflight(
   }
   const headers = new Headers(response.headers);
   const status = response.status;
+  // Proof: accepting non-409 or exempt replies failed the resource/exempt client matrix (2026-10-23).
+  const dependencyAdmission = status === 409 && requiresDependencyClient(shape);
   if (
+    !dependencyAdmission &&
     !shape.responses.some((candidate) => candidate.status === status) &&
     !shape.refusals.some((candidate) => candidate.status === status)
   ) {
@@ -243,8 +247,26 @@ async function invokeAfterPreflight(
       }
     }
   } else reply = response;
-  let applicable = false;
+  let applicable = dependencyAdmission;
   if (reply.kind === 'json') {
+    // Proof: bypassing closed keys or schema validation admitted extra fields or failed required-semantics negatives; disabling decoding hid the mounted plan instruction.
+    if (
+      dependencyAdmission &&
+      typeof reply.body === 'object' &&
+      reply.body !== null &&
+      Object.keys(reply.body).length === 2
+    ) {
+      const checked = await validateSchema(dependencyClientRefusal.schema, reply.body);
+      // Proof: removing cancellation returned dependency_incompatible in `cancels while decoding the dependency admission envelope`.
+      if (supplied.signal?.aborted) return failed({ code: 'cancelled' });
+      if (checked.issues === undefined)
+        return failed({
+          code: 'dependency_incompatible',
+          required: checked.value.required,
+          status: 409,
+          headers,
+        });
+    }
     // Proof: first-only alternatives failed the later same-status async refusal; removing status matching admitted a mismatched pair.
     for (const refusal of shape.refusals) {
       if (refusal.status !== status) continue;
