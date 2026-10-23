@@ -307,7 +307,7 @@ class Attempt {
   }
 
   /** Recover only validated invocation-owned resources after a failed/missing inner cleanup receipt. */
-  async recoverNested(inventory: string, cleanupToken: string) {
+  async recoverNested(inventory: string, cleanupToken: string, snapshot?: string) {
     const manifest = readFileSync(resolve(inventory, 'resources'), 'utf8');
     requireProof(manifest.length <= 8192, 'nested inventory exceeds byte bound');
     requireProof(manifest.endsWith('\n'), 'nested inventory is incomplete');
@@ -377,48 +377,25 @@ class Attempt {
         directories.push(reference);
       } else throw new Error('nested inventory kind malformed');
     }
-    const recordedAttempts = readFileSync(resolve(inventory, 'attempts'), 'utf8');
-    requireProof(
-      recordedAttempts === '' || recordedAttempts.endsWith('\n'),
-      'nested admission inventory incomplete',
-    );
-    const attempts = recordedAttempts === '' ? [] : recordedAttempts.slice(0, -1).split('\n');
-    requireProof(
-      attempts.length <= 2 &&
-        new Set(attempts).size === attempts.length &&
-        attempts.every((token) => new RegExp(`^${uuid}$`).test(token)),
-      'nested admission inventory malformed',
-    );
     requireProof(
       // Proof: bypassed cap accepted excess UUID resources in the resource-overcount negative.
       containers.length <= 7 && images.length <= 3 && supervisors.length <= 1,
       'nested ownership exceeds smoke protocol',
     );
-    containers.push(...attempts.map((token) => `wbs-solver-${token}`));
     requireProof(
       new Set(containers).size === containers.length &&
         new Set(images).size === images.length &&
         directories.length <= 1,
       'nested ownership duplicated',
     );
+    const caller = `wbs-solver-smoke-caller-${token}`;
+    // Proof: bypassed caller ownership accepted the missing-caller inventory negative.
+    requireProof(containers.includes(caller), 'nested caller ownership missing');
     const failures: string[] = [];
-    let supervisorStopped = false;
-    try {
-      requireProof(
-        // Proof: bypassed identity presence accepted pending-supervisor without a recorded PID.
-        supervisors.length === (supervisorStarting ? 1 : 0),
-        'nested supervisor identity unavailable; manual review required',
-      );
-      for (const identity of supervisors) await stopSupervisor(identity);
-      supervisorStopped = true;
-    } catch (failure) {
-      failures.push(String(failure));
-    }
-    const owned: ['container' | 'image', string][] = [
-      ...containers.map((reference): ['container', string] => ['container', reference]),
-      ...images.toReversed().map((reference): ['image', string] => ['image', reference]),
-    ];
-    for (const [kind, reference] of owned) {
+    const releaseNestedResource = async (
+      kind: 'container' | 'image',
+      reference: string,
+    ): Promise<boolean> => {
       let missing = false;
       try {
         missing = await this.absent(kind, reference);
@@ -440,11 +417,88 @@ class Attempt {
       }
       try {
         requireProof(await this.absent(kind, reference), `nested resource survived: ${reference}`);
+        return true;
       } catch (failure) {
         failures.push(String(failure));
+        return false;
+      }
+    };
+    // Proof: reading admissions before caller removal missed the token appended during caller stop in the timeout test.
+    const callerStopped = await releaseNestedResource('container', caller);
+    let supervisorStopped = false;
+    try {
+      requireProof(
+        // Proof: bypassed identity presence accepted pending-supervisor without a recorded PID.
+        supervisors.length === (supervisorStarting ? 1 : 0),
+        'nested supervisor identity unavailable; manual review required',
+      );
+      for (const identity of supervisors) await stopSupervisor(identity);
+      supervisorStopped = true;
+    } catch (failure) {
+      failures.push(String(failure));
+    }
+    let recordedAttempts: string | undefined;
+    const attempts: string[] = [];
+    // Proof: bypassed quiescence read an unreadable admission file while caller removal was denied.
+    if (callerStopped && supervisorStopped) {
+      try {
+        recordedAttempts = readFileSync(resolve(inventory, 'attempts'), 'utf8');
+        requireProof(
+          recordedAttempts === '' || recordedAttempts.endsWith('\n'),
+          'nested admission inventory incomplete',
+        );
+        attempts.push(
+          ...(recordedAttempts === '' ? [] : recordedAttempts.slice(0, -1).split('\n')),
+        );
+        requireProof(
+          attempts.length <= 2 &&
+            new Set(attempts).size === attempts.length &&
+            attempts.every((token) => new RegExp(`^${uuid}$`).test(token)),
+          'nested admission inventory malformed',
+        );
+        requireProof(
+          attempts.every((token) => !containers.includes(`wbs-solver-${token}`)),
+          'nested ownership duplicated',
+        );
+        containers.push(...attempts.map((token) => `wbs-solver-${token}`));
+      } catch (failure) {
+        failures.push(String(failure));
+        recordedAttempts = undefined;
+      }
+    } else
+      failures.push(
+        'nested admission inventory cannot be stable before caller and supervisor quiescence',
+      );
+    const owned: ['container' | 'image', string][] = [
+      ...containers
+        .filter((reference) => reference !== caller)
+        .map((reference): ['container', string] => ['container', reference]),
+      ...images.toReversed().map((reference): ['image', string] => ['image', reference]),
+    ];
+    for (const [kind, reference] of owned) await releaseNestedResource(kind, reference);
+    let stable = callerStopped && supervisorStopped && recordedAttempts !== undefined;
+    if (stable) {
+      try {
+        requireProof(
+          // Proof: bypassed static equality accepted an ownership append during child cleanup.
+          readFileSync(resolve(inventory, 'resources'), 'utf8') === manifest,
+          'nested static inventory changed after quiescence',
+        );
+        requireProof(
+          // Proof: bypassed admission equality accepted a late token during child cleanup.
+          readFileSync(resolve(inventory, 'attempts'), 'utf8') === recordedAttempts,
+          'nested admission inventory changed after quiescence',
+        );
+        if (snapshot !== undefined) {
+          writeFileSync(resolve(snapshot, 'resources'), manifest);
+          writeFileSync(resolve(snapshot, 'attempts'), recordedAttempts);
+        }
+      } catch (failure) {
+        failures.push(String(failure));
+        stable = false;
       }
     }
-    for (const directory of supervisorStopped ? directories : []) {
+    for (const directory of stable ? directories : []) {
       try {
         for (const filename of ['supervisor.sock', 'composed-attempts']) {
           const path = resolve(directory, filename);
@@ -461,9 +515,13 @@ class Attempt {
       images,
       supervisors,
       supervisorStopped,
+      callerStopped,
+      stable,
       failures,
     });
     requireProof(failures.length === 0, 'nested cleanup failed: ' + failures.join('; '));
+    requireProof(recordedAttempts !== undefined, 'stable nested admission inventory absent');
+    return { resources: manifest, attempts: recordedAttempts };
   }
 
   async smoke(name: string, image?: string, fault?: (typeof faults)[number]) {
@@ -501,10 +559,14 @@ class Attempt {
     const cleanupMarker = `[solver-image-smoke] cleanup-complete ${cleanupToken}`;
     let nestedFailure: Error | undefined;
     try {
-      for (const filename of ['resources', 'attempts'])
-        writeFileSync(resolve(snapshot, filename), readFileSync(resolve(inventory, filename)));
       // Proof: bypassed recovery left later caller/child/image state in the killed-inner test.
-      await this.recoverNested(inventory, cleanupToken);
+      const stable = await this.recoverNested(inventory, cleanupToken, snapshot);
+      requireProof(
+        // Proof: bypassed final equality removed inventory appended after its stable snapshot.
+        readFileSync(resolve(inventory, 'resources'), 'utf8') === stable.resources &&
+          readFileSync(resolve(inventory, 'attempts'), 'utf8') === stable.attempts,
+        'nested inventory changed before release',
+      );
       for (const filename of ['resources', 'attempts']) unlinkSync(resolve(inventory, filename));
       rmdirSync(inventory);
     } catch (failure) {

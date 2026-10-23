@@ -214,3 +214,45 @@ ESLint, ShellCheck, scoped Prettier and whitespace checks passed. OpenSpec valid
 reported 1 passed / 0 failed with existing long-requirement warnings. No actual
 Docker build/run, h2 proof/gate, push, merge or PR mutation occurred. Tasks 7.3/7.4
 remain open.
+
+## Review correction: quiesce admission writers before recovery reads
+
+Astra reproduced a remaining race: a Docker caller can append its next composed
+admission token after the supervisor stops, because recording precedes connecting.
+Reading tokens before stopping that caller could omit a real child and remove its
+only recovery inventory. The previous snapshot was also taken too early.
+
+Recovery now validates the static manifest first, requires its exact caller name,
+removes and reads back that caller **first**, and then stops and reads back the
+supervisor's PID incarnation. Only after both writers are quiesced does it read
+and validate the composed admission tokens. It cleans those exact children and
+checks that both static and admission inventory bytes stayed unchanged throughout
+cleanup. The final snapshot is written after that stable read; a second byte
+comparison precedes removing the retained inventory. Any append after quiescence
+refuses acceptance and preserves the changed raw inventory. If caller or supervisor
+quiescence cannot be proved, recovery skips the admission read and socket removal,
+continues safe static cleanup, retains inventory, and throws.
+
+The two initial negatives reproduced the defect (0 passed / 2 failed): the timeout
+test appended a second token and child during caller removal, and a second test
+appended during admitted-child cleanup. The corrected timeout test requires both
+children absent and both tokens in the final snapshot. Further negatives require
+rejection of changed static ownership, a post-snapshot append before release, and
+a denied caller removal with an unreadable admission file that must remain unread.
+All test-created retained directories are explicitly owned and released in teardown;
+changed production inventories remain available for manual review.
+
+Six independent production mutations each failed its selected test and were
+restored: premature admission read; static inventory equality; admission inventory
+equality; writer-quiescence gate; exact caller ownership; final equality before
+release. Logs:
+`/tmp/task7-admission-order-negative-{premature-read,static-read,stable-read,
+quiescence,caller-owner,final-release}.log`. The initial red log is
+`/tmp/task7-admission-order-red.log`. No real Docker, h2 or remote execution was used.
+
+Final restored suites after this ordering correction: 108 passed, 0 failed,
+359 assertions, 57.96 seconds (`/tmp/task7-admission-order-full-final.log`), using
+the same two-file Bun command above with fake Docker and owned dummy processes.
+Configured tools TypeScript, graph-aware scoped ESLint, ShellCheck, scoped Prettier,
+whitespace checks and OpenSpec validation passed (1 change valid, existing warnings).
+Actual installed-image/host proofs and parent Tasks 7.3/7.4 remain pending.

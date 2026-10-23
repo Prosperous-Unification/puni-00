@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-dynamic-delete, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await */
 import { spawn } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -52,7 +53,7 @@ esac
   writeFileSync(
     join(folder, 'bin/bash'),
     `#!/bin/sh
-printf 'invocation\\t%s\\nattempt\\taaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" > "$WBS_SOLVER_SMOKE_INVENTORY/resources"
+printf 'invocation\\t%s\\nattempt\\taaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\ncontainer\\twbs-solver-smoke-caller-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" > "$WBS_SOLVER_SMOKE_INVENTORY/resources"
 : > "$WBS_SOLVER_SMOKE_INVENTORY/attempts"
 printf '%s\\n' "$PROOF_TEST_LOG"
 case "\${PROOF_TEST_RECEIPT:-exact}" in
@@ -79,6 +80,17 @@ afterEach(() => {
     'PROOF_TEST_RECEIPT',
   ])
     delete process.env[key];
+  const retained = join(folder, 'runtime-inventory');
+  if (existsSync(retained)) {
+    const path = readFileSync(retained, 'utf8').trim();
+    if (
+      !new RegExp(
+        `^/run/user/${String(process.getuid?.())}/wbs-solver-proof-inventory-[0-9a-f-]{36}$`,
+      ).test(path)
+    )
+      throw new Error('fake test inventory ownership malformed');
+    rmSync(path, { recursive: true, force: true });
+  }
   rmSync(folder, { recursive: true, force: true });
 });
 
@@ -253,6 +265,7 @@ test('intended assertion plus exact invocation cleanup receipt accepts mutant', 
 test('stalled inner cleanup retains output and recovers every later recorded resource after kill', async () => {
   const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
   const child = '11111111-2222-4333-8444-555555555555';
+  const late = '66666666-7777-4888-8999-aaaaaaaaaaaa';
   const supervisor = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
     detached: true,
     stdio: 'ignore',
@@ -279,7 +292,14 @@ case "$1 $2" in
   if [ -e "$PROOF_TEST_DIRECTORY/store/$last" ]; then exit 0; fi
   if [ "$1" = image ]; then echo 'No such image' >&2; else echo 'No such container' >&2; fi
   exit 1 ;;
-'image rm'|'rm --force') rm "$PROOF_TEST_DIRECTORY/store/$last" ;;
+'rm --force')
+  case "$last" in *caller*)
+    inventory="$(cat "$PROOF_TEST_DIRECTORY/runtime-inventory")"
+    printf '${late}\\n' >> "$inventory/attempts"
+    touch "$PROOF_TEST_DIRECTORY/store/wbs-solver-${late}"
+  ;; esac
+  rm "$PROOF_TEST_DIRECTORY/store/$last" ;;
+'image rm') rm "$PROOF_TEST_DIRECTORY/store/$last" ;;
 *) exit 9 ;;
 esac
 `,
@@ -290,6 +310,7 @@ esac
     `#!/bin/sh
 printf 'invocation\\t%s\\nattempt\\t${token}\\ncontainer\\twbs-solver-smoke-caller-${token}\\nimage\\twbs-be-01:solver-smoke-${token}\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" > "$WBS_SOLVER_SMOKE_INVENTORY/resources"
 printf 'supervisor-starting\\t%s\\nsupervisor\\t${String(pid)}:${observed.start}\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" >> "$WBS_SOLVER_SMOKE_INVENTORY/resources"
+printf '%s\\n' "$WBS_SOLVER_SMOKE_INVENTORY" > "$PROOF_TEST_DIRECTORY/runtime-inventory"
 printf '${child}\\n' > "$WBS_SOLVER_SMOKE_INVENTORY/attempts"
 touch "$PROOF_TEST_DIRECTORY/store/wbs-solver-smoke-caller-${token}" "$PROOF_TEST_DIRECTORY/store/wbs-solver-${child}" "$PROOF_TEST_DIRECTORY/store/wbs-be-01:solver-smoke-${token}"
 printf 'stalled inner cleanup with later child and image still owned\\n'
@@ -311,7 +332,7 @@ while :; do sleep 1; done
     const saved = readdirSync(folder).find((name) => name.startsWith('stalled-inventory-'));
     if (saved === undefined) throw new Error('copied retained inventory missing');
     expect(readFileSync(join(folder, saved, 'resources'), 'utf8')).toContain('supervisor\t');
-    expect(readFileSync(join(folder, saved, 'attempts'), 'utf8')).toContain(child);
+    expect(readFileSync(join(folder, saved, 'attempts'), 'utf8')).toBe(`${child}\n${late}\n`);
     const inventory = readFileSync(join(folder, 'inventory.json'), 'utf8');
     expect(inventory).toContain('137');
     expect(inventory).toContain('nestedRecovery');
@@ -320,6 +341,9 @@ while :; do sleep 1; done
     );
     expect(readFileSync(join(folder, 'commands'), 'utf8')).toContain(
       `rm --force wbs-solver-${child}`,
+    );
+    expect(readFileSync(join(folder, 'commands'), 'utf8')).toContain(
+      `rm --force wbs-solver-${late}`,
     );
     expect((await import('node:fs')).readdirSync(join(folder, 'store'))).toEqual([]);
     await exited;
@@ -336,6 +360,7 @@ for (const malformed of [
   'unowned-container',
   'bad-child',
   'pending-supervisor',
+  'missing-caller',
 ])
   test(`nested recovery refuses ${malformed} inventory`, async () => {
     const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
@@ -343,7 +368,7 @@ for (const malformed of [
     else if (malformed !== 'missing') {
       writeFileSync(
         join(folder, 'resources'),
-        `invocation\t${malformed === 'wrong-invocation' ? 'wrong' : token}\nattempt\t${token}\n${malformed === 'unowned-container' ? 'container\tproduction-backend\n' : malformed === 'pending-supervisor' ? `supervisor-starting\t${token}\n` : ''}`,
+        `invocation\t${malformed === 'wrong-invocation' ? 'wrong' : token}\nattempt\t${token}\n${malformed === 'missing-caller' ? '' : `container\twbs-solver-smoke-caller-${token}\n`}${malformed === 'unowned-container' ? 'container\tproduction-backend\n' : malformed === 'pending-supervisor' ? `supervisor-starting\t${token}\n` : ''}`,
       );
       writeFileSync(join(folder, 'attempts'), malformed === 'bad-child' ? 'not-a-uuid\n' : '');
     }
@@ -358,7 +383,9 @@ for (const malformed of [
               ? 'nested container ownership malformed'
               : malformed === 'bad-child'
                 ? 'nested admission inventory malformed'
-                : 'nested supervisor identity unavailable';
+                : malformed === 'missing-caller'
+                  ? 'nested caller ownership missing'
+                  : 'nested supervisor identity unavailable';
     await expect(new Attempt(folder).recoverNested(folder, token)).rejects.toThrow(diagnosis);
   });
 
@@ -377,7 +404,7 @@ for (const identity of ['matching', 'reused'])
     const start = identity === 'matching' ? observed.start : String(BigInt(observed.start) + 1n);
     writeFileSync(
       join(folder, 'resources'),
-      `invocation\t${nonce}\nattempt\t${nonce}\nsupervisor-starting\t${nonce}\nsupervisor\t${String(pid)}:${start}\n`,
+      `invocation\t${nonce}\nattempt\t${nonce}\ncontainer\twbs-solver-smoke-caller-${nonce}\nsupervisor-starting\t${nonce}\nsupervisor\t${String(pid)}:${start}\n`,
     );
     writeFileSync(join(folder, 'attempts'), '');
     try {
@@ -413,4 +440,88 @@ test('nested recovery refuses resource overcount before any Docker work', async 
   await expect(new Attempt(folder).recoverNested(folder, token)).rejects.toThrow(
     'nested ownership exceeds smoke protocol',
   );
+});
+
+for (const written of ['admission', 'static'])
+  test(`nested recovery rejects ${written} appended after caller quiescence and retains bytes`, async () => {
+    const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const child = '11111111-2222-4333-8444-555555555555';
+    const late = '66666666-7777-4888-8999-aaaaaaaaaaaa';
+    mkdirSync(join(folder, 'store'));
+    writeFileSync(
+      join(folder, 'resources'),
+      `invocation\t${token}\nattempt\t${token}\ncontainer\twbs-solver-smoke-caller-${token}\n`,
+    );
+    writeFileSync(join(folder, 'attempts'), `${child}\n`);
+    writeFileSync(join(folder, 'store', `wbs-solver-${child}`), 'owned');
+    writeFileSync(
+      join(folder, 'bin/docker'),
+      `#!/bin/sh
+for argument do last="$argument"; done
+printf '%s\\n' "$*" >> "$PROOF_TEST_DIRECTORY/commands"
+case "$1 $2" in
+'container inspect')
+  if [ -e "$PROOF_TEST_DIRECTORY/store/$last" ]; then exit 0; fi
+  echo 'No such container' >&2; exit 1 ;;
+'rm --force')
+  printf '${written === 'admission' ? late : `container\\twbs-solver-${late}`}\\n' >> "$PROOF_TEST_DIRECTORY/${written === 'admission' ? 'attempts' : 'resources'}"
+  touch "$PROOF_TEST_DIRECTORY/store/wbs-solver-${late}"
+  rm "$PROOF_TEST_DIRECTORY/store/$last" ;;
+*) exit 9 ;;
+esac
+`,
+      { mode: 0o700 },
+    );
+    await expect(new Attempt(folder).recoverNested(folder, token)).rejects.toThrow(
+      `nested ${written} inventory changed after quiescence`,
+    );
+    if (written === 'admission')
+      expect(readFileSync(join(folder, 'attempts'), 'utf8')).toBe(`${child}\n${late}\n`);
+    else
+      expect(readFileSync(join(folder, 'resources'), 'utf8')).toContain(
+        `container\twbs-solver-${late}\n`,
+      );
+    expect(readdirSync(join(folder, 'store'))).toEqual([`wbs-solver-${late}`]);
+  });
+
+test('caller quiescence failure retains unread admissions and still cleans safe static inventory', async () => {
+  const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  writeFileSync(
+    join(folder, 'resources'),
+    `invocation\t${token}\nattempt\t${token}\ncontainer\twbs-solver-smoke-caller-${token}\nimage\twbs-be-01:solver-smoke-${token}\n`,
+  );
+  mkdirSync(join(folder, 'attempts'));
+  writeFileSync(join(folder, 'present'), 'caller still running');
+  process.env['PROOF_TEST_REMOVE'] = 'denied';
+  await expect(new Attempt(folder).recoverNested(folder, token)).rejects.toThrow(
+    'nested admission inventory cannot be stable before caller and supervisor quiescence',
+  );
+  expect(statSync(join(folder, 'attempts')).isDirectory()).toBe(true);
+  expect(readFileSync(join(folder, 'commands'), 'utf8')).toContain(
+    `image rm wbs-be-01:solver-smoke-${token}`,
+  );
+});
+
+test('smoke retains inventory changed after final snapshot before release', async () => {
+  class LateAttempt extends Attempt {
+    inventoryPath: string | undefined;
+    override async recoverNested(inventory: string, token: string, snapshot?: string) {
+      this.inventoryPath = inventory;
+      const stable = await super.recoverNested(inventory, token, snapshot);
+      writeFileSync(join(inventory, 'attempts'), '66666666-7777-4888-8999-aaaaaaaaaaaa\n');
+      return stable;
+    }
+  }
+  const attempt = new LateAttempt(folder);
+  try {
+    await expect(attempt.smoke('late')).rejects.toThrow('nested inventory changed before release');
+    const inventory = attempt.inventoryPath;
+    if (inventory === undefined) throw new Error('retained inventory location absent');
+    expect(readFileSync(join(inventory, 'attempts'), 'utf8')).toContain(
+      '66666666-7777-4888-8999-aaaaaaaaaaaa',
+    );
+  } finally {
+    if (attempt.inventoryPath !== undefined)
+      rmSync(attempt.inventoryPath, { recursive: true, force: true });
+  }
 });
