@@ -21,6 +21,13 @@ import {
 } from './calendar-marker-shapes';
 import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
 import {
+  listComputeProviders,
+  putCapacityReport,
+  registerComputeProvider,
+  removeComputeProvider,
+  updateComputeProvider,
+} from './compute-provider-shapes';
+import {
   listExternalSystems,
   listPeople,
   listServices,
@@ -186,6 +193,11 @@ export const httpShapes = [
   listTrustedIssuers,
   registerTrustedIssuer,
   removeTrustedIssuer,
+  listComputeProviders,
+  registerComputeProvider,
+  updateComputeProvider,
+  removeComputeProvider,
+  putCapacityReport,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,

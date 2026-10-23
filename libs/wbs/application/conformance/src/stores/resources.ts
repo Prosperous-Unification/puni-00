@@ -21,6 +21,7 @@ export function isResourceCase(caseId: string): boolean {
     caseId.startsWith('demands.') ||
     caseId.startsWith('directory.addResource') ||
     caseId.startsWith('directory.removeResource') ||
+    caseId.startsWith('directory.setResourceProvider') ||
     caseId.startsWith('claims.occupancy')
   );
 }
@@ -187,6 +188,27 @@ export function directoryResourceRegistrations(
         reason: 'not_found',
       });
     }),
+    // The reference only ever names an instance the source holds; the memory
+    // twin holds none and SQLite none seeded here, so every id is unknown and
+    // clearing is the one write both accept (`compute-providers` P3).
+    storeCase(
+      'directory',
+      'directory.setResourceProvider:unknown-and-clear',
+      open,
+      async ({ port, seed }) => {
+        expect(await port.setResourceProvider(RAM.id, null, null, seed.stamps[1])).toEqual({
+          ok: true,
+          projectIds: [],
+        });
+        expect(
+          await port.setResourceProvider(RAM.id, 'provider-missing', null, seed.stamps[1]),
+        ).toEqual({ ok: false, reason: 'unknown_provider' });
+        expect(
+          await port.setResourceProvider('resource-missing', null, null, seed.stamps[1]),
+        ).toEqual({ ok: false, reason: 'not_found' });
+        expect(await port.listResources()).toEqual([RAM, STAGE]);
+      },
+    ),
     storeCase(
       'directory',
       'directory.removeResource:in-use-cascade',
