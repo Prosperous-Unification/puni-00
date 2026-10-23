@@ -6115,3 +6115,48 @@ exact-head infra-check and two local inner Nx failures, followed by a real
 default-network Docker image build passing with sibling project metadata and
 the frontend-only Nx target. The real k3s rehearsal remains unverified after
 this change.
+
+## 2026-10-23 — gate test inventory repair
+
+The exact-SHA gate exposed two declarations omitted when the cross-project tests
+were added. `cross-project-live.controller.db.test.ts` bundles the actual frontend
+Gantt consumer with the frontend TypeScript configuration. Backend `test` now hashes
+frontend source (including the bundle's transitive imports), `tsconfig.app.json`
+and its inherited `tsconfig.json` explicitly; no backend-to-frontend project dependency is introduced. The uncached
+`e2e-cross-project` target is classified alongside `e2e-organization` as a real-backend
+Browser runner without the test-axes slice's report binding. This does not grant
+isolated-level evidence credit.
+
+Observed on `pop-os`, in `/tmp/puni-devsync-inventory`, based on
+`9b3bca6bfc3b0491b93f76bb609f61910d02278c`:
+
+- Before repair, the two focused suites produced **121 pass, 10 fail**. The cached
+  read inventory named `gantt-geometry.ts` and `tsconfig.app.json`; the remaining
+  failures named the undeclared `wbs-fe-01:e2e-cross-project` target.
+- Added the production-CLI classification regression first and watched it fail
+  with `unknown test target declaration wbs-fe-01:e2e-cross-project` while the
+  classification was absent. This is the classification's dependency-broken R5
+  negative. The existing production inventory test independently failed with the
+  two original backend inputs omitted. The added native `InProcessTaskHasher`
+  regression then failed naming only `apps/wbs/fe-01/tsconfig.json` before its
+  input was added. It also verifies the geometry entrypoint, transitive Gantt axis,
+  app configuration and shared root configuration are hashed. Adjacent `Proof:`
+  comments record these observations.
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/test-levels.test.ts tools/tool-devsync/src/workspace-targets.test.ts --timeout=30000`:
+  **133 pass, 0 fail**, 497 assertions (final rerun includes inherited-config hash regression).
+- `bun tools/tool-devsync/src/verify-test-levels-cli.ts`: exit 0.
+- `NX_DAEMON=false bunx nx run tool-devsync:lint --skip-nx-cache`: exit 0.
+- `NX_DAEMON=false bunx nx run tool-devsync:typecheck --skip-nx-cache`: exit 0.
+- The first sandboxed configured `tool-devsync:test --skip-nx-cache` run ended
+  **813 pass, 43 fail, 1 error** because loopback listeners were denied (`EPERM`),
+  Git scratch-object writes were read-only and local clone hardlinks crossed
+  sandbox mounts. The same target was rerun with approved escalation:
+  `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache` passed with
+  **923 pass, 0 fail**, 3309 assertions across 49 files, in 739.08 seconds.
+- Changed-code Prettier check and `git diff --check`: exit 0.
+- `bunx openspec validate cross-project-dependencies --json`: exit 0, valid true.
+  The additional `--strict` invocation marked the change invalid because of 17
+  existing long-requirement warnings; this repair changes no delta specifications.
+
+These are local regression observations. No full h2 gate or browser execution was
+performed in this repair; the integrated commit still requires the exact-SHA gate.
