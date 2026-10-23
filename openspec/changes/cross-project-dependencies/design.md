@@ -670,6 +670,41 @@ container. Existing durable-stop catch behavior retains current bytes and eviden
 Historical stores without authority refuse; this packet has no bootstrap adapter,
 semantic participant proof, activation mutation or Kubernetes admission.
 
+### Continuous participant exclusion before activation
+
+Binary observations and stopped-store snapshots are inputs to deployment
+admission, not the exclusion itself. The deployment owner must record a closed
+roster of actual backend readers/writers, background workers, gateway/MCP
+processes, retained sockets/streams and every restart or reconcile owner. After
+persisting stop intent, it must close ingress, fence those restart owners, drain
+or terminate each incompatible participant, and read back exact identities and
+effective fences. The exclusion interval begins only after the final drain is
+acknowledged. It remains continuously enforced through fresh store/participant
+inspection, migration, activation intent, atomic authority flip/readback,
+compatible process startup, route exposure and ownership handoff. A repeated
+inventory can detect drift but cannot substitute for a fence; uncertainty or a
+lost controller Lease parks the release for attended compatible recovery.
+
+First installation stays `DISABLED`. The activation receipt requires a real,
+digest-pinned retained image; the deployment owner must first establish a
+compatible dormant installation and independently observe that retained image
+before a later activation. It must neither copy the candidate observation into
+retained attribution nor infer retained compatibility from an equal digest.
+Candidate and retained role executables run independently even when their image
+digests match. Missing executable evidence is a refusal, not a valid empty
+semantic declaration. Before activation, an independently admitted dormant
+rollback may reverse the exact captured migration set; after activation intent,
+possible dispatch or exposure, automatic schema reversal, old-tier restart and
+controller restoration are forbidden pending attended compatible recovery.
+
+The current Compose check covers known writers only; Kubernetes B2b is a
+prepared GET/checkpoint primitive, and B3a records claims without enforcing
+exclusion. Neither path has a production-consumed complete participant policy.
+The runtime's fresh HTTP/upgrade guards do not close already-open sockets or
+stop old binaries. No activation caller should use this design text as an
+admission result until the deployment effects and their production-path R5
+negatives exist.
+
 ### Private connected derivation and capture slice (2026-10-22)
 
 The actual component derivation feeds its encoded common-axis resolved input and
