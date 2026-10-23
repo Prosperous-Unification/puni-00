@@ -58,3 +58,40 @@ their checks and in the authority regression suite.
 
 No full host gate, deployment, activation CLI or live database operation was run.
 This isolated primitive does not claim the parent deployment change is complete.
+
+## Review correction: failed opener ownership
+
+The shared native opener previously leaked connections when WAL setup or pragma
+assertion threw before returning ownership. The readonly opener also performed
+unguarded initialization after constructing its native connection. Both now use
+one internal ownership helper: initialize, transfer the successful connection, or
+close synchronously with statement finalization before rethrowing the original
+failure. If closing itself throws, an `AggregateError` retains both failures and
+uses the initialization failure as its cause. Constructor and successful connection
+semantics are unchanged.
+
+`database-initialization.db.test.ts` retains actual native handles through
+test-only prototype observers, so automatic garbage collection cannot mask leaks.
+The initial red run had eight failures: thirty malformed activation attempts
+retained thirty path-specific Linux `/proc/self/fd` descriptors. Creating and
+existing openers each also failed to close thirty retained handles. Fault-injected
+writable/readonly initialization, final WAL assertion refusal and cleanup refusal
+cover error identity and cleanup; a valid connection stays usable until its caller
+closes it exactly once. Only the descriptor-specific test skips outside Linux;
+native retained-handle ownership checks remain portable.
+
+- Restored production: nine ownership tests passed, zero failed, 332 assertions.
+- Removing the production `close(true)` caused the thirty-attempt descriptor test
+  to fail with expected zero, observed thirty; restoring it passed. Replacing
+  cleanup aggregation with only the cleanup error failed the primary/cleanup
+  attribution test. Both mutants exited 1 and were restored.
+- `bun test` over `database-initialization.db.test.ts`, `db.db.test.ts`,
+  `source.test.ts`, `cross-project-dependency-activation.db.test.ts` and
+  `dependency-activation-write.db.test.ts`: 144 passed, zero failed, 618 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:typecheck --skip-nx-cache`:
+  passed. The matching `wbs-store-sqlite:lint` target passed after correcting the
+  initial error-cause lint failure. Formatting and `git diff --check` passed;
+  OpenSpec validation passed all 275 artifacts. Ordinary installed Lefthook checks
+  run during the correction commit.
+
+No writable CLI, live database operation, deployment, push or host gate was run.
