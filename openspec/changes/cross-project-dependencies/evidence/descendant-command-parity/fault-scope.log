@@ -1,0 +1,44 @@
+Injected fault: scope
+: { scope: endpoint.scope, projectId, workItemId, stepId: endpoint.stepId };
+=>
+: { scope: 'node', projectId, workItemId, stepId: endpoint.stepId };
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1037 |       const fixture = await openFixture();
+1038 |       try {
+1039 |         const { before, leaves } = await prepareDescendantPredecessor(fixture, slowFirst);
+1040 |         const commands = descendantCommands(fixture);
+1041 |         const reply = await submit(fixture, transport, commands);
+1042 |         expect(reply.status).toBe(200);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 0
+
+      at <anonymous> (/tmp/puni-descendant-command-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1042:30)
+(fail) MCP descendant-step remote parent constrains local node with slow leaf last [4060.83ms]
+1179 |           stepId: fixture.successor.steps.at(0),
+1180 |         },
+1181 |       });
+1182 |       const before = await fixture.inspect();
+1183 |       const reply = await submit(fixture, transport, commands);
+1184 |       expect(reply.status).toBe(200);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 0
+
+      at <anonymous> (/tmp/puni-descendant-command-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1184:28)
+(fail) MCP descendant-step local successor parent alias resolves within its batch [3931.97ms]
+
+ 0 pass
+ 60 filtered out
+ 2 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [10.93s]
+
+Observed exit code: 1

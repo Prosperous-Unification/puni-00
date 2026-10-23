@@ -1,0 +1,31 @@
+
+ NX   Running targets lint, typecheck for project wbs-mcp-01:
+
+- wbs-mcp-01
+
+
+
+> nx run wbs-mcp-01:typecheck
+
+> bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json
+
+
+> nx run wbs-mcp-01:lint
+
+> bunx eslint apps/wbs/mcp-01/src
+
+
+
+
+ NX   Successfully ran targets lint, typecheck for project wbs-mcp-01
+
+
+  Run duration:      36.2s
+  Cache:             0/2 hit (0%)
+  Critical path:     36.1s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-mcp-01:lint    36.1s

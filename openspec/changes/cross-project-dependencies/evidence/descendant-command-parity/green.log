@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+(pass) HTTP descendant-step remote parent constrains local node with slow leaf last [6317.87ms]
+(pass) HTTP descendant-step remote parent constrains local node with slow leaf first [5954.41ms]
+(pass) HTTP descendant-step local successor parent alias resolves within its batch [7401.22ms]
+(pass) HTTP descendant-step wrong-project-step refuses with complete rollback [7556.71ms]
+(pass) HTTP descendant-step leaf-selector refuses with complete rollback [8570.07ms]
+(pass) HTTP descendant-step later-command refuses with complete rollback [10012.45ms]
+(pass) HTTP descendant-step dormant refuses with complete rollback [7736.67ms]
+(pass) MCP descendant-step remote parent constrains local node with slow leaf last [7367.22ms]
+(pass) MCP descendant-step remote parent constrains local node with slow leaf first [7307.67ms]
+(pass) MCP descendant-step local successor parent alias resolves within its batch [6337.29ms]
+(pass) MCP descendant-step wrong-project-step refuses with complete rollback [6148.54ms]
+(pass) MCP descendant-step leaf-selector refuses with complete rollback [5754.33ms]
+(pass) MCP descendant-step later-command refuses with complete rollback [5250.91ms]
+(pass) MCP descendant-step dormant refuses with complete rollback [5024.66ms]
+
+ 14 pass
+ 48 filtered out
+ 0 fail
+ 154 expect() calls
+Ran 14 tests across 1 file. [100.15s]

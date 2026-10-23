@@ -977,3 +977,300 @@ for (const transport of ['HTTP', 'MCP'] as const) {
     }
   }
 }
+
+async function prepareDescendantPredecessor(
+  fixture: Awaited<ReturnType<typeof openFixture>>,
+  slowFirst = false,
+) {
+  const commands: Record<string, unknown>[] = [];
+  for (const [index, days] of (slowFirst ? [3, 1] : [1, 3]).entries()) {
+    const ref = `REMOTE.LEAF.${String(index)}`;
+    commands.push(
+      {
+        kind: 'createWorkItem',
+        ref,
+        parentId: fixture.predecessor.workItemId,
+        name: `Remote leaf ${String(index)}`,
+      },
+      { kind: 'setStatus', workItemRef: ref, status: 'ready' },
+    );
+    for (const [position, stepId] of fixture.predecessor.steps.entries()) {
+      const duration = position === 0 ? 1 : days;
+      commands.push({
+        kind: 'setEstimate',
+        workItemRef: ref,
+        stepId,
+        days: { optimistic: duration, realistic: duration, pessimistic: duration },
+      });
+    }
+  }
+  const reply = await fixture.http(
+    'POST',
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    { commands },
+  );
+  expect(reply.status).toBe(200);
+  const committed = reply.body as { results: { ref?: string; id?: string }[] };
+  const leaves = [0, 1].map((index) => {
+    const id = committed.results.find(({ ref }) => ref === `REMOTE.LEAF.${String(index)}`)?.id;
+    if (id === undefined) throw new Error('remote descendant leaf missing');
+    return id;
+  });
+  return { leaves, before: await fixture.inspect() };
+}
+
+function descendantCommands(fixture: Awaited<ReturnType<typeof openFixture>>) {
+  const commands: Record<string, unknown>[] = nodeCommands(fixture);
+  const dependency = commands.at(-1);
+  if (dependency === undefined) throw new Error('descendant command missing');
+  dependency['predecessor'] = {
+    ...wholeEndpoint(fixture.predecessor),
+    scope: 'descendant-step',
+    stepId: fixture.predecessor.steps.at(-1),
+  };
+  return commands;
+}
+
+// Proof: forcing the owner project failed remote MCP success; forcing node scope
+// failed remote and local-parent alias success. Omitting all expanded external
+// graph edges placed the successor at 0→1 instead of 4→5 (2026-10-23). Keeping
+// just the first edge survived both leaf orders; this is not an individual-edge proof.
+for (const transport of ['HTTP', 'MCP'] as const) {
+  for (const slowFirst of [false, true]) {
+    test(`${transport} descendant-step remote parent constrains local node with slow leaf ${slowFirst ? 'first' : 'last'}`, async () => {
+      const fixture = await openFixture();
+      try {
+        const { before, leaves } = await prepareDescendantPredecessor(fixture, slowFirst);
+        const commands = descendantCommands(fixture);
+        const reply = await submit(fixture, transport, commands);
+        expect(reply.status).toBe(200);
+        const snapshot = await fixture.inspect();
+        const { staged, relationship, journal } = snapshot;
+        if (staged === null || relationship === null || journal === null)
+          throw new Error('descendant commit missing');
+        const predecessor = {
+          ...wholeEndpoint(fixture.predecessor),
+          scope: 'descendant-step',
+          stepId: fixture.predecessor.steps.at(-1),
+        };
+        const successor = {
+          projectId: fixture.successor.projectId,
+          workItemId: staged.id,
+          scope: 'node',
+          stepId: fixture.successor.steps.at(0),
+        };
+        expect(JSON.parse(reply.text)).toMatchObject({
+          results: [{ index: 0, id: staged.id }, {}, {}, { index: 3, id: relationship.id }],
+        });
+        expect(relationship).toMatchObject({
+          predecessor_project_id: predecessor.projectId,
+          predecessor_work_item_id: predecessor.workItemId,
+          predecessor_scope: 'descendant-step',
+          predecessor_step_id: predecessor.stepId,
+          successor_project_id: successor.projectId,
+          successor_work_item_id: successor.workItemId,
+          successor_scope: 'node',
+          successor_step_id: successor.stepId,
+          type: 'FS',
+        });
+        expect(staged).toMatchObject({ projectId: successor.projectId, revision: 3 });
+        expect(snapshot.localRelationships).toEqual([]);
+        expect(snapshot.journalCount).toBe(before.journalCount + 1);
+        const payload = JSON.parse(journal.payload) as {
+          forward: { do: string; steps: { do: string; dependency?: unknown }[] };
+        };
+        expect(payload.forward.do).toBe('batch');
+        expect(
+          payload.forward.steps.find((step) => step.do === 'add_typed_dependency'),
+        ).toMatchObject({
+          do: 'add_typed_dependency',
+          dependency: {
+            id: relationship.id,
+            projectId: successor.projectId,
+            predecessor,
+            successor,
+            type: 'FS',
+          },
+        });
+        expect(journal.payload).not.toContain('REMOTE.010');
+        const reading = await fixture.call('getApiProjectsByIdWork-items', {
+          id: successor.projectId,
+        });
+        expect(reading.isError).not.toBe(true);
+        const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+        // Two independent remote leaves finish at 2 and 4. Both must constrain
+        // the one-day successor; either leaf can carry the maximum bound.
+        expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+          schedule: { earliestStart: 4, earliestFinish: 5 },
+        });
+        expect(tree).toMatchObject({
+          scheduleError: null,
+          connectedDependencies: [
+            {
+              id: relationship.id,
+              type: 'FS',
+              predecessor: { endpoint: predecessor },
+              successor: { endpoint: successor },
+            },
+          ],
+        });
+        const remote = await fixture.http(
+          'GET',
+          `/api/projects/${predecessor.projectId}/work-items`,
+        );
+        expect(remote.status).toBe(200);
+        const remoteTree = remote.body as {
+          workItems: {
+            id: string;
+            parentId: string | null;
+            schedule: { earliestFinish: number };
+          }[];
+        };
+        const children = remoteTree.workItems.filter(
+          ({ parentId }) => parentId === predecessor.workItemId,
+        );
+        expect(children).toHaveLength(2);
+        for (const [index, leafId] of leaves.entries())
+          expect(children.find(({ id }) => id === leafId)).toMatchObject({
+            id: leafId,
+            schedule: {
+              earliestStart: 0,
+              earliestFinish: (slowFirst ? index === 0 : index === 1) ? 4 : 2,
+            },
+          });
+        const direct = await fixture.http('GET', `/api/projects/${successor.projectId}/work-items`);
+        expect(direct.status).toBe(200);
+        expect(direct.body).toEqual(tree);
+        if (transport === 'MCP')
+          expect(fixture.forwarded.find(({ method }) => method === 'POST')?.body).toBe(
+            JSON.stringify({ commands }),
+          );
+        expect(snapshot.pushes.length).toBeGreaterThan(before.pushes.length);
+      } finally {
+        await fixture.close();
+      }
+    });
+  }
+
+  test(`${transport} descendant-step local successor parent alias resolves within its batch`, async () => {
+    const fixture = await openFixture();
+    try {
+      const commands: Record<string, unknown>[] = [
+        { kind: 'createWorkItem', ref: 'LOCAL.PARENT', name: 'Staged successor' },
+      ];
+      for (const ref of ['LOCAL.FIRST', 'LOCAL.SECOND'])
+        commands.push(
+          { kind: 'createWorkItem', ref, parentRef: 'LOCAL.PARENT', name: ref },
+          { kind: 'setStatus', workItemRef: ref, status: 'ready' },
+          {
+            kind: 'setEstimate',
+            workItemRef: ref,
+            stepId: fixture.successor.steps.at(0),
+            days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+          },
+        );
+      commands.push({
+        kind: 'addTypedDependency',
+        type: 'FS',
+        predecessor: {
+          ...wholeEndpoint(fixture.predecessor),
+          scope: 'node',
+          stepId: fixture.predecessor.steps.at(-1),
+        },
+        successor: {
+          scope: 'descendant-step',
+          workItemRef: 'LOCAL.PARENT',
+          stepId: fixture.successor.steps.at(0),
+        },
+      });
+      const before = await fixture.inspect();
+      const reply = await submit(fixture, transport, commands);
+      expect(reply.status).toBe(200);
+      const snapshot = await fixture.inspect();
+      if (snapshot.staged === null || snapshot.relationship === null || snapshot.journal === null)
+        throw new Error('local parent alias commit missing');
+      expect(snapshot.relationship).toMatchObject({
+        successor_project_id: fixture.successor.projectId,
+        successor_work_item_id: snapshot.staged.id,
+        successor_scope: 'descendant-step',
+        successor_step_id: fixture.successor.steps.at(0),
+      });
+      expect(snapshot.localRelationships).toEqual([]);
+      expect(snapshot.journalCount).toBe(before.journalCount + 1);
+      expect(snapshot.journal.payload).toContain(snapshot.relationship.id);
+      expect(snapshot.journal.payload).not.toContain('LOCAL.PARENT');
+      const reading = await fixture.call('getApiProjectsByIdWork-items', {
+        id: fixture.successor.projectId,
+      });
+      expect(reading.isError).not.toBe(true);
+      const tree = JSON.parse(reading.text) as {
+        workItems: { id: string; parentId: string | null }[];
+      };
+      const children = tree.workItems.filter(({ parentId }) => parentId === snapshot.staged?.id);
+      expect(children).toHaveLength(2);
+      for (const child of children)
+        expect(child).toMatchObject({ schedule: { earliestStart: 2, earliestFinish: 3 } });
+      const direct = await fixture.http(
+        'GET',
+        `/api/projects/${fixture.successor.projectId}/work-items`,
+      );
+      expect(direct.status).toBe(200);
+      expect(direct.body).toEqual(tree);
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  for (const fault of [
+    'wrong-project-step',
+    'leaf-selector',
+    'later-command',
+    'dormant',
+  ] as const) {
+    test(`${transport} descendant-step ${fault} refuses with complete rollback`, async () => {
+      const fixture = await openFixture(fault !== 'dormant');
+      try {
+        const { leaves, before } = await prepareDescendantPredecessor(fixture);
+        const commands = descendantCommands(fixture);
+        const dependency = commands.at(-1);
+        if (dependency === undefined) throw new Error('descendant command missing');
+        if (fault === 'wrong-project-step')
+          dependency['predecessor'] = {
+            ...wholeEndpoint(fixture.predecessor),
+            scope: 'descendant-step',
+            stepId: fixture.successor.steps.at(0),
+          };
+        if (fault === 'leaf-selector')
+          dependency['predecessor'] = {
+            projectId: fixture.predecessor.projectId,
+            workItemId: leaves[0],
+            scope: 'descendant-step',
+            stepId: fixture.predecessor.steps.at(-1),
+          };
+        if (fault === 'later-command')
+          commands.push({
+            kind: 'patchWorkItem',
+            workItemId: 'missing-row',
+            patch: { name: 'Invalid' },
+          });
+        const reply = await submit(fixture, transport, commands);
+        const status = fault === 'wrong-project-step' || fault === 'later-command' ? 404 : 409;
+        if (transport === 'HTTP') expect(reply.status).toBe(status);
+        else expect(reply.text).toContain(`HTTP ${String(status)}`);
+        expect(reply.text).toContain(`"at":${String(fault === 'later-command' ? 4 : 3)}`);
+        expect(reply.text).toContain(
+          fault === 'leaf-selector'
+            ? 'not_a_parent'
+            : fault === 'dormant'
+              ? 'external_dependencies_inactive'
+              : 'not_found',
+        );
+        const after = await fixture.inspect();
+        expect(after.effects).toEqual(before.effects);
+        expect(after.pushes).toEqual(before.pushes);
+      } finally {
+        await fixture.close();
+      }
+    });
+  }
+}
