@@ -13,7 +13,7 @@ import {
 
 const IMAGE = `registry.example/wbs-be@sha256:${'a'.repeat(64)}`;
 const SOCKET = '/run/user/1000/wbs-solver/supervisor.sock';
-const MEASURED_BUN_VERSIONS = ['1.4.2'] as const;
+const MEASURED_BUN_VERSIONS = ['1.4.2', '1.4.4'] as const;
 const CONFIG = JSON.stringify({
   socketPath: SOCKET,
   maxSearchWorkers: 2,
@@ -178,3 +178,25 @@ describe('installSolverSupervisor', () => {
     expect(seen.at(-1)).toContain('flock -n 9');
   });
 });
+
+for (const version of ['1.4.3', '1.2.20', '', 'not-a-version', '1.4.4\\n1.4.2'])
+  it(`rejects unmeasured or malformed Bun ${JSON.stringify(version)} before mutation`, async () => {
+    const seen: string[] = [];
+    const error = await rejectionOf(
+      installSolverSupervisor(
+        { host: 'h2puni', execute: true, config: '/work/config.json' },
+        dependencies(CONFIG, seen, version),
+      ),
+    );
+    expect(error.message).toContain('solver supervisor requires');
+    expect(seen).toEqual([`${SOLVER_SUPERVISOR_BUN_SOURCE} --version`]);
+  });
+for (const version of ['1.4.2', '1.4.4'])
+  it(`admits explicitly measured Bun ${version}`, async () => {
+    const seen: string[] = [];
+    await installSolverSupervisor(
+      { host: 'h2puni', execute: true, config: '/work/config.json' },
+      dependencies(CONFIG, seen, version),
+    );
+    expect(seen.length).toBeGreaterThan(1);
+  });

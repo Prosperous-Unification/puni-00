@@ -289,7 +289,15 @@ async function refuses(port: number): Promise<boolean> {
     await fetch(`http://localhost:${String(port)}/health`, { signal: AbortSignal.timeout(2_000) });
     return false;
   } catch (failure) {
-    if (failure instanceof Error && 'code' in failure && failure.code === 'ConnectionRefused') {
+    // Bun 1.4.4 renamed fetch's refusal code from `ConnectionRefused` to Node's
+    // `ECONNREFUSED`; both mean a closed port, so both versions are accepted.
+    // Proof: under Bun 1.4.4 with only `ConnectionRefused` accepted, three
+    // `bootBe01` cases failed rethrowing a TypeError with code `ECONNREFUSED`.
+    if (
+      failure instanceof Error &&
+      'code' in failure &&
+      (failure.code === 'ConnectionRefused' || failure.code === 'ECONNREFUSED')
+    ) {
       return true;
     }
     throw failure;

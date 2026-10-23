@@ -11,6 +11,11 @@ The resolved product route lives in the
 [question register](assumptions.md#wayfinding-question-register) scores every
 provisional choice and identifies the one mandatory Phase 2 discovery question.
 
+The near-term precursor is the
+[agentic workflows change](../../openspec/changes/twilight-agentic-workflows/proposal.md):
+the AI SDK executor port, the workflow binding, the WBS run bridge and the first coordinator,
+which amend the delivery plan as its design lists.
+
 Start with the [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md).
 It builds the factory core, connects the always-available secretary, completes
 branch-dev → staging → main/dev-main → production, and joins those records into

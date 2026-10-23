@@ -531,3 +531,27 @@ describe('the owner-maintained libraries', () => {
     expect(version).toBe(OWNER_PACKAGES['caught-object-report-json']);
   });
 });
+
+it('provisions usable bubblewrap before workspace native runtime tests', async () => {
+  const workflow = await readCiWorkflow();
+  const steps = workflow.jobs?.gate_workspace?.steps;
+  if (steps === undefined) throw new Error('workspace gate steps missing');
+  const provision = gateStep(
+    workflow,
+    'gate_workspace',
+    'Provision bubblewrap for native runtime tests',
+  );
+  expect(provision.if).toBeUndefined();
+  expect(provision.run).toContain('apt-get install --yes --no-install-recommends bubblewrap');
+  expect(provision.run).toContain('sudo apparmor_parser --replace /etc/apparmor.d/bwrap');
+  expect(provision.run).toContain(
+    'bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000',
+  );
+  expect(steps.indexOf(provision)).toBeLessThan(
+    steps.findIndex(
+      (step) =>
+        step.run?.includes('ci-run-runtime.ts workspace') === true ||
+        step.run?.includes('run-many -t test') === true,
+    ),
+  );
+});

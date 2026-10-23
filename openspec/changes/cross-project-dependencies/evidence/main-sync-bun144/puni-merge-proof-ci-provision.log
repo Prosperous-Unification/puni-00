@@ -1,0 +1,23 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-devsync/src/toolchain-pins.test.ts:
+227 |   return Bun.YAML.parse(await read('.github/workflows/ci.yml')) as CiWorkflow;
+228 | }
+229 |
+230 | function gateStep(workflow: CiWorkflow, job: GateJob, name: string): WorkflowStep {
+231 |   const step = workflow.jobs?.[job]?.steps?.find((candidate) => candidate.name === name);
+232 |   expect(step, `the ${job} job has no \`${name}\` step`).toBeDefined();
+                                                               ^
+error: the gate_workspace job has no `Provision bubblewrap for native runtime tests` step
+
+Received: undefined
+
+      at gateStep (/tmp/puni-main-merge-20261024/tools/tool-devsync/src/toolchain-pins.test.ts:232:58)
+      at <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-devsync/src/toolchain-pins.test.ts:539:21)
+(fail) provisions usable bubblewrap before workspace native runtime tests [1.33ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [31.00ms]

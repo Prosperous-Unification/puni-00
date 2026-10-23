@@ -24,8 +24,12 @@ export const SOLVER_SUPERVISOR_BUN_SOURCE = process.execPath;
  * through the shipped cross-process listener shape while 1.4.2 returns a valid
  * descriptor. Module/config preflight alone is insufficient: 1.2.20 passed it
  * but made the running supervisor reject every peer.
+ * Bun 1.4.4 is measured separately by solver-supervisor-peer.proc.test.ts through
+ * source and bundled production listeners with real cross-process SO_PEERCRED.
+ * This local candidate proof does not establish host operational acceptance.
  */
-export const SOLVER_SUPERVISOR_BUN_VERSIONS = ['1.4.2'] as const;
+// Proof: omitting 1.4.4 failed its installer admission test; omitting version validation admitted unmeasured versions (verify-main-sync-bun144.md).
+export const SOLVER_SUPERVISOR_BUN_VERSIONS = ['1.4.2', '1.4.4'] as const;
 export const SOLVER_SUPERVISOR_RUNTIME_DIRECTORY = 'wbs-solver';
 export const SOLVER_SUPERVISOR_SOCKET = '/run/user/1000/wbs-solver/supervisor.sock';
 

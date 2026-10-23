@@ -41,7 +41,7 @@ Project abbreviation; qualified work-item address; cross-project dependency.
 
 ## Decisions Recorded
 
-- [ADR 0057: cross-project dependency activation is monotone](../../../docs/adr/0057-cross-project-dependency-activation-is-monotone.md).
+- [ADR 0060: cross-project dependency activation is monotone](../../../docs/adr/0060-cross-project-dependency-activation-is-monotone.md).
 - [ADR 0059: supervisor exclusion does not require an identity broker](../../../docs/adr/0059-supervisor-exclusion-does-not-require-an-identity-broker.md).
 
 ## Impact

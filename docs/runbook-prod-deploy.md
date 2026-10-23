@@ -411,7 +411,7 @@ docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /da
 Build this release's host recovery artifact with `bunx nx run wbs-be-01:build-host-restore`
 (the normal `wbs-be-01:build` also builds it). Copy
 `dist/apps/wbs/be-01-host/shared-people-host-restore.js` to
-`/home/puni1/wbs/bin/shared-people-host-restore.js` on h2puni. It runs with the pinned Bun 1.4.2
+`/home/puni1/wbs/bin/shared-people-host-restore.js` on h2puni. It runs with the pinned Bun 1.4.4
 and Docker; no checkout or node_modules is needed at the recovery location. Stop every container with a writable mount over the production database
 before invoking it. Both `be-01-blue` and `be-01-green` must be stopped, exist and identify the same
 `/home/puni1/wbs/data/wbs.db` through their configured DB_PATH and mounts. The operator needs
@@ -452,8 +452,8 @@ including after process restart or later edits, returns the original receipt/cou
 a changed backup digest or approval set refuses. Never reuse a completed operation for new intent.
 
 Before transporting the artifact, run `bunx nx run wbs-be-01:test:host-restore`. This uncached
-Linux rehearsal requires Docker and the pinned `oven/bun:1.4.2` image digest
-`sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895`; fetch that image
+Linux rehearsal requires Docker and the pinned `oven/bun:1.4.4` image digest
+`sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d`; fetch that image
 explicitly if absent. Missing Docker, Bun or the image fails the target. The rehearsal mounts only
 a disposable scratch fixture at the fixed host paths, runs the unchanged bundle without network,
 checkout, dependencies or Docker socket, and uses a test-owned inventory executable. It proves

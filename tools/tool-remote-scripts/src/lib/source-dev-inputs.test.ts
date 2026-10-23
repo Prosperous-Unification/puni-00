@@ -323,7 +323,7 @@ test('foreign copied source token refuses before Docker or filesystem probes', a
 });
 
 test('real pinned Bun suppresses poisoned dotenv and executes each actual DB-free role independently', async () => {
-  expect(Bun.version).toBe('1.4.2');
+  expect(Bun.version).toBe('1.4.4');
   const root = await mkdtemp(join(tmpdir(), 'source-role-'));
   roots.push(root);
   await writeFile(
@@ -778,8 +778,8 @@ for (const fault of [
     }
   });
 
-test('actual pinned Bun without HOME resolves the same passwd directory checked natively', async () => {
-  expect(Bun.version).toBe('1.4.2');
+test('Bun 1.4.4 os.homedir without HOME matches native passwd lookup (not loader evidence)', async () => {
+  expect(Bun.version).toBe('1.4.4');
   const f = await fixture();
   await f.scoped(async (owner, token) => {
     await observeSourceDevInputs(

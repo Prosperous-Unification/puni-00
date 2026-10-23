@@ -8,7 +8,7 @@ const ACTIVATION = '20261022212000_add_cross_project_dependency_activation';
 /**
  * Admits the complete rollback selection before its first down statement.
  * Removing semantic authority requires verified dormant authority and no retained edges;
- * enabled or invalid authority requires attended compatible recovery (ADR 0057).
+ * enabled or invalid authority requires attended compatible recovery (ADR 0060).
  * The caller retains its per-migration transactions and foreign-key rebuild policy.
  */
 export function assertDependencyRollbackAdmitted(

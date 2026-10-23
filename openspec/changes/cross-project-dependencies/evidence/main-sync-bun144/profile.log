@@ -1,0 +1,50 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-bun-profile.proc.test.ts:
+(pass) Bun 1.4.4 isolated UID1000 noHOME readonly source executes all four actual DB-free role CLIs [299.30ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/home/fixture/.bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /home/fixture/.bunfig.toml [226.14ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/image-home/.bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /image-home/.bunfig.toml [279.37ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/src/apps/wbs/be-01/bunfig.toml","loaded":true}
+(pass) Bun 1.4.4 isolated loader noHOME measures /src/apps/wbs/be-01/bunfig.toml [263.20ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/src/apps/wbs/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /src/apps/wbs/bunfig.toml [291.11ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/src/apps/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /src/apps/bunfig.toml [246.75ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/src/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /src/bunfig.toml [279.39ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /bunfig.toml [235.31ms]
+{"profile":"bun-1.4.4-source-loader","home":false,"location":"/.bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader noHOME measures /.bunfig.toml [233.10ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/home/fixture/.bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /home/fixture/.bunfig.toml [249.18ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/image-home/.bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /image-home/.bunfig.toml [242.94ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/src/apps/wbs/be-01/bunfig.toml","loaded":true}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /src/apps/wbs/be-01/bunfig.toml [264.21ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/src/apps/wbs/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /src/apps/wbs/bunfig.toml [245.30ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/src/apps/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /src/apps/bunfig.toml [276.04ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/src/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /src/bunfig.toml [255.45ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /bunfig.toml [248.16ms]
+{"profile":"bun-1.4.4-source-loader","home":true,"location":"/.bunfig.toml","loaded":false}
+(pass) Bun 1.4.4 isolated loader explicitHOME measures /.bunfig.toml [303.89ms]
+(pass) Bun 1.4.4 readonly UID1000 env-i probe observes dotenv only with no-env-file omitted [253.06ms]
+
+tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:
+(pass) Bun 1.4.4 source production listener authenticates separate client: none [21.76ms]
+(pass) Bun 1.4.4 source production listener authenticates separate client: missing-fd [13.60ms]
+(pass) Bun 1.4.4 source production listener authenticates separate client: wrong-option [13.03ms]
+(pass) Bun 1.4.4 built production listener authenticates separate client: none [33.68ms]
+(pass) Bun 1.4.4 built production listener authenticates separate client: missing-fd [15.41ms]
+(pass) Bun 1.4.4 built production listener authenticates separate client: wrong-option [16.19ms]
+
+ 24 pass
+ 0 fail
+ 256 expect() calls
+Ran 24 tests across 2 files. [5.30s]

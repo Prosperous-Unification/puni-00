@@ -1,0 +1,30 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-devsync/src/toolchain-pins.test.ts:
+(pass) the Bun version > has one source, and it is a bare version [0.51ms]
+(pass) the Bun version > every Bun image tag equals .bun-version [0.54ms]
+(pass) the Bun version > CI reads the file rather than a literal [0.37ms]
+(pass) the Bun version > CI and the heavy gate use the moved solver and image paths [0.32ms]
+(pass) namespace-sensitive ignore boundaries > keeps the development entrypoint out of production image contexts [0.46ms]
+(pass) namespace-sensitive ignore boundaries > keeps generated migration and solver artifacts out of formatting [0.10ms]
+(pass) namespace-sensitive ignore boundaries > keeps local solver build artifacts under the moved adapter root [0.07ms]
+(pass) namespace-sensitive ignore boundaries > declares every root ignore file this cached guard reads [0.09ms]
+(pass) the two TypeScripts > the typescript package is the TS 6 API build [0.72ms]
+(pass) the two TypeScripts > tsc on the workspace path is TypeScript 7 [32.70ms]
+(pass) the React version ESLint is told > is the one installed [0.63ms]
+(pass) the CI gate scope > maps every subscribed event and refuses one it has no rule for [1.43ms]
+(pass) the CI gate scope > takes the pull-request boundary from the validated synthetic merge plan [0.64ms]
+(pass) the CI gate scope > runs validated PR projects and keeps the unchanged full workspace command [0.66ms]
+(pass) the CI gate scope > runs the h2puni gate with the same Twilight split as CI [0.15ms]
+(pass) the CI gate scope > keeps selected Twilight runtime checks separate from the full suite [0.71ms]
+(pass) the CI gate scope > runs Burokrat packaging only for full gates or exact project membership [0.55ms]
+(pass) the CI gate scope > checks every gate job out at full depth, which --base cannot resolve without [0.54ms]
+(pass) the owner-maintained libraries > are pinned to exact versions in the root manifest [0.36ms]
+(pass) the owner-maintained libraries > resolve to one copy of the report library, at the pinned version [1.42ms]
+(pass) the owner-maintained libraries > installs one copy of the report library, the one application-exception loads [0.50ms]
+(pass) provisions usable bubblewrap before workspace native runtime tests [0.95ms]
+
+ 22 pass
+ 0 fail
+ 80 expect() calls
+Ran 22 tests across 1 file. [90.00ms]

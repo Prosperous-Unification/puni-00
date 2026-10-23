@@ -86,7 +86,7 @@ export function ThemeChoiceItems({
         one filled. Each answer used to wear a border of its own when chosen,
         which read as a fourth style beside the menu's rows (UI review F-017).
       */}
-      <span className="border-input flex rounded-md border p-0.5">
+      <span className="border-control-edge flex rounded-md border p-0.5">
         {THEME_CHOICES.map((offered, at) => (
           <button
             key={offered}

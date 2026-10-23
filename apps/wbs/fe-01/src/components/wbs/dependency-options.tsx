@@ -106,7 +106,7 @@ export function DependencyOptions({
             data-refusal={option.kind === 'endpoint' ? option.refusal : undefined}
             className={
               phone
-                ? 'flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50'
+                ? 'border-control-edge flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50'
                 : undefined
             }
             id={`dep-option-${option.key}`}
@@ -179,7 +179,7 @@ export function DependencyOptions({
               type="button"
               className={
                 phone
-                  ? 'min-h-11 min-w-11 shrink-0 rounded-md border px-3'
+                  ? 'border-control-edge min-h-11 min-w-11 shrink-0 rounded-md border px-3'
                   : 'typed-dependency-customize'
               }
               aria-label={`Customize ${option.label}`}
