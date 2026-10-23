@@ -424,18 +424,19 @@ export function existingStoreRegistrations(
         ]);
         // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
         // to 905,000, the second was renewed within the resolution and stays.
+        // Only the first project's lease moved, so only it is named.
         expect(await port.renewLeases(agent, () => 5_000)).toEqual({
-          leases: 2,
-          leaseExpiresAt: 860_000,
+          standing: { leases: 2, leaseExpiresAt: 860_000 },
+          renewedProjectIds: [seed.projectIds[0]],
         });
         // At 860,000 the second lease has run out: it is not revived.
         expect(await port.renewLeases(agent, () => 860_000)).toEqual({
-          leases: 1,
-          leaseExpiresAt: 1_760_000,
+          standing: { leases: 1, leaseExpiresAt: 1_760_000 },
+          renewedProjectIds: [seed.projectIds[0]],
         });
         expect(await port.renewLeases(human, () => 860_000)).toEqual({
-          leases: 0,
-          leaseExpiresAt: null,
+          standing: { leases: 0, leaseExpiresAt: null },
+          renewedProjectIds: [],
         });
         expect(await port.expiredLeasesOf(seed.projectIds[1], 860_000)).toEqual([
           { claimId: elsewhere.id, reason: 'lease_expired' },
@@ -555,8 +556,8 @@ export function existingStoreRegistrations(
         expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(5_000, 5_000));
         // A revoked lease is never renewed again, and expires as revoked.
         expect(await port.renewLeases(agent, () => 4_000)).toEqual({
-          leases: 0,
-          leaseExpiresAt: null,
+          standing: { leases: 0, leaseExpiresAt: null },
+          renewedProjectIds: [],
         });
         expect(await port.expiredLeasesOf(seed.projectIds[0], 5_000)).toEqual([
           { claimId: leased.id, reason: 'credential_revoked' },

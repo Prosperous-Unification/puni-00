@@ -9,7 +9,7 @@ import {
   type ClaimWriteOutcome,
   type CredentialPin,
   type ExpiredLease,
-  type LeaseStanding,
+  type LeaseRenewal,
   type OccupancyRow,
   type ProgressKey,
   type ResourceAccess,
@@ -307,12 +307,13 @@ export class ClaimRepository implements ClaimStore {
     });
   }
 
-  async renewLeases(personId: string, now: () => number): Promise<LeaseStanding> {
+  async renewLeases(personId: string, now: () => number): Promise<LeaseRenewal> {
     const inForceAt = (at: number) =>
       and(eq(claim.personId, personId), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
     const dueAt = (at: number) =>
       and(inForceAt(at), lt(claim.leaseExpiresAt, renewalAt(at).dueBefore));
     let at = now();
+    let renewedProjectIds: string[] = [];
     const anyDue = this.db.select({ id: claim.id }).from(claim).where(dueAt(at)).limit(1).all();
     // Read before the turn: a heartbeat within the resolution answers without
     // waiting for whatever write holds it (issue #668's lesson).
@@ -330,11 +331,25 @@ export class ClaimRepository implements ClaimStore {
         // (claim-lease.db.test.ts) renewed it (10 pass, 1 fail); watched 2026-10-23.
         at = now();
         const renewed = renewalAt(at).expiresAt;
-        this.db.transaction((tx) => {
+        // The projects are read in the transaction that moves their leases,
+        // so a rolled-back renewal names none (`wbs-claim-display` C4).
+        // Proof: with the in-force leases' projects read here in place of the
+        // due ones, the SQLite certification's `claims.lease:write-renew-expire`
+        // case named a project whose lease did not move (74 pass, 1 fail);
+        // watched 2026-10-23.
+        renewedProjectIds = this.db.transaction((tx) => {
+          const moved = tx
+            .selectDistinct({ projectId: workItem.projectId })
+            .from(claim)
+            .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+            .where(dueAt(at))
+            .orderBy(asc(workItem.projectId))
+            .all();
           tx.update(claim)
             .set({ leaseExpiresAt: renewed, ...auditOnUpdate({ at }) })
             .where(dueAt(at))
             .run();
+          return moved.map(({ projectId }) => projectId);
         });
       });
     }
@@ -347,7 +362,10 @@ export class ClaimRepository implements ClaimStore {
       .where(inForceAt(at))
       .get();
     if (standing === undefined) throw new Error('a count of leases answered no row');
-    return { leases: standing.leases, leaseExpiresAt: standing.leaseExpiresAt };
+    return {
+      standing: { leases: standing.leases, leaseExpiresAt: standing.leaseExpiresAt },
+      renewedProjectIds,
+    };
   }
 
   async expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]> {

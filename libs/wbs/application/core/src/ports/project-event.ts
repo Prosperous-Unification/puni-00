@@ -195,7 +195,20 @@ export type ProjectEvent =
    * Carrying the row would additionally announce it to every reader of the
    * project — including one the list route would have answered differently.
    */
-  | { type: 'calendar_markers_changed' };
+  | { type: 'calendar_markers_changed' }
+  /**
+   * A heartbeat moved at least one lease of this project
+   * (`openspec/changes/wbs-claim-display/design.md` C4): the claims read now
+   * answers a later expiry. Sent by the renew route once per project after its
+   * renewal commits; a batch's own renewal rides its `tree_replaced`, and a
+   * revocation is not announced (the sweep's release announces the tree).
+   *
+   * Content-free, for `directory_changed`'s reason: a client reads the
+   * project's claims as one list. Its own type rather than `tree_replaced`
+   * because no work item, date or schedule input moved: fe-01 rereads the
+   * claims alone, and the optimizer schedules nothing for it.
+   */
+  | { type: 'claims_changed' };
 
 /**
  * The subscription name carrying a project's edits.

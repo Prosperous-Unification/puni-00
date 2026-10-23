@@ -2,7 +2,15 @@ import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 
 export type OptimizationInputChanged = (projectId: string) => void;
 
+/**
+ * Whether `event` may move the schedule's input. An allowlist: an event left
+ * out, such as the heartbeat's `claims_changed` (`wbs-claim-display` C4),
+ * schedules nothing.
+ */
 function changesScheduleInput(event: ProjectEvent): boolean {
+  // Proof: with `claims_changed` added to the list, `schedules no optimization
+  // for claims_changed` (optimizer-trigger-broadcaster.test.ts) saw a trigger
+  // (3 pass, 1 fail); watched 2026-10-23.
   return (
     // Proof: removing this predicate made held committed delivery notify no
     // recipient even though its recorded event reached transport.

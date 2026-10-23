@@ -582,10 +582,25 @@ export class PlanCommandRunner {
   /**
    * Renews `personId`'s leases outside any batch: the heartbeat route's
    * write, through the public graph, which reads first and takes the write
-   * turn only when a lease is due (L4).
+   * turn only when a lease is due (L4). Once the renewal has committed and let
+   * go of the turn, it announces one type-only `claims_changed` to each
+   * project in which it moved a lease (`wbs-claim-display` C4); a renewal
+   * that moved nothing, or threw, announces nothing. A batch's own renewal
+   * announces nothing of its own: its `tree_replaced` refreshes the claims.
    */
-  renewLeases(personId: string): Promise<LeaseStanding> {
-    return this.opts.publicServices.workItems.renewLeases(personId);
+  async renewLeases(personId: string): Promise<LeaseStanding> {
+    const renewal = await this.opts.publicServices.workItems.renewLeases(personId);
+    // Proof: with the SQLite store answering the due projects before its
+    // turn and not awaiting the write (announced before the commit),
+    // `announces nothing when the renewal rolls back`
+    // (claim-lease.controller.db.test.ts) recorded one (that case alone,
+    // 0 pass, 1 fail); answering every project the person holds a lease in,
+    // moved or not (announced unconditionally), `announces nothing for a
+    // heartbeat within the minute, nor a refused one` recorded a second
+    // (5 pass, 1 fail); watched 2026-10-23.
+    for (const projectId of renewal.renewedProjectIds)
+      await this.opts.announcements.publish(projectId, { type: 'claims_changed' });
+    return renewal.standing;
   }
 
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {

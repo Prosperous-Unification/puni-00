@@ -186,3 +186,51 @@ wbs-store-memory, wbs-store-sqlite, wbs-be-01 pass (contracts and mcp-01 unchang
 first round's lint); Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all
 --json` 275 of 275; `tool-devsync:test` 921 tests pass. Not run locally: the full be-01 and
 fe-01 suites (CI carries them).
+
+### Slice 3: heartbeat announcement (be-01), 2026-10-23
+
+Branch `feat/wbs-claim-display-heartbeat` on `plan/wbs-claim-display` at `dfacc4af0`. Commands
+ran with `env -u CLAUDECODE` from the worktree.
+
+**3.1** `ClaimStore.renewLeases` answers a `LeaseRenewal`: the standing and the projects whose
+leases its committed write moved, in project-id order. SQLite reads them inside the transaction
+that moves the leases; the memory twin from the rows it moves. `PlanCommandRunner.renewLeases`
+publishes one type-only `claims_changed` per named project after the store answers, and the
+route still answers the standing alone. `claims_changed` joins `ProjectEvent` (core only; fe-01
+reads event types as strings, so no fe-01 union changed). Red: two of three new
+`claim-lease.controller.db.test.ts` cases failed before the change (4 pass, 2 fail); the
+`write-renew-expire` conformance case now asserts the named projects.
+
+| R5 fault (watched)                                                                                  | Observed                                                                |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| SQLite store answers the pre-turn due projects and does not await the write (publish before commit) | `announces nothing when the renewal rolls back` records one (0/1 alone) |
+| SQLite store answers every in-force lease's project after the renewal (publish unconditionally)     | `announces nothing for a heartbeat within the minute, …` (5/1)          |
+| SQLite in-transaction read selects in-force rather than due leases                                  | SQLite certification fails `claims.lease:write-renew-expire` (74/1)     |
+| memory twin names the in-force rows' projects rather than the due rows'                             | memory certification fails `claims.lease:write-renew-expire` (74/1)     |
+
+The rolled-back renewal is made by a temporary `RAISE(ABORT)` trigger on `claim.lease_expires_at`;
+the route answers 500 and the lease keeps its old expiry.
+
+Deviation: the task's fault "publish before commit" has no one-line form here, because the store
+owns both the turn and the transaction and the runner learns the moved projects only from its
+answer. The injected fault is the closest real mistake: the store answers before its write
+commits. Observation, not changed: a batch's own renewal moves the agent's leases in every
+project, yet only the batch's project is announced (`tree_replaced`); design C4 accepts the
+batch's project and says nothing of the others.
+
+**3.2** `optimizer-trigger-broadcaster.test.ts` `schedules no optimization for claims_changed`.
+The trigger is an allowlist, so there is no exclusion to remove; the fault adds `claims_changed`
+to the list.
+
+| R5 fault (watched)                      | Observed                      |
+| --------------------------------------- | ----------------------------- |
+| `claims_changed` added to the allowlist | the case sees a trigger (3/1) |
+
+Results (fresh, 2026-10-23): be-01 `claim-lease.controller` (6), `project-claims-organization`,
+`gateway-broadcaster-*`, `services.db`, `app.routes` 163 pass; be-01 `optimization-events` 4
+pass; core `service`, `module/plan-commands`, `module/work-item`, `http/claim*` 830 pass;
+store-sqlite `claim*` and source conformance 130 pass; store-memory 193 pass; conformance 35
+pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite, wbs-store-memory,
+wbs-conformance, wbs-be-01 (+module), wbs-mcp-01 pass. Not run: mcp-01 tests and fe-01
+`typecheck:module` (no contract or fe-01-visible union changed), the full be-01 and fe-01
+suites (CI carries them).

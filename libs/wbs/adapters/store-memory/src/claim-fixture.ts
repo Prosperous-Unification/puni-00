@@ -225,7 +225,7 @@ export function inMemoryClaims(
       );
       return Promise.resolve();
     },
-    renewLeases(personId, now) {
+    async renewLeases(personId, now) {
       // One instant: the memory source has no write turn to wait behind.
       const at = now();
       const renewal = renewalAt(at);
@@ -241,22 +241,38 @@ export function inMemoryClaims(
       // Proof: with the in-force test dropped (an expired lease renewed), the
       // memory certification's `claims.lease:write-renew-expire` case revived
       // it (74 pass, 1 fail); watched 2026-10-23.
+      const isDue = (row: StampedClaim): boolean =>
+        isInForce(row) && row.leaseExpiresAt !== null && row.leaseExpiresAt < renewal.dueBefore;
+      // Proof: with the in-force rows' work items in place of the due ones,
+      // the memory certification's `claims.lease:write-renew-expire` case
+      // named a project whose lease did not move (74 pass, 1 fail); watched
+      // 2026-10-23.
+      const movedWorkItemIds = new Set(
+        table.rows.filter(isDue).map(({ workItemId }) => workItemId),
+      );
       table.rows.splice(
         0,
         table.rows.length,
         ...table.rows.map((row) =>
-          isInForce(row) && row.leaseExpiresAt !== null && row.leaseExpiresAt < renewal.dueBefore
-            ? { ...row, leaseExpiresAt: renewal.expiresAt }
-            : row,
+          isDue(row) ? { ...row, leaseExpiresAt: renewal.expiresAt } : row,
         ),
       );
       const expiries = table.rows
         .filter(isInForce)
         .flatMap(({ leaseExpiresAt }) => (leaseExpiresAt === null ? [] : [leaseExpiresAt]));
-      return Promise.resolve({
-        leases: expiries.length,
-        leaseExpiresAt: expiries.length === 0 ? null : Math.min(...expiries),
-      });
+      const renewedProjectIds = new Set<string>();
+      for (const workItemId of movedWorkItemIds) {
+        const found = await workItems.findById(workItemId);
+        if (found === null) throw new Error(`a renewed claim names absent work item ${workItemId}`);
+        renewedProjectIds.add(found.projectId);
+      }
+      return {
+        standing: {
+          leases: expiries.length,
+          leaseExpiresAt: expiries.length === 0 ? null : Math.min(...expiries),
+        },
+        renewedProjectIds: [...renewedProjectIds].sort(compare),
+      };
     },
     async expiredLeasesOf(projectId, at) {
       return (

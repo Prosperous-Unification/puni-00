@@ -40,11 +40,11 @@
 
 ## 3. Heartbeat announcement (be-01)
 
-- [ ] 3.1 Red: renew-route tests: one `claims_changed` per project with a moved lease, none for
+- [x] 3.1 Red: renew-route tests: one `claims_changed` per project with a moved lease, none for
       a heartbeat within the minute, none when the turn refuses `not_pinned`; published after
       commit. Green. R5 faults: publish before commit (a rolled-back renewal still announces);
       publish unconditionally (the within-the-minute case reddens); watched.
-- [ ] 3.2 Red: `optimizer-trigger-broadcaster` ignores `claims_changed` — test: no run
+- [x] 3.2 Red: `optimizer-trigger-broadcaster` ignores `claims_changed` — test: no run
       scheduled. R5 fault: remove the exclusion; watched.
 
 ## 4. Step claim chip (fe-01; builds `wbs-team-claims` 1.7, steps)
