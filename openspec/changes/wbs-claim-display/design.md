@@ -66,12 +66,22 @@ every resource, which now includes claims.
 
 **C4. The renew route publishes `claims_changed`.** After its turn commits, once for each
 project in which it moved at least one lease; a type-only event, so the announcement collector
-deduplicates it. A batch's own renewal rides the batch's `tree_replaced`. A revocation is not
+deduplicates it. A batch's own renewal rides the batch's `tree_replaced` in its own project and
+announces the others (C19). A revocation is not
 announced: the admin revoke asks the sweep for an immediate tick whose release announces the
 tree; a consent revocation waits up to one 30 s tick, during which the chip reads its old
 expiry (accepted). `OptimizerTriggerBroadcaster` SHALL NOT schedule optimization for it.
 Rejected: polling the claims read on a timer (a minute of drift either way, and a second
 refresh path the coordinator does not own).
+
+**C19. A batch's renewal announces the other projects.** An agent's committed batch renews
+its leases in every project, not only the batch's own. After the batch commits, each other
+project whose lease moved receives one `claims_changed`, through the batch's announcement
+collector; the batch's own project receives its `tree_replaced` alone, which already refreshes
+claims. A refused or rolled-back batch announces nothing, and a batch within the renewal
+resolution moves nothing and announces nothing. Without it, a viewer of project B watches a
+live agent's lease count down to releasing while the agent works in A. Rejected: announcing
+the batch's own project too (a second refresh of claims the tree event already causes).
 
 **C5. fe-01 learns `claims_changed` before be-01 says it.** An fe-01 that does not know the
 event treats it as unknown and refreshes every resource, which at swarm scale is one full plan

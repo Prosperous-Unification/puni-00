@@ -78,6 +78,7 @@ Claim chip, Releasing claim, Claim history (in `CONTEXT.md`).
 | C16 | The Claims sheet opens from a toolbar button with the held count, and from the phone sheet.      |
 | C17 | The phone cards layout carries the same chips.                                                   |
 | C18 | Supersedes `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1.                                     |
+| C19 | A batch's renewal announces `claims_changed` to each other project it moved, after the commit.   |
 
 ## Impact
 

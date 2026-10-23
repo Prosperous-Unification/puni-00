@@ -197,3 +197,70 @@ describe('a heartbeat announcing claims_changed', () => {
     ).toBe(T + CLAIM_LEASE_MS);
   });
 });
+
+/**
+ * A batch's own renewal (`wbs-claim-display` C19): the agent's leases in other
+ * projects move with it, so each such project hears one `claims_changed` after
+ * the batch commits; the batch's own project hears its `tree_replaced` alone.
+ */
+describe('a batch renewal announcing claims_changed elsewhere', () => {
+  let other: { project: string; leaf: string };
+
+  beforeEach(async () => {
+    await claimAsAgent();
+    other = await createLeaf('Plan of A, second');
+    const claimed = await asAgent('POST', `/api/projects/${other.project}/commands`, {
+      commands: [
+        { kind: 'claimWorkItem', workItemId: other.leaf, personId: 'codex', runId: 'run-2' },
+      ],
+    });
+    if (claimed.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claimed)}`);
+  });
+
+  function renameAsAgent(workItemId: string, name: string): Promise<Answer> {
+    return asAgent('POST', `/api/projects/${projectId}/commands`, {
+      commands: [{ kind: 'patchWorkItem', workItemId, patch: { name } }],
+    });
+  }
+
+  it('announces once to each other project, none extra to its own', async () => {
+    expect(claimsChangedProjects()).toEqual([]);
+    now = T + 2 * 60_000;
+    expect((await renameAsAgent(leaf, 'Leaf, renamed')).status).toBe(200);
+    expect(claimsChangedProjects()).toEqual([other.project]);
+    expect(
+      h.sqlite.query<{ at: number }, []>('SELECT min(lease_expires_at) AS at FROM claim').get()?.at,
+    ).toBe(now + CLAIM_LEASE_MS);
+  });
+
+  it('announces nothing within the minute', async () => {
+    now = T + 2 * 60_000;
+    expect((await renameAsAgent(leaf, 'Leaf, renamed')).status).toBe(200);
+    now = T + 2 * 60_000 + 30_000;
+    expect((await renameAsAgent(leaf, 'Leaf, again')).status).toBe(200);
+    expect(claimsChangedProjects()).toEqual([other.project]);
+  });
+
+  it('announces nothing for a refused batch', async () => {
+    now = T + 2 * 60_000;
+    expect((await renameAsAgent('no-such-item', 'Ghost')).status).not.toBe(200);
+    expect(claimsChangedProjects()).toEqual([]);
+  });
+
+  it('announces nothing when the batch rolls back', async () => {
+    h.sqlite.run(
+      `CREATE TRIGGER refuse_renewal BEFORE UPDATE OF lease_expires_at ON claim
+       BEGIN SELECT RAISE(ABORT, 'renewal refused'); END`,
+    );
+    now = T + 2 * 60_000;
+    const refused = await renameAsAgent(leaf, 'Leaf, renamed');
+    h.sqlite.run('DROP TRIGGER refuse_renewal');
+    expect(claimsChangedProjects()).toEqual([]);
+    expect(refused.status).toBe(500);
+    expect(
+      h.sqlite
+        .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE id = ?')
+        .get(leaf)?.name,
+    ).toBe('Leaf');
+  });
+});

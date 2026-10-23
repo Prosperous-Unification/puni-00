@@ -513,8 +513,27 @@ export class PlanCommandRunner {
             // every committed write, and not on a refused one`
             // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
             // watched 2026-10-23.
-            if (!('ok' in applied) && credential !== null && 'personId' in credential)
-              await graph.workItems.renewLeases(credential.personId);
+            if (!('ok' in applied) && credential !== null && 'personId' in credential) {
+              const renewal = await graph.workItems.renewLeases(credential.personId);
+              // The renewal moves the agent's leases in every project. This
+              // batch's own project hears its `tree_replaced`; each other one
+              // hears `claims_changed` through the collector, so only after the
+              // commit and never for a rolled-back batch (`wbs-claim-display`
+              // C19).
+              // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23):
+              // with this loop removed, `announces once to each other project,
+              // none extra to its own` recorded none (8 pass, 2 fail); with the
+              // own-project filter removed it recorded the batch's project too
+              // (8/2); publishing through the outer broadcaster in place of the
+              // collector deadlocked on the event log's turn (both cases timed
+              // out); with the SQLite store answering its due projects before
+              // its write, `announces nothing when the batch rolls back`
+              // recorded one; with it answering every in-force lease's project,
+              // `announces nothing within the minute` recorded a second.
+              for (const renewed of renewal.renewedProjectIds)
+                if (renewed !== projectId)
+                  await collector.publish(renewed, { type: 'claims_changed' });
+            }
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
@@ -586,7 +605,7 @@ export class PlanCommandRunner {
    * go of the turn, it announces one type-only `claims_changed` to each
    * project in which it moved a lease (`wbs-claim-display` C4); a renewal
    * that moved nothing, or threw, announces nothing. A batch's own renewal
-   * announces nothing of its own: its `tree_replaced` refreshes the claims.
+   * is announced by the batch (C19).
    */
   async renewLeases(personId: string): Promise<LeaseStanding> {
     const renewal = await this.opts.publicServices.workItems.renewLeases(personId);

@@ -1,6 +1,6 @@
 ## 0. Before slice 1
 
-- [ ] 0.1 Dany confirms or amends C1 to C18 (proposal.md, design.md); in particular C1 (a new
+- [ ] 0.1 Dany confirms or amends C1 to C19 (proposal.md, design.md); in particular C1 (a new
       read, not the tree read), C4 (heartbeat events), C7 (no minutes in the folded chip) and
       C13 (a claim history read rather than a history view). Slices build on the assumptions;
       an amendment lands as a follow-up slice.
@@ -46,6 +46,12 @@
       publish unconditionally (the within-the-minute case reddens); watched.
 - [x] 3.2 Red: `optimizer-trigger-broadcaster` ignores `claims_changed` — test: no run
       scheduled. R5 fault: remove the exclusion; watched.
+
+- [x] 3.3 Red: a batch's renewal (C19): an agent with leases in A and B commits a batch in A,
+      B gets exactly one `claims_changed` and A none; none within the minute; none for a refused
+      or rolled-back batch. Green: announce through the batch's collector. R5 faults: drop the
+      announcement; drop the own-project filter; publish through the outer broadcaster; the
+      store answers before its write; the store answers every in-force project; watched.
 
 ## 4. Step claim chip (fe-01; builds `wbs-team-claims` 1.7, steps)
 

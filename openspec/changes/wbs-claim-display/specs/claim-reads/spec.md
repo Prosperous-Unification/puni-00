@@ -53,7 +53,9 @@ step claims in the project's step order.
 When `POST /api/claims/renew` commits at least one renewed lease, be-01 SHALL publish one
 `claims_changed` project event for each project in which a lease moved, after the commit. A
 renewal that moves nothing SHALL publish nothing. The optimizer trigger SHALL NOT schedule
-optimization on `claims_changed`.
+optimization on `claims_changed`. When an agent's committed batch renews leases in projects
+other than its own, be-01 SHALL publish one `claims_changed` for each such other project, after
+the commit; the batch's own project SHALL receive no `claims_changed` for it.
 
 #### Scenario: A due heartbeat announces its project
 
@@ -64,6 +66,17 @@ optimization on `claims_changed`.
 
 - **WHEN** `codex` heartbeats twice within one minute
 - **THEN** the second heartbeat publishes no event
+
+#### Scenario: A batch's renewal announces the agent's other projects
+
+- **WHEN** `codex` holds leases in projects A and B, both due, and commits a batch in A
+- **THEN** one `claims_changed` reaches B's subscribers after the commit
+- **AND** A's subscribers receive the batch's `tree_replaced` and no `claims_changed`
+
+#### Scenario: A refused or rolled-back batch announces no renewal
+
+- **WHEN** `codex`'s batch in A is refused or rolls back
+- **THEN** no `claims_changed` is published
 
 #### Scenario: The optimizer ignores it
 

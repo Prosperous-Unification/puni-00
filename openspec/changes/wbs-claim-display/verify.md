@@ -1,6 +1,6 @@
 ## Verification record
 
-Drafted 2026-10-23 as an OpenSpec proposal; nothing is built. C1 to C18 are assumed until
+Drafted 2026-10-23 as an OpenSpec proposal; nothing is built. C1 to C19 are assumed until
 Dany reads them. Sources read on 2026-10-23 on `main` at `e70166d28` and on
 `plan/wbs-claim-leases` at `485972419`: `wbs-team-claims` (tasks 1.7, D1 to D8, spec
 `startable-work`), `wbs-claim-leases` (L1 to L16, tasks 2.1), `startable-shapes.ts`,
@@ -234,3 +234,21 @@ pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite, wbs-store-m
 wbs-conformance, wbs-be-01 (+module), wbs-mcp-01 pass. Not run: mcp-01 tests and fe-01
 `typecheck:module` (no contract or fe-01-visible union changed), the full be-01 and fe-01
 suites (CI carries them).
+
+**3.3** (C19, the coordinator's decision of 2026-10-23, assumed until Dany reads it) A
+committed agent batch announces `claims_changed` through its collector to each project its
+renewal moved other than its own. Four new cases in `claim-lease.controller.db.test.ts`
+(`a batch renewal announcing claims_changed elsewhere`); red before the change on the two
+announcing cases (8 pass, 2 fail).
+
+| R5 fault (watched)                                                | Observed                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| announcement loop removed                                         | `announces once to each other project, …` records none (8/2) |
+| own-project filter removed                                        | the batch's own project is announced too (8/2)               |
+| published through the outer broadcaster in place of the collector | deadlock on the event log's turn: both cases time out (8/2)  |
+| SQLite store answers its due projects before its write            | `announces nothing when the batch rolls back` records one    |
+| SQLite store answers every in-force lease's project               | `announces nothing within the minute` records a second       |
+
+The refused case renews nothing, because a refusal never reaches the renewal. It reddened only
+under the every-in-force-project fault, whose setup claims also announce, so it has no fault of
+its own.
