@@ -66,6 +66,10 @@ Prettier and `git diff --check` passed. `openspec validate --all --json` passed
 ## Remaining checks
 
 The complete task 3.2 matrix, live binary capability negotiation, active
-descendant-step success, calendar/optimization outcomes, full host gate and
-final integration review remain outside this packet. Durable event tables are compared on
+descendant-step success, calendar/optimization outcomes and full host gate
+remain outside this packet. Astra High independently approved the bounded
+source and correction at `d26c2a802` with no findings. On integrated branch
+`a9829e2ed`, the configured mounted boot suite passed 22 tests and 732
+assertions with loopback access; configured backend/MCP typecheck and lint
+passed uncached. Production MCP capability remains empty. Durable event tables are compared on
 refusal; no socket-delivery count is captured by this fixture.
