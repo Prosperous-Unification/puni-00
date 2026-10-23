@@ -105,7 +105,7 @@ claim these observations in advance.
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | Closed; retained capture proofs and independent audit below                                         |
 | Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | All named faults observed; delivery remains open                                                    |
 | Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Partial; mounted capacity below                                                                     |
-| Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | NOT RUN                                                                                             |
+| Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | Partial; six mounted faults below                                                                   |
 | Readiness 6.3                                   | Replace remote progress with empty/local progress or skip required evidence                                                  | `cross-project-startable.controller.db.test.ts` actual tree/startable cases                                                               | NOT RUN                                                                                             |
 | Wire/model 7.1–7.2                              | Omit each bound/version/model inequality or Python schema member                                                             | Production request fixtures, actual solver/validate tests, omitted-expanded-pair case                                                     | NOT RUN                                                                                             |
 | Boundary-infeasible preparation/outcome 7.2–7.3 | Require fake quantized feasible baseline; reject empty integer window; map stage outcome to malformed/global infeasible      | Real 0.2→one-day→1.2 quantum48 preparation/solve/exit/read cases, with and without local deadlines                                        | NOT RUN                                                                                             |
@@ -5731,3 +5731,18 @@ in the connected-command-admission evidence above. Alongside the later
 [topology](evidence/task-5-2-mounted-topology.md) faults, all three named
 backend 5.2 register faults have observed production-path failures. Real
 gateway/socket delivery and browser-refresh acceptance remain open.
+
+## Task 6.2 mounted calendar projection (2026-10-23)
+
+The independently reviewed [calendar packet](verify-task-6.2-calendar.md)
+mounts real SQLite and Fast reads from both connected project URLs in isolated
+and shared modes. Eight cases assert fractional FS positions and dates, a
+binding Wednesday project floor, weekend manual floor/deadline translation,
+and explicit missing-calendar projections that retain links and readiness.
+Six separately injected production faults failed the mounted tests. The
+reviewer freshly reran 8/8 with 58 assertions and found no blocking issue.
+The integrated calendar, mounted live and Fast capacity suites pass 30/30 with
+307 assertions.
+The floor and missing-anchor faults fail through existing downstream guards,
+as the packet states. Task 6.2 remains open for its broader calendar/history,
+optimization and release acceptance.

@@ -43,6 +43,20 @@ the capture and fell back to the original anchor; all eight tests passed. This
 was not counted as proof. The corrected Wednesday-substitution mutation above
 changed production values and failed the mounted assertions.
 
+Independent Astra High review inspected all six archived logs and approved the
+bounded test packet without a Critical or Important finding. The reviewer
+reran 8/8 with 58 assertions. Removing the project floor and defaulting the
+missing anchor fail the mounted HTTP status assertion: the former reaches a
+negative-offset `addWorkdays` refusal, and the latter reaches the downstream
+canonical-stage anchor guard. These show loss of valid presentation or typed
+unavailability; neither demonstrates accepted fabricated dates. The two
+deadline faults directly change `lateBy` from 3 to 5 or 2.
+
+On the integrated branch, the calendar, mounted live and mounted Fast capacity
+suites passed 30/30 with 307 assertions; changed-file ESLint, Prettier and
+scoped OpenSpec validation passed. The broader suite, build and host gate
+remain unverified.
+
 ## Verification
 
 - `bun test apps/wbs/be-01/src/controller/connected-calendar.controller.db.test.ts`:
