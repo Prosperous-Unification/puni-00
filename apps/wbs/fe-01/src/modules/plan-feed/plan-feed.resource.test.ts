@@ -320,6 +320,35 @@ describe('one project’s reading', () => {
     expect(fake.invalidations).toEqual([{ resources: ['tree', 'claims'], seq: 8 }]);
   });
 
+  it('rereads claims each time the stream synchronises', () => {
+    // C21: claims announcements are transient, so a resume replays none from
+    // the gap; an accepted resume and a refused one alike reread them.
+    const fake = fakeOwner();
+    const recorded = portsOver(fake.owner);
+
+    createPlanReading(recorded.ports);
+    fake.show(ANCHORED_SNAPSHOT);
+    const handlers = handlersOf(recorded.opened);
+    handlers.onConnectionChange(true);
+    handlers.onConnectionChange(false);
+    handlers.onConnectionChange(true);
+
+    expect(fake.invalidations).toEqual([{ resources: ['claims'] }, { resources: ['claims'] }]);
+    expect(recorded.connections).toEqual([true, false, true]);
+  });
+
+  it('reads claims alone for an unsequenced claims announcement', () => {
+    const fake = fakeOwner();
+    const recorded = portsOver(fake.owner);
+
+    createPlanReading(recorded.ports);
+    fake.show(ANCHORED_SNAPSHOT);
+    handlersOf(recorded.opened).onChange('claims_changed');
+
+    expect(fake.asked).toEqual(['initialize', 'invalidate']);
+    expect(fake.invalidations).toEqual([{ resources: ['claims'], seq: undefined }]);
+  });
+
   it('ignores a change and a connection that arrive after it stops being live', () => {
     const fake = fakeOwner();
     let live = true;

@@ -316,3 +316,35 @@ Results after the round (fresh, 2026-10-23):
 
 Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275.
 Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels.
+
+**Transient claims announcements (C21, coordinator, 2026-10-23).** be-01 will push
+`claims_changed` as a live announcement. It is not written to the durable log, a resume does not
+replay it, and it may carry no sequence. Slice 3 records C21 in the proposal and design; this
+branch adds the `plan-refresh` delta requirement "Claims announcements are transient" with four
+scenarios.
+
+- `project-stream.ts` forwards `claims_changed` as `onChange('claims_changed')` with no
+  sequence, whether the frame carries one or not. Any other change enters the bookkeeping only
+  with a whole sequence (`Number.isSafeInteger`). JSON's `1e400` parses to Infinity, and that or
+  `1.5` would otherwise poison `Math.max` in `received`. Such a change is dropped, just as an
+  unsequenced one already was.
+- `plan-feed.resource.ts` rereads `['claims']` every time the stream reports it is synchronised
+  (`onConnectionChange(true)`). That covers an accepted resume and a refused one alike (the
+  refusal's full resync reads claims too), and the first synchronisation after the baseline.
+- With no sequence, `invalidate` neither records an obligation nor checks for a gap (C20 already
+  keeps claims out of obligations). `plan-refresh.test.ts` pins this: an unsequenced
+  announcement reads claims alone, leaves the acknowledgment where it was, and the next durable
+  event acknowledges normally without a resync.
+
+| R5 fault (watched)                                     | Observed                                                                                                                           |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| claims branch removed from `project-stream.ts`         | `forwards an unsequenced claims announcement`: `expected [] …`; `… without whatever sequence it carries`: `['claims_changed', 40]` |
+| whole-sequence check back to `typeof seq !== 'number'` | `drops a change whose sequence is not a whole number`: `['tree_replaced', Infinity]` forwarded                                     |
+| claims reread on synchronisation removed               | `rereads claims each time the stream synchronises`: `expected [] …` (30/1)                                                         |
+
+Results (fresh): `nx run wbs-fe-01:typecheck` succeeded; eslint on the touched files exit 0;
+vitest over the same set plus presence, 71 files, 1469 pass; Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275.
+
+Not covered end to end: the real-stream harness (`plan-refresh-stream.test.ts`) drives the owner
+directly, not through `createPlanReading`. The one-claims-read-per-reconnect rule is therefore
+pinned at the plan-feed seam with a recording owner.

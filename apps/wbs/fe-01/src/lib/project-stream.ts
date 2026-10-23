@@ -252,8 +252,26 @@ export function subscribeToProject(
     // screen — and a stream that advanced on the frame rather than on the read
     // would then resume past an edit nobody ever saw. `seen` is the only way
     // forward, and it is called by whoever actually installed the new rows.
-    if (typeof frame.seq !== 'number') return;
-    options.onChange(changedFactOf(frame.message), frame.seq);
+    const changed = changedFactOf(frame.message);
+    // A transient announcement (`wbs-claim-display` C21): never in the durable
+    // log, so whatever sequence it carries, if any, is not one the
+    // acknowledgment may move to, wait on or count a gap from. It is forwarded
+    // without one, and the caller reads claims alone.
+    // Proof: dropping this branch left `forwards an unsequenced claims
+    // announcement` with no change reported, and `… without whatever sequence
+    // it carries` received `['claims_changed', 40]`; watched 2026-10-23.
+    if (changed === 'claims_changed') {
+      options.onChange(changed);
+      return;
+    }
+    // Only a whole sequence enters the bookkeeping: JSON can say `1e400`
+    // (Infinity) or `1.5`, and either would poison `Math.max` downstream.
+    // Proof: `typeof seq !== 'number'` here forwarded `['tree_replaced',
+    // Infinity]` and `1.5` in `drops a change whose sequence is not a whole
+    // number`; watched 2026-10-23.
+    const seq = frame.seq;
+    if (seq === undefined || !Number.isSafeInteger(seq)) return;
+    options.onChange(changed, seq);
   }
 
   /**

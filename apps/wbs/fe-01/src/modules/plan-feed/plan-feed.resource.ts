@@ -151,7 +151,13 @@ export function createPlanReading({
             // Proof: calling `reportConnection(connected)` unguarded reported
             // [false] instead of [] in `ignores a change and a connection that
             // arrive after it stops being live` (2026-09-20).
-            if (isLive()) reportConnection(connected);
+            if (!isLive()) return;
+            reportConnection(connected);
+            // Every (re)synchronised socket rereads claims: their announcements
+            // are transient (C21), so a resume replays none of the gap's.
+            // Proof: deleting this line left no claims invalidation in `rereads
+            // claims each time the stream synchronises`; watched 2026-10-23.
+            if (connected) void owner.invalidate({ resources: ['claims'] });
           },
         },
         snapshot.baseline.seq,

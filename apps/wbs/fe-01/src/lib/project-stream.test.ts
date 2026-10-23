@@ -830,3 +830,43 @@ it('does not report connected when its recovery callback unsubscribes', () => {
   );
   expect(connections).toEqual([]);
 });
+
+describe('subscribeToProject — transient claims announcements (C21)', () => {
+  function delivering() {
+    const h = harness();
+    const delivered: unknown[][] = [];
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: -1, onChange: (...args) => delivered.push(args) },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+    const send = (frame: Record<string, unknown>) => {
+      h.latest().handlers.onMessage(JSON.stringify({ subscription: SUBSCRIPTION, ...frame }));
+    };
+    const sendRaw = (raw: string) => {
+      h.latest().handlers.onMessage(raw);
+    };
+    return { delivered, send, sendRaw };
+  }
+
+  it('forwards an unsequenced claims announcement', () => {
+    const { delivered, send } = delivering();
+    send({ message: { type: 'claims_changed', projectId: PROJECT } });
+    expect(delivered).toEqual([['claims_changed']]);
+  });
+
+  it('forwards a claims announcement without whatever sequence it carries', () => {
+    const { delivered, send } = delivering();
+    send({ seq: 40, message: { type: 'claims_changed', projectId: PROJECT } });
+    expect(delivered).toEqual([['claims_changed']]);
+  });
+
+  it('drops a change whose sequence is not a whole number', () => {
+    const { delivered, send, sendRaw } = delivering();
+    // `1e400` parses to Infinity; neither it nor a fraction may reach `Math.max`.
+    sendRaw(`{"subscription":"${SUBSCRIPTION}","seq":1e400,"message":{"type":"tree_replaced"}}`);
+    send({ seq: 1.5, message: { type: 'tree_replaced' } });
+    send({ message: { type: 'tree_replaced' } });
+    expect(delivered).toEqual([]);
+  });
+});

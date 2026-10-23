@@ -379,6 +379,23 @@ describe('claims as a refresh resource', () => {
     owner.dispose();
   });
 
+  it('reads claims for an unsequenced announcement and leaves the acknowledgment alone', async () => {
+    const { api, owner, reads } = await claimsSetup();
+    const initial = owner.getSnapshot().acknowledged;
+    expect((await owner.invalidate({ resources: resourcesFor('claims_changed') })).status).toBe(
+      'installed',
+    );
+    expect(reads).toEqual(['claims']);
+    expect(owner.getSnapshot().acknowledged).toBe(initial);
+    // The next durable event is not a gap: an unsequenced one moved nothing.
+    const tree = await api.tree('p1');
+    api.tree = () => Promise.resolve({ ...tree, seq: initial + 1 });
+    await owner.invalidate({ resources: resourcesFor('tree_replaced'), seq: initial + 1 });
+    expect(owner.getSnapshot().acknowledged).toBe(initial + 1);
+    expect(reads.filter((read) => read === 'directory')).toEqual([]);
+    owner.dispose();
+  });
+
   it('ends a claims invalidation made during an initialize whose anchor fails', async () => {
     const api = fakeProjectApi();
     const anchor = held<PlanRead>();

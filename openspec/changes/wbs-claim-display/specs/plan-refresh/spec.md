@@ -37,3 +37,33 @@ SHALL NOT hold the stream acknowledgment.
 - **GIVEN** a claims read failed and the previous claims remain drawn
 - **WHEN** a later tree read succeeds
 - **THEN** the claims stale state remains until a covering claims read succeeds
+
+### Requirement: Claims announcements are transient
+
+`claims_changed` is a live announcement that the durable event log does not hold and a resume
+does not replay; it may carry no sequence. fe-01 SHALL treat it as a claims-only invalidation
+whatever sequence it carries, and it SHALL neither move, hold nor open a gap in the stream
+acknowledgment. Every time the stream synchronises, on an accepted resume and on a refused one
+alike, fe-01 SHALL reread claims. A change whose sequence is not a whole number SHALL NOT enter
+the sequence bookkeeping.
+
+#### Scenario: An unsequenced heartbeat
+
+- **WHEN** a `claims_changed` frame arrives with no sequence
+- **THEN** a claims read runs, no other read is requested, and the acknowledged sequence is
+  unchanged
+
+#### Scenario: A sequence on a transient announcement is ignored
+
+- **WHEN** a `claims_changed` frame carries a sequence
+- **THEN** it is handled exactly as an unsequenced one
+
+#### Scenario: A reconnect rereads claims
+
+- **WHEN** the stream reconnects and the server accepts the resume
+- **THEN** one claims read runs, since the gap's claims announcements are not replayed
+
+#### Scenario: A malformed sequence is dropped
+
+- **WHEN** a frame carries a sequence that is not a whole number
+- **THEN** no invalidation is made from it
