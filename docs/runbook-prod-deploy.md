@@ -692,3 +692,5 @@ verified binary extracted to `/tmp/puni-audit-busybox`. It requires Docker acces
 and that exact cached fixture image; missing dependencies fail. It checks normal
 admission, absent binary, restored Debian shell, and the 15-second supervisor
 deadline with a stalled scanner/descendant, then removes only its created IDs.
+
+Merge-policy disposable rehearsal 20261023-143703.
