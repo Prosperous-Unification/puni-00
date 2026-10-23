@@ -728,3 +728,10 @@ Ordinary application source retains watcher delivery. Parent tasks stay open.
 - [ ] Complete integrated exact-SHA host gate. Independent Astra rereview approved the bounded packet after the child-FD, staged-config and prefetch corrections. Installed writer identity/drain/adoption, retained owner publication and activation remain outside this prerequisite; parent 10.1/10.2 stay unchecked. Evidence: [verify-shared-edge-admission.md](verify-shared-edge-admission.md).
 
 - [x] Correct review findings with explicit inherited-FD remapping across real devsync child launch, staged provisioning base commit under configure admission, and manual retained-marker refusal before fetch; watch omitted mapping, direct live copy and prefetch admission negatives fail. Parent activation/installed-adoption obligations remain open.
+
+### Bounded Task 10.1/10.2 installed executor replacement admission (2026-10-23)
+
+- [x] Exercise real installer CLI through local SSH/SCP substitutes; cover retained owner paths, missing/unreadable canonical state, contention, unique staging, staged identities, lock lifetime and partial/readback failure.
+- [x] Capture both build identities and admit both replacements and installed readback under the existing canonical edge lock; retain fail-closed marker handling without activation or pairwise atomicity claims.
+- [x] Watch missing-lock dependency, omitted flock/marker/staged/readback checks and reused attempt identity faults fail; restore controls and document bounded evidence.
+- [ ] Complete installed-byte adoption and prior-holder drain audit, independent review and integrated exact-SHA host gate; parent 10.1/10.2 remain open. Evidence: [verify-installed-executor-admission.md](verify-installed-executor-admission.md).

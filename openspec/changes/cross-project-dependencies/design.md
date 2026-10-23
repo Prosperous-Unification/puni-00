@@ -1199,3 +1199,22 @@ Provisioning uploads base Compose bytes to a unique, non-live staging path.
 it into place while retaining shared-edge admission. The sibling step keeps the
 final move within one filesystem even if `/tmp` is mounted separately. A retained
 marker or competing writer leaves both live configuration and staged bytes intact.
+
+### Bounded installed executor replacement admission (2026-10-23)
+
+The swap/smoke installer captures local SHA-256 identities, uploads uniquely named
+sibling staging files, and runs one remote critical section against the existing
+canonical production `state/edge.lock` for both environments. It neither creates
+nor inherits a substitute lock. Required state enumeration must succeed, and any
+`edge-owner.json` or `edge-owner.pending` path refuses publication regardless of
+contents or readability. Both staged hashes pass before chmod or replacement;
+both installed hashes pass before the lock is released. The two renames are
+individually atomic, never a transaction. A failed rename, readback or disconnected
+SSH session reports partial or uncertain publication; operators inspect both
+installed identities under the same lock before retrying. Failed uploads can
+leave invocation-owned staging, and no automatic rollback is promised.
+
+This closes only installer source admission. It does not install host bytes,
+replace the durable poller, drain older executors, publish owner state, prove
+installed adoption, or authorize activation. The durable poller recovery recipe
+must likewise refuse retained owner state before replacing its recovery copies.

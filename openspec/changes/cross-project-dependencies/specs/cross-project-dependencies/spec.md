@@ -1089,3 +1089,28 @@ claim that installed launchers adopted source changes.
 - **GIVEN** retained owner or interrupted-publication state exists
 - **WHEN** the manual SSH deployment holds the canonical outer lock
 - **THEN** it refuses before invoking Git fetch or acquiring the poll lock
+
+### Requirement: Installed executor replacement admits under the shared edge lock
+
+The swap/smoke installer SHALL use unique staging, capture local hashes, and
+validate both staged files before replacing either under the existing canonical
+edge lock. It SHALL refuse retained owner markers or unreadable/missing trusted
+state and verify both installed hashes before releasing the lock. Installation
+SHALL NOT claim pairwise atomicity, host adoption, prior-holder drain or activation.
+
+#### Scenario: Concurrent or retained-owner publication refuses replacement
+
+- **WHEN** another process holds the canonical lock, canonical lock state is absent, or either owner marker exists even as malformed, unreadable, directory or dangling state
+- **THEN** the installer refuses before chmod or replacement of either installed executor
+- **AND** separate attempts cannot overwrite one another's staging names
+
+#### Scenario: Staged bytes differ from the captured build
+
+- **WHEN** either uploaded file differs from its captured local SHA-256 identity
+- **THEN** neither installed executor is replaced
+
+#### Scenario: Replacement or installed readback fails
+
+- **WHEN** a rename, installed-byte comparison or SSH transport fails during publication
+- **THEN** installation fails loudly with partial or uncertain publication guidance
+- **AND** success requires both installed comparisons while the canonical lock remains held

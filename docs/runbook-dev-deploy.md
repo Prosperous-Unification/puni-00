@@ -221,8 +221,13 @@ after their reviewed commit lands on `main`:
 scp bin/dev-poll.sh h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
 scp bin/dev-poll-sync.sh h2puni:/home/puni1/wbs-dev/bin/dev-poll-sync.next.sh
 scp .bun-version h2puni:/home/puni1/wbs-dev/bin/bun-version.next
-ssh h2puni 'touch /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
-  "bun_version=\$(cat /home/puni1/wbs-dev/bin/bun-version.next) && \
+ssh h2puni 'test -f /home/puni1/wbs/state/edge.lock && test ! -L /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
+  "set -eu; \
+   for marker in edge-owner.json edge-owner.pending; do \
+     retained=\$(find /home/puni1/wbs/state -mindepth 1 -maxdepth 1 -name \"\$marker\" -print); \
+     if test -n \"\$retained\"; then echo owner-admission-closed >&2; exit 1; fi; \
+   done; \
+   bun_version=\$(cat /home/puni1/wbs-dev/bin/bun-version.next) && \
    bun_source=\$(command -v bun) && \
    test \"\$(\"\$bun_source\" --version)\" = \"\$bun_version\" && \
    install -m 0755 \"\$bun_source\" /home/puni1/wbs-dev/bin/bun.next && \
@@ -234,6 +239,26 @@ ssh h2puni 'touch /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/st
     /home/puni1/wbs-dev/bin/dev-poll-sync.sh && \
    mv /home/puni1/wbs-dev/bin/poll.next.sh /home/puni1/wbs-dev/bin/poll.sh"'
 ```
+
+Proof: removing the retained-marker refusal from this exact SSH recipe made both
+local durable-recovery CLI negatives reach interpreter setup instead of refusing.
+
+Recovery requires existing readable canonical edge state and absence of both owner
+markers. A retained marker, malformed/unreadable marker or pending publication
+closes recovery; do not remove it to force an install. This manual recipe uses
+fixed staging names, so serialize operators before staging and verify the selected
+source copies and interpreter separately. Its multiple renames can leave a partial
+installation on failure; inspect every installed copy under both locks before
+retrying. It is not an installed-adoption or prior-holder-drain proof.
+
+For the swap/smoke bundles, use `bunx nx run tool-remote-scripts:install --
+--host=h2puni --env=dev --execute` (omit `--execute` to review). That installer
+uses unique staging, compares both staged identities, and holds the canonical
+edge lock through both replacements and installed-byte verification. It refuses
+retained owner state and a missing lock. Each rename is atomic; the pair is not.
+A transport failure means publication may be partial or uncertain; inspect both
+installed hashes and any reported invocation staging under `edge.lock` before
+retrying. This command does not replace the poller or publish owner state.
 
 `.bun-version` is the poller's version source of truth. On a Bun bump, update that file first,
 install the matching interpreter, and rerun the whole lock-held block so the binary and installed

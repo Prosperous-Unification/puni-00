@@ -1,22 +1,3 @@
-// Ships the two bundles the server actually executes to /srv/wbs/bin/:
-//
-//   - swap.js  — the blue/green executor, run directly by the host's bun
-//     (tool-deploy's deploy.ts does `ssh <host> 'cd /srv/wbs && bun
-//     bin/swap.js ...'`). Built by this project's own `build` target.
-//   - smoke.js — tool-smoke's bundle, run inside an ephemeral container
-//     after every deploy (deploy.ts's buildSmokeCommand). Built by
-//     tool-smoke's `build` target.
-//
-// Before this, both files "got there by hand" — scp'd once, manually, and
-// never touched again — so a change to swap.ts or tool-smoke's sources
-// would silently NOT reach the server until someone remembered to re-copy
-// it. This makes that reproducible instead of remembered, and verifies the
-// copy actually landed rather than trusting scp's exit code alone.
-//
-// Default is dry-run (prints the plan, touches nothing); --execute performs
-// the real scp + atomic rename + chmod + checksum verification. Same
-// dry-run-by-default shape as tool-bootstrap's push.ts and tool-deploy's
-// deploy.ts.
 import { type BundleFile, bundleFilesFor } from './lib/deploy-contract';
 import { CURRENT_ENV, type EnvLayout, envLayout } from './lib/env';
 
@@ -72,27 +53,67 @@ export interface InstallStep {
   argv: string[];
 }
 
+function quoteShell(value: string): string {
+  return "'" + value.replaceAll("'", "'\\''") + "'";
+}
+
 /**
- * scp to a `.tmp` sibling, then chmod + rename into place remotely in one
- * ssh round trip — `mv` within the same directory is atomic, so a deploy
- * that reads bin/swap.js concurrently with an install never sees a
- * partially-written file. Mirrors this project's own writeAtomic (see
- * lib/atomic.ts) for the same reason, one level up (remote FS, not local).
+ * Uploads invocation-owned siblings, then admits both replacements under the
+ * canonical host edge lock. Staged and installed bytes must match the hashes
+ * captured before upload. Each rename is atomic; the pair is not transactional.
+ * Every retained owner path closes admission, regardless of its contents.
+ * Transport failure can leave staging or a partial installation; never infer
+ * rollback or successful publication from a disconnected SSH session.
  */
-export function buildInstallPlan(host: string, files: readonly BundleFile[]): InstallStep[] {
-  const steps: InstallStep[] = [];
-  for (const f of files) {
-    const tmp = `${f.remote}.tmp`;
-    steps.push({
-      description: `scp ${f.local} -> ${host}:${tmp}`,
-      argv: ['scp', f.local, `${host}:${tmp}`],
-    });
-    steps.push({
-      description: `install ${f.remote} (chmod 0755 + atomic rename)`,
-      argv: ['ssh', host, `chmod 0755 ${tmp} && mv ${tmp} ${f.remote}`],
-    });
-  }
-  return steps;
+export async function buildInstallPlan(
+  host: string,
+  files: readonly BundleFile[],
+): Promise<InstallStep[]> {
+  // Proof: a fixed attempt ID made the second real CLI upload reuse two staging paths.
+  const attempt = crypto.randomUUID();
+  const hashes = await Promise.all(files.map((file) => sha256File(file.local)));
+  const staged = files.map((file) => `${file.remote}.install-${attempt}`);
+  const state = envLayout('prod').stateDir;
+  const lock = quoteShell(`${state}/edge.lock`);
+  const checkHashes = (paths: readonly string[]) =>
+    paths
+      .map(
+        (path, index) =>
+          `printf '%s  %s\\n' ${quoteShell(hashes[index])} ${quoteShell(path)} | sha256sum -c -`,
+      )
+      .join('\n');
+  const shell = `set -eu
+publishing=0
+trap 'status=$?; if [ "$status" -ne 0 ] && [ "$publishing" -eq 1 ]; then printf "%s\\n" "partial or uncertain installed-executor replacement; inspect both installed hashes under edge.lock before retry" >&2; fi; rm -f -- ${staged.map(quoteShell).join(' ')}; exit "$status"' EXIT
+# Proof: removing the existing-lock requirement made the missing-lock CLI negative publish both files.
+test -f ${lock} && test ! -L ${lock}
+exec 9< ${lock}
+# Proof: omitting flock made the real mv substitute acquire edge.lock during replacement.
+flock -n 9
+# Listing must succeed: inaccessible trusted state is not marker absence.
+for marker in edge-owner.json edge-owner.pending; do
+  retained=$(find ${quoteShell(state)} -mindepth 1 -maxdepth 1 -name "$marker" -print)
+  # Proof: removing this refusal made retained JSON/pending CLI negatives replace installed bytes.
+  if [ -n "$retained" ]; then printf '%s\\n' "shared edge owner admission closed: $marker; no activation" >&2; exit 1; fi
+done
+# Proof: removing staged verification made corrupted SCP bytes replace both original files.
+${checkHashes(staged)}
+chmod 0755 -- ${staged.map(quoteShell).join(' ')}
+publishing=1
+${files.map((file, index) => `mv -- ${quoteShell(staged[index])} ${quoteShell(file.remote)}`).join('\n')}
+# Proof: removing installed readback made post-rename corruption report success.
+${checkHashes(files.map((file) => file.remote))}
+publishing=0`;
+  return [
+    ...files.map((file, index) => ({
+      description: `stage ${file.local} -> ${host}:${staged[index]}`,
+      argv: ['scp', file.local, `${host}:${staged[index]}`],
+    })),
+    {
+      description: 'admit, replace and verify both executors under canonical edge.lock',
+      argv: ['ssh', host, `sh -c ${quoteShell(shell)}`],
+    },
+  ];
 }
 
 async function sha256File(path: string): Promise<string> {
@@ -169,7 +190,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const steps = buildInstallPlan(args.host, files);
+  const steps = await buildInstallPlan(args.host, files);
   // The environment is on the line, because it decides which `bin/` is
   // overwritten and a dry run is where an operator finds out.
   console.log(
@@ -186,11 +207,12 @@ async function main(): Promise<void> {
     const p = Bun.spawn(s.argv, { stdout: 'inherit', stderr: 'inherit' });
     const code = await p.exited;
     if (code !== 0) {
-      throw new Error(`install step failed (exit ${String(code)}): ${s.description}`);
+      throw new Error(
+        `install step failed (exit ${String(code)}): ${s.description}; publication may be partial or uncertain; inspect installed bytes and invocation staging before retry`,
+      );
     }
   }
 
-  await verifyInstalled(args.host, files);
   console.log('[tool-remote-scripts] install ok — checksums verified against the local build.');
 }
 
