@@ -711,3 +711,9 @@ acceptance and generated parity; poisoned-barrel startup negative; uncached
 preparation freshness and bounded 512 MiB startup observation. Evidence and
 remaining delivery limits: [MCP startup memory](verify-mcp-startup-memory.md).
 Parent 3.2, activation and Task 11 stay open.
+
+Task 3.2/11 MCP preparation follow-up (2026-10-23): source deploy fingerprints
+all generator source trees and library alias configs, restarts the supervisor,
+and reruns uncached preparation. Real Git-reset/sync/Nx regression and watched
+independent omissions are in the [startup memory packet](verify-mcp-startup-memory.md).
+Ordinary application source retains watcher delivery. Parent tasks stay open.

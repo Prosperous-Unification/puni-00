@@ -472,6 +472,9 @@ export async function runDevSyncLock(
  * - `package.json`, `nx.json`, `apps/wbs/<tier>/project.json` -- the Nx supervisor
  *   reads the serve targets once, at startup. A changed port, command or
  *   project list leaves the old topology running while HEAD moves on.
+ * - MCP OpenAPI emitter, contracts and validation sources/configs -- source
+ *   serve prepares the required document once per supervisor start; Bun's
+ *   runtime watcher no longer imports the HTTP registry or its validation.
  * - `apps/wbs/fe-01/vite.config.ts` -- Vite reloads app code, not its own config.
  *
  * Not covered, deliberately, because they need more than a restart: the
@@ -483,6 +486,17 @@ export const RESTART_PATHS: readonly string[] = [
   'package.json',
   'nx.json',
   'apps/wbs/be-01/drizzle',
+  // MCP reads a prepared document rather than importing these sources. Only a
+  // supervisor restart reruns its uncached Nx prepare dependency.
+  // Proof: independently omitting each source/config entry made the real Git-reset
+  // sync regression skip restart and MCP preparation (0/1 per fault).
+  'libs/wbs/domain/contracts/src',
+  'apps/wbs/be-01/src/openapi',
+  'libs/wbs/domain/validation/src',
+  'libs/shared/domain/validation/src',
+  'libs/wbs/domain/contracts/tsconfig.json',
+  'libs/wbs/domain/validation/tsconfig.json',
+  'libs/shared/domain/validation/tsconfig.json',
   'apps/wbs/be-01/project.json',
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',

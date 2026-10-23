@@ -1160,8 +1160,10 @@ that required sibling and retains `toolsFromDocument` admission/exclusions.
 Missing, unreadable and malformed artifacts refuse startup. There is no
 runtime generator fallback or committed snapshot. Credential rules, trusted
 issuer URL checks and logging use leaf imports so startup reaches neither
-the contracts nor core runtime barrel. Contract/schema changes during an
-already running source watcher require another prepare/restart.
+the contracts nor core runtime barrel. Dev source deployment fingerprints every
+generator input source tree (the whole contracts tree, the emitter, WBS/shared validation) and the three library alias
+configs; a change restarts the container so Nx reruns preparation. Runtime
+watchers alone cannot regenerate the document.
 
 This correction proves bounded startup and generated parity, not dependency
 activation, a final image build, cluster acceptance or Task 11 completion.

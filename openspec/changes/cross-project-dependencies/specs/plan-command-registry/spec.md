@@ -86,10 +86,12 @@ The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` 
 
 ### Requirement: Prepared MCP document preserves generated command admission
 
-MCP startup SHALL read a required OpenAPI artifact generated from the same
-checkout during image/build or uncached source preparation. Startup SHALL NOT
-construct shared HTTP validators or import contracts/core runtime barrels.
-Command inputs, names and exclusion refusals SHALL match current declarations.
+MCP startup SHALL read a required same-checkout OpenAPI artifact produced during
+image/build or uncached source preparation. Startup SHALL NOT construct HTTP
+validators or import contracts/core runtime barrels. Tools SHALL match current
+shared declarations and exclusions. Dev source deploy SHALL restart its
+supervisor on generation source/config changes, rerunning preparation before
+MCP serves.
 
 #### Scenario: Prepared runtime starts without shared schema construction
 
@@ -103,3 +105,10 @@ Command inputs, names and exclusion refusals SHALL match current declarations.
 - **WHEN** the required sibling artifact is missing, unreadable, malformed JSON or cannot derive an unambiguous tool table
 - **THEN** MCP startup refuses before serving tools
 - **AND** it does not generate or substitute a document at runtime
+
+#### Scenario: A generator input changes during source deployment
+
+- **GIVEN** dev MCP serves a document prepared from the previous checkout
+- **WHEN** source deployment changes contracts, emitter or WBS/shared validation sources or their alias configuration
+- **THEN** the deployment restarts the supervisor and reruns uncached MCP preparation
+- **AND** command definitions outside the HTTP directory appear in the new generated tool contract

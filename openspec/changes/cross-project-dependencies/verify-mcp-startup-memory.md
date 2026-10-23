@@ -114,3 +114,53 @@ a real backend, OAuth operation, sustained traffic or k3s rollout.
 No new image build, full repository build, canonical h2/h4 gate, CI rerun or
 cluster rollout ran for this packet. Disk was only 1.4 GiB free before the probe;
 no image layers were added. Parent Task 3.2, Task 11 and activation stay open.
+
+## Review follow-up: dev source deploy preparation freshness
+
+Astra review found that the original packet's source preparation only runs when
+the Nx supervisor starts. A contract-only push did not affect MCP's runtime
+watcher after runtime schema imports were removed. `RESTART_PATHS` now includes
+all contracts source (including command definitions outside `http`), the backend
+OpenAPI emitter directory, WBS and shared validation sources, and the three
+libraries' `tsconfig.json` files. The existing lockfile, root aliases, app
+aliases and project/supervisor config entries cover the other generation inputs.
+The contracts source imports no other source library than WBS validation, which
+reexports shared validation; ArkType/schema packages are lockfile dependencies.
+The runbook now names this source-deploy restart exception.
+
+The new `mcp-document-sync.test.ts` runs production `sync()` rehearsal against
+real isolated Git revisions, production recursive fingerprints and actual resets.
+Only the external Docker boundary is substituted: the install request is recorded,
+and its fenced restart executes real uncached `nx run wbs-mcp-01:prepare` in the
+fixture checkout. The fixture copies the real emitter, declarations, validation
+and alias configs and uses installed dependencies. A command-definition prose
+change outside `http` reaches the generated artifact and is read back through
+production `readDocument`/`toolsFromDocument` into the current tool table; each source/config case
+requires the real Nx preparation receipt. An ordinary MCP app-source edit proves
+the production watcher path still avoids restart.
+
+TDD RED before the fix: all four requested source-root cases failed (0 passed /
+4 failed) because sync classified the deployment as watcher-only and no restart
+occurred. After the fix, each of the seven source/config entries was removed
+independently and its matching test rerun in a fresh process. Every omission
+failed (0 passed / 1 failed), exposing `watchers pick it up` instead of the
+required preparation receipt. Entries were restored after each fault. The
+adjacent `Proof:` comment records that production-path mutation evidence.
+
+This integration exercises source deploy orchestration and real preparation;
+it does not exercise a live Docker daemon, host poller, HTTP traffic or deployment.
+The old-image 512 MiB observation above remains a separate bounded startup fact.
+Parent Task 3.2, Task 11 and activation remain open; no push or deploy occurred.
+
+Fresh follow-up checks:
+
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-devsync/src/sync.test.ts tools/tool-devsync/src/mcp-document-sync.test.ts`:
+  **63 passed, 0 failed, 235 assertions**, 32.62 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:typecheck --skip-nx-cache`:
+  passed uncached; Nx recorded the executed TypeScript command (1.0 second).
+- Scoped ESLint over `sync.ts` and `mcp-document-sync.test.ts`: passed.
+- `bunx openspec validate cross-project-dependencies --json`: passed 1/1.
+
+The complete tool-devsync test target, full repository gates and Docker/cluster
+observations were not rerun for this source-deploy follow-up. The focused
+production sync/preparation path above is the new evidence.
