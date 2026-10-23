@@ -8,7 +8,7 @@ import process from 'node:process';
 import console from 'node:console';
 import { setTimeout } from 'node:timers';
 import { TextDecoder } from 'node:util';
-import { readSupervisorPeerCredentials } from '../../../../../tools/tool-remote-scripts/src/lib/solver-supervisor-peer-credentials.ts';
+import { readSupervisorPeerCredentials } from '../../../../tools/tool-remote-scripts/src/lib/solver-supervisor-peer-credentials.ts';
 
 const mode = process.argv[2];
 const socketPath = process.argv[3];

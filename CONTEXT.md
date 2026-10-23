@@ -2139,7 +2139,7 @@ _Avoid_: unknown membership, passing Performance result
 **Effective supervisor identity**:
 The identity of the running solver supervisor established by agreement between
 its captured boot material, its service invocation and the kernel identities of
-its readiness and solver connections.
+its readiness and solver connections, within the proposed [identity-broker followup](openspec/changes/solver-supervisor-identity-broker/proposal.md).
 _Avoid_: installed identity, socket readiness, adopted supervisor
 
 **Solver identity broker**:

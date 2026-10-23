@@ -7151,3 +7151,9 @@ exited 0: 961 passed, zero failed, 3,450 assertions across 52 files in 13m 12s.
 The retained output is `/tmp/puni-devsync-full-0bfadde-root.log`. This closes
 the sandbox-limited configured-suite uncertainty above for that isolated
 correction commit. It is not an integrated-head h2 gate or deployment result.
+
+## Solver delivery scope reconciliation — 2026-10-23
+
+The approved bounded identity architecture from `899db844` is moved intact into the separately proposed [solver-supervisor-identity-broker change](../solver-supervisor-identity-broker/proposal.md), with [provenance and feasibility limits](../solver-supervisor-identity-broker/verify.md). Its broker/unit/Docker/k3s/provisioning gates remain unchecked and do not gate cross-project-dependencies delivery. The parent supervisor installation/shared-edge requirements remain, and Task 10.2 now has explicit S1–S4 acceptance for actual stop/drain, restart/installer fencing, continuous complete participant exclusion and pinned compatible restoration. These controls are not implemented by this docs reconciliation; all four slices and parent Task 10.2 remain open.
+
+[ADR 0059](../../../docs/adr/0059-supervisor-exclusion-does-not-require-an-identity-broker.md) records the scope decision beside [ADR 0057](../../../docs/adr/0057-cross-project-dependency-activation-is-monotone.md). No narrower exclusion, automatic recovery after possible activation, or old incapable writer return is permitted. No new production safety check is added; future guards name watched production-path negatives. Fresh full OpenSpec validation and changed-doc formatting/link/diff checks are recorded in the followup verification before normal-hook commit. No production test or actual stop/drain/restart/restore, root provisioning, h2 gate, push or PR was performed.

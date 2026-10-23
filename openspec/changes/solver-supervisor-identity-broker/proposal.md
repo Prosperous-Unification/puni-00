@@ -1,6 +1,6 @@
 ## Why
 
-The installer verifies installed files and service/socket availability without proving executed bytes or connected service identity. Backend private PID namespaces cannot compare the host listener with systemd MainPID. A service-UID-owned identity file cannot protect publication against a foreign listener sharing that UID. Task 10.2 requires a fresh independently admitted identity before work.
+The installer verifies installed files and service/socket availability without proving executed bytes or connected service identity. Backend private PID namespaces cannot compare the host listener with systemd MainPID. A service-UID-owned identity file cannot protect publication against a foreign listener sharing that UID. This proposed followup would add independently admitted runtime identity to the solver transport.
 
 ## What Changes
 
@@ -10,7 +10,7 @@ This packet supplies contracts and ordered TDD gates. Existing ambient/namespace
 
 ## Non-Goals
 
-No production edits, root provisioning, installation, service operation, rollout, activation, adoption, retained-owner publication, prior-holder drain, automatic rollback, h2 gate, push or PR. Parent Task 10.2 remains open.
+No production edits, root provisioning, installation, service operation, rollout, activation, adoption, retained-owner publication, prior-holder drain, automatic rollback, h2 gate, push or PR. This followup is outside cross-project-dependencies delivery and does not block its continuous-exclusion acceptance.
 
 ## Constraints
 
@@ -18,9 +18,9 @@ Preserve captured bundle/config bytes and `/proc/self/exe` identity, both host i
 
 ## Capabilities
 
-### Modified Capabilities
+### New Capabilities
 
-- `cross-project-dependencies`: effective supervisor identity and fresh namespace-compatible admission before solver work.
+- `solver-supervisor-identity`: effective supervisor identity and fresh namespace-compatible admission before solver work.
 
 ## Domain Terms
 
@@ -28,7 +28,7 @@ Effective supervisor identity; Solver identity broker; Supervisor admission base
 
 ## Decisions Recorded
 
-[Root authority publishes live supervisor identity](../../../../docs/adr/0058-root-authority-publishes-live-supervisor-identity.md) (preferred, proposed for review).
+[Root authority publishes live supervisor identity](../../../docs/adr/0058-root-authority-publishes-live-supervisor-identity.md) (preferred, proposed for review).
 
 ## Impact
 

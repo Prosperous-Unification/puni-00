@@ -1,6 +1,6 @@
-# Task 10.2 effective supervisor identity: planning and ambient feasibility
+# Proposed solver supervisor identity broker: provenance and feasibility
 
-2026-10-23. Base `b2a9f1bb1`; isolated worktree `/tmp/puni-supervisor-ambient-packet`. This records the planning packet and explicitly bounded disposable feasibility evidence only. The production identity protocol, root broker/provisioning and actual unit policies are unimplemented. Parent Task 10.2 remains open; this is not an archive/activation/adoption acceptance.
+2026-10-23. Base `b2a9f1bb1`; isolated worktree `/tmp/puni-supervisor-ambient-packet`. Status: proposed separate followup, outside cross-project-dependencies delivery. This records the planning packet and explicitly bounded disposable feasibility evidence only. The production identity protocol, root broker/provisioning and actual unit policies are unimplemented. Parent Task 10.2 remains open; this is not an archive/activation/adoption acceptance.
 
 ## Runtime and commands
 
@@ -18,7 +18,7 @@ a83d263767d839e4d2649ca8e35d07159c7afc99afdc96d731ced29e056dda0c  /home/df/.bun/
 Run from the isolated worktree:
 
 ```sh
-bun openspec/changes/cross-project-dependencies/effective-supervisor-identity/evidence/ambient-spike.mjs
+bun openspec/changes/solver-supervisor-identity-broker/evidence/ambient-spike.mjs
 ```
 
 Exit 0. [Exact output](evidence/ambient.log) ends:
@@ -84,7 +84,7 @@ Only slice 1.1 is complete. Slices 1.2 and 1.3 are mandatory pre-implementation 
 
 All protocol slices remain unchecked: captured bundle/config production loader, `/proc/self/exe` production identity, private nonce readiness, both host installer socket kernel peer bindings, namespace-compatible public client authentication/expectation refresh and pre-send admission, typed before/after systemd properties, bounded convergence, final hashes under retained admission and composed failures. Existing prior-spike evidence is [snapshotted](evidence/prior-identity-spike.md) with its original distinct source SHA and limitations; none of it is relabeled as current production acceptance.
 
-No production runtime code, unit, installer or service was changed or run. No service install/start/restart, Docker operation, deployment, activation, adoption, full Nx gate, h2 gate, push or PR was performed. Full project tests, lint/typecheck/build and full CI are skipped for this docs/disposable experiment packet; normal scoped hooks and explicit formatting are separate limited checks. No independent Astra review or integrated exact-SHA host acceptance is claimed. Remaining tasks block archive and Task 10.2 completion.
+No production runtime code, unit, installer or service was changed or run. No service install/start/restart, Docker operation, deployment, activation, adoption, full Nx gate, h2 gate, push or PR was performed. Full project tests, lint/typecheck/build and full CI are skipped for this docs/disposable experiment packet; normal scoped hooks and explicit formatting are separate limited checks. No independent Astra review or integrated exact-SHA host acceptance is claimed. Remaining followup tasks block this proposal's archive, not cross-project-dependencies delivery. Parent continuous exclusion and restoration have their own still-open acceptance.
 
 ## Astra namespace correction after 08a5cedb
 
@@ -93,7 +93,7 @@ The review identified that a Docker backend's private PID namespace cannot compa
 A disposable pinned-runtime probe uses the actual `readSupervisorPeerCredentials` helper with a host listener, then a client launched through `/usr/bin/unshare --user --map-current-user --pid --fork`. Both client connections use actual Bun.connect and raw kernel getsockopt; no payload PID establishes the raw credentials. The host control sees the independently observed listener process PID. The private-namespace client observes raw PID 0 with UID 1000, and asserts that the existing production helper rejects that invisible PID rather than weakening it.
 
 ```sh
-bun openspec/changes/cross-project-dependencies/effective-supervisor-identity/evidence/namespace-spike.mjs
+bun openspec/changes/solver-supervisor-identity-broker/evidence/namespace-spike.mjs
 ```
 
 Exit 0; [exact output](evidence/namespace.log):
@@ -125,4 +125,12 @@ The private observer is now explicitly invocation-lifetime: installer completion
 
 The baseline/policy race contract now ends at the final confirmation observation. An update observed through confirmation refuses stale admission; an update after confirmation while the authenticated supervisor remains alive does not instantly revoke that confirmed connection, which can start within the existing deadline/state. Later observations must use current authority and refuse a now-unapproved tuple. The design/spec/TDD tasks distinguish these two timings and preserve supervisor death/reconnect refusal; no serialized online revocation mechanism or stronger future-availability promise is added.
 
-This is documentation only. No protocol, production guard, service, root provisioning, Docker/k3s test or h2 operation was performed. Generated-unit/broker/container/provisioning acceptance and parent Task 10.2 remain unchecked. Fresh OpenSpec all exited 0 with 274 items, 274 passed, 0 failed and every valid=true ([current output](evidence/openspec-all.json)). Intent is 338 words. All packet-local Markdown targets exist. Explicit changed-file Prettier and git diff --check pass; normal hooks remain enabled.
+This is documentation only. No protocol, production guard, service, root provisioning, Docker/k3s test or h2 operation was performed. Generated-unit/broker/container/provisioning acceptance and parent Task 10.2 remain unchecked. Fresh OpenSpec all exited 0 with 274 items, 274 passed, 0 failed and every valid=true ([recorded output](evidence/openspec-all.json)). Intent is 338 words. All packet-local Markdown targets exist. Explicit changed-file Prettier and git diff --check pass; normal hooks remain enabled.
+
+## Delivery-scope reconciliation after Astra approval of 899db844
+
+Astra approved the bounded design and decided that the broker is a separate proposed followup, not the cross-project-dependencies critical path. This change moves the complete intent/design/tasks/verify/evidence packet and its identity requirements from the parent into `solver-supervisor-identity-broker`, preserving history and unchecked production/root/unit/Docker/k3s gates. Prior source SHAs and command outputs remain historical evidence; source command paths above are updated for reproduction after the move, while raw prior logs preserve their original paths. Observer lifetime, final-confirmation freshness boundary and no instant online revocation remain unchanged. No feasibility runtime was rerun for this docs reconciliation.
+
+The parent retains its supervisor installation/shared-edge admission requirements. It instead names actual solver stop/drain/request closure, effective restart/installer/launch fencing, continuous complete participant exclusion through pre-exposure recheck, and independently pinned compatible restoration. New ordered parent S1–S4 production acceptance tasks remain unchecked. ADR 0057 monotone activation and attended recovery remain binding; ADR 0058 is proposed only for this followup, and new ADR 0059 records the delivery-scope decision without weakening exclusion. No production controller, fence, provisioning or restoration is claimed implemented.
+
+After fresh origin/main fetch, ADR 0059 was absent in origin/main, feature branch and isolated HEAD. Proposed followup slug was created successfully by OpenSpec, and its new capability is `solver-supervisor-identity`. Fresh `openspec validate --all --json` exited 0: 275 items, 275 passed, 0 failed and all valid=true ([scope reconciliation output](evidence/reconciliation-openspec-all.json)). Followup intent is 349 words. Followup and ADR local Markdown targets and the relocated namespace fixture import resolve. Explicit changed-file formatting, scoped fixture lint and packet diff checks pass; normal hooks remain enabled. Production test/lint/typecheck/build, actual stop/drain/fences/restoration, full host gate, provisioning and rollout remain unverified. No production edits, h2 operations, push or PR occurred.
