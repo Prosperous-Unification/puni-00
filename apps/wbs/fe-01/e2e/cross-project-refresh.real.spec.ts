@@ -441,3 +441,129 @@ for (const phone of [false, true]) {
     }
   });
 }
+
+test('successor-only dated trees install the upstream estimate revision', async ({
+  browser,
+  request,
+}, testInfo) => {
+  const identities = await request.get('http://localhost:7500/__fixture/identities');
+  expect(identities.status()).toBe(200);
+  const fixture = (await identities.json()) as {
+    projects: Record<string, Identity | undefined>;
+    token: string;
+  };
+  const upstream = fixture.projects['DatedA'];
+  if (upstream === undefined) throw new Error('missing dated upstream');
+  const relationships: unknown = await (
+    await request.get('http://localhost:7500/__fixture/relationships')
+  ).json();
+  const contexts: BrowserContext[] = [];
+  const clients = [];
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    for (const name of ['DatedB', 'DatedC']) {
+      const project = fixture.projects[name];
+      if (project === undefined) throw new Error('missing dated successor');
+      const context = await browser.newContext();
+      contexts.push(context);
+      await authenticate(context, fixture.token);
+      const page = await context.newPage();
+      const observed = observe(page);
+      await page.goto(`http://localhost:7600/e2e/cross-project-refresh.html?project=${project.id}`);
+      await expect(page.getByLabel('Name of 010')).toHaveValue(`${name} row`);
+      await expect
+        .poll(() =>
+          observed.frames.some(
+            (frame) =>
+              frame.type === 'resume_ack' &&
+              typeof frame.replayed?.[`project:${project.id}`] === 'number',
+          ),
+        )
+        .toBe(true);
+      clients.push({ page, project, ...observed });
+    }
+    const expected = [
+      ['8 Sep', '8 Sep', '10 Sep', '10 Sep'],
+      ['9 Sep', '9 Sep', '11 Sep', '11 Sep'],
+    ];
+    for (const [index, client] of clients.entries()) {
+      await expect(client.page.locator('[data-start]').first()).toHaveText(expected[index][0]);
+      await expect(client.page.locator('[data-finish]').first()).toHaveText(expected[index][1]);
+    }
+    let captured = false;
+    const first = clients[0];
+    await first.page.route(`**/api/projects/${first.project.id}/work-items`, async (route) => {
+      const response = await route.fetch();
+      captured = true;
+      await released;
+      await route.fulfill({ response });
+    });
+    const initial = clients.map((client) => {
+      const baseline = client.reads.at(-1);
+      if (baseline === undefined) throw new Error('missing dated baseline read');
+      return { reads: client.reads.length, seq: baseline.seq };
+    });
+    const committed = await request.post(
+      `http://localhost:7500/api/projects/${upstream.id}/commands`,
+      {
+        headers: {
+          Authorization: `Bearer ${fixture.token}`,
+          'X-WBS-Expected-Organization': 'org-a',
+        },
+        data: {
+          commands: [
+            {
+              kind: 'setEstimate',
+              workItemId: upstream.row,
+              stepId: upstream.step,
+              days: { optimistic: 3, realistic: 3, pessimistic: 3 },
+            },
+          ],
+        },
+      },
+    );
+    expect(committed.status(), await committed.text()).toBe(200);
+    // Proof: constant dependency scheduling hash and suppressed live owner.invalidate
+    // independently left captured false in this browser case (closure receipt).
+    await expect.poll(() => captured).toBe(true);
+    await expect(first.page.locator('[data-start]').first()).toHaveText('8 Sep');
+    await expect(first.page.locator('[data-finish]').first()).toHaveText('8 Sep');
+    await expect(first.page.locator('body')).toHaveAttribute(
+      'data-installed-seq',
+      String(initial[0]?.seq),
+    );
+    const second = clients[1];
+    // Proof: retaining the initial delivered tree showed 9 Sep instead of 11 Sep.
+    await expect(second.page.locator('[data-start]').first()).toHaveText('11 Sep');
+    await expect(second.page.locator('[data-finish]').first()).toHaveText('11 Sep');
+    release();
+    for (const [index, client] of clients.entries()) {
+      await expect(client.page.locator('[data-start]').first()).toHaveText(expected[index][2]);
+      await expect(client.page.locator('[data-finish]').first()).toHaveText(expected[index][3]);
+      await expect.poll(() => client.reads.length).toBe(initial[index].reads + 1);
+      expect(client.reads.at(-1)?.seq).toBeGreaterThan(initial[index].seq);
+      await expect(client.page.locator('body')).toHaveAttribute(
+        'data-installed-seq',
+        String(client.reads.at(-1)?.seq),
+      );
+      expect(
+        client.frames.filter((frame) => frame.message?.type === 'elsewhere_changed'),
+      ).toHaveLength(1);
+    }
+    expect(
+      await (await request.get('http://localhost:7500/__fixture/relationships')).json(),
+    ).toEqual(relationships);
+    await testInfo.attach('dated-successor-wire', {
+      body: JSON.stringify(
+        clients.map(({ project, frames, reads }) => ({ project, frames, reads })),
+      ),
+      contentType: 'application/json',
+    });
+  } finally {
+    release();
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});

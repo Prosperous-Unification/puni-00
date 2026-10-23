@@ -742,3 +742,10 @@ Ordinary application source retains watcher delivery. Parent tasks stay open.
 ### Task 9.2 bounded local successor scope browser acceptance (2026-10-23)
 
 - [x] Separate desktop node-to-whole and phone whole-to-node fixtures prove accepted HTTP save, authoritative tree installation, reload/reopen and exact SQLite persistence. Independent desktop/phone persisted-successor serializer faults fail the reopened selector. Independent Astra review approved this bounded packet. See [bounded browser evidence](verify-9-2-successor-scope-browser.md). Parent 9.2 and production authoring activation remain open.
+
+Task 5.2 bounded successor schedule-date browser acceptance (2026-10-23):
+[closure receipt](verify-task-5.2-closure.md) maps the mounted estimate writer,
+borrowed capture, semantic fingerprint, committed delivery and displayed date
+projection. A separate dated A→B→C fixture opens only B/C and checks literal
+old/new start/end dates, held covering GET, installed sequences and stable
+relationship UUIDs. Parent 5.2 remains unchecked pending review and host gate.

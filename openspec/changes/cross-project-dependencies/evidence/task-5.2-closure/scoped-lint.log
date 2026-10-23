@@ -1,0 +1,2 @@
+bunx eslint apps/wbs/be-01/src/testing/cross-project-browser-server.ts apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts
+Exit 0; no diagnostics.

@@ -97,6 +97,9 @@ for (const name of [
   'Phone',
   'SuccessorDesktop',
   'SuccessorPhone',
+  'DatedA',
+  'DatedB',
+  'DatedC',
 ]) {
   const answer = await harness.call(name === 'Foreign' ? 'grace' : 'ada', 'POST', '/api/projects', {
     name,
@@ -117,6 +120,8 @@ for (const name of [
   );
 }
 for (const [left, right] of [
+  ['DatedA', 'DatedB'],
+  ['DatedB', 'DatedC'],
   ['A', 'B'],
   ['B', 'C'],
   ['A', 'Desktop'],
@@ -130,7 +135,11 @@ for (const [left, right] of [
   harness.sqlite.run(
     `INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, successor_step_id, type) VALUES (?, 'org-a', ?, ?, ?, 'node', ?, ?, 'node', ?, 'FS')`,
     [
-      `${left}-${right}`,
+      left === 'DatedA'
+        ? 'a4000000-0000-4000-8000-000000000001'
+        : left === 'DatedB'
+          ? 'a4000000-0000-4000-8000-000000000002'
+          : `${left}-${right}`,
       predecessor.id,
       successor.id,
       predecessor.row,
@@ -146,6 +155,15 @@ harness.sqlite.run(
 harness.sqlite.run(
   "UPDATE external_dependency SET successor_scope='whole', successor_step_id=NULL WHERE id='A-SuccessorPhone'",
 );
+for (const name of ['DatedA', 'DatedB', 'DatedC']) {
+  const project = projects[name];
+  if (project === undefined) throw new Error('missing dated chain member');
+  harness.sqlite.run('UPDATE project SET start_date = ? WHERE id = ?', ['2026-09-07', project.id]);
+  harness.sqlite.run(
+    'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+    [project.row, project.step],
+  );
+}
 ready = true;
 async function stop() {
   gateway.kill();

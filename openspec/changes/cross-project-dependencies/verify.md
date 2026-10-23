@@ -6989,3 +6989,11 @@ whitespace checks passed.
 Independent Astra review approved the corrected bounded evidence packet.
 The parent checkbox remains open for the integrated exact-SHA host gate.
 Activation stays with Tasks 10.x.
+
+## Task 5.2 bounded successor schedule-date browser acceptance (2026-10-23)
+
+The [closure receipt](verify-task-5.2-closure.md) records the independent dated
+A→B→C fixture, mounted estimate command, literal visible B/C dates, held covering
+GET, installed sequences and watched independent faults. It maps the writer to
+capture, fingerprint and receipt without claiming all writer breadth. Parent 5.2
+and the exact-SHA host gate remain open.
