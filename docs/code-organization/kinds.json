@@ -50,6 +50,12 @@
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
     },
     {
+      "path": "apps/wbs/be-01/src/service/saved-plan-connected.fixture.ts",
+      "kind": "support",
+      "disposition": "test fixture support for connected saved-plan persistence proofs; keep beside its saved-plan service tests",
+      "rationale": "saved-plan-connected.test.ts and saved-plan-connected-writer.test.ts capture detached connected observations from migrated SQLite fixtures, including mixed optimization selections"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/auth.service.ts",
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based AuthService construction; delete when callers install the authentication module",
@@ -104,6 +110,12 @@
       "rationale": "be-01's dormant domain-proof worker calls checkDomainProofs to run one bounded TXT lookup per due retained claim through the DomainProofChecks port; it holds no store or timer of its own"
     },
     {
+      "path": "libs/wbs/application/core/src/service/incident-node-transition.ts",
+      "kind": "support",
+      "disposition": "transaction-bound incident transition support owned by dependency-context.ts",
+      "rationale": "dependency-context.ts binds createIncidentNodeTransition to admitted owner, actor and lifetime; compensating.ts shares canonical incident identity and node mapping for replay receipts"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/machine-key.ts",
       "kind": "support",
       "disposition": "private member of libs/wbs/application/core/src/module/authentication/authentication.feature.ts and the machine-credential routes of slice 2",
@@ -144,6 +156,12 @@
       "kind": "support",
       "disposition": "private member of libs/wbs/application/core/src/service/scim.feature.ts and the provisioning-token routes",
       "rationale": "Mints a provisioning token's 256-bit secret and its SHA-256 digest; no store, no clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/replay-capabilities.ts",
+      "kind": "support",
+      "disposition": "dependency-free replay protocol declarations shared by compensating.ts and backend image probes",
+      "rationale": "compensating.ts uses the step-blockage command kinds and be-01/step-blockage-replay-kinds-cli.ts exposes the supported persisted replay semantics without loading application dependencies"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
@@ -276,6 +294,18 @@
       "kind": "support",
       "disposition": "shared schedule slicing leaf used by graph guards and schedule preparation",
       "rationale": "slicesOf converts stored row and estimate facts into canonical domain slices; this leaf prevents the work-item resource and connected preparation from importing each other"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-endpoints.ts",
+      "kind": "support",
+      "disposition": "shared detached endpoint projection support for connected trees and saved-plan history",
+      "rationale": "connected-tree.ts and module/saved-plans/connected-history.ts validate captured member metadata and project qualified endpoint labels without opening stores or scheduling"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-optimization-view.ts",
+      "kind": "support",
+      "disposition": "private connected optimization presentation support of connected-tree.ts",
+      "rationale": "connected-tree.ts projects retained stage comparisons and foreign holder labels through projectConnectedOptimization; ports/plan-tree.ts shares its detached scope type without owning a store or solver"
     },
     {
       "path": "libs/wbs/application/core/src/service/connected-optimization.ts",
