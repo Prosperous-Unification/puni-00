@@ -14,7 +14,7 @@ import type {
 } from '@wbs/domain';
 
 import type { ConnectedOptimizationScope } from '../service/connected-optimization-view';
-import type { ConnectedTreeDependency } from '../service/connected-tree';
+import type { ConnectedTreeDependency, RemoteBlockageLabel } from '../service/connected-tree';
 import type { NumberedWorkItem } from '../service/numbered-work-item';
 import type { TeamCapacity } from './capacity-store';
 // Documentation boundary: this type-only name resolves a JSDoc member and emits no JavaScript.
@@ -103,6 +103,8 @@ export interface PlanTree {
   workItems: NumberedWorkItem[];
   /** Authored incident connected links with captured endpoint navigation evidence. */
   connectedDependencies?: ConnectedTreeDependency[];
+  /** Qualified names for only the foreign roots referenced by this tree's blockage causes. */
+  remoteBlockageLabels?: RemoteBlockageLabel[];
   seq: number;
   scheduleError: ScheduleError;
   /**

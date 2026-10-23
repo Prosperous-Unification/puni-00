@@ -8,6 +8,8 @@ import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-app
 import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Runner-free real producer fixture for the HTTP and mounted view contract.
+import { createConnectedBlockageTree } from '../../../../../../libs/wbs/application/core/src/testing/connected-blockage.fixture';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- Only this test imports the runner-free producer; production frontend modules never import scheduling code.
 import {
   createConnectedOptimizationTree,
@@ -665,5 +667,125 @@ it.each([1024, 390])(
     expect(screen.queryByDisplayValue('b')).toBeNull();
     expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
     expect(document.querySelector('[data-toast-text]')).toBeNull();
+  },
+);
+
+it.each(['hold', 'step'] as const)(
+  'mounts transitive remote %s blockage labels through real HTTP decoding in both layouts',
+  async (kind) => {
+    const tree = createConnectedBlockageTree(kind, true);
+    serveTree(tree);
+    const http = httpProjectApi('token');
+    const read = await http.tree('C');
+    expect(read.remoteBlockageLabels).toEqual([
+      {
+        root:
+          kind === 'hold'
+            ? { kind: 'work-item', workItemId: 'a' }
+            : { kind: 'step', nodeId: 'sn1.a.build' },
+        label: kind === 'hold' ? 'A.010 · Remote root' : 'A.010 · Remote root · Build',
+      },
+    ]);
+    const api = fakeProjectApi();
+    api.tree = (projectId) => http.tree(projectId);
+    render(<WbsTableOverClient projectId="C" projectServices={projectServicesOf(api)} />);
+    expect(await screen.findByDisplayValue('c')).toBeEnabled();
+    expect(document.querySelector('[data-node-reading]')).toHaveAttribute(
+      'data-node-reading',
+      'blocked_by_proxy',
+    );
+    expect(document.body).toHaveTextContent(
+      'Dates are unavailable because a dependency project has no start date: B · B.',
+    );
+    fireEvent.mouseEnter(document.querySelector('[data-final="build"]')!);
+    expect(
+      await screen.findByText(
+        kind === 'hold' ? 'Cause: A.010 · Remote root' : 'Cause: A.010 · Remote root · Build',
+      ),
+    ).toBeVisible();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    fireEvent.resize(window);
+    await waitFor(() =>
+      expect(document.querySelector('[data-card-reading]')).toHaveAttribute(
+        'data-card-reading',
+        'blocked_by_proxy',
+      ),
+    );
+    fireEvent.click(screen.getByText('Step blockage', { selector: 'summary' }));
+    expect(
+      screen.getByText(
+        kind === 'hold' ? 'Cause: A.010 · Remote root' : 'Cause: A.010 · Remote root · Build',
+      ),
+    ).toBeVisible();
+  },
+);
+
+it.each([1024, 390])(
+  'refreshes the captured remote root label and clears the explanation at width %s',
+  async (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    let tree = createConnectedBlockageTree('step');
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        new Response(JSON.stringify(tree), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+    const http = httpProjectApi('token');
+    const api = fakeProjectApi();
+    api.tree = (projectId) => http.tree(projectId);
+    let changed: SubscriptionHandlers['onChange'] = () => {
+      throw new Error('missing subscription');
+    };
+    render(
+      <WbsTableOverClient
+        projectId="C"
+        projectServices={projectServicesOf(api)}
+        subscribe={(_projectId, handlers) => {
+          changed = handlers.onChange;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        }}
+      />,
+    );
+    await screen.findByDisplayValue('c');
+    const reveal = () => {
+      if (width === 390)
+        fireEvent.click(screen.getByText('Step blockage', { selector: 'summary' }));
+      else fireEvent.mouseEnter(document.querySelector('[data-final="build"]')!);
+    };
+    reveal();
+    expect(await screen.findByText('Cause: A.010 · Remote root · Build')).toBeVisible();
+    const identity = tree.remoteBlockageLabels?.[0]?.root;
+    tree = createConnectedBlockageTree('step', false, 'Renamed root');
+    expect(tree.remoteBlockageLabels?.[0]?.root).toEqual(identity);
+    act(() => {
+      changed('project_settings_changed');
+    });
+    expect(await screen.findByText('Cause: A.010 · Renamed root · Build')).toBeVisible();
+    expect(screen.queryByText('Cause: A.010 · Remote root · Build')).toBeNull();
+    tree = createConnectedBlockageTree('clear');
+    act(() => {
+      changed('project_settings_changed');
+    });
+    await waitFor(() =>
+      expect(
+        document.querySelector(width === 390 ? '[data-card-reading]' : '[data-node-reading]'),
+      ).toHaveAttribute(width === 390 ? 'data-card-reading' : 'data-node-reading', 'unknown'),
+    );
+    expect(screen.queryByText('Cause: A.010 · Renamed root · Build')).toBeNull();
+  },
+);
+it.each(['kind', 'identity', 'label'] as const)(
+  'refuses malformed remote blockage %s at the generated HTTP decoder',
+  async (fault) => {
+    const tree = createConnectedBlockageTree('step');
+    const entry = tree.remoteBlockageLabels![0];
+    if (fault === 'kind') Reflect.set(entry.root, 'kind', 'future');
+    if (fault === 'identity') Reflect.deleteProperty(entry.root, 'nodeId');
+    if (fault === 'label') Reflect.set(entry, 'label', null);
+    serveTree(tree);
+    await expect(httpProjectApi('token').tree('C')).rejects.toThrow('invalid_response');
   },
 );

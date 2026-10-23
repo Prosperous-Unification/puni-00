@@ -283,6 +283,8 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
   const stepNodes = tree === null ? undefined : tree.value.stepNodes;
+  // Proof: delivering undefined failed unavailable hold/step and both rename/clear mounted layouts (2026-10-23).
+  const remoteBlockageLabels = tree === null ? undefined : tree.value.remoteBlockageLabels;
   const typedDependencies = useMemo(
     () => (tree === null ? [] : dependencyViewsOf(tree.value, projectId)),
     [tree, projectId],
@@ -445,6 +447,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     workItems,
     stepNodes,
     typedDependencies,
+    remoteBlockageLabels,
     treeReadProject,
     chartRead,
     steps,

@@ -9432,8 +9432,14 @@ export function presentConnectedTree(projection: ConnectedTreeProjection): PlanT
   );
   // Proof: removing this final-availability guard made the mounted shared
   // calendar-range case retain abandoned foreign holder labels (2026-10-22).
+  // Proof: omitting the remote root catalog from both return arms failed the unavailable
+  // hold/step and scheduled rename/clear mounted HTTP tests (2026-10-23).
   if (tree.scheduleError !== null)
-    return { ...tree, connectedDependencies: [...projection.dependencies] };
+    return {
+      ...tree,
+      connectedDependencies: [...projection.dependencies],
+      remoteBlockageLabels: [...projection.remoteBlockageLabels],
+    };
   // Proof: disabling this transfer reproduced the mounted visible-row Gantt
   // dangling-predecessor failure; removing only the catalog below reproduced
   // Gantt's missing-holder-label failure (2026-10-22).
@@ -9455,6 +9461,7 @@ export function presentConnectedTree(projection: ConnectedTreeProjection): PlanT
     ...(projection.optimizationView === null ? {} : { optimization: projection.optimizationView }),
     slices,
     connectedDependencies: [...projection.dependencies],
+    remoteBlockageLabels: [...projection.remoteBlockageLabels],
     ...(projection.foreignPersonHolders.size === 0
       ? {}
       : {

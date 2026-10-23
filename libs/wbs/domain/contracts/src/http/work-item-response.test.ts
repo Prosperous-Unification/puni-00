@@ -28,6 +28,12 @@ test('tree boundary refuses missing core producer fields while allowing additive
   expect(
     (await validateSchema(schema, { ...tree, future: { extra: true } })).issues,
   ).toBeUndefined();
+  for (const remoteBlockageLabels of [
+    [{ root: { kind: 'future', nodeId: 'sn1.a.build' }, label: 'A.010' }],
+    [{ root: { kind: 'step' }, label: 'A.010' }],
+    [{ root: { kind: 'work-item', workItemId: 'a' }, label: null }],
+  ])
+    expect((await validateSchema(schema, { ...tree, remoteBlockageLabels })).issues).toBeDefined();
   const missingCalendar = {
     kind: 'dependency_calendar_missing',
     projects: [{ projectId: 'p', abbreviation: 'P', name: 'Plan' }],

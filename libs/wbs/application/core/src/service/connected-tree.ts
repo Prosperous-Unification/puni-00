@@ -1,8 +1,11 @@
 import {
+  type BlockageRoot,
   deriveNumbers,
   type ElsewhereHolder,
+  formatStepNodeId,
   indexTree,
   type RelationshipType,
+  type ScopedDependencyEndpoint,
   sliceKey,
 } from '@wbs/domain';
 
@@ -36,6 +39,12 @@ export interface ConnectedTreeDependency {
   readonly successor: ConnectedTreeEndpoint;
 }
 
+/** Captured qualified name for one foreign root referenced by the target's readiness. */
+export interface RemoteBlockageLabel {
+  readonly root: BlockageRoot;
+  readonly label: string;
+}
+
 /**
  * Resolved semantic input to the ordinary row presenter. Accounting and row folds
  * use reads plus live metadata; readiness and placement must not be re-derived
@@ -52,6 +61,7 @@ export interface ConnectedTreeProjection {
   /** Detached public-view prerequisite; not attached to the HTTP tree yet. */
   readonly optimizationView: ConnectedOptimizationView | null;
   readonly dependencies: readonly ConnectedTreeDependency[];
+  readonly remoteBlockageLabels: readonly RemoteBlockageLabel[];
   /** Checked display holders by target slice; numerical placement remains unchanged. */
   readonly foreignPersonHolders: ReadonlyMap<string, ElsewhereHolder>;
   readonly elsewhereHolders: readonly ElsewhereHolderLabel[];
@@ -160,6 +170,12 @@ export function projectConnectedTree(
   const holders = projectPersonHolders(captured, projectId, numbersByProject);
   return {
     kind: 'connected',
+    remoteBlockageLabels: projectBlockageLabels(
+      captured,
+      projectId,
+      targetReadiness,
+      projectEndpoint,
+    ),
     ...holders,
     reads: member.reads,
     metadata,
@@ -287,4 +303,57 @@ function projectPersonHolders(
     });
   }
   return { foreignPersonHolders, elsewhereHolders: [...labels.values()] };
+}
+
+/** Resolve only referenced foreign roots from complete authorized metadata, including transitive roots. */
+function projectBlockageLabels(
+  captured: ConnectedRead,
+  projectId: string,
+  readiness: ConnectedReadiness,
+  projectEndpoint: (endpoint: ScopedDependencyEndpoint) => ConnectedTreeEndpoint,
+): RemoteBlockageLabel[] {
+  const endpoints = new Map<string, ScopedDependencyEndpoint>();
+  // Proof: incident-only member selection failed both transitive hold/step root tests (2026-10-23).
+  for (const member of captured.projection.capture.projects) {
+    const metadata = requireEvidence(
+      captured.metadataByProject.get(member.projectId),
+      `metadata ${member.projectId}`,
+    );
+    for (const row of metadata.workItems) {
+      endpoints.set(`work-item:${row.id}`, {
+        projectId: member.projectId,
+        workItemId: row.id,
+        scope: 'whole',
+      });
+      for (const step of metadata.steps)
+        endpoints.set(`step:${formatStepNodeId({ workItemId: row.id, stepId: step.id })}`, {
+          projectId: member.projectId,
+          workItemId: row.id,
+          stepId: step.id,
+          scope: 'node',
+        });
+    }
+  }
+  const labels = new Map<string, RemoteBlockageLabel>();
+  for (const causes of readiness.nodes.causes.values()) {
+    for (const roots of Object.values(causes)) {
+      for (const root of roots) {
+        const identity = root.kind === 'step' ? root.nodeId : root.workItemId;
+        const key = `${root.kind}:${identity}`;
+        // Proof: bypassing this lookup guard failed the absent-root contextual refusal test (2026-10-23).
+        const endpoint = requireEvidence(endpoints.get(key), `blockage root ${identity}`);
+        if (endpoint.projectId === projectId || labels.has(key)) continue;
+        const evidence = projectEndpoint(endpoint);
+        const reference =
+          evidence.qualifiedReference ??
+          `${evidence.projectAbbreviation}.${evidence.workItemNumber}`;
+        labels.set(key, {
+          // Proof: changing the step root identity failed mounted HTTP labels and both rename/clear layouts (2026-10-23).
+          root: { ...root },
+          label: `${reference} · ${evidence.name}${evidence.step === null ? '' : ` · ${evidence.step.name}`}`,
+        });
+      }
+    }
+  }
+  return [...labels.values()];
 }

@@ -3,6 +3,7 @@ import { scheduleResolved, sliceKey } from '@wbs/domain';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { LivePlanRead } from '../ports/shared-people-values';
+import { createConnectedBlockageRead } from '../testing/connected-blockage.fixture';
 import { connectedCapture, connectedReads } from '../testing/connected-plan-fixture';
 import { deriveConnectedPlan } from './connected-plan';
 import type { ConnectedPlanCapture } from './connected-plan-values';
@@ -193,6 +194,53 @@ describe('detached connected tree projection', () => {
     });
     expect(projected.readiness.predecessorIdsByLeaf.get('b')).toEqual(['a']);
   });
+
+  it.each(['hold', 'step'] as const)(
+    'labels referenced transitive remote %s roots beyond incident links',
+    (kind) => {
+      const a = connectedReads('A');
+      const base = connectedCapture({
+        ...a,
+        steps: kind === 'hold' ? [] : a.steps,
+        estimates: kind === 'hold' ? [] : a.estimates,
+        workItems: a.workItems.map((row) => ({
+          ...row,
+          name: 'Remote root',
+          hold: kind === 'hold' ? 'on_hold' : null,
+        })),
+        stepBlockages: kind === 'step' ? [{ workItemId: 'a', stepId: 'build', blockedAt: 1 }] : [],
+      });
+      const captured = live({
+        ...base,
+        projects: [
+          ...base.projects,
+          { projectId: 'C', abbreviation: 'C', rank: 2, reads: connectedReads('C') },
+        ],
+        relationships: [
+          ...base.relationships,
+          {
+            id: 'bc',
+            projectId: 'C',
+            type: 'FS',
+            predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
+            successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
+          },
+        ],
+      });
+      const target = projectConnectedTree(captured, 'C');
+      expect(target.dependencies.map((edge) => edge.id)).toEqual(['bc']);
+      expect(target.remoteBlockageLabels).toEqual([
+        {
+          root:
+            kind === 'hold'
+              ? { kind: 'work-item', workItemId: 'a' }
+              : { kind: 'step', nodeId: 'sn1.a.build' },
+          label: kind === 'hold' ? 'A.010 · Remote root' : 'A.010 · Remote root · Build',
+        },
+      ]);
+      expect(projectConnectedTree(captured, 'A').remoteBlockageLabels).toEqual([]);
+    },
+  );
 
   it('keeps remote holds and exact remote blockage causes while held rows have no placement', () => {
     const a = connectedReads('A');
@@ -838,4 +886,32 @@ it('preserves valid empty holder and organization-person names', () => {
     { projectId: 'A', workItemId: 'a', projectName: '', number: '010', name: '' },
   ]);
   expect(tree.reads.people[0].name).toBe('');
+});
+
+it.each(['hold', 'step'] as const)(
+  'projects direct and unavailable remote %s labels and clears them after the fact clears',
+  (kind) => {
+    const captured = createConnectedBlockageRead(kind, true);
+    expect(projectConnectedTree(captured, 'B').remoteBlockageLabels).toEqual(
+      projectConnectedTree(captured, 'C').remoteBlockageLabels,
+    );
+    expect(projectConnectedTree(captured, 'C').placement.kind).not.toBe('scheduled');
+    expect(
+      projectConnectedTree(createConnectedBlockageRead('clear'), 'C').remoteBlockageLabels,
+    ).toEqual([]);
+  },
+);
+it('refuses a blockage root absent from captured metadata', () => {
+  const captured = createConnectedBlockageRead('step');
+  captured.readiness.nodes.causes.set('c', { build: [{ kind: 'step', nodeId: 'missing' }] });
+  expect(() => projectConnectedTree(captured, 'C')).toThrow(
+    'missing connected tree blockage root missing',
+  );
+});
+it('refuses malformed transitive root metadata outside incident links', () => {
+  const captured = createConnectedBlockageRead('step');
+  Object.defineProperty(captured.metadataByProject.get('A')!.steps[0], 'name', { value: null });
+  expect(() => projectConnectedTree(captured, 'C')).toThrow(
+    'missing connected tree endpoint step name build',
+  );
 });

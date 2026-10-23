@@ -5186,3 +5186,74 @@ assertions across 40 files
 (`/tmp/puni-integrated-preflight-tool-deploy-test.log`). This includes the
 live marked-Lease regression and mounted fresh/resumed preflight refusal.
 The exact integrated SHA still requires the canonical h2puni gate and fresh CI.
+
+## Task 9.2 bounded remote blockage explanations — 2026-10-23
+
+Review packet based on `2ddea72ee`, isolated branch `agent/remote-blockage-labels`.
+The detached projection catalogs exactly referenced foreign roots from the full
+captured component metadata. `presentConnectedTree` attaches stable identities
+and qualified labels to scheduled and unavailable trees; the additive known HTTP
+shape validates them, and the delivered read supplies the shared desktop/phone
+step-card label index. Local labels, unknown-root refusal, calendar warnings,
+readiness and placement remain governed by their existing paths. Parent 9.2 is
+still open; this packet adds no authoring, activation or optimizer behavior.
+
+Observed checks:
+
+- `bun install --frozen-lockfile`: passed, 1493 packages installed.
+- Initial producer tests failed because the foreign-root catalog was absent;
+  the initial mounted HTTP tests failed because the presenter omitted it.
+  Initial malformed-boundary cases failed because unknown additive metadata was
+  accepted before its known shape was declared.
+- `bun test libs/wbs/application/core/src/service/connected-tree.test.ts libs/wbs/domain/contracts/src/http/work-item-response.test.ts`:
+  61 passed, 0 failed, 165 assertions.
+- The same command expanded with `connected-endpoints.test.ts`,
+  `connected-readiness.test.ts`, `connected-optimization-view.test.ts`,
+  `module/work-item/work-item.resource.test.ts`, and `http/work-item.routes.test.ts`:
+  230 passed, 0 failed, 848 assertions.
+- From `apps/wbs/fe-01`, `TZ=UTC bunx vitest run --config vitest.view.config.ts src/components/wbs/connected-optimization-integration.test.tsx src/components/wbs/step-blockage.test.tsx --maxWorkers=1 --no-file-parallelism`:
+  45 passed across two files. Existing Vite native-config deprecation warnings
+  remain visible.
+- `bunx nx run-many -t typecheck -p wbs-core,wbs-fe-01,wbs-contracts`:
+  passed, including both configured module checks.
+- `bunx nx run wbs-fe-01:build`: passed with its five dependency tasks;
+  existing chunk-size warnings remain visible.
+- `bunx openspec validate cross-project-dependencies --json`: valid.
+  `--strict --json` exits 1 on 15 existing long-requirement warnings. A fresh
+  validation with only the delta spec restored to `2ddea72ee` produced exactly
+  the same 15 issues; the new requirement adds no warning.
+
+Watched production faults, each restored immediately afterward:
+
+| Injected fault                                    | Observed failure                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Omit the catalog in both presenter arms           | Unavailable hold/step and scheduled desktop/phone rename/clear mounted cases fail.                                  |
+| Deliver no catalog from `usePlanReadState`        | The same four mounted cases fail on unknown roots.                                                                  |
+| Restrict metadata projection to incident projects | Both transitive A→B→C root producer cases fail; A is absent from C's incident link.                                 |
+| Remove captured endpoint null-label validation    | The malformed transitive root metadata test and existing null endpoint tests fail.                                  |
+| Bypass the required root lookup                   | The absent-root contextual refusal test fails.                                                                      |
+| Change the stable step root identity              | The step catalog identity assertion and both mounted rename/clear cases fail.                                       |
+| Remove the known HTTP catalog shape               | Generated HTTP decoder tests admit malformed kind, absent identity and null label and fail their expected refusals. |
+| Omit remote insertion into the label index        | Unavailable hold/step and both rename/clear mounted cases fail on unknown roots.                                    |
+
+Removing only `remoteBlockageLabels` from the memo dependency list survived the
+mounted rename/clear tests. Every delivered tree already rebuilds rows and the
+flat index, invalidating that memo. The dependency is retained for the actual
+closure; this is explicitly **not** claimed as an independently proved guard.
+
+Not run for this isolated review packet: full host gate, complete repository
+Nx tests and browser E2E. This record makes no live-host or activation claim.
+
+Configured lint/typecheck follow-up: the combined configured run passed all
+three project typechecks, both module checks and contracts lint, then reported
+six autofixable lint errors in new lines (import order, void arrow bodies and
+optional-parameter syntax). After correcting them, `bunx nx run wbs-core:lint
+--output-style=static` and `bunx nx run wbs-fe-01:lint --output-style=static`
+both passed. Changed-file Prettier and `git diff --check` passed.
+
+`bunx lefthook run pre-commit`: passed applicable lint, format, plaintext-secret,
+private-nesting and tool-wiki commands. Tool-wiki explicitly returned
+`status: inactive`, `certified: false`, because its external activation root is
+not provisioned; this is not certification evidence. Doc-caps and both migration
+lint hooks skipped because no matching files are staged. The normal review
+commit also runs its installed hooks; no hook bypass is used.

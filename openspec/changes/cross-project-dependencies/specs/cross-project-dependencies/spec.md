@@ -674,3 +674,26 @@ that request SHALL NOT authorize rollback, schema reversal or old-writer restart
 - **WHEN** a valid envelope records durable activation or exposure intent without
   confirmation
 - **THEN** classification requires attended recovery and grants no rollback
+
+### Requirement: Connected blockage roots remain explainable
+
+A connected tree SHALL carry captured stable identities and qualified labels for exactly its referenced foreign blockage roots, including transitive roots outside incident links. Scheduled and unavailable reads SHALL preserve those explanations and local labels. Missing or malformed referenced metadata SHALL fail the read.
+
+#### Scenario: Transitive foreign root on desktop and phone
+
+- **GIVEN** C depends on B and B depends on a held or directly blocked root in A
+- **WHEN** C's connected tree is displayed on desktop or phone, including while a dependency calendar is missing
+- **THEN** the step explanation names A's captured qualified root and preserves its stable root identity
+- **AND** the unavailable-date warning remains visible when applicable
+
+#### Scenario: Remote root rename and clear
+
+- **GIVEN** a connected step explanation names a foreign root
+- **WHEN** a refreshed read renames that root and later clears its stoppage
+- **THEN** both layouts display the renamed label under the same root identity and remove its explanation after clearing
+
+#### Scenario: Invalid remote root evidence
+
+- **GIVEN** referenced foreign root metadata is absent or malformed
+- **WHEN** the connected tree is projected or its known HTTP metadata is decoded
+- **THEN** the read fails instead of showing an unknown or fabricated root label

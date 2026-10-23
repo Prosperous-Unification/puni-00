@@ -470,3 +470,12 @@ or the remaining unavailable/Retry/transfer work. See verify.md.
 - [x] Read current authority at existing admission positions, preserving constructor validation and principal/owner/endpoint concealment ordering.
 - [x] Cover active/inactive transitions and throwing authority for add, both update directions, remove, copy and undo/redo; compare complete tables after refusal, earlier local batch writes and zero publication.
 - [ ] Complete independent review and integrated isolated host gate. Parent 10.1 stays open; production remains inactive and import-port refresh was not changed by this packet. Receipts and limits: [verify-current-authoring.md](verify-current-authoring.md).
+
+Task 9.2 bounded remote blockage explanation (2026-10-23): connected trees carry
+only referenced foreign root identities and qualified labels from the complete
+captured component metadata, including roots beyond incident links. The strict
+additive HTTP shape, delivered read and shared desktop/phone card index retain
+those names on scheduled and unavailable reads. Producer and mounted HTTP tests
+cover direct/step/stepless-hold roots, transitive roots, missing calendars, remote
+renames, clearing and malformed metadata. Parent 9.2 remains unchecked; authoring,
+activation and optimizer behavior are outside this packet. See verify.md.

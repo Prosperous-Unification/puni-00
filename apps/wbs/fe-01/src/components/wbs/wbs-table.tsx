@@ -692,6 +692,7 @@ export function WbsTable({
     activeProject,
     workItems,
     treeReadProject,
+    remoteBlockageLabels,
     stepNodes,
     typedDependencies,
     chartRead,
@@ -1072,8 +1073,8 @@ export function WbsTable({
   // Proof: indexing only top-level workItems made `nested blocked leaf and its downstream node retain named causes in both layouts` reach the router Error Boundary (2026-10-14).
   // Proof: per-node indexing made `builds the shared blockage index once per input change across fifty phone rows and five steps` observe 251 builds instead of one (2026-10-14).
   const causeLabels = useMemo(
-    () => blockageLabelsOf(flat, steps, stepNodes),
-    [flat, steps, stepNodes],
+    () => blockageLabelsOf(flat, steps, stepNodes, remoteBlockageLabels),
+    [flat, steps, stepNodes, remoteBlockageLabels],
   );
 
   const attemptActions = useAttemptActions({

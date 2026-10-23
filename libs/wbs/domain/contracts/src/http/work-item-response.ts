@@ -298,6 +298,13 @@ export const workItemTree = type({
     successor: typedEndpoint,
     type: 'string',
   }).array(),
+  // Proof: omitting this known shape admitted malformed kind, absent identity and null label at the generated HTTP decoder (2026-10-23).
+  'remoteBlockageLabels?': type({
+    root: type({ kind: "'step'", nodeId: 'string' }).or(
+      type({ kind: "'work-item'", workItemId: 'string' }),
+    ),
+    label: 'string',
+  }).array(),
   seq: 'number',
   scheduleError,
   waitingForPerson: 'number',

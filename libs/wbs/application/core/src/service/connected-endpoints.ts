@@ -29,6 +29,7 @@ function requireEndpointEvidence<T>(value: T | undefined, name: string): T {
 
 function requireEndpointLabel(value: string | null | undefined, name: string): string {
   // Proof: removing null refusal after extraction made all three tree `refuses null endpoint ... evidence` tests fail (2026-10-22).
+  // Proof: removing null refusal also admitted malformed transitive root step names outside incident links (2026-10-23).
   if (value === null) throw new Error(`missing connected tree ${name}`);
   return requireEndpointEvidence(value, name);
 }
