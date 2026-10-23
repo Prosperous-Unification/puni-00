@@ -246,7 +246,7 @@ for (const receipt of ['none', 'wrong', 'duplicate'])
         .split('\n')
         .findIndex((source) => source.includes(fault.assertion)) + 1;
     process.env['PROOF_TEST_LOG'] =
-      `AssertionError: intended assertion\n at /app/${path}:${String(line)}:12\nregistry removal denied`;
+      `AssertionError: ${fault.diagnosis ?? 'intended assertion'}\n at /app/${path}:${String(line)}:12\nregistry removal denied`;
     process.env['PROOF_TEST_RECEIPT'] = receipt;
     await expect(
       new Attempt(folder).smoke('fault', 'registry.invalid/be@sha256:' + 'a'.repeat(64), fault),
@@ -261,7 +261,7 @@ test('intended assertion plus exact invocation cleanup receipt accepts mutant', 
       .split('\n')
       .findIndex((source) => source.includes(fault.assertion)) + 1;
   process.env['PROOF_TEST_LOG'] =
-    `AssertionError: intended assertion\n at /app/${path}:${String(line)}:12`;
+    `AssertionError: ${fault.diagnosis ?? 'intended assertion'}\n at /app/${path}:${String(line)}:12`;
   await new Attempt(folder).smoke('fault', 'registry.invalid/be@sha256:' + 'a'.repeat(64), fault);
 });
 
@@ -603,4 +603,29 @@ for (const host of ['h1claw', 'pop-os', 'other', 'ubuntu-8gb-hel1-2', 'h2puni.ex
     expect(() => {
       requireProofHost(host);
     }).toThrow('host must be h2puni');
+  });
+
+for (const shape of ['other-line', 'other-reason', 'plain-error'])
+  test(`source-binding fault refuses ${shape} composed failure`, async () => {
+    const fault = faults[0];
+    if (!fault) throw new Error('required source-binding fault absent');
+    const path = 'apps/wbs/be-01/scripts/connected-composed-image-scenario.ts';
+    const line =
+      readFileSync(join(import.meta.dir, 'connected-composed-image-scenario.ts'), 'utf8')
+        .split('\n')
+        .findIndex((source) => source.includes(fault.assertion)) + 1;
+    if (fault.diagnosis === undefined) throw new Error('required source-binding diagnosis absent');
+    const diagnosis =
+      shape === 'other-reason'
+        ? 'complete connected placement required: dependency_calendar_missing'
+        : fault.diagnosis;
+    process.env['PROOF_TEST_LOG'] =
+      `${shape === 'plain-error' ? 'Error' : 'AssertionError'}: ${diagnosis}\n at /app/${path}:${String(shape === 'other-line' ? line + 1 : line)}:14`;
+    await expect(
+      new Attempt(folder).smoke(
+        'source-binding',
+        'registry.invalid/be@sha256:' + 'a'.repeat(64),
+        fault,
+      ),
+    ).rejects.toThrow('intended composed assertion missing');
   });

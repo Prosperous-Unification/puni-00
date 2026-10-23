@@ -238,7 +238,8 @@ export async function runComposedImageScenario(options: {
       const observed = await bound.stores.livePlans?.read(TARGET_PROJECT_ID, access);
       if (observed?.kind !== 'connected') throw new Error('connected projection absent');
       const placed = observed.projection.placement;
-      if (placed.kind !== 'scheduled') throw new Error('complete placement absent');
+      const placementDiagnosis = `complete connected placement required: ${placed.kind}${'reason' in placed ? `:${placed.reason}` : ''}`;
+      assert.ok(placed.kind === 'scheduled', placementDiagnosis);
       return placed;
     };
     const ledger = () => {

@@ -321,3 +321,50 @@ Scoped proof-runner restored suite: 43 passed, 0 failed, 102 assertions, 1.77 se
 (`/tmp/task7-host-guard-full.log`). Configured be-01 tools TypeScript, graph-aware
 scoped ESLint and whitespace checks passed. The unchanged full shell fake-Docker
 suite was not rerun for this host-predicate-only correction.
+
+## Actual image follow-up: exact source-binding assertion boundary
+
+The actual h2 run at integrated SHA `bb8ec1a91` terminated with exit 1 and successful
+cleanup; its canonical heavy lock was released. Observed outcomes were built green
+0, supplied green 0, source-binding mutant 1 and restored baseline 0. The first
+four clients in the mutant were green and its invocation cleanup receipt was
+emitted. The runner correctly refused the mutation proof because the composed
+fixture threw an ordinary `Error('complete placement absent')` at its initial
+placement, earlier than the anticipated terminal assertion. Retained actual log:
+`/tmp/task7-image-receipt-bb8ec1a91-20261023/source-binding.log` on h2. This partial
+run does not establish the remaining three image faults or complete Tasks 7.3/7.4.
+
+The required scheduled placement is now an explicit `assert.ok` in the actual
+composed fixture, with the typed placement kind/reason in its diagnosis. The
+source-binding classifier requires both that unique assertion source line and
+exact `AssertionError: complete connected placement required:
+engine_unavailable:connected_optimization_not_supported`. Another line, a missing
+calendar diagnosis or an ordinary Error still refuses acceptance. TypeScript
+narrowing preserves the scheduled placement contract for all subsequent checks.
+
+Source inspection traces the missing binding to `connected-plan.ts`'s
+`engine_unavailable` / `connected_optimization_not_supported` branch. A local
+source-only production-path probe independently removed only the binding, invoked
+the real composed fixture and observed that exact new assertion/diagnosis with an
+empty admission-token file. An independent owned-close source-only probe retained
+its distinct terminal-ledger assertion (empty terminals instead of two), also with
+no admission tokens. Both faults were restored. No supervisor request, replacement
+child, fake installed spawn, real Docker or host action occurred in these probes;
+they do not establish installed-image behavior. Logs:
+`/tmp/task7-placement-probe-{source-binding,owned-close}.log` locally.
+
+Classifier negatives reject the wrong composed line, wrong typed reason, and
+ordinary Error, while the exact intended assertion plus cleanup receipt passes.
+Removing line matching and typed-reason matching independently failed their
+selected negatives. Ordinary Error is protected by both the existing assertion
+kind check and the typed diagnostic prefix; bypassing both failed its negative.
+All restored; logs `/tmp/task7-placement-classifier-negative-{line,diagnosis,kind}.log`.
+The actual host sequence must rerun from the reviewed corrected image; no new
+production-symbol installed-image proof is claimed here.
+
+Final scoped proof-runner and composed database fixture suites: 47 passed,
+0 failed, 113 assertions, 5.01 seconds
+(`/tmp/task7-placement-classifier-final.log`). Configured tools TypeScript,
+graph-aware scoped ESLint, scoped formatting and whitespace checks passed. The
+unchanged full shell fake-Docker suite was not rerun for this assertion-boundary
+correction. This correction performed no host run, real Docker action, gate or push.

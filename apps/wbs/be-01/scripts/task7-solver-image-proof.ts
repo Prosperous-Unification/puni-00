@@ -21,6 +21,7 @@ interface Fault {
   path: string;
   replacements: readonly (readonly [string, string])[];
   assertion: string;
+  diagnosis?: string;
 }
 const faults: readonly Fault[] = [
   {
@@ -36,7 +37,9 @@ const faults: readonly Fault[] = [
         '',
       ],
     ],
-    assertion: 'assert.deepEqual(terminals, [',
+    assertion: "assert.ok(placed.kind === 'scheduled', placementDiagnosis);",
+    diagnosis:
+      'complete connected placement required: engine_unavailable:connected_optimization_not_supported',
   },
   {
     name: 'owned-close',
@@ -644,10 +647,13 @@ class Attempt {
     );
     requireProof(sites.length > 0, `${name}: assertion site absent`);
     // Proof: bypassed composed stack matching accepted a generic Docker AssertionError.
+    // Proof: bypassing the typed source-binding diagnosis accepted dependency_calendar_missing at the same line.
     requireProof(
       ![0, 124, 137, 143].includes(completed.status) &&
         !contents.includes(success) &&
         contents.includes('AssertionError') &&
+        (fault.diagnosis === undefined ||
+          contents.includes('AssertionError: ' + fault.diagnosis + '\n')) &&
         sites.some((line) => contents.includes(`${scenario}:${String(line)}:`)),
       `${name}: intended composed assertion missing; see ${log}`,
     );
