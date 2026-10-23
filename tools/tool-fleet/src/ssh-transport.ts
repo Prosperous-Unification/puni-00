@@ -324,3 +324,40 @@ export function renderControllerTransport(transport: SshTransport): readonly str
     'ANSIBLE_HOST_KEY_CHECKING=True',
   ];
 }
+
+/**
+ * `ssh` arguments that run one remote command on `host`, pinned exactly like the SSH facts, for
+ * Twilight Dash's `ssh_host` compute provider. `-F none` keeps a user `~/.ssh/config` from adding
+ * a `ProxyCommand` or loosening host-key checking the record does not say; `ConnectTimeout` bounds
+ * the TCP connect and key exchange so an unanswering host becomes ssh's typed timeout. `ssh`
+ * joins everything after the host into one remote shell line, so `remoteCommand` must already be
+ * quoted for the remote shell.
+ * @throws SshTransportRefusal `host-unpinned` when `host` could be read as an ssh option.
+ */
+export function renderRemoteCommandArguments(
+  transport: SshTransport,
+  host: string,
+  remoteCommand: string,
+  connectTimeoutSeconds: number,
+): readonly string[] {
+  if (!ADDRESS_PATTERN.test(host)) {
+    // `--` already ends ssh's options; this keeps a non-address out of argv altogether.
+    // Proof: removing this refusal failed `refuses a command host that ssh could read as an
+    // option`, which then received an argv ending in `-oProxyCommand=sh` (2026-10-22).
+    throw new SshTransportRefusal('host-unpinned', `remote command host ${host} is not an address`);
+  }
+  const proxyCommand = renderProxyCommand(transport);
+  return [
+    '-F',
+    'none',
+    ...strictHostKeyOptions(transport),
+    ...(proxyCommand === undefined ? [] : ['-o', proxyCommand]),
+    '-o',
+    `ConnectTimeout=${String(connectTimeoutSeconds)}`,
+    '-l',
+    transport.user,
+    '--',
+    host,
+    remoteCommand,
+  ];
+}

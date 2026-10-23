@@ -1,12 +1,16 @@
-import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
+import { inMemoryUsers, memoryUserTable } from '@wbs/store-memory/auth-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { clockOf } from '../../ports/clock';
-import type { MachineCredentials } from '../../ports/machine-credentials';
+import type { LastUseOutcome, MachineCredentials } from '../../ports/machine-credentials';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
 import { digestMachineSecret, newMachineKey, parseMachineKey } from '../../service/machine-key';
 import { AccountResource, NO_PROVEN_CONNECTIONS } from './account.resource';
-import { AuthService, type MachineKeyVerification } from './authentication.feature';
+import {
+  AuthService,
+  type MachineKeyVerification,
+  type TrustedIssuerVerification,
+} from './authentication.feature';
 
 const NOW = 1_800_000_000_000;
 const CREDENTIAL = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -20,14 +24,39 @@ const tokens: TokenCodec = {
   verify: () => Promise.resolve(null),
 };
 
-/** Credentials that count their reads and hold one live key bound to `accountId`. */
-async function credentialsFor(accountId: string) {
+/**
+ * Credentials that count their reads and hold one live key bound to
+ * `accountId`, its OIDC twin for subject `agent` of trusted issuer `ti-1`, and
+ * whose touch answers `touched`.
+ */
+async function credentialsFor(accountId: string, touched: LastUseOutcome = 'recorded') {
   const { key, secret } = newMachineKey(CREDENTIAL);
   const digest = await digestMachineSecret(secret);
   const reads: string[] = [];
   const credentials: MachineCredentials = {
-    trustedRegistrationsOf: () => Promise.resolve([]),
-    findOidcCredential: () => Promise.resolve(null),
+    trustedRegistrationsOf: () =>
+      Promise.resolve([
+        { id: 'ti-1', organizationId: 'org-a', audience: 'api://wbs', jwksUri: 'https://idp/jwks' },
+      ]),
+    findOidcCredential: (trustedIssuerId, subject) =>
+      Promise.resolve(
+        trustedIssuerId === 'ti-1' && subject === 'agent'
+          ? {
+              credential: {
+                id: CREDENTIAL,
+                organizationId: 'org-a',
+                personId: 'claire',
+                source: 'oidc',
+                boundAccountId: accountId,
+                revokedAt: null,
+                trustedIssuerId: 'ti-1',
+                mcpFamilyId: null,
+                secrets: [],
+              },
+              audience: null,
+            }
+          : null,
+      ),
     findById: (id) => {
       reads.push(id);
       return Promise.resolve(
@@ -46,18 +75,39 @@ async function credentialsFor(accountId: string) {
           : null,
       );
     },
-    touchLastUsed: () => Promise.resolve(),
+    touchLastUsed: () => Promise.resolve(touched),
   };
   return { key, reads, credentials };
 }
 
-function service(machineKeys?: MachineKeyVerification): AuthService {
+/** Dany's account, which the live credentials are bound to. */
+function usersWithDany() {
+  const table = memoryUserTable();
+  table.byId.set('dany-id', { id: 'dany-id', username: 'dany', passwordHash: null, createdAt: 1 });
+  return inMemoryUsers(table);
+}
+
+/** A trusted issuer `https://idp` whose every token verifies as subject `agent`. */
+const trustedIssuers: TrustedIssuerVerification = {
+  configuredIssuer: () => Promise.resolve(null),
+  tokens: {
+    peek: () => ({ issuer: 'https://idp', subject: 'agent', audiences: ['api://wbs'] }),
+    verify: () => Promise.resolve({ kind: 'verified', subject: 'agent' }),
+  },
+};
+
+function service(
+  machineKeys?: MachineKeyVerification,
+  users = inMemoryUsers(),
+  trusted?: TrustedIssuerVerification,
+): AuthService {
   return new AuthService({
     tokens,
     passwords,
     ...(machineKeys === undefined ? {} : { machineKeys }),
+    ...(trusted === undefined ? {} : { trustedIssuers: trusted }),
     account: new AccountResource({
-      users: inMemoryUsers(),
+      users,
       clock: clockOf({ now: () => NOW, newId: () => 'seeded' }),
       enterprise: NO_PROVEN_CONNECTIONS,
     }),
@@ -108,5 +158,41 @@ describe('AuthService with an API key', () => {
     expect(service({ credentials, now: () => NOW }).authenticateOrRefuse(key)).rejects.toThrow(
       /missing account/,
     );
+  });
+
+  it('admits a live key whose use is recorded or fresh', async () => {
+    for (const touched of ['recorded', 'fresh'] as const) {
+      const { key, credentials } = await credentialsFor('dany-id', touched);
+      const admitted = await service(
+        { credentials, now: () => NOW },
+        usersWithDany(),
+      ).authenticateOrRefuse(key);
+      expect(admitted).toMatchObject({ id: 'dany-id', username: 'dany' });
+    }
+  });
+
+  // A removal (A24's person cascade) may commit between admission and the
+  // touch: the 401 the next request gets, never a 500 or an admission.
+  it('refuses unknown_identity when its credential is removed before the use is recorded', async () => {
+    const { key, credentials } = await credentialsFor('dany-id', 'absent');
+    expect(
+      await service({ credentials, now: () => NOW }, usersWithDany()).authenticateOrRefuse(key),
+    ).toBe('unknown_identity');
+  });
+});
+
+describe('AuthService with a trusted-issuer token', () => {
+  it('admits a verified token whose use is recorded', async () => {
+    const { credentials } = await credentialsFor('dany-id');
+    const auth = service({ credentials, now: () => NOW }, usersWithDany(), trustedIssuers);
+    expect(await auth.authenticateOrRefuse('header.payload.sig')).toMatchObject({ id: 'dany-id' });
+  });
+
+  // Proof: with the OIDC path's `'absent'` branch removed (answered as a
+  // principal), this admitted; watched 2026-10-23.
+  it('refuses unknown_identity when its credential is removed before the use is recorded', async () => {
+    const { credentials } = await credentialsFor('dany-id', 'absent');
+    const auth = service({ credentials, now: () => NOW }, usersWithDany(), trustedIssuers);
+    expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe('unknown_identity');
   });
 });

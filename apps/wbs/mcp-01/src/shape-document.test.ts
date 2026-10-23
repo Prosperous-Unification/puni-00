@@ -51,6 +51,9 @@ function deriveTools(body: SchemaShape<unknown> = commands.body) {
     '/api/organization/machine-credentials/fixture',
     '/api/organization/trusted-issuers',
     '/api/organization/trusted-issuers/fixture',
+    '/api/organization/compute-providers',
+    '/api/organization/compute-providers/fixture',
+    '/api/compute-providers/fixture',
   ] as const;
   const shapes = [
     { ...commands, body },

@@ -750,6 +750,8 @@ describe('20260927120000_add_organization_records', () => {
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
       '20261023100000_add_claim_lease',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
@@ -814,6 +816,8 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'machine_credential' &&
           name !== 'machine_credential_secret' &&
           name !== 'organization_limits' &&
+          name !== 'compute_provider' &&
+          name !== 'resource_capacity_report' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&

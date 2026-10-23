@@ -242,6 +242,7 @@ test.describe('the project settings control, in a browser', () => {
     // Five since `dual-optimized-scheduler`: `Optimization` follows
     // `Estimating` as the final project-level scheduling section. Six since
     // `step-node-attempts` D7: `Timezone` last, so the first section holds.
+    // Seven since `compute-providers` slice 5: `Resources` after it.
     await expect(dialog.getByRole('tab')).toHaveText([
       'Teams',
       'Priorities',
@@ -249,6 +250,7 @@ test.describe('the project settings control, in a browser', () => {
       'Estimating',
       'Optimization',
       'Timezone',
+      'Resources',
     ]);
 
     // The arrow keys walk the list and select as they go — a real keydown on a

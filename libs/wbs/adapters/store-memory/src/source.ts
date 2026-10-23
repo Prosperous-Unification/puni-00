@@ -98,6 +98,7 @@ function coordinatedStores(
         'assign',
         'addResource',
         'patchResource',
+        'setResourceProvider',
         'removeResource',
       ],
       coordinator,
