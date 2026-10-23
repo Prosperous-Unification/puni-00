@@ -101,8 +101,8 @@ claim these observations in advance.
 | Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN                                                                                               |
 | Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | Closed; see Task 4.3 reconciliation below                                                             |
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                               |
-| Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | [Post-close observed](evidence/task-5-postclose/verify.md); other faults not reverified here          |
-| Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | NOT RUN                                                                                               |
+| Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | Closed; retained capture proofs and post-close packet below                                           |
+| Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | Closed; retained capture proofs and independent audit below                                           |
 | Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | Traversal/topology observed below; other faults NOT RUN                                               |
 | Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Domain seam observed; core/calendar/runtime NOT RUN; [evidence](evidence/task-6-resolved-schedule.md) |
 | Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | NOT RUN                                                                                               |
@@ -113,7 +113,7 @@ claim these observations in advance.
 | Question identity 7.4                           | Remove every new hash member one at a time                                                                                   | Hash/cache tests for stable endpoints, type, anchors, capacity/mode, rank, boundaries, versions; report each separately                   | NOT RUN                                                                                               |
 | Publication 7.4                                 | Bypass exact identity/generation/foreign-start/materialized FS SS FF check separately                                        | `connected-publication.test.ts` stale and forged solver responses                                                                         | NOT RUN                                                                                               |
 | Terminal cache/restart/Retry 7.4                | Reuse failure/global-infeasible persistence; retain slot; bypass same-question retry suppression                             | DB/read/restart/manual Retry cases assert boundary-infeasible retained, slot released, no attempt; changed identity admits fresh question | NOT RUN                                                                                               |
-| Capture non-admission 5.1 / 7.4 / 8.4           | Substitute admitting optimizer reader                                                                                        | Mounted captured/live reads assert no generation, queue entry, slot or event                                                              | NOT RUN                                                                                               |
+| Capture non-admission 5.1 / 7.4 / 8.4           | Substitute admitting optimizer reader                                                                                        | Mounted captured/live reads assert no generation, queue entry, slot or event                                                              | 5.1 closed; 7.4/8.4 remain open                                                                       |
 | Transfer 8.1                                    | Drop external evidence/version guard; rebind by reused text; bypass current mapping/access/graph; fail after staged creation | Mounted export/import/rollback cases                                                                                                      | NOT RUN                                                                                               |
 | Copy 8.2                                        | Clone outgoing incident links, reuse IDs, bypass current access/graph                                                        | `typed-dependency-copy.controller.db.test.ts` no foreign-owner mutation and identity cases                                                | NOT RUN                                                                                               |
 | Immutable history 8.3                           | Reread live foreign facts; omit required captured evidence; escape save transaction                                          | Actual save/read/compare tests with renamed/deleted/unreadable live endpoints                                                             | NOT RUN                                                                                               |
@@ -5593,8 +5593,9 @@ two independent production mutations: a late real connected placement derivation
 and a late real captured optimization question. Both mounted HTTP tests failed
 with `read snapshot is closed`; restoring production passed the entire five-case
 connected Saved plan controller suite. This supplies the previously unobserved
-post-close derive/cache fault in the coherent-capture register. Other register
-faults and the parent task remain independently tracked; no task is closed here.
+post-close derive/cache fault in the coherent-capture register. At this packet
+checkpoint, other faults still needed reconciliation; the independent audit
+below completes that work.
 
 ## Task 5.2 number-only label event (2026-10-23)
 
@@ -5613,3 +5614,25 @@ Omitting either graph or merging the two produced three witnessed wrong-pair
 failures. The integrated topology, number-label and core fanout suites pass
 18/18 with 160 assertions. Full task 5.2 remains open for remaining triggers,
 payload-to-stream routing, live socket/browser delivery and activation.
+
+## Task 5.1 capture reconciliation (2026-10-23)
+
+The earlier task-5.1 checkpoint above predates real installed connected
+derivation and live projection. Current `chain-snapshot.ts` derives the complete
+connected plan and selects its captured optimization result within the guarded
+observation, for owned and borrowed isolated/shared reads. Existing production
+factory and mounted tests cover both-direction dependency closure, shared-person
+bridges, one capture per project, complete project-specific facts, strict
+absence/malformed/unreadable refusal, current authorization, borrowed staged
+writes, ordinary isolated lifetime, exactly-once closure and non-admitting
+capture. The retained [capture proofs](evidence/task-5-capture-proofs/) cover
+removed BEGIN, closure, authorization, borrowed connection and close guards;
+the [post-close packet](evidence/task-5-postclose/verify.md) separately watched
+real late derivation and captured cache selection fail at snapshot expiry.
+
+An independent Astra High audit mapped every task acceptance to current source,
+tests and retained fault receipts and found no remaining 5.1 gap. Its fresh
+eight-file bounded runs passed 214/214 tests with 1,008 assertions, including
+the repaired mounted fixture. Task 5.1 is checked on that implementation and
+proof evidence. This does not close optimization admission, frontend delivery,
+semantic activation or the exact-head host/CI gate.
