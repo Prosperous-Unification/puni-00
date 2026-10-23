@@ -20,7 +20,7 @@ SSO and the session policy SHALL NOT refuse a machine token.
 
 - **WHEN** a credential's person is bound to an account holding `(organization A,
 org-super-admin)`
-- **THEN** a `createWorkItem` batch on a package of A is accepted, `freezeProject` on the
+- **THEN** a `createWorkItem` batch on a package of A is accepted, `freezeWorkPackage` on the
   same package is refused `403 forbidden` naming `package.manage_settings`, and
   `GET /api/organization/members` is refused `403 insufficient_scope`
 

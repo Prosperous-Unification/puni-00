@@ -242,6 +242,16 @@ subject kind. Do not use a generic tuple store or role columns.
 
 ### Schema sketch (SQLite, additive)
 
+_Superseded for implementation (2026-10-24):_ the sketch and the two statements below are
+the research's starting point.
+[`wbs-permissions` design.md](../../../openspec/changes/wbs-permissions/design.md) holds
+the normative tables and statements, written in the names after `wbs-work-packages`
+(`work_package`, `work_package_organization`, `work_package.project_id`). They add the
+role-kind filter (`r.object_kind IN (…)` per target, so a package role granted at
+organization scope never satisfies a project permission), the restricted-work-package
+rule (organization-scope grants only read it, and only `org-admin` and `org-super-admin`
+ones), and provenance. Where this section and the design differ, the design wins.
+
 ```sql
 -- Fixed catalogue, seeded by migration; custom roles later add rows with organization_id.
 CREATE TABLE access_role (
@@ -395,7 +405,7 @@ WHERE p.organization_id = :org AND EXISTS (
   - If a cache is ever added, key it by a per-organization grant version that every grant
     write increments, which acts as a local zookie. Do not cache before measurement.
 - **Migration.** Today `member` writes everything, and an unrestricted project is editable
-  by members (`CONTEXT.md`, Restricted project). "Member sees nothing" is a behaviour change.
+  by members (`CONTEXT.md` before `wbs-permissions`, Restricted project). "Member sees nothing" is a behaviour change.
   - An additive migration can backfill current members with org-scope grants:
     - `super_admin` becomes `org-super-admin`.
     - `admin` becomes `org-admin`.

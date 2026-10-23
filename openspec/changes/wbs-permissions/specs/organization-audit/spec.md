@@ -2,18 +2,20 @@
 
 ### Requirement: Grant and access-group acts write audit rows
 
-Granting or revoking an access role, removing a member's grants with the member, and
-creating, renaming or deleting an access group or adding or removing its member SHALL each
-write exactly one `organization_audit` row in the same transaction as the act, with
-actions `access_granted`, `access_revoked`, `access_group_created`,
-`access_group_renamed`, `access_group_deleted`, `access_group_member_added`,
-`access_group_member_removed` and subject kinds `access_grant`, `access_group`. The actor
-SHALL be the granting account's id. The detail SHALL carry the role id, the scope kind and
-id, the subject kind and id, the origin (`route`, `invitation`, `creation`, `cascade`) and
-the group name where relevant, and SHALL never carry an email. The migration that admits
-these values SHALL keep the table's columns and rows, keep every existing action writable
-by the outgoing release, and refuse rollback while a row of a new action exists. The
-backfill SHALL NOT write audit rows.
+Granting or revoking an access role, removing a member's grants with the member, each
+grant the operator's `revoke-backfill` deletes, and creating, renaming or deleting an
+access group or adding or removing its member SHALL each write exactly one
+`organization_audit` row in the same transaction as the act, with actions
+`access_granted`, `access_revoked`, `access_group_created`, `access_group_renamed`,
+`access_group_deleted`, `access_group_member_added`, `access_group_member_removed` and
+subject kinds `access_grant`, `access_group`. The actor SHALL be the granting account's
+id, or `operator:<os login>` for `revoke-backfill` (the `organization-limits-cli.ts`
+precedent). The detail SHALL carry the role id, the scope kind and id, the subject kind
+and id, the origin (`route`, `invitation`, `creation`, `cascade`, `operator`) and the
+group name where relevant, and SHALL never carry an email. The migration that admits these
+values SHALL keep the table's columns and rows, keep every existing action writable by the
+outgoing release, and refuse rollback while a row of a new action exists. The backfill
+SHALL NOT write audit rows.
 
 #### Scenario: A grant audited
 

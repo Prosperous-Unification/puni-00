@@ -5,11 +5,12 @@
 WBS SHALL enforce the permission matrix of `wbs-permissions`
 (`openspec/changes/wbs-permissions/permission-matrix.md`) against current membership and
 access grants; Auth0 groups and OAuth scopes SHALL never create an access grant. Existing
-scopes SHALL only narrow otherwise permitted actions. A restricted project SHALL be reached
-only by grants naming it or its work package; an `org-super-admin` SHALL have an explicit,
-audited recovery override. The last `org-super-admin` grant MUST NOT be revoked, nor its
-holder removed, through ordinary administration. The former role column
-(`organization_membership.role`) SHALL NOT be read after `wbs-permissions` lands.
+scopes SHALL only narrow otherwise permitted actions. Organization-scope grants SHALL NOT
+write a restricted work package; of them only `org-admin` and `org-super-admin` SHALL read
+it, and an `org-super-admin` SHALL have one explicit, audited recovery: clearing the flag.
+The last `org-super-admin` grant MUST NOT be revoked, nor its holder removed, through
+ordinary administration. The former role column (`organization_membership.role`) SHALL NOT
+be read once the `add_access_grants` migration and its backfill are deployed.
 
 #### Scenario: Org-admin tries to grant an organization role
 
@@ -25,47 +26,30 @@ holder removed, through ordinary administration. The former role column
 - **THEN** the transaction is refused `409 last_super_admin` and the organization retains
   its super-admin
 
-#### Scenario: Restricted project recovery
+#### Scenario: Restricted work package recovery
 
 - **GIVEN** a restricted work package created by someone else, whether or not that
   creator is still a member
-- **WHEN** an `org-super-admin` with no direct grant on it edits it, including clearing
-  its restriction
-- **THEN** the edit succeeds, the original creator remains recorded, and one audit record
-  naming the super-admin, the package and the edited fields is written in the same
-  transaction
+- **WHEN** an `org-super-admin` with no grant naming it or its project clears its
+  restriction
+- **THEN** the clear succeeds, the original creator remains recorded, and one
+  `restricted_work_package_recovery` audit record naming the super-admin and the work
+  package is written in the same transaction
 
 #### Scenario: Recovery audit cannot be written
 
-- **GIVEN** an `org-super-admin`'s recovery edit of a restricted package
+- **GIVEN** an `org-super-admin`'s recovery clear of a restricted work package
 - **WHEN** its audit record cannot be written
-- **THEN** the edit is rolled back and nothing is changed
+- **THEN** the clear is rolled back and nothing is changed
 
-#### Scenario: Recovery through a command batch or an undo or redo
-
-- **GIVEN** a restricted work package created by someone else
-- **WHEN** an `org-super-admin` applies a command batch to it, or undoes or redoes one of
-  their own commands in it
-- **THEN** the batch or walk succeeds with the creator still recorded, and exactly one
-  audit record naming the super-admin, the package and the command kinds or the journal
-  direction is written in the same transaction
-- **AND** a batch or walk that fails at any point, or is refused, leaves no audit record
-  and no partial effect
-- **AND** no other actor, package or later request can use that recovery authority
-
-#### Scenario: Recovery through dependent writes and optimizer Retry
+#### Scenario: No other recovery write
 
 - **GIVEN** a restricted work package created by someone else, and a current
-  `org-super-admin` of its organization
-- **WHEN** that super-admin adds, renames or removes a step; creates, renames, recolors or
-  removes a calendar marker; saves, renames or deletes a saved plan; or retries a failed
-  optimization
-- **THEN** each successful operation writes exactly one audit record naming the actor,
-  organization, package and operation in the same transaction as the write, and retains
-  the package's creator
-- **AND** a failed, refused or non-retryable operation writes no recovery record and
-  publishes nothing; audit insertion failure rolls the write back and publishes nothing
-- **AND** an ordinary creator write writes no recovery record, a contributor without a
-  grant naming the package gets `404 not_found`, a foreign package answers 404, and a
-  removed super-admin is refused
-- **AND** before activation these routes retain their legacy permissions and behavior
+  `org-super-admin` with no grant naming it or its project
+- **WHEN** that super-admin applies a command batch to it, undoes or redoes in it, changes
+  its steps, calendar markers or saved plans, retries its optimization, or patches anything
+  but the flag
+- **THEN** each is refused `403 forbidden` naming the missing permission, writes nothing
+  and writes no recovery record
+- **AND** a contributor whose only grant is at organization scope gets `404 not_found`, a
+  foreign work package answers 404, and a removed super-admin is refused

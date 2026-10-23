@@ -2,25 +2,27 @@
 
 ### Requirement: Access is decided by grants, not by membership
 
-After activation, be-01 SHALL decide every protected read and write of an organization
-from `access_grant` rows through `may(scope, permission)` (design.md, "The `may` port"),
-never from `organization_membership.role`. Current membership SHALL remain necessary: a
+Once the `add_access_grants` migration and its backfill are deployed (the swap; neither
+the legacy organization's activation nor production activation), be-01 SHALL decide every
+protected read and write of an organization from `access_grant` rows through
+`may(scope, permission)` (design.md, "The `may` port"), never from
+`organization_membership.role`. Current membership SHALL remain necessary: a
 principal who is not a current member SHALL be refused `403 not_a_member` whatever grants
 name them. A current member with no grant that reaches an object SHALL see that object as
 absent (`404 not_found`) and SHALL be able to read only their own memberships, the
 organization's name and capacity mode, the agent persons bound to their own account and
-those persons' machine credentials. Every refusal and every omission SHALL have a
-production-path negative test and a `Proof:` comment.
+those persons' machine credentials. A member keeps every backfilled grant until the
+operator removes it (requirement "Today's memberships are backfilled into grants").
 
 #### Scenario: A plain member sees nothing
 
-- **WHEN** an account is a current member of A with no grant, and A holds three packages
-  and two spaces
-- **THEN** `GET /api/projects` answers an empty list, `GET /api/spaces` answers
-  `403 forbidden` naming `organization.navigate`, `GET /api/projects/:id` of any of the
-  three answers `404 not_found`, `GET /api/people` answers `403 forbidden`, and
-  `GET /api/organization/machine-credentials` lists the credentials of the member's own
-  agents
+- **WHEN** an account is a current member of A with no grant, and A holds two projects,
+  three work packages and two spaces
+- **THEN** `GET /api/work-packages`, `GET /api/projects`, `GET /api/spaces` and
+  `GET /api/teams` each answer `200` with `[]`, `GET /api/work-packages/:id` of any of the
+  three and `GET /api/spaces/:id` of either space answer `404 not_found`,
+  `GET /api/people` answers `200` listing only the member's own agent persons, and
+  `GET /api/organization/machine-credentials` lists the credentials of those agents
 
 #### Scenario: A removed member's grants grant nothing
 
@@ -44,8 +46,9 @@ way; no pattern or glob column SHALL exist.
 
 - **WHEN** account U holds `(organization A, project-contributor)` and an `org-admin`
   then creates project P with package W
-- **THEN** U's next `POST /api/projects/W/commands` with `createWorkItem` is accepted and
-  W appears in U's `GET /api/projects` without any new grant row
+- **THEN** U's next `POST /api/work-packages/W/commands` with `createWorkItem` is accepted
+  and W appears in U's `GET /api/work-packages` and P in U's `GET /api/projects` without
+  any new grant row
 
 #### Scenario: Every member views every project through one row
 
@@ -70,8 +73,39 @@ project-viewer)` and member V holds nothing else
 package-manager)` through group G
 - **THEN** U's effective role at W is manager with provenance listing all three grants,
   at another package of P contributor, and at a package of another project viewer; a
-  `PATCH /api/projects/W` is accepted and the same patch on P's other package is refused
-  `403 forbidden` naming `package.manage_settings`
+  `PATCH /api/work-packages/W` is accepted and the same patch on P's other package is
+  refused `403 forbidden` naming `package.manage_settings`
+
+### Requirement: A role counts only for the kinds it governs
+
+The effective level for a permission SHALL consider only grants whose role's object kind is
+the permission's kind or an ancestor of it: organization roles for organization
+permissions; organization and project roles for project permissions; all three for
+package permissions. A `package-*` role granted at organization scope SHALL therefore never
+satisfy a project or organization permission, and a `project-*` role never an organization
+permission.
+
+#### Scenario: A package role at organization scope
+
+- **WHEN** U holds only `(organization A, package-manager)`
+- **THEN** U reads and writes every unrestricted work package of A and patches its
+  settings, `PATCH /api/projects/P/settings` is refused `403 forbidden` naming
+  `project.manage_settings`, and `POST /api/projects` is refused `403 forbidden` naming
+  `organization.create_project`
+
+### Requirement: Moving a work package needs both projects
+
+`POST /api/work-packages/:id/move` SHALL require `project.manage_packages` at the work
+package's current project and at the target project, and SHALL answer `404 not_found` when
+the work package or the target project is invisible to the caller. A moved work package
+SHALL keep its `restricted` flag and its package-scope grants.
+
+#### Scenario: Manager of one side only
+
+- **WHEN** U holds `(project P, project-manager)` and `(project Q, project-viewer)` and
+  moves W of P to Q
+- **THEN** be-01 answers `403 forbidden` naming `project.manage_packages` and W stays in P;
+  with `(project Q, project-manager)` added the move is accepted
 
 ### Requirement: Machine principals are capped at contributor
 
@@ -84,9 +118,10 @@ naming the grant permission, before any grant row is read or written.
 #### Scenario: A manager's agent is a contributor
 
 - **WHEN** account U holds `(project P, project-manager)` and a machine credential pinned
-  to U's agent person sends `freezeProject` and then `createWorkItem` to a package of P
-- **THEN** `freezeProject` is refused `403 forbidden` naming `package.manage_settings`,
-  `createWorkItem` is accepted, and U's own browser request for `freezeProject` is accepted
+  to U's agent person sends `freezeWorkPackage` and then `createWorkItem` to a package of P
+- **THEN** `freezeWorkPackage` is refused `403 forbidden` naming `package.manage_settings`,
+  `createWorkItem` is accepted, and U's own browser request for `freezeWorkPackage` is
+  accepted
 
 #### Scenario: A machine cannot grant
 
@@ -101,34 +136,57 @@ naming the grant permission, before any grant row is read or written.
   `package.manage_settings`, and a claim it makes for a person bound to another account is
   refused `person_not_bound`
 
-### Requirement: A restricted project is reached only by grants that name it
+### Requirement: Organization-scope grants do not write a restricted work package
 
-When the target's `restricted` flag is set, the evaluator SHALL skip every grant whose
-scope is the organization, whatever its subject or role. Grants naming the project or the
-work package SHALL apply unchanged. An `org-super-admin` SHALL keep the audited recovery
-write (`restricted_project_recovery`, same transaction) through
-`organization.recover_restricted` and SHALL NOT read or list a restricted package by any
-other path. Creating a package SHALL write a direct `package-manager` grant for its
-creator, so the creator keeps access when the flag is set.
+When a work package's `restricted` flag is set, the evaluator SHALL treat an
+organization-scope `org-admin` or `org-super-admin` grant, held directly or through an
+access group, as viewer, and SHALL skip every other organization-scope grant: `org-viewer`,
+any `project-*` or `package-*` role granted at organization scope, and any grant through
+the organization members subject. Grants naming the work package or its project SHALL
+apply unchanged. Grant administration onto a restricted work package SHALL NOT be narrowed
+by the flag. An `org-super-admin` SHALL be able to clear the flag through
+`organization.recover_restricted` with one `restricted_work_package_recovery` audit row in
+the same transaction; no other write SHALL be admitted by that permission. Creating a work
+package SHALL write a direct `package-manager` grant for its creator, so the creator keeps
+write when the flag is set.
 
-#### Scenario: Organization-wide grants stop at a restricted package
+#### Scenario: Organization-scope grants stop at reading a restricted work package
 
-- **WHEN** package W is restricted, U holds `(organization A, project-contributor)`, V
-  holds `(organization A, org-admin)`, and C created W
-- **THEN** U and V each get `404 not_found` on `GET /api/projects/W`, W is absent from
-  their lists, roll-ups and load reads, and C reads and writes W through the creation grant
+- **WHEN** work package W is restricted, U holds `(organization A, project-contributor)`,
+  M holds `(organization A, org-viewer)`, V holds `(organization A, org-admin)`, and C
+  created W
+- **THEN** U and M each get `404 not_found` on `GET /api/work-packages/W` and W is absent
+  from their lists, roll-ups and load reads; V reads W and lists it, and V's
+  `createWorkItem` on W is refused `403 forbidden` naming `package.write`; C reads and
+  writes W through the creation grant
 
-#### Scenario: A direct grant reaches a restricted package
+#### Scenario: The members subject does not reach a restricted work package
+
+- **WHEN** W is restricted and A holds `(organization A, organization members, org-admin)`
+  and member X holds nothing else
+- **THEN** X gets `404 not_found` on W
+
+#### Scenario: A direct grant reaches a restricted work package
 
 - **WHEN** W is restricted and group G is granted `(work package W, package-viewer)`
 - **THEN** a member of G reads W and is refused `403 forbidden` naming `package.write` on a
   command
 
-#### Scenario: Recovery stays audited
+#### Scenario: An org-admin grants onto a restricted work package
 
-- **WHEN** an `org-super-admin` with no direct grant on restricted W patches W's name
-- **THEN** the patch succeeds with one `restricted_project_recovery` audit row in the same
-  transaction, and a failed audit write rolls the patch back
+- **WHEN** W is restricted and V, holding `(organization A, org-admin)`, grants itself
+  `(work package W, package-contributor)`
+- **THEN** the grant is accepted with one `access_granted` audit row and V's next
+  `createWorkItem` on W is accepted
+
+#### Scenario: Recovery clears the flag, audited
+
+- **WHEN** an `org-super-admin` with no grant naming W or its project sends
+  `PATCH /api/work-packages/W { restricted: false }`, and then the same super-admin patches
+  W's name while W is still restricted
+- **THEN** the flag clear succeeds with one `restricted_work_package_recovery` audit row in
+  the same transaction, a failed audit write rolls it back, and the name patch on a
+  restricted W is refused `403 forbidden` naming `package.manage_settings`
 
 ### Requirement: Grants never cross organizations
 
@@ -149,33 +207,38 @@ organizations SHALL hold each only in its own.
 
 ### Requirement: An unreadable object is absent; a short permission is named
 
-An object whose effective role for the principal is null SHALL answer `404 not_found`
-identical to an absent one, on reads and writes alike, and SHALL be absent from every list,
-count, roll-up, startable read, load read and space read. A readable object with a short
-permission SHALL answer `403 forbidden` with the body `{ error: 'forbidden', permission }`
-naming the first missing permission. Organization-kind refusals SHALL always be 403.
-Listing SHALL run one statement per page over `readablePackageIds`, never one query per
-package.
+Every organization-wide list route (work packages, projects, spaces, directory lists,
+load, rank) SHALL answer `200` with the subset the principal may see to any current member;
+no list route SHALL be refused for want of a grant. An object whose effective role for the
+principal is null SHALL answer `404 not_found` identical to an absent one on detail reads
+and writes alike, and SHALL be absent from every list, count, roll-up, startable read, load
+read and space read. A visible object with a short permission SHALL answer
+`403 forbidden` with the body `{ error: 'forbidden', permission }` naming the first missing
+permission. Organization-kind refusals, the organization's administration collections
+included, SHALL always be 403. Listing SHALL run one statement per page over
+`readablePackageIds`, never one query per work package.
 
 #### Scenario: Invisible is 404 on every verb
 
 - **WHEN** U holds no grant that reaches package W
-- **THEN** `GET`, `PATCH`, `POST …/commands`, `POST …/steps`, `GET …/history` and the
-  gateway access routes for W each answer `404 not_found` with the same body as for an
-  absent id, and the space that holds W counts one member fewer for U
+- **THEN** `GET`, `PATCH`, `POST …/commands`, `POST …/move`, `GET …/settings`,
+  `GET …/history` and the gateway access routes for W each answer `404 not_found` with the
+  same body as for an absent id, and the roll-up of the space holding W's project omits W
+  for U
 
 #### Scenario: The missing permission is named
 
 - **WHEN** U holds `(work package W, package-viewer)` and sends a batch of
-  `createWorkItem` then `freezeProject`
+  `createWorkItem` then `freezeWorkPackage`
 - **THEN** the batch is refused `403 forbidden` with `permission: 'package.write'` and
   nothing is written
 
 #### Scenario: A package-only grant reveals the project's shell
 
 - **WHEN** U's only grant in project P is `(work package W, package-viewer)`
-- **THEN** U's list shows P's id and name with W beneath it, `GET` of P's settings answers
-  `403 forbidden` naming `project.read`, and P's other packages are absent
+- **THEN** U's `GET /api/projects` shows P's id and name and `GET /api/work-packages`
+  shows W beneath it, `GET /api/projects/P/settings` answers `403 forbidden` naming
+  `project.read`, and P's other work packages are absent
 
 ### Requirement: Every check runs inside the write's transaction
 
@@ -202,7 +265,8 @@ begins refuses it, whatever the request resolved earlier.
 for an organization role, `organization.manage_access` for a project or package role, or
 `project.grant` at the package's project for a package role; `DELETE …/:id` SHALL require
 the same for the grant it removes. A granter SHALL NOT bind a role whose level exceeds
-their own effective level at the target scope for that role's kind. The store SHALL refuse
+their own effective level at the target scope for that role's kind, evaluated without the
+restricted rule. The store SHALL refuse
 `409 role_scope_mismatch` for a role above its scope kind, `409 not_a_member` for a
 non-member subject, `404 unknown_group` for a foreign group, `409 already_granted` for a
 duplicate and `409 last_super_admin` for a revoke or removal that would leave the
@@ -222,8 +286,9 @@ and group routes SHALL be excluded from the generated MCP tools.
 
 #### Scenario: A project-manager grants inside its project only
 
-- **WHEN** U holds `(project P, project-manager)` and grants `(work package W of P,
-package-contributor)` and then `(work package X of project Q, package-viewer)`
+- **WHEN** U holds `(project P, project-manager)` and nothing in project Q, and grants
+  `(work package W of P, package-contributor)` and then `(work package X of Q,
+package-viewer)`
 - **THEN** the first is accepted and the second answers `404 not_found`
 
 #### Scenario: No escalation
@@ -247,21 +312,37 @@ package-contributor)` and then `(work package X of project Q, package-viewer)`
 Migration `add_access_grants` SHALL seed the nine roles and, in the same transaction,
 write for every membership an organization-scope grant (`super_admin` → `org-super-admin`,
 `admin` → `org-admin`, `member` → `project-contributor`, `viewer` → `project-viewer`) and
-for every organization-owned package a `package-manager` grant for its owner when the
-owner is a current member, all with `origin = 'backfill'`. Its `down.sql` SHALL refuse
-while any grant of another origin or any access group exists. `organization_membership.role`
-SHALL stay in place and unread. With only backfilled rows, every existing organization
-controller test SHALL pass unchanged except those that exercise acts E7 moves to
-`org-admin` (design.md P7).
+for every organization-owned work package a `package-manager` grant for its owner when the
+owner is a current member, all with `origin = 'backfill'`, and no project-scope grant. Its
+`down.sql` SHALL refuse while any grant of another origin or any access group exists.
+`organization_membership.role` SHALL stay in place and unread. With only backfilled rows,
+every existing organization controller test SHALL pass unchanged except those that
+exercise acts E7 moves to `org-admin` or restriction changes (design.md P5, P7).
 
 #### Scenario: A backfilled store behaves as today
 
 - **WHEN** a store with the pre-change fixtures (super-admin, admin, member, viewer, a
-  restricted project of the member) is migrated
-- **THEN** the member writes their own packages and reads the others, the viewer reads
-  all, the admin and super-admin keep their reach, the restricted package is editable by
-  its creator and recoverable by the super-admin, and `down.sql` succeeds on that store
-  and refuses once one grant is written by route
+  restricted work package of the member) is migrated
+- **THEN** the member writes the unrestricted work packages and their own restricted one,
+  the viewer reads every unrestricted one, the admin and super-admin keep their reach and
+  read the restricted one, the super-admin can clear its flag, and `down.sql` succeeds on
+  that store and refuses once one grant is written by route
+
+### Requirement: The operator revokes the backfill per organization
+
+The operator CLI `revoke-backfill --organization=<id>` SHALL print the organization-scope
+`project-contributor` and `project-viewer` grants of origin `backfill` in that
+organization, SHALL delete them only when `--expect-count` equals their number, in one
+transaction with one `access_revoked` audit row each, and SHALL delete no other grant.
+
+#### Scenario: Revoking the backfill makes members plain
+
+- **WHEN** organization A holds three backfilled member rows and one backfilled
+  `org-admin` row, and the operator runs `revoke-backfill --organization=A` first with
+  `--expect-count=2` and then with `--expect-count=3`
+- **THEN** the first run deletes nothing and exits non-zero naming 3, the second deletes
+  the three member rows with three `access_revoked` rows, the `org-admin` and the creators'
+  `package-manager` grants remain, and a former member who created nothing now lists `[]`
 
 ### Requirement: fe-01 shows grants and never hints at hidden packages
 
@@ -280,5 +361,5 @@ URL answered 404 SHALL render the existing not-found state without an access hin
 
 #### Scenario: A hidden package by URL
 
-- **WHEN** a viewer of nothing opens `/projects/W`
+- **WHEN** a member with no grant opens the work package page of W by its URL
 - **THEN** the page renders the not-found state and no request reveals W's name

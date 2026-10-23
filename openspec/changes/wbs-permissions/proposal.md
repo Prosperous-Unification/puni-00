@@ -18,14 +18,15 @@ project → work package shape that access must follow.
 **Plain membership**
 
 - From: a member writes everything.
-- To: a member sees nothing but their own agent persons and credentials until granted.
+- To: a member sees only their own agents and credentials until granted, once the
+  backfill is revoked.
 
 **Reach and principals**
 
 - From: one organization-wide role held by accounts.
 - To: grants at organization, project or work package to an account, an access group or
   every current member; the strongest wins down the chain (E9); organization-wide grants
-  stop at a restricted project; machine principals are capped at contributor.
+  only read a restricted work package; machines are capped at contributor.
 
 **Visibility and administration**
 
@@ -33,7 +34,7 @@ project → work package shape that access must follow.
 - To: an unreadable work package is absent from lists and 404 by URL; a missing permission
   answers 403 naming it; audited grant, revoke and access-group routes on the members page.
 
-Depends on `wbs-work-packages` (E1–E3); slices 3 to 7 need its project entity.
+Depends on `wbs-work-packages` (#698): slices 3 to 7 follow its renames.
 
 ## Non-Goals
 
@@ -64,11 +65,11 @@ The machine cap applies at every check and refuses a machine principal every gra
 
 ## Domain Terms
 
-Seven added, four amended (design.md, `CONTEXT.md`).
+Seven added; two amended, one renamed, one retired.
 
 ## Decisions Recorded
 
-No ADR. E7–E9 fixed by Dany; P1–P14 assumed, overrulable by id (design.md).
+No ADR. E7–E9 fixed by Dany; P1–P16 assumed, overrulable by id (design.md).
 
 ## Impact
 

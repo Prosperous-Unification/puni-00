@@ -91,10 +91,6 @@ _Avoid_: access credential, provider refresh token
 The monotonically increasing version that makes a refresh completion conditional on logout or a newer credential replacement not having committed first.
 _Avoid_: timestamp, provider token version
 
-**Role**:
-Said in full as **Access role**; the former membership column (super-admin, admin, member, viewer) is retired into access grants.
-_Avoid_: scope, group
-
 **Super-admin**:
 The `org-super-admin` access role: ownership and security decisions within that organization, and the only role that grants organization roles.
 _Avoid_: platform administrator, root user, owner
@@ -1522,12 +1518,12 @@ SQLite's own, taken by `BEGIN IMMEDIATE` on the file. What be-01's writes wait b
 one excludes other processes, the other orders this one's own writers.
 _Avoid_: using this name for the coordinator
 
-**Restricted project**:
-A project, or today the work package row that carries the flag, that organization-wide
-access grants do not reach: only grants naming the project or the work package itself
-apply, besides the super-admin's audited recovery edit. Its creator holds a direct grant
-from creation.
-_Avoid_: private, locked project, hidden project
+**Restricted work package**:
+A work package that organization-scope access grants do not write: of them only
+`org-admin` and `org-super-admin` reach it, and only to read it, while grants naming its
+project or the work package apply unchanged. A super-admin's only recovery is the audited
+clearing of the flag; its creator holds a direct grant from creation.
+_Avoid_: restricted project, private, locked, hidden work package
 
 **External ref**:
 One link out of a work item to where that work also exists — an external system, a URL and a
