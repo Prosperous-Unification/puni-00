@@ -63,6 +63,15 @@ export interface ProjectStreamOptions {
   /** Whether a socket is currently open, so the caller can say so on screen. */
   onConnectionChange?: (connected: boolean) => void;
   /**
+   * A `claims_changed` announcement arrived. Opt-in: the announcement is
+   * transient and frequent (one per agent heartbeat that moved a lease,
+   * `wbs-claim-display` C4, C21), so a subscriber that does not ask for it never
+   * hears it — not even as an `onChange` — and pays nothing per heartbeat. It
+   * carries no sequence: none it may arrive with is one the acknowledgment may
+   * move to, wait on or count a gap from.
+   */
+  onClaims?: () => void;
+  /**
    * Who else is in this project, whenever gw-01 says.
    *
    * **On this socket, which is the point.** The presence panel opened a second
@@ -253,15 +262,15 @@ export function subscribeToProject(
     // would then resume past an edit nobody ever saw. `seen` is the only way
     // forward, and it is called by whoever actually installed the new rows.
     const changed = changedFactOf(frame.message);
-    // A transient announcement (`wbs-claim-display` C21): never in the durable
-    // log, so whatever sequence it carries, if any, is not one the
-    // acknowledgment may move to, wait on or count a gap from. It is forwarded
-    // without one, and the caller reads claims alone.
-    // Proof: dropping this branch left `forwards an unsequenced claims
-    // announcement` with no change reported, and `… without whatever sequence
-    // it carries` received `['claims_changed', 40]`; watched 2026-10-23.
+    // A transient announcement goes to `onClaims` alone, never to `onChange`.
+    // Proof: dropping this branch left `hands a claims announcement to
+    // onClaims alone …` at 0 calls, passed `['claims_changed', 40]` to a
+    // subscriber that did not opt in, and made the saved-plan shelf's `rereads
+    // nothing for five claims announcements` read its capability and list 3
+    // times, expected 1. Calling `onChange` here as well read them 6 times;
+    // watched 2026-10-23.
     if (changed === 'claims_changed') {
-      options.onChange(changed);
+      options.onClaims?.();
       return;
     }
     // Only a whole sequence enters the bookkeeping: JSON can say `1e400`

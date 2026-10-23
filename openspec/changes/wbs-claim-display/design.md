@@ -159,9 +159,16 @@ used.)
 
 ## Risks / Trade-offs
 
-- **Heartbeat events reach the event log.** Each renewal that moves a lease appends one
-  `claims_changed` per project: at most one per agent per minute, inside a turn the renewal
-  takes anyway. If it shows in the event log's size, coalesce per project per tick.
+- **Heartbeats are pushed, not logged** (C21, recorded by slice 3). Each renewal that moves a
+  lease pushes one transient `claims_changed` per project, at most one per agent per minute. It
+  never reaches the durable event log and a resume never replays it, so fe-01 rereads claims on
+  every synchronisation of its stream. Only the plan feed opts into the announcement; the
+  saved-plan shelf's socket never hears it.
+- **Page load reads claims twice.** `establish` reads claims beside the anchored reads, and the
+  stream's first synchronisation reads them again. The second read is the one that covers the
+  interval between the first read and the socket's registration, in which an announcement could
+  be pushed and lost. It cannot be skipped cheaply, because the first read always starts before
+  the socket registers. The cost is one small read per page load.
 - **A consent revocation is up to one tick stale** on screen (C4).
 - **Two moments on one screen** (C11): a chip may lag its row by one read.
 - **An undone claim stays in the history list** as claimed (C14); the held list is the truth.

@@ -337,16 +337,16 @@ describe('one project’s reading', () => {
     expect(recorded.connections).toEqual([true, false, true]);
   });
 
-  it('reads claims alone for an unsequenced claims announcement', () => {
+  it('reads claims alone for a claims announcement', () => {
     const fake = fakeOwner();
     const recorded = portsOver(fake.owner);
 
     createPlanReading(recorded.ports);
     fake.show(ANCHORED_SNAPSHOT);
-    handlersOf(recorded.opened).onChange('claims_changed');
+    handlersOf(recorded.opened).onClaims();
 
     expect(fake.asked).toEqual(['initialize', 'invalidate']);
-    expect(fake.invalidations).toEqual([{ resources: ['claims'], seq: undefined }]);
+    expect(fake.invalidations).toEqual([{ resources: ['claims'] }]);
   });
 
   it('ignores a change and a connection that arrive after it stops being live', () => {

@@ -298,7 +298,14 @@ export function createPlanRefresh({
       const read = await routes.readClaims(projectId);
       return { ...read, installedAt: monotonicNow() };
     },
-    () => unsequencedAllowed,
+    // Readable at any time, anchored or not: a claims read is a complete
+    // snapshot that no sequence covers (C20), and a claim the installed tree
+    // lacks is simply not drawn (C11).
+    // Proof: `() => unsequencedAllowed` here left `reads claims during an
+    // initialize whose anchor fails` `pending`, expected `installed`, and
+    // `reads claims, not the tree, for heartbeats while unanchored` timed out
+    // waiting for an anchor; watched 2026-10-23.
+    () => true,
     () => disposed,
     publish,
   );
@@ -400,10 +407,9 @@ export function createPlanRefresh({
     const anchored = await request(['tree']);
     if (anchored.status !== 'installed') {
       if (anchored.status === 'failed') {
-        // Proof: `claims` dropped from this list left `ends a claims
-        // invalidation made during an initialize whose anchor fails` reading
-        // `pending`, expected `failed`; watched 2026-10-23.
-        for (const name of ['steps', 'directory', 'markers', 'claims'] as const)
+        // Not claims: they read without the anchor, so the tree's failure is
+        // not theirs.
+        for (const name of ['steps', 'directory', 'markers'] as const)
           resources[name].fail(anchored.failures);
         publish();
       }
@@ -457,7 +463,14 @@ export function createPlanRefresh({
     initialize,
     invalidate({ resources: names, seq }) {
       if (isDisposed()) return Promise.resolve({ status: 'disposed' });
-      if (!unsequencedAllowed && initializing === null) return initialize();
+      // A claims-only invalidation never escalates to a resynchronisation:
+      // claims need no anchor, and a heartbeat per agent must not become a
+      // tree read while the anchor is failing (`plan-refresh` delta).
+      // Proof: without `!claimsOnly`, `reads claims, not the tree, for
+      // heartbeats while unanchored` read the tree again (`['tree']`, expected
+      // none); watched 2026-10-23.
+      const claimsOnly = names.length > 0 && names.every((name) => name === 'claims');
+      if (!unsequencedAllowed && initializing === null && !claimsOnly) return initialize();
       if (seq !== undefined) {
         if (seq <= acknowledged) return Promise.resolve({ status: 'installed' });
         const gap = seq > received + 1;

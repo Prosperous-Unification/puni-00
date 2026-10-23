@@ -77,6 +77,8 @@ export interface SubscriptionHandlers {
   /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
   onChange: (changed?: string | null, seq?: number) => void;
   onConnectionChange: (connected: boolean) => void;
+  /** See `ProjectStreamOptions.onClaims`. */
+  onClaims: () => void;
 }
 
 /**

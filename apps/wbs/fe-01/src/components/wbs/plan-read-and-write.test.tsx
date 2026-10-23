@@ -1108,6 +1108,10 @@ describe('failures you can see', () => {
       });
       expect(claimsReads).toBe(2);
       expect(treeReads).toHaveLength(treeReadsBefore);
+      // The live region outlives the failure, empty, so the next one is announced.
+      const region = document.querySelector('[data-claims-notice]');
+      expect(region).toHaveAttribute('aria-live', 'polite');
+      expect(region?.textContent).toBe('');
     },
   );
 

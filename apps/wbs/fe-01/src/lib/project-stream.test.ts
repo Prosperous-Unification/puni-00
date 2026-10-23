@@ -832,11 +832,23 @@ it('does not report connected when its recovery callback unsubscribes', () => {
 });
 
 describe('subscribeToProject — transient claims announcements (C21)', () => {
-  function delivering() {
+  function delivering(listensForClaims = true) {
     const h = harness();
     const delivered: unknown[][] = [];
+    let claims = 0;
     subscribeToProject(
-      { projectId: PROJECT, sinceSeq: -1, onChange: (...args) => delivered.push(args) },
+      {
+        projectId: PROJECT,
+        sinceSeq: -1,
+        onChange: (...args) => delivered.push(args),
+        ...(listensForClaims
+          ? {
+              onClaims: () => {
+                claims += 1;
+              },
+            }
+          : {}),
+      },
       h.deps,
     );
     h.latest().handlers.onOpen();
@@ -846,19 +858,22 @@ describe('subscribeToProject — transient claims announcements (C21)', () => {
     const sendRaw = (raw: string) => {
       h.latest().handlers.onMessage(raw);
     };
-    return { delivered, send, sendRaw };
+    return { delivered, send, sendRaw, claims: () => claims };
   }
 
-  it('forwards an unsequenced claims announcement', () => {
-    const { delivered, send } = delivering();
+  it('hands a claims announcement to onClaims alone, whatever its sequence', () => {
+    const { delivered, send, claims } = delivering();
     send({ message: { type: 'claims_changed', projectId: PROJECT } });
-    expect(delivered).toEqual([['claims_changed']]);
+    send({ seq: 40, message: { type: 'claims_changed', projectId: PROJECT } });
+    expect(claims()).toBe(2);
+    expect(delivered).toEqual([]);
   });
 
-  it('forwards a claims announcement without whatever sequence it carries', () => {
-    const { delivered, send } = delivering();
+  it('tells a subscriber that did not opt in nothing of a claims announcement', () => {
+    const { delivered, send } = delivering(false);
+    send({ message: { type: 'claims_changed', projectId: PROJECT } });
     send({ seq: 40, message: { type: 'claims_changed', projectId: PROJECT } });
-    expect(delivered).toEqual([['claims_changed']]);
+    expect(delivered).toEqual([]);
   });
 
   it('drops a change whose sequence is not a whole number', () => {

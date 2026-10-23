@@ -396,7 +396,7 @@ describe('claims as a refresh resource', () => {
     owner.dispose();
   });
 
-  it('ends a claims invalidation made during an initialize whose anchor fails', async () => {
+  it('reads claims during an initialize whose anchor fails', async () => {
     const api = fakeProjectApi();
     const anchor = held<PlanRead>();
     api.tree = () => anchor.promise;
@@ -410,11 +410,30 @@ describe('claims as a refresh resource', () => {
     const claims = owner.invalidate({ resources: ['claims'] });
     anchor.reject(new Error('offline'));
     expect((await ready).status).toBe('failed');
-    // Raced so a claims obligation the anchor failure never ends reads `pending`.
+    // Raced so a claims obligation that waits on the anchor reads `pending`.
     const settled = await Promise.race([claims, Promise.resolve({ status: 'pending' as const })]);
-    expect(settled.status).toBe('failed');
-    expect(claimsReads).toBe(0);
-    expect(owner.getSnapshot().staleResources).toContain('claims');
+    expect(settled.status).toBe('installed');
+    expect(claimsReads).toBe(1);
+    expect(owner.getSnapshot().staleResources).not.toContain('claims');
+    owner.dispose();
+  });
+
+  it('reads claims, not the tree, for heartbeats while unanchored', async () => {
+    const { api, owner, reads } = await claimsSetup();
+    // A resynchronisation whose anchor is refused leaves the owner unanchored.
+    api.tree = () => {
+      reads.push('tree');
+      return Promise.reject(new Error('engine_unavailable'));
+    };
+    expect((await owner.initialize()).status).toBe('failed');
+    reads.length = 0;
+    const heartbeats = Array.from({ length: 10 }, () =>
+      owner.invalidate({ resources: resourcesFor('claims_changed') }),
+    );
+    const outcomes = await Promise.all(heartbeats);
+    expect(reads.filter((read) => read === 'tree')).toEqual([]);
+    expect(reads.filter((read) => read === 'claims').length).toBeGreaterThan(0);
+    expect(outcomes.every((outcome) => outcome.status === 'installed')).toBe(true);
     owner.dispose();
   });
 

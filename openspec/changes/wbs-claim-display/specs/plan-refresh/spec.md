@@ -7,7 +7,8 @@ calendar markers, with its own installation authority, failure state and install
 `tree_replaced` SHALL invalidate tree and claims; `claims_changed` SHALL invalidate claims
 only; `plan_unavailable` SHALL invalidate the tree only; an unknown event SHALL invalidate
 every resource, claims included. Claims SHALL NOT gate the baseline, and a claims obligation
-SHALL NOT hold the stream acknowledgment.
+SHALL NOT hold the stream acknowledgment. Claims SHALL be readable whether or not the coordinator
+holds an anchor, and a claims-only invalidation SHALL NOT start a resynchronisation.
 
 #### Scenario: A heartbeat refreshes claims alone
 
@@ -32,6 +33,12 @@ SHALL NOT hold the stream acknowledgment.
 - **THEN** the acknowledged sequence advances with the tree, and a later successful claims read
   still installs
 
+#### Scenario: Heartbeats while the anchor is failing
+
+- **GIVEN** a resynchronisation whose tree anchor was refused left the coordinator unanchored
+- **WHEN** ten claims-only invalidations arrive
+- **THEN** claims reads run and no tree read is requested
+
 #### Scenario: A failed claims read leaves the tree alone
 
 - **GIVEN** a claims read failed and the previous claims remain drawn
@@ -41,9 +48,11 @@ SHALL NOT hold the stream acknowledgment.
 ### Requirement: Claims announcements are transient
 
 `claims_changed` is a live announcement that the durable event log does not hold and a resume
-does not replay; it may carry no sequence. fe-01 SHALL treat it as a claims-only invalidation
-whatever sequence it carries, and it SHALL neither move, hold nor open a gap in the stream
-acknowledgment. Every time the stream synchronises, on an accepted resume and on a refused one
+does not replay; it may carry no sequence. fe-01 SHALL deliver it only to a stream subscriber
+that opts in (the plan feed), SHALL treat it there as a claims-only invalidation whatever
+sequence it carries, and it SHALL neither move, hold nor open a gap in the stream
+acknowledgment. A subscriber that does not opt in (the saved-plan shelf) SHALL hear nothing of
+it. Every time the stream synchronises, on an accepted resume and on a refused one
 alike, fe-01 SHALL reread claims. A change whose sequence is not a whole number SHALL NOT enter
 the sequence bookkeeping.
 
@@ -57,6 +66,11 @@ the sequence bookkeeping.
 
 - **WHEN** a `claims_changed` frame carries a sequence
 - **THEN** it is handled exactly as an unsequenced one
+
+#### Scenario: The saved-plan shelf ignores heartbeats
+
+- **WHEN** five `claims_changed` frames arrive on the shelf's socket
+- **THEN** the shelf rereads neither its capability nor its list
 
 #### Scenario: A reconnect rereads claims
 

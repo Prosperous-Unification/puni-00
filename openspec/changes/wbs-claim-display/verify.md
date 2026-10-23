@@ -348,3 +348,53 @@ vitest over the same set plus presence, 71 files, 1469 pass; Burokrat `check-ind
 Not covered end to end: the real-stream harness (`plan-refresh-stream.test.ts`) drives the owner
 directly, not through `createPlanReading`. The one-claims-read-per-reconnect rule is therefore
 pinned at the plan-feed seam with a recording owner.
+
+**Second review round (Fable, PR #694 at `a4aaa1265`, one S2).**
+
+- S2-A: `project-stream.ts` delivered unsequenced `claims_changed` frames to every subscriber.
+  The saved-plan shelf's socket therefore reread its capability (the whole OpenAPI document) and
+  its list once per heartbeat per viewer.
+  - Claims announcements now go to a new opt-in `onClaims`, never to `onChange`.
+  - Only the plan feed opts in: `PlanFeedStreamHandlers.onClaims` is threaded through the
+    project runtime and composition.
+  - The shelf passes no `onClaims`, so it hears nothing.
+  - Audit, pre-existing and unchanged: the shelf still rereads on every sequenced event of any
+    type (`tree_replaced` and the rest), because `watchShelf` hands `read` to `subscribe`
+    whatever the event says.
+- S3-A: while unanchored (for example after a resynchronisation whose anchor was refused
+  `engine_unavailable`), every claims-only invalidation escalated to `initialize()`.
+  - Choice: claims are readable whether or not the coordinator holds an anchor (C11 handles
+    moment skew), and a claims-only invalidation never starts a resynchronisation.
+  - Recorded in the `plan-refresh` delta with the scenario "Heartbeats while the anchor is
+    failing".
+  - The anchor-failure path no longer marks claims stale, since the tree's failure is not
+    theirs. The S3-2 case became `reads claims during an initialize whose anchor fails`.
+- S4:
+  - Page load reads claims twice. This is kept and documented under design Risks: the first
+    read always starts before the socket registers, so only the synchronisation reread covers
+    that interval.
+  - The design Risks entry that said heartbeats reach the event log is replaced (C21).
+  - The claims notice is now an always-mounted `aria-live="polite"` region (`[data-claims-notice]`)
+    whose words change. It has no `role=status`, so the existing `getByRole('status')` cases
+    still find one status.
+
+| R5 fault (watched)                                              | Observed                                                                                                          |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| claims branch removed from `project-stream.ts`                  | `onClaims` 0 calls; a subscriber that did not opt in received `['claims_changed', 40]`; shelf reads 3, expected 1 |
+| claims announcement also sent to `onChange`                     | shelf `rereads nothing for five claims announcements`: reads and capability reads 6, expected 1                   |
+| plan feed `onClaims` invalidates nothing                        | `reads claims alone for a claims announcement`: `['initialize']`, expected `['initialize', 'invalidate']`         |
+| claims-only invalidation escalates                              | `reads claims, not the tree, for heartbeats while unanchored`: `['tree']`, expected none                          |
+| claims readable only when anchored (`() => unsequencedAllowed`) | `reads claims during an initialize whose anchor fails`: `pending`, expected `installed`; heartbeat case times out |
+| notice region mounted only while stale                          | 404 table case: `toHaveAttribute('aria-live', 'polite')` after the retry, region gone                             |
+
+`composition.test.ts` `READ_ROUTES` now lists `readClaims` (ten routes).
+
+Results (fresh, 2026-10-23):
+
+- `nx run wbs-fe-01:typecheck` succeeded.
+- eslint on the touched files: exit 0.
+- vitest over the earlier set plus the saved-plan suites: 74 files, 1522 pass.
+- Burokrat `check-indexes working . HEAD`: exit 0.
+- `openspec validate --all --json`: 275 of 275.
+
+The C21 section above described `onChange('claims_changed')`; the second review round replaced that with the opt-in `onClaims`.

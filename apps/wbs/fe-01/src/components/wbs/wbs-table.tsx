@@ -2543,20 +2543,25 @@ export function WbsTable({
 
       {/*
         Secondary and quiet: the plan is current, only who holds what may not
-        be (`wbs-claim-display` C12). Its retry reads claims alone.
+        be (`wbs-claim-display` C12). Its retry reads claims alone. The live
+        region stays mounted and only its words change, so a screen reader
+        announces the failure when it arrives.
         Proof: this notice suppressed failed `keeps the plan current and the
         optimizer's suggestion when only claims fail` on the absent
         `[data-stale-claims]`. Retry wired to `refreshOrMarkStale()` (every
         resource) made the 404 case in `plan-read-and-write.test.tsx` read the
-        tree twice, expected once; watched 2026-10-23.
+        tree twice, expected once. The region mounted only while stale failed
+        that case's `toHaveAttribute('aria-live', 'polite')` after the retry,
+        the region gone; watched 2026-10-23.
       */}
-      {claimsMayBeStale && (
-        <p
-          role="status"
-          data-stale-claims
-          className="text-muted-foreground mb-2 flex items-center gap-2 text-xs"
-        >
-          Claims could not be read.
+      <div
+        data-stale-claims={claimsMayBeStale ? '' : undefined}
+        className={claimsMayBeStale ? 'mb-2 flex items-center gap-2' : undefined}
+      >
+        <p aria-live="polite" data-claims-notice className="text-muted-foreground text-xs">
+          {claimsMayBeStale ? 'Claims could not be read.' : ''}
+        </p>
+        {claimsMayBeStale && (
           <Button
             variant="ghost"
             size="sm"
@@ -2568,8 +2573,8 @@ export function WbsTable({
           >
             Retry claims
           </Button>
-        </p>
-      )}
+        )}
+      </div>
 
       {/*
         Said out loud rather than left to be noticed. Someone else's edits stop
