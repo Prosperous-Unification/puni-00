@@ -1,0 +1,29 @@
+
+ NX   Running target test for project wbs-fe-01 and 1 task it depends on:
+
+
+
+> nx run wbs-fe-01:"test:unit"
+
+
+
+
+ NX   Running target test for project wbs-fe-01 and 1 task it depends on failed
+
+Tasks not run because their dependencies failed or --nx-bail=true:
+
+- wbs-fe-01:test
+
+Failed tasks:
+
+- wbs-fe-01:test:unit
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      1m 6s
+  Critical path:     1m 6s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Speed up or split the longest tasks on the critical path:
+        wbs-fe-01:test:unit    1m 6s

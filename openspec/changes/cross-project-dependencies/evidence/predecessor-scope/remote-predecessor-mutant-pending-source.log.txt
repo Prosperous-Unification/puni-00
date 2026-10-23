@@ -1,0 +1,33 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 2 failed | 94 skipped) 1100ms
+   × retains predecessor scope drafts and pending controls on desktop 773ms
+   × retains predecessor scope drafts and pending controls on phone 325ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > retains predecessor scope drafts and pending controls on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > retains predecessor scope drafts and pending controls on phone
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <select />
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1125:22
+    1123|       expect(update).toHaveBeenCalledTimes(1);
+    1124|     });
+    1125|     expect(selector).toBeDisabled();
+       |                      ^
+    1126|     expect(details.getByRole('button', { name: 'Save' })).toBeDisabled…
+    1127|     expect(selector).toHaveValue(choice);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 94 skipped (96)
+   Start at  05:32:34
+   Duration  7.80s (import 56%, transform 23%, tests 14%, environment 6%, setup 1%)

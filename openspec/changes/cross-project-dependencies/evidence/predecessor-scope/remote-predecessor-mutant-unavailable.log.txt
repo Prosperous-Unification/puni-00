@@ -1,0 +1,59 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 6 failed | 90 skipped) 1286ms
+   × edits persisted remote predecessor whole scope on desktop 512ms
+   × edits persisted remote predecessor node scope on desktop 260ms
+   × edits persisted remote predecessor descendant-step scope on desktop 199ms
+   × edits persisted remote predecessor whole scope on phone 108ms
+   × edits persisted remote predecessor node scope on phone 101ms
+   × edits persisted remote predecessor descendant-step scope on phone 101ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor whole scope on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor whole scope on phone
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor node scope on phone
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor descendant-step scope on phone
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1007:61
+    1005|       fireEvent.click(screen.getByRole('button', { name: 'Edit predece…
+    1006|       const details = within(screen.getByRole('dialog', { name: 'Captu…
+    1007|       expect(details.getByRole('button', { name: 'Save' })).toBeDisabl…
+       |                                                             ^
+    1008|       const selector = await screen.findByLabelText('Predecessor scope…
+    1009|       await waitFor(() =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor node scope on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor descendant-step scope on desktop
+Error: expect(element).toBeDisabled()
+
+Received element is not disabled:
+  <button
+  type="button"
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1007:61
+    1005|       fireEvent.click(screen.getByRole('button', { name: 'Edit predece…
+    1006|       const details = within(screen.getByRole('dialog', { name: 'Captu…
+    1007|       expect(details.getByRole('button', { name: 'Save' })).toBeDisabl…
+       |                                                             ^
+    1008|       const selector = await screen.findByLabelText('Predecessor scope…
+    1009|       await waitFor(() =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 90 skipped (96)
+   Start at  05:32:26
+   Duration  7.97s (import 54%, transform 24%, tests 16%, environment 5%, setup 1%)

@@ -2436,6 +2436,8 @@ function CardDependsField({
                     // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted phone, 2026-10-23).
                     key={`${dependency.id}:${String(editorSession.current.generation)}`}
                     dependency={dependency}
+                    lookup={dependencyLookup}
+                    ownerProjectId={projectId}
                     successor={
                       dependency.successor.projectId === projectId
                         ? buildPersistedSuccessorEditor(
@@ -2451,13 +2453,16 @@ function CardDependsField({
                       // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted phone, 2026-10-23).
                       dependency.successor.projectId === projectId &&
                       saveTypedDependency !== undefined
-                        ? (type, target) =>
+                        ? (type, target, source) =>
                             saveTypedDependency(
                               dependency.id,
-                              serializePersistedDependencyEndpoint(
-                                dependency.predecessor,
-                                projectId,
-                              ),
+                              // Proof: forcing the persisted source branch failed all three selected predecessor scope payloads on this surface (2026-10-23).
+                              source === undefined
+                                ? serializePersistedDependencyEndpoint(
+                                    dependency.predecessor,
+                                    projectId,
+                                  )
+                                : serializeDependencyEndpoint(source, projectId),
                               serializeDependencyEndpoint(target, projectId),
                               type,
                             )

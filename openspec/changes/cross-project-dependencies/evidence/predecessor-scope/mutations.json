@@ -1,0 +1,119 @@
+[
+  {
+    "fault": "complete",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=refuses paged persisted predecessor",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "row",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=refuses wrong-row persisted predecessor",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "unavailable",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=edits persisted remote predecessor",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "pending-source",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=retains predecessor scope drafts",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "exact-initial",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=edits persisted remote predecessor",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "desktop-source",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=edits persisted remote predecessor.*desktop",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "phone-source",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=edits persisted remote predecessor.*phone",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "pending-open",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=retires a pending captured edit",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  },
+  {
+    "fault": "lazy-lookup",
+    "exit": 1,
+    "command": [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "--testNamePattern=edits persisted remote predecessor node scope on desktop",
+      "--no-file-parallelism",
+      "--maxWorkers=1"
+    ]
+  }
+]

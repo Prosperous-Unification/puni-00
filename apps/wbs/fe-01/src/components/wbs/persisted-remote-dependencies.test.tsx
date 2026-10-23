@@ -29,6 +29,7 @@ async function mount(
   owned = true,
   successorScope: 'whole' | 'node' | 'descendant-step' = 'whole',
   parent = successorScope === 'descendant-step',
+  remoteScopes: false | 'ready' | 'ready-parent' | 'paged' | 'wrong-row' | 'refused' = false,
 ) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 });
   const api = fakeProjectApi();
@@ -131,6 +132,84 @@ async function mount(
   const remove = vi.fn<ProjectApi['removeTypedDependency']>().mockResolvedValue(undefined);
   const add = vi.fn<ProjectApi['addTypedDependency']>();
   const addresses = createRefusingAddressApi();
+  if (remoteScopes)
+    addresses.candidates = (_projectId, query) =>
+      Promise.resolve(
+        remoteScopes === 'refused'
+          ? {
+              kind: 'refusal',
+              representation: 'json',
+              status: 401,
+              headers: new Headers(),
+              body: { error: 'unauthenticated' },
+            }
+          : {
+              kind: 'success',
+              status: 200,
+              representation: 'json',
+              headers: new Headers(),
+              body: {
+                project: {
+                  projectId: 'remote-stable',
+                  abbreviation: 'REMOTE',
+                  name: 'Remote project',
+                },
+                addressRevision: 'current',
+                nextCursor: remoteScopes === 'paged' && query.cursor === undefined ? 'next' : null,
+                candidates: [
+                  {
+                    projectId: 'remote-stable',
+                    workItemId: 'remote-row',
+                    number: '080',
+                    name: 'Remote build',
+                    endpoint: { scope: 'whole' as const, workItemId: 'remote-row' },
+                    reference: 'REMOTE.080',
+                  },
+                  {
+                    projectId: 'remote-stable',
+                    workItemId: 'remote-row',
+                    number: '080',
+                    name: 'Remote build',
+                    endpoint: {
+                      scope:
+                        remoteScopes === 'ready-parent'
+                          ? ('descendant-step' as const)
+                          : ('node' as const),
+                      workItemId: 'remote-row',
+                      stepId:
+                        remoteScopes === 'ready' || remoteScopes === 'ready-parent'
+                          ? 'remote-test'
+                          : 'remote-dev',
+                    },
+                    reference: null,
+                    step: {
+                      id:
+                        remoteScopes === 'ready' || remoteScopes === 'ready-parent'
+                          ? 'remote-test'
+                          : 'remote-dev',
+                      code: 'DEV',
+                      name: 'Remote testing',
+                      position: 2,
+                      ordinal: 3,
+                    },
+                  },
+                ].flatMap((candidate) => [
+                  {
+                    ...candidate,
+                    workItemId:
+                      remoteScopes === 'wrong-row' ? 'different-row' : candidate.workItemId,
+                    endpoint: {
+                      ...candidate.endpoint,
+                      workItemId:
+                        remoteScopes === 'wrong-row'
+                          ? 'different-row'
+                          : candidate.endpoint.workItemId,
+                    },
+                  },
+                ]),
+              },
+            },
+      );
   const discover = vi.spyOn(addresses, 'projects');
   const search = vi.spyOn(addresses, 'candidates');
   const resolve = vi.spyOn(addresses, 'resolve');
@@ -634,6 +713,7 @@ for (const phone of [false, true]) {
     });
     expect(editor().getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(screen.getByLabelText('This work item')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit predecessor scope' })).toBeDisabled();
     fireEvent.click(editor().getByRole('button', { name: 'Save' }));
     expect(update).toHaveBeenCalledTimes(1);
     openEdit();
@@ -906,3 +986,156 @@ for (const phone of [false, true])
     for (const call of [fixture.add, fixture.discover, fixture.search, fixture.resolve])
       expect(call).not.toHaveBeenCalled();
   });
+
+for (const phone of [false, true]) {
+  for (const sourceScope of ['whole', 'node', 'descendant-step'] as const)
+    it(`edits persisted remote predecessor ${sourceScope} scope on ${phone ? 'phone' : 'desktop'}`, async () => {
+      const { update, row, search, discover } = await mount(
+        phone,
+        undefined,
+        false,
+        'node',
+        true,
+        'whole',
+        false,
+        sourceScope === 'descendant-step' ? 'ready-parent' : 'ready',
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+      );
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      });
+      expect(search).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Edit predecessor scope' }));
+      const details = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+      expect(details.getByRole('button', { name: 'Save' })).toBeDisabled();
+      const selector = await screen.findByLabelText('Predecessor scope');
+      await waitFor(() =>
+        expect(
+          within(selector).getByRole('option', {
+            name:
+              sourceScope === 'descendant-step'
+                ? 'Remote testing across all descendants'
+                : 'Remote testing step',
+          }),
+        ).toBeInTheDocument(),
+      );
+      expect(details.getByRole('button', { name: 'Save' })).toBeDisabled();
+      fireEvent.change(selector, {
+        target: {
+          value: JSON.stringify([
+            'remote-stable',
+            'remote-row',
+            sourceScope,
+            sourceScope === 'whole' ? null : 'remote-test',
+          ]),
+        },
+      });
+      fireEvent.click(details.getByRole('button', { name: 'Save' }));
+      await waitFor(() => {
+        expect(update).toHaveBeenCalledWith(
+          'p1',
+          'external',
+          {
+            projectId: 'remote-stable',
+            scope: sourceScope,
+            workItemId: 'remote-row',
+            ...(sourceScope === 'whole' ? {} : { stepId: 'remote-test' }),
+          },
+          { scope: 'whole', workItemId: row.id },
+          'FS',
+        );
+      });
+      expect(search).toHaveBeenCalledWith(
+        'remote-stable',
+        { q: '080', limit: '25' },
+        expect.any(AbortSignal),
+      );
+      expect(discover).not.toHaveBeenCalled();
+    });
+}
+
+for (const phone of [false, true]) {
+  for (const evidence of ['paged', 'wrong-row', 'refused'] as const) {
+    it(`refuses ${evidence} persisted predecessor scopes on ${phone ? 'phone' : 'desktop'}`, async () => {
+      const { update } = await mount(
+        phone,
+        undefined,
+        false,
+        'node',
+        true,
+        'whole',
+        false,
+        evidence,
+      );
+      if (!phone)
+        fireEvent.mouseEnter(screen.getByLabelText('Add a dependency to 010').closest('td')!);
+      fireEvent.click(
+        screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Edit predecessor scope' }));
+      const details = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+      if (evidence === 'paged') {
+        await screen.findByRole('button', { name: 'More scopes' });
+        expect(details.getByRole('button', { name: 'Save' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'More scopes' }));
+        await waitFor(() => expect(details.getByRole('button', { name: 'Save' })).toBeEnabled());
+      } else {
+        await waitFor(() => {
+          expect(screen.queryByText('Loading predecessor scopes…')).toBeNull();
+        });
+        expect(details.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expect(
+          within(screen.getByLabelText('Predecessor scope')).queryAllByRole('option', {
+            name: 'Whole work item',
+          }),
+        ).toHaveLength(0);
+        fireEvent.click(details.getByRole('button', { name: 'Save' }));
+        expect(update).not.toHaveBeenCalled();
+      }
+    });
+  }
+}
+
+for (const phone of [false, true]) {
+  it(`retains predecessor scope drafts and pending controls on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { update } = await mount(phone, undefined, false, 'node', true, 'whole', false, 'ready');
+    let finish: (() => void) | undefined;
+    update.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+    );
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'FF' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit predecessor scope' }));
+    expect(screen.getByLabelText('Relationship')).toHaveValue('FF');
+    const selector = screen.getByLabelText('Predecessor scope');
+    await waitFor(() =>
+      expect(
+        within(selector).getByRole('option', { name: 'Remote testing step' }),
+      ).toBeInTheDocument(),
+    );
+    const choice = JSON.stringify(['remote-stable', 'remote-row', 'node', 'remote-test']);
+    fireEvent.change(selector, { target: { value: choice } });
+    const details = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+    fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+    expect(selector).toBeDisabled();
+    expect(details.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(selector).toHaveValue(choice);
+    act(() => {
+      if (finish === undefined) throw new Error('Missing pending update');
+      finish();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Captured dependency' })).toBeNull();
+    });
+  });
+}

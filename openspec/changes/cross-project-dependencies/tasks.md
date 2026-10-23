@@ -580,3 +580,9 @@ Bounded 10.1 SCIM review correction (2026-10-23):
 - [x] Require finite gateway transport admission after socket origin/credential authentication on every upgrade/reconnect; forward v1 only for the exact WS token and immutable binary support.
 - [x] Prove mounted SQLite→backend→real socket disabled preservation and enabled reconnect refusal; watch local support, exact token, outbound header, typed refusal and skipped/reused upgrade-check faults fail.
 - [ ] Complete independent review and integrated host gate. Parent 10.1 remains open: existing socket/delivery interval fencing, old process participant exclusion, client claim sending and activation remain outside this packet; binary advertisement stays empty.
+
+Task 9.2 bounded persisted remote predecessor scope editing (2026-10-23):
+owner-only desktop and phone details offer explicit stable-project scope lookup,
+complete-page/exact-coordinate selection and preserved relationship identity.
+See [bounded evidence](verify-9-2-predecessor-scope.md). Parent 9.2 and active
+backend acceptance remain open.

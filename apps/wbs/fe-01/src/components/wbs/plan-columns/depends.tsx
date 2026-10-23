@@ -1113,6 +1113,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted desktop, 2026-10-23).
                     key={`${dependency.id}:${String(editorSession.current.generation)}`}
                     dependency={dependency}
+                    lookup={live.current.dependencyLookup}
+                    ownerProjectId={live.current.projectId}
                     successor={
                       dependency.successor.projectId === live.current.projectId
                         ? buildPersistedSuccessorEditor(
@@ -1127,15 +1129,18 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     onSave={
                       // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted desktop, 2026-10-23).
                       dependency.successor.projectId === live.current.projectId
-                        ? (type, target) =>
+                        ? (type, target, source) =>
                             live.current.run((write) =>
                               write.perform(['tree'], () =>
                                 live.current.commands.updateTypedDependency(
                                   dependency.id,
-                                  serializePersistedDependencyEndpoint(
-                                    dependency.predecessor,
-                                    live.current.projectId,
-                                  ),
+                                  // Proof: forcing the persisted source branch failed all three selected predecessor scope payloads on this surface (2026-10-23).
+                                  source === undefined
+                                    ? serializePersistedDependencyEndpoint(
+                                        dependency.predecessor,
+                                        live.current.projectId,
+                                      )
+                                    : serializeDependencyEndpoint(source, live.current.projectId),
                                   serializeDependencyEndpoint(target, live.current.projectId),
                                   type,
                                 ),
