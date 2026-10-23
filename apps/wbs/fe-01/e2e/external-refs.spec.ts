@@ -248,6 +248,99 @@ function markContrasts(page: Page): Promise<{ kind: string; ratio: number; area:
 const READABLE_MARK = 3;
 
 test.describe('the ref column, in a browser', () => {
+  test('opens delivery explicitly for a saved link and keeps long observations usable on a phone', async ({
+    page,
+  }, testInfo) => {
+    let deliveryReads = 0;
+    const observedAt = new Date().toISOString();
+    const url = 'https://github.com/acme/tool/pull/7';
+    const source = (id: string) => ({
+      provider: 'github',
+      id,
+      url,
+      nativeState: 'completed',
+      observedAt,
+    });
+    await page.route('**/api/projects/*/work-items/*/refs/*/delivery', async (route) => {
+      deliveryReads += 1;
+      await route.fulfill({
+        json: {
+          kind: 'observed',
+          observation: {
+            version: 1,
+            observedAt,
+            change: {
+              source: source('change'),
+              title: 'Observed saved change request',
+              revision: 'revision-with-a-long-opaque-identity-'.repeat(5),
+              state: 'merged',
+              mergedRevision: 'merge:observed',
+            },
+            checks: Array.from({ length: 14 }, (_, index) => ({
+              source: source(`check:${String(index)}`),
+              name: `Check ${String(index + 1)} ${'very-long-check-name-'.repeat(8)}`,
+              revision: 'revision-with-a-long-opaque-identity-'.repeat(5),
+              state: index === 0 ? 'failed' : 'passed',
+              startedAt: null,
+              completedAt: null,
+            })),
+            runs: [],
+            coverage: {
+              checks: 'complete',
+              runs: 'partial',
+              notes: ['Checks exclude merge policy and legacy commit statuses.'],
+            },
+          },
+        },
+      });
+    });
+    await seed(page);
+    await page.getByLabel('Links for 010').hover();
+    await expect(page.getByRole('tooltip', { name: 'Where 010 also exists' })).toBeVisible();
+    await page.getByLabel('Links for 010').click();
+    const editor = page.getByRole('dialog', { name: 'Links for 010' });
+    await expect(editor).toBeVisible();
+    expect(deliveryReads).toBe(0);
+    await editor.getByRole('button', { name: 'Delivery for link 2' }).click();
+    const delivery = editor.getByRole('region', { name: 'Delivery observation' });
+    await expect(
+      delivery.getByRole('link', { name: 'Observed saved change request' }),
+    ).toBeVisible();
+    await expect(delivery.getByRole('row')).toHaveCount(15);
+    expect(deliveryReads).toBe(1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await delivery
+      .getByRole('heading', { name: 'Checks for this revision' })
+      .scrollIntoViewIfNeeded();
+    const dimensions = await editor.evaluate((node) => ({
+      width: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+      height: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+      overflowing: [...node.querySelectorAll('*')]
+        .filter((child) => child.getBoundingClientRect().right > node.getBoundingClientRect().right)
+        .map((child) => ({
+          tag: child.tagName,
+          label: child.getAttribute('aria-label'),
+          text: child.textContent.slice(0, 60),
+          width: child.getBoundingClientRect().width,
+        })),
+    }));
+    expect(dimensions.scrollWidth, JSON.stringify(dimensions.overflowing)).toBeLessThanOrEqual(
+      dimensions.width + 1,
+    );
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.height);
+    await testInfo.attach('delivery-panel-phone.png', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    });
+    await delivery.getByRole('link', { name: /^Check 14 / }).scrollIntoViewIfNeeded();
+    await expect(delivery.getByRole('link', { name: /^Check 14 / })).toBeVisible();
+    await editor.getByRole('button', { name: 'Close delivery' }).click();
+    await expect(delivery).toHaveCount(0);
+    await expect(editor.getByLabel('Name of link 2')).toHaveValue('#7 Rewire the shed');
+  });
+
   test('three marks stand inside the cell, and move neither the row nor the column', async ({
     page,
   }) => {

@@ -3354,6 +3354,8 @@ export function WbsTable({
             if (!open) setRefsEditing(null);
           }}
           number={refsEditingRow.number}
+          projectId={projectId}
+          workItemId={refsEditingRow.id}
           refs={refsEditingRow.externalRefs}
           systems={externalSystems}
           onReplace={(refs) => {
