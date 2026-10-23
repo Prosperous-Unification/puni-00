@@ -111,6 +111,10 @@ const EXEMPT = new Set([
   'solverSlot',
   'solverQueue',
   'optimizedScheduleCache',
+  // Machine terminal evidence, keyed by attempt and generation; createdAt dates
+  // the certificate itself and the schema declares no general audit columns.
+  // Proof: injecting auditColumns() into its schema failed the exemption guard (2026-10-23).
+  'optimizationBoundaryCertificate',
   'savedPlan',
   'savedPlanBody',
   'calendarMarker',

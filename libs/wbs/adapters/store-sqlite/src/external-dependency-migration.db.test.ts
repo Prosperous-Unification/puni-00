@@ -634,6 +634,50 @@ it('incident detach and restore preserve null creation audit and bump the comple
   }
 });
 
+/** Proof: removing each restore helper lost updated_at; removing each creation override lost original authorship and legacy nulls (2026-10-23). */
+for (const storage of ['local', 'external'] as const) {
+  for (const legacy of [false, true]) {
+    it(`incident restore preserves ${storage} creation audit (${legacy ? 'legacy null' : 'authored'}) and stamps updates`, async () => {
+      const repo = repository();
+      const dependency: StoredTypedDependency =
+        storage === 'local'
+          ? {
+              ...link(),
+              predecessor: { projectId: 'b', workItemId: 'b2', scope: 'whole' },
+            }
+          : link();
+      const table = storage === 'local' ? 'typed_dependency' : 'external_dependency';
+      await repo.add(dependency, stamp);
+      const sqlite = openDatabase(path);
+      try {
+        sqlite.run(
+          "INSERT INTO users(id,username,password_hash,created_at) VALUES ('editor','editor','x',3)",
+        );
+        if (legacy) sqlite.run(`UPDATE ${table} SET created_at=NULL,created_by=NULL`);
+      } finally {
+        sqlite.close();
+      }
+      const receipt = await repo.incidents.capture(dependency.id);
+      expect(receipt).toEqual({
+        dependency,
+        createdAt: legacy ? null : stamp.at,
+        createdBy: legacy ? null : stamp.by,
+      });
+      await repo.incidents.detach(receipt);
+      expect(stored(`SELECT id FROM ${table}`)).toEqual([]);
+      await repo.incidents.restore(receipt, dependency, { at: 4, by: 'editor' });
+      expect(await repo.listByProject('b')).toEqual([dependency]);
+      expect(stored(`SELECT created_at,created_by,updated_at FROM ${table}`)).toEqual([
+        {
+          created_at: legacy ? null : stamp.at,
+          created_by: legacy ? null : stamp.by,
+          updated_at: 4,
+        },
+      ]);
+    });
+  }
+}
+
 it('incident detach refuses changed relationship evidence before deleting it', async () => {
   const repo = repository();
   await repo.add(link(), stamp);

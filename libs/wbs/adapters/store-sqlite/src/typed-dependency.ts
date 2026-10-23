@@ -411,15 +411,19 @@ export class TypedDependencyRepository implements TypedDependencyStore {
           if (readPhysical(tx, { id: row.id }).length !== 0)
             throw new Error(`incident dependency ${row.id} already exists`);
           const organizationId = assertEndpointsHeld(tx, row);
-          // Proof: replacing original creation fields with the command stamp lost null audit through forward/inverse restoration, 2026-10-22.
-          const audit = {
-            ...auditOnCreate(stamp),
-            createdAt: receipt.createdAt,
-            createdBy: receipt.createdBy,
-          };
+          // Proof: removing auditOnCreate from either insert failed the source audit
+          // and its local/external restore cases on updated_at (2026-10-23).
+          // Removing the creation overrides failed authored and legacy-null cases
+          // for each physical table in external-dependency-migration.db.test.ts.
           if (organizationId === undefined) {
             tx.insert(typedDependency)
-              .values({ id: row.id, ...mapStoredColumns(row), ...audit })
+              .values({
+                id: row.id,
+                ...mapStoredColumns(row),
+                ...auditOnCreate(stamp),
+                createdAt: receipt.createdAt,
+                createdBy: receipt.createdBy,
+              })
               .run();
           } else {
             tx.insert(externalDependency)
@@ -429,7 +433,9 @@ export class TypedDependencyRepository implements TypedDependencyStore {
                 organizationId,
                 predecessorProjectId: row.predecessor.projectId,
                 successorProjectId: row.successor.projectId,
-                ...audit,
+                ...auditOnCreate(stamp),
+                createdAt: receipt.createdAt,
+                createdBy: receipt.createdBy,
               })
               .run();
           }
