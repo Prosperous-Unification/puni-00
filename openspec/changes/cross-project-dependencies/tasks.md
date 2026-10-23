@@ -857,3 +857,14 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] Prove runner refusals, command bounds and fixture-only effects locally.
 - [ ] Independently review then execute exact-SHA runner under host heavy lock;
       retain private receipt and distinguish positive host proof from fault packet.
+
+### Bounded whole source-dev exclusion prerequisite
+
+- [x] X1 Decoder tests: typed optional init, exact private PID, immutable image/tag, fixed command/mount/network identity.
+- [x] X2 Joint-owner durable intent/update/stop/readback and callback-scoped opaque token.
+- [x] X3 Owner backend audit recognizes only the verified same-inventory source member; ordinary stopped mounts remain refused.
+- [x] X4 Explicit solver/ingress/source/prod managed composition with fresh before/after/final inspections.
+- [x] X5a Watched omissions and focused checks: [source receipt](verify-source-dev-exclusion.md).
+- [ ] X5b Independent final source review and separately reviewed physical runner/acceptance. Parent O4/10.2 and adoption stay open.
+
+Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bind full native terminal/inert snapshots and retained hashes, and recognize only exact same-inventory objects. No stopped/tmpfs exemption is introduced.

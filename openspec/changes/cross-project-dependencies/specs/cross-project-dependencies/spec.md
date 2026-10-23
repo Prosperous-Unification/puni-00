@@ -1395,3 +1395,36 @@ ownership, current files and uncertainty without automatic restoration.
 
 - **WHEN** an isolated actual Caddy fixture restarts after successful closure
 - **THEN** selected fixture hosts still return 503 and unrelated fixture hosts retain their responses
+
+### Requirement: Live owner source-dev and solver audit recognition
+
+The explicit source-inclusive callable SHALL exclude the whole fixed source dev
+container under the same joint prod/dev owner and continuous solver runtime lock.
+It SHALL inhibit restart, stop the exact captured full ID, and freshly require a
+coherent terminal private PID namespace with PID zero before protected work.
+Typed null/false init SHALL remain supported for this whole-container exclusion.
+Retained evidence SHALL contain hashes rather than container environment bytes.
+
+Only live opaque source and solver tokens SHALL recognize their exact raw members
+of the complete backend audit inventory. Owner/layout/SHA/lifetime, immutable
+image, configuration/mount/network/process identity, retained bytes and independent
+current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
+
+#### Scenario: Awaited protected work remains within all exclusion intervals
+
+- **WHEN** the source-inclusive callable receives both exact owned layouts
+- **THEN** it closes ingress, drains solver, excludes source dev and fences prod gateway/backend in order
+- **AND** fresh ingress/gateway/backend/source inspections precede and follow the awaited continuation
+- **AND** source and solver tokens expire only after their final inspections
+- **AND** activation remains blocked and all evidence/current Docker state is retained
+
+#### Scenario: Forged or changed inventory member cannot bypass audit
+
+- **WHEN** a token is copied, expired or foreign, or its captured member is missing, replaced, resumed or changed
+- **THEN** owner backend observation refuses before protected effects
+- **AND** an unrelated stopped mounted container still requires the ordinary namespace audit
+
+#### Scenario: Transitional dev colours refuse
+
+- **WHEN** source-dev discovery observes additional dev backend or gateway colour topology
+- **THEN** whole-source exclusion refuses without treating that topology as excluded

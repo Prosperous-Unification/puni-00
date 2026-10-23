@@ -1385,3 +1385,11 @@ already-installed digest image and external private receipt are mandatory.
 Per-command bounds and a separate cleanup budget retain uncertainty instead of
 accepting orphaned resources. Actual-host mutation runs remain a separate reviewed
 packet; local source fault evidence does not become live fault evidence.
+
+### Owner-bound whole source-dev exclusion
+
+The source dev container runs BE/GW/FE/MCP and background consent work in one private PID namespace. Exact bounded stop plus coherent terminal/PID-zero observation excludes that namespace without requiring init. The running managed namespace scanner keeps its init requirement. A private-symbol/WeakMap token binds the live owner, both exact layouts, SHA, retained intent/completion bytes and exact stopped identity. Only the identical member of the backend audit inventory may be recognized, after independent fresh source observation. Every owner backend observation carries this context. All other mounted containers retain strict ordinary audit admission.
+
+An explicit callable composes ingress for both environments, solver drain, source-dev exclusion, prod gateway/backend fences, fresh inspections, awaited continuation and final inspections in that order. It refuses transitional dev colour members. Final source verification expires authority on all outcomes and retains all evidence. Activation remains blocked.
+
+Solver namespace-audit recognition uses a second opaque live token, scoped to the existing runtime lock. Full native terminal/inert inspection is projected into the unchanged solver lifecycle grammar and bound by durable private snapshot hashes. Source/solver tokens recognize only their exact raw members of the same backend inventory; unknown stopped mounts remain strict. Docker inspection receipts retain hashes so full Config.Env bytes remain in memory only.

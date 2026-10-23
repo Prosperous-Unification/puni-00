@@ -5,6 +5,7 @@ import {
   type GatewayBinding,
   gatewayBinding,
   inspectBackendCohort as inspectCohort,
+  inspectBackendCohortUnderOwner,
   parseBackendCohort as parseCohort,
   parseGatewayBinding,
 } from './backend-cohort';
@@ -14,8 +15,8 @@ import { type DockerExec, runDockerExec } from './docker-exec';
 import {
   assertDependencyOwner,
   type DependencyOwner,
-  ownerDocker,
   ownerDockerExec,
+  ownerDockerHashed,
 } from './edge-ownership';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
@@ -31,6 +32,8 @@ import {
   readString,
 } from './managed-cohort';
 import { verifyContainerNamespace } from './mount-audit';
+import type { SolverExclusion } from './solver-exclusion';
+import type { SourceDevExclusion } from './source-dev-exclusion';
 
 const MARKER = '{"format":"dependency-backend-fence","version":1}\n';
 const INTENT = 'dependency-backend-intent.json';
@@ -208,6 +211,8 @@ export async function fenceBackendsUnderOwner(
   deadline: number,
   namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
   execDocker: DockerExec = runDockerExec,
+  source?: SourceDevExclusion,
+  solver?: SolverExclusion,
 ): Promise<BackendCompletion> {
   await assertDependencyOwner(owner, layout, sha);
   // Proof: bypassing ownerDockerExec made composed acceptance reach scanner without nonce-bound durable intent (exit 1).
@@ -233,9 +238,10 @@ export async function fenceBackendsUnderOwner(
   return fenceBackendCore(
     layout,
     sha,
-    ownerDocker(owner, layout, runDocker),
+    ownerDockerHashed(owner, layout, runDocker),
     deadline,
     verifyOwnedNamespace,
+    source === undefined ? undefined : { owner, exclusion: source, solver },
   );
 }
 
@@ -245,13 +251,27 @@ async function fenceBackendCore(
   runDocker: RunDocker,
   deadline: number,
   namespaceProof: typeof verifyContainerNamespace,
+  source?: { owner: DependencyOwner; exclusion: SourceDevExclusion; solver?: SolverExclusion },
 ): Promise<BackendCompletion> {
+  const observe = () =>
+    source === undefined
+      ? inspectCohort(layout, runDocker, deadline, gateway, namespaceProof)
+      : inspectBackendCohortUnderOwner(
+          source.owner,
+          layout,
+          source.exclusion,
+          runDocker,
+          deadline,
+          gateway,
+          namespaceProof,
+          source.solver,
+        );
   await assertRoot(layout);
   await assertNoBackendFence(layout.stateDir);
   // Proof: missing-gateway and resumed-gateway production invocations refuse before backend publication/effects.
   await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
   const gateway = await gatewayBinding(layout);
-  const cohort = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+  const cohort = await observe();
   try {
     await publishRecord(`${layout.stateDir}/dependency-backend-fence.json`, MARKER);
     const intent: Intent = {
@@ -268,17 +288,13 @@ async function fenceBackendCore(
     const contents = serializeRecord(intent);
     // Proof: deleting this publication fails every-backend-effect-before-durable-intent (exit 1).
     await publishRecord(`${layout.stateDir}/${INTENT}`, contents);
-    assertSame(
-      cohort,
-      await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof),
-      'pre-effect cohort',
-    );
+    assertSame(cohort, await observe(), 'pre-effect cohort');
     for (const color of COLORS) {
       const backend = cohort[color];
       if (backend === null) continue;
       // Proof: suppressing update fails both-colours success at independent policy readback (exit 1).
       await runDockerBefore(['update', '--restart=no', backend.id], runDocker, deadline);
-      const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+      const observed = await observe();
       const expected: Cohort = structuredClone(cohort);
       const updated = expected[color];
       if (updated === null) throw new Error('backend fence lost known cohort member');
@@ -292,7 +308,7 @@ async function fenceBackendCore(
       if (backend === null) continue;
       // Proof: suppressing stop fails both-colours success at fresh process/PID exclusion (exit 1).
       await runDockerBefore(['stop', '--time', '10', backend.id], runDocker, deadline);
-      const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+      const observed = await observe();
       assertSame(projectIdentities(cohort), projectIdentities(observed), 'stop identity readback');
       const stopped = observed[color];
       if (stopped === null) throw new Error('backend fence lost stopped member');
@@ -301,7 +317,7 @@ async function fenceBackendCore(
         if (other !== color) assertSame(cohort[other], observed[other], 'unaffected member');
       cohort[color] = stopped;
     }
-    const stopped = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+    const stopped = await observe();
     assertSame(cohort, stopped, 'fresh stopped cohort');
     assertExcluded(stopped);
     const completion: BackendCompletion = {
@@ -316,7 +332,7 @@ async function fenceBackendCore(
     const retained = await readCompletion(layout);
     assertSame(completion, retained.completion, 'completion readback');
     // Proof: substituting historical stopped state admits completion-drift; its production-path negative fails (exit 1).
-    const final = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
+    const final = await observe();
     assertSame(stopped, final, 'final current cohort');
     assertExcluded(final);
     return completion;
@@ -362,6 +378,55 @@ export async function inspectBackendFenceUnderLock(
   const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
   // Proof: deleting current-cohort equality admits a replaced main DB inode; replaced-main-file negative fails (exit 1).
   assertSame(completion.cohort, observed, 'current completed cohort');
+  assertExcluded(observed);
+  return completion;
+}
+
+/** Fresh live owner proof with the same source context at every backend inventory observation. */
+export async function inspectBackendFenceUnderOwner(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  sha: string,
+  runDocker: RunDocker,
+  deadline: number,
+  source: SourceDevExclusion,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+  execDocker: DockerExec = runDockerExec,
+  solver?: SolverExclusion,
+): Promise<BackendCompletion> {
+  await assertDependencyOwner(owner, layout, sha);
+  await assertRoot(layout);
+  const { completion, intent } = await readCompletion(layout);
+  const verifyOwnedNamespace: typeof verifyContainerNamespace = (
+    container,
+    destinations,
+    databaseHostPath,
+    image,
+    docker,
+    databasePath,
+    bounds,
+  ) =>
+    namespaceProof(
+      container,
+      destinations,
+      databaseHostPath,
+      image,
+      docker,
+      databasePath,
+      bounds,
+      ownerDockerExec(owner, layout, execDocker),
+    );
+  const observed = await inspectBackendCohortUnderOwner(
+    owner,
+    layout,
+    source,
+    ownerDockerHashed(owner, layout, runDocker),
+    deadline,
+    intent.gateway,
+    verifyOwnedNamespace,
+    solver,
+  );
+  assertSame(completion.cohort, observed, 'current completed owner cohort');
   assertExcluded(observed);
   return completion;
 }

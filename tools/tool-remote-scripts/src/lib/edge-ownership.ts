@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, fsyncSync, readFileSync, writeFileSync } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
@@ -137,6 +137,15 @@ export function ownerDocker(
   layout: EnvLayout,
   runDocker: RunDocker,
 ): RunDocker {
+  return ownerDockerBoundary(owner, layout, runDocker, false);
+}
+
+function ownerDockerBoundary(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  runDocker: RunDocker,
+  hashResponse: boolean,
+): RunDocker {
   return async (args, signal) => {
     await assertDependencyOwner(owner, layout);
     const ownership = owners.get(owner);
@@ -156,7 +165,11 @@ export function ownerDocker(
     const response = await runDocker(args, signal);
     // Proof: omitted immediate readback fence; lost-marker negative published a fabricated successful readback (exit 1).
     await assertDependencyOwner(owner, layout);
-    await publishRecord(`${prefix}-readback.json`, `${JSON.stringify({ response })}\n`);
+    // Proof: retaining raw responses at hashed boundaries leaked PRIVATE_SENTINEL; source private evidence test failed.
+    const observation = hashResponse
+      ? { responseSha256: createHash('sha256').update(response).digest('hex') }
+      : { response };
+    await publishRecord(`${prefix}-readback.json`, `${JSON.stringify(observation)}\n`);
     await assertDependencyOwner(owner, layout);
     return response;
   };
@@ -443,7 +456,7 @@ export async function retainSolverRecord(
   layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
   label: 'installed' | 'stop' | 'drained' | 'complete',
   record: object,
-): Promise<void> {
+): Promise<{ path: string; contents: string }> {
   await assertDependencyOwner(owner, layouts.prod);
   await assertDependencyOwner(owner, layouts.dev);
   const ownership = owners.get(owner);
@@ -452,9 +465,11 @@ export async function retainSolverRecord(
     ownership.directory,
     `edge-owner-${String(++ownership.sequence).padStart(6, '0')}-solver-${label}.json`,
   );
-  await publishRecord(path, `${JSON.stringify({ owner: ownership.publication, record })}\n`);
+  const contents = `${JSON.stringify({ owner: ownership.publication, record })}\n`;
+  await publishRecord(path, contents);
   await assertDependencyOwner(owner, layouts.prod);
   await assertDependencyOwner(owner, layouts.dev);
+  return { path, contents };
 }
 
 /** Binds an effective participant namespace to the directory actually holding this live owner's markers and locks. */
@@ -468,4 +483,13 @@ export async function assertDependencyOwnerDirectory(
   if (ownership === undefined) throw new Error('dependency owner is not live');
   if (ownership.directory !== directory)
     throw new Error('dependency owner state namespace differs from effective solver admission');
+}
+
+/** Retain only a response hash at credential-bearing Docker inspection boundaries. */
+export function ownerDockerHashed(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  runDocker: RunDocker,
+): RunDocker {
+  return ownerDockerBoundary(owner, layout, runDocker, true);
 }

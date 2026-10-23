@@ -1,20 +1,24 @@
+import { createHash } from 'node:crypto';
+
 import { type RunDocker, runDockerBefore } from './docker-deadline';
 import {
   assertDependencyOwner,
   assertDependencyOwnerDirectory,
   type DependencyOwner,
-  ownerDocker,
+  ownerDockerHashed,
   ownerHostCommand,
   retainSolverRecord,
   withOwnerSolverRuntime,
 } from './edge-ownership';
 import type { EnvLayout } from './env';
-import { readDigest } from './managed-cohort';
+import { assertSame, readDigest, readFields, readIdentity, readRecord } from './managed-cohort';
 import {
   parseSolverContainer,
+  parseSolverSnapshot,
   type SolverContainer,
   solverIdentity,
   solverInspectArgs,
+  type SolverSnapshot,
 } from './solver-cohort';
 import {
   captureSolverTuple,
@@ -31,6 +35,19 @@ export interface SolverLayouts {
   readonly dev: EnvLayout;
 }
 
+const exclusionIdentity: unique symbol = Symbol('solver-exclusion');
+/** Live runtime-lock-scoped solver evidence; retained records grant no audit authority. */
+export interface SolverExclusion {
+  readonly [exclusionIdentity]: true;
+}
+interface SolverScope {
+  owner: DependencyOwner;
+  layout: EnvLayout;
+  snapshots: readonly SolverSnapshot[];
+  inspect: () => Promise<void>;
+}
+const exclusions = new WeakMap<SolverExclusion, SolverScope>();
+
 /**
  * Host-wide bounded solver exclusion only. Keeps the canonical runtime lock through
  * every protected continuation and final readback. Never restores, removes attempts,
@@ -43,7 +60,7 @@ export async function withSolverDrainUnderOwner<T>(
   suppliedPins: SolverPins,
   ports: SolverPorts,
   deadline: number,
-  action: () => Promise<T>,
+  action: (exclusion: SolverExclusion) => Promise<T>,
 ): Promise<T> {
   layouts = structuredClone(layouts);
   const pins = decodeSolverPins(suppliedPins);
@@ -120,7 +137,7 @@ export async function withSolverDrainUnderOwner<T>(
   // Proof: runtime fault admitted protected work while the real manual-runtime flock was occupied.
   return withOwnerSolverRuntime(owner, layouts.prod, async () => {
     await assertStopped();
-    const docker: RunDocker = ownerDocker(owner, layouts.prod, async (args, signal) => {
+    const docker: RunDocker = ownerDockerHashed(owner, layouts.prod, async (args, signal) => {
       await assertDependencyOwner(owner, layouts.dev);
       const stdout = await ports.runDocker(args, signal);
       await assertDependencyOwner(owner, layouts.dev);
@@ -204,19 +221,100 @@ export async function withSolverDrainUnderOwner<T>(
       await assertOwner();
     }
     await assertDrained();
-    await retainSolverRecord(owner, layouts, 'drained', {
+    async function captureSnapshots(): Promise<SolverSnapshot[]> {
+      const snapshots: SolverSnapshot[] = [];
+      for (const retained of cohort) {
+        const inspected: unknown = JSON.parse(await run(['inspect', retained.id]));
+        if (!Array.isArray(inspected) || inspected.length !== 1)
+          throw new Error('solver full inspection requires exact member');
+        const snapshot = parseSolverSnapshot(inspected[0], retained.id);
+        assertSame(retained, snapshot.solver, 'solver projected/full inspection');
+        snapshots.push(snapshot);
+      }
+      return snapshots;
+    }
+    const snapshots = await captureSnapshots();
+    const record = await retainSolverRecord(owner, layouts, 'drained', {
       installed,
       imageBindings: Object.fromEntries(imageBindings),
       cohort,
+      snapshots: snapshots.map((snapshot) => ({
+        id: snapshot.solver.id,
+        sha256: createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),
+      })),
     });
-    const value = await action();
-    // Proof: owner fault returned success after callback publication loss (solver-exclusion.test.ts).
-    await assertDrained();
-    await retainSolverRecord(owner, layouts, 'complete', {
-      installed,
-      imageBindings: Object.fromEntries(imageBindings),
-      cohort,
-    });
-    return value;
+    async function inspect(): Promise<void> {
+      await assertDrained();
+      // Proof: byte-check omission admitted changed drained records; final full inspection/byte test failed (exit 1).
+      if ((await readRecord(record.path)) !== record.contents)
+        throw new Error('solver retained drained bytes changed');
+      assertSame(snapshots, await captureSnapshots(), 'solver full terminal snapshot');
+      await assertDrained();
+    }
+    await inspect();
+    const token: SolverExclusion = Object.freeze({ [exclusionIdentity]: true as const });
+    exclusions.set(token, { owner, layout: layouts.prod, snapshots, inspect });
+    try {
+      return await action(token);
+    } finally {
+      try {
+        // Proof: final-inspection omission admitted full Config/retained-byte changes; final full inspection test failed.
+        await inspect();
+        await retainSolverRecord(owner, layouts, 'complete', {
+          installed,
+          imageBindings: Object.fromEntries(imageBindings),
+          cohort,
+          snapshots: snapshots.map((snapshot) => ({
+            id: snapshot.solver.id,
+            sha256: createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),
+          })),
+        });
+      } finally {
+        // Proof: expiry omission made returned token usable; solver token callback/lifetime test failed (exit 1).
+        exclusions.delete(token);
+      }
+    }
   });
+}
+
+/** Recognize only exact raw members of this full inventory after live runtime/unit/cohort and retained-byte checks. */
+export async function inspectExcludedSolverMembers(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  token: SolverExclusion,
+  inventory: readonly unknown[],
+): Promise<readonly unknown[]> {
+  const scope = exclusions.get(token);
+  // Proof: owner-check omission admitted foreign owner; solver foreign-owner recognition test failed (exit 1).
+  if (scope?.owner !== owner) throw new Error('solver exclusion is not live for owner');
+  assertSame(scope.layout, layout, 'solver audit layout');
+  await scope.inspect();
+  const members: unknown[] = [];
+  const observed = new Set<string>();
+  for (const raw of inventory) {
+    const container = readFields(raw);
+    const id = readIdentity(container['Id']);
+    if (observed.has(id)) throw new Error('solver audit duplicate inventory identity');
+    observed.add(id);
+    const config = readFields(container['Config']);
+    const labels = config['Labels'] === null ? {} : readFields(config['Labels']);
+    const name = container['Name'];
+    const snapshot = scope.snapshots.find((member) => member.solver.id === id);
+    const candidate =
+      labels['wbs-managed-solver'] !== undefined ||
+      (typeof name === 'string' && name.startsWith('/wbs-solver-'));
+    if (snapshot === undefined) {
+      // Proof: candidate-guard omission admitted an extra full-ID attempt; new-member recognition test failed.
+      if (candidate) throw new Error('solver audit unexpected member');
+      continue;
+    }
+    // Proof: comparison omission admitted Config/mount/start/image changes; all four live recognition negatives failed.
+    assertSame(snapshot, parseSolverSnapshot(raw, id), 'solver audit full inventory member');
+    members.push(raw);
+  }
+  // Proof: membership-guard omission admitted a missing attempt; missing-member recognition test failed.
+  if (members.length !== scope.snapshots.length)
+    throw new Error('solver audit missing captured inventory member');
+  await scope.inspect();
+  return members;
 }

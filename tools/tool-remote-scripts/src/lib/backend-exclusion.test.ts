@@ -115,7 +115,10 @@ async function fixture() {
         .join('\n');
     if (args[0] === 'inspect')
       return JSON.stringify(containers.filter((entry) => !absent || entry === gateway));
-    if (args[0] === 'image') return imageId;
+    if (args[0] === 'image')
+      return args.includes('--format')
+        ? imageId
+        : JSON.stringify([{ Id: imageId, Config: { Entrypoint: null } }]);
     if (args[0] === 'update') {
       const target = containers.find((entry) => entry.Id === args.at(-1));
       if (target === undefined) throw new Error('missing update identity');
@@ -138,9 +141,9 @@ async function fixture() {
   const mountedNamespaces = new Map<string, Awaited<ReturnType<typeof createNamespaceFixture>>>();
   const boundDirectories = new Map<string, string>();
   const namespaceCalls: { id: string; databasePath: string | null }[] = [];
-  async function bindNamespace(identity: string) {
+  async function bindNamespace(identity: string, mode = 'managed-match') {
     const proof = await createNamespaceFixture(
-      'managed-match',
+      mode,
       `${root}/db/wbs.db`,
       `${root}/namespace-${identity}`,
     );
@@ -189,22 +192,28 @@ async function fixture() {
       if (directory === undefined)
         throw new Error('fixture cannot resolve retained directory bind');
       // Preserve the inode of the bound directory across Source rebinds, while reflecting file creation/removal within it.
-      for (const suffix of ['', '-wal', '-shm', '-journal']) {
-        const target = `${proof.root}/namespace/data/wbs.db${suffix}`;
-        try {
-          await unlink(target);
-        } catch (cause) {
-          if (!(cause instanceof Error) || !('code' in cause) || cause.code !== 'ENOENT')
+      if (databasePath !== null)
+        for (const suffix of ['', '-wal', '-shm', '-journal']) {
+          const target = `${proof.root}/namespace/data/wbs.db${suffix}`;
+          try {
+            await unlink(target);
+          } catch (cause) {
+            if (!(cause instanceof Error) || !('code' in cause) || cause.code !== 'ENOENT')
+              throw cause;
+          }
+          try {
+            await link(`${directory}/wbs.db${suffix}`, target);
+          } catch (cause) {
+            if (
+              suffix !== '' &&
+              cause instanceof Error &&
+              'code' in cause &&
+              cause.code === 'ENOENT'
+            )
+              continue;
             throw cause;
+          }
         }
-        try {
-          await link(`${directory}/wbs.db${suffix}`, target);
-        } catch (cause) {
-          if (suffix !== '' && cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
-            continue;
-          throw cause;
-        }
-      }
       const inspect: RunDocker = async (args, signal) => {
         const output = await docker(args, signal);
         if (args[0] !== 'inspect' || args[1] !== '--format') return output;
@@ -792,4 +801,249 @@ test('owner namespace cannot complete when initialized scanner reap evidence is 
   expect(await Bun.file(`${f.root}/dependency-backend-complete.json`).exists()).toBe(false);
   expect(f.calls.some((args) => ['update', 'stop'].includes(args[0] ?? ''))).toBe(false);
   expect(await Bun.file(`${f.root}/edge-owner.pending`).exists()).toBe(true);
+});
+
+test('source context survives every owner backend observation and final inspection', async () => {
+  const { withSourceDevExcluded } = await import('./source-dev-exclusion');
+  const { sourceFixture } = await import('../fixtures/source-dev');
+  const { sourceDevContract } = await import('./env');
+  const { inspectBackendFenceUnderOwner } = await import('./backend-exclusion');
+  const f = await fixture();
+  await mkdir(`${f.root}/dev`);
+  const dev = { ...envLayout('dev'), root: `${f.root}/dev`, stateDir: `${f.root}/dev` };
+  const source = sourceFixture();
+  source.Id = '7'.repeat(64);
+  source.Mounts = sourceDevContract(dev).mounts.map((mount) => ({
+    Type: 'bind',
+    Source: mount.source,
+    Destination: mount.target,
+    RW: mount.writable,
+  }));
+  f.containers.push(source as unknown as typeof f.container);
+  const deadline = performance.now() + 60000;
+  await withDependencyOwner(
+    { sha, layouts: [f.layout, dev] },
+    async (owner) => {
+      await withSourceDevExcluded(
+        owner,
+        { prod: f.layout, dev },
+        sha,
+        f.runner,
+        deadline,
+        async (token) => {
+          await fenceBackendsUnderOwner(
+            owner,
+            f.layout,
+            sha,
+            f.runner,
+            deadline,
+            namespaceFor(f.layout),
+            f.exec,
+            token,
+          );
+          await inspectBackendFenceUnderOwner(
+            owner,
+            f.layout,
+            sha,
+            f.runner,
+            deadline,
+            token,
+            namespaceFor(f.layout),
+            f.exec,
+          );
+        },
+      );
+    },
+    f.root,
+  );
+  expect(f.container.State.Running).toBe(false);
+  await refuses(inspectBackendFence(f.layout, f.runner), 'unmanaged namespace');
+});
+
+test('combined coordinator retains solver tmpfs and source members throughout awaited protected work', async () => {
+  const { excludeSourceAndManagedDependencies } = await import('./dependency-activation-owner');
+  const { createSourceSolverFixture } = await import('../fixtures/source-solver');
+  const { sourceFixture } = await import('../fixtures/source-dev');
+  const { sourceDevContract } = await import('./env');
+  const f = await fixture();
+  const solver = await createSourceSolverFixture(f.root);
+  for (const name of ['fence', 'intent', 'complete'])
+    await unlink(`${f.root}/dependency-gateway-${name}.json`);
+  Object.assign(f.gateway.State, { Running: true, Pid: 100, Status: 'running' });
+  f.gateway.HostConfig.RestartPolicy.Name = 'unless-stopped';
+  const dev = solver.layouts.dev;
+  await mkdir(`${f.root}/caddy`);
+  const site = (host: string, body: string) =>
+    `${host} {\n respond "${body}"\n import access-log\n}\n`;
+  await writeFile(
+    `${f.root}/caddy/Caddyfile`,
+    'import log-redact.caddy\nimport site.caddy\nimport site-dev.caddy\nimport registry.caddy\n',
+  );
+  await writeFile(`${f.root}/caddy/log-redact.caddy`, '(access-log) {\n log\n}\n');
+  await writeFile(`${f.root}/caddy/site.caddy`, site('prod.owner.test', 'prod'));
+  await writeFile(`${f.root}/caddy/site-dev.caddy`, site('dev.owner.test', 'dev'));
+  await writeFile(`${f.root}/caddy/registry.caddy`, site('registry.owner.test', 'registry'));
+  const prod = {
+    ...f.layout,
+    siteAddress: 'prod.owner.test',
+    siteCaddyPath: `${f.root}/caddy/site.caddy`,
+  };
+  const selectedDev = {
+    ...dev,
+    siteAddress: 'dev.owner.test',
+    siteCaddyPath: `${f.root}/caddy/site-dev.caddy`,
+  };
+  const adapt = async () => ({
+    apps: {
+      http: {
+        servers: {
+          srv0: {
+            listen: [':8080'],
+            routes: await Promise.all(
+              ['prod', 'dev', 'registry'].map(async (label) => {
+                const name =
+                  label === 'prod'
+                    ? 'site.caddy'
+                    : label === 'dev'
+                      ? 'site-dev.caddy'
+                      : 'registry.caddy';
+                const closed = (await readFile(`${f.root}/caddy/${name}`, 'utf8')).includes(
+                  'WBS dependency maintenance',
+                );
+                return {
+                  match: [{ host: [`${label}.owner.test`] }],
+                  handle: [
+                    {
+                      handler: 'subroute',
+                      routes: [
+                        {
+                          handle: [
+                            {
+                              handler: 'static_response',
+                              body: closed ? 'WBS dependency maintenance' : label,
+                              status_code: closed ? 503 : 200,
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                  terminal: true,
+                };
+              }),
+            ),
+          },
+        },
+      },
+    },
+  });
+  let live = await adapt();
+  const edge = {
+    Id: 'e'.repeat(64),
+    Name: '/wbs-caddy-1',
+    Path: 'caddy',
+    Args: ['run', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'],
+    Image: imageId,
+    Config: { Env: [], Image: 'caddy:2', Labels: {} },
+    HostConfig: {},
+    NetworkSettings: { Networks: {} },
+    RestartCount: 0,
+    State: {
+      Running: true,
+      Paused: false,
+      Restarting: false,
+      Pid: 100,
+      StartedAt: '2026-10-23T00:00:00Z',
+    },
+    Mounts: [{ Type: 'bind', Source: `${f.root}/caddy`, Destination: '/etc/caddy', RW: false }],
+  };
+  const source = sourceFixture();
+  source.Id = '7'.repeat(64);
+  source.Mounts = sourceDevContract(selectedDev).mounts.map((mount) => ({
+    Type: 'bind',
+    Source: mount.source,
+    Destination: mount.target,
+    RW: mount.writable,
+  }));
+  const solverInventory: unknown = JSON.parse(
+    await solver.ports.runDocker(['inspect', '8'.repeat(64)]),
+  );
+  if (!Array.isArray(solverInventory) || solverInventory.length !== 1)
+    throw new Error('missing solver fixture');
+  const retained = solverInventory[0] as typeof f.container;
+  Object.assign(edge.HostConfig, { Init: true, PidMode: '', Privileged: false, CapAdd: null });
+  const edgeProof = await f.bindNamespace(edge.Id, 'none');
+  await mkdir(`${edgeProof.root}/namespace/etc`);
+  await rename(`${edgeProof.root}/namespace/config`, `${edgeProof.root}/namespace/etc/caddy`);
+  await writeFile(
+    `${edgeProof.root}/mountinfo`,
+    (await readFile(`${edgeProof.root}/mountinfo`, 'utf8')).replaceAll('/config', '/etc/caddy'),
+  );
+  f.containers.push(
+    source as unknown as typeof f.container,
+    retained,
+    edge as unknown as typeof f.container,
+  );
+  const events: string[] = [];
+  const runner: RunDocker = async (args, signal) => {
+    if (args[0] === 'exec') {
+      if (args.includes('adapt')) return JSON.stringify(await adapt());
+      if (args.includes('reload')) {
+        live = await adapt();
+        events.push('ingress');
+        return '';
+      }
+      if (args.includes('wget')) return JSON.stringify(live);
+    }
+    if (args[0] === 'inspect' && (args[1] === edge.Id || args[1] === 'wbs-caddy-1'))
+      return JSON.stringify([edge]);
+    if (args[0] === 'stop' && args.at(-1) === source.Id) events.push('source');
+    if (args[0] === 'inspect') {
+      const current: unknown = JSON.parse(await solver.ports.runDocker(['inspect', retained.Id]));
+      if (!Array.isArray(current) || current.length !== 1)
+        throw new Error('missing fresh solver fixture');
+      Object.assign(retained, current[0]);
+    }
+    return f.runner(args, signal);
+  };
+  const runHost = solver.ports.runHost;
+  const ports: typeof solver.ports = {
+    ...solver.ports,
+    runHost: (command, signal) => {
+      if (command.kind === 'stop') events.push('solver');
+      return runHost(command, signal);
+    },
+  };
+  let entered = false;
+  const completion = await excludeSourceAndManagedDependencies(
+    { sha, layouts: [prod, selectedDev] },
+    solver.pins,
+    ports,
+    runner,
+    performance.now() + 60000,
+    async () => {
+      entered = true;
+      await refuses(
+        withLock(`${f.root}/solver-runtime.lock`, () => Promise.resolve()),
+        'lock held',
+      );
+      await Promise.resolve();
+      expect(source.State.Running).toBe(false);
+      expect(f.container.State.Running).toBe(false);
+      return 'protected';
+    },
+    namespaceFor(f.layout),
+    f.exec,
+    f.root,
+  );
+  expect(completion).toEqual({
+    state: 'source-managed-excluded',
+    activation: 'blocked',
+    value: 'protected',
+  });
+  expect(entered).toBe(true);
+  expect(events.slice(0, 3)).toEqual(['ingress', 'solver', 'source']);
+  expect(f.containers).toContain(retained);
+  expect(f.namespaceCalls.some((call) => call.id === retained.Id)).toBe(false);
+  expect(f.calls.some((args) => args[0] === 'rm')).toBe(false);
 });

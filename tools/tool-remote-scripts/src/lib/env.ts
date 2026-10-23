@@ -125,3 +125,19 @@ export const ENV_NAMES: readonly EnvName[] = Object.keys(LAYOUTS) as EnvName[];
  * before any command is built rather than part-way through a swap.
  */
 export const CURRENT_ENV: EnvLayout = envLayout(process.env['WBS_ENV']);
+
+/** Fixed source-run dev participant; these names and paths are shared by observation and exclusion. */
+export function sourceDevContract(layout: EnvLayout) {
+  if (layout.env !== 'dev') throw new Error('source dev requires dev layout');
+  return {
+    name: 'wbs-dev-src',
+    service: 'dev-src',
+    project: 'dev-src',
+    image: 'wbs-dev-src:1',
+    mounts: [
+      { source: `${layout.root}/src`, target: '/src', writable: true },
+      { source: `${layout.root}/data`, target: '/data', writable: true },
+      { source: '/run/user/1000/wbs-solver', target: '/run/wbs-solver', writable: false },
+    ],
+  };
+}

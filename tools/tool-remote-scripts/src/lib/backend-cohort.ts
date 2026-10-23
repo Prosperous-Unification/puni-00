@@ -5,6 +5,7 @@ import { posix } from 'node:path';
 import { type DatabaseMount, resolveDatabaseHost } from './backend-config';
 import type { Color } from './deploy-contract';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
+import type { DependencyOwner } from './edge-ownership';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
 import {
@@ -24,6 +25,8 @@ import {
   readString,
 } from './managed-cohort';
 import { verifyContainerNamespace } from './mount-audit';
+import { inspectExcludedSolverMembers, type SolverExclusion } from './solver-exclusion';
+import { inspectExcludedSourceMember, type SourceDevExclusion } from './source-dev-exclusion';
 
 interface DatabaseIdentity {
   path: string;
@@ -188,6 +191,62 @@ export async function auditUnmanagedMounts(
   namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
   resolveSource: (path: string) => Promise<string> = realpath,
 ): Promise<void> {
+  return auditUnmanagedMountsCore(
+    containers,
+    cohort,
+    database,
+    image,
+    runDocker,
+    deadline,
+    namespaceProof,
+    resolveSource,
+    new Set(),
+  );
+}
+
+/** Exact live source capability; ordinary inventory admission has no exception. */
+export async function auditUnmanagedMountsUnderOwner(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  source: SourceDevExclusion,
+  containers: readonly unknown[],
+  cohort: ManagedCohort,
+  database: DatabaseIdentity,
+  image: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+  resolveSource: (path: string) => Promise<string> = realpath,
+  solver?: SolverExclusion,
+): Promise<void> {
+  const excluded = new Set([await inspectExcludedSourceMember(owner, layout, source, containers)]);
+  if (solver !== undefined)
+    for (const member of await inspectExcludedSolverMembers(owner, layout, solver, containers))
+      excluded.add(member);
+  return auditUnmanagedMountsCore(
+    containers,
+    cohort,
+    database,
+    image,
+    runDocker,
+    deadline,
+    namespaceProof,
+    resolveSource,
+    excluded,
+  );
+}
+
+async function auditUnmanagedMountsCore(
+  containers: readonly unknown[],
+  cohort: ManagedCohort,
+  database: DatabaseIdentity,
+  image: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace,
+  resolveSource: (path: string) => Promise<string>,
+  excluded: ReadonlySet<unknown>,
+): Promise<void> {
   const managed = COLORS.flatMap((color) => (cohort[color] === null ? [] : [cohort[color].id]));
   const familyDirectory = posix.dirname(database.host);
   const fileIdentities = new Set([database.fileIdentity]);
@@ -206,7 +265,8 @@ export async function auditUnmanagedMounts(
   for (const raw of containers) {
     const container = readFields(raw);
     const id = readIdentity(container['Id']);
-    if (managed.includes(id)) continue;
+    // Proof: removing exact raw-reference recognition made source owner composition execute forbidden unmanaged admission (exit 1).
+    if (managed.includes(id) || excluded.has(raw)) continue;
     const mounts = readMounts(container);
     for (const mount of mounts) {
       if (!mount.writable || mount.type === 'tmpfs') continue;
@@ -260,6 +320,7 @@ async function observeBackendCohort(
   binding: GatewayBinding,
   namespaceProof: typeof verifyContainerNamespace,
   performAudit: boolean,
+  source?: { owner: DependencyOwner; exclusion: SourceDevExclusion; solver?: SolverExclusion },
 ): Promise<{ cohort: BackendCohort; inventory: unknown }> {
   const gateway = await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
   // Proof: deleting byte binding accepts changed gateway-completion whitespace; read-only-inspection negative fails (exit 1).
@@ -291,16 +352,37 @@ async function observeBackendCohort(
     const image = backends.blue?.imageRef ?? backends.green?.imageRef;
     if (image === undefined) throw new Error('backend fence lost pinned audit image');
     const inventory = inventoryIdentity(containers);
+    if (!performAudit && source !== undefined) {
+      await inspectExcludedSourceMember(source.owner, layout, source.exclusion, containers);
+      if (source.solver !== undefined)
+        await inspectExcludedSolverMembers(source.owner, layout, source.solver, containers);
+    }
     if (performAudit) {
-      await auditUnmanagedMounts(
-        containers,
-        cohort,
-        database,
-        image,
-        runDocker,
-        deadline,
-        namespaceProof,
-      );
+      if (source === undefined)
+        await auditUnmanagedMounts(
+          containers,
+          cohort,
+          database,
+          image,
+          runDocker,
+          deadline,
+          namespaceProof,
+        );
+      else
+        await auditUnmanagedMountsUnderOwner(
+          source.owner,
+          layout,
+          source.exclusion,
+          containers,
+          cohort,
+          database,
+          image,
+          runDocker,
+          deadline,
+          namespaceProof,
+          realpath,
+          source.solver,
+        );
       for (const color of COLORS) {
         const backend = backends[color];
         if (backend === null) continue;
@@ -358,6 +440,35 @@ export async function inspectBackendCohort(
   binding: GatewayBinding,
   namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<BackendCohort> {
+  return inspectBackendCohortCore(layout, runDocker, deadline, binding, namespaceProof);
+}
+
+/** Every before/after observation validates live source membership against that same full inventory. */
+export async function inspectBackendCohortUnderOwner(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  exclusion: SourceDevExclusion,
+  runDocker: RunDocker,
+  deadline: number,
+  binding: GatewayBinding,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+  solver?: SolverExclusion,
+): Promise<BackendCohort> {
+  return inspectBackendCohortCore(layout, runDocker, deadline, binding, namespaceProof, {
+    owner,
+    exclusion,
+    solver,
+  });
+}
+
+async function inspectBackendCohortCore(
+  layout: EnvLayout,
+  runDocker: RunDocker,
+  deadline: number,
+  binding: GatewayBinding,
+  namespaceProof: typeof verifyContainerNamespace,
+  source?: { owner: DependencyOwner; exclusion: SourceDevExclusion; solver?: SolverExclusion },
+): Promise<BackendCohort> {
   const before = await observeBackendCohort(
     layout,
     runDocker,
@@ -365,6 +476,7 @@ export async function inspectBackendCohort(
     binding,
     namespaceProof,
     true,
+    source,
   );
   const after = await observeBackendCohort(
     layout,
@@ -373,6 +485,7 @@ export async function inspectBackendCohort(
     binding,
     namespaceProof,
     false,
+    source,
   );
   // Proof: removing fresh full-inventory equality admits new/missing members and mount/PID/start/restart drift; six production-path negatives fail.
   assertSame(

@@ -9,7 +9,7 @@ import { withDependencyOwner } from './edge-ownership';
 import { envLayout } from './env';
 import { withLock } from './lock';
 import { readFields } from './managed-cohort';
-import { withSolverDrainUnderOwner } from './solver-exclusion';
+import { type SolverExclusion, withSolverDrainUnderOwner } from './solver-exclusion';
 import { captureSolverFile, type SolverHostCommand, type SolverPorts } from './solver-host';
 import {
   SOLVER_SUPERVISOR_BUN,
@@ -156,7 +156,45 @@ async function fixture() {
       commands.push(args[0]);
       if (args[0] === 'image') return Promise.resolve(`sha256:${'c'.repeat(64)}\n`);
       if (args[0] === 'ps') return Promise.resolve(`${ID}\n`);
-      if (args[0] === 'inspect') return Promise.resolve(container());
+      if (args[0] === 'inspect') {
+        if (args[1] === '--format') return Promise.resolve(container());
+        const projected = JSON.parse(container()) as {
+          id: string;
+          name: string;
+          labels: Record<string, string>;
+          image: string;
+          imageRef: string;
+          restart: unknown;
+          restartCount: number;
+          state: unknown;
+        };
+        return Promise.resolve(
+          JSON.stringify([
+            {
+              Id: projected.id,
+              Name: projected.name,
+              Image: projected.image,
+              Config: {
+                Image: projected.imageRef,
+                Labels: projected.labels,
+                Entrypoint: ['wbs-solver-launcher'],
+              },
+              HostConfig: {
+                PidMode: '',
+                Privileged: false,
+                CapAdd: null,
+                RestartPolicy: projected.restart,
+              },
+              Mounts: [{ Type: 'tmpfs', Source: '', Destination: '/tmp', RW: true }],
+              Path: 'wbs-solver-launcher',
+              Args: [],
+              NetworkSettings: { Networks: {} },
+              RestartCount: projected.restartCount,
+              State: projected.state,
+            },
+          ]),
+        );
+      }
       if (args[0] === 'kill') {
         running = false;
         return Promise.resolve(`${ID}\n`);
@@ -324,15 +362,16 @@ test('never-started created attempts are inert and retained without kill wait or
     runDocker: async (args: string[], signal?: AbortSignal) => {
       const stdout = await f.ports.runDocker(args, signal);
       if (args[0] !== 'inspect') return stdout;
-      const observed = readFields(JSON.parse(stdout));
-      Object.assign(readFields(observed['state']), {
+      const parsed: unknown = JSON.parse(stdout);
+      const observed = readFields(Array.isArray(parsed) ? parsed[0] : parsed);
+      Object.assign(readFields(observed[Array.isArray(parsed) ? 'State' : 'state']), {
         Running: false,
         Status: 'created',
         Pid: 0,
         StartedAt: '0001-01-01T00:00:00Z',
         FinishedAt: '0001-01-01T00:00:00Z',
       });
-      return JSON.stringify(observed);
+      return JSON.stringify(Array.isArray(parsed) ? [observed] : observed);
     },
   };
   await withDependencyOwner(
@@ -731,4 +770,190 @@ test('missing unreadable and changed initial process identity refuse before stop
     );
     expect(f.commands).not.toContain('stop');
   }
+});
+
+test('solver token recognizes exact same-inventory terminal member only during live callback', async () => {
+  const { inspectExcludedSolverMembers } = await import('./solver-exclusion');
+  const f = await fixture();
+  await withDependencyOwner(
+    f.plan,
+    async (owner) => {
+      const token = await withSolverDrainUnderOwner(
+        owner,
+        f.layouts,
+        f.pins,
+        f.ports,
+        performance.now() + 10000,
+        async (token) => {
+          const parsed: unknown = JSON.parse(await f.ports.runDocker(['inspect', ID]));
+          if (!Array.isArray(parsed)) throw new Error('missing inventory');
+          const inventory: unknown[] = parsed.map((member: unknown) => member);
+          expect(
+            await inspectExcludedSolverMembers(owner, f.layouts.prod, token, inventory),
+          ).toEqual(inventory);
+          await refuses(inspectExcludedSolverMembers(owner, f.layouts.prod, token, []), 'missing');
+          await refuses(
+            inspectExcludedSolverMembers(
+              owner,
+              f.layouts.prod,
+              JSON.parse(JSON.stringify(token)) as SolverExclusion,
+              inventory,
+            ),
+            'live',
+          );
+          return token;
+        },
+      );
+      await refuses(inspectExcludedSolverMembers(owner, f.layouts.prod, token, []), 'live');
+    },
+    f.root,
+  );
+});
+
+for (const fault of [
+  'config',
+  'mount',
+  'pid-mode',
+  'restart',
+  'started',
+  'image',
+  'resume',
+  'missing',
+  'duplicate',
+  'new',
+  'foreign-owner',
+] as const)
+  test(`solver live recognition refuses ${fault}`, async () => {
+    const { inspectExcludedSolverMembers } = await import('./solver-exclusion');
+    const f = await fixture();
+    await withDependencyOwner(
+      f.plan,
+      (owner) =>
+        withSolverDrainUnderOwner(
+          owner,
+          f.layouts,
+          f.pins,
+          f.ports,
+          performance.now() + 10000,
+          async (token) => {
+            const inventory: unknown = JSON.parse(await f.ports.runDocker(['inspect', ID]));
+            if (!Array.isArray(inventory) || inventory.length !== 1)
+              throw new Error('missing test inventory');
+            const member = readFields(inventory[0]);
+            if (fault === 'config') readFields(member['Config'])['Env'] = ['CHANGED=1'];
+            if (fault === 'mount')
+              readFields((member['Mounts'] as unknown[])[0])['Destination'] = '/changed';
+            if (fault === 'pid-mode') readFields(member['HostConfig'])['PidMode'] = 'host';
+            if (fault === 'restart')
+              readFields(member['HostConfig'])['RestartPolicy'] = {
+                Name: 'always',
+                MaximumRetryCount: 0,
+              };
+            if (fault === 'started')
+              readFields(member['State'])['StartedAt'] = '2026-01-01T00:00:01Z';
+            if (fault === 'image') member['Image'] = `sha256:${'f'.repeat(64)}`;
+            if (fault === 'resume')
+              Object.assign(readFields(member['State']), {
+                Running: true,
+                Pid: 333,
+                Status: 'running',
+                FinishedAt: '0001-01-01T00:00:00Z',
+              });
+            if (fault === 'missing') inventory.splice(0);
+            if (fault === 'duplicate') inventory.push(member);
+            if (fault === 'new') inventory.push({ ...member, Id: 'f'.repeat(64) });
+            await refuses(
+              inspectExcludedSolverMembers(
+                fault === 'foreign-owner' ? { ...owner } : owner,
+                f.layouts.prod,
+                token,
+                inventory,
+              ),
+              '',
+            );
+          },
+        ),
+      f.root,
+    );
+  });
+
+test('solver final full inspection and retained drained byte binding refuse changed state', async () => {
+  const { readdir } = await import('node:fs/promises');
+  for (const fault of ['bytes', 'full']) {
+    const f = await fixture();
+    let changed = false;
+    const ports: SolverPorts = {
+      ...f.ports,
+      runDocker: async (args, signal) => {
+        const stdout = await f.ports.runDocker(args, signal);
+        if (!changed || args[0] !== 'inspect' || args[1] === '--format') return stdout;
+        const inventory = JSON.parse(stdout) as Record<string, unknown>[];
+        readFields(inventory[0]?.['Config'])['Env'] = ['CHANGED=1'];
+        return JSON.stringify(inventory);
+      },
+    };
+    await withDependencyOwner(
+      f.plan,
+      async (owner) => {
+        await refuses(
+          withSolverDrainUnderOwner(
+            owner,
+            f.layouts,
+            f.pins,
+            ports,
+            performance.now() + 10000,
+            async () => {
+              if (fault === 'full') changed = true;
+              else {
+                const record = (await readdir(f.root)).find((name) =>
+                  name.endsWith('-solver-drained.json'),
+                );
+                if (record === undefined) throw new Error('missing drained record');
+                await writeFile(join(f.root, record), 'changed');
+              }
+            },
+          ),
+          fault === 'full' ? 'snapshot' : 'bytes',
+        );
+      },
+      f.root,
+    );
+  }
+});
+
+test('solver full capture refuses shared PID before callback', async () => {
+  const f = await fixture();
+  let entered = false;
+  const ports: SolverPorts = {
+    ...f.ports,
+    runDocker: async (args, signal) => {
+      const stdout = await f.ports.runDocker(args, signal);
+      if (args[0] !== 'inspect' || args[1] === '--format') return stdout;
+      const parsed: unknown = JSON.parse(stdout);
+      if (!Array.isArray(parsed)) throw new Error('missing full inspection');
+      readFields(readFields(parsed[0])['HostConfig'])['PidMode'] = 'host';
+      return JSON.stringify(parsed);
+    },
+  };
+  await withDependencyOwner(
+    f.plan,
+    async (owner) => {
+      await refuses(
+        withSolverDrainUnderOwner(
+          owner,
+          f.layouts,
+          f.pins,
+          ports,
+          performance.now() + 10000,
+          () => {
+            entered = true;
+            return Promise.resolve();
+          },
+        ),
+        'private PID',
+      );
+    },
+    f.root,
+  );
+  expect(entered).toBe(false);
 });

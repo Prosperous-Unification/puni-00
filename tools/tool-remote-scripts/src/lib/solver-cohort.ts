@@ -2,6 +2,7 @@ import {
   readBoolean,
   readClosed,
   readDigest,
+  readFields,
   readIdentity,
   readInteger,
   readString,
@@ -148,4 +149,73 @@ export function solverIdentity(container: SolverContainer): string {
     image: container.image,
     imageRef: container.imageRef,
   });
+}
+
+/** Full stopped-container binding used only by the live owner namespace-audit capability. */
+export interface SolverSnapshot {
+  solver: SolverContainer;
+  config: Record<string, unknown>;
+  host: Record<string, unknown>;
+  mounts: readonly unknown[];
+  path: string;
+  args: readonly string[];
+  networks: Record<string, unknown>;
+}
+
+/** Reuse the strict solver lifecycle grammar while binding complete namespace/configuration identity. */
+export function parseSolverSnapshot(raw: unknown, expectedId: string): SolverSnapshot {
+  const container = readFields(raw);
+  const config = readFields(container['Config']);
+  const host = readFields(container['HostConfig']);
+  const labels = readFields(config['Labels']);
+  const projectedLabels = Object.fromEntries(LABEL_FIELDS.map((name) => [name, labels[name]]));
+  const state = readFields(container['State']);
+  const projectedState = Object.fromEntries(STATE_FIELDS.map((name) => [name, state[name]]));
+  const solver = parseSolverContainer(
+    JSON.stringify({
+      id: container['Id'],
+      name: container['Name'],
+      labels: projectedLabels,
+      image: container['Image'],
+      imageRef: config['Image'],
+      restart: host['RestartPolicy'],
+      restartCount: container['RestartCount'],
+      state: projectedState,
+    }),
+    expectedId,
+  );
+  if (solver.phase === 'running')
+    throw new Error('solver full snapshot requires terminal or inert member');
+  const caps = host['CapAdd'];
+  // Proof: private-PID omission admitted shared native full inspection; solver full capture shared PID test failed.
+  if (
+    host['PidMode'] !== '' ||
+    host['Privileged'] !== false ||
+    !(caps === null || (Array.isArray(caps) && caps.length === 0))
+  )
+    throw new Error('solver full snapshot requires private PID and no elevated authority');
+  const mounts: unknown = container['Mounts'];
+  if (!Array.isArray(mounts)) throw new Error('solver full snapshot mounts missing');
+  for (const rawMount of mounts) {
+    const mount = readFields(rawMount);
+    if (
+      !['bind', 'volume', 'tmpfs'].includes(readString(mount['Type'])) ||
+      !readString(mount['Destination']).startsWith('/')
+    )
+      throw new Error('solver full snapshot mount unsupported');
+    readString(mount['Source']);
+    readBoolean(mount['RW']);
+  }
+  const args: unknown = container['Args'];
+  if (!Array.isArray(args) || args.some((argument: unknown) => typeof argument !== 'string'))
+    throw new Error('solver full snapshot argv malformed');
+  return {
+    solver,
+    config,
+    host,
+    mounts: mounts.map((mount: unknown) => mount),
+    path: readString(container['Path']),
+    args: args.map((argument: unknown) => readString(argument)),
+    networks: readFields(readFields(container['NetworkSettings'])['Networks']),
+  };
 }

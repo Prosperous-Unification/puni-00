@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
-import { assertDependencyOwner, type DependencyOwner, ownerDocker } from './edge-ownership';
+import { assertDependencyOwner, type DependencyOwner, ownerDockerHashed } from './edge-ownership';
 import type { EnvLayout } from './env';
 import { assertNoGatewayFence } from './gateway-fence';
 import { withLock } from './lock';
@@ -183,7 +183,7 @@ export async function fenceGatewaysUnderOwner(
   deadline: number,
 ): Promise<GatewayCompletion> {
   await assertDependencyOwner(owner, layout, sha);
-  return fenceGatewayCore(layout, sha, ownerDocker(owner, layout, runDocker), deadline);
+  return fenceGatewayCore(layout, sha, ownerDockerHashed(owner, layout, runDocker), deadline);
 }
 
 async function fenceGatewayCore(
