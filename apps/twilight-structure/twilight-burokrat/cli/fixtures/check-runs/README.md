@@ -16,8 +16,8 @@ proves its writer reproduces both ledgers from their parts.
 
 | Ledger                     | SHA-256                                                            |
 | -------------------------- | ------------------------------------------------------------------ |
-| `passing/check-runs.json`  | `a7c6f41746e8f8adcfad147ff07a13d37afd82e6781929a966caabc1d4ec0933` |
-| `skipping/check-runs.json` | `d2b030865c97214daaf1348b5070d608c002b7f22a50cc1e47e917adba622941` |
+| `passing/check-runs.json`  | `00ee2da0a8908338e8592e94459a536209b4e89530dc22891ac7979f49c50770` |
+| `skipping/check-runs.json` | `bf437bb37cfb051d98c4370134fde1d674adc0a40ee7e283e81f6c59316cfd37` |
 
 `streams/` holds each run's stdout and stderr, named by SHA-256. They are Nx and `bun test` output
 with carriage returns, colour escapes and measured durations, kept as written. The adjacent

@@ -89,7 +89,7 @@ describe('the release-shipped SQLite backup job', () => {
       [
         'image',
         (_, pod) => {
-          pod.containers[0].image = 'docker.io/oven/bun:1.4.2-alpine';
+          pod.containers[0].image = 'docker.io/oven/bun:1.4.4-alpine';
         },
       ],
       [
@@ -176,7 +176,7 @@ describe('the restore-verification job', () => {
       'image',
       ({ pod }) => {
         for (const container of pod.containers ?? []) {
-          container.image = 'docker.io/oven/bun:1.4.2-alpine';
+          container.image = 'docker.io/oven/bun:1.4.4-alpine';
         }
       },
     ],

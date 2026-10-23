@@ -7,4 +7,4 @@ skip.test.ts:
  1 skip
  0 fail
  1 expect() calls
-Ran 2 tests across 1 file. [8.00ms]
+Ran 2 tests across 1 file. [12.00ms]

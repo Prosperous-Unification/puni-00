@@ -5,13 +5,14 @@ Operator commands and what has been tested: [infrastructure operator guide](READ
 Each store has its own consistent path. A filesystem copy of a live database
 never replaces its application-consistent snapshot.
 
-| Store                  | Path                                                         | Schedule      | Retention                                                       |
-| ---------------------- | ------------------------------------------------------------ | ------------- | --------------------------------------------------------------- |
-| WBS SQLite             | `sqlite-backup` CronJob: `VACUUM INTO`, verify, versioned S3 | hourly at :17 | noncurrent versions expire after 30 d; current objects are kept |
-| Elasticsearch logs     | SLM `puni-daily` to repository `puni-snapshots`              | daily 01:30   | 365 d, at least 7, at most 400                                  |
-| etcd (k3s state)       | k3s `etcd-snapshot` to S3, configured by the `backup` role   | `0 */6 * * *` | 28 snapshots per server                                         |
-| Other PVCs (registry)  | Velero file-system backup with Kopia                         | daily 02:00   | 720 h                                                           |
-| Platform configuration | Git plus the recovery secrets below                          | every commit  | Git history                                                     |
+| Store                  | Path                                                                                                                                      | Schedule      | Retention                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------- |
+| WBS SQLite             | `sqlite-backup` CronJob: `VACUUM INTO`, verify, versioned S3                                                                              | hourly at :17 | noncurrent versions expire after 30 d; current objects are kept                                             |
+| h2puni Compose SQLite  | h1claw `sqlite-backup.service` (claire repo): `VACUUM INTO` on h2puni, pull, verify, rclone crypt to `puni-01/backups/sqlite/generations` | hourly at :17 | local 4 sets; remote 48 h hourly, 60 d daily, 52 w weekly (`sqlite-backup-remote-prune.timer`, daily 04:47) |
+| Elasticsearch logs     | SLM `puni-daily` to repository `puni-snapshots`                                                                                           | daily 01:30   | 365 d, at least 7, at most 400                                                                              |
+| etcd (k3s state)       | k3s `etcd-snapshot` to S3, configured by the `backup` role                                                                                | `0 */6 * * *` | 28 snapshots per server                                                                                     |
+| Other PVCs (registry)  | Velero file-system backup with Kopia                                                                                                      | daily 02:00   | 720 h                                                                                                       |
+| Platform configuration | Git plus the recovery secrets below                                                                                                       | every commit  | Git history                                                                                                 |
 
 ## Recovery secrets
 
@@ -40,8 +41,12 @@ machine that never saw the original and compare fingerprints.
 
 Every backup bucket has versioning and one lifecycle rule: noncurrent versions
 expire after 30 days. Current objects are pruned only by each tool's own
-retention (SLM, Velero TTL, the k3s snapshot count); the SQLite prefix keeps
-every current generation until an operator prunes it. The local rehearsal
+retention (SLM, Velero TTL, the k3s snapshot count). The SQLite prefixes
+(`sqlite/<database>/` from the k3s runner and `backups/sqlite/generations`
+from h1claw) are pruned daily at 04:47 UTC by h1claw's
+`sqlite-backup-remote-prune.timer` (claire repo): every stamp for 48 h, the
+last of each UTC day for 60 days, the last of each UTC week for 52 weeks, with
+snapshot and report expiring together and the newest report always kept. The local rehearsal
 store applies the rule in its bucket Job. For production, apply and read back
 the same rule on each primary bucket once:
 
