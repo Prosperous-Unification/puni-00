@@ -530,7 +530,15 @@ async function readDependencyFanoutIn(
         captured.stepBlockages,
         captured.stepParallels,
         captured.measures,
-        captured.workItems.map((row) => [row.id, row.name, row.position, row.frozenNumber]),
+        // Proof: omitting hold leaves mounted blocked/clear B/C reads changed
+        // without their elsewhere_changed events in both capacity modes.
+        captured.workItems.map((row) => [
+          row.id,
+          row.name,
+          row.position,
+          row.frozenNumber,
+          row.hold,
+        ]),
         // Proof: removing code loses successor label events in both staged shared component witnesses.
         captured.steps.map((step) => [step.id, step.name, step.code, step.position]),
       ]),
