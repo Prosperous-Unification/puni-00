@@ -8,6 +8,7 @@ import { CREATOR_ADMISSION, type EditAdmission, grantAdmission } from '../ports/
 import type {
   BeforeProjectUpdate,
   BeforeStepRemoval,
+  BeforeStepWrite,
   CapturedFanout,
 } from '../ports/fanout-capture-store';
 import type { ResourceAccess } from '../ports/organization-access';
@@ -32,6 +33,7 @@ export interface RecoveryWriteBoundary {
     dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
+    beforeStepWrite?: BeforeStepWrite,
   ) => WritingServices;
   readonly announcements: Broadcaster;
   readonly committedFanout?: CommittedFanoutDelivery;
@@ -98,34 +100,40 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
       };
       const observesStepRemoval =
         access.kind === 'scoped' && 'step' in detail && detail.step === 'remove';
-      const beforeStepRemoval: BeforeStepRemoval | undefined = observesStepRemoval
-        ? async (addressed, currentActorId, currentAccess) => {
-            if (
-              addressed !== projectId ||
-              currentActorId !== actorId ||
-              currentAccess.kind !== 'scoped' ||
-              currentAccess.scope.organizationId !== access.scope.organizationId
-            )
-              throw new Error('scoped recovery observation changed project or authority');
-            const capture = scope.fanoutCapture;
-            if (capture === undefined) {
-              if (scope.stores.livePlans !== undefined)
-                throw new Error('scoped step fan-out capture is missing');
+      const captureBeforeStepWrite: BeforeStepWrite | undefined =
+        access.kind === 'scoped'
+          ? async (addressed, currentActorId, currentAccess) => {
+              if (
+                addressed !== projectId ||
+                currentActorId !== actorId ||
+                currentAccess.kind !== 'scoped' ||
+                currentAccess.scope.organizationId !== access.scope.organizationId
+              )
+                throw new Error('scoped recovery observation changed project or authority');
+              const capture = scope.fanoutCapture;
+              if (capture === undefined) {
+                if (scope.stores.livePlans !== undefined)
+                  throw new Error('scoped step fan-out capture is missing');
+                return { ok: true };
+              }
+              captureState.organizationId = currentAccess.scope.organizationId;
+              // Proof: injecting another auditing admission here made the mounted
+              // scoped removal commit two step recovery records, expected one.
+              captureState.before = await capture.capture(currentAccess.scope.organizationId);
+              if (
+                (captureState.before.observation.mode === 'shared' ||
+                  captureState.before.dependency !== null) &&
+                boundary.committedFanout === undefined
+              )
+                throw new Error('scoped step fan-out delivery is missing');
               return { ok: true };
             }
-            captureState.organizationId = currentAccess.scope.organizationId;
-            // Proof: injecting another auditing admission here made the mounted
-            // scoped removal commit two step recovery records, expected one.
-            captureState.before = await capture.capture(currentAccess.scope.organizationId);
-            if (
-              (captureState.before.observation.mode === 'shared' ||
-                captureState.before.dependency !== null) &&
-              boundary.committedFanout === undefined
-            )
-              throw new Error('scoped step fan-out delivery is missing');
-            return { ok: true };
-          }
-        : undefined;
+          : undefined;
+      const beforeStepRemoval = observesStepRemoval ? captureBeforeStepWrite : undefined;
+      const beforeStepWrite =
+        'step' in detail && (detail.step === 'add' || detail.step === 'rename')
+          ? captureBeforeStepWrite
+          : undefined;
       const dependencies = createDependencyContext(
         scope.stores,
         { projectId, actorId, access, admission: grant?.admission ?? CREATOR_ADMISSION },
@@ -148,6 +156,7 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           // Proof: omitting this recovery-specific binding made injected second
           // event failure disappear: DELETE returned 204 instead of 500.
           beforeStepRemoval,
+          beforeStepWrite,
         );
         const written = await perform(services, access);
         if (written.ok && captureState.before !== null && captureState.organizationId !== null) {

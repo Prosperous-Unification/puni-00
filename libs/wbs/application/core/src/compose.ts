@@ -36,7 +36,11 @@ import type { DependencyContext, ServiceDependencyContext } from './ports/depend
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from './ports/external-dependency-authoring';
-import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
+import type {
+  BeforeProjectUpdate,
+  BeforeStepRemoval,
+  BeforeStepWrite,
+} from './ports/fanout-capture-store';
 import type { MachineCredentials } from './ports/machine-credentials';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ConnectedOptimizationAdmission } from './ports/optimization-input';
@@ -115,6 +119,7 @@ export interface ServicesOverOptions {
   readonly recoveryAdmission?: EditAdmission;
   readonly beforeProjectUpdate?: BeforeProjectUpdate;
   readonly beforeStepRemoval?: BeforeStepRemoval;
+  readonly beforeStepWrite?: BeforeStepWrite;
 }
 
 /**
@@ -177,6 +182,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       recoveryAdmission,
       dependencyContext: shared.dependencyContext,
       beforeRemove: shared.beforeStepRemoval,
+      beforeWrite: shared.beforeStepWrite,
     }).steps,
     directory: installDirectory({
       clock,
@@ -245,6 +251,7 @@ interface CommonServices extends WritingServices {
     dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
+    beforeStepWrite?: BeforeStepWrite,
   ) => WritingServices;
   readonly history: HistoryService;
   readonly plans: SavedPlanService;
@@ -367,6 +374,7 @@ export function composeServices(
     dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
+    beforeStepWrite?: BeforeStepWrite,
   ) =>
     // Proof: binding the public standalone directory service here made a
     // project-null command attempt a nested UoW (typed 500 instead of 200)
@@ -385,6 +393,7 @@ export function composeServices(
       dependencyContext: { kind: 'bound', context: dependencies },
       beforeProjectUpdate,
       beforeStepRemoval,
+      beforeStepWrite,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,

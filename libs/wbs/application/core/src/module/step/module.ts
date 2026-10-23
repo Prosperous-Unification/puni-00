@@ -32,6 +32,7 @@ export const stepModule = DiBag.createBuilder()
         recoveryAdmission,
         dependencyContext,
         beforeRemove,
+        beforeWrite,
       }: {
         projectStore: ProjectStore;
         stepStore: StepStore;
@@ -40,6 +41,7 @@ export const stepModule = DiBag.createBuilder()
         recoveryAdmission: EditAdmission | undefined;
         dependencyContext: StepServiceOptions['dependencyContext'];
         beforeRemove: StepServiceOptions['beforeRemove'];
+        beforeWrite: StepServiceOptions['beforeWrite'];
       }): StepServiceOptions => ({
         projects: projectStore,
         steps: stepStore,
@@ -52,6 +54,7 @@ export const stepModule = DiBag.createBuilder()
         recoveryAdmission,
         dependencyContext,
         beforeRemove,
+        beforeWrite,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

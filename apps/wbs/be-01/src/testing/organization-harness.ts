@@ -894,6 +894,7 @@ export class OrganizationHarness {
                 dependencies,
                 beforeProjectUpdate,
                 beforeStepRemoval,
+                beforeStepWrite,
               ) => ({
                 ...services.batch(
                   scope,
@@ -902,6 +903,7 @@ export class OrganizationHarness {
                   dependencies,
                   beforeProjectUpdate,
                   beforeStepRemoval,
+                  beforeStepWrite,
                 ),
                 workItems: new WorkItemService({
                   ...scope.stores,

@@ -72,7 +72,11 @@ import type { PriorityBandService } from '@wbs/core/module/priority-band/priorit
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
-import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fanout-capture-store';
+import type {
+  BeforeProjectUpdate,
+  BeforeStepRemoval,
+  BeforeStepWrite,
+} from '@wbs/core/ports/fanout-capture-store';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
@@ -406,6 +410,7 @@ export interface AppOptions {
       dependencies: DependencyContext,
       beforeProjectUpdate?: BeforeProjectUpdate,
       beforeStepRemoval?: BeforeStepRemoval,
+      beforeStepWrite?: BeforeStepWrite,
     ) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let

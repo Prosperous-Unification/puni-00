@@ -33,6 +33,9 @@ export function installStep(requirements: StepRequirements): StepExports {
       dependencyContext: DiBag.createProvider(() => requirements.dependencyContext, {
         factoryReturnKind: 'sync-value',
       }),
+      beforeWrite: DiBag.createProvider(() => requirements.beforeWrite, {
+        factoryReturnKind: 'sync-value',
+      }),
       beforeRemove: DiBag.createProvider(() => requirements.beforeRemove, {
         factoryReturnKind: 'sync-value',
       }),

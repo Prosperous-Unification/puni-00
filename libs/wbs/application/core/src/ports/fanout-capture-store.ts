@@ -19,6 +19,13 @@ export type BeforeStepRemoval = (
   access: ResourceAccess,
 ) => Promise<FanoutWriteAuthority>;
 
+/** Scoped add/rename observation after service authority, name and graph preflights. */
+export type BeforeStepWrite = (
+  projectId: string,
+  actorId: string,
+  access: ResourceAccess,
+) => Promise<FanoutWriteAuthority>;
+
 /** Current organization rank authority on the borrowed writer; no recovery grant or audit. */
 export type BeforeRankMove = (
   organizationId: string,

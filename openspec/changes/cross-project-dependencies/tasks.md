@@ -672,3 +672,9 @@ Task 5.2 remains open for its broader writer audit, socket/browser acceptance an
 - [x] Exercise actual generated MCP local/remote FS/SS start refusal and milestone correction, FF finish disclosure, omitted/explicit mixed-step atomic refusal and corrected first-step claim with stable owner/step/durable claim identity.
 - [x] Watch independent production response forwarding erase prerequisite disclosure and fail all six cases; restore and rerun green, configured MCP lint and scoped typecheck. Record [bounded evidence](verify-mcp-startable-claim.md).
 - [ ] Complete independent review and isolated integrated exact-SHA host gate. Parent 6.3 remains open; production admission, historical-attempt/manual-correction skip policy, activation and deployment are unchanged.
+
+Task 5.2 bounded bare-step add/name-only rename fanout (2026-10-23):
+[the verification packet](verify-step-fanout.md) records service-preflight
+capture, isolated/shared no-person acceptance, durable rollback and after-commit
+delivery, with independent add/rename/eager-placement production negatives.
+Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.

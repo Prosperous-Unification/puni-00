@@ -18,7 +18,7 @@ import {
   withDependencyContext,
 } from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
-import type { BeforeStepRemoval } from '../../ports/fanout-capture-store';
+import type { BeforeStepRemoval, BeforeStepWrite } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -56,6 +56,8 @@ export interface StepServiceOptions {
   dependencyContext: ServiceDependencyContext;
   /** Trusted scoped recovery observation seam, after removal preflights. */
   beforeRemove?: BeforeStepRemoval;
+  /** Scoped add/rename observation after their service preflights and before storage. */
+  beforeWrite?: BeforeStepWrite;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -219,7 +221,11 @@ export class StepService {
     return this.addWithin(projectId, actorId, name, allowancePercent, code, LEGACY_ACCESS);
   }
 
-  /** {@link add} through the caller's access: a foreign project is `not_found`. */
+  /**
+   * {@link add} through the caller's access: a foreign project is `not_found`.
+   * Scoped observation follows name/code, authority and graph preflights; a
+   * failed observation prevents storage and publication.
+   */
   async addWithin(
     projectId: string,
     actorId: string,
@@ -269,6 +275,12 @@ export class StepService {
         });
         if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
         dependencyContext.assertUsable(projectId, actorId);
+        // Proof: disabling only this add capture left B/C without events in both
+        // mounted bare-step-add modes (2 failures, 2026-10-23).
+        if (this.opts.beforeWrite !== undefined) {
+          const observed = await this.opts.beforeWrite(projectId, actorId, access);
+          if (!observed.ok) return observed;
+        }
         const written = await this.opts.steps.add(proposed, this.clock.stampFor(actorId));
         if (!written.ok) return { ok: false, reason: written.reason };
         await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
@@ -303,7 +315,10 @@ export class StepService {
     return this.renameWithin(projectId, stepId, actorId, name, LEGACY_ACCESS);
   }
 
-  /** {@link rename} through the caller's access. */
+  /**
+   * {@link rename} through the caller's access. Scoped observation follows
+   * clean-name and project/step authority preflights, before storage.
+   */
   async renameWithin(
     projectId: string,
     stepId: string,
@@ -316,6 +331,14 @@ export class StepService {
     const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok) return gate;
 
+    // Proof: disabling only this rename capture left B/C without events in both
+    // mounted bare-step-rename modes (2 failures, 2026-10-23).
+    // Moving observation before service preflights instead changed blank add/
+    // rename refusals from 422 to 500 with broken capture (2 failures).
+    if (this.opts.beforeWrite !== undefined) {
+      const observed = await this.opts.beforeWrite(projectId, actorId, access);
+      if (!observed.ok) return observed;
+    }
     const written = await this.opts.steps.rename(
       projectId,
       stepId,

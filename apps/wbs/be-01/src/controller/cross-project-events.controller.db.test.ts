@@ -8,7 +8,7 @@ afterEach(() => {
   for (const harness of opened.splice(0)) harness.close();
 });
 
-async function fixture(push?: () => Promise<Response>) {
+async function fixture(push?: () => Promise<Response>, onCaptured?: () => void) {
   const harness = OrganizationHarness.openComposed(
     false,
     undefined,
@@ -16,6 +16,8 @@ async function fixture(push?: () => Promise<Response>) {
     undefined,
     undefined,
     push,
+    undefined,
+    onCaptured,
   );
   // Synthetic stored authority supports fixture edges; the mounted writer still has dormant admission.
   seedDependencyAuthority(harness.databasePath());
@@ -40,6 +42,7 @@ async function fixture(push?: () => Promise<Response>) {
   const upstream = await create('Upstream');
   const downstream = await create('Downstream');
   const tail = await create('Tail');
+  const unrelated = await create('Unrelated');
   harness.organization('org-b');
   harness.member('org-b', 'ada', 'member');
   harness.bind('ada', 'org-b');
@@ -64,7 +67,7 @@ async function fixture(push?: () => Promise<Response>) {
       )
       .all(`project:${projectId}`)
       .map(({ message }) => JSON.parse(message) as unknown);
-  return { harness, upstream, downstream, tail, foreign, events, connect };
+  return { harness, upstream, downstream, tail, unrelated, foreign, events, connect };
 }
 
 it('rename invalidates dependency label readers without retargeting or foreign delivery', async () => {
@@ -334,3 +337,318 @@ it('number-only edits refresh dependency labels without retargeting or foreign e
     },
   });
 });
+
+it.each([false, true])(
+  'bare step add refreshes connected whole readiness without shared people (shared=%s)',
+  async (shared) => {
+    const { harness, upstream, downstream, tail, unrelated, foreign, events } = await fixture();
+    if (shared) harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    harness.sqlite.run("UPDATE work_item SET readiness = 'ready'");
+    for (const project of [upstream, downstream, tail])
+      harness.sqlite.run('DELETE FROM step WHERE project_id = ? AND id <> ?', [
+        project.id,
+        project.stepId,
+      ]);
+    harness.sqlite.run(
+      "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, 'done', 1)",
+      [upstream.rowId, upstream.stepId],
+    );
+    expect(harness.sqlite.query('SELECT COUNT(*) AS count FROM assignment').get()).toEqual({
+      count: 0,
+    });
+    const relationships = harness.sqlite
+      .query('SELECT * FROM external_dependency ORDER BY id')
+      .all();
+    const read = () =>
+      harness.call('ada', 'GET', `/api/projects/${downstream.id}/work-items?full=true`);
+    expect((await read()).body).toMatchObject({
+      workItems: [{ id: downstream.rowId, nodeReadings: { [downstream.stepId]: 'waiting' } }],
+    });
+    const added = await harness.call('ada', 'POST', `/api/projects/${upstream.id}/steps`, {
+      name: 'Release',
+      code: 'release',
+    });
+    expect(added.status).toBe(200);
+    for (const project of [downstream, tail])
+      expect(events(project.id)).toEqual([
+        { type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id },
+      ]);
+    expect(events(upstream.id)).toEqual([]);
+    expect(events(unrelated.id)).toEqual([]);
+    expect(events(foreign.id)).toEqual([]);
+    expect(
+      harness.sqlite
+        .query("SELECT COUNT(*) AS count FROM event_log WHERE message LIKE '%elsewhere_changed%'")
+        .get(),
+    ).toEqual({ count: 2 });
+    expect((await read()).body).toMatchObject({
+      workItems: [{ id: downstream.rowId, nodeReadings: { [downstream.stepId]: 'unknown' } }],
+    });
+    expect(harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all()).toEqual(
+      relationships,
+    );
+    const previous = harness.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
+    expect(
+      (
+        await harness.call('ada', 'POST', `/api/projects/${upstream.id}/steps`, {
+          name: 'Release again',
+          code: 'release',
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await harness.call('ada', 'POST', `/api/projects/${upstream.id}/steps`, {
+          name: ' ',
+          code: 'empty',
+        })
+      ).status,
+    ).toBe(422);
+    expect(harness.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(previous);
+  },
+);
+
+it.each([false, true])(
+  'bare step rename refreshes connected labels without retargeting (shared=%s)',
+  async (shared) => {
+    const { harness, upstream, downstream, tail, unrelated, foreign, events } = await fixture();
+    if (shared) harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    harness.sqlite.run(
+      "UPDATE external_dependency SET predecessor_scope = 'node', predecessor_step_id = ? WHERE id = 'up-down'",
+      [upstream.stepId],
+    );
+    expect(harness.sqlite.query('SELECT COUNT(*) AS count FROM assignment').get()).toEqual({
+      count: 0,
+    });
+    const relationships = harness.sqlite
+      .query('SELECT * FROM external_dependency ORDER BY id')
+      .all();
+    const read = () =>
+      harness.call('ada', 'GET', `/api/projects/${downstream.id}/work-items?full=true`);
+    const before = (await read()).body as {
+      connectedDependencies: {
+        id: string;
+        predecessor: {
+          endpoint: unknown;
+          step: { id: string; name: string };
+          qualifiedReference: string;
+        };
+      }[];
+    };
+    expect(before).toMatchObject({
+      workItems: [{ id: downstream.rowId, nodeReadings: { [downstream.stepId]: 'unknown' } }],
+    });
+    const previousLink = before.connectedDependencies.find(({ id }) => id === 'up-down');
+    if (previousLink === undefined) throw new Error('step fixture missing incoming relationship');
+    const renamed = await harness.call(
+      'ada',
+      'PATCH',
+      `/api/projects/${upstream.id}/steps/${upstream.stepId}`,
+      { name: 'Renamed prerequisite step' },
+    );
+    expect(renamed.status).toBe(200);
+    for (const project of [downstream, tail])
+      expect(events(project.id)).toEqual([
+        { type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id },
+      ]);
+    expect(events(upstream.id)).toEqual([]);
+    expect(events(unrelated.id)).toEqual([]);
+    expect(events(foreign.id)).toEqual([]);
+    expect(
+      harness.sqlite
+        .query("SELECT COUNT(*) AS count FROM event_log WHERE message LIKE '%elsewhere_changed%'")
+        .get(),
+    ).toEqual({ count: 2 });
+    const refreshed = await read();
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body).toMatchObject({
+      workItems: [{ id: downstream.rowId, nodeReadings: { [downstream.stepId]: 'unknown' } }],
+    });
+    const refreshedLink = (refreshed.body as typeof before).connectedDependencies.find(
+      ({ id }) => id === 'up-down',
+    );
+    expect(refreshedLink).toMatchObject({
+      id: 'up-down',
+      predecessor: {
+        endpoint: previousLink.predecessor.endpoint,
+        step: { id: upstream.stepId, name: 'Renamed prerequisite step' },
+        qualifiedReference: previousLink.predecessor.qualifiedReference,
+      },
+    });
+    expect(harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all()).toEqual(
+      relationships,
+    );
+    expect(
+      (
+        await harness.call(
+          'ada',
+          'PATCH',
+          `/api/projects/${upstream.id}/steps/${upstream.stepId}`,
+          { name: 'Renamed prerequisite step' },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await harness.call(
+          'ada',
+          'PATCH',
+          `/api/projects/${upstream.id}/steps/${upstream.stepId}`,
+          { name: ' ' },
+        )
+      ).status,
+    ).toBe(422);
+    for (const project of [downstream, tail]) expect(events(project.id)).toHaveLength(1);
+  },
+);
+
+it.each(['add', 'rename'] as const)(
+  'bare step %s rolls back the write and first fanout row when the second insert fails',
+  async (mutation) => {
+    let pushes = 0;
+    const { harness, upstream, downstream, tail, events } = await fixture(() => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    });
+    const tables = [
+      'step',
+      'project',
+      'work_item',
+      'event_log',
+      'event_sequencer',
+      'command_journal',
+      'plan_event',
+      'organization_audit',
+    ];
+    const snapshot = () =>
+      tables.map((table) => harness.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = snapshot();
+    const previousPushes = pushes;
+    harness.sqlite.run(`CREATE TRIGGER reject_second_step_fanout BEFORE INSERT ON event_log
+      WHEN NEW.message LIKE '%elsewhere_changed%' AND
+        (SELECT COUNT(*) FROM event_log WHERE message LIKE '%elsewhere_changed%') >= 1
+      BEGIN SELECT RAISE(ABORT, 'injected second step fanout insert failure'); END`);
+    const answer =
+      mutation === 'add'
+        ? await harness.call('ada', 'POST', `/api/projects/${upstream.id}/steps`, {
+            name: 'Rolled back addition',
+            code: 'rollback',
+          })
+        : await harness.call(
+            'ada',
+            'PATCH',
+            `/api/projects/${upstream.id}/steps/${upstream.stepId}`,
+            { name: 'Rolled back rename' },
+          );
+    expect(answer.status).toBe(500);
+    expect(snapshot()).toEqual(before);
+    expect(events(downstream.id)).toEqual([]);
+    expect(events(tail.id)).toEqual([]);
+    expect(pushes).toBe(previousPushes);
+  },
+);
+
+it.each(['add', 'rename'] as const)(
+  'bare step %s delivers only after its step and complete fanout commit and writer release',
+  async (mutation) => {
+    const observer: { current?: () => void } = {};
+    const { harness, upstream, downstream, tail, events } = await fixture(() => {
+      observer.current?.();
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    });
+    let deliveries = 0;
+    observer.current = () => {
+      const written = harness.sqlite
+        .query<{ name: string }, [string]>(
+          "SELECT name FROM step WHERE project_id = ? AND name = 'Committed step'",
+        )
+        .get(upstream.id);
+      expect(written).toEqual({ name: 'Committed step' });
+      expect(events(downstream.id)).toEqual([
+        { type: 'elsewhere_changed', projectId: downstream.id, causeProjectId: upstream.id },
+      ]);
+      expect(events(tail.id)).toEqual([
+        { type: 'elsewhere_changed', projectId: tail.id, causeProjectId: upstream.id },
+      ]);
+      harness.sqlite.run('UPDATE project SET name = name WHERE id = ?', [downstream.id]);
+      deliveries += 1;
+    };
+    const answer =
+      mutation === 'add'
+        ? await harness.call('ada', 'POST', `/api/projects/${upstream.id}/steps`, {
+            name: 'Committed step',
+            code: 'committed',
+          })
+        : await harness.call(
+            'ada',
+            'PATCH',
+            `/api/projects/${upstream.id}/steps/${upstream.stepId}`,
+            { name: 'Committed step' },
+          );
+    observer.current = undefined;
+    expect(answer.status).toBe(200);
+    expect(deliveries).toBeGreaterThan(0);
+  },
+);
+
+it.each(['add', 'rename'] as const)(
+  'bare step %s preserves service refusals before broken capture and rolls back a valid write',
+  async (mutation) => {
+    let armed = false;
+    let captures = 0;
+    let pushes = 0;
+    const { harness, upstream, downstream, foreign } = await fixture(
+      () => {
+        pushes += 1;
+        return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+      },
+      () => {
+        if (armed) {
+          captures += 1;
+          throw new Error('injected step capture failure');
+        }
+      },
+    );
+    const tables = [
+      'step',
+      'project',
+      'work_item',
+      'external_dependency',
+      'event_log',
+      'event_sequencer',
+      'command_journal',
+      'plan_event',
+      'organization_audit',
+    ];
+    const snapshot = () =>
+      tables.map((table) => harness.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = snapshot();
+    const previousPushes = pushes;
+    armed = true;
+    const add = (name: string, code: string) =>
+      harness.call('ada', 'POST', `/api/projects/${upstream.id}/steps`, { name, code });
+    const rename = (stepId: string, name: string) =>
+      harness.call('ada', 'PATCH', `/api/projects/${upstream.id}/steps/${stepId}`, { name });
+    if (mutation === 'add') {
+      expect((await add(' ', 'blank')).status).toBe(422);
+      expect((await add('Invalid code', 'bad code')).status).toBe(422);
+      expect((await add('Reserved code', 's2')).status).toBe(422);
+    } else {
+      expect((await rename(upstream.stepId, ' ')).status).toBe(422);
+      expect((await rename(downstream.stepId, 'Foreign step')).status).toBe(404);
+      expect((await rename(foreign.stepId, 'Foreign organization step')).status).toBe(404);
+      expect((await rename('absent-step', 'Absent step')).status).toBe(404);
+    }
+    expect(captures).toBe(0);
+    expect(snapshot()).toEqual(before);
+    expect(pushes).toBe(previousPushes);
+    const valid =
+      mutation === 'add'
+        ? await add('Valid addition', 'valid')
+        : await rename(upstream.stepId, 'Valid rename');
+    expect(valid.status).toBe(500);
+    expect(captures).toBe(1);
+    expect(snapshot()).toEqual(before);
+    expect(pushes).toBe(previousPushes);
+  },
+);

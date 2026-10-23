@@ -49,6 +49,7 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     beforeRemove: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    beforeWrite: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
   };
 };
 

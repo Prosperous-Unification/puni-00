@@ -6851,3 +6851,13 @@ Configured `tool-deploy:lint` and `tool-deploy:typecheck` passed. Prettier and
 `git diff --check` passed after formatting. A fresh image-based CI rehearsal
 and integrated exact-SHA host gate remain pending; this local command probe
 does not certify them.
+
+## Bounded bare-step dependency fanout (2026-10-23)
+
+[The Task 5.2 bare-step packet](verify-step-fanout.md) covers mounted step add
+and name-only rename in isolated/shared modes without shared people, exact
+connected recipients, readiness/labels, invalid/idempotent silence, atomic
+event-insert rollback and delivery after writer release. The observation hook
+runs after service preflights and preserves removal's existing late hook.
+Independent add, rename and eager-placement faults fail the mounted cases.
+Task 5.2, the broader writer audit and exact-SHA host gate remain open.
