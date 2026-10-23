@@ -6673,3 +6673,47 @@ skipped module boundaries. Prettier and `git diff --check` passed.
 `bunx openspec validate cross-project-dependencies --json` passed one change
 with existing requirement-length warnings. Full backend tests, typecheck,
 build and the host gate were not run for this isolated fixture repair.
+
+## Schema rollback Job memory diagnosis (2026-10-23)
+
+GitHub infra-check run `39920201393` failed on the old PR head in the final
+blocked-down scenario. Job `wbs-rollback-30f5383f8337-183c9da7a9f4-099434`,
+pod `wbs-rollback-30f5383f8337-183c9da7a9f4-099434-dt8jc`, container `task`
+terminated `OOMKilled`, exit 137, at 08:11:14 UTC. This is distinct from the
+MCP CRI log race. The lab correctly required `CHECK constraint failed` and
+refused to count the OOM as its intended SQL failure.
+
+The rollback import chain reached `cross-project-dependency-activation.ts`,
+which imported the entire contracts barrel to obtain the dependency receipt
+parser. The barrel evaluates the HTTP schema graph. A fresh Bun 1.4.2 child
+importing the actual rollback module peaked at 860340 KiB RSS and failed the
+new 384 MiB import budget assertion. A focused dependency-runtime contract
+entry point reduced the same import to 34056 KiB RSS. The production Job's
+512 MiB limit and the lab SQL CHECK remain unchanged. These are local Linux
+measurements, not a claim that a new Kubernetes rehearsal has passed.
+
+Watched negatives and recovery:
+
+- Before the import correction, the rollback import regression failed:
+  `860340 < 393216` was false. After the correction it passed.
+- Removing only the fixture's SQL `CHECK (allowed = 1)` made the real generated
+  backend-task failure/recovery test fail: expected `CHECK constraint failed`,
+  received `resolved`. Restoring that CHECK passed; the same sealed capture
+  restored the original ledger after updating the control row to allowed.
+- `bun test tools/tool-deploy/src/k8s/execute-adapter.test.ts
+libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts
+libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.db.test.ts
+--timeout=30000`: 212 passed, 0 failed, 731 assertions.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json
+tools/tool-deploy/tsconfig.json`: exit 0.
+
+Full h2/h4 gate and image-based k3s rehearsal were not run for this isolated
+correction. Local Docker API access was unavailable to the unprivileged agent;
+the next integration proof is the PR's fresh infra-check rehearsal at this fix.
+
+The focused real generated-task SQL failure/recovery run under `/usr/bin/time -v`
+completed in 0.45 seconds with maximum process RSS 53372 KiB (exit 0).
+This measures peak resident memory, not a cgroup-enforced 512 MiB run.
+After generating the Nx project graph, changed-file ESLint passed without
+skipped module-boundary rules. Changed-file Prettier and `git diff --check`
+passed.

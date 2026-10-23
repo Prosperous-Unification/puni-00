@@ -1,4 +1,9 @@
-import { type DependencyActivation, parseDependencyReceipt } from '@wbs/contracts';
+// Proof: the contracts barrel made the rollback memory regression peak at 860340 KiB;
+// the schema Job has 512 MiB for its parent and CLI together (2026-10-23).
+import {
+  type DependencyActivation,
+  parseDependencyReceipt,
+} from '@wbs/contracts/dependency-runtime';
 import type { ExternalDependencyAuthoring } from '@wbs/core';
 import { sql } from 'drizzle-orm';
 

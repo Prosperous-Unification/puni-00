@@ -69,6 +69,24 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
+  it('loads rollback admission below the schema Job memory limit', () => {
+    const child = Bun.spawnSync({
+      cmd: [
+        'bun',
+        '-e',
+        "await import('@wbs/store-sqlite/migrate-down'); console.log(process.resourceUsage().maxRSS);",
+      ],
+      cwd: BACKEND,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(child.exitCode).toBe(0);
+    const peakKiB = Number(child.stdout.toString().trim());
+    expect(Number.isFinite(peakKiB)).toBe(true);
+    expect(peakKiB).toBeGreaterThan(0);
+    expect(peakKiB).toBeLessThan(384 * 1024);
+  }, 30_000);
+
   it('refuses a legacy --to-only candidate before taking a capture snapshot', () => {
     const root = scratchSync('wbs-k3s-legacy-capability-');
     roots.push(root);
@@ -251,7 +269,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
       PUNI_CAPTURE_ATTEMPT: CAPTURE_ID.attempt,
       PUNI_CAPTURE_CANDIDATE: CAPTURE_ID.candidate,
     };
-    expect(() => task(rollbackEnv, root)).toThrow();
+    expect(taskError(rollbackEnv, root)).toContain('CHECK constraint failed');
     expect(task({ DB_PATH: db, PUNI_TASK: 'status' }, root).applied).toEqual(migrated);
     const blocked = new Database(db);
     expect(blocked.query('SELECT allowed FROM lab_rollback_control WHERE id = 1').get()).toEqual({
