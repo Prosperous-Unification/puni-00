@@ -392,6 +392,15 @@ The backend SHALL advertise immutable binary dependency support through a DB-fre
 - **WHEN** the backend capability executable runs without database configuration or migrations
 - **THEN** it reports backend protocol version 1 with empty semantics independent of activation environment values
 
+#### Scenario: Gateway and MCP binary observations remain incapable
+
+- **WHEN** either the gateway or MCP dependency capability executable runs without application configuration, database access or migrations
+- **THEN** it emits exactly one version 1 `wbs-dependency-runtime` observation with its own `gateway` or `mcp` role and empty semantics
+- **AND** its declaration and semantics array are frozen and activation environment values cannot grant support
+- **AND** it imports neither configuration nor application startup and leaves the working directory unchanged
+- **AND** any positional argument refuses with exit 1, a diagnostic and no stdout observation
+- **AND** these observations grant no activation, authoring, participant exclusion or backend-role transport admission
+
 #### Scenario: Backend capability HTTP observation remains dormant
 
 - **WHEN** an unauthenticated client reads `GET /api/runtime/dependency-capability`

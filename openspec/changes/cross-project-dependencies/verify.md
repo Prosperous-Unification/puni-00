@@ -5867,3 +5867,68 @@ Five separately restored production-path faults fail the mounted tests. Runtime
 inputs and affected-routing negatives cover the subprocess fixture dependency.
 This is page reconciliation; full organization-router/session activation and the
 complete parent writer/rollout matrix remain outside the packet. Parent 5.2 stays open.
+
+### Task 10.1 bounded gateway and MCP binary observations (2026-10-23)
+
+Scope: each application owns a `runtime/dependency-support.ts` declaration using
+`DependencyRuntimeCapability`, with its own gateway/MCP role, frozen outer object
+and frozen empty semantics. Each `dependency-capabilities-cli.ts` accepts no
+arguments and emits only the immutable observation. No backend decoder, startup,
+activation writer, participant fencing or production authoring changed. Parent
+10.1/10.2 remain open.
+
+TDD: new tests first failed for absent modules; after declarations and empty CLI
+entrypoints existed, all four initial assertions failed on empty stdout and
+argument acceptance. Implemented entrypoints passed. Final focused command:
+`bun test apps/wbs/gw-01/src/dependency-capabilities-cli.test.ts apps/wbs/mcp-01/src/dependency-capabilities-cli.test.ts`
+passed 6 tests and 38 assertions. Missing and unusable `DB_PATH` are separate
+subprocess cases, each with stripped application environment, hostile activation
+variables, an empty working directory, exact JSON stdout and empty stderr.
+Config/main imports are intercepted by a subprocess preload that throws at those
+actual module load boundaries; no server, database or configuration is loaded.
+Argument tests assert exact exit 1, empty stdout and the guard diagnostic with a
+stripped environment (independent of Nx's forced terminal colors).
+
+Independent watched production faults, applied one at a time in both apps and
+restored after each: backend role; advertised `cross-project-dependencies-v1`;
+side-effect config import; side-effect main import; removed argument guard;
+removed outer freeze; removed semantics freeze. Every mutated focused test run
+exited 1 (14 independent faults), then the restored focused suite passed.
+Wrong-role/advertisement fail exact output equality; config/main faults fail the
+successful observation boundary; guard removal exits 0 and emits an observation;
+freeze removals fail the respective `Object.isFrozen` assertion. Adjacent `Proof:`
+comments identify these faults.
+
+Controls:
+`bun test apps/wbs/be-01/src/dependency-capabilities-cli.test.ts libs/wbs/domain/contracts/src/dependency-runtime.test.ts tools/tool-remote-scripts/src/lib/dependency-capability.test.ts`
+passed 61 tests, 72 assertions. The backend transport decoder retains its existing
+non-backend-role rejection. `bunx --no-install openspec validate cross-project-dependencies --json`
+reported 1 valid change, 0 failures, with existing long-requirement warnings.
+Prettier check passed for the six new TypeScript files and modified spec/tasks.
+
+Configured project verification:
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -p wbs-gw-01,wbs-mcp-01 -t test,lint,typecheck,build --skip-nx-cache`.
+The initial restricted run could not bind gateway sockets (`EPERM`); socket-enabled
+rerun passed gateway tests and both projects' lint/typecheck/build. Full MCP test
+execution was stopped after 4m03s at the task owner's bounded verification request;
+Nx exited 1 solely for `wbs-mcp-01:test` (11 successful tasks). The last reported
+case was `HTTP descendant-step wrong-project-step refuses with complete rollback`
+(3804.53ms). No assertion failure was reported before termination. This is an
+incomplete slow integration suite, not evidence of a hang or successful full run.
+A direct 45-second bounded configured MCP run captured the same slow connected
+command parity cases; the timeout receipt is below. Dependencies were reused from the
+local locked checkout through an ignored node_modules symlink; no dependency
+changes. Independent Astra High review found no actionable findings; the
+integrated isolated host gate remains outstanding. This local packet does not
+establish deployment compatibility or semantic permission.
+
+MCP bounded receipt: from `apps/wbs/mcp-01`,
+`timeout --signal=TERM --kill-after=5s 45s bun test --coverage --coverage-reporter=lcov --timeout=10000`
+exited 124. The last reported passing case was `a backend that misses graceful
+exit is force killed reaped and reported` (4525.62ms); no assertion failure was
+reported before the overall deadline. Full MCP suite remains unverified.
+Raw local receipts are `/tmp/cap-nx-final.log`, `/tmp/cap-mcp-bounded.log`,
+`/tmp/cap-controls.log` and `/tmp/cap-proof-{gw-01,mcp-01}-*.log`; none is a
+host-gate receipt. Final targeted ESLint and nine-file Prettier checks exited 0;
+`git diff --check` exited 0. No migration changed, so migration/rollback checks
+were not run. No full monorepo gate, deployment or production activation ran.

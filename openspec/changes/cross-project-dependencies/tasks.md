@@ -527,3 +527,8 @@ upstream sorting masks a selector-only omission on the mounted path, so the
 existing adversarial selector test supplies that independent omission proof.
 See [the bounded packet](verify-task-7.3-interleaving.md). Production is unchanged;
 parent 7.3 and separate 7.4/8.4 obligations remain open.
+
+### Bounded task 10.1 non-backend binary observations (2026-10-23)
+
+- [x] Red/green gateway and MCP frozen own-role empty-semantic declarations and DB/config/main-independent argument-free subprocesses; independently break role, semantics, configuration import, startup import, argument guard and both freezes.
+- [ ] Complete configured gateway/MCP test, lint, typecheck and build, shared/backend controls, formatting and OpenSpec validation; record receipts in verify.md. Parent 10.1 remains open; activation, participant fencing and production authoring are unchanged.
