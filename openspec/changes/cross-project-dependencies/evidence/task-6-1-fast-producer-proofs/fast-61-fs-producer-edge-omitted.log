@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+133 |       input.order.projectIdByWorkItem.set('b', 'A');
+134 |       const graph = { ...input.graph, edges: [edge('a', 0, 'b', 0, type)] };
+135 |       const resolved = { ...input, graph, notBefore: new Map([['a', floor]]) };
+136 |       const plan = scheduleResolved(resolved);
+137 |       expect(start(plan, 'a')).toBe(floor);
+138 |       expect(start(plan, 'b')).toBeCloseTo(expectedStart, 12);
+                                     ^
+error: expect(received).toBeCloseTo(expected, precision)
+
+Expected: 1.3
+Received: 0
+
+Expected precision: 12
+Expected difference: < 0.0000000000005
+Received difference: 1.3
+
+      at <anonymous> (/tmp/puni-fast-boundaries-61/libs/wbs/domain/domain/src/schedule-connected.test.ts:138:32)
+(fail) resolved connected placement > Fast producer retains FS boundary with predecessor 0.3 and successor 0.7 [2.85ms]
+(pass) resolved connected placement > Fast producer retains SS boundary with predecessor 3 and successor 0.5 [1.34ms]
+(pass) resolved connected placement > Fast producer retains FF boundary with predecessor 0.7 and successor 0.3 [0.25ms]
+(pass) resolved connected placement > Fast producer retains FF boundary with predecessor 0.3 and successor 0.7 [0.17ms]
+
+ 3 pass
+ 24 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 4 tests across 1 file. [41.00ms]

@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+(pass) resolved connected placement > Fast producer retains FS boundary with predecessor 0.3 and successor 0.7 [2.73ms]
+(pass) resolved connected placement > Fast producer retains SS boundary with predecessor 3 and successor 0.5 [1.32ms]
+(pass) resolved connected placement > Fast producer retains FF boundary with predecessor 0.7 and successor 0.3 [0.22ms]
+(pass) resolved connected placement > Fast producer retains FF boundary with predecessor 0.3 and successor 0.7 [0.17ms]
+
+ 4 pass
+ 24 filtered out
+ 0 fail
+ 12 expect() calls
+Ran 4 tests across 1 file. [37.00ms]

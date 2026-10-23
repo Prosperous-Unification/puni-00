@@ -56,8 +56,9 @@ placement.
 
 All faults were restored before regression verification. An adjacent `Proof:`
 comment records the observed failures. `git diff -- schedule.ts` is empty.
-Raw probe output is retained locally at `/tmp/fast-61-<probe>.log` under the
-probe names `validator-bypass-control`, `fs-producer-edge-omitted`,
+Raw probe output and the restored focused run are retained in
+[task-6-1-fast-producer-proofs](task-6-1-fast-producer-proofs/) under the names
+`validator-bypass-control`, `fs-producer-edge-omitted`,
 `ss-producer-edge-omitted`, `ff-producer-edge-omitted`,
 `ss-producer-replaced-by-fs` and `ff-producer-replaced-by-fs`.
 
@@ -80,3 +81,10 @@ probe names `validator-bypass-control`, `fs-producer-edge-omitted`,
   activation or canonical host gate is claimed by these domain tests. Those
   checks were not run in this bounded packet; integration remains the parent's
   responsibility. No production defect was observed or production fix added.
+
+Independent Astra High review approved the bounded packet without a Critical
+or Important finding. It reran the restored file 28/28 with 42 assertions and
+inspected the saved mutation receipts; it did not re-inject them. On the
+integrated branch, the producer, mounted Fast capacity and mounted calendar
+suites passed 37/37 with 108 assertions. Scoped OpenSpec validation and
+changed-file Prettier also passed.

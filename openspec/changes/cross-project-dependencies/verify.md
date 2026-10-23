@@ -5746,3 +5746,15 @@ The integrated calendar, mounted live and Fast capacity suites pass 30/30 with
 The floor and missing-anchor faults fail through existing downstream guards,
 as the packet states. Task 6.2 remains open for its broader calendar/history,
 optimization and release acceptance.
+
+## Task 6.1 Fast producer boundaries (2026-10-23)
+
+The independently reviewed [producer packet](evidence/task-6-1-fast-producer-boundaries.md)
+adds four real Fast final-placement assertions: fractional FS, delayed SS and
+both FF weight signs, with rank and priority favoring the successor. A
+validator-only bypass keeps them green; removing each type's edge from the
+actual Fast producer fails final starts, as do SS/FF→FS substitutions with
+validation enabled. Archived red and restored logs are linked in the packet.
+The integrated producer, mounted capacity and mounted calendar suites pass
+37/37 with 108 assertions. This closes the bounded producer proof, while the
+task 6.1 checkbox awaits full acceptance reconciliation.
