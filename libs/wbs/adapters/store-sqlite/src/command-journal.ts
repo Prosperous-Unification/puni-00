@@ -110,22 +110,19 @@ export class CommandJournalRepository implements CommandJournalStore {
         // The history, in the same transaction and after the prune, so that a
         // journal write which fails for any reason takes this with it. Never
         // pruned here: the plan's history is kept by age, by the retention timer.
-        tx.insert(planEvent)
-          .values({
-            id: event.id,
-            projectId: event.projectId,
-            userId: event.userId,
-            kind: event.kind,
-            label: event.label,
-            workItemId: event.workItemId,
-            stepId: event.stepId,
-            before: JSON.stringify(event.before),
-            after: JSON.stringify(event.after),
-            createdAt: event.createdAt,
-          })
-          .run();
+        tx.insert(planEvent).values(planEventRow(event)).run();
         this.lateWrite.reach('journal-history-insert');
       });
+    });
+  }
+
+  async appendEvent(event: PlanEvent): Promise<void> {
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      // Proof: with a stack row inserted beside it, the SQLite certification's
+      // `journal.appendEvent:history-only` case found it on the stack (74 pass,
+      // 1 fail); watched 2026-10-23.
+      this.db.insert(planEvent).values(planEventRow(event)).run();
     });
   }
 
@@ -222,5 +219,21 @@ function asEntry(row: CommandJournalRow): JournalEntry {
     preconditions: JSON.parse(row.preconditions),
     undone: row.undone,
     createdAt: row.createdAt,
+  };
+}
+
+/** The `plan_event` row one event is stored as. */
+function planEventRow(event: PlanEvent) {
+  return {
+    id: event.id,
+    projectId: event.projectId,
+    userId: event.userId,
+    kind: event.kind,
+    label: event.label,
+    workItemId: event.workItemId,
+    stepId: event.stepId,
+    before: JSON.stringify(event.before),
+    after: JSON.stringify(event.after),
+    createdAt: event.createdAt,
   };
 }

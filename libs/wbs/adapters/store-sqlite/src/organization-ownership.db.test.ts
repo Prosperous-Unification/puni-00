@@ -283,6 +283,7 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -343,6 +344,7 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',

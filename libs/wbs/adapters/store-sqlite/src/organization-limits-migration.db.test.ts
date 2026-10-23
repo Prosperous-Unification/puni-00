@@ -13,6 +13,7 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 /** The newer compute-provider migrations, which reverse before the limits ones. */
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
@@ -104,13 +105,15 @@ describe(MIGRATION, () => {
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
     ).toEqual(
       before.filter(
-        ({ name }) => ![LIMITS_AUDIT, RESOURCE_PROVIDER, PROVIDER_AUDIT].includes(name),
+        ({ name }) =>
+          ![LIMITS_AUDIT, RESOURCE_PROVIDER, PROVIDER_AUDIT, CLAIM_LEASE].includes(name),
       ),
     );
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      CLAIM_LEASE,
       PROVIDER_AUDIT,
       RESOURCE_PROVIDER,
       LIMITS_AUDIT,
