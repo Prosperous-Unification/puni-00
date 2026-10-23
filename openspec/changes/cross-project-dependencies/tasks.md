@@ -880,3 +880,8 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 - [ ] P1c Complete independent exact-SHA source review and authorized host acceptance. [Source evidence](verify-ordinary-edge-policy.md). No live initialization, installation or adoption claimed.
 - [ ] P2 Implement complete restoring/active policy verification before accepting either phase.
 - [ ] P3 Integrate compatible restoration controllers and prove S4 reopening. Parent 10.2-S4 remains open.
+
+### Bounded source/solver physical acceptance runner source
+
+- [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).
+- [ ] XS2 Integrate reviewed ordinary policy and typed refusal-terminal packets, complete independent runner review, then execute only the root-authorized exact SHA and record physical evidence. X5b/D5b/S1/S2/O4 and parent 10.2 remain open.

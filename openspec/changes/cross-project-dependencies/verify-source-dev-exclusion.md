@@ -85,14 +85,16 @@ member. These are controlled IO fixtures, not actual Docker serving evidence.
 
 Independent architecture review is pending final source inspection. No disposable
 Docker/systemd runner was executed here. Physical acceptance requires a separately
-reviewed runner and explicit execution authorization. The complete source composition
-requires a disposable isolated Linux host or VM with its own Docker daemon and
-UID-1000 user manager/runtime: the supported source container name, image tag,
-runtime bind and supervisor service are fixed and cannot be renamed into a safe
-fixture on the live shared daemon. Inside that isolated host use scratch canonical
-roots and source/data content running the supported command, independently pinned
-copied image bytes and the canonical owner lock. Never retag or touch production's
-daemon, runtime directory or installed service. It must observe
+reviewed runner and explicit execution authorization. A disposable isolated Linux host or VM remains an option. A bounded physical fixture
+on the shared daemon is also valid after separate review: every invocation uses a
+fresh UUID label universe, unique names/tag/network/source/data/runtime/state/Caddy
+paths and unique user service. One fresh complete label census validates every
+physical coordinate before translating only the exact source name/tag/runtime bind,
+edge name and existing strict solver unit/tuple coordinates. Native immutable image,
+entrypoint/argv/UID/lifecycle/restart/security/mount flags remain unchanged. This
+proves only the isolated namespace interval; global host census, installed authority
+adoption, literal production paths and absence of live writers remain unproved.
+Never retag production's source image or touch its runtime directory/service. It must observe
 actual descendant exit/PID-zero, restart inhibition, retained solver tmpfs members,
 source/solver token recognition, unrelated-container refusal and exact owned
 cleanup. No actual dev/prod container or installed supervisor may be stopped by

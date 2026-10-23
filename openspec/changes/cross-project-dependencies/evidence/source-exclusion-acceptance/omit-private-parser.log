@@ -1,0 +1,24 @@
+Injected private-parser; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:
+173 |     await f.docker(['inspect', source.Id]);
+174 |   } catch (cause) {
+175 |     failure = cause;
+176 |   }
+177 |   expect(failure).toBeInstanceOf(Error);
+178 |   expect(String(failure)).toContain('private fixture inspection malformed');
+                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "private fixture inspection malformed"
+Received: "SyntaxError: JSON Parse error: Expected '}'"
+
+      at <anonymous> (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:178:27)
+(fail) malformed native inspection never exposes credential-bearing parser excerpts [1.83ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [69.00ms]

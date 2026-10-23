@@ -22,6 +22,7 @@ import {
   captureSolverFile,
   observeSolverCgroup,
   observeSolverProcess,
+  type SolverPins,
   type SolverPorts,
 } from '../src/lib/solver-host';
 import { withSolverPolicyAdmission } from '../src/lib/solver-runtime-admission';
@@ -47,13 +48,32 @@ import {
 } from './solver-drain-transport';
 
 const OWNER = 'wbs-solver-drain-owner';
+
+/** Shared lifecycle seam: integration retains this runner’s guarded unit and child cleanup. */
+export interface SolverDrainFixture {
+  sha: string;
+  image: string;
+  imageId: string;
+  root: string;
+  token: string;
+  layouts: { prod: ReturnType<typeof envLayout>; dev: ReturnType<typeof envLayout> };
+  pins: SolverPins;
+  ports: SolverPorts;
+  attempts: readonly { token: string; name: string; id: string }[];
+  deadline: number;
+  execute: (argv: string[], signal?: AbortSignal) => Promise<string>;
+  record: (label: string, proof: unknown) => Promise<void>;
+}
+
 function requireProof(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 
 /** Explicit host acceptance only; never pulled/built images, installed service or broad census. */
-export async function runSolverDrainAcceptance(): Promise<void> {
+export async function runSolverDrainAcceptance(
+  integration?: (fixture: SolverDrainFixture) => Promise<void>,
+): Promise<void> {
   const sha = process.env['SOLVER_DRAIN_SHA'];
   const image = process.env['SOLVER_DRAIN_IMAGE'];
   const receipt = process.env['SOLVER_DRAIN_RECEIPT'];
@@ -66,7 +86,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
     typeof receipt === 'string' && isAbsolute(receipt) && resolve(receipt) === receipt,
     'canonical absolute external receipt required',
   );
-  const deadline = performance.now() + 120000;
+  const deadline = performance.now() + (integration === undefined ? 120000 : 600000);
   const cancellation = new AbortController();
   const cancel = () => {
     cancellation.abort(new Error('acceptance cancelled'));
@@ -152,6 +172,10 @@ export async function runSolverDrainAcceptance(): Promise<void> {
     '--network=none',
     '--label',
     `${OWNER}=${token}`,
+    '--label',
+    `puni.source-exclusion=${token}`,
+    '--tmpfs',
+    '/attempts:rw,noexec,nosuid,size=1048576',
     '--label',
     'wbs-managed-solver=true',
     '--label',
@@ -507,47 +531,63 @@ export async function runSolverDrainAcceptance(): Promise<void> {
         );
       },
     };
-    await withDependencyOwner(
-      { sha, layouts: [layouts.prod, layouts.dev] },
-      async (owner) => {
-        await withSolverDrainUnderOwner(owner, layouts, pins, ports, deadline, async () => {
-          const admission = { entered: false };
-          try {
-            await withSolverPolicyAdmission(() => {
-              admission.entered = true;
-              return Promise.resolve();
-            }, edgeState);
-            throw new Error('manual guarded launch admitted');
-          } catch (cause) {
+    if (integration !== undefined) {
+      await integration({
+        sha,
+        image,
+        imageId,
+        root,
+        token,
+        layouts,
+        pins,
+        ports,
+        attempts,
+        deadline,
+        execute,
+        record,
+      });
+    } else
+      await withDependencyOwner(
+        { sha, layouts: [layouts.prod, layouts.dev] },
+        async (owner) => {
+          await withSolverDrainUnderOwner(owner, layouts, pins, ports, deadline, async () => {
+            const admission = { entered: false };
+            try {
+              await withSolverPolicyAdmission(() => {
+                admission.entered = true;
+                return Promise.resolve();
+              }, edgeState);
+              throw new Error('manual guarded launch admitted');
+            } catch (cause) {
+              requireProof(
+                !admission.entered && isRetainedEdgeOwnerRefusal(cause),
+                'manual admission refusal not proven',
+              );
+            }
+            await unitEffect('start');
+            await waitFor(join(root, 'refused.json'));
             requireProof(
-              !admission.entered && isRetainedEdgeOwnerRefusal(cause),
-              'manual admission refusal not proven',
+              (await readFile(join(root, 'ready.json'), 'utf8')) === JSON.stringify(ready),
+              'fixture restart entered runtime',
             );
-          }
-          await unitEffect('start');
-          await waitFor(join(root, 'refused.json'));
-          requireProof(
-            (await readFile(join(root, 'ready.json'), 'utf8')) === JSON.stringify(ready),
-            'fixture restart entered runtime',
-          );
-          const refusalText = await readFile(join(root, 'refused.json'), 'utf8');
-          const refusal: unknown = JSON.parse(refusalText);
-          requireProof(
-            typeof refusal === 'object' &&
-              refusal !== null &&
-              'reason' in refusal &&
-              refusal.reason === 'retained-edge-owner',
-            'restart admission refusal not proven',
-          );
-          await unitEffect('stop');
-          await record('protected', {
-            manualRefused: !admission.entered,
-            restartRefusal: refusalText,
+            const refusalText = await readFile(join(root, 'refused.json'), 'utf8');
+            const refusal: unknown = JSON.parse(refusalText);
+            requireProof(
+              typeof refusal === 'object' &&
+                refusal !== null &&
+                'reason' in refusal &&
+                refusal.reason === 'retained-edge-owner',
+              'restart admission refusal not proven',
+            );
+            await unitEffect('stop');
+            await record('protected', {
+              manualRefused: !admission.entered,
+              restartRefusal: refusalText,
+            });
           });
-        });
-      },
-      edgeState,
-    );
+        },
+        edgeState,
+      );
     await record('drain-completed', { physicalGroup, logicalGroup });
   } catch (cause) {
     failure = cause;
@@ -666,7 +706,8 @@ export async function runSolverDrainAcceptance(): Promise<void> {
     throw new Error(
       `solver acceptance refused; receipt ${receipt}; ${describe(failure)}; ${cleanupFailures.join('; ')}`,
     );
-  console.log(`solver drain acceptance passed: ${receipt}; private evidence retained: ${root}`);
+  const acceptance = integration === undefined ? 'solver drain' : 'source and managed exclusion';
+  console.log(`${acceptance} acceptance passed: ${receipt}; private evidence retained: ${root}`);
 }
 
 if (import.meta.main) await runSolverDrainAcceptance();

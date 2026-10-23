@@ -73,7 +73,7 @@
         "{workspaceRoot}/docs/runbook-dev-deploy.md"
       ],
       "options": {
-        "command": "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts --preload ../test/scratch/preload.ts --timeout=10000",
+        "command": "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts --preload ../test/scratch/preload.ts --timeout=10000",
         "cwd": "tools/tool-remote-scripts"
       },
       "dependsOn": ["test:caddy"]
@@ -157,6 +157,13 @@
       "cache": false,
       "options": {
         "command": "bun run tools/tool-remote-scripts/src/initialize-edge-policy.ts"
+      }
+    },
+    "test:source-exclusion": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/source-exclusion.ts"
       }
     }
   }
