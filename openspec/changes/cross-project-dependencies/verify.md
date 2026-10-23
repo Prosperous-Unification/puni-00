@@ -103,7 +103,7 @@ claim these observations in advance.
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                             |
 | Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | Closed; retained capture proofs and post-close packet below                                         |
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | Closed; retained capture proofs and independent audit below                                         |
-| Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | Traversal/topology observed below; other faults NOT RUN                                             |
+| Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | All named faults observed; delivery remains open                                                    |
 | Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Partial; mounted capacity below                                                                     |
 | Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | NOT RUN                                                                                             |
 | Readiness 6.3                                   | Replace remote progress with empty/local progress or skip required evidence                                                  | `cross-project-startable.controller.db.test.ts` actual tree/startable cases                                                               | NOT RUN                                                                                             |
@@ -5713,3 +5713,21 @@ The earlier domain-only checkpoint above describes its original date: current
 core preparation, `readResolvedFast`, guarded capture and mounted connected
 projection exist. Task 6.1 remains open for the rest of its mounted acceptance
 and producer-boundary fault matrix.
+
+## Task 5.2 delivery and fault-register reconciliation (2026-10-23)
+
+An independent Astra High audit found the backend broadcaster, production
+`PushClient`, gateway subscription fanout and frontend tree-refresh consumer
+already installed. The missing proof crosses those components with an actual
+socket, rather than a new event protocol. The
+[isolated fanout packet](verify-task-5.2-isolated-fanout.md) already records a
+watched premature delivery inside the admitted writer: the mounted observer saw
+the old `Upstream` name instead of `Committed name`. Its separate removal of
+external-edge organization filtering failed the mounted foreign-edge case at
+the remaining scoped reader with 500 instead of 200; this is a refusal proof,
+not a disclosure. A command-transaction pre-commit mutation is also recorded
+in the connected-command-admission evidence above. Alongside the later
+[traversal](evidence/task-5-fanout/verify.md) and
+[topology](evidence/task-5-2-mounted-topology.md) faults, all three named
+backend 5.2 register faults have observed production-path failures. Real
+gateway/socket delivery and browser-refresh acceptance remain open.
