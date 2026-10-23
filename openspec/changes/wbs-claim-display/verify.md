@@ -151,6 +151,29 @@ window; the service-level fault above (the code as it shipped) does, determinist
 | membership recheck skipped (rewatched on the owned path)    | removed-between-admission case answers 200 (7/1)            |
 | `claimsWithin` back to four awaited reads (rewatched)       | race sweep throws `claim claim-w-8 is on no row` (3/2)      |
 
+Results after the second round (fresh, 2026-10-23): store-sqlite `chain-snapshot`, all claim DB
+tests, `claim-observation`, person-work-scope, startable-scope and conformance 166 pass;
+store-memory 193; core `module/work-item` and `module/plan-commands` 381; be-01
+`project-claims-organization` (8), `schedule-organization`, `person-load`, `app.routes`,
+`organization-context`, `person-work-organization`, `claim-lease`, `startable-organization`,
+`claim-identity`, `services` 278 pass; `tool-devsync:test` 921 pass.
+
+**Round-2 check (Fable, 89eee7d69).** No test proved that `openSqliteSource` passes the
+observation connection: dropping it left every test green. Two new cases run over
+`openSqliteSource` and over `.bindLivePlans`: `does not see an open batch's claim (plain
+source)` and `(bound source)`. Inside a `uow.run` that is still open and has written a row and
+a claim, the batch's own catalog sees the claim and the public catalog does not.
+`throws both failures when the savepoint does not roll back` gives the `AggregateError` a
+negative: a proxied connection whose reads fail and whose `ROLLBACK TO` fails too. The
+organization harness's own copy of the binding has no negative, because no harness test opens a
+batch beside a read; its comment says so.
+
+| R5 fault (watched)                                           | Observed                               |
+| ------------------------------------------------------------ | -------------------------------------- |
+| observation dropped from the plain catalog (`source.ts`)     | plain-source case sees the claim (6/1) |
+| observation dropped from the bound public catalog            | bound-source case sees the claim (6/1) |
+| savepoint rollback failure rethrown alone, not the aggregate | `throws both failures …` fails (7/1)   |
+
 Results after the review round (fresh, 2026-10-23): store-sqlite conformance, claim, claim-race,
 claim-occupancy-race, claim-lease, claim-lease-race, claim-observation, person-work-scope and
 startable-scope DB tests 119 pass; store-memory 193 pass; conformance 35 pass; core

@@ -445,7 +445,10 @@ export class OrganizationHarness {
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
         // The claims read observes committed state on a read-only connection
-        // of its own, as openSqliteSource binds it.
+        // of its own, as openSqliteSource's public catalogs do. This copy of the
+        // binding has no negative of its own: no harness test opens a batch
+        // beside a read. The source's binding is proven in
+        // claim-observation.db.test.ts.
         claims: new ClaimRepository(db, OPEN, {
           openConnection: () => openReadOnlyConnection(path),
         }),

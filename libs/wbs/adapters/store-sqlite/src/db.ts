@@ -358,7 +358,7 @@ export async function observeCommitted<T>(
       throw failure;
     }
   } finally {
-    // Proof: omitting close failed all three owned lifecycle cases and the
+    // Proof: omitting close failed all four owned lifecycle cases and the
     // mounted admission check saw one open snapshot at both launch handoffs.
     connection.close();
   }

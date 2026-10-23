@@ -166,6 +166,9 @@ export class ClaimRepository implements ClaimStore {
         this.db.run(sql.raw('ROLLBACK TO claim_observation'));
         this.db.run(sql.raw('RELEASE claim_observation'));
       } catch (rollbackCause) {
+        // Proof: rethrowing the rollback's failure alone failed `throws both
+        // failures when the savepoint does not roll back`
+        // (claim-observation.db.test.ts, 7 pass, 1 fail); watched 2026-10-23.
         throw new AggregateError(
           [cause, rollbackCause],
           'a claims observation failed and its savepoint did not roll back',

@@ -2,8 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Source, TransactionalStores } from '@wbs/core';
 import type { AvailableWorkItemService as WorkItemService } from '@wbs/core/testing/available-work-item-service';
 import { inMemoryServices } from '@wbs/core/testing/harness';
+import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
@@ -24,6 +26,7 @@ import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
+import { openSqliteSource } from './source';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -191,7 +194,89 @@ describe('the claims observation', () => {
     }
   });
 
+  it('throws both failures when the savepoint does not roll back', async () => {
+    // A connection whose reads fail and whose second statement, the savepoint
+    // rollback, fails too: the first statement is the SAVEPOINT itself.
+    let statements = 0;
+    const broken = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key === 'all')
+          return () => {
+            throw new Error('the read broke');
+          };
+        if (key === 'run')
+          return (query: Parameters<Drizzle['run']>[0]) => {
+            statements += 1;
+            if (statements === 2) throw new Error('the rollback broke');
+            return target.run(query);
+          };
+        const member: unknown = Reflect.get(target, key, receiver);
+        return member;
+      },
+    });
+    const failure = await new ClaimRepository(broken, OPEN).observeProject('project', LEGACY).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    db.run('ROLLBACK');
+    if (!(failure instanceof AggregateError)) throw new Error(`threw ${String(failure)}`);
+    const [cause, rollbackCause] = failure.errors.map((each) => String(each));
+    expect(cause).toContain('unreadable');
+    expect(rollbackCause).toBe('Error: the rollback broke');
+    expect(failure.errors).toHaveLength(2);
+  });
+
   it('answers an absent project as not found', async () => {
     expect(await claims.observeProject('nowhere', LEGACY)).toEqual({ kind: 'not_found' });
   });
+});
+
+describe("the source's public claims read", () => {
+  /** A source over the seeded test file, plain or bound as be-01 binds it. */
+  function seededSource(bound: boolean): Source<TransactionalStores> {
+    const plain = openSqliteSource({ dbPath: path });
+    return bound ? plain.bindLivePlans({ schedulerOf: () => fastScheduler }) : plain;
+  }
+
+  for (const bound of [false, true]) {
+    it(`does not see an open batch's claim (${bound ? 'bound' : 'plain'} source)`, async () => {
+      const source = seededSource(bound);
+      try {
+        const seen = await source.uow.run(async ({ stores }) => {
+          await stores.workItems.insert(
+            workItemRow({ id: 'w-batch', projectId: 'project' }),
+            [],
+            STAMP,
+          );
+          const written = await stores.claims.add(
+            [
+              {
+                id: 'claim-batch',
+                workItemId: 'w-batch',
+                stepId: 'step-dev',
+                personId: 'codex',
+                runId: null,
+                parentClaimId: null,
+                accountId: 'owner',
+              },
+            ],
+            [],
+            STAMP,
+            [],
+          );
+          if (written !== 'written') throw new Error(`the batch claim was refused: ${written}`);
+          // The batch itself sees its own claim; the public catalog must not.
+          const own = await stores.claims.observeProject('project', LEGACY);
+          const observed = await source.stores.claims.observeProject('project', LEGACY);
+          return { commit: false, value: { own, observed } };
+        });
+        if (seen.own.kind !== 'observed' || seen.observed.kind !== 'observed')
+          throw new Error('an observation did not answer');
+        expect(seen.own.claims.map(({ id }) => id)).toEqual(['claim-batch']);
+        expect(seen.observed.claims).toEqual([]);
+      } finally {
+        await source.close();
+      }
+    });
+  }
 });
