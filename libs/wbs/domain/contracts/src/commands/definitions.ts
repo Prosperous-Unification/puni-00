@@ -544,7 +544,7 @@ export const commandDefinitions = {
     }),
     scope: 'directory',
     description:
-      'Define a measure for the organization: key is a lowercase slug (letter first, then letters, digits or _, at most 40) that never changes; unit is the label beside every figure (empty is refused unit_required); measureKind (duration, count, money) and scale (integer, real) never change; money needs a three-letter currency and nothing else may name one (currency_required, currency_forbidden). threePoint and showByDefault default false; order defaults to after every held definition. Refused measure_key_taken for a key the organization holds and second_scheduling_measure for schedulesWork while time holds it. Under legacy access the legacy organization owns it, refused organization_required when none exists.',
+      'Define a measure for the organization (organization admins and super-admins only; anyone else is refused forbidden): key is a lowercase slug (letter first, then letters, digits or _, at most 40) that never changes; unit is the label beside every figure (empty is refused unit_required); measureKind (duration, count, money) and scale (integer, real) never change; money needs a three-letter currency and nothing else may name one (currency_required, currency_forbidden). threePoint and showByDefault default false; order defaults to after every held definition. Refused measure_key_taken for a key the organization holds and second_scheduling_measure for schedulesWork while time holds it. Under legacy access the legacy organization owns it, refused organization_required when none exists.',
   }),
   patchMeasure: defineCommand('patchMeasure', {
     schema: type({
@@ -565,13 +565,13 @@ export const commandDefinitions = {
     }),
     scope: 'directory',
     description:
-      'Change a measure definition: name, unit, threePoint, showByDefault, order or a money measure’s currency. Naming another key is refused measure_key_immutable, another measureKind or scale measure_shape_immutable; schedulesWork true on any but the scheduling measure is refused second_scheduling_measure and false on it scheduling_measure_fixed.',
+      'Change a measure definition (organization admins and super-admins only; anyone else is refused forbidden): name, unit, threePoint, showByDefault, order or a money measure’s currency. Naming another key is refused measure_key_immutable, another measureKind or scale measure_shape_immutable; schedulesWork true on any but the scheduling measure is refused second_scheduling_measure and false on it scheduling_measure_fixed.',
   }),
   deleteMeasure: defineCommand('deleteMeasure', {
     schema: type({ kind: "'deleteMeasure'", ...measure }),
     scope: 'directory',
     description:
-      'Remove a measure definition the organization defined. The five seeded definitions (time, tokens, hours, cost, agent_minutes) and any definition a fact, three-point estimate or budget references are refused measure_in_use.',
+      'Remove a measure definition the organization defined (organization admins and super-admins only; anyone else is refused forbidden). The five seeded definitions (time, tokens, hours, cost, agent_minutes) and any definition a fact, three-point estimate or budget references are refused measure_in_use.',
   }),
 } as const;
 

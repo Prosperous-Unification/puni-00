@@ -31,7 +31,8 @@ Assumptions a careful colleague would take today, recorded so Dany can overturn 
   money a `currency`. Seeded per organization: `time` (duration, schedulesWork, showByDefault),
   `tokens` (count, integer), `hours` (duration, real, threePoint false), `cost` (money, integer
   micro-units), `agent_minutes` (duration, integer, derived, threePoint false). Deleting a
-  definition that estimates, facts or budgets reference refuses unless cascade is explicit.
+  definition that estimates, facts or budgets reference refuses `409 measure_in_use`; there is
+  no cascade (D21).
 - **D2 Exactly one scheduling measure.** `schedulesWork` is unique per organization and is
   `time`. The solver, allowances, rounding and the Gantt read the existing `estimate` and
   `actual` tables unchanged. A property test over random plans proves that adding, changing
@@ -86,14 +87,13 @@ Assumptions added while implementing slice 1 (tasks 1.1, 1.2), each the reading 
   `key` never does (`measure_key_immutable`); no command sets `derived`.
 - **D14 Seeded means the five keys.** A seeded definition is never removed (`measure_in_use`)
   but may be renamed; `down.sql` refuses only for other keys and drops renamed seeds.
-  `usageOfMeasure` answers zero until the first referencing table; `deleteMeasure` gains
-  `cascade` with it.
+  `usageOfMeasure` counts facts, trios and budgets; `deleteMeasure` has no `cascade` (D21).
 - **D15 Seed values and bounds.** Units `days`, `tokens`, `hours`, `micro-USD`, `minutes`;
   orders 1–5; a new definition's order defaults to one past the highest; lists sort by order
   then key. Keys match `^[a-z][a-z0-9_]{0,39}$`, units are at most 40 characters, orders 0 to
   1,000,000, currencies three capital letters.
-- **D16 Directory write rule.** Any role but viewer under scoped access, as for every directory
-  command; the open question on admins only stays open.
+- **D16 Directory write rule.** _Superseded by D70._ Any role but viewer under scoped access, as
+  for every directory command; the open question on admins only stays open.
 - **D17 One read.** `GET /api/measures` (MCP `getApiMeasures`); writes go through
   `POST /api/directory/commands`.
 
@@ -479,6 +479,39 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
   legacy-shape fixtures state 1 and the version-11 cases state 1.5. The v9 and v10 golden
   hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`).
 
+Decisions from the review fixes (PR A, 2026-10-24):
+
+- **D68 A single-point trio seeds no derived budget** (Dany, 2026-10-24). Only a three-point
+  trio seeds a derived budget (D38) or covers a step node's spend. The single-point tokens trio
+  is the legacy token estimate (D28): every plan Twilight Navigator writes holds one, so
+  counting it would give every such plan derived tokens budgets and exceeded badges nobody set.
+  A stated budget beside it reads as before. Coverage is per step node (review A-1): a derived
+  budget exists only where every leaf step node holding a fact in the key also holds a
+  three-point trio in it, since spend and pessimistic points fold per step.
+- **D69 Admission moves into the WBS claim write** (placeholder). The strict-budget hold
+  becomes part of the claim and attempt-start write in WBS rather than a read the coordinator
+  refuses on; designed and built in PR B, which records it here.
+- **D70 Measure definitions are admin-only** (Dany: "tighten permissions"; supersedes D16).
+  `createMeasure`, `patchMeasure` and `deleteMeasure` require the organization admin or
+  super-admin role under scoped access, refused `403 forbidden` per command (`{at, kind, error}`,
+  the shape `patchPerson`'s account binding uses), checked before anything is read. An import
+  that would create a definition (D65) requires the same role and is refused `403 forbidden`
+  whole, writing nothing; matching held definitions needs no more than the import itself.
+  Legacy access carries no role, and every legacy caller already writes the whole directory, so
+  it keeps writing definitions. A definition changes what every project's figures mean, an
+  organization act like ranking projects.
+- **D71 Always version 11** (placeholder). Whether the export writes version 11 for every plan,
+  retiring D63's conditional, follows once Navigator, Burokrat and Dash admit it (task 4.6).
+- **D72 Rollback is the pre-deploy backup** (Dany, 2026-10-24: no users yet). Once a fact in a
+  defined measure (D23), a three-point trio (D28), a priced figure or a stated budget (D44)
+  exists, `down.sql` refuses, and the older image answers 500 on work items holding a fact in a
+  defined measure and loses or ignores the rest. The runbook names the backup taken before the
+  deploy as the rollback; the hand-clearing paths stay for a rollback that must keep other
+  writes.
+- **Import basis, as the commands decide it** (review B-1). `prepareImport` refuses a `cost` fact
+  or trio whose `basis` is null with `400 invalid_body`, detail `rate_card_required`, at its
+  `basis` path, so D65's "as the commands would" holds for money; no refusal code is new.
+
 ## Risks / Trade-offs
 
 - The schedule must not move: D2's property test is the guard, and the time trio stays in its
@@ -502,4 +535,4 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
 - The project factor for derived budgets (proposed 1.0 of the pessimistic point).
 - Whether `hours` merges with `time` as the human fact of the scheduling measure, or stays a
   separate measure (proposed: separate, since days are scheduled and hours are typed).
-- Who may define measures: organization admins (proposed) or any editor.
+- ~~Who may define measures~~: organization admins and super-admins (D70, Dany 2026-10-24).
