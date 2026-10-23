@@ -1345,6 +1345,105 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
   }
 
+  for (const fault of ['unchanged', 'revocation', 'family'] as const) {
+    test(`real agent consent queued external update revalidates ${fault} authority`, async () => {
+      const personId = `queued-${fault}`;
+      await fixture('agent', { id: personId, account: 'dany' });
+      const consent = await connect('auth0|dany', { agent: personId });
+      const createProject = async (name: string): Promise<string> => {
+        const created = await tool(consent.access, 'postApiProjects', { name });
+        expect(created, created.text).toMatchObject({ isError: false });
+        return (JSON.parse(created.text) as { project: { id: string } }).project.id;
+      };
+      const predecessorProjectId = await createProject(`Queued ${fault} predecessor`);
+      const successorProjectId = await createProject(`Queued ${fault} successor`);
+      const createLeaf = async (id: string): Promise<string> => {
+        const created = await tool(consent.access, 'postApiProjectsByIdCommands', {
+          id,
+          commands: [{ kind: 'createWorkItem', name: `Queued ${fault} leaf` }],
+        });
+        expect(created, created.text).toMatchObject({ isError: false });
+        const workItemId = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(
+          0,
+        )?.id;
+        if (workItemId === undefined) throw new Error('queued consent leaf not minted');
+        return workItemId;
+      };
+      const predecessorId = await createLeaf(predecessorProjectId);
+      const successorId = await createLeaf(successorProjectId);
+      const predecessor = {
+        projectId: predecessorProjectId,
+        scope: 'whole',
+        workItemId: predecessorId,
+      };
+      const successor = { projectId: successorProjectId, scope: 'whole', workItemId: successorId };
+      const added = await tool(consent.access, 'postApiProjectsByIdCommands', {
+        id: successorProjectId,
+        commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
+      });
+      expect(added, added.text).toMatchObject({ isError: false });
+      const dependencyId = (JSON.parse(added.text) as { results: { id: string }[] }).results.at(
+        0,
+      )?.id;
+      if (dependencyId === undefined) throw new Error('queued consent relationship not minted');
+      const read = await tool(consent.access, 'getApiProjectsByIdWork-items', {
+        id: predecessorProjectId,
+      });
+      expect(read, read.text).toMatchObject({ isError: false });
+      await fixture('arm-consent-write', {});
+      const pending = tool(consent.access, 'postApiProjectsByIdCommands', {
+        id: successorProjectId,
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: successorId,
+            patch: { name: 'Queued rename committed' },
+          },
+          { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'SS' },
+        ],
+      });
+      try {
+        expect(await fixture('wait-consent-write', {})).toEqual({ queued: true });
+        if (fault !== 'unchanged')
+          expect(await fixture('change-consent', { personId, fault })).toEqual({ changed: 1 });
+        // Snapshot after real delegation admission and independent credential mutation:
+        // delegation_use itself is intentionally outside the command transaction.
+        const before = await fixture('consent-write-state', {});
+        const sent = await fixture('publications', {});
+        await fixture('release-consent-write', {});
+        const response = await pending;
+        if (fault === 'unchanged') {
+          expect(response, response.text).toMatchObject({ isError: false });
+          const after = (await fixture('write-state', {})) as Record<string, unknown>[][];
+          expect(after[1].find((row) => row['id'] === successorId)).toMatchObject({
+            id: successorId,
+            name: 'Queued rename committed',
+          });
+          expect(after[4].find((row) => row['id'] === dependencyId)).toMatchObject({
+            id: dependencyId,
+            type: 'SS',
+          });
+          expect(await fixture('consent-write-state', {})).not.toEqual(before);
+          expect(await fixture('publications', {})).not.toEqual(sent);
+        } else {
+          // Proof: captured request access admitted both queued consent faults; removing
+          // only the persisted family comparison admitted family mismatch (2026-10-23).
+          expect(response.isError).toBe(true);
+          expect(response.text).toContain('HTTP 409');
+          expect(JSON.parse(response.text.slice(response.text.indexOf('\n') + 1))).toEqual({
+            error: 'organization_context_changed',
+          });
+          expect(await fixture('consent-write-state', {})).toEqual(before);
+          expect(await fixture('publications', {})).toEqual(sent);
+        }
+      } finally {
+        // Release is idempotent only through this explicit fixture cleanup route.
+        await fixture('cleanup-consent-write', {});
+        await pending;
+      }
+    });
+  }
+
   test("a removed member's session is refused on its next call and cannot refresh", async () => {
     const removed = await fetch(`${beUrl}/__fixture/remove-member`, {
       method: 'POST',

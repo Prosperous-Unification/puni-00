@@ -6887,3 +6887,10 @@ and the integrated exact-SHA host gate. No push, merge or deployment occurred.
 Dedicated lock-owned managed backend physical exclusion and exact gateway-byte/
 SQLite-family binding: [verification packet](verify-backend-exclusion.md).
 Parent 10.1/10.2, complete participant exclusion and semantic activation remain open.
+
+## Task 4.2 real OAuth consent queue acceptance (2026-10-23)
+
+The bounded real agent-consent queued external-update packet, independent
+production-fault observations, restored runtime checks and remaining scope are in
+[the OAuth queue verification record](verify-4-2-oauth-queued-authority.md).
+Task 4.2 and production activation remain open.

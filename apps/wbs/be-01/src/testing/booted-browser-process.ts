@@ -58,6 +58,8 @@ export class BootedBrowserProcess {
     emailDelivery?: EmailDeliveryConfig,
     delegationKeys?: DelegationKeys,
     syntheticExternalCommands?: () => boolean,
+    /** Observes the real composed source so a process fixture can hold its writer. */
+    observeSource?: (source: ReturnType<typeof openSqliteSource>) => void,
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
@@ -81,7 +83,11 @@ export class BootedBrowserProcess {
         organizationDnsResolvers: dns?.resolvers,
       },
       {
-        openSource: openSqliteSource,
+        openSource: (options) => {
+          const source = openSqliteSource(options);
+          observeSource?.(source);
+          return source;
+        },
         dnsTransport: dns?.transport,
         makeApp: (options) => {
           const composedOptions: AppOptions =
