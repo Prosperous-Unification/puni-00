@@ -106,3 +106,5 @@ unchanged guard are retained in the
 [allowance evidence](../../openspec/changes/burokrat-serial-legacy-compiler/evidence/ci-allowance/README.md).
 
 Merge-check enforcement qualification is in progress on 2026-10-23.
+
+[Deliberate absent target](missing-merge-policy-proof-target.md).
