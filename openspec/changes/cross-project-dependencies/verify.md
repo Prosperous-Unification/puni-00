@@ -6508,3 +6508,27 @@ removal faults broke owned transaction cleanup assertions. Restored focused
 suites passed 49 tests/554 assertions. Independent Astra High review approved
 with no blocking findings. Parent 8.3 and the integrated exact-SHA host gate
 remain open.
+
+## Task 9.2 bounded predecessor-scope browser persistence (2026-10-23)
+
+[The browser packet](verify-9-2-predecessor-scope-browser.md) proves desktop
+node-to-whole and phone whole-to-node edits through accepted HTTP, authoritative
+refetch, reload/reopen and the same persisted SQLite relationship ID. Its
+test-only writer seam leaves production authoring dormant. Configured browser
+acceptance passed 3 tests; focused frontend tests passed 123. Two independent
+serialization faults failed at the post-reload scope assertion. Configured
+frontend lint, frontend/backend typechecks and OpenSpec 273/273 passed. Astra
+High independently approved the bounded packet; integrated as `e675a7932`.
+Parent 9.2 and the exact-SHA host gate remain open.
+
+## Compute-provider dependency admission matrix reconciliation (2026-10-23)
+
+After the compute-provider main merge, the h2puni gate on `3e8e98b99` found
+one stale test expectation: five new HTTP operations were absent from the
+pinned protected-operation matrix. The production exemption rule already
+protects them. Updating the matrix as `a32ffb41d` restored the complete
+contracts suite to 611 passed/0 failed, 2622 assertions. Temporarily exempting
+`getApiOrganizationCompute-providers` moved it out of the protected set and
+failed the real matrix assertion; restoring the source returned the focused
+tests to 2 passed/0 failed. Changed-file ESLint, Prettier and diff checks
+passed. The failing old-SHA gate is not a full verdict for this new head.

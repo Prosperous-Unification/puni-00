@@ -38,4 +38,9 @@ An initial sandbox browser run failed before assertions because browser/server s
 
 ## Limits
 
-Only the two seeded transitions above establish browser/database persistence acceptance. This does not establish every endpoint scope, all task 9.2 behavior, production authoring activation, rollout readiness, full frontend suite/build, a host gate, deployment, push or merge. The ordinary frontend response/organization/runtime composition is used within the fixture entry, but this is not a signed-in router/login acceptance test. Full parent verification and independent review remain required.
+Only the two seeded transitions above establish browser/database persistence acceptance. This does not establish every endpoint scope, all task 9.2 behavior, production authoring activation, rollout readiness, full frontend suite/build, a host gate, deployment, push or merge. The ordinary frontend response/organization/runtime composition is used within the fixture entry, but this is not a signed-in router/login acceptance test. Full parent verification remains required.
+
+Independent Astra High review approved this bounded packet at `e58008816` with
+no blocking finding. The reviewer reran the dormant-authoring control: one
+test/13 assertions passed. The packet was integrated as `e675a7932`; the
+exact-SHA host gate remains open.
