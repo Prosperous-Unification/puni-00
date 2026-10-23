@@ -58,3 +58,9 @@ outcomes are recorded below after execution. No push or integration is performed
 - `bunx openspec validate --all --json`: exit 0, **274 passed / 0 failed**
   (256 changes, 18 specs).
 - Changed-file Prettier check and `git diff --check`: exit 0.
+
+Normal commit hooks passed on implementation commit `fb94ffcc7`: ESLint,
+Prettier, plaintext secrets, private nesting and both author-trailer stages.
+The Tool Wiki hook returned its explicit inactive/non-certifying outcome because
+no external activation root is provisioned; no Tool Wiki certification is claimed.
+Migration and doc-cap hooks visibly skipped because no matching files changed.
