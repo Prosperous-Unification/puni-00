@@ -1,12 +1,15 @@
+import { createConnection } from 'node:net';
+
 import {
   DEPENDENCY_SEMANTICS,
   DEPENDENCY_SEMANTICS_HEADER,
   DEPENDENCY_WEBSOCKET_PROTOCOL,
 } from '@wbs/contracts';
 import { systemTimers } from '@wbs/runtime-portable';
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
+import { Presence } from './service/presence';
 import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 function connect(port: number, protocol?: string): Promise<WebSocket | null> {
@@ -234,6 +237,92 @@ test('dual offers explicitly select V1 and retained presence keeps that exact ad
     expect(claims.every((claim) => claim === DEPENDENCY_SEMANTICS)).toBe(true);
     socket.close();
   } finally {
+    await app.stop(true);
+  }
+});
+
+/** Sends header octets and pipelined masked frames without WebSocket constructor normalization. */
+function rawDependencyHandshake(port: number, protocol: string): Promise<string> {
+  const frames = [
+    { type: 'subscribe', subscription: 'project:11111111-1111-4111-8111-111111111111' },
+    { type: 'resume', resume_points: {} },
+    { subscription: 'presence', message: { write: true } },
+  ].map((frame) => {
+    const payload = Buffer.from(JSON.stringify(frame));
+    if (payload.length >= 126) throw new Error('raw fixture frame requires extended length');
+    const mask = Buffer.from([1, 2, 3, 4]);
+    const masked = Buffer.from(payload.map((octet, index) => octet ^ mask[index % 4]));
+    return Buffer.concat([Buffer.from([0x81, 0x80 | payload.length]), mask, masked]);
+  });
+  return new Promise((resolve, reject) => {
+    let response = '';
+    const socket = createConnection({ host: '127.0.0.1', port }, () => {
+      socket.write(
+        Buffer.concat([
+          Buffer.from(
+            `GET /ws HTTP/1.1\r\nHost: localhost:${String(port)}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: ${protocol}\r\n\r\n`,
+            'latin1',
+          ),
+          ...frames,
+        ]),
+      );
+    });
+    socket.setTimeout(2000, () => {
+      socket.destroy(new Error('raw handshake deadline exceeded'));
+    });
+    socket.on('error', reject);
+    socket.on('data', (chunk: Buffer) => {
+      response += chunk.toString('latin1');
+      if (response.includes('\r\n\r\n')) {
+        socket.destroy();
+        resolve(response);
+      }
+    });
+    socket.on('end', () => {
+      if (!response.includes('\r\n\r\n')) reject(new Error('raw handshake ended before response'));
+    });
+  });
+}
+
+test('raw NBSP protocol octets refuse before presence, project access, replay or backend work', async () => {
+  const backendPaths: string[] = [];
+  let accessChecks = 0;
+  const joining = spyOn(Presence.prototype, 'join');
+  const app = buildApp({
+    beUrl: 'http://be.test',
+    internalAuthSecret: 's'.repeat(32),
+    jwtKey: 'k'.repeat(32),
+    localIdentity: 'ada',
+    projectAccess: () => {
+      accessChecks++;
+      return GRANT_EVERY_PROJECT();
+    },
+    fetchImpl: (url) => {
+      backendPaths.push(url);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  }).listen(0);
+  const port = app.server?.port;
+  if (port === undefined) throw new Error('gateway did not listen');
+  try {
+    for (const protocol of [
+      `\xA0${DEPENDENCY_WEBSOCKET_PROTOCOL}\xA0`,
+      `\xA0${DEPENDENCY_WEBSOCKET_PROTOCOL}`,
+      `${DEPENDENCY_WEBSOCKET_PROTOCOL}\xA0`,
+    ]) {
+      const response = await rawDependencyHandshake(port, protocol);
+      expect(response).toMatch(/^HTTP\/1\.1 409 /);
+      expect(response).not.toContain('101 Switching Protocols');
+      expect(response).not.toContain('presence');
+      expect(backendPaths).toEqual([]);
+      expect(accessChecks).toBe(0);
+      expect(joining).not.toHaveBeenCalled();
+    }
+    expect(
+      await (await fetch(`http://localhost:${String(port)}/metrics/snapshot`)).json(),
+    ).toMatchObject({ activeConnections: 0 });
+  } finally {
+    joining.mockRestore();
     await app.stop(true);
   }
 });

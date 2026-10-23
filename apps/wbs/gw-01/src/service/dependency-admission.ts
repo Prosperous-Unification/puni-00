@@ -86,7 +86,8 @@ export function selectDependencyProtocol(
   offered: string | null,
 ): string | null {
   if (offered === null) return null;
-  const protocols = offered.split(',').map((token) => token.trim());
+  // Proof: restoring Unicode trim admitted raw NBSP-wrapped V1 with HTTP 101 in dependency-admission.integration.test.ts.
+  const protocols = offered.split(',').map((token) => token.replace(/^[ \t]+|[ \t]+$/g, ''));
   // Proof: independently omitting duplicate or token-syntax rejection failed selection refuses in dependency-admission.test.ts.
   if (
     new Set(protocols).size !== protocols.length ||

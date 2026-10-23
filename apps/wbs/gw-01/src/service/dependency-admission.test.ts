@@ -119,3 +119,15 @@ test('selection refuses duplicate, malformed and unknown-only offers without imp
   ).toBe('wbs.legacy');
   expect(selectDependencyProtocol(capable, null)).toBeNull();
 });
+
+test('protocol selection trims HTTP space/tab only and rejects non-ASCII whitespace', () => {
+  expect(selectDependencyProtocol(capable, ` \t${DEPENDENCY_WEBSOCKET_PROTOCOL}\t `)).toBe(
+    DEPENDENCY_WEBSOCKET_PROTOCOL,
+  );
+  for (const whitespace of ['\xA0', '\uFEFF', '\u2003'])
+    for (const offered of [
+      `${whitespace}${DEPENDENCY_WEBSOCKET_PROTOCOL}`,
+      `${DEPENDENCY_WEBSOCKET_PROTOCOL}${whitespace}`,
+    ])
+      expect(() => selectDependencyProtocol(capable, offered)).toThrow();
+});

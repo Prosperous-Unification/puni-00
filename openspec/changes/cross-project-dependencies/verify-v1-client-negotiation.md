@@ -92,3 +92,34 @@ Fresh Nx controls use `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`,
 `run-many -t typecheck -p wbs-contracts,wbs-gw-01,wbs-mcp-01,wbs-be-01,wbs-fe-01 --skip-nx-cache`,
 and the corrected gateway fixture was followed by `nx run wbs-gw-01:typecheck --skip-nx-cache`.
 Browser controls use `bunx vitest run src/lib/project-stream.test.ts src/runtime/organization-context.model.test.ts --maxWorkers=1` from `apps/wbs/fe-01`.
+
+## Astra P2 correction: HTTP OWS preserves invalid protocol octets
+
+The review reproduced an actual raw TCP upgrade with `0xA0` before/after the V1
+token. JavaScript `trim()` removed those non-HTTP whitespace characters, so
+selection accepted the otherwise invalid token. The selector now removes only
+HTTP optional whitespace (`SP` and `HTAB`), retaining every other character for
+the existing ASCII token rejection.
+
+A raw TCP fixture sends literal Latin-1 header octets and pipelined masked
+subscribe, resume and forward frames, bypassing the browser/WebSocket
+constructor's input normalization. Both-sided, leading-only and trailing-only
+NBSP offers require HTTP 409, no presence frame/join, no project-access
+construction, no backend request and zero active connections. Unit controls
+preserve SP/HTAB success and reject NBSP, BOM and em-space.
+
+The initial raw test failed before the fix. Restoring the original `trim()` after
+implementation failed again with a literal `HTTP/1.1 101 Switching Protocols`,
+selected `wbs.cross-project-dependencies.v1` and an actual presence frame in the
+response. The SP/HTAB-only implementation was restored before focused controls.
+Evidence is in `v1-ows-*.log` alongside the earlier packet. Focused controls cover
+negotiation, retained admission, retirement and connection-bound forwarding;
+17 tests across five files passed. The uncached gateway typecheck and changed-file ESLint passed; formatting and normal commit hooks are retained.
+No backend capability, activation, deployment or parent-task closure changes.
+
+Correction control command:
+
+```sh
+bun test apps/wbs/gw-01/src/dependency-admission.integration.test.ts apps/wbs/gw-01/src/service/dependency-admission.test.ts apps/wbs/gw-01/src/retained-admission.integration.test.ts apps/wbs/gw-01/src/retirement.integration.test.ts apps/wbs/gw-01/src/service/dependency-forwarding.test.ts
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache
+```
