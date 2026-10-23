@@ -8,6 +8,7 @@ import type {
   OrganizationRole,
   ReleaseRefusal,
   ResourcesExhausted,
+  ResourceShortage,
   ResourceUnits,
   WorkItemStatus,
 } from '@wbs/domain';
@@ -48,6 +49,11 @@ export interface NamedOccupancyHolder extends OccupancyHolder {
   readonly name: string;
 }
 
+/** A short resource as the wire names it: its holders named. */
+export interface NamedResourceShortage extends Omit<ResourceShortage, 'holders'> {
+  readonly holders: readonly NamedOccupancyHolder[];
+}
+
 /** Claim and release refusals that carry nothing beside their reason. */
 export type PlainClaimReason =
   | 'resources_on_subtree'
@@ -78,8 +84,9 @@ export type ClaimRefusalOutcome =
     }
   | ({ readonly ok: false } & BelowDeclaredDemand)
   | ({ readonly ok: false } & BelowHeldOccupancy)
-  | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders'> & {
+  | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders' | 'resources'> & {
         readonly holders: readonly NamedOccupancyHolder[];
+        readonly resources: readonly NamedResourceShortage[];
       })
   /**
    * The claim would add one more bound claim than the organization's cap
@@ -192,7 +199,15 @@ export function refusalOf(
     case 'below_held_occupancy':
       return { ok: false, ...refusal };
     case 'resources_exhausted':
-      return { ok: false, ...refusal, holders: refusal.holders.map(occupant) };
+      return {
+        ok: false,
+        ...refusal,
+        holders: refusal.holders.map(occupant),
+        resources: refusal.resources.map((short) => ({
+          ...short,
+          holders: short.holders.map(occupant),
+        })),
+      };
     default:
       return { ok: false, reason: refusal.reason };
   }

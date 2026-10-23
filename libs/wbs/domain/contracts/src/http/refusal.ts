@@ -56,7 +56,7 @@ export type ParserRefusalCode =
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
   | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId' | 'providerId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
+  | `${'name' | 'notes' | 'kind' | 'personKind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
   | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
@@ -279,6 +279,18 @@ export interface OccupancyRefusalHolder {
 }
 
 /**
+ * One resource `resources_exhausted` names: the units asked, the units free
+ * and who holds the rest. The refusal's own fields are its first short
+ * resource; `resources` lists every one in resource-id order.
+ */
+export interface ResourceShortageDetail {
+  resourceId: string;
+  asked: number;
+  free: number;
+  holders: OccupancyRefusalHolder[];
+}
+
+/**
  * Proof (type boundary only): making kind optional produces TS2578 for both the
  * runtime and global incomplete-command fixtures. Production binding is pending.
  */
@@ -415,12 +427,7 @@ export type CommandRefusalDetail = {
                         : C extends 'below_held_occupancy'
                           ? { resourceId: string; asked: number; held: number }
                           : C extends 'resources_exhausted'
-                            ? {
-                                resourceId: string;
-                                asked: number;
-                                free: number;
-                                holders: OccupancyRefusalHolder[];
-                              }
+                            ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
                             : C extends 'agent_person_limit'
                               ? LimitRefusalDetail
                               : C extends 'claim_limit'
