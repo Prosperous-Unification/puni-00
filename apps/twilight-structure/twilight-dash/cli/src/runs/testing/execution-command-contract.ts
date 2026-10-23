@@ -2,13 +2,13 @@ import { doesNotReject } from 'node:assert/strict';
 
 import { describe, expect, test } from 'bun:test';
 
-import { operationKey, ownerId, runId } from '../record-codecs';
+import { ownerId, runId } from '../record-codecs';
 import type { ExecutionCommand } from '../records';
 import {
   createExecutionCommand,
   createRun,
   type OutcomeFixture,
-  prepareAttempt,
+  prepareTurn,
   unwrapReply,
 } from './fixtures';
 
@@ -17,35 +17,33 @@ export function executionCommandContract(name: string, create: () => Promise<Out
     test('execution command identities distinguish reattachment from original redelivery', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
-        const claimed = {
-          commandId: 'claim-command',
-          fact: { kind: 'claim_acquired', claim: setup.claim },
-        } as ExecutionCommand;
-        const original = unwrapReply(await stores.runs.recordExecution(setup.guard, claimed));
+        const setup = await prepareTurn(stores);
+        const history = await stores.runs.readExecutionHistory(
+          setup.run.runId,
+          setup.admission.attemptId,
+        );
+        const first = history.executions.at(0);
+        if (first?.command.kind !== 'execution') throw new Error('expected original preparation');
+        const claimed = first.command;
+        const original = setup.preparedIntent;
         expect(
-          await stores.runs.recordExecution(await setup.currentGuard(), {
-            ...claimed,
-            commandId: 'another-claim',
-          } as ExecutionCommand),
+          await stores.runs.recordExecution(
+            await setup.currentGuard(),
+            createExecutionCommand(claimed.fact, 'another-preparation'),
+          ),
         ).toEqual({ kind: 'refused', reason: 'state_conflict' });
-        const locator = {
-          version: 1 as const,
-          workerId: 'worker',
-          sessionId: 'session',
-          operationKey: operationKey('operation'),
-        };
-        const launch = {
-          commandId: 'launch-command',
-          fact: { kind: 'launch_recorded', claim: setup.claim, locator },
-        } as ExecutionCommand;
-        const launchGuard = await setup.currentGuard();
-        const launched = unwrapReply(await stores.runs.recordExecution(launchGuard, launch));
+        const locator = setup.locator;
+        const launch = setup.opened;
+        const launchGuard = setup.guard;
+        const launched = setup.prepared;
         unwrapReply(
-          await stores.runs.recordExecution(await setup.currentGuard(), {
-            commandId: 'recovery-command',
-            fact: { kind: 'recovery_required', reason: 'coordinator restarted' },
-          } as ExecutionCommand),
+          await stores.runs.recordExecution(
+            await setup.currentGuard(),
+            createExecutionCommand(
+              { kind: 'recovery_required', reason: 'coordinator restarted' },
+              'recovery-command',
+            ),
+          ),
         );
         const recovery = await stores.runs.readRun(setup.run.runId);
         const reattachGuard = await setup.currentGuard();
@@ -53,17 +51,43 @@ export function executionCommandContract(name: string, create: () => Promise<Out
           await stores.runs.recordExecution(reattachGuard, {
             ...launch,
             commandId: 'reattach-command',
-            fact: { ...launch.fact, locator: { ...locator, sessionId: 'wrong-session' } },
+            fact: {
+              kind: 'session_reattached',
+              locator: { ...locator, session: { ...locator.session, sessionId: 'wrong-session' } },
+              owner: setup.owner,
+              evidence: setup.quiescence.evidence,
+            },
           } as ExecutionCommand),
         ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
         const reattached = unwrapReply(
           await stores.runs.recordExecution(reattachGuard, {
             ...launch,
             commandId: 'reattach-command',
+            fact: {
+              kind: 'session_reattached',
+              locator,
+              owner: setup.owner,
+              evidence: setup.quiescence.evidence,
+            },
           } as ExecutionCommand),
         );
-        expect(reattached.state).toEqual({ kind: 'running', claim: setup.claim, locator });
-        expect(reattached.revision).toBe(4);
+        expect(reattached.state).toEqual({
+          kind: 'turn_pending',
+          execution: {
+            ...setup.execution,
+            session: {
+              ...setup.execution.session,
+              attachment: {
+                version: 1,
+                kind: 'reattached',
+                owner: setup.owner,
+                evidence: setup.quiescence.evidence,
+              },
+            },
+          },
+          turn: setup.turn.intent,
+        });
+        expect(reattached.revision).toBe(7);
         const current = await stores.runs.readRun(setup.run.runId);
         expect(current.run.revision).toBe(recovery.run.revision + 1);
         expect(await stores.runs.recordExecution(launchGuard, launch)).toEqual({
@@ -77,7 +101,9 @@ export function executionCommandContract(name: string, create: () => Promise<Out
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(current);
         expect(
           await stores.runs.recordExecution(reattachGuard, {
-            commandId: 'launch-command',
+            version: 2,
+            kind: 'execution',
+            commandId: 'opened',
             fact: { kind: 'recovery_required', reason: 'changed' },
           } as ExecutionCommand),
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
@@ -94,7 +120,10 @@ export function executionCommandContract(name: string, create: () => Promise<Out
           ),
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(current);
-        const second = createRun({ runId: runId('second') });
+        const second = createRun({
+          runId: runId('second'),
+          manifestDigest: setup.run.manifestDigest,
+        });
         unwrapReply(await stores.runs.createRun(setup.ownership, second));
         expect(
           await stores.runs.recordExecution({ ...setup.guard, runId: second.runId }, claimed),

@@ -13,7 +13,7 @@ import {
   createExecutionCommand,
   createRun,
   FixtureClock,
-  prepareAttempt,
+  prepareTurn,
   unwrapReply,
 } from '../testing/fixtures';
 import { prepareReceipt } from '../testing/receipts-contract';
@@ -77,18 +77,14 @@ for (const route of [
             ? { ...(await prepareWait(fixture)), kind: 'wait' as const }
             : route === 'receipt'
               ? { ...(await prepareReceipt(fixture)), kind: 'receipt' as const }
-              : { ...(await prepareAttempt(fixture)), kind: 'attempt' as const };
+              : { ...(await prepareTurn(fixture)), kind: 'attempt' as const };
         if (setup.kind === 'wait')
           unwrapReply(await fixture.runs.receiveDecision(setup.ownership, setup.decision));
-        if (route === 'outcome')
-          unwrapReply(
-            await fixture.runs.recordExecution(
-              setup.guard,
-              createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-            ),
-          );
         const guard = await setup.currentGuard();
-        const other = createRun({ runId: runId('other') });
+        const other = createRun({
+          runId: runId('other'),
+          manifestDigest: setup.run.manifestDigest,
+        });
         unwrapReply(await fixture.runs.createRun(setup.ownership, other));
         const admission = decodeAdmission({
           ...setup.admission,
@@ -115,7 +111,10 @@ for (const route of [
               createExecutionCommand({ kind: 'interrupted', quiescence: setup.quiescence }),
             ),
           );
-        const target = createRun({ runId: runId('target') });
+        const target = createRun({
+          runId: runId('target'),
+          manifestDigest: setup.run.manifestDigest,
+        });
         unwrapReply(await fixture.runs.createRun(setup.ownership, target));
         const operation = (requested = guard) => {
           switch (route) {
@@ -162,7 +161,10 @@ for (const route of [
           expect(
             await operation({ ...guard, ownership: { ...guard.ownership, epoch: 99 } }),
           ).toEqual({ kind: 'refused', reason: 'owner_stale' });
-        await rejects(operation(), /corrupt sqlite capacity reservations/);
+        await rejects(
+          operation(),
+          fault === 'orphan' ? /orphan reservation/ : /corrupt attempt reservation/,
+        );
         expect(readRows(fixture.database)).toEqual(damaged);
         if (fault === 'missing')
           fixture.database.run("INSERT INTO run_reservation(attempt_id) VALUES ('other')");
@@ -191,8 +193,8 @@ for (const route of [
 test('capacity one rejects cross-run admission after a live reservation disappears', async () => {
   const fixture = await createFixture(1);
   try {
-    const setup = await prepareAttempt(fixture);
-    const target = createRun({ runId: runId('target') });
+    const setup = await prepareTurn(fixture);
+    const target = createRun({ runId: runId('target'), manifestDigest: setup.run.manifestDigest });
     unwrapReply(await fixture.runs.createRun(setup.ownership, target));
     const guard = { ownership: setup.ownership, runId: target.runId, expectedRevision: 0 };
     const admission = decodeAdmission({
@@ -202,10 +204,7 @@ test('capacity one rejects cross-run admission after a live reservation disappea
     });
     fixture.database.run('DELETE FROM run_reservation');
     const damaged = readRows(fixture.database);
-    await rejects(
-      fixture.runs.admitAttempt(guard, admission),
-      /corrupt sqlite capacity reservations/,
-    );
+    await rejects(fixture.runs.admitAttempt(guard, admission), /corrupt attempt reservation/);
     expect(readRows(fixture.database)).toEqual(damaged);
     fixture.database.run("INSERT INTO run_reservation(attempt_id) VALUES ('attempt')");
     expect(await fixture.runs.admitAttempt(guard, admission)).toEqual({
@@ -225,14 +224,7 @@ for (const route of ['execution', 'outcome', 'receipt'] as const) {
       const setup =
         route === 'receipt'
           ? { ...(await prepareReceipt(fixture)), kind: 'receipt' as const }
-          : { ...(await prepareAttempt(fixture)), kind: 'attempt' as const };
-      if (route === 'outcome')
-        unwrapReply(
-          await fixture.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-          ),
-        );
+          : { ...(await prepareTurn(fixture)), kind: 'attempt' as const };
       const guard = await setup.currentGuard();
       const operation = () => {
         if (route === 'execution')
@@ -254,7 +246,7 @@ for (const route of ['execution', 'outcome', 'receipt'] as const) {
           : 'DELETE FROM run_reservation',
       );
       const damaged = readRows(fixture.database);
-      await rejects(operation(), /corrupt sqlite capacity reservations/);
+      await rejects(operation(), /corrupt attempt reservation/);
       expect(readRows(fixture.database)).toEqual(damaged);
       fixture.database.run(
         route === 'receipt'

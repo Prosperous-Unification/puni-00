@@ -14,7 +14,7 @@ import {
   createManifest,
   type OutcomeFixture,
   prepareAttempt,
-  unwrapReply,
+  prepareTurn,
 } from './fixtures';
 
 export function verifiedOperationsContract(name: string, create: () => Promise<OutcomeFixture>) {
@@ -40,19 +40,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
       test(`verified ${kind} rejects missing evidence before changing revision or capacity`, async () => {
         const stores = await create();
         try {
-          const setup = await prepareAttempt(stores);
-          unwrapReply(
-            await stores.runs.recordExecution(
-              setup.guard,
-              createExecutionCommand(
-                {
-                  kind: 'claim_acquired',
-                  claim: setup.claim,
-                },
-                'claim-command',
-              ),
-            ),
-          );
+          const setup = await prepareTurn(stores);
           const missing = { ...setup.quiescence.evidence, digest: artifactDigest('0'.repeat(64)) };
           const quiescence = { ...setup.quiescence, evidence: missing };
           const fact: ExecutionFact =
@@ -62,7 +50,6 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
                 ? { kind, reason: 'ambiguous', evidence: missing }
                 : decodeExecutionFact({
                     kind,
-                    claim: setup.claim,
                     wait: {
                       version: 1,
                       correlationKey: 'question',
@@ -107,19 +94,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
       test(`verified completion rejects missing or inconsistent ${field} before outcome and outbox`, async () => {
         const stores = await create();
         try {
-          const setup = await prepareAttempt(stores);
-          unwrapReply(
-            await stores.runs.recordExecution(
-              setup.guard,
-              createExecutionCommand(
-                {
-                  kind: 'claim_acquired',
-                  claim: setup.claim,
-                },
-                'claim-command',
-              ),
-            ),
-          );
+          const setup = await prepareTurn(stores);
           const before = await stores.runs.readRun(setup.run.runId);
           for (const reference of [
             { ...setup.quiescence.evidence, digest: artifactDigest('0'.repeat(64)) },
@@ -149,19 +124,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
       test(`verified ${operation} commits the snapshot verified before asynchronous reads`, async () => {
         const stores = await create();
         try {
-          const setup = await prepareAttempt(stores);
-          unwrapReply(
-            await stores.runs.recordExecution(
-              setup.guard,
-              createExecutionCommand(
-                {
-                  kind: 'claim_acquired',
-                  claim: setup.claim,
-                },
-                'claim-command',
-              ),
-            ),
-          );
+          const setup = await prepareTurn(stores);
           const started = Promise.withResolvers<undefined>();
           const release = Promise.withResolvers<undefined>();
           const artifacts: ArtifactStore = {
@@ -182,7 +145,6 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
           const completion = structuredClone(createCompletion(setup.claim, setup.quiescence));
           const fact = decodeExecutionFact({
             kind: 'waiting',
-            claim: setup.claim,
             wait: {
               version: 1,
               correlationKey: 'question',
@@ -227,7 +189,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
               ).toMatchObject({ kind: 'duplicate' });
               expect(snapshot.attempts[0]?.state).toEqual({
                 kind: 'waiting_for_person',
-                claim: setup.claim,
+                checkpoint: setup.checkpoint,
                 wait: original.fact.wait,
                 quiescence: original.fact.quiescence,
               });
@@ -240,7 +202,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
     test('facts without artifacts do not require artifact reads', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
+        const setup = await prepareTurn(stores);
         const artifacts: ArtifactStore = {
           retainArtifact: stores.artifacts.retainArtifact.bind(stores.artifacts),
           async readArtifact() {
@@ -252,13 +214,10 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
             await recordExecution(
               stores.runs,
               artifacts,
-              setup.guard,
+              await setup.currentGuard(),
               createExecutionCommand(
-                {
-                  kind: 'claim_acquired',
-                  claim: setup.claim,
-                },
-                'claim-command',
+                { kind: 'recovery_required', reason: 'lost reply' },
+                'recovery-command',
               ),
             )
           ).kind,

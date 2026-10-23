@@ -7,18 +7,15 @@ import { parseOrThrow } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 
-import {
-  CompletionCodec,
-  decodeAdmission,
-  decodeExecutionCommand,
-  decodeExecutionFact,
-} from '../record-codecs';
+import { CompletionRecordCodec, ExecutionRecordCodec } from '../execution-codecs';
+import { decodeAdmission, decodeExecutionFact } from '../record-codecs';
 import { digestIntent, organizationId } from '../record-codecs';
 import {
   createCompletion,
   createExecutionCommand,
   FixtureClock,
-  prepareAttempt,
+  prepareTurn,
+  stageFixtureTurn,
   unwrapReply,
 } from '../testing/fixtures';
 import { prepareReceipt } from '../testing/receipts-contract';
@@ -87,14 +84,14 @@ const corruptions = [
   {
     name: 'consumption original reply',
     kind: 'consumption',
-    sql: "UPDATE run_consumption SET reply=json_set(reply,'$.state.claim.personId','wrong'); UPDATE run_attempt SET record=json_set(record,'$.state.claim.personId','wrong')",
+    sql: "UPDATE run_consumption SET reply=json_set(reply,'$.state.execution.binding.projection.actorId','wrong'); UPDATE run_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','wrong')",
     message: 'corrupt consumption reply',
   },
   {
     name: 'missing consumed decision',
     kind: 'consumption',
     sql: 'DELETE FROM run_decision',
-    message: 'corrupt missing consumed decision',
+    message: 'corrupt consumed wait provenance',
   },
   {
     name: 'missing consumption',
@@ -123,8 +120,8 @@ const corruptions = [
   {
     name: 'receipt original reply',
     kind: 'receipt',
-    sql: "UPDATE run_receipt SET reply=json_set(reply,'$.state.claim.personId','wrong'); UPDATE run_attempt SET record=json_set(record,'$.state.claim.personId','wrong')",
-    message: 'corrupt receipt reply',
+    sql: "UPDATE run_receipt SET reply=json_set(reply,'$.state.checkpoint.execution.binding.projection.actorId','wrong'); UPDATE run_attempt SET record=json_set(record,'$.state.checkpoint.execution.binding.projection.actorId','wrong')",
+    message: 'corrupt receipt original reply',
   },
   {
     name: 'missing receipt',
@@ -141,7 +138,7 @@ const corruptions = [
   {
     name: 'completion predecessor authority',
     kind: 'receipt',
-    sql: "UPDATE run_completion SET record=json_set(record,'$.intent.authority.personId','wrong')",
+    sql: "UPDATE run_completion SET record=json_set(record,'$.completion.intent.claim.commandId','wrong')",
     message: 'corrupt completion transition',
   },
 ] as const;
@@ -171,12 +168,15 @@ for (const corruption of corruptions)
           .query<{ record: string }, []>('SELECT record FROM run_completion')
           .get();
         if (row === null) throw new Error('missing fixture completion');
-        const completion = parseOrThrow(CompletionCodec, JSON.parse(row.record));
+        const envelope = parseOrThrow(CompletionRecordCodec, JSON.parse(row.record));
+        const completion = envelope.completion;
         const changed = {
           ...completion,
           intent: { ...completion.intent, commandDigest: digestIntent(completion.intent) },
         };
-        fixture.database.query('UPDATE run_completion SET record=?').run(JSON.stringify(changed));
+        fixture.database
+          .query('UPDATE run_completion SET record=?')
+          .run(JSON.stringify({ ...envelope, completion: changed }));
       }
       await rejects(fixture.runs.readRun(setup.run.runId), new RegExp(corruption.message));
       fixture.close();
@@ -248,16 +248,10 @@ test('admission rejects terminal predecessor missing its confirmed receipt prove
 test('completion rejects current claim corruption against intact historical execution', async () => {
   const fixture = await createFixture();
   try {
-    const setup = await prepareAttempt(fixture);
-    unwrapReply(
-      await fixture.runs.recordExecution(
-        setup.guard,
-        createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-      ),
-    );
+    const setup = await prepareTurn(fixture);
     const guard = await setup.currentGuard();
     fixture.database.run(
-      "UPDATE run_attempt SET record=json_set(record,'$.state.claim.personId','wrong')",
+      "UPDATE run_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','wrong')",
     );
     await rejects(
       fixture.runs.commitOutcome(guard, createCompletion(setup.claim, setup.quiescence)),
@@ -279,6 +273,11 @@ test('reopen rejects coherently reused historical wait key', async () => {
     unwrapReply(
       await fixture.runs.consumeDecision(await setup.currentGuard(), setup.decision.decisionId),
     );
+    await stageFixtureTurn(
+      setup,
+      { kind: 'decision', decisionId: setup.decision.decisionId },
+      'continuation',
+    );
     const command = createExecutionCommand(
       decodeExecutionFact({
         ...setup.command.fact,
@@ -296,7 +295,7 @@ test('reopen rejects coherently reused historical wait key', async () => {
       'waiting_for_person',
     );
     fixture.database.run(
-      "UPDATE run_execution SET record=json_set(record,'$.fact.wait.correlationKey','wait-1'), reply=json_set(reply,'$.state.wait.correlationKey','wait-1') WHERE command_id='second-wait-command'",
+      "UPDATE run_execution SET record=json_set(record,'$.command.fact.wait.correlationKey','wait-1'), reply=json_set(reply,'$.attempt.state.wait.correlationKey','wait-1') WHERE command_id='second-wait-command'",
     );
     fixture.database.run(
       "UPDATE run_attempt SET record=json_set(record,'$.state.wait.correlationKey','wait-1')",
@@ -347,9 +346,9 @@ test('duplicate consumption validates current target provenance before replay', 
     const original = unwrapReply(
       await fixture.runs.consumeDecision(guard, setup.decision.decisionId),
     );
-    expect(original.state.kind).toBe('queued');
+    expect(original.state.kind).toBe('ready');
     fixture.database.run(
-      "UPDATE run_attempt SET record=json_set(record,'$.state.claim.personId','wrong')",
+      "UPDATE run_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','wrong')",
     );
     await rejects(
       fixture.runs.consumeDecision(guard, setup.decision.decisionId),
@@ -380,7 +379,7 @@ test('terminal inspection refuses completion unreadable after reconstruction', a
           return {
             get: (identity: string) => {
               completionReads += 1;
-              return completionReads === 2 ? null : statement.get(identity);
+              return completionReads === 1 ? null : statement.get(identity);
             },
           };
         return statement;
@@ -417,7 +416,10 @@ for (const delivery of ['terminal outbox', 'missing pending outbox'] as const)
           .query<{ record: string }, []>('SELECT record FROM run_execution')
           .get();
         if (row === null) throw new Error('missing fixture execution');
-        const recorded = decodeExecutionCommand(JSON.parse(row.record));
+        const envelope = parseOrThrow(ExecutionRecordCodec, JSON.parse(row.record));
+        if (envelope.command.kind !== 'execution')
+          throw new Error('expected ordinary original preparation');
+        const recorded = envelope.command;
         const admission = decodeAdmission({ ...setup.admission, attemptId: 'retry', ordinal: 2 });
         const observe = createExecutionCommand({
           kind: 'recovery_required',
@@ -473,13 +475,8 @@ for (const delivery of ['terminal outbox', 'missing pending outbox'] as const)
         const restored = apply();
         await doesNotReject(restored);
         if (operation === 'admission') {
-          if (delivery === 'terminal outbox') {
-            expect(await restored).toMatchObject({
-              kind: 'applied',
-              value: { attemptId: admission.attemptId, ordinal: 2, holdsCapacity: true },
-            });
-            expect((await fixture.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
-          } else expect(await restored).toEqual({ kind: 'refused', reason: 'attempt_active' });
+          expect(await restored).toEqual({ kind: 'refused', reason: 'attempt_active' });
+          expect((await fixture.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
         } else if (operation === 'execution')
           expect(await restored).toEqual({ kind: 'refused', reason: 'state_conflict' });
         else if (operation === 'receipt' && delivery === 'missing pending outbox') {
@@ -489,10 +486,7 @@ for (const delivery of ['terminal outbox', 'missing pending outbox'] as const)
           });
           expect((await fixture.runs.readRun(setup.run.runId)).pendingIntents).toEqual([]);
         } else expect(await restored).toMatchObject({ kind: 'duplicate' });
-        if (
-          (operation !== 'admission' || delivery === 'missing pending outbox') &&
-          !(operation === 'receipt' && delivery === 'missing pending outbox')
-        )
+        if (!(operation === 'receipt' && delivery === 'missing pending outbox'))
           expect(await fixture.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
         fixture.database.close();

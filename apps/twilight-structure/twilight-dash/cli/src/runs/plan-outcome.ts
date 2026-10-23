@@ -1,18 +1,18 @@
+import type { RecordedCompletion } from './execution-records';
+export type { RecordedCompletion } from './execution-records';
 import {
   type AttemptChange,
   type AttemptFacts,
   changeAttempt,
   checkAttempt,
+  claimReference,
+  executionCheckpoint,
   isExecuting,
 } from './plan-execution';
 import { equalRecords } from './record-codecs';
-import type { AttemptId, AttemptState, Completion } from './records';
+import type { AttemptState, Completion } from './records';
 import type { AttemptGuard, StoreReply } from './run-store';
 
-export interface RecordedCompletion {
-  readonly attemptId: AttemptId;
-  readonly completion: Completion;
-}
 /** Plans the indivisible local outcome/outbox transition for an authorized provider view; artifacts were already verified by the application operation. */
 export function planOutcome(
   facts: AttemptFacts & { readonly previous: RecordedCompletion | undefined },
@@ -48,13 +48,17 @@ export function planOutcomeTransition(
   completion: Completion,
 ): StoreReply<AttemptState> {
   const state = facts.attempt.state;
+  const checkpoint = executionCheckpoint(state);
   // Proof: bypassing outcome state enforcement failed 'memory outcomes > completion commits one immutable pending intent with outcome and releases capacity exactly once'.
-  if (!isExecuting(state) || state.claim === null)
+  if (
+    !isExecuting(state) ||
+    (checkpoint.kind !== 'turn_pending' && checkpoint.kind !== 'turn_returned')
+  )
     return { kind: 'refused', reason: 'state_conflict' };
   // Proof: bypassing outcome authority enforcement failed 'memory outcomes > completion refuses stale revisions wrong authority outcome mismatch and unsettled effects without mutations'.
   // Proof: bypassing outcome operation enforcement failed 'memory outcomes > completion refuses stale revisions wrong authority outcome mismatch and unsettled effects without mutations'.
   if (
-    !equalRecords(completion.intent.authority, state.claim) ||
+    !equalRecords(completion.intent.claim, claimReference(checkpoint)) ||
     completion.quiescence.operationKey !== facts.attempt.identity.operationKey
   )
     return { kind: 'refused', reason: 'authority_conflict' };
@@ -72,7 +76,7 @@ export function planOutcomeTransition(
     kind: 'applied',
     value: {
       kind: 'outcome_pending_progress',
-      claim: state.claim,
+      checkpoint,
       outcome: completion.outcome,
       commandId: completion.intent.commandId,
       quiescence: completion.quiescence,

@@ -113,6 +113,7 @@ async function connect(options: SqliteOptions) {
       });
       try {
         // Proof: F24b removed pre-configuration compatibility inspection and changed original bytes; 'genuine format1' failed and exact restoration passed.
+        // Proof: F177 omitted this inspection refusal; the genuine format2 test still refused later but detected changed original database bytes. Restored test passed.
         assertCompatibleFormat(inspection);
       } finally {
         inspection.close();

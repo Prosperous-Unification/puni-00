@@ -6,14 +6,17 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 
+import type { ExecutionSubmission } from '../execution-records';
 import { attemptId, decodeAttempt, decodeExecutionFact, organizationId } from '../record-codecs';
 import { recordOutcome } from '../record-outcome';
-import type { ExecutionCommand, ExecutionFact } from '../records';
+import type { Attempt, ExecutionFact } from '../records';
+import type { AttemptGuard, StoreReply } from '../run-store';
 import {
   createCompletion,
   createExecutionCommand,
   FixtureClock,
   prepareAttempt,
+  prepareTurn,
   unwrapReply,
 } from '../testing/fixtures';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
@@ -31,30 +34,44 @@ async function createFixture() {
     busyDelayMilliseconds: 1,
   };
   const stores = await bootstrapSqliteStores(options);
-  const setup = await prepareAttempt({ ...stores, clock });
+  const setup = await prepareTurn({ ...stores, clock });
   const database = new Database(options.path);
-  const claimCommand = createExecutionCommand(
-    { kind: 'claim_acquired', claim: setup.claim },
-    'claim-command',
+  const history = await stores.runs.readExecutionHistory(
+    setup.run.runId,
+    setup.admission.attemptId,
   );
-  const locator = {
-    version: 1 as const,
-    workerId: 'worker',
-    sessionId: 'session',
-    operationKey: setup.admission.identity.operationKey,
-  };
-  const launchCommand = createExecutionCommand(
-    { kind: 'launch_recorded', claim: setup.claim, locator },
-    'launch-command',
+  const accepted = history.executions.find((entry) => entry.command.kind === 'accept_claim');
+  const staged = history.executions.find((entry) => entry.command.kind === 'stage_turn');
+  const preparing = history.executions.find(
+    (entry) =>
+      entry.command.kind === 'execution' && entry.command.fact.kind === 'preparation_intended',
   );
+  if (accepted === undefined || staged === undefined || preparing === undefined)
+    throw new Error('fixture history missing');
+  const claimCommand = accepted.command;
+  const launchCommand = staged.command;
   const wait = {
     version: 1 as const,
     correlationKey: 'question',
     prompt: setup.quiescence.evidence,
     choices: ['yes', 'no'],
   };
-  async function record(command: ExecutionCommand) {
-    return unwrapReply(await stores.runs.recordExecution(await setup.currentGuard(), command));
+  async function replay(
+    guard: AttemptGuard,
+    command: ExecutionSubmission,
+  ): Promise<StoreReply<Attempt>> {
+    if (command.kind === 'execution') return await stores.runs.recordExecution(guard, command);
+    const scoped = { ...guard, scope: setup.scope, expectedScopeRevision: 0 };
+    const reply =
+      command.kind === 'stage_claim'
+        ? await stores.runs.stageClaim(scoped, command)
+        : command.kind === 'accept_claim'
+          ? await stores.runs.recordClaimAcceptance(scoped, command)
+          : await stores.runs.stageTurn(scoped, command);
+    return reply.kind === 'refused' ? reply : { kind: reply.kind, value: reply.value.attempt };
+  }
+  async function record(command: ExecutionSubmission) {
+    return unwrapReply(await replay(await setup.currentGuard(), command));
   }
   return {
     ...setup,
@@ -65,6 +82,8 @@ async function createFixture() {
     launchCommand,
     wait,
     record,
+    replay,
+    preparing,
     close() {
       database.close();
       stores.close();
@@ -99,7 +118,6 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
                 ? { kind, quiescence: setup.quiescence }
                 : decodeExecutionFact({
                     kind,
-                    claim: setup.claim,
                     wait: setup.wait,
                     quiescence: setup.quiescence,
                   }),
@@ -111,7 +129,7 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
         );
         if (kind === 'outcome')
           setup.database.run(
-            "UPDATE run_completion SET record=json_set(record,'$.quiescence.operationKey','other-operation')",
+            "UPDATE run_completion SET record=json_set(record,'$.completion.quiescence.operationKey','other-operation')",
           );
         const before = {
           attempts: setup.database.query('SELECT * FROM run_attempt').all(),
@@ -149,46 +167,65 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
     });
 
 const replyFaults = [
-  ['claim_acquired', '$.state.claim.personId', 'different-person'],
-  ['launch_recorded', '$.state.claim.personId', 'different-person'],
-  ['launch_recorded', '$.state.locator.sessionId', 'different-session'],
-  ['recovery_required', '$.state.reason', 'different-reason'],
-  ['recovery_required', '$.state.claim.personId', 'different-person'],
-  ['recovery_required', '$.state.locator.sessionId', 'different-session'],
-  ['unresolved', '$.state.reason', 'different-reason'],
-  ['unresolved', '$.state.evidence.byteLength', 999],
-  ['unresolved', '$.state.claim.personId', 'different-person'],
-  ['interrupted', '$.state.quiescence.observedAt', 1001],
-  ['interrupted', '$.state.quiescence.effect', 'absent'],
-  ['interrupted', '$.state.claim.personId', 'different-person'],
-  ['waiting', '$.state.wait.correlationKey', 'different-question'],
-  ['waiting', '$.state.wait.prompt.byteLength', 999],
-  ['waiting', '$.state.wait.choices[0]', 'different-choice'],
-  ['waiting', '$.state.claim.personId', 'different-person'],
-  ['unknown', '$.state.reason', 'different-reason'],
-  ['unknown', '$.state.evidence.byteLength', 999],
-  ['claim_acquired', '$.identity.operationKey', 'different-operation'],
-  ['claim_acquired', '$.identity.occurrenceId', 'different-occurrence'],
-  ['claim_acquired', '$.ordinal', 2],
-  ['claim_acquired', '$.admittedEpoch', 2],
-  ['claim_acquired', '$.revision', 2],
+  ['claim_accepted', '$.attempt.state.execution.binding.projection.actorId', 'different-person'],
+  ['turn_staged', '$.attempt.state.execution.binding.projection.actorId', 'different-person'],
+  ['turn_staged', '$.attempt.state.turn.locator.session.sessionId', 'different-session'],
+  ['recovery_required', '$.attempt.state.reason', 'different-reason'],
+  [
+    'recovery_required',
+    '$.attempt.state.checkpoint.execution.binding.projection.actorId',
+    'different-person',
+  ],
+  [
+    'recovery_required',
+    '$.attempt.state.checkpoint.turn.locator.session.sessionId',
+    'different-session',
+  ],
+  ['unresolved', '$.attempt.state.observation.reason', 'different-reason'],
+  ['unresolved', '$.attempt.state.observation.evidence.byteLength', 999],
+  [
+    'unresolved',
+    '$.attempt.state.checkpoint.execution.binding.projection.actorId',
+    'different-person',
+  ],
+  ['interrupted', '$.attempt.state.quiescence.observedAt', 1001],
+  ['interrupted', '$.attempt.state.quiescence.effect', 'absent'],
+  [
+    'interrupted',
+    '$.attempt.state.checkpoint.execution.binding.projection.actorId',
+    'different-person',
+  ],
+  ['waiting', '$.attempt.state.wait.correlationKey', 'different-question'],
+  ['waiting', '$.attempt.state.wait.prompt.byteLength', 999],
+  ['waiting', '$.attempt.state.wait.choices[0]', 'different-choice'],
+  [
+    'waiting',
+    '$.attempt.state.checkpoint.execution.binding.projection.actorId',
+    'different-person',
+  ],
+  ['unknown', '$.attempt.state.observation.reason', 'different-reason'],
+  ['unknown', '$.attempt.state.observation.evidence.byteLength', 999],
+  ['claim_accepted', '$.attempt.identity.operationKey', 'different-operation'],
+  ['claim_accepted', '$.attempt.identity.occurrenceId', 'different-occurrence'],
+  ['claim_accepted', '$.attempt.ordinal', 2],
+  ['claim_accepted', '$.attempt.admittedEpoch', 2],
+  ['claim_accepted', '$.attempt.revision', 2],
 ] as const;
 async function recordVariant(
   setup: Awaited<ReturnType<typeof createFixture>>,
   kind: (typeof replyFaults)[number][0],
 ) {
   const claimed = await setup.record(setup.claimCommand);
-  if (kind === 'claim_acquired') return { command: setup.claimCommand, reply: claimed };
+  if (kind === 'claim_accepted') return { command: setup.claimCommand, reply: claimed };
   const launched = await setup.record(setup.launchCommand);
-  if (kind === 'launch_recorded') return { command: setup.launchCommand, reply: launched };
-  const claim = setup.claim;
+  if (kind === 'turn_staged') return { command: setup.launchCommand, reply: launched };
   const fact: ExecutionFact = decodeExecutionFact(
     kind === 'recovery_required'
       ? { kind, reason: 'recovering' }
       : kind === 'unresolved'
         ? { kind, reason: 'unknown effect', evidence: setup.quiescence.evidence }
         : kind === 'waiting'
-          ? { kind, claim, wait: setup.wait, quiescence: setup.quiescence }
+          ? { kind, wait: setup.wait, quiescence: setup.quiescence }
           : {
               kind: 'interrupted',
               quiescence: {
@@ -214,20 +251,18 @@ for (const [kind, path, replacement] of replyFaults)
             setup.database.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
           );
         const before = projection();
+        const message =
+          path === '$.attempt.revision'
+            ? 'scoped execution predecessor has no session'
+            : 'corrupt execution command reply';
         setup.database
           .query('UPDATE run_execution SET reply=json_set(reply,?,?) WHERE command_id=?')
           .run(path, replacement, command.commandId);
         if (operation === 'open') {
           setup.stores.close();
-          await rejects(
-            openSqliteStores(setup.options),
-            hasCause('corrupt execution command reply'),
-          );
+          await rejects(openSqliteStores(setup.options), hasCause(message));
         } else {
-          await rejects(
-            setup.runs.recordExecution(guard, command),
-            /corrupt execution command reply/,
-          );
+          await rejects(setup.replay(guard, command), new RegExp(message));
           expect(projection()).toEqual(before);
         }
       } finally {
@@ -235,7 +270,7 @@ for (const [kind, path, replacement] of replyFaults)
       }
     });
 
-for (const field of ['projectId', 'workItemId'] as const)
+for (const field of ['scope.projectId', 'workItemId'] as const)
   test(`open rejects execution command and reply carrying another target ${field}`, async () => {
     const setup = await createFixture();
     try {
@@ -245,11 +280,11 @@ for (const field of ['projectId', 'workItemId'] as const)
           'UPDATE run_execution SET record=json_set(record,?,?),reply=json_set(reply,?,?) WHERE command_id=?',
         )
         .run(
-          `$.fact.claim.${field}`,
+          `$.command.fact.intent.target.observation.${field}`,
           'different-target',
-          `$.state.claim.${field}`,
+          `$.attempt.state.preparation.target.observation.${field}`,
           'different-target',
-          setup.claimCommand.commandId,
+          setup.preparing.command.commandId,
         );
       setup.stores.close();
       await rejects(
@@ -275,13 +310,13 @@ test('portable terminal decoding binds quiescence to its attempt operation', asy
         holdsCapacity: false,
         state: {
           kind: 'terminal',
-          claim: setup.claim,
+          checkpoint: setup.checkpoint,
           outcome: completion.outcome,
           receipt: {
-            version: 1,
+            version: 2,
             commandId: completion.intent.commandId,
             commandDigest: completion.intent.commandDigest,
-            authority: setup.claim,
+            claim: setup.claim,
             acceptedWbsRevision: 'accepted',
             evidence: setup.quiescence.evidence,
           },
@@ -295,8 +330,8 @@ test('portable terminal decoding binds quiescence to its attempt operation', asy
 });
 
 for (const kind of [
-  'claim_acquired',
-  'launch_recorded',
+  'claim_accepted',
+  'turn_staged',
   'recovery_required',
   'unresolved',
   'interrupted',
@@ -321,7 +356,22 @@ for (const kind of [
       setup.stores.close();
       const reopened = await openSqliteStores(setup.options);
       try {
-        expect(await reopened.runs.recordExecution(guard, command)).toEqual({
+        expect(
+          await (async () => {
+            if (command.kind === 'execution')
+              return await reopened.runs.recordExecution(guard, command);
+            const scoped = { ...guard, scope: setup.scope, expectedScopeRevision: 0 };
+            const replay =
+              command.kind === 'accept_claim'
+                ? await reopened.runs.recordClaimAcceptance(scoped, command)
+                : command.kind === 'stage_turn'
+                  ? await reopened.runs.stageTurn(scoped, command)
+                  : await reopened.runs.stageClaim(scoped, command);
+            return replay.kind === 'refused'
+              ? replay
+              : { kind: replay.kind, value: replay.value.attempt };
+          })(),
+        ).toEqual({
           kind: 'duplicate',
           value: reply,
         });
@@ -334,8 +384,44 @@ for (const kind of [
     }
   });
 
+async function createIndexedFixture() {
+  const directory = mkdtempSync(join(tmpdir(), 'run-indexed-integrity-'));
+  const clock = new FixtureClock();
+  const options = {
+    path: join(directory, 'store.sqlite'),
+    organizationId: organizationId('organization'),
+    capacity: 1,
+    leaseMilliseconds: 100,
+    clock,
+    maxBusyAttempts: 2,
+    busyDelayMilliseconds: 1,
+  };
+  const stores = await bootstrapSqliteStores(options);
+  const setup = await prepareAttempt({ ...stores, clock });
+  const database = new Database(options.path);
+  const claimCommand = createExecutionCommand(
+    { kind: 'recovery_required', reason: 'lost preparation' },
+    'indexed-command',
+  );
+  return {
+    ...setup,
+    stores,
+    database,
+    options,
+    claimCommand,
+    async record(command: typeof claimCommand) {
+      return unwrapReply(await stores.runs.recordExecution(await setup.currentGuard(), command));
+    },
+    close() {
+      database.close();
+      stores.close();
+      rmSync(directory, { recursive: true });
+    },
+  };
+}
+
 test('replay rejects an indexed execution whose history read omits its required command', async () => {
-  const setup = await createFixture();
+  const setup = await createIndexedFixture();
   const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
   if (descriptor === undefined) throw new Error('query descriptor absent');
   const query = descriptor.value as Database['query'];
@@ -345,7 +431,8 @@ test('replay rejects an indexed execution whose history read omits its required 
     Object.defineProperty(Database.prototype, 'query', {
       ...descriptor,
       value(this: Database, sql: string) {
-        if (sql.includes("ORDER BY json_extract(e.reply,'$.revision')")) return { all: () => [] };
+        if (sql.includes("ORDER BY json_extract(e.reply,'$.attempt.revision')"))
+          return { all: () => [] };
         return query.call(this, sql);
       },
     });
@@ -360,7 +447,7 @@ test('replay rejects an indexed execution whose history read omits its required 
 });
 
 test('required indexed command cannot disappear behind a reset admitted projection', async () => {
-  const setup = await createFixture();
+  const setup = await createIndexedFixture();
   const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
   if (descriptor === undefined) throw new Error('query descriptor absent');
   const query = descriptor.value as Database['query'];
@@ -371,13 +458,15 @@ test('required indexed command cannot disappear behind a reset admitted projecti
     if (admitted === undefined) throw new Error('missing fixture attempt');
     await setup.record(setup.claimCommand);
     const guard = await setup.currentGuard();
+    setup.database.run("UPDATE run_record SET record=json_set(record,'$.revision',1)");
     setup.database
       .query('UPDATE run_attempt SET record=? WHERE attempt_id=?')
       .run(JSON.stringify(admitted), admitted.attemptId);
     Object.defineProperty(Database.prototype, 'query', {
       ...descriptor,
       value(this: Database, sql: string) {
-        if (sql.includes("ORDER BY json_extract(e.reply,'$.revision')")) return { all: () => [] };
+        if (sql.includes("ORDER BY json_extract(e.reply,'$.attempt.revision')"))
+          return { all: () => [] };
         return query.call(this, sql);
       },
     });
@@ -397,7 +486,7 @@ test('fresh illegal execution state remains a typed refusal after transition ext
     await setup.record(setup.claimCommand);
     const reply = setup.runs.recordExecution(
       await setup.currentGuard(),
-      createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }, 'fresh-command'),
+      createExecutionCommand(setup.opened.fact, 'fresh-command'),
     );
     await doesNotReject(reply);
     expect(await reply).toEqual({ kind: 'refused', reason: 'state_conflict' });

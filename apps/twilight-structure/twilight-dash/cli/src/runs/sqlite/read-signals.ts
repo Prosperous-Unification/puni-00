@@ -32,7 +32,7 @@ export function decodeDecisionRow(input: unknown) {
     throw new Error('corrupt decision identity');
   return decision;
 }
-/** Decodes retained continuation provenance, including the complete consumed wait and original queued reply. */
+/** Decodes retained continuation provenance, including the complete consumed wait and original ready reply. */
 export function decodeConsumptionRow(input: unknown) {
   const row = parseOrThrow(ConsumptionRow, input);
   const reply = decodeAttempt(JSON.parse(row.reply));
@@ -50,7 +50,7 @@ export function decodeReceiptRow(input: unknown) {
   // Proof: injecting receipt physical key bypass failed `public read rejects receipt physical command and reopen rejects corruption` at its explicit assertion.
   if (
     receipt.commandId !== row.command_id ||
-    receipt.authority.attemptId !== row.attempt_id ||
+    receipt.claim.attemptId !== row.attempt_id ||
     reply.attemptId !== row.attempt_id
   )
     throw new Error('corrupt receipt identity');

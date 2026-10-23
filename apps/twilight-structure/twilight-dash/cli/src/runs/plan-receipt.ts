@@ -1,16 +1,16 @@
+import type { RecordedReceipt } from './execution-records';
+export type { RecordedReceipt } from './execution-records';
 import {
   type AttemptChange,
   type AttemptFacts,
   changeAttempt,
   checkAttempt,
+  claimReference,
 } from './plan-execution';
 import { equalRecords } from './record-codecs';
 import type { Attempt, AttemptState, CommandReceipt, ProgressIntent } from './records';
 import type { AttemptGuard, StoreReply } from './run-store';
-export interface RecordedReceipt {
-  readonly receipt: CommandReceipt;
-  readonly reply: Attempt;
-}
+
 /** Exact historical command and target identify receipt retries, independently of later occurrence attempts. */
 export function replayReceipt(
   previous: RecordedReceipt | undefined,
@@ -37,8 +37,8 @@ export function planReceipt(
   // Proof: injecting receipt target bypass failed `memory signal edges > receipt cross run guard cannot retarget a pending command` at its explicit assertion.
   if (
     facts.attempt.identity.runId !== guard.runId ||
-    receipt.authority.runId !== guard.runId ||
-    receipt.authority.attemptId !== guard.attemptId
+    receipt.claim.runId !== guard.runId ||
+    receipt.claim.attemptId !== guard.attemptId
   )
     return { kind: 'refused', reason: 'authority_conflict' };
   const conflict = checkAttempt(facts, guard);
@@ -66,15 +66,15 @@ export function planReceiptTransition(
     receipt.commandId !== state.commandId ||
     receipt.commandId !== intent.commandId ||
     receipt.commandDigest !== intent.commandDigest ||
-    !equalRecords(receipt.authority, intent.authority) ||
-    !equalRecords(state.claim, receipt.authority)
+    !equalRecords(receipt.claim, intent.claim) ||
+    !equalRecords(claimReference(state.checkpoint), receipt.claim)
   )
     return { kind: 'refused', reason: 'authority_conflict' };
   return {
     kind: 'applied',
     value: {
       kind: 'terminal',
-      claim: state.claim,
+      checkpoint: state.checkpoint,
       outcome: state.outcome,
       receipt,
       quiescence: state.quiescence,

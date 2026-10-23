@@ -55,6 +55,8 @@ export function reconstructRuntimeScope(
   let pending: RuntimeIntent | null = null;
   let generation: number | null = null;
   let grant: RuntimeGrant | null = null;
+  let latestAuthority: { readonly intent: RuntimeIntent; readonly grant: RuntimeGrant } | null =
+    null;
   const orderedIntents: RuntimeIntent[] = [];
   const orderedAcceptances: RuntimeAcceptance[] = [];
   for (const event of events) {
@@ -66,7 +68,7 @@ export function reconstructRuntimeScope(
       const intent = decodeRuntimeIntent(event.intent);
       const { scope, operation } = readRuntimeRequest(intent.canonicalRequest);
       if (
-        !('kind' in operation) ||
+        (!('kind' in operation) && operation.action.kind !== 'claim') ||
         !equalRuntimeScopes(scope, pin.scope) ||
         // Proof: F11 removed retained ledger correspondence; 'trusted runtime scope ledger' failed and exact restoration passed.
         operation.expectedLedgerId !== pin.ledgerId ||
@@ -91,10 +93,18 @@ export function reconstructRuntimeScope(
       if (pending !== null) throw new Error('corrupt runtime pending command');
       if (
         // Proof: F14 removed historical receiver generation progression; 'retained generation progression' failed and exact restoration passed.
+        'kind' in operation &&
         generation !== null &&
         (operation.expectedGeneration === null || operation.expectedGeneration < generation)
       )
         throw new Error('corrupt runtime generation progression');
+      if (
+        !('kind' in operation) &&
+        (latestAuthority === null ||
+          !equalRecords(latestAuthority.intent.localOwner, intent.localOwner) ||
+          !equalRecords(operation.authority, latestAuthority.grant.authority))
+      )
+        throw new Error('corrupt runtime claim authority');
       pending = intent;
       orderedIntents.push(intent);
     } else {
@@ -106,16 +116,18 @@ export function reconstructRuntimeScope(
       )
         throw new Error('corrupt runtime acceptance link');
       const { operation } = readRuntimeRequest(pending.canonicalRequest);
-      if (!('kind' in operation)) throw new Error('corrupt runtime authority operation');
-      generation =
-        operation.expectedGeneration === null ? 1 : addInteger(operation.expectedGeneration, 1);
-      // Proof: F07 mapped an older local epoch into the current grant; 'replacement records old acceptance' failed and exact restoration passed.
-      if (pending.localOwner.epoch === ownerEpoch)
-        grant = {
-          localEpoch: ownerEpoch,
+      if ('kind' in operation) {
+        generation =
+          operation.expectedGeneration === null ? 1 : addInteger(operation.expectedGeneration, 1);
+        const acceptedGrant: RuntimeGrant = {
+          localEpoch: pending.localOwner.epoch,
           commandId: pending.commandId,
           authority: { ownerId: operation.ownerId, generation },
         };
+        latestAuthority = { intent: pending, grant: acceptedGrant };
+        grant = pending.localOwner.epoch === ownerEpoch ? acceptedGrant : null;
+      } else if (operation.action.kind !== 'claim')
+        throw new Error('corrupt runtime unsupported acceptance');
       orderedAcceptances.push(acceptance);
       pending = null;
     }
@@ -238,6 +250,7 @@ export function planRuntimeStage(
     !equalRuntimeScopes(scope, guard.scope)
   )
     return { kind: 'refused', reason: 'authority_conflict' };
+  if (!('kind' in operation)) return { kind: 'refused', reason: 'state_conflict' };
   const previous = catalog.intents.find((intent) => intent.commandId === operation.commandId);
   if (previous !== undefined)
     // Proof: F02 bypassed canonical command equality; 'one pending command' failed and exact restoration passed.
@@ -257,7 +270,13 @@ export function planRuntimeStage(
     return { kind: 'refused', reason: 'revision_conflict' };
   // Proof: F03 removed pending serialization; 'one pending command' failed and exact restoration passed.
   if (snapshot.pendingCommandId !== null) return { kind: 'refused', reason: 'state_conflict' };
-  const latest = snapshot.acceptances.at(-1);
+  const latest = snapshot.acceptances.findLast((acceptance) => {
+    const intent = snapshot.intents.find(
+      (candidate) => candidate.commandId === acceptance.commandId,
+    );
+    if (intent === undefined) throw new Error('runtime acceptance intent missing');
+    return 'kind' in readRuntimeRequest(intent.canonicalRequest).operation;
+  });
   if (latest !== undefined) {
     const intent = snapshot.intents.find((candidate) => candidate.commandId === latest.commandId);
     if (intent === undefined) throw new Error('runtime acceptance intent missing');
@@ -299,6 +318,8 @@ export function planRuntimeAcceptance(
     !equalRuntimeScopes(readRuntimeRequest(retained.canonicalRequest).scope, guard.scope)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
+  if (!('kind' in readRuntimeRequest(retained.canonicalRequest).operation))
+    return { kind: 'refused', reason: 'state_conflict' };
   const previous = catalog.acceptances.find(
     (acceptance) => acceptance.commandId === retained.commandId,
   );

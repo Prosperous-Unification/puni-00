@@ -2,10 +2,16 @@ import { rejects } from 'node:assert/strict';
 
 import { describe, expect, test } from 'bun:test';
 
-import { attemptId, ownerId, runId } from '../record-codecs';
+import { artifactDigest, attemptId, ownerId, runId } from '../record-codecs';
 import { recordOutcome } from '../record-outcome';
 import { createExecutionCommand } from './fixtures';
-import { createCompletion, type OutcomeFixture, prepareAttempt, unwrapReply } from './fixtures';
+import {
+  createCompletion,
+  type OutcomeFixture,
+  prepareAttempt,
+  prepareTurn,
+  unwrapReply,
+} from './fixtures';
 
 export function executionEdgeContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name, () => {
@@ -30,7 +36,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
               guard,
               createExecutionCommand({
                 kind: 'interrupted',
-                quiescence: setup.quiescence,
+                quiescence: { ...setup.quiescence, effect: 'absent' },
               }),
             ),
           );
@@ -75,7 +81,16 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
         await rejects(
           stores.runs.commitOutcome(
             { ...setup.guard, attemptId: attemptId('absent') },
-            createCompletion(setup.claim, setup.quiescence),
+            createCompletion(
+              {
+                version: 1,
+                commandId: 'missing-claim',
+                requestDigest: artifactDigest('a'.repeat(64)),
+                runId: setup.run.runId,
+                attemptId: setup.admission.attemptId,
+              },
+              setup.quiescence,
+            ),
           ),
           /attempt does not exist/,
         );
@@ -115,35 +130,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
     test('unresolved and recovery preserve the exact running locator and held reservation', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
-        const locator = {
-          version: 1 as const,
-          operationKey: setup.admission.identity.operationKey,
-          workerId: 'worker',
-          sessionId: 'session',
-        };
-        unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
-              },
-              'claim-command',
-            ),
-          ),
-        );
-        unwrapReply(
-          await stores.runs.recordExecution(
-            await setup.currentGuard(),
-            createExecutionCommand({
-              kind: 'launch_recorded',
-              claim: setup.claim,
-              locator,
-            }),
-          ),
-        );
+        const setup = await prepareTurn(stores);
         for (const fact of [
           { kind: 'recovery_required', reason: 'lost' },
           { kind: 'unresolved', reason: 'unknown effect', evidence: setup.quiescence.evidence },
@@ -155,7 +142,16 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
                 createExecutionCommand(fact),
               ),
             ),
-          ).toMatchObject({ holdsCapacity: true, state: { claim: setup.claim, locator } });
+          ).toMatchObject({
+            holdsCapacity: true,
+            state: {
+              checkpoint: {
+                kind: 'turn_pending',
+                execution: setup.execution,
+                turn: setup.turn.intent,
+              },
+            },
+          });
         }
         const before = await stores.runs.readRun(setup.run.runId);
         stores.clock.advance(101);
@@ -192,19 +188,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
       test(`${kind} completion refuses unknown effect and permits settled failure`, async () => {
         const stores = await create();
         try {
-          const setup = await prepareAttempt(stores);
-          unwrapReply(
-            await stores.runs.recordExecution(
-              setup.guard,
-              createExecutionCommand(
-                {
-                  kind: 'claim_acquired',
-                  claim: setup.claim,
-                },
-                'claim-command',
-              ),
-            ),
-          );
+          const setup = await prepareTurn(stores);
           const initial = createCompletion(setup.claim, setup.quiescence);
           const outcome = { ...initial.outcome, kind };
           const completion = createCompletion(setup.claim, setup.quiescence, {

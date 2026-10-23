@@ -1,123 +1,95 @@
 import { rejects } from 'node:assert/strict';
 
+import { canonicalRuntimeRequest, parseCanonicalRuntimeRequest } from '@wbs/contracts';
 import { describe, expect, test } from 'bun:test';
 
-import { attemptId, decodeClaimAuthority, operationKey, ownerId } from '../record-codecs';
+import { stageClaimRequest } from '../claim-history';
+import { attemptId, executionCommandId, operationKey, ownerId } from '../record-codecs';
+import { readTargetObservation } from '../record-preparation';
 import type { ExecutionFact } from '../records';
 import { createExecutionCommand, createRunGuard } from './fixtures';
-import { type OutcomeFixture, prepareAttempt, unwrapReply } from './fixtures';
+import {
+  type OutcomeFixture,
+  prepareClaimed,
+  prepareSession,
+  prepareTurn,
+  stageFixtureTurn,
+  unwrapReply,
+} from './fixtures';
 
 export function executionContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name, () => {
-    test('execution requires exact claim authority and matching operation', async () => {
+    test('execution requires exact claim target and matching prepared operation', async () => {
       const stores = await create();
       try {
         expect(typeof stores.runs.recordExecution).toBe('function');
-        const setup = await prepareAttempt(stores);
-        const locator = {
-          version: 1 as const,
-          workerId: 'worker',
-          sessionId: 'session',
-          operationKey: operationKey('operation'),
-        };
+        const setup = await prepareSession(stores);
+        const { scope, operation } = parseCanonicalRuntimeRequest(setup.canonicalRequest);
+        if ('kind' in operation || operation.action.kind !== 'claim')
+          throw new Error('claim fixture required');
+        const action = operation.action;
         const before = await stores.runs.readRun(setup.run.runId);
-        expect(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand({
-              kind: 'launch_recorded',
-              claim: setup.claim,
-              locator,
-            }),
-          ),
-        ).toEqual({ kind: 'refused', reason: 'state_conflict' });
-        for (const field of [
-          'runId',
-          'attemptId',
-          'projectId',
-          'workItemId',
-          'occurrenceId',
-        ] as const) {
-          const claim = decodeClaimAuthority({ ...setup.claim, [field]: 'wrong' });
+        for (const changed of [
+          { ...action, workItemId: 'wrong' },
+          { ...action, stepId: 'wrong' },
+          { ...action, parentClaimId: 'wrong' },
+          ...['runId', 'attemptId', 'storeId', 'sessionId'].map((field) => ({
+            ...action,
+            execution: { ...action.execution, [field]: 'wrong' },
+          })),
+        ]) {
           expect(
-            await stores.runs.recordExecution(
-              setup.guard,
-              createExecutionCommand({ kind: 'claim_acquired', claim }, 'claim-command'),
-            ),
+            await stageClaimRequest(stores.runs, stores.artifacts, await setup.scopedGuard(), {
+              commandId: executionCommandId('stage-claim'),
+              canonicalRequest: canonicalRuntimeRequest(scope, { ...operation, action: changed }),
+              stateEvidence: setup.preparationInput.stateEvidence,
+            }),
           ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
         }
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
-        const claimed = unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
-              },
-              'claim-command',
-            ),
+        const command = {
+          version: 2 as const,
+          kind: 'stage_claim' as const,
+          commandId: executionCommandId('stage-claim'),
+          canonicalRequest: setup.canonicalRequest,
+          observation: await readTargetObservation(
+            stores.artifacts,
+            setup.preparationInput.stateEvidence,
+            { scope, workItemId: setup.run.workItemId, stepId: 'step', stepCode: 'plan' },
           ),
-        );
-        expect(claimed.revision).toBe(1);
-        expect(claimed.state).toEqual({ kind: 'queued', claim: setup.claim });
-        expect(
-          await stores.runs.recordExecution(
-            await setup.currentGuard(),
-            createExecutionCommand({
-              kind: 'launch_recorded',
-              claim: {
-                ...setup.claim,
-                claimId: decodeClaimAuthority({ ...setup.claim, claimId: 'wrong' }).claimId,
-              },
-              locator,
-            }),
-          ),
-        ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
-        expect(
-          await stores.runs.recordExecution(
-            await setup.currentGuard(),
-            createExecutionCommand({
-              kind: 'launch_recorded',
-              claim: setup.claim,
-              locator: { ...locator, operationKey: operationKey('wrong') },
-            }),
-          ),
-        ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
-        const launched = unwrapReply(
-          await stores.runs.recordExecution(
-            await setup.currentGuard(),
-            createExecutionCommand({
-              kind: 'launch_recorded',
-              claim: setup.claim,
-              locator,
-            }),
-          ),
-        );
-        expect(launched.state.kind).toBe('running');
-        expect(launched.holdsCapacity).toBe(true);
+        };
+        const guard = await setup.scopedGuard();
+        const staged = unwrapReply(await stores.runs.stageClaim(guard, command));
+        if (setup.prepared.state.kind !== 'prepared') throw new Error('prepared fixture required');
+        expect(staged.attempt).toMatchObject({
+          revision: 3,
+          state: { kind: 'claiming', session: setup.prepared.state.session },
+          holdsCapacity: true,
+        });
         const snapshot = await stores.runs.readRun(setup.run.runId);
-        expect(snapshot.run.revision).toBe(3);
-        expect(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
+        expect(snapshot.run.revision).toBe(4);
+        expect(await stores.runs.stageClaim(guard, command)).toEqual({
+          kind: 'duplicate',
+          value: staged,
+        });
+        await rejects(
+          stores.runs.recordExecution(
+            await setup.currentGuard(),
+            createExecutionCommand({
+              kind: 'session_prepared',
+              locator: {
+                ...setup.locator,
+                session: { ...setup.locator.session, operationKey: operationKey('wrong') },
               },
-              'claim-command',
-            ),
+              owner: setup.owner,
+            }),
           ),
-        ).toMatchObject({ kind: 'duplicate' });
+        );
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(snapshot);
         expect(
           await stores.runs.recordExecution(
             setup.guard,
-            createExecutionCommand({
-              kind: 'recovery_required',
-              reason: 'lost response',
-            }),
+            createExecutionCommand({ kind: 'recovery_required', reason: 'lost response' }),
           ),
         ).toEqual({ kind: 'refused', reason: 'revision_conflict' });
       } finally {
@@ -128,19 +100,8 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
     test('unknown effects and takeover retain capacity until determinate quiescence', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
-        unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
-              },
-              'claim-command',
-            ),
-          ),
-        );
+        const setup = await prepareTurn(stores);
+
         unwrapReply(
           await stores.runs.recordExecution(
             await setup.currentGuard(),
@@ -161,9 +122,8 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
         );
         expect(unknown.state).toMatchObject({
           kind: 'unresolved',
-          claim: setup.claim,
-          locator: null,
-          evidence: setup.quiescence.evidence,
+          checkpoint: { kind: 'turn_pending', execution: setup.execution, turn: setup.turn.intent },
+          observation: { kind: 'artifact', evidence: setup.quiescence.evidence },
         });
         expect(unknown.holdsCapacity).toBe(true);
         expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
@@ -235,13 +195,11 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
           ),
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
         expect(
-          unwrapReply(
-            await stores.runs.admitAttempt(
-              { ...createRunGuard(successor), expectedRevision: snapshot.run.revision },
-              retry,
-            ),
+          await stores.runs.admitAttempt(
+            { ...createRunGuard(successor), expectedRevision: snapshot.run.revision },
+            retry,
           ),
-        ).toMatchObject({ ordinal: 2, holdsCapacity: true });
+        ).toEqual({ kind: 'refused', reason: 'attempt_active' });
       } finally {
         stores.close();
       }
@@ -250,35 +208,24 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
     test('waiting requires exact claim unique choices and determinate quiescence', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
+        const setup = await prepareClaimed(stores);
         const wait = {
           version: 1 as const,
           correlationKey: 'question',
           prompt: setup.quiescence.evidence,
           choices: ['yes', 'no'],
         };
-        const fact = { kind: 'waiting', claim: setup.claim, wait, quiescence: setup.quiescence };
+        const fact = { kind: 'waiting', wait, quiescence: setup.quiescence };
         expect(
           await stores.runs.recordExecution(
-            setup.guard,
+            await setup.currentGuard(),
             createExecutionCommand(fact as ExecutionFact),
           ),
         ).toEqual({
           kind: 'refused',
           reason: 'state_conflict',
         });
-        unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
-              },
-              'claim-command',
-            ),
-          ),
-        );
+        await stageFixtureTurn(setup);
         const guard = await setup.currentGuard();
         for (const choices of [[], ['yes', 'yes'], ['']])
           await rejects(

@@ -314,6 +314,16 @@ no-pending checks. Observations SHALL retain the entire reply and match a retain
 - **THEN** the pending request and unresolved wrapper remain unchanged except attachment provenance
 - **AND** neither reattachment, cancellation nor a stored locator establishes nondispatch or quiescence
 
+### Requirement: Exact observations resolve only their pending recovery checkpoint
+
+An actual exact opened observation SHALL resolve preparing, directly or inside reconciling/unresolved, to prepared with the preparation owner's attachment. Exact verified claim acceptance SHALL resolve only the identical pending claiming checkpoint, directly or inside those wrappers, to ready(initial) with the entire unchanged session and attachment. Exact completed/not_started turn replies SHALL resolve only their retained turn_pending checkpoint; an unresolved reply SHALL keep that pending checkpoint and full observation. All earlier observations and held capacity SHALL remain retained. No such fact SHALL establish a live session, quiescence, release or permission to dispatch.
+
+#### Scenario: An exact late observation supplies the missing pending outcome
+
+- **WHEN** its complete identity matches the preparation, pending claim or retained turn through either recovery wrapper
+- **THEN** the matching checkpoint advances exactly once with original provenance and earlier history preserved
+- **AND** a different checkpoint, changed identity or post-settlement fact refuses; reattachment alone keeps an unresolved wrapper
+
 ### Requirement: Continuations preserve execution context and key identity
 
 Decision consumption SHALL resume the identical session and claim with the exact decision
@@ -332,7 +342,7 @@ until the separate exact release protocol exists.
 Reads, replay, mutation and reopen SHALL share consistent runtime folds, complete attempt
 folds and a bidirectional claim-link audit without recursive readers. Every execution,
 consumption, completion and receipt transition SHALL have its true predecessor, consecutive
-revision and original reply checked. Required indexed history SHALL NOT disappear behind
+revision and original reply checked. Preparation SHALL NOT predate admission ownership, claim staging SHALL NOT predate its retained attachment ownership, and retained same-epoch stage/attachment or reattachment labels SHALL agree. These relative local checks SHALL preserve genuine late observations and SHALL NOT claim historical lease authenticity. Required indexed history SHALL NOT disappear behind
 a reset current projection.
 
 #### Scenario: A retained event or paired reply is changed
@@ -340,6 +350,12 @@ a reset current projection.
 - **WHEN** rows, keys, counts, ordering, cross-links or original acknowledgements disagree
 - **THEN** inspection, replay, current-owner mutation and reopen throw before reporting absence
 - **AND** coherent deletion or rewriting of every independent retained fact remains outside this local integrity guarantee
+
+#### Scenario: Completion history outlives its current reply
+
+- **WHEN** a completion is followed by its receipt or owner takeover and the original completion is replayed
+- **THEN** retained history still exposes the original applied outcome-pending reply while commitOutcome returns the current Attempt under its existing duplicate contract
+- **AND** a changed original reply, revision, physical identity, gap or illegal late event throws during complete reconstruction
 
 ### Requirement: Verified execution history consumes actual retained evidence
 

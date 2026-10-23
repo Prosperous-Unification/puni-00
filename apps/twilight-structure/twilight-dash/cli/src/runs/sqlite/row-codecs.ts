@@ -1,19 +1,20 @@
 import { parseOrThrow, type } from '@shared/validation';
 
-import { advanceAttempt, isExecuting, planExecutionTransition } from '../plan-execution';
+import {
+  CompletionRecordCodec,
+  decodeRecordedExecution,
+  ExecutionRecordCodec,
+} from '../execution-codecs';
 import {
   assertInteger,
   attemptId,
   decodeAdmission,
   decodeAttempt,
   decodeCompletion,
-  decodeExecutionCommand,
   decodeManifest,
   decodeRun,
-  equalRecords,
   OwnershipStatusCodec,
 } from '../record-codecs';
-import type { Attempt, Run } from '../records';
 
 const MetaCodec = type({
   schema_version: 'number',
@@ -104,14 +105,20 @@ const CompletionRowCodec = type({ command_id: 'string', attempt_id: 'string', re
 /** Keeps the immutable command identity independent of pending delivery state. */
 export function decodeCompletionRow(input: unknown) {
   const row = parseOrThrow(CompletionRowCodec, input);
-  const completion = decodeCompletion(JSON.parse(row.record));
-  // Proof: bypassing completion physical command enforcement failed 'open identifies a physically relabeled completion before treating it as another pending command'.
+  // Proof: F206 bypassed this parse; public completion version and unknown-key reads resolved instead of rejecting. Exact restoration passed the eight-case group.
+  const envelope = parseOrThrow(CompletionRecordCodec, JSON.parse(row.record));
+  const completion = decodeCompletion(envelope.completion);
+  const reply = decodeAttempt(envelope.reply);
+  // Proof: F207 removed only the reply attempt comparison; its actual retained-row decoder negative lost rejection. Direct row-owner proof only. Exact restoration passed the eight-case group.
+  // Proof: F208 removed only the reply run comparison; its actual retained-row decoder negative lost rejection. Direct row-owner proof only. Exact restoration passed the eight-case group.
   if (
     completion.intent.commandId !== row.command_id ||
-    completion.intent.authority.attemptId !== row.attempt_id
+    completion.intent.claim.attemptId !== row.attempt_id ||
+    reply.attemptId !== row.attempt_id ||
+    completion.intent.claim.runId !== reply.identity.runId
   )
     throw new Error('corrupt completion identity');
-  return { attemptId: attemptId(row.attempt_id), completion };
+  return { version: 1 as const, attemptId: attemptId(row.attempt_id), completion, reply };
 }
 
 const ExecutionRowCodec = type({
@@ -121,25 +128,23 @@ const ExecutionRowCodec = type({
   record: 'string',
   reply: 'string',
 });
-/** Decodes the physical identity and verifies the original reply against the actual predecessor and shared transition semantics. Historical state is never compared to current state. */
-export function decodeExecutionRow(input: unknown, run: Run, predecessor: Attempt) {
+/** Decodes physical execution keys and strict correlated original envelopes; shared history folding validates the actual predecessor. */
+export function decodeExecutionRow(input: unknown) {
   const row = parseOrThrow(ExecutionRowCodec, input);
-  const command = decodeExecutionCommand(JSON.parse(row.record));
-  const reply = decodeAttempt(JSON.parse(row.reply));
+  // Proof: F209 bypassed this strict record parse; a forbidden record.reply shadow was overwritten by the physical reply and the public read lost its rejection. Exact restoration passed the eight-case group.
+  const record = parseOrThrow(ExecutionRecordCodec, JSON.parse(row.record));
+  // Proof: F210 bypassed correlated acknowledgement decoding; the actual retained-row mismatched reply-family negative lost rejection. Direct row-owner proof only. Exact restoration passed the eight-case group.
+  const reply: unknown = JSON.parse(row.reply);
+  const execution = decodeRecordedExecution({ ...record, reply });
+  // Retained pre-Task2 proof context; these same physical identities now read through the acknowledgement.
   // Proof: bypassing execution physical command enforcement failed 'open rejects immutable execution command key corruption'.
   // Proof: bypassing execution physical attempt enforcement failed 'open rejects immutable execution attempt key corruption'.
   // Proof: bypassing execution physical run enforcement failed 'open rejects immutable execution run key corruption'.
   if (
-    command.commandId !== row.command_id ||
-    reply.attemptId !== row.attempt_id ||
-    reply.identity.runId !== row.run_id
+    execution.command.commandId !== row.command_id ||
+    execution.reply.attempt.attemptId !== row.attempt_id ||
+    execution.reply.attempt.identity.runId !== row.run_id
   )
     throw new Error('corrupt execution command identity');
-  const transition = planExecutionTransition({ run, attempt: predecessor }, command.fact);
-  // Proof: removing the named rejection for an impossible historical transition failed 'open rejects execution command and reply carrying another target projectId'.
-  if (transition.kind === 'refused') throw new Error('corrupt execution command transition');
-  const expected = advanceAttempt(predecessor, transition.value, isExecuting(transition.value));
-  // Proof: bypassing original reply/postcondition equality failed 'open rejects historical claim_acquired reply contradiction at $.state.claim.personId'.
-  if (!equalRecords(reply, expected)) throw new Error('corrupt execution command reply');
-  return { command, reply };
+  return execution;
 }

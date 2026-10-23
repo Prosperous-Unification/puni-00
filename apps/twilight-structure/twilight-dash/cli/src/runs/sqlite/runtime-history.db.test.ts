@@ -332,6 +332,7 @@ test('current owner fencing precedes corrupt retained runtime rows for all mutat
         authorityRequest(),
       ),
     );
+    database.run('CREATE TEMP TABLE restored_format AS SELECT * FROM run_format');
     database.run('DELETE FROM run_format');
     stores.clock.advance(100);
     const guard = { ownership, scope: runtimeScope, expectedRevision: 1 };
@@ -346,7 +347,13 @@ test('current owner fencing precedes corrupt retained runtime rows for all mutat
     expect(
       await stores.runs.recordRuntimeAcceptance(guard, { intent, evidence: runtimeEvidence }),
     ).toEqual({ kind: 'refused', reason: 'owner_stale' });
+    await rejects(
+      stores.runs.acquireOwnership(ownerId('local-B'), 1),
+      /corrupt runtime format marker/,
+    );
+    database.query('INSERT INTO run_format SELECT * FROM restored_format').run();
     const current = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-B'), 1));
+    database.run('DELETE FROM run_format');
     await rejects(stores.runs.pinRuntimeScope(current, runtimePin));
   } finally {
     database.close();
@@ -385,6 +392,7 @@ test('unused new down restores exact original physical schema and old records', 
       >('SELECT * FROM run_meta')
       .get();
     if (meta === null) throw new Error('fixture meta missing');
+    executeExecutionDown(database);
     executeRuntimeDown(database);
     expect(
       database
@@ -437,6 +445,7 @@ for (const fault of [
             ),
           );
       }
+      executeExecutionDown(database);
       if (['scope counter', 'intent counter', 'acceptance counter'].includes(fault))
         database.run(`UPDATE run_format SET ${fault.split(' ')[0]}_count=1`);
       if (fault === 'missing marker') database.run('DELETE FROM run_format');
@@ -477,6 +486,20 @@ for (const fault of [
       stores.close();
     }
   });
+
+/** Produces genuine format2 before injecting faults into the unchanged 0002 rollback guard. */
+function executeExecutionDown(database: Database): void {
+  database.run('BEGIN IMMEDIATE');
+  try {
+    validateDatabase(database);
+    for (const statement of MIGRATIONS[2].down.split('--> statement-breakpoint'))
+      if (statement.trim().length > 0) database.run(statement.trim());
+    database.run('COMMIT');
+  } catch (cause) {
+    database.run('ROLLBACK');
+    throw cause;
+  }
+}
 
 /** Isolated raw SQL guard fixture: complete trimmed statements stop and roll back on the first error. This intentionally omits the full-format prevalidation required by a supported caller. */
 function executeRuntimeDown(database: Database): void {
@@ -645,16 +668,18 @@ test('bootstrap retains the complete named forward and down bundle identity', as
   const stores = await createRuntimeDatabaseFixture();
   const database = new Database(stores.options.path, { readonly: true });
   try {
-    const identities = ['0001-run-store', '0002-runtime-authority'].map((name) => [
-      name,
-      ...['migration.sql', 'down.sql'].map((file) =>
-        createHash('sha256')
-          .update(readFileSync(new URL(`./migrations/${name}/${file}`, import.meta.url)))
-          .digest('hex'),
-      ),
-    ]);
+    const identities = ['0001-run-store', '0002-runtime-authority', '0003-execution-history'].map(
+      (name) => [
+        name,
+        ...['migration.sql', 'down.sql'].map((file) =>
+          createHash('sha256')
+            .update(readFileSync(new URL(`./migrations/${name}/${file}`, import.meta.url)))
+            .digest('hex'),
+        ),
+      ],
+    );
     const expected = createHash('sha256')
-      .update(JSON.stringify(['run-store-format', 2, identities]), 'utf8')
+      .update(JSON.stringify(['run-store-format', 3, identities]), 'utf8')
       .digest('hex');
     expect(database.query('SELECT bundle_hash FROM run_format').get()).toEqual({
       bundle_hash: expected,
@@ -774,7 +799,10 @@ function executeValidatedRuntimeDown(database: Database): void {
   try {
     // Proof: R1F02 removing this actual validation call let wrong-bundle and altered-empty-schema callers delete tables; both missing-rejection tests failed, and exact restoration passed.
     validateDatabase(database);
-    for (const statement of MIGRATIONS[1].down.split('--> statement-breakpoint'))
+    for (const statement of [
+      ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
+      ...MIGRATIONS[1].down.split('--> statement-breakpoint'),
+    ])
       if (statement.trim().length > 0) database.run(statement.trim());
     database.run('COMMIT');
   } catch (cause) {
@@ -857,6 +885,217 @@ test('validated down caller rolls back its guard when retained runtime use forbi
     }).toThrow(/CHECK constraint/);
     expect(captureRuntimeDatabase(database)).toEqual(before);
   } finally {
+    database.close();
+    stores.close();
+  }
+});
+
+const EXECUTION_PREVIOUS_FORMAT_HASH =
+  'b5b2b877ebe8b0e33765d2bb6d464e7d3ac0bcebc773807706e40ca5747f93b6';
+test('genuine format2 is incompatible before journal changes and preserves every original byte', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'execution-format2-'));
+  const path = join(directory, 'runs.sqlite');
+  const database = new Database(path);
+  const clock = new FixtureClock();
+  try {
+    for (const migration of MIGRATIONS.slice(0, 2))
+      for (const statement of migration.forwardStatements) database.run(statement);
+    database.query('INSERT INTO run_meta VALUES (1,2,?,?,?,?,?,?)').run(
+      MIGRATION_HASH,
+      DOWN_HASH,
+      JSON.stringify({
+        storeId: storeId('format2'),
+        organizationId: organizationId('organization'),
+        epoch: 0,
+        owner: null,
+      }),
+      1,
+      100,
+      1000,
+    );
+    database.query('INSERT INTO run_format VALUES (1,?,0,0,0)').run(EXECUTION_PREVIOUS_FORMAT_HASH);
+    expect(database.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'delete' });
+    database.close();
+    const before = readFileSync(path),
+      names = readdirSync(directory).sort();
+    await rejects(
+      async () => {
+        const opened = await openSqliteStores({
+          path,
+          organizationId: organizationId('organization'),
+          capacity: 1,
+          leaseMilliseconds: 100,
+          clock,
+          maxBusyAttempts: 1,
+          busyDelayMilliseconds: 0,
+        });
+        opened.close();
+      },
+      (cause: unknown) => {
+        expect(cause).toMatchObject({ failure: 'incompatible' });
+        return true;
+      },
+    );
+    expect(readFileSync(path)).toEqual(before);
+    expect(readdirSync(directory).sort()).toEqual(names);
+    const inspected = new Database(path, { readonly: true });
+    try {
+      expect(inspected.query('SELECT schema_version FROM run_meta').get()).toEqual({
+        schema_version: 2,
+      });
+      expect(inspected.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'delete' });
+    } finally {
+      inspected.close();
+    }
+  } finally {
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+for (const history of ['generic run', 'authority pending', 'authority accepted'] as const)
+  test(
+    'format3 down preserves compatible ' + history + ' and restores exact format2 identity',
+    async () => {
+      const stores = await createRuntimeDatabaseFixture();
+      const database = new Database(stores.options.path);
+      try {
+        const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('down-owner'), 0));
+        unwrapReply(await stores.runs.retainManifest(ownership, createManifest()));
+        unwrapReply(await stores.runs.createRun(ownership, createRun()));
+        if (history !== 'generic run') {
+          unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
+          const intent = unwrapReply(
+            await stores.runs.stageRuntimeRequest(
+              { ownership, scope: runtimeScope, expectedRevision: 0 },
+              authorityRequest(),
+            ),
+          );
+          if (history === 'authority accepted')
+            unwrapReply(
+              await stores.runs.recordRuntimeAcceptance(
+                { ownership, scope: runtimeScope, expectedRevision: 1 },
+                { intent, evidence: runtimeEvidence },
+              ),
+            );
+        }
+        const before = captureRuntimeDatabase(database);
+        executeExecutionDown(database);
+        const after = captureRuntimeDatabase(database);
+        expect(after.schema).toEqual(before.schema);
+        expect(after.tables).toEqual(
+          before.tables.map((table) =>
+            table.name === 'run_meta'
+              ? { ...table, rows: table.rows.map((row) => ({ ...row, schema_version: 2 })) }
+              : table.name === 'run_format'
+                ? {
+                    ...table,
+                    rows: table.rows.map((row) => ({
+                      ...row,
+                      bundle_hash: EXECUTION_PREVIOUS_FORMAT_HASH,
+                    })),
+                  }
+                : table,
+          ),
+        );
+        expect(database.inTransaction).toBe(false);
+      } finally {
+        database.close();
+        stores.close();
+      }
+    },
+  );
+
+import {
+  admitExecution as admitExecutionForDown,
+  prepareClaimed as prepareClaimedForDown,
+  prepareSession as prepareSessionForDown,
+} from '../testing/fixtures';
+for (const history of ['queued attempt', 'prepared execution', 'accepted claim'] as const)
+  test(
+    'format3 down refuses retained ' + history + ' and rolls back the first guard error',
+    async () => {
+      const stores = await createRuntimeDatabaseFixture();
+      const database = new Database(stores.options.path);
+      try {
+        if (history === 'queued attempt') await admitExecutionForDown(stores);
+        else if (history === 'prepared execution') await prepareSessionForDown(stores);
+        else await prepareClaimedForDown(stores);
+        validateDatabase(database);
+        const before = captureRuntimeDatabase(database);
+        expect(() => {
+          executeExecutionDown(database);
+        }).toThrow(/CHECK constraint/);
+        expect(captureRuntimeDatabase(database)).toEqual(before);
+        expect(database.inTransaction).toBe(false);
+      } finally {
+        database.close();
+        stores.close();
+      }
+    },
+  );
+
+for (const fault of [
+  'missing marker',
+  'missing metadata',
+  'malformed counter',
+  'wrong bundle',
+] as const)
+  test(
+    'format3 down prevalidation refuses ' + fault + ' without changing retained state',
+    async () => {
+      const stores = await createRuntimeDatabaseFixture();
+      const database = new Database(stores.options.path);
+      try {
+        if (fault === 'missing marker') database.run('DELETE FROM run_format');
+        if (fault === 'missing metadata') database.run('DELETE FROM run_meta');
+        if (fault === 'malformed counter') database.run('UPDATE run_format SET intent_count=0.5');
+        if (fault === 'wrong bundle') database.run("UPDATE run_format SET bundle_hash='wrong'");
+        const before = captureRuntimeDatabase(database);
+        expect(() => {
+          executeExecutionDown(database);
+        }).toThrow(
+          fault === 'missing metadata'
+            ? 'Validation failed: must be an object (was null)'
+            : fault === 'malformed counter'
+              ? 'Validation failed: intent_count must be an integer (was 0.5)'
+              : /corrupt|incompatible/,
+        );
+        expect(captureRuntimeDatabase(database)).toEqual(before);
+        expect(database.inTransaction).toBe(false);
+      } finally {
+        database.close();
+        stores.close();
+      }
+    },
+  );
+
+test('format3 down stops on metadata write failure and rolls back its already-created guard', async () => {
+  const stores = await createRuntimeDatabaseFixture();
+  const database = new Database(stores.options.path);
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- This test intercepts and restores the exact prototype receiver; retaining the original function/receiver is intentional.
+  const original = Database.prototype.run;
+  try {
+    const before = captureRuntimeDatabase(database);
+    let observed = 0;
+    Database.prototype.run = function (sql, ...parameters) {
+      if (
+        this === database &&
+        sql.trim() === 'UPDATE run_meta SET schema_version = 2 WHERE singleton = 1;'
+      ) {
+        observed++;
+        throw new Error('injected format3 metadata write failure');
+      }
+      return original.call(this, sql, ...parameters);
+    };
+    expect(() => {
+      executeExecutionDown(database);
+    }).toThrow('injected format3 metadata write failure');
+    expect(observed).toBe(1);
+    expect(captureRuntimeDatabase(database)).toEqual(before);
+    expect(database.inTransaction).toBe(false);
+  } finally {
+    Database.prototype.run = original;
     database.close();
     stores.close();
   }

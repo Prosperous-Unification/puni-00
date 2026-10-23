@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
 import { decodeAdmission, organizationId, ownerId, runId } from '../record-codecs';
 import { createManifest, createRun, FixtureClock, unwrapReply } from '../testing/fixtures';
@@ -53,62 +53,126 @@ async function fixture() {
     maxBusyAttempts: 100,
     busyDelayMilliseconds: 2,
   };
-  const stores = await bootstrapSqliteStores(options);
-  const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('owner'), 0));
-  unwrapReply(await stores.runs.retainManifest(ownership, createManifest()));
-  const run = unwrapReply(await stores.runs.createRun(ownership, createRun()));
-  const admission = decodeAdmission({
-    attemptId: 'attempt',
-    identity: {
-      version: 1,
-      runId: run.runId,
-      occurrenceId: 'occurrence',
-      operationKey: 'operation',
-    },
-    ordinal: 1,
+  const stores = await bootstrapSqliteStores(options).catch((cause: unknown) => {
+    rmSync(directory, { recursive: true, force: true });
+    console.log(
+      JSON.stringify({
+        event: 'admission-fixture-closed',
+        directory,
+        exists: existsSync(directory),
+        at: new Date().toISOString(),
+      }),
+    );
+    throw cause;
   });
-  return {
-    directory,
-    options,
-    stores,
-    guard: { ownership, runId: run.runId, expectedRevision: 0 },
-    admission,
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
-    },
-  };
+  try {
+    const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('owner'), 0));
+    unwrapReply(await stores.runs.retainManifest(ownership, createManifest()));
+    const run = unwrapReply(await stores.runs.createRun(ownership, createRun()));
+    const admission = decodeAdmission({
+      attemptId: 'attempt',
+      identity: {
+        version: 1,
+        runId: run.runId,
+        occurrenceId: 'occurrence',
+        operationKey: 'operation',
+      },
+      ordinal: 1,
+    });
+    return {
+      directory,
+      options,
+      stores,
+      guard: { ownership, runId: run.runId, expectedRevision: 0 },
+      admission,
+      close() {
+        stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      },
+    };
+  } catch (cause) {
+    stores.close();
+    rmSync(directory, { recursive: true, force: true });
+    console.log(
+      JSON.stringify({
+        event: 'admission-fixture-closed',
+        directory,
+        exists: existsSync(directory),
+        at: new Date().toISOString(),
+      }),
+    );
+    throw cause;
+  }
 }
 function spawnChild(packet: unknown) {
-  const child = Bun.spawn([process.execPath, '-e', childSource], {
+  const argv = [process.execPath, '-e', childSource];
+  const child = Bun.spawn(argv, {
     env: { ...process.env, RUN_STORE_CHILD: JSON.stringify(packet) },
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  const stderr = new Response(child.stderr).text();
+  console.log(
+    JSON.stringify({
+      event: 'admission-child-started',
+      pid: child.pid,
+      parentPid: process.pid,
+      argv,
+      cwd: process.cwd(),
+      packet,
+      at: new Date().toISOString(),
+    }),
+  );
   const reader = child.stdout.getReader();
+  const stderr = new Response(child.stderr).arrayBuffer().then((bytes) => {
+    console.log(
+      JSON.stringify({
+        event: 'admission-child-chunk',
+        pid: child.pid,
+        stream: 'stderr',
+        base64: Buffer.from(bytes).toString('base64'),
+        at: new Date().toISOString(),
+      }),
+    );
+    console.log(
+      JSON.stringify({
+        event: 'admission-child-eof',
+        pid: child.pid,
+        stream: 'stderr',
+        at: new Date().toISOString(),
+      }),
+    );
+    return new TextDecoder().decode(bytes);
+  });
   let pending = '';
-  async function phase() {
+  async function phase(): Promise<{ phase: string; reply?: { kind: string; reason?: string } }> {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const reading = (async () => {
+      for (;;) {
+        const newline = pending.indexOf('\n');
+        if (newline >= 0) {
+          const line = pending.slice(0, newline);
+          pending = pending.slice(newline + 1);
+          // This test's retained child source emits the protocol; callers assert each actual phase.
+          return JSON.parse(line) as { phase: string; reply?: { kind: string; reason?: string } };
+        }
+        const chunk = await reader.read();
+        if (chunk.done)
+          throw new Error('child exited ' + String(await child.exited) + ': ' + (await stderr));
+        console.log(
+          JSON.stringify({
+            event: 'admission-child-chunk',
+            pid: child.pid,
+            stream: 'stdout',
+            base64: Buffer.from(chunk.value).toString('base64'),
+            at: new Date().toISOString(),
+          }),
+        );
+        pending += new TextDecoder().decode(chunk.value);
+      }
+    })();
     try {
       return await Promise.race([
-        (async () => {
-          for (;;) {
-            const newline = pending.indexOf('\n');
-            if (newline >= 0) {
-              const line = pending.slice(0, newline);
-              pending = pending.slice(newline + 1);
-              return JSON.parse(line) as {
-                phase: string;
-                reply?: { kind: string; reason?: string };
-              };
-            }
-            const chunk = await reader.read();
-            if (chunk.done)
-              throw new Error(`child exited ${String(await child.exited)}: ${await stderr}`);
-            pending += new TextDecoder().decode(chunk.value);
-          }
-        })(),
+        reading,
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
             reject(new Error('child phase timeout'));
@@ -125,34 +189,141 @@ function spawnChild(packet: unknown) {
     stderr,
     async close() {
       if (child.exitCode === null) child.kill('SIGKILL');
-      await child.exited;
+      const exitCode = await child.exited;
+      await stderr;
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          console.log(
+            JSON.stringify({
+              event: 'admission-child-eof',
+              pid: child.pid,
+              stream: 'stdout',
+              at: new Date().toISOString(),
+            }),
+          );
+          break;
+        }
+        console.log(
+          JSON.stringify({
+            event: 'admission-child-chunk',
+            pid: child.pid,
+            stream: 'stdout',
+            base64: Buffer.from(chunk.value).toString('base64'),
+            at: new Date().toISOString(),
+          }),
+        );
+      }
       reader.releaseLock();
+      console.log(
+        JSON.stringify({
+          event: 'admission-child-closed',
+          pid: child.pid,
+          exitCode,
+          signal: child.signalCode,
+          procExists: existsSync('/proc/' + String(child.pid)),
+          at: new Date().toISOString(),
+        }),
+      );
     },
   };
 }
-test('independent processes contend for capacity one with a shared current owner', async () => {
+async function prepareAdmissionProcess(mode: 'race' | 'before' | 'after') {
   const setup = await fixture();
   const go = join(setup.directory, 'go');
-  const second = createRun({ runId: runId('second') });
-  unwrapReply(await setup.stores.runs.createRun(setup.guard.ownership, second));
-  const children = [setup.guard.runId, second.runId].map((identity, index) =>
-    spawnChild({
-      options: setup.options,
-      go,
-      mode: 'race',
-      guard: { ...setup.guard, runId: identity },
-      admission: {
-        ...setup.admission,
-        attemptId: `attempt-${String(index)}`,
-        identity: { ...setup.admission.identity, runId: identity },
-      },
+  const children: ReturnType<typeof spawnChild>[] = [];
+  try {
+    const before = await setup.stores.runs.readRun(setup.guard.runId);
+    const second = createRun({ runId: runId('second') });
+    if (mode === 'race') {
+      unwrapReply(await setup.stores.runs.createRun(setup.guard.ownership, second));
+      for (const [index, identity] of [setup.guard.runId, second.runId].entries())
+        children.push(
+          spawnChild({
+            options: setup.options,
+            go,
+            mode,
+            guard: { ...setup.guard, runId: identity },
+            admission: {
+              ...setup.admission,
+              attemptId: 'attempt-' + String(index),
+              identity: { ...setup.admission.identity, runId: identity },
+            },
+          }),
+        );
+      const readiness = await Promise.allSettled(children.map((child) => child.phase()));
+      const failures = readiness.filter((entry) => entry.status === 'rejected');
+      if (failures.length > 0)
+        throw new AggregateError(
+          failures.map((entry): unknown => entry.reason),
+          'admission readiness failed',
+        );
+      // Proof: F220 changed both owned children to wrong-ready; this beforeAll equality failed, then both children were killed and awaited with complete streams and fixture cleanup. Restored named race passed; helper-only proof.
+      expect(
+        readiness.map((entry) => {
+          if (entry.status === 'rejected') throw entry.reason;
+          return entry.value;
+        }),
+      ).toEqual([{ phase: 'ready' }, { phase: 'ready' }]);
+    } else {
+      const child = spawnChild({
+        options: setup.options,
+        go,
+        mode,
+        guard: setup.guard,
+        admission: setup.admission,
+      });
+      children.push(child);
+      expect(await child.phase()).toEqual({ phase: 'ready' });
+    }
+    return { setup, go, children, before, second };
+  } catch (cause) {
+    try {
+      await closeAdmissionProcess(setup, children);
+    } catch (cleanupCause) {
+      // Both original setup and cleanup failures remain in errors; the caught cleanup failure is the direct cause.
+      throw new AggregateError([cause, cleanupCause], 'admission setup and cleanup failed', {
+        cause: cleanupCause,
+      });
+    }
+    throw cause;
+  }
+}
+async function closeAdmissionProcess(
+  setup: Awaited<ReturnType<typeof fixture>>,
+  children: readonly ReturnType<typeof spawnChild>[],
+) {
+  const closed = await Promise.allSettled(children.map((child) => child.close()));
+  const failures: unknown[] = closed
+    .filter((entry) => entry.status === 'rejected')
+    .map((entry): unknown => entry.reason);
+  try {
+    setup.close();
+  } catch (cause) {
+    failures.push(cause);
+  }
+  console.log(
+    JSON.stringify({
+      event: 'admission-fixture-closed',
+      directory: setup.directory,
+      exists: existsSync(setup.directory),
+      at: new Date().toISOString(),
     }),
   );
-  try {
-    expect(await Promise.all(children.map((child) => child.phase()))).toEqual([
-      { phase: 'ready' },
-      { phase: 'ready' },
-    ]);
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'admission owned-resource cleanup failed');
+}
+describe('admission process race', () => {
+  let prepared: Awaited<ReturnType<typeof prepareAdmissionProcess>> | undefined;
+  beforeAll(async () => {
+    prepared = await prepareAdmissionProcess('race');
+  }, 15000);
+  afterAll(async () => {
+    if (prepared !== undefined) await closeAdmissionProcess(prepared.setup, prepared.children);
+  });
+  test('independent processes contend for capacity one with a shared current owner', async () => {
+    if (prepared === undefined) throw new Error('admission setup did not finish');
+    const { setup, go, children, second } = prepared;
     writeFileSync(go, 'go');
     const phases = await Promise.all(children.map((child) => child.phase()));
     expect(phases.map((phase) => phase.phase)).toEqual(['committed', 'committed']);
@@ -170,25 +341,22 @@ test('independent processes contend for capacity one with a shared current owner
     );
     expect(snapshots.flatMap((snapshot) => snapshot.attempts)).toHaveLength(1);
     expect(snapshots.map((snapshot) => snapshot.capacity.reserved)).toEqual([1, 1]);
-  } finally {
-    for (const child of children) await child.close();
-    setup.close();
-  }
+  });
 });
 for (const mode of ['before', 'after'] as const)
-  test(`SIGKILL ${mode} commit preserves a complete admission snapshot`, async () => {
-    const setup = await fixture();
-    const go = join(setup.directory, 'go');
-    const before = await setup.stores.runs.readRun(setup.guard.runId);
-    const child = spawnChild({
-      options: setup.options,
-      go,
-      mode,
-      guard: setup.guard,
-      admission: setup.admission,
+  describe('admission process ' + mode, () => {
+    let prepared: Awaited<ReturnType<typeof prepareAdmissionProcess>> | undefined;
+    beforeAll(async () => {
+      prepared = await prepareAdmissionProcess(mode);
+    }, 15000);
+    afterAll(async () => {
+      if (prepared !== undefined) await closeAdmissionProcess(prepared.setup, prepared.children);
     });
-    try {
-      expect(await child.phase()).toEqual({ phase: 'ready' });
+    test('SIGKILL ' + mode + ' commit preserves a complete admission snapshot', async () => {
+      if (prepared === undefined) throw new Error('admission setup did not finish');
+      const { setup, go, before } = prepared;
+      const child = prepared.children.at(0);
+      if (child === undefined) throw new Error('admission child missing');
       writeFileSync(go, 'go');
       const phase = await child.phase();
       expect(phase.phase).toBe(mode === 'before' ? 'before-commit' : 'committed');
@@ -220,8 +388,5 @@ for (const mode of ['before', 'after'] as const)
       } finally {
         reopened.close();
       }
-    } finally {
-      await child.close();
-      setup.close();
-    }
+    });
   });

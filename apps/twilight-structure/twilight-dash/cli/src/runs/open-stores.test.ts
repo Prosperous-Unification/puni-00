@@ -16,6 +16,7 @@ import {
   createManifest,
   createRun,
   FixtureClock,
+  stageFixtureTurn,
   unwrapReply,
 } from './testing/fixtures';
 import {
@@ -143,30 +144,41 @@ test('production close is idempotent and every public operation refuses closed d
   unwrapReply(await stores.runs.receiveDecision(ownership, decision));
   const consumptionGuard = await setup.currentGuard();
   unwrapReply(await stores.runs.consumeDecision(consumptionGuard, decision.decisionId));
+  await stageFixtureTurn(
+    setup,
+    { kind: 'decision', decisionId: decision.decisionId },
+    'continuation',
+  );
   const completion = createCompletion(claim, quiescence);
   const outcomeGuard = await setup.currentGuard();
   unwrapReply(await stores.runs.commitOutcome(outcomeGuard, completion));
   const receipt = {
-    version: 1 as const,
+    version: 2 as const,
     commandId: completion.intent.commandId,
     commandDigest: completion.intent.commandDigest,
-    authority: claim,
+    claim,
     acceptedWbsRevision: 'accepted',
     evidence: quiescence.evidence,
   };
   const receiptGuard = await setup.currentGuard();
   unwrapReply(await stores.runs.reconcileReceipt(receiptGuard, receipt));
   unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
-  const runtimeGuard = { ownership, scope: runtimeScope, expectedRevision: 0 };
+  const runtimeScopeBefore = await stores.runs.readRuntimeScope(runtimeScope);
+  if (runtimeScopeBefore.kind !== 'pinned') throw new Error('expected retained runtime scope');
+  const runtimeGuard = {
+    ownership,
+    scope: runtimeScope,
+    expectedRevision: runtimeScopeBefore.revision,
+  };
   const runtimeIntent = unwrapReply(
-    await stores.runs.stageRuntimeRequest(runtimeGuard, authorityRequest()),
+    await stores.runs.stageRuntimeRequest(runtimeGuard, authorityRequest('acquire', 1)),
   );
   const receiptArtifact = await stores.artifacts.retainArtifact(
     new TextEncoder().encode(JSON.stringify(authorityReceipt(runtimeIntent))),
     'application/json',
   );
   if (receiptArtifact.kind !== 'retained') throw new Error('fixture runtime receipt refused');
-  const acceptanceGuard = { ...runtimeGuard, expectedRevision: 1 };
+  const acceptanceGuard = { ...runtimeGuard, expectedRevision: runtimeGuard.expectedRevision + 1 };
   unwrapReply(
     await acceptRuntimeReceipt(
       stores.runs,
@@ -176,10 +188,32 @@ test('production close is idempotent and every public operation refuses closed d
       receiptArtifact.reference,
     ),
   );
+  const history = await stores.runs.readExecutionHistory(run.runId, admission.attemptId);
+  const claimStage = history.executions.find(
+    (entry) => entry.command.kind === 'stage_claim',
+  )?.command;
+  const claimAcceptance = history.executions.find(
+    (entry) => entry.command.kind === 'accept_claim',
+  )?.command;
+  const turnStage = history.executions.find(
+    (entry) => entry.command.kind === 'stage_turn',
+  )?.command;
+  if (
+    claimStage?.kind !== 'stage_claim' ||
+    claimAcceptance?.kind !== 'accept_claim' ||
+    turnStage?.kind !== 'stage_turn'
+  )
+    throw new Error('required fixture execution commands missing');
+  const scopedGuard = { ...setup.guard, scope: setup.scope, expectedScopeRevision: 0 };
   const operations = {
+    stageClaim: () => stores.runs.stageClaim(scopedGuard, claimStage),
+    recordClaimAcceptance: () => stores.runs.recordClaimAcceptance(scopedGuard, claimAcceptance),
+    stageTurn: () => stores.runs.stageTurn(scopedGuard, turnStage),
+    readExecutionHistory: () => stores.runs.readExecutionHistory(run.runId, admission.attemptId),
     pinRuntimeScope: () => stores.runs.pinRuntimeScope(ownership, runtimePin),
     readRuntimeScope: () => stores.runs.readRuntimeScope(runtimeScope),
-    stageRuntimeRequest: () => stores.runs.stageRuntimeRequest(runtimeGuard, authorityRequest()),
+    stageRuntimeRequest: () =>
+      stores.runs.stageRuntimeRequest(runtimeGuard, authorityRequest('acquire', 1)),
     recordRuntimeAcceptance: () =>
       stores.runs.recordRuntimeAcceptance(acceptanceGuard, {
         intent: runtimeIntent,
@@ -263,10 +297,15 @@ function portableImports(path: string): string[] {
 test('portable ports and core records exclude adapter dependencies structurally', () => {
   // Proof: D01R/D02R/D03R injected records/live-port/aggregate edges into each new owner, and D04R restored the runtime aggregate edge; this structural test named each forbidden path and failed.
   const allowed: Readonly<Record<string, readonly string[]>> = {
-    'run-store.ts': ['./records', './runtime-records'],
+    'run-store.ts': ['./records', './runtime-records', './execution-records'],
     'artifact-store.ts': ['./records'],
-    'records.ts': ['./record-codecs'],
-    'record-codecs.ts': ['@shared/validation', '@twilight-burokrat/contracts', './value-codecs'],
+    'records.ts': ['./record-codecs', './claim-records', './execution-records'],
+    'record-codecs.ts': [
+      '@shared/validation',
+      '@twilight-burokrat/contracts',
+      './value-codecs',
+      './execution-codecs',
+    ],
     'runtime-records.ts': ['./records', '@wbs/contracts'],
     'runtime-codecs.ts': [
       'node:crypto',
@@ -274,6 +313,24 @@ test('portable ports and core records exclude adapter dependencies structurally'
       '@wbs/contracts',
       './value-codecs',
       './runtime-records',
+    ],
+    'execution-records.ts': [
+      '../agents/execution-records',
+      './claim-records',
+      './records',
+      './runtime-records',
+    ],
+    'claim-records.ts': [
+      '@wbs/contracts',
+      '../agents/execution-records',
+      './records',
+      './runtime-records',
+    ],
+    'execution-codecs.ts': [
+      '@shared/validation',
+      '../agents/execution-codecs',
+      './runtime-codecs',
+      './value-codecs',
     ],
     'value-codecs.ts': ['@shared/validation'],
     '../agents/execution-records.ts': ['@twilight-burokrat/contracts', '../runs/records'],

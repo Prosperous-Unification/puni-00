@@ -1,4 +1,7 @@
+import type { ClaimRef } from './claim-records';
+import type { Attempt } from './execution-records';
 import type * as codecs from './record-codecs';
+export type { Attempt, AttemptState, ExecutionCommand, ExecutionFact } from './execution-records';
 
 export type StoreId = typeof codecs.StoreIdCodec.infer;
 export type OrganizationId = typeof codecs.OrganizationIdCodec.infer;
@@ -106,18 +109,18 @@ export interface AttemptOutcome {
   readonly summary: string;
 }
 export interface ProgressIntent {
-  readonly version: 1;
+  readonly version: 2;
   readonly commandId: CommandId;
-  readonly authority: ClaimAuthority;
+  readonly claim: ClaimRef;
   readonly expectedWbsRevision: string;
   readonly outcome: AttemptOutcome;
   readonly commandDigest: ArtifactDigest;
 }
 export interface CommandReceipt {
-  readonly version: 1;
+  readonly version: 2;
   readonly commandId: CommandId;
   readonly commandDigest: ArtifactDigest;
-  readonly authority: ClaimAuthority;
+  readonly claim: ClaimRef;
   readonly acceptedWbsRevision: string;
   readonly evidence: ArtifactRef;
 }
@@ -130,78 +133,13 @@ export interface Decision {
   readonly actorId: PersonId;
   readonly authorizationEvidence: ArtifactRef;
 }
-export type AttemptState =
-  | { readonly kind: 'queued'; readonly claim: ClaimAuthority | null }
-  | { readonly kind: 'running'; readonly claim: ClaimAuthority; readonly locator: Locator }
-  | {
-      readonly kind: 'reconciling';
-      readonly claim: ClaimAuthority | null;
-      readonly locator: Locator | null;
-      readonly reason: string;
-    }
-  | {
-      readonly kind: 'unresolved';
-      readonly claim: ClaimAuthority | null;
-      readonly locator: Locator | null;
-      readonly reason: string;
-      readonly evidence: ArtifactRef;
-    }
-  | {
-      readonly kind: 'interrupted';
-      readonly claim: ClaimAuthority | null;
-      readonly quiescence: Quiescence;
-    }
-  | {
-      readonly kind: 'waiting_for_person';
-      readonly claim: ClaimAuthority;
-      readonly wait: HumanWait;
-      readonly quiescence: Quiescence;
-    }
-  | {
-      readonly kind: 'outcome_pending_progress';
-      readonly claim: ClaimAuthority;
-      readonly outcome: AttemptOutcome;
-      readonly commandId: CommandId;
-      readonly quiescence: Quiescence;
-    }
-  | {
-      readonly kind: 'terminal';
-      readonly claim: ClaimAuthority;
-      readonly outcome: AttemptOutcome;
-      readonly receipt: CommandReceipt;
-      readonly quiescence: Quiescence;
-    };
-export type ExecutionFact =
-  | { readonly kind: 'claim_acquired'; readonly claim: ClaimAuthority }
-  | { readonly kind: 'launch_recorded'; readonly claim: ClaimAuthority; readonly locator: Locator }
-  | { readonly kind: 'recovery_required'; readonly reason: string }
-  | { readonly kind: 'unresolved'; readonly reason: string; readonly evidence: ArtifactRef }
-  | { readonly kind: 'interrupted'; readonly quiescence: Quiescence }
-  | {
-      readonly kind: 'waiting';
-      readonly claim: ClaimAuthority;
-      readonly wait: HumanWait;
-      readonly quiescence: Quiescence;
-    };
-export interface ExecutionCommand {
-  readonly commandId: ExecutionCommandId;
-  readonly fact: ExecutionFact;
-}
 export interface Completion {
+  readonly version: 2;
   readonly outcome: AttemptOutcome;
   readonly intent: ProgressIntent;
   readonly quiescence: Quiescence;
 }
-export interface Attempt {
-  readonly version: 1;
-  readonly attemptId: AttemptId;
-  readonly identity: ActivityIdentity;
-  readonly ordinal: Ordinal;
-  readonly revision: Revision;
-  readonly admittedEpoch: Epoch;
-  readonly state: AttemptState;
-  readonly holdsCapacity: boolean;
-}
+
 export interface Admission {
   readonly attemptId: AttemptId;
   readonly identity: ActivityIdentity;
@@ -209,7 +147,7 @@ export interface Admission {
 }
 /** Consistent run state and store-wide local capacity, independent of ownership. */
 export interface RunSnapshot {
-  readonly version: 1;
+  readonly version: 2;
   readonly run: Run;
   readonly attempts: readonly Attempt[];
   readonly pendingIntents: readonly ProgressIntent[];

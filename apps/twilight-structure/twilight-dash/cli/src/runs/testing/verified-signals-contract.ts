@@ -80,14 +80,14 @@ export function verifiedSignalsContract(name: string, create: () => Promise<Outc
             ]);
           } else {
             const guard = { ...(await setup.currentGuard()), ownership: { ...setup.ownership } };
-            const receipt = { ...setup.receipt, authority: { ...setup.receipt.authority } };
+            const receipt = { ...setup.receipt, claim: { ...setup.receipt.claim } };
             const pending = reconcileReceipt(stores.runs, artifacts, guard, receipt);
             await entered.promise;
             guard.runId = runId('mutated');
             guard.ownership.ownerId = ownerId('mutated');
             guard.expectedRevision = 999;
             receipt.acceptedWbsRevision = 'mutated';
-            receipt.authority.runId = runId('mutated');
+            receipt.claim.runId = runId('mutated');
             receipt.evidence = { ...receipt.evidence, digest: artifactDigest('b'.repeat(64)) };
             proceed.resolve(undefined);
             const reply = await pending;

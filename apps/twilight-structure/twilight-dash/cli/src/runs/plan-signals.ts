@@ -1,3 +1,5 @@
+import type { RecordedConsumption } from './execution-records';
+export type { RecordedConsumption } from './execution-records';
 import {
   advanceAttempt,
   type AttemptChange,
@@ -5,18 +7,13 @@ import {
   checkAttempt,
 } from './plan-execution';
 import { addInteger, equalRecords } from './record-codecs';
-import type { Attempt, Decision, DecisionId, HumanWait } from './records';
+import type { Attempt, Decision, HumanWait } from './records';
 import type { AttemptGuard, StoreReply } from './run-store';
 
 export interface ConsumptionChange extends AttemptChange {
   readonly wait: HumanWait;
 }
 
-export interface RecordedConsumption {
-  readonly decisionId: DecisionId;
-  readonly wait: HumanWait;
-  readonly reply: Attempt;
-}
 /** Global inbox identity is compared before requiring a still-current wait. Authorization evidence is retained bytes, not an authentication verdict. */
 export function replayDecision(
   previous: Decision | undefined,
@@ -77,7 +74,15 @@ export function planConsumption(
   return {
     kind: 'applied',
     value: {
-      attempt: advanceAttempt(facts.attempt, { kind: 'queued', claim: state.claim }, true),
+      attempt: advanceAttempt(
+        facts.attempt,
+        {
+          kind: 'ready',
+          execution: state.checkpoint.execution,
+          cause: { kind: 'decision', decisionId: decision.decisionId },
+        },
+        true,
+      ),
       runRevision: addInteger(facts.run.revision, 1),
       wait: state.wait,
     },

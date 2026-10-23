@@ -3,22 +3,10 @@ import { describe, expect, test } from 'bun:test';
 
 import { CommandReceiptCodec, decodeAdmission, runId } from '../record-codecs';
 import type { CommandReceipt } from '../records';
-import {
-  createCompletion,
-  createExecutionCommand,
-  type OutcomeFixture,
-  prepareAttempt,
-  unwrapReply,
-} from './fixtures';
+import { createCompletion, type OutcomeFixture, prepareTurn, unwrapReply } from './fixtures';
 
 export async function prepareReceipt(stores: OutcomeFixture) {
-  const setup = await prepareAttempt(stores);
-  unwrapReply(
-    await stores.runs.recordExecution(
-      setup.guard,
-      createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-    ),
-  );
+  const setup = await prepareTurn(stores);
   const initial = createCompletion(setup.claim, setup.quiescence);
   const outcome = { ...initial.outcome, kind: 'failed' as const };
   const completion = createCompletion(setup.claim, setup.quiescence, {
@@ -28,10 +16,10 @@ export async function prepareReceipt(stores: OutcomeFixture) {
   });
   unwrapReply(await stores.runs.commitOutcome(await setup.currentGuard(), completion));
   const receipt: CommandReceipt = parseOrThrow(CommandReceiptCodec, {
-    version: 1,
+    version: 2,
     commandId: completion.intent.commandId,
     commandDigest: completion.intent.commandDigest,
-    authority: setup.claim,
+    claim: setup.claim,
     acceptedWbsRevision: 'wbs-2',
     evidence: setup.quiescence.evidence,
   });
@@ -63,19 +51,13 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
               commandDigest: 'a'.repeat(64),
             }).commandDigest,
           },
-          ...[
-            'claimId',
-            'personId',
-            'agentRunId',
-            'runId',
-            'attemptId',
-            'projectId',
-            'workItemId',
-            'occurrenceId',
-          ].map((field) =>
+          ...['commandId', 'requestDigest', 'runId', 'attemptId'].map((field) =>
             parseOrThrow(CommandReceiptCodec, {
               ...receipt,
-              authority: { ...receipt.authority, [field]: 'wrong' },
+              claim: {
+                ...receipt.claim,
+                [field]: field === 'requestDigest' ? 'a'.repeat(64) : 'wrong',
+              },
             }),
           ),
         ])
@@ -90,7 +72,7 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         });
         const terminal = unwrapReply(await runs.reconcileReceipt(guard, receipt));
         expect(terminal).toMatchObject({
-          revision: 3,
+          revision: 7,
           state: { kind: 'terminal', receipt, outcome: { kind: 'failed' } },
           holdsCapacity: false,
         });
@@ -113,7 +95,7 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         stores.close();
       }
     });
-    test('failed accepted predecessors admit bounded retries while historical receipts retain original replies', async () => {
+    test('claimed failed predecessors refuse retry while historical receipts retain original replies', async () => {
       const stores = await create();
       try {
         const setup = await prepareReceipt(stores);
@@ -121,13 +103,17 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         const guard = await setup.currentGuard();
         const terminal = unwrapReply(await runs.reconcileReceipt(guard, receipt));
         const next = decodeAdmission({ ...setup.admission, attemptId: 'next-attempt', ordinal: 2 });
-        unwrapReply(
+        const before = await runs.readRun(setup.run.runId);
+        expect(
           await runs.admitAttempt(
-            { ownership: guard.ownership, runId: guard.runId, expectedRevision: 4 },
+            {
+              ownership: guard.ownership,
+              runId: guard.runId,
+              expectedRevision: before.run.revision,
+            },
             next,
           ),
-        );
-        const before = await runs.readRun(setup.run.runId);
+        ).toEqual({ kind: 'refused', reason: 'attempt_active' });
         expect(await runs.reconcileReceipt(guard, receipt)).toEqual({
           kind: 'duplicate',
           value: terminal,
@@ -135,69 +121,14 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         expect(
           await runs.reconcileReceipt({ ...guard, attemptId: next.attemptId }, receipt),
         ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
-        expect(await runs.readRun(setup.run.runId)).toEqual(before);
-        const claim = {
-          ...setup.claim,
-          attemptId: next.attemptId,
-          personId: parseOrThrow(CommandReceiptCodec, {
-            ...receipt,
-            authority: { ...receipt.authority, personId: 'next-person' },
-          }).authority.personId,
-        };
-        unwrapReply(
-          await runs.recordExecution(
-            {
-              ...guard,
-              expectedRevision: 5,
-              attemptId: next.attemptId,
-              expectedAttemptRevision: 0,
-            },
-            createExecutionCommand({ kind: 'claim_acquired', claim }),
-          ),
-        );
-        const initial = createCompletion(claim, setup.quiescence);
-        const completion = createCompletion(claim, setup.quiescence, {
-          intent: {
-            ...initial.intent,
-            commandId: parseOrThrow(CommandReceiptCodec, {
-              ...receipt,
-              commandId: 'second-command',
-            }).commandId,
-          },
-        });
-        unwrapReply(
-          await runs.commitOutcome(
-            {
-              ...guard,
-              expectedRevision: 6,
-              attemptId: next.attemptId,
-              expectedAttemptRevision: 1,
-            },
-            completion,
-          ),
-        );
-        const nextReceipt = {
-          ...receipt,
-          commandId: completion.intent.commandId,
-          commandDigest: completion.intent.commandDigest,
-          authority: claim,
-        };
-        unwrapReply(
-          await runs.reconcileReceipt(
-            {
-              ...guard,
-              expectedRevision: 7,
-              attemptId: next.attemptId,
-              expectedAttemptRevision: 2,
-            },
-            nextReceipt,
-          ),
-        );
-        expect((await runs.readRun(setup.run.runId)).receipts).toHaveLength(2);
-        expect(await runs.reconcileReceipt(guard, receipt)).toEqual({
+        expect(await runs.commitOutcome(guard, setup.completion)).toEqual({
           kind: 'duplicate',
           value: terminal,
         });
+        const history = await runs.readExecutionHistory(setup.run.runId, setup.admission.attemptId);
+        expect(history.completion?.reply.state.kind).toBe('outcome_pending_progress');
+        expect(history.receipt?.reply).toEqual(terminal);
+        expect(await runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
         stores.close();
       }

@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
-import { decodeExecutionFact, operationKey, organizationId } from '../record-codecs';
+import { decodeExecutionFact, organizationId } from '../record-codecs';
 import { recordExecution } from '../record-execution';
 import { recordOutcome } from '../record-outcome';
 import { retainManifest } from '../retain-manifest';
@@ -15,7 +15,7 @@ import { executionContract } from '../testing/execution-contract';
 import { executionEdgeContract } from '../testing/execution-edge-contract';
 import { createExecutionCommand } from '../testing/fixtures';
 import { FixtureClock } from '../testing/fixtures';
-import { createCompletion, createManifest, prepareAttempt, unwrapReply } from '../testing/fixtures';
+import { createCompletion, createManifest, prepareTurn, unwrapReply } from '../testing/fixtures';
 import { outcomeCollisionContract } from '../testing/outcome-collision-contract';
 import { outcomeContract } from '../testing/outcomes-contract';
 import { verifiedOperationsContract } from '../testing/verified-operations-contract';
@@ -59,30 +59,16 @@ async function durableFixture() {
     maxBusyAttempts: 2,
     busyDelayMilliseconds: 1,
   };
-  const stores = await bootstrapSqliteStores(options);
-  const setup = await prepareAttempt({ ...stores, clock });
-  unwrapReply(
-    await stores.runs.recordExecution(
-      setup.guard,
-      createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }, 'claim-command'),
-    ),
-  );
-  unwrapReply(
-    await stores.runs.recordExecution(
-      await setup.currentGuard(),
-      createExecutionCommand({
-        kind: 'launch_recorded',
-        claim: setup.claim,
-        locator: {
-          version: 1,
-          workerId: 'worker',
-          sessionId: 'session',
-          operationKey: operationKey('operation'),
-        },
-      }),
-    ),
-  );
-  return { ...setup, options, directory, stores };
+  let stores: Awaited<ReturnType<typeof bootstrapSqliteStores>> | undefined;
+  try {
+    stores = await bootstrapSqliteStores(options);
+    const setup = await prepareTurn({ ...stores, clock });
+    return { ...setup, options, directory, stores };
+  } catch (cause) {
+    if (stores !== undefined) stores.close();
+    rmSync(directory, { recursive: true });
+    throw cause;
+  }
 }
 
 test('outbox abort rolls back outcome revisions and capacity before reopen then commits both together', async () => {
@@ -122,12 +108,9 @@ test('outbox abort rolls back outcome revisions and capacity before reopen then 
     stores = await openSqliteStores(setup.options);
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(after);
     expect(await stores.runs.commitOutcome(guard, completion)).toMatchObject({ kind: 'duplicate' });
-    expect(
-      await stores.runs.recordExecution(
-        guard,
-        createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }, 'claim-command'),
-      ),
-    ).toMatchObject({ kind: 'duplicate' });
+    expect(await stores.runs.recordExecution(guard, setup.opened)).toMatchObject({
+      kind: 'duplicate',
+    });
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(after);
   } finally {
     database.close();
@@ -196,7 +179,6 @@ for (const operation of [
               ? decodeExecutionFact({ kind: 'unresolved', reason: 'ambiguous', evidence: bad })
               : decodeExecutionFact({
                   kind: 'waiting',
-                  claim: setup.claim,
                   wait: {
                     version: 1,
                     correlationKey: 'question',
@@ -227,6 +209,11 @@ import { recordOutcome } from ${JSON.stringify(new URL('../record-outcome.ts', i
 const packet=JSON.parse(process.env.RUN_OUTCOME_CHILD);
 const stores=await openSqliteStores({...packet.options,clock:{read:()=>1000}});
 writeSync(1,JSON.stringify({phase:'ready'})+'\\n');
+let startTimer;
+try {
+ const signal=await Promise.race([Bun.stdin.text(),new Promise((_,reject)=>{startTimer=setTimeout(()=>reject(new Error('outcome start gate timed out')),10000);})]);
+ assert.equal(signal,'start-outcome\\n','exact outcome start signal');
+} finally { if(startTimer!==undefined) clearTimeout(startTimer); }
 if(packet.mode==='before') {
  const original=Database.prototype.run;
  Database.prototype.run=function(sql,...parameters) {
@@ -238,7 +225,7 @@ if(packet.mode==='before') {
    const completion=this.query('SELECT * FROM run_completion WHERE command_id=?').get(packet.completion.intent.commandId);
    assert.equal(JSON.parse(attempt.record).state.kind,'outcome_pending_progress');
    assert.equal(reservation,null,'settled capacity released before COMMIT');
-   assert.equal(JSON.parse(run.record).revision,4,'revision staged before COMMIT');
+   assert.equal(JSON.parse(run.record).revision,7,'revision staged before COMMIT');
    assert.ok(completion,'immutable completion staged before COMMIT');
    writeSync(1,JSON.stringify({phase:'before-commit'})+'\\n');
    const deadline=Date.now()+10000;
@@ -255,9 +242,18 @@ const deadline=Date.now()+10000;while(Date.now()<deadline) await Bun.sleep(5);th
 function spawnOutcomeChild(packet: unknown) {
   const child = Bun.spawn([process.execPath, '-e', childSource], {
     env: { ...process.env, RUN_OUTCOME_CHILD: JSON.stringify(packet) },
+    stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
   });
+  console.log(
+    JSON.stringify({
+      event: 'outcome-child-started',
+      pid: child.pid,
+      argv: [process.execPath, '-e', childSource],
+      packet,
+    }),
+  );
   const stderr = new Response(child.stderr).text();
   const reader = child.stdout.getReader();
   let pending = '';
@@ -293,23 +289,60 @@ function spawnOutcomeChild(packet: unknown) {
     child,
     phase,
     stderr,
+    async start() {
+      await child.stdin.write('start-outcome\n');
+      await child.stdin.flush();
+      await child.stdin.end();
+    },
     async close() {
       if (child.exitCode === null) child.kill('SIGKILL');
-      await child.exited;
+      const exitCode = await child.exited;
+      console.log(
+        JSON.stringify({
+          event: 'outcome-child-closed',
+          pid: child.pid,
+          exitCode,
+          signal: child.signalCode,
+        }),
+      );
       reader.releaseLock();
     },
   };
 }
-for (const mode of ['before', 'after'] as const)
-  test(`SIGKILL ${mode} outcome commit preserves atomic pending progress on reopen`, async () => {
-    const setup = await durableFixture();
+async function prepareOutcomeProcess(mode: 'before' | 'after') {
+  const setup = await durableFixture();
+  let child: ReturnType<typeof spawnOutcomeChild> | undefined;
+  try {
     const guard = await setup.currentGuard();
     const completion = createCompletion(setup.claim, setup.quiescence);
     const before = await setup.stores.runs.readRun(setup.run.runId);
     setup.stores.close();
-    const child = spawnOutcomeChild({ mode, options: setup.options, guard, completion });
-    try {
-      expect(await child.phase()).toEqual({ phase: 'ready' });
+    child = spawnOutcomeChild({ mode, options: setup.options, guard, completion });
+    // Proof: F13 changed the real child phase to wrong-ready; this bounded hook failed, killed/awaited its exact child and removed its owned fixture. Restored before-COMMIT case passed.
+    expect(await child.phase()).toEqual({ phase: 'ready' });
+    return { setup, guard, completion, before, child };
+  } catch (cause) {
+    if (child !== undefined) await child.close();
+    setup.stores.close();
+    rmSync(setup.directory, { recursive: true });
+    throw cause;
+  }
+}
+for (const mode of ['before', 'after'] as const)
+  describe('outcome process ' + mode, () => {
+    let prepared: Awaited<ReturnType<typeof prepareOutcomeProcess>> | undefined;
+    beforeAll(async () => {
+      prepared = await prepareOutcomeProcess(mode);
+    }, 15000);
+    afterAll(async () => {
+      if (prepared === undefined) return;
+      await prepared.child.close();
+      rmSync(prepared.setup.directory, { recursive: true });
+    });
+    test(`SIGKILL ${mode} outcome commit preserves atomic pending progress on reopen`, async () => {
+      if (prepared === undefined) throw new Error('outcome process setup did not finish');
+      const { setup, completion, before, child } = prepared;
+      await child.start();
       const phase = await child.phase();
       expect(phase.phase).toBe(mode === 'before' ? 'before-commit' : 'committed');
       if (mode === 'after') expect(phase.reply?.kind).toBe('applied');
@@ -322,7 +355,7 @@ for (const mode of ['before', 'after'] as const)
         const snapshot = await reopened.runs.readRun(setup.run.runId);
         if (mode === 'before') expect(snapshot).toEqual(before);
         else {
-          expect(snapshot.run.revision).toBe(4);
+          expect(snapshot.run.revision).toBe(7);
           expect(snapshot.attempts[0]?.state).toMatchObject({
             kind: 'outcome_pending_progress',
             outcome: completion.outcome,
@@ -348,10 +381,7 @@ for (const mode of ['before', 'after'] as const)
       } finally {
         reopened.close();
       }
-    } finally {
-      await child.close();
-      rmSync(setup.directory, { recursive: true });
-    }
+    });
   });
 
 executionEdgeContract('sqlite execution edges', create);
@@ -389,7 +419,7 @@ for (const fault of [
         database.run("UPDATE run_completion SET attempt_id='other'");
       else
         database.run(
-          "UPDATE run_completion SET record=json_set(record,'$.intent.authority.attemptId','other')",
+          "UPDATE run_completion SET record=json_set(record,'$.completion.intent.claim.attemptId','other')",
         );
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
@@ -398,30 +428,29 @@ for (const fault of [
     }
   });
 
-for (const kind of ['queued', 'running', 'reconciling', 'unresolved'] as const)
+for (const kind of ['queued', 'turn_pending', 'reconciling', 'unresolved'] as const)
   test(`open rejects ${kind} recorded without held capacity even when reservation agrees`, async () => {
     const setup = await durableFixture();
     setup.stores.close();
     const database = new Database(setup.options.path);
     try {
-      const locator = {
-        version: 1,
-        workerId: 'worker',
-        sessionId: 'session',
-        operationKey: 'operation',
-      };
+      const checkpoint = setup.checkpoint;
       const state =
         kind === 'queued'
-          ? { kind, claim: setup.claim }
-          : kind === 'running'
-            ? { kind, claim: setup.claim, locator }
-            : {
-                kind,
-                claim: setup.claim,
-                locator,
-                reason: 'lost',
-                ...(kind === 'unresolved' ? { evidence: setup.quiescence.evidence } : {}),
-              };
+          ? { kind }
+          : kind === 'turn_pending'
+            ? checkpoint
+            : kind === 'reconciling'
+              ? { kind, checkpoint, reason: 'lost' }
+              : {
+                  kind,
+                  checkpoint,
+                  observation: {
+                    kind: 'artifact',
+                    reason: 'lost',
+                    evidence: setup.quiescence.evidence,
+                  },
+                };
       database
         .query(
           "UPDATE run_attempt SET record=json_set(record,'$.state',json(?),'$.holdsCapacity',json('false'))",
@@ -455,7 +484,6 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
               ? { kind, quiescence: setup.quiescence }
               : decodeExecutionFact({
                   kind,
-                  claim: setup.claim,
                   wait: {
                     version: 1,
                     correlationKey: 'question',
@@ -475,7 +503,7 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
       );
       if (kind === 'outcome')
         database.run(
-          "UPDATE run_completion SET record=json_set(record,'$.quiescence.effect','unknown')",
+          "UPDATE run_completion SET record=json_set(record,'$.completion.quiescence.effect','unknown')",
         );
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
@@ -493,11 +521,17 @@ for (const fault of ['command key', 'attempt key', 'run key'] as const)
     const database = new Database(setup.options.path);
     try {
       if (fault === 'command key')
-        database.run("UPDATE run_execution SET record=json_set(record,'$.commandId','other')");
+        database.run(
+          "UPDATE run_execution SET record=json_set(record,'$.command.commandId','other')",
+        );
       else if (fault === 'attempt key')
-        database.run("UPDATE run_execution SET reply=json_set(reply,'$.attemptId','other')");
+        database.run(
+          "UPDATE run_execution SET reply=json_set(reply,'$.attempt.attemptId','other')",
+        );
       else
-        database.run("UPDATE run_execution SET reply=json_set(reply,'$.identity.runId','other')");
+        database.run(
+          "UPDATE run_execution SET reply=json_set(reply,'$.attempt.identity.runId','other')",
+        );
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
       database.close();

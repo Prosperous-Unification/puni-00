@@ -151,10 +151,12 @@ export function planAdmission(
     // Proof: bypassing retry predecessor enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
     // Proof: bypassing retry settled effect enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
     if (
-      (state.kind !== 'interrupted' &&
-        !(state.kind === 'terminal' && state.outcome.kind === 'failed')) ||
+      state.kind !== 'interrupted' ||
       predecessor.holdsCapacity ||
-      (state.quiescence.effect !== 'absent' && state.quiescence.effect !== 'failed')
+      state.quiescence.effect !== 'absent' ||
+      (state.checkpoint.kind !== 'queued' &&
+        state.checkpoint.kind !== 'preparing' &&
+        state.checkpoint.kind !== 'prepared')
     )
       return { kind: 'refused', reason: 'attempt_active' };
   }
@@ -165,13 +167,13 @@ export function planAdmission(
     kind: 'applied',
     value: {
       attempt: {
-        version: 1,
+        version: 2,
         attemptId: admission.attemptId,
         identity: admission.identity,
         ordinal: admission.ordinal,
         revision: 0,
         admittedEpoch: facts.ownership.epoch,
-        state: { kind: 'queued', claim: null },
+        state: { kind: 'queued' },
         holdsCapacity: true,
       },
       runRevision: addInteger(facts.run.revision, 1),

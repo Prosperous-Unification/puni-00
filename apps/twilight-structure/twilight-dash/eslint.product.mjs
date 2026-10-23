@@ -161,13 +161,40 @@ export default ({
         // Proof: F44 widened the allowed source paths to peers; 'Dash runtime history' failed and exact restoration passed.
         'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts',
-        'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-history.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
       ],
       // Proof: F35 removed exact public WBS admission; 'Dash runtime history' failed and exact restoration passed.
       // Proof: F36 widened the WBS alias exception; 'Dash runtime history' failed and exact restoration passed.
       // Proof: F43 allowed a relative WBS shortcut; 'Dash runtime history' failed and exact restoration passed.
       rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      files: [
+        // Proof: F178 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/claim-records.ts',
+        // Proof: F179 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/execution-contract.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: F186 widened the alias and failed both shape and independent judge denial; F187 widened the file list and failed the actual plan-claims peer denial. Both valid literal mutants restored to eleven passing cases.
+      // Proof: F180/F185 separately removed these exact consumers; shape and independent effective admissions failed with fatalErrorCount zero; restored group passed.
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/claim-history.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/execution-history.test.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
+    {
+      files: [
+        // Proof: F181 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts',
+        // Proof: F182 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
   ];
 };

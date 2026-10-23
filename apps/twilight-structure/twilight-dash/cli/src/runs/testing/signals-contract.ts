@@ -14,22 +14,16 @@ import {
   createManifest,
   createRun,
   type OutcomeFixture,
-  prepareAttempt,
+  prepareTurn,
+  stageFixtureTurn,
   unwrapReply,
 } from './fixtures';
 
 export async function prepareWait(stores: OutcomeFixture) {
-  const setup = await prepareAttempt(stores);
-  unwrapReply(
-    await stores.runs.recordExecution(
-      setup.guard,
-      createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-    ),
-  );
+  const setup = await prepareTurn(stores);
   const command = createExecutionCommand(
     decodeExecutionFact({
       kind: 'waiting',
-      claim: setup.claim,
       wait: {
         version: 1,
         correlationKey: 'wait-1',
@@ -123,9 +117,13 @@ export function signalsContract(name: string, create: () => Promise<OutcomeFixtu
         expect(resumed).toMatchObject({
           attemptId: setup.admission.attemptId,
           ordinal: 1,
-          state: { kind: 'queued', claim: setup.claim },
+          state: {
+            kind: 'ready',
+            execution: setup.execution,
+            cause: { kind: 'decision', decisionId: decision.decisionId },
+          },
           holdsCapacity: true,
-          revision: 3,
+          revision: 7,
         });
         const after = await runs.readRun(setup.run.runId);
         expect(after.consumedDecisionIds).toEqual([decision.decisionId]);
@@ -155,6 +153,11 @@ export function signalsContract(name: string, create: () => Promise<OutcomeFixtu
         unwrapReply(await runs.receiveDecision(setup.ownership, decision));
         const guard = await setup.currentGuard();
         const original = unwrapReply(await runs.consumeDecision(guard, decision.decisionId));
+        await stageFixtureTurn(
+          setup,
+          { kind: 'decision', decisionId: decision.decisionId },
+          'continuation',
+        );
         expect(
           await runs.recordExecution(
             await setup.currentGuard(),

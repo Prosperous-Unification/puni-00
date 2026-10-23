@@ -2284,3 +2284,87 @@ OpenSpec validation (1pass/0fail, same11inheritedwarnings), exact four-file form
 and diff checks. Task2 public APIs and format3 SQL shape are unchanged by the correction;
 provider-owned record context, historical prefix and causal bounds supply the missing
 independent reconstruction input. No Task2 implementation or R5 proof is claimed yet.
+
+### Durable execution history Task2 implementation candidate
+
+Task2 implements Attempt2, exact preparation/claim/turn checkpoints and recovery,
+independent historical scope context, original command/completion acknowledgements,
+verified retained-evidence helpers, coupled memory/SQLite updates and format3. No
+executor dispatch, remote WBS send, exact write/release or production host order is
+implemented by this candidate. All nine local Task2 boxes and parent/full gates stay open
+pending independent task and whole-phase reviews.
+
+The current complete source invocation573 passed986tests,0failures,0standaloneerrors
+and2828Bunexpects across26files in124.69s. It used these explicit arguments from
+`apps/twilight-structure/twilight-dash/cli/src/runs` without a timeout override:
+
+```sh
+bun test ./admission.test.ts ./artifact-store.test.ts ./claim-history.test.ts ./execution-history.test.ts ./manifest-binding.test.ts ./open-stores.test.ts ./outcomes.test.ts ./receipts.test.ts ./record-preparation.test.ts ./run-store.test.ts ./runtime-history.test.ts ./signals.test.ts ./sqlite/admission-races.db.test.ts ./sqlite/artifact-store.db.test.ts ./sqlite/capacity-integrity.db.test.ts ./sqlite/execution-history.db.test.ts ./sqlite/execution-integrity.db.test.ts ./sqlite/manifest-binding.db.test.ts ./sqlite/open-stores.db.test.ts ./sqlite/outcomes.db.test.ts ./sqlite/run-store.db.test.ts ./sqlite/runtime-history.db.test.ts ./sqlite/runtime-races.db.test.ts ./sqlite/signal-integrity.db.test.ts ./sqlite/signals-receipts.db.test.ts ./sqlite/snapshot.db.test.ts
+```
+
+Final60-file format check567, uncached Dash lint568 and typecheck569 passed.
+Unchanged tool-devsync lint520 passed with three inherited unused-disable warnings;
+typecheck523 and the final changed policy-file lint524 passed. Effective boundaries525
+passed42tests/525expects, module labels526 passed6/9 and product constraints527
+passed3/9. Actual migration-lint528 passed both0003 forward/down paths. Those unchanged
+owners were not rerun after test-harness/comment-only repairs. Color-environment notices
+remain. Root documentation formatting, scoped OpenSpec validation and diff checks follow
+this evidence reconciliation; host/build/browser/backend/applicable-CI acceptance is pending.
+
+Original full invocation533 remains FAILED980pass/6fail/2cleanup errors/2798expects.
+Two exact legacy rollback/capacity expectations were corrected and passed538. Three
+admission cases and the snapshot case had5000ms process-test timeouts; the observed
+contention and before-COMMIT stacks were at readiness, while the after-COMMIT reached
+phase remains unverified. Fresh import-only children537 measured5011.876ms and5098.643ms;
+this is current process cost, not retrospective timeout causation or cold-disk timing.
+
+Under rulings157/167, per-case startup is separated and measured: admission15000ms,
+snapshot10000ms, with original5000ms bodies and10000ms barriers/operation waits retained.
+The snapshot fixture now interposes between actual catalog run-row and attempt-row reads,
+using the same real admission writer and an atomically published reply after store close.
+No original combined5000ms-path pass is inferred. Four repaired cases passed552/554;
+corrected readiness cases passed560/562. The current full573 proves their coexistence
+with all other source RunStore cases. Actual COMMIT/SIGKILL/reopen does not prove power loss.
+
+The221 retained trial IDs comprise160 non-diagnostic production samples,18 bounded
+diagnostics, one refusal-priority contract(F65), one indexed corruption-exception
+contract(F205), one consistent-read availability sample(F218), eight helper-only samples
+and32UNPROVED originals. Counts are trials, not unique guards, every compound member or
+all provider paths. F218 observes an actual applied writer packet before a valid concurrent
+read loses success; it proves neither a returned mixed snapshot nor unsafe application.
+F219 observes ENOENT after deterministic removal at the mandatory read, not a never-published
+wait timeout. F213/F214 remain unproved exact hook-name mismatches; fresh220/221 declared
+normal case and beforeAll hook identities separately. Setup, selector, initializer, masked
+and nonliteral-replacement failures remain preserved. Supported rollback's queued-attempt
+sample does not certify each masked SQL clause independently.
+
+After explicit worker release, root verified all11813source/mode identities, complete
+HEAD/branch/status/staged tree and raw index, all349early evidence identities, exact raw
+output/driver/script prehashes, all26 current test hashes and the986 actual pass names.
+The pre-documentation source capture is SHA256
+`230902fb43ba38284ca9d2d316331c4b74f5e2e0fb8d22b0b215b486bfb629ae`.
+Only46authorized tracked paths and16new source files differ from planning BASE1c6960c68;
+old0001/0002 SQL bytes/modes and other projects are unchanged. Five repaired admission/snapshot
+children have independently reconstructed complete streams/EOF, producer argv/source,
+exit/signal and owned cleanup evidence. Other process evidence retains its original limits.
+Original212 registry entries remain unchanged in the221-entry inventory.
+
+Initial38log pairs lack original output hashes and12early drivers are absent; F01–12
+lack separate actual mutant-mode/restored-body artifacts. Original missing-PID/stdout-prefix
+limits and all failed commands remain explicit, with no retroactive sealing or green verdict.
+The four unchanged agent suites and broad local package/backend/browser/build checks were
+not run for this task under its scoped brief. WBS authentication/connector access remains
+unavailable, so no remote project status update is claimed.
+
+Source implementation and local verification are candidate evidence only. Root normal
+commit, both independent task verdicts, whole-phase review, printed-SHA canonical host gate,
+applicable CI, integration and operational acceptance remain pending. No checkbox closure,
+main merge, live spend or deployment is implied.
+
+### Task2 candidate documentation reconciliation
+
+Root applied the bounded caller, completion, recovery and provenance decisions after
+worker release, preserving all open Task2 boxes. The first documentation validation
+passed with13 requirement-length warnings; earlier records saying11 retain their
+historical scope. Final document checks are captured separately from source tests.
+No new source test invocation or acceptance is inferred from documentation checks.

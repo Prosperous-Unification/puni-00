@@ -1,22 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 
-import { attemptId, decodeClaimAuthority, runId } from '../record-codecs';
+import { attemptId, runId } from '../record-codecs';
 import { recordOutcome } from '../record-outcome';
-import { createExecutionCommand } from './fixtures';
-import { createCompletion, type OutcomeFixture, prepareAttempt, unwrapReply } from './fixtures';
+import { createCompletion, type OutcomeFixture, prepareTurn, unwrapReply } from './fixtures';
 
 export function outcomeCollisionContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name, () => {
     test('completion command collisions across attempts refuse without releasing the other reservation', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
-        unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-          ),
-        );
+        const setup = await prepareTurn(stores);
         unwrapReply(
           await recordOutcome(
             stores.runs,
@@ -25,7 +18,10 @@ export function outcomeCollisionContract(name: string, create: () => Promise<Out
             createCompletion(setup.claim, setup.quiescence),
           ),
         );
-        const second = (await import('./fixtures')).createRun({ runId: runId('second') });
+        const second = (await import('./fixtures')).createRun({
+          runId: runId('second'),
+          manifestDigest: setup.run.manifestDigest,
+        });
         unwrapReply(await stores.runs.createRun(setup.ownership, second));
         const admission = {
           ...setup.admission,
@@ -38,11 +34,11 @@ export function outcomeCollisionContract(name: string, create: () => Promise<Out
             admission,
           ),
         );
-        const claim = decodeClaimAuthority({
+        const claim = {
           ...setup.claim,
           runId: second.runId,
           attemptId: admission.attemptId,
-        });
+        };
         const guard = {
           ownership: setup.ownership,
           runId: second.runId,
@@ -50,18 +46,13 @@ export function outcomeCollisionContract(name: string, create: () => Promise<Out
           attemptId: admission.attemptId,
           expectedAttemptRevision: 0,
         };
-        unwrapReply(
-          await stores.runs.recordExecution(
-            guard,
-            createExecutionCommand({ kind: 'claim_acquired', claim }),
-          ),
-        );
         const before = await stores.runs.readRun(second.runId);
+        expect(before.capacity.reserved).toBe(1);
         expect(
           await recordOutcome(
             stores.runs,
             stores.artifacts,
-            { ...guard, expectedRevision: 2, expectedAttemptRevision: 1 },
+            guard,
             createCompletion(setup.claim, setup.quiescence),
           ),
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
@@ -69,7 +60,7 @@ export function outcomeCollisionContract(name: string, create: () => Promise<Out
           await recordOutcome(
             stores.runs,
             stores.artifacts,
-            { ...guard, expectedRevision: 2, expectedAttemptRevision: 1 },
+            guard,
             createCompletion(claim, setup.quiescence),
           ),
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });

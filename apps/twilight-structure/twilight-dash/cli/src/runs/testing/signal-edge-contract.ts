@@ -9,10 +9,15 @@ import {
   DecisionCodec,
   decisionId,
   decodeAdmission,
-  decodeClaimAuthority,
   runId,
 } from '../record-codecs';
-import { createCompletion, createRun, type OutcomeFixture, unwrapReply } from './fixtures';
+import {
+  createCompletion,
+  createRun,
+  type OutcomeFixture,
+  stageFixtureTurn,
+  unwrapReply,
+} from './fixtures';
 import { prepareReceipt } from './receipts-contract';
 import { prepareWait } from './signals-contract';
 
@@ -108,7 +113,10 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
       try {
         const setup = await prepareWait(stores);
         unwrapReply(await stores.runs.receiveDecision(setup.ownership, setup.decision));
-        const second = createRun({ runId: runId('second') });
+        const second = createRun({
+          runId: runId('second'),
+          manifestDigest: setup.run.manifestDigest,
+        });
         unwrapReply(await stores.runs.createRun(setup.ownership, second));
         const guard = await setup.currentGuard();
         const before = await stores.runs.readRun(setup.run.runId);
@@ -129,10 +137,10 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         const setup = await prepareWait(stores);
         const completion = createCompletion(setup.claim, setup.quiescence);
         const receipt = parseOrThrow(CommandReceiptCodec, {
-          version: 1,
+          version: 2,
           commandId: completion.intent.commandId,
           commandDigest: completion.intent.commandDigest,
-          authority: setup.claim,
+          claim: setup.claim,
           acceptedWbsRevision: 'wbs-2',
           evidence: setup.quiescence.evidence,
         });
@@ -147,7 +155,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         expect(
           await stores.runs.reconcileReceipt(guard, {
             ...receipt,
-            authority: decodeClaimAuthority({ ...setup.claim, attemptId: 'other' }),
+            claim: { ...setup.claim, attemptId: attemptId('other') },
           }),
         ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
         stores.clock.advance(101);
@@ -161,8 +169,8 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
       }
     });
     for (const scenario of [
-      { kind: 'failed', effect: 'absent', reason: null },
-      { kind: 'failed', effect: 'failed', reason: null },
+      { kind: 'failed', effect: 'absent', reason: 'attempt_active' },
+      { kind: 'failed', effect: 'failed', reason: 'attempt_active' },
       { kind: 'failed', effect: 'succeeded', reason: 'attempt_active' },
       { kind: 'cancelled', effect: 'failed', reason: 'attempt_active' },
       { kind: 'succeeded', effect: 'succeeded', reason: 'attempt_active' },
@@ -177,6 +185,11 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
               await setup.currentGuard(),
               setup.decision.decisionId,
             ),
+          );
+          await stageFixtureTurn(
+            setup,
+            { kind: 'decision', decisionId: setup.decision.decisionId },
+            'continuation',
           );
           const initial = createCompletion(setup.claim, setup.quiescence);
           const outcome = { ...initial.outcome, kind: scenario.kind };
@@ -199,10 +212,10 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
             ),
           ).toEqual({ kind: 'refused', reason: 'attempt_active' });
           const receipt = parseOrThrow(CommandReceiptCodec, {
-            version: 1,
+            version: 2,
             commandId: completion.intent.commandId,
             commandDigest: completion.intent.commandDigest,
-            authority: setup.claim,
+            claim: setup.claim,
             acceptedWbsRevision: 'wbs-2',
             evidence: setup.quiescence.evidence,
           });
@@ -216,15 +229,8 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
             },
             admission,
           );
-          if (scenario.reason === null)
-            expect(reply).toMatchObject({
-              kind: 'applied',
-              value: { ordinal: 2, holdsCapacity: true },
-            });
-          else {
-            expect(reply).toEqual({ kind: 'refused', reason: scenario.reason });
-            expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
-          }
+          expect(reply).toEqual({ kind: 'refused', reason: scenario.reason });
+          expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
         } finally {
           stores.close();
         }
@@ -233,7 +239,10 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
       const stores = await create();
       try {
         const setup = await prepareReceipt(stores);
-        const second = createRun({ runId: runId('second') });
+        const second = createRun({
+          runId: runId('second'),
+          manifestDigest: setup.run.manifestDigest,
+        });
         unwrapReply(await stores.runs.createRun(setup.ownership, second));
         const guard = await setup.currentGuard();
         const before = await stores.runs.readRun(setup.run.runId);
@@ -259,7 +268,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
           { ...setup.receipt, evidence: { ...setup.receipt.evidence, mediaType: 'other' } },
           {
             ...setup.receipt,
-            authority: decodeClaimAuthority({ ...setup.claim, personId: 'other' }),
+            claim: { ...setup.claim, commandId: 'other' },
           },
         ])
           expect(await stores.runs.reconcileReceipt(guard, receipt)).toEqual({

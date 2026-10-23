@@ -222,17 +222,14 @@ test('reservation counts above persisted capacity throw during reads and reopen'
     );
     expect((await fixture.stores.runs.readRun(fixture.guard.runId)).capacity.reserved).toBe(2);
     database.run('UPDATE run_meta SET capacity=1');
-    await rejects(
-      fixture.stores.runs.readRun(fixture.guard.runId),
-      /corrupt sqlite capacity reservations/,
-    );
+    await rejects(fixture.stores.runs.readRun(fixture.guard.runId), /corrupt reservation capacity/);
     fixture.stores.close();
     await rejects(
       openSqliteStores({ ...fixture.options, capacity: 1 }),
       (cause: unknown) =>
         cause instanceof Error &&
         cause.cause instanceof Error &&
-        cause.cause.message === 'corrupt sqlite capacity reservations',
+        cause.cause.message === 'corrupt reservation capacity',
     );
   } finally {
     database.close();

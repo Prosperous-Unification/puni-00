@@ -3,11 +3,18 @@ import type { Database } from 'bun:sqlite';
 import type { WallClock } from '../../clock';
 import type { ArtifactStore } from '../artifact-store';
 import {
+  decodeClaimAcceptCommand,
+  decodeClaimStageCommand,
+  decodeScopedAttemptGuard,
+  decodeTurnStageCommand,
+} from '../execution-codecs';
+import {
   permitsMutation,
   planAdmission,
   planManifestRetention,
   planRunCreation,
 } from '../plan-admission';
+import { planClaimAcceptance, planClaimStage, planTurnStage } from '../plan-claims';
 import { type AttemptChange, planExecution, replayExecution } from '../plan-execution';
 import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
@@ -42,15 +49,9 @@ import {
 } from '../runtime-codecs';
 import { createSqliteArtifactStore } from './artifact-store';
 import { findExecution, validateAttempt } from './read-executions';
+import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
-import {
-  decodeConsumptionRow,
-  decodeDecisionRow,
-  decodeReceiptRow,
-  findConsumption,
-  findDecision,
-  findReceipt,
-} from './read-signals';
+import { findConsumption, findDecision, findReceipt } from './read-signals';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
@@ -225,6 +226,7 @@ export function createSqliteRunStore(
         // Proof: F46 bypassed the SQLite pin owner gate; 'current owner fencing precedes corrupt retained' failed and exact restoration passed.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const pin = decodeRuntimePin(snapshot);
         const catalog = readRuntimeCatalog(database, meta.ownership);
         const reply = planRuntimePin(catalog, pin, meta.ownership.organizationId);
@@ -236,11 +238,7 @@ export function createSqliteRunStore(
       const scope = decodeRuntimeScope(input);
       return await transact(false, () => {
         const meta = readMeta(database);
-        return inspectRuntimeScope(
-          readRuntimeCatalog(database, meta.ownership),
-          scope,
-          meta.ownership,
-        );
+        return inspectRuntimeScope(readHistory(database).catalog.runtime, scope, meta.ownership);
       });
     },
     async stageRuntimeRequest(inputGuard, canonicalRequest) {
@@ -251,6 +249,7 @@ export function createSqliteRunStore(
         // Proof: F31 bypassed the SQLite staging owner gate; 'current owner fencing precedes corrupt retained' failed and exact restoration passed.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const guard = decodeRuntimeGuard(snapshot);
         const catalog = readRuntimeCatalog(database, meta.ownership);
         const reply = planRuntimeStage(catalog, guard, canonicalRequest, meta.ownership);
@@ -268,6 +267,7 @@ export function createSqliteRunStore(
         // Proof: F47 bypassed the SQLite acceptance owner gate; 'current owner fencing precedes corrupt retained' failed and exact restoration passed.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const guard = decodeRuntimeGuard(snapshotGuard);
         const accepted = decodeRuntimeAcceptanceInput(snapshotInput);
         const catalog = readRuntimeCatalog(database, meta.ownership);
@@ -280,6 +280,7 @@ export function createSqliteRunStore(
     acquireOwnership(identity, expectedEpoch) {
       return transact(true, () => {
         const meta = readMeta(database);
+        readHistory(database);
         const observedAt = options.clock.read();
         assertClock(observedAt, meta.last_observed_at);
         return publishOwnership(
@@ -302,6 +303,10 @@ export function createSqliteRunStore(
       return await transact(true, () => {
         const requested = decodeOwnership(input);
         const { meta, authority } = readAuthority(requested);
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: F12 removed this audit; the matching 'audits lost execution history after owner fencing' negative resolved despite a missing execution. Exact restoration passed.
+        readHistory(database);
         const reply =
           authority.current === null
             ? ({ kind: 'refused', reason: 'owner_stale' } as const)
@@ -325,6 +330,7 @@ export function createSqliteRunStore(
         // Proof: independently removing this early fence made stale manifest/run requests decode corrupt targets instead of returning owner_stale.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const reply = planManifestRetention(authority, manifest, findManifest(manifest.digest));
         if (reply.kind === 'applied')
           database
@@ -334,7 +340,10 @@ export function createSqliteRunStore(
       });
     },
     readManifest(digest) {
-      return transact(false, () => requireManifest(manifestDigest(digest)));
+      return transact(false, () => {
+        readHistory(database);
+        return requireManifest(manifestDigest(digest));
+      });
     },
     async createRun(inputOwner, inputRun) {
       // Proof: removing this clone failed `submitted run owner snapshots before the first await` at its reply assertion.
@@ -347,6 +356,7 @@ export function createSqliteRunStore(
         // Proof: independently removing this early fence made stale manifest/run requests decode corrupt targets instead of returning owner_stale.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const current = findRun(run.runId);
         const reply = planRunCreation(
           authority,
@@ -370,41 +380,37 @@ export function createSqliteRunStore(
       });
     },
     readRun(identity) {
+      // Proof: F218 replaced only this transaction wrapper with a Promise callback. After the real writer committed, the snapshot case lost its valid read with corrupt run revision provenance; availability proof only, not a returned mixed snapshot.
       return transact(false, () => {
+        const snapshot = readHistory(database);
         const { run } = requireRun(runId(identity));
-        const attempts = database
-          .query('SELECT * FROM run_attempt WHERE run_id=? ORDER BY occurrence_id,ordinal')
-          .all(run.runId)
-          .map((row) => decodeAttemptRow(row).attempt);
-        // Proof: injecting read provenance bypass failed `probe current claim corruption against intact historical execution` at its explicit assertion.
-        const pendingIntents = attempts.flatMap(
-          // Proof: bypassing inspection delivery route failed `public read rejects terminal outbox present and reopen rejects corruption` at its missing-rejection assertion.
-          (attempt) => validateAttempt(database, run, attempt).pendingIntents,
-        );
         return {
-          version: 1,
+          version: 2,
           run,
-          attempts,
-          pendingIntents,
-          receipts: database
-            .query(
-              'SELECT r.* FROM run_receipt r JOIN run_attempt a ON a.attempt_id=r.attempt_id WHERE a.run_id=? ORDER BY r.command_id',
-            )
-            .all(run.runId)
-            .map((row) => decodeReceiptRow(row).receipt),
-          decisions: database
-            .query(
-              'SELECT d.* FROM run_decision d JOIN run_attempt a ON a.attempt_id=d.attempt_id WHERE a.run_id=? ORDER BY d.decision_id',
-            )
-            .all(run.runId)
-            .map(decodeDecisionRow),
-          consumedDecisionIds: database
-            .query(
-              'SELECT c.* FROM run_consumption c JOIN run_attempt a ON a.attempt_id=c.attempt_id WHERE a.run_id=? ORDER BY c.decision_id',
-            )
-            .all(run.runId)
-            .map((row) => decodeConsumptionRow(row).decisionId),
-          // Proof: bypassing this route failed `read rejects global` for missing, orphan and settled reservations before restoration.
+          attempts: snapshot.catalog.attempts
+            .map((entry) => entry.attempt)
+            .filter((attempt) => attempt.identity.runId === run.runId)
+            .sort(
+              (left, right) =>
+                left.identity.occurrenceId.localeCompare(right.identity.occurrenceId) ||
+                left.ordinal - right.ordinal,
+            ),
+          pendingIntents: snapshot.pendingIntents.filter(
+            (intent) => intent.claim.runId === run.runId,
+          ),
+          receipts: snapshot.catalog.receipts
+            .filter((entry) => entry.reply.identity.runId === run.runId)
+            .map((entry) => entry.receipt),
+          decisions: snapshot.catalog.decisions.filter((decision) =>
+            snapshot.catalog.attempts.some(
+              (entry) =>
+                entry.attempt.attemptId === decision.attemptId &&
+                entry.attempt.identity.runId === run.runId,
+            ),
+          ),
+          consumedDecisionIds: snapshot.catalog.consumptions
+            .filter((entry) => entry.reply.identity.runId === run.runId)
+            .map((entry) => entry.decisionId),
           capacity: readCapacity(database, readMeta(database).capacity),
         };
       });
@@ -419,6 +425,7 @@ export function createSqliteRunStore(
         // Proof: injecting sqlite receiveDecision owner bypass failed `stale receive owner refuses before corrupt target and duplicate reads` at its explicit assertion.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const previous = findDecision(database, decision.decisionId);
         if (previous !== undefined) requireAttempt(previous.attemptId);
         const replay = replayDecision(previous, decision);
@@ -446,6 +453,7 @@ export function createSqliteRunStore(
         // Proof: injecting sqlite consumeDecision owner bypass failed `stale consume owner refuses before corrupt target and duplicate reads` at its explicit assertion.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         // Proof: bypassing this route failed `consumption rejects global` for missing, orphan and settled reservations before restoration.
         const capacity = readCapacity(database, meta.capacity);
         const previous = findConsumption(database, identity);
@@ -485,6 +493,7 @@ export function createSqliteRunStore(
         // Proof: injecting sqlite reconcileReceipt owner bypass failed `stale receipt owner refuses before corrupt target and duplicate reads` at its explicit assertion.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         // Proof: bypassing this route failed `receipt rejects global` for missing, orphan and settled reservations before restoration.
         readCapacity(database, meta.capacity);
         const previous = findReceipt(database, receipt.commandId);
@@ -525,6 +534,7 @@ export function createSqliteRunStore(
         // Proof: bypassing commitOutcome owner sqlite enforcement failed 'sqlite execution edges > unresolved and recovery preserve the exact running locator and held reservation'.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         // Proof: bypassing this route failed `outcome rejects global` for missing, orphan and settled reservations before restoration.
         readCapacity(database, meta.capacity);
         const { run } = requireRun(guard.runId);
@@ -550,7 +560,11 @@ export function createSqliteRunStore(
           applyChange(run, reply.value);
           database
             .query('INSERT INTO run_completion(command_id,attempt_id,record) VALUES (?,?,?)')
-            .run(completion.intent.commandId, attempt.attemptId, JSON.stringify(completion));
+            .run(
+              completion.intent.commandId,
+              attempt.attemptId,
+              JSON.stringify({ version: 1, completion, reply: reply.value.attempt }),
+            );
           database
             .query('INSERT INTO run_outbox(command_id) VALUES (?)')
             .run(completion.intent.commandId);
@@ -558,58 +572,244 @@ export function createSqliteRunStore(
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
+    readExecutionHistory(inputRun, inputAttempt) {
+      return transact(false, () => {
+        const history = readHistory(database).histories.find(
+          (entry) => entry.run.runId === inputRun && entry.attempt.attemptId === inputAttempt,
+        );
+        if (history === undefined) throw new Error('attempt does not exist');
+        return history;
+      });
+    },
     async recordExecution(inputGuard, inputCommand) {
-      const guard = decodeAttemptGuard(structuredClone(inputGuard));
-      const command = decodeExecutionCommand(structuredClone(inputCommand));
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const ownership = decodeOwnership(guardSnapshot.ownership);
       return await transact(true, () => {
-        const { meta, authority } = readAuthority(guard.ownership);
-        // Proof: bypassing recordExecution owner sqlite enforcement failed 'sqlite execution commands > execution command identities distinguish reattachment from original redelivery'.
+        const { meta, authority } = readAuthority(ownership);
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
-        // Proof: bypassing this route failed `execution rejects global` for missing, orphan and settled reservations before restoration.
-        readCapacity(database, meta.capacity);
-        const previous = findExecution(database, command.commandId);
-        const replay = replayExecution(previous, guard, command);
-        if (replay !== undefined) return finish(replay, authority.observedAt);
-        const { run } = requireRun(guard.runId);
-        const row = database
-          .query('SELECT * FROM run_attempt WHERE attempt_id=?')
-          .get(guard.attemptId);
-        // Proof: bypassing recordExecution missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
-        if (row === null) throw new Error('attempt does not exist');
-        const { attempt } = decodeAttemptRow(row);
-        // Proof: reconstructing with the caller's run made `sqlite execution commands > execution command identities distinguish reattachment from original redelivery` fail its doesNotReject assertion for a cross-run guard.
-        // Proof: bypassing execution delivery route failed `execution rejects terminal outbox before state dependent rows change` at its missing-rejection assertion.
-        const { executions: history } = validateAttempt(
-          database,
-          requireRun(attempt.identity.runId).run,
-          attempt,
-        );
-        // Proof: injecting sqlite fresh wait key bypass failed `sqlite decisions > old consumption preserves its original reply through later waits and owner takeover` at its explicit assertion.
-        if (
-          command.fact.kind === 'waiting' &&
-          history.some(
-            (entry) =>
-              entry.command.fact.kind === 'waiting' &&
-              command.fact.kind === 'waiting' &&
-              entry.command.fact.wait.correlationKey === command.fact.wait.correlationKey,
-          )
-        )
-          return finish({ kind: 'refused', reason: 'decision_conflict' }, authority.observedAt);
-        const reply = planExecution({ run, attempt }, guard, command.fact);
-        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
-        if (reply.kind === 'applied') {
-          applyChange(run, reply.value);
-          database
-            .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
-            .run(
-              command.commandId,
-              attempt.attemptId,
-              JSON.stringify(command),
-              JSON.stringify(reply.value.attempt),
-            );
+        const snapshot = readHistory(database);
+        const guard = decodeAttemptGuard(guardSnapshot);
+        const command = decodeExecutionCommand(commandSnapshot);
+        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        if (replay !== undefined) {
+          if (replay.kind === 'refused') return finish(replay, authority.observedAt);
+          if (replay.value.reply.kind !== 'execution')
+            throw new Error('execution replay family differs');
+          return finish(
+            { kind: 'duplicate', value: replay.value.reply.attempt },
+            authority.observedAt,
+          );
         }
-        return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
+        const { run } = requireRun(guard.runId);
+        const attempt = requireAttempt(guard.attemptId);
+        const reply = planExecution(
+          {
+            run,
+            attempt,
+            manifest: requireManifest(run.manifestDigest),
+            ownership: meta.ownership,
+            executions: snapshot.catalog.executions,
+          },
+          guard,
+          command.fact,
+        );
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        applyChange(run, reply.value);
+        database
+          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .run(
+            command.commandId,
+            attempt.attemptId,
+            JSON.stringify({ version: 1, command, context: null }),
+            JSON.stringify({ version: 1, kind: 'execution', attempt: reply.value.attempt }),
+          );
+        return finish({ kind: 'applied', value: reply.value.attempt }, authority.observedAt);
+      });
+    },
+    async stageClaim(inputGuard, inputCommand) {
+      // Proof: Task2 F106 bypassed this clone; 'sqlite coupled stage_claim snapshots guard before transaction await' refused the original valid request. Exact restoration passed.
+      const guardSnapshot = structuredClone(inputGuard);
+      // Proof: Task2 F107 bypassed this clone; 'sqlite coupled stage_claim snapshots command before transaction await' retained the caller-mutated command. Exact restoration passed.
+      const commandSnapshot = structuredClone(inputCommand);
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: Task2 F66 bypassed only this transaction wrapper; 'stage_claim rolls back both histories after execution abort' reached the named abort then detected partial publication. Exact restoration passed.
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: Task2 F72 removed this owner fence; 'stage_claim fences expired owner before fresh publication' received applied instead of owner_stale. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const snapshot = readHistory(database);
+        const guard = decodeScopedAttemptGuard(guardSnapshot);
+        const command = decodeClaimStageCommand(commandSnapshot);
+        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        if (replay !== undefined) {
+          if (replay.kind === 'refused') return finish(replay, authority.observedAt);
+          if (replay.value.reply.kind !== 'claim_staged')
+            throw new Error('coupled replay family differs');
+          return finish({ kind: 'duplicate', value: replay.value.reply }, authority.observedAt);
+        }
+        const { run } = requireRun(guard.runId);
+        const attempt = requireAttempt(guard.attemptId);
+        const scope = inspectRuntimeScope(snapshot.catalog.runtime, guard.scope, meta.ownership);
+        if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+        const reply = planClaimStage(
+          {
+            run,
+            attempt,
+            manifest: requireManifest(run.manifestDigest),
+            ownership: meta.ownership,
+            executions: snapshot.catalog.executions,
+            runtime: snapshot.catalog.runtime,
+            scope,
+          },
+          guard,
+          command,
+        );
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        const ack = reply.value.ack;
+        insertRuntimeIntent(
+          database,
+          guard.scope,
+          ack.intent,
+          snapshot.catalog.runtime.intents.length,
+        );
+        applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
+        database
+          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .run(
+            command.commandId,
+            attempt.attemptId,
+            JSON.stringify({
+              version: 1,
+              command,
+              context: { version: 1, scopeRevision: scope.revision },
+            }),
+            JSON.stringify(ack),
+          );
+        return finish({ kind: 'applied', value: ack }, authority.observedAt);
+      });
+    },
+    async recordClaimAcceptance(inputGuard, inputCommand) {
+      // Proof: Task2 F108 bypassed this clone; 'sqlite coupled accept_claim snapshots guard before transaction await' refused the original valid request. Exact restoration passed.
+      const guardSnapshot = structuredClone(inputGuard);
+      // Proof: Task2 F109 bypassed this clone; 'sqlite coupled accept_claim snapshots command before transaction await' retained the caller-mutated command. Exact restoration passed.
+      const commandSnapshot = structuredClone(inputCommand);
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: Task2 F67 bypassed only this transaction wrapper; 'accept_claim rolls back both histories after execution abort' reached the named abort then detected partial publication. Exact restoration passed.
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: Task2 F73 removed this owner fence; 'accept_claim fences expired owner before fresh publication' received applied instead of owner_stale. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const snapshot = readHistory(database);
+        const guard = decodeScopedAttemptGuard(guardSnapshot);
+        const command = decodeClaimAcceptCommand(commandSnapshot);
+        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        if (replay !== undefined) {
+          if (replay.kind === 'refused') return finish(replay, authority.observedAt);
+          if (replay.value.reply.kind !== 'claim_accepted')
+            throw new Error('coupled replay family differs');
+          return finish({ kind: 'duplicate', value: replay.value.reply }, authority.observedAt);
+        }
+        const { run } = requireRun(guard.runId);
+        const attempt = requireAttempt(guard.attemptId);
+        const scope = inspectRuntimeScope(snapshot.catalog.runtime, guard.scope, meta.ownership);
+        if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+        const reply = planClaimAcceptance(
+          {
+            run,
+            attempt,
+            manifest: requireManifest(run.manifestDigest),
+            ownership: meta.ownership,
+            executions: snapshot.catalog.executions,
+            runtime: snapshot.catalog.runtime,
+            scope,
+          },
+          guard,
+          command,
+        );
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        const ack = reply.value.ack;
+        insertRuntimeAcceptance(
+          database,
+          guard.scope,
+          ack.acceptance,
+          snapshot.catalog.runtime.acceptances.length,
+        );
+        applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
+        database
+          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .run(
+            command.commandId,
+            attempt.attemptId,
+            JSON.stringify({
+              version: 1,
+              command,
+              context: { version: 1, scopeRevision: scope.revision },
+            }),
+            JSON.stringify(ack),
+          );
+        return finish({ kind: 'applied', value: ack }, authority.observedAt);
+      });
+    },
+    async stageTurn(inputGuard, inputCommand) {
+      // Proof: Task2 F110 bypassed this clone; 'sqlite coupled stage_turn snapshots guard before transaction await' refused the original valid request. Exact restoration passed.
+      const guardSnapshot = structuredClone(inputGuard);
+      // Proof: Task2 F111 bypassed this clone; 'sqlite coupled stage_turn snapshots command before transaction await' retained the caller-mutated command. Exact restoration passed.
+      const commandSnapshot = structuredClone(inputCommand);
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: Task2 F68 bypassed only this transaction wrapper; 'stage_turn rolls back both histories after execution abort' reached the named abort then detected partial publication. Exact restoration passed.
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: Task2 F74 removed this owner fence; 'stage_turn fences expired owner before fresh publication' received applied instead of owner_stale. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const snapshot = readHistory(database);
+        const guard = decodeScopedAttemptGuard(guardSnapshot);
+        const command = decodeTurnStageCommand(commandSnapshot);
+        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        if (replay !== undefined) {
+          if (replay.kind === 'refused') return finish(replay, authority.observedAt);
+          if (replay.value.reply.kind !== 'turn_staged')
+            throw new Error('coupled replay family differs');
+          return finish({ kind: 'duplicate', value: replay.value.reply }, authority.observedAt);
+        }
+        const { run } = requireRun(guard.runId);
+        const attempt = requireAttempt(guard.attemptId);
+        const scope = inspectRuntimeScope(snapshot.catalog.runtime, guard.scope, meta.ownership);
+        if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+        const reply = planTurnStage(
+          {
+            run,
+            attempt,
+            manifest: requireManifest(run.manifestDigest),
+            ownership: meta.ownership,
+            executions: snapshot.catalog.executions,
+            runtime: snapshot.catalog.runtime,
+            scope,
+          },
+          guard,
+          command,
+        );
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        const ack = reply.value.ack;
+
+        applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
+        database
+          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .run(
+            command.commandId,
+            attempt.attemptId,
+            JSON.stringify({
+              version: 1,
+              command,
+              context: { version: 1, scopeRevision: scope.revision },
+            }),
+            JSON.stringify(ack),
+          );
+        return finish({ kind: 'applied', value: ack }, authority.observedAt);
       });
     },
     async admitAttempt(requestedGuard, requestedAdmission) {
@@ -624,6 +824,7 @@ export function createSqliteRunStore(
         // Proof: removing the live-owner fence made shared stale-authority admission throw on an absent target run.
         if (authority.current === null || !permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        readHistory(database);
         const { run } = requireRun(guard.runId);
         const history = database
           .query(

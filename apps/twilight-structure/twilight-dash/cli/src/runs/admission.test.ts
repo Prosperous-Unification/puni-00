@@ -99,8 +99,8 @@ test('portable codecs reject unknown versions kinds malformed IDs and unsafe int
       fixture.admission,
     ),
   );
-  expect(() => decodeAttempt({ ...attempt, version: 2 })).toThrow();
-  expect(() => decodeAttempt({ ...attempt, state: { kind: 'unknown', claim: null } })).toThrow();
+  for (const version of [1, 3]) expect(() => decodeAttempt({ ...attempt, version })).toThrow();
+  expect(() => decodeAttempt({ ...attempt, state: { kind: 'unknown' } })).toThrow();
   expect(() => decodeOwnership({ ...fixture.ownership, epoch: 0 })).toThrow();
   expect(() => decodeRun({ ...fixture.run, revision: -1 })).toThrow();
   expect(() => decodeRun({ ...fixture.run, unexpected: true })).toThrow();

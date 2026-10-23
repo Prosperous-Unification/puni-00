@@ -22,7 +22,7 @@ import {
 } from './value-codecs';
 
 const identity = type('string > 0');
-const scopeCodec = type({
+export const scopeCodec = type({
   organizationId: identity,
   projectId: identity,
   personId: identity,
@@ -36,7 +36,7 @@ const guardCodec = type({
   scope: scopeCodec,
   expectedRevision: Integer,
 }).onDeepUndeclaredKey('reject');
-const intentCodec = type({
+export const intentCodec = type({
   version: '1',
   commandId: identity,
   canonicalRequest: identity,
@@ -44,7 +44,7 @@ const intentCodec = type({
   localOwner: { ownerId: OwnerIdCodec, epoch: Positive },
   stagedRevision: Positive,
 }).onDeepUndeclaredKey('reject');
-const acceptanceCodec = type({
+export const acceptanceCodec = type({
   version: '1',
   commandId: identity,
   requestDigest: ArtifactDigestCodec,

@@ -207,7 +207,7 @@ export function runStoreContract(name: string, create: () => Promise<StoreFixtur
         revision: 0,
         admittedEpoch: 1,
         holdsCapacity: true,
-        state: { kind: 'queued', claim: null },
+        state: { kind: 'queued' },
       });
       expect(await fixture.runs.admitAttempt(guard, fixture.admission)).toEqual({
         kind: 'duplicate',
@@ -454,7 +454,7 @@ export function runStoreContract(name: string, create: () => Promise<StoreFixtur
       Object.assign(admitted.state, { claim: { broken: true } });
       const snapshot = await fixture.runs.readRun(fixture.run.runId);
       expect(String(snapshot.attempts[0]?.identity.operationKey)).toBe('operation');
-      expect(snapshot.attempts[0]?.state).toEqual({ kind: 'queued', claim: null });
+      expect(snapshot.attempts[0]?.state).toEqual({ kind: 'queued' });
       Object.assign(snapshot.capacity, { reserved: 99 });
       expect((await fixture.runs.readRun(fixture.run.runId)).capacity.reserved).toBe(1);
     });

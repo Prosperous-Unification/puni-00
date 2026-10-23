@@ -1,15 +1,9 @@
 import { Database } from 'bun:sqlite';
 
 import { DOWN_HASH, MIGRATION_HASH, MIGRATIONS, SCHEMA_VERSION } from './format';
-import { validateAttempt } from './read-executions';
+import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
-import {
-  decodeAttemptRow,
-  decodeCompletionRow,
-  decodeManifestRow,
-  decodeMeta,
-  decodeRunRow,
-} from './row-codecs';
+import { decodeMeta } from './row-codecs';
 export {
   DOWN,
   DOWN_HASH,
@@ -109,20 +103,8 @@ export function validateDatabase(database: Database): void {
   // Proof: bypassing this check accepted a real orphan reservation inserted with foreign keys disabled.
   if (database.query('PRAGMA foreign_key_check').all().length !== 0)
     throw new Error('corrupt sqlite foreign key references');
-  for (const row of database.query('SELECT * FROM run_manifest').all()) decodeManifestRow(row);
-  for (const row of database.query('SELECT * FROM run_record').all()) decodeRunRow(row);
-  const attempts = database
-    .query('SELECT * FROM run_attempt')
-    .all()
-    .map((row) => decodeAttemptRow(row).attempt);
-  for (const row of database.query('SELECT * FROM run_completion').all()) decodeCompletionRow(row);
-  for (const attempt of attempts) {
-    const { run } = decodeRunRow(
-      database.query('SELECT * FROM run_record WHERE run_id=?').get(attempt.identity.runId),
-    );
-    // Proof: bypassing open delivery route failed `public read rejects terminal outbox present and reopen rejects corruption` at its missing-rejection assertion.
-    validateAttempt(database, run, attempt);
-  }
+  // Proof: F211 removed this delegation; open with a missing pending outbox lost its required corruption rejection. Exact restoration passed the eight-case group.
+  readHistory(database);
   // Proof: bypassing this route failed `open rejects valid-shaped corrupt missing reservation`.
   readCapacity(database, meta.capacity);
 }

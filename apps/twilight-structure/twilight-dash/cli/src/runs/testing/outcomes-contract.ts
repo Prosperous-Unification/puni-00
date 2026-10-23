@@ -2,11 +2,18 @@ import { rejects } from 'node:assert/strict';
 
 import { describe, expect, test } from 'bun:test';
 
-import { artifactDigest, attemptId, decodeClaimAuthority, operationKey } from '../record-codecs';
+import { artifactDigest, attemptId, operationKey } from '../record-codecs';
 import { recordOutcome } from '../record-outcome';
 import type { Completion } from '../records';
 import { createExecutionCommand, createRunGuard } from './fixtures';
-import { createCompletion, type OutcomeFixture, prepareAttempt, unwrapReply } from './fixtures';
+import {
+  createCompletion,
+  type OutcomeFixture,
+  prepareClaimed,
+  prepareTurn,
+  stageFixtureTurn,
+  unwrapReply,
+} from './fixtures';
 
 export function outcomeContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name, () => {
@@ -14,29 +21,23 @@ export function outcomeContract(name: string, create: () => Promise<OutcomeFixtu
       const stores = await create();
       try {
         expect(typeof stores.runs.commitOutcome).toBe('function');
-        const setup = await prepareAttempt(stores);
+        const setup = await prepareClaimed(stores);
         const completion = createCompletion(setup.claim, setup.quiescence);
-        expect(await recordOutcome(stores.runs, stores.artifacts, setup.guard, completion)).toEqual(
-          { kind: 'refused', reason: 'state_conflict' },
-        );
-        unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
-              },
-              'claim-command',
-            ),
+        expect(
+          await recordOutcome(
+            stores.runs,
+            stores.artifacts,
+            await setup.currentGuard(),
+            completion,
           ),
-        );
+        ).toEqual({ kind: 'refused', reason: 'state_conflict' });
+        await stageFixtureTurn(setup);
         const guard = await setup.currentGuard();
         const pending = unwrapReply(
           await recordOutcome(stores.runs, stores.artifacts, guard, completion),
         );
         expect(pending).toMatchObject({
-          revision: 2,
+          revision: 6,
           holdsCapacity: false,
           state: {
             kind: 'outcome_pending_progress',
@@ -45,7 +46,7 @@ export function outcomeContract(name: string, create: () => Promise<OutcomeFixtu
           },
         });
         const snapshot = await stores.runs.readRun(setup.run.runId);
-        expect(snapshot.run.revision).toBe(3);
+        expect(snapshot.run.revision).toBe(7);
         expect(snapshot.pendingIntents).toEqual([completion.intent]);
         expect(snapshot.capacity.reserved).toBe(0);
         expect(await recordOutcome(stores.runs, stores.artifacts, guard, completion)).toMatchObject(
@@ -80,22 +81,11 @@ export function outcomeContract(name: string, create: () => Promise<OutcomeFixtu
         stores.close();
       }
     });
-    test('completion refuses stale revisions wrong authority outcome mismatch and unsettled effects without mutations', async () => {
+    test('completion refuses stale revisions wrong claim outcome mismatch and unsettled effects without mutations', async () => {
       const stores = await create();
       try {
-        const setup = await prepareAttempt(stores);
-        unwrapReply(
-          await stores.runs.recordExecution(
-            setup.guard,
-            createExecutionCommand(
-              {
-                kind: 'claim_acquired',
-                claim: setup.claim,
-              },
-              'claim-command',
-            ),
-          ),
-        );
+        const setup = await prepareTurn(stores);
+
         const guard = await setup.currentGuard();
         const completion = createCompletion(setup.claim, setup.quiescence);
         const before = await stores.runs.readRun(setup.run.runId);
@@ -118,10 +108,7 @@ export function outcomeContract(name: string, create: () => Promise<OutcomeFixtu
             completion,
           ),
         ).toEqual({ kind: 'refused', reason: 'revision_conflict' });
-        const wrong = createCompletion(
-          decodeClaimAuthority({ ...setup.claim, personId: 'intruder' }),
-          setup.quiescence,
-        );
+        const wrong = createCompletion({ ...setup.claim, commandId: 'intruder' }, setup.quiescence);
         expect(await recordOutcome(stores.runs, stores.artifacts, guard, wrong)).toEqual({
           kind: 'refused',
           reason: 'authority_conflict',

@@ -11,7 +11,8 @@ import {
   createCompletion,
   createExecutionCommand,
   FixtureClock,
-  prepareAttempt,
+  prepareTurn,
+  stageFixtureTurn,
   unwrapReply,
 } from '../testing/fixtures';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
@@ -34,17 +35,11 @@ async function createFixture() {
 
 test('probe current claim corruption against intact historical execution', async () => {
   const fixture = await createFixture();
-  const setup = await prepareAttempt(fixture);
+  const setup = await prepareTurn(fixture);
   const database = new Database(fixture.options.path);
   try {
-    unwrapReply(
-      await fixture.runs.recordExecution(
-        setup.guard,
-        createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }),
-      ),
-    );
     database.run(
-      "UPDATE run_attempt SET record=json_set(record,'$.state.claim.personId','corrupt-person')",
+      "UPDATE run_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','corrupt-person')",
     );
     await rejects(fixture.runs.readRun(setup.run.runId), /corrupt current attempt provenance/);
     fixture.close();
@@ -180,6 +175,11 @@ test('consumed decisions retain original replies across later waits reopen and h
     const original = unwrapReply(
       await stores.runs.consumeDecision(guard, setup.decision.decisionId),
     );
+    await stageFixtureTurn(
+      setup,
+      { kind: 'decision', decisionId: setup.decision.decisionId },
+      'continuation',
+    );
     const next = createExecutionCommand(
       decodeExecutionFact({
         ...setup.command.fact,
@@ -246,7 +246,7 @@ test('lost acknowledgement fake source reconciles recorded command after reopen 
     // Only this exact recorded command is accepted by the fake source; generic progress lacks digest and claim authority.
     expect(() =>
       parseOrThrow(CommandReceiptCodec, {
-        version: 1,
+        version: 2,
         acceptedWbsRevision: 'wbs-2',
         evidence: setup.quiescence.evidence,
       }),
@@ -337,7 +337,7 @@ for (const operation of ['decision', 'receipt'] as const)
         expect(await pending).toEqual({ kind: 'applied', value: setup.decision });
       } else {
         const guard = { ...(await setup.currentGuard()), ownership: { ...setup.ownership } };
-        const receipt = { ...setup.receipt, authority: { ...setup.claim } };
+        const receipt = { ...setup.receipt, claim: { ...setup.claim } };
         const pending = fixture.runs.reconcileReceipt(guard, receipt);
         guard.ownership.ownerId = ownerId('wrong');
         guard.expectedRevision = 999;
@@ -355,58 +355,29 @@ for (const operation of ['decision', 'receipt'] as const)
     }
   });
 
-test('old failed receipt survives reopen with a newer active and then terminal attempt', async () => {
+test('old failed receipt survives reopen while an independent run becomes active and terminal', async () => {
   const fixture = await createFixture();
   let stores = fixture;
   try {
     const setup = await prepareReceipt(stores);
     const guard = await setup.currentGuard();
     const original = unwrapReply(await stores.runs.reconcileReceipt(guard, setup.receipt));
-    const next = decodeAdmission({ ...setup.admission, attemptId: 'next', ordinal: 2 });
     const first = await stores.runs.readRun(setup.run.runId);
-    unwrapReply(
+    const retry = decodeAdmission({ ...setup.admission, attemptId: 'next', ordinal: 2 });
+    expect(
       await stores.runs.admitAttempt(
         {
           ownership: setup.ownership,
           runId: setup.run.runId,
           expectedRevision: first.run.revision,
         },
-        next,
+        retry,
       ),
-    );
-    stores.close();
-    stores = {
-      ...(await openSqliteStores(fixture.options)),
-      clock: fixture.clock,
-      options: fixture.options,
-      directory: fixture.directory,
-    };
-    const active = await stores.runs.readRun(setup.run.runId);
-    expect(await stores.runs.reconcileReceipt(guard, setup.receipt)).toEqual({
-      kind: 'duplicate',
-      value: original,
-    });
-    expect(await stores.runs.readRun(setup.run.runId)).toEqual(active);
-    const claim = { ...setup.claim, attemptId: next.attemptId };
-    let nextGuard = {
-      ...guard,
-      attemptId: next.attemptId,
-      expectedRevision: active.run.revision,
-      expectedAttemptRevision: 0,
-    };
-    unwrapReply(
-      await stores.runs.recordExecution(
-        nextGuard,
-        createExecutionCommand({ kind: 'claim_acquired', claim }),
-      ),
-    );
-    nextGuard = {
-      ...nextGuard,
-      expectedRevision: nextGuard.expectedRevision + 1,
-      expectedAttemptRevision: 1,
-    };
-    const initial = createCompletion(claim, setup.quiescence);
-    const completion = createCompletion(claim, setup.quiescence, {
+    ).toEqual({ kind: 'refused', reason: 'attempt_active' });
+    const second = await prepareTurn(stores, { ownership: setup.ownership, suffix: 'second' });
+    const nextGuard = await second.currentGuard();
+    const initial = createCompletion(second.claim, second.quiescence);
+    const completion = createCompletion(second.claim, second.quiescence, {
       intent: {
         ...initial.intent,
         commandId: parseOrThrow(CommandReceiptCodec, {
@@ -415,20 +386,37 @@ test('old failed receipt survives reopen with a newer active and then terminal a
         }).commandId,
       },
     });
-    unwrapReply(await stores.runs.commitOutcome(nextGuard, completion));
-    nextGuard = {
-      ...nextGuard,
-      expectedRevision: nextGuard.expectedRevision + 1,
-      expectedAttemptRevision: 2,
+    stores.close();
+    stores = {
+      ...(await openSqliteStores(fixture.options)),
+      clock: fixture.clock,
+      options: fixture.options,
+      directory: fixture.directory,
     };
+    const active = await stores.runs.readRun(second.run.runId);
+    expect(await stores.runs.reconcileReceipt(guard, setup.receipt)).toEqual({
+      kind: 'duplicate',
+      value: original,
+    });
+    expect(await stores.runs.readRun(second.run.runId)).toEqual(active);
+    const pending = unwrapReply(await stores.runs.commitOutcome(nextGuard, completion));
     const receipt = {
       ...setup.receipt,
       commandId: completion.intent.commandId,
       commandDigest: completion.intent.commandDigest,
-      authority: claim,
+      claim: second.claim,
     };
-    unwrapReply(await stores.runs.reconcileReceipt(nextGuard, receipt));
-    const terminal = await stores.runs.readRun(setup.run.runId);
+    unwrapReply(
+      await stores.runs.reconcileReceipt(
+        {
+          ...nextGuard,
+          expectedRevision: active.run.revision + 1,
+          expectedAttemptRevision: pending.revision,
+        },
+        receipt,
+      ),
+    );
+    const terminal = await stores.runs.readRun(second.run.runId);
     stores.close();
     stores = {
       ...(await openSqliteStores(fixture.options)),
@@ -440,8 +428,11 @@ test('old failed receipt survives reopen with a newer active and then terminal a
       kind: 'duplicate',
       value: original,
     });
-    expect(await stores.runs.readRun(setup.run.runId)).toEqual(terminal);
-    expect(terminal.receipts).toHaveLength(2);
+    expect(await stores.runs.readRun(second.run.runId)).toEqual(terminal);
+    expect([
+      ...(await stores.runs.readRun(setup.run.runId)).receipts,
+      ...terminal.receipts,
+    ]).toHaveLength(2);
   } finally {
     stores.close();
     rmSync(fixture.directory, { recursive: true });

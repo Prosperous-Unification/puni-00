@@ -1,4 +1,13 @@
 import type {
+  ClaimAcceptAck,
+  ClaimAcceptCommand,
+  ClaimStageAck,
+  ClaimStageCommand,
+  ExecutionHistory,
+  TurnStageAck,
+  TurnStageCommand,
+} from './execution-records';
+import type {
   Admission,
   Attempt,
   AttemptId,
@@ -51,8 +60,29 @@ export interface AttemptGuard extends RunGuard {
   readonly attemptId: AttemptId;
   readonly expectedAttemptRevision: Revision;
 }
+export interface ScopedAttemptGuard extends AttemptGuard {
+  readonly scope: RuntimeScope;
+  readonly expectedScopeRevision: Revision;
+}
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
+  /** Atomically retains one exact WBS claim request with its attempt transition; never sends it. */
+  stageClaim(
+    guard: ScopedAttemptGuard,
+    command: ClaimStageCommand,
+  ): Promise<StoreReply<ClaimStageAck>>;
+  /** Trusted persistence: caller verified complete receipt bytes and generated projection. */
+  recordClaimAcceptance(
+    guard: ScopedAttemptGuard,
+    command: ClaimAcceptCommand,
+  ): Promise<StoreReply<ClaimAcceptAck>>;
+  /** Retains a complete turn intent under current scope authority and attachment; never dispatches. */
+  stageTurn(
+    guard: ScopedAttemptGuard,
+    command: TurnStageCommand,
+  ): Promise<StoreReply<TurnStageAck>>;
+  /** Reads a detached consistent complete execution history, including independent historical scope contexts. */
+  readExecutionHistory(runId: RunId, attemptId: AttemptId): Promise<ExecutionHistory>;
   /** Pins one complete receiver scope insert-or-identical under current live local ownership. */
   pinRuntimeScope(ownership: Ownership, pin: RuntimePin): Promise<StoreReply<RuntimePin>>;
   /** Ownership-free local integrity inspection. Caller must verify all independent receipt artifacts before trusting acceptance content. */
