@@ -25,3 +25,5 @@ backend-source-recognition: exit=1; failed=1; source context survives every owne
 source-transitional: exit=0; failed=0; 
 owner-hash-boundary: exit=1; failed=1; source private evidence retains hashes without container environment bytes [113.88ms]
 source-transitional-corrected: exit=1; failed=1; source live recognition refuses transitional [281.31ms]
+source-timestamp-coherence: exit=1; failed=3; source decoder refuses incoherent timestamp lifecycle unfinished-exit [1.10ms]; source decoder refuses incoherent timestamp lifecycle unstarted-running [0.10ms]; source decoder refuses incoherent timestamp lifecycle early-finish [0.15ms]
+composed-inspection-secrecy: exit=1; failed=1; combined coordinator retains solver tmpfs and source members throughout awaited protected work [3017.90ms]

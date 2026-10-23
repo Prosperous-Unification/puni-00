@@ -6,7 +6,7 @@ import { edgeStateDirectory } from './edge-admission';
 import {
   type DependencyOwner,
   type DependencyOwnerPlan,
-  ownerDocker,
+  ownerDockerHashed,
   withDependencyOwner,
 } from './edge-ownership';
 import { fenceGatewaysUnderOwner, inspectGatewayFenceUnderLock } from './gateway-exclusion';
@@ -189,9 +189,10 @@ export async function excludeSourceAndManagedDependencies<T>(
               );
               const inspect = async () => {
                 await inspectDependencyIngress(owner, [prod, dev], runDocker, deadline);
+                // Proof: replacing hashed Docker with raw retention leaked the composed environment sentinel; combined coordinator test failed.
                 await inspectGatewayFenceUnderLock(
                   prod,
-                  ownerDocker(owner, prod, runDocker),
+                  ownerDockerHashed(owner, prod, runDocker),
                   deadline,
                 );
                 await inspectBackendFenceUnderOwner(

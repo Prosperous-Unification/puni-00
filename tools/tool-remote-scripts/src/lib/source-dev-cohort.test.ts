@@ -23,6 +23,7 @@ test('source decoder binds complete config mounts and lifecycle identity', () =>
   stopped.State.Running = false;
   stopped.State.Pid = 0;
   stopped.State.Status = 'exited';
+  stopped.State.FinishedAt = '2026-10-23T01:00:00Z';
   expect(sourceDevIdentity(decodeSourceDev(stopped, envLayout('dev')))).toEqual(
     sourceDevIdentity(first),
   );
@@ -78,3 +79,16 @@ test('source mount contract is independent of Docker mount array order', () => {
   source.Mounts.reverse();
   expect(decodeSourceDev(source, envLayout('dev')).id).toBe(source.Id);
 });
+
+for (const fault of ['unfinished-exit', 'unstarted-running', 'early-finish'] as const)
+  test(`source decoder refuses incoherent timestamp lifecycle ${fault}`, () => {
+    const source = sourceFixture();
+    if (fault === 'unstarted-running') source.State.StartedAt = '0001-01-01T00:00:00Z';
+    else {
+      source.State.Running = false;
+      source.State.Pid = 0;
+      source.State.Status = 'exited';
+      if (fault === 'early-finish') source.State.FinishedAt = '2026-10-22T00:00:00Z';
+    }
+    expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow();
+  });

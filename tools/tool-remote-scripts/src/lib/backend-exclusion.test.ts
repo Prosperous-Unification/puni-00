@@ -959,6 +959,7 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
   };
   const source = sourceFixture();
   source.Id = '7'.repeat(64);
+  Reflect.set(source.Config, 'Env', ['COMPOSED_PRIVATE_SENTINEL=secret']);
   source.Mounts = sourceDevContract(selectedDev).mounts.map((mount) => ({
     Type: 'bind',
     Source: mount.source,
@@ -1046,4 +1047,10 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
   expect(f.containers).toContain(retained);
   expect(f.namespaceCalls.some((call) => call.id === retained.Id)).toBe(false);
   expect(f.calls.some((args) => args[0] === 'rm')).toBe(false);
+  for (const directory of [f.root, selectedDev.stateDir])
+    for (const name of await readdir(directory))
+      if (name.endsWith('.json'))
+        expect(await readFile(`${directory}/${name}`, 'utf8')).not.toContain(
+          'COMPOSED_PRIVATE_SENTINEL',
+        );
 });

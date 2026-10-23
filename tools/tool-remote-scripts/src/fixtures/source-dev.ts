@@ -44,7 +44,7 @@ export function sourceFixture(init: boolean | null = null) {
       OOMKilled: false,
       Pid: 100,
       Status: 'running',
-      StartedAt: '2026-10-23T10:00:00Z',
+      StartedAt: '2026-10-23T00:00:00Z',
       FinishedAt: '0001-01-01T00:00:00Z',
       ExitCode: 0,
       Error: '',

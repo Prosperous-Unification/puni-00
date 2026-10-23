@@ -57,6 +57,7 @@ async function fixture() {
         source.State.Running = false;
         source.State.Pid = fault === 'pid' ? 100 : 0;
         source.State.Status = 'exited';
+        source.State.FinishedAt = '2026-10-23T01:00:00Z';
       }
       return Promise.resolve('');
     }

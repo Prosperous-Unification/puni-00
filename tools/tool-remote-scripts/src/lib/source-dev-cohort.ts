@@ -123,6 +123,18 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
       : !['exited', 'created'].includes(readString(state['Status'])) || pid !== 0)
   )
     throw new Error('source dev lifecycle incoherent');
+  // Proof: removing timestamp coherence admitted unfinished exit, unstarted running and early finish; all three lifecycle negatives failed.
+  const zero = '0001-01-01T00:00:00Z';
+  const started = readString(state['StartedAt']);
+  const finished = readString(state['FinishedAt']);
+  if (
+    state['Running']
+      ? started === zero || finished !== zero
+      : state['Status'] === 'created'
+        ? started !== zero || finished !== zero || state['ExitCode'] !== 0
+        : started === zero || finished === zero || Date.parse(finished) < Date.parse(started)
+  )
+    throw new Error('source dev timestamp lifecycle incoherent');
   return {
     id: readIdentity(container['Id']),
     path,

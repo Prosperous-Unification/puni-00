@@ -46,7 +46,7 @@ backend/gateway topology. The return keeps activation blocked.
   each failed their production-call tests before implementation. Decoder and
   live source/solver/backend composition then passed.
 - `bun test tools/tool-remote-scripts/src/lib/{source-dev-cohort,source-dev-exclusion,solver-exclusion,backend-exclusion,gateway-exclusion,dependency-ingress,edge-ownership,mount-audit,solver-cohort}.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000`:
-  **340 pass, 0 fail**, 1523 expectations, 9 files (18.51 seconds).
+  **343 pass, 0 fail**, 2931 expectations, 9 files (17.24 seconds).
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:typecheck --skip-nx-cache`:
   passed fresh after omission sources were restored.
 - Same environment, `bunx nx run tool-remote-scripts:build --skip-nx-cache`:
@@ -98,6 +98,8 @@ approval; no placeholder pin or guessed live identity is acceptable.
 The exact-SHA canonical host gate and CI remain unrun. Parent S1/S2/O4/10.2,
 activation and compatible restoration remain open.
 
-Final lint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:lint --skip-nx-cache --output-style=static` passed (9.8 seconds) after directly identifying and removing one unnecessary test assertion. The earlier silent nonzero Nx lint output was a failure and supplies no passing evidence.
+Final lint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:lint --skip-nx-cache --output-style=static` passed (10.4 seconds) after directly identifying and removing one unnecessary test assertion. The earlier silent nonzero Nx lint output was a failure and supplies no passing evidence.
 
 Final strict OpenSpec rerun: 277 items, zero invalid, including the source-recognition scenarios.
+
+Post-commit own review added a composed environment sentinel: the fresh gateway inspector still used raw owner Docker retention. The real composed test failed before switching that inspector to hashed retention and passed afterward; reverting that call independently failed again. Source lifecycle review also added running/created/exited timestamp coherence; unfinished exits, zero-start running and finish-before-start each failed before the guard, passed afterward, and failed together when the new guard was removed. Fixtures now supply actual coherent finished timestamps. These follow-up receipts are appended to the omission record.
