@@ -113,6 +113,13 @@
         "command": "bun run tools/tool-remote-scripts/src/check-installed-solver.ts"
       },
       "cache": false
+    },
+    "test:gateway-exclusion": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/gateway-exclusion.ts"
+      }
     }
   }
 }
