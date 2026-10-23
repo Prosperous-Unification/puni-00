@@ -41,6 +41,7 @@ async function fixture(push?: () => Promise<Response>) {
   const upstream = await create('Upstream');
   const downstream = await create('Downstream');
   const tail = await create('Tail');
+  const unrelated = await create('Unrelated same-organization project');
   harness.organization('org-b');
   harness.member('org-b', 'ada', 'member');
   harness.bind('ada', 'org-b');
@@ -65,7 +66,7 @@ async function fixture(push?: () => Promise<Response>) {
       )
       .all(`project:${projectId}`)
       .map(({ message }) => JSON.parse(message) as unknown);
-  return { harness, upstream, downstream, tail, foreign, events, connect };
+  return { harness, upstream, downstream, tail, unrelated, foreign, events, connect };
 }
 
 // Proof: replacing the captured attempt fingerprint with [] leaves B and C without
@@ -73,7 +74,7 @@ async function fixture(push?: () => Promise<Response>) {
 it.each([false, true])(
   'attempt start, end and remove invalidate only the dependency component (shared=%s)',
   async (shared) => {
-    const { harness, upstream, downstream, tail, foreign, events } = await fixture();
+    const { harness, upstream, downstream, tail, unrelated, foreign, events } = await fixture();
     if (shared) harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const relationships = harness.sqlite
       .query('SELECT * FROM external_dependency ORDER BY id')
@@ -101,6 +102,7 @@ it.each([false, true])(
     await command({ kind: 'removeAttempt', attemptNumber: 1 });
     expect(await readStartable()).toBe(false);
     for (const project of [downstream, tail]) expect(events(project.id)).toHaveLength(3);
+    expect(events(unrelated.id)).toEqual([]);
     expect(events(foreign.id)).toEqual([]);
     expect(harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all()).toEqual(
       relationships,
@@ -111,7 +113,12 @@ it.each([false, true])(
 // Proof: forcing the attempt repository read to reject makes the mounted writer
 // refuse with 500 and leaves the attempt, journal, and event tables unchanged.
 it('an unreadable attempt refuses the command without a durable or published change', async () => {
-  const { harness, upstream, downstream, tail, events } = await fixture();
+  let pushes = 0;
+  const { harness, upstream, downstream, tail, events } = await fixture(() => {
+    pushes++;
+    return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+  });
+  const beforePushes = pushes;
   const tables = ['step_node_attempt', 'event_log', 'event_sequencer', 'command_journal'];
   const before = tables.map((table) =>
     harness.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
@@ -129,13 +136,19 @@ it('an unreadable attempt refuses the command without a durable or published cha
     ).toEqual(before);
     expect(events(downstream.id)).toEqual([]);
     expect(events(tail.id)).toEqual([]);
+    expect(pushes).toBe(beforePushes);
   } finally {
     read.mockRestore();
   }
 });
 
 it('a failed attempt command batch rolls back its first start and publishes nothing', async () => {
-  const { harness, upstream, downstream, tail, events } = await fixture();
+  let pushes = 0;
+  const { harness, upstream, downstream, tail, events } = await fixture(() => {
+    pushes++;
+    return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+  });
+  const beforePushes = pushes;
   const answer = await harness.call('ada', 'POST', `/api/projects/${upstream.id}/commands`, {
     commands: [
       { kind: 'startAttempt', workItemId: upstream.rowId, stepId: upstream.stepId },
@@ -146,4 +159,5 @@ it('a failed attempt command batch rolls back its first start and publishes noth
   expect(harness.sqlite.query('SELECT * FROM step_node_attempt').all()).toEqual([]);
   expect(events(downstream.id)).toEqual([]);
   expect(events(tail.id)).toEqual([]);
+  expect(pushes).toBe(beforePushes);
 });

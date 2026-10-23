@@ -626,7 +626,7 @@ parent tasks 7.3/7.4 stay open.
 Task 5.2 bounded attempt-driven dependency invalidation (2026-10-23):
 
 - [x] Capture authorized component-member step attempts on the borrowed writer, check snapshot lifetime after the awaited read, and include the detached authoritative attempt rows in the dependency fingerprint.
-- [x] Prove mounted isolated/shared SS start, failed end and removal each publish one B/C event while readiness follows the attempt, foreign organizations stay silent, relationships remain stable, and rejected/read-failed writes leave no durable publication.
+- [x] Prove mounted isolated/shared SS start, failed end and removal each publish one B/C event while readiness follows the attempt, disconnected same-organization and foreign projects stay silent, relationships remain stable, and rejected/read-failed writes leave no durable or push-observed publication.
 - [x] Watch fingerprint omission and post-await lifetime-guard removal fail their production-path tests; record focused test, lint, typecheck and format evidence in `verify.md`.
 
 Task 5.2 remains open for its broader writer audit, socket/browser acceptance and exact-SHA host gate.
