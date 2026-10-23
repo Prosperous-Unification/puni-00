@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import fc from 'fast-check';
 
 import { DEFAULT_PERT_WEIGHTS } from './estimate';
 import { type MeasureDefinition, SEEDED_MEASURE_DEFINITIONS } from './measure-definition';
@@ -135,6 +136,66 @@ describe('expectedMeasure and measureVariance', () => {
         'integer',
       ),
     ).toBe(1);
+  });
+
+  it('rounds a real half up at ten million tokens under fractional weights', () => {
+    // Exactly 16352134.5; doubles compute 16352134.499999998.
+    expect(
+      expectedMeasure(
+        { optimistic: 2776814, realistic: 17939787, pessimistic: 24687947 },
+        { optimistic: 1, realistic: 1.2, pessimistic: 1.4 },
+        'integer',
+      ),
+    ).toBe(16352135);
+  });
+
+  it('rounds a third down at a magnitude where any relative tolerance would call it a half', () => {
+    // 1e12 / 3 = 333333333333.33…: a tolerance wide enough for the drift at
+    // this size snaps it to …333.5 and rounds up.
+    expect(
+      expectedMeasure(
+        { optimistic: 0, realistic: 0, pessimistic: 1_000_000_000_000 },
+        { optimistic: 1, realistic: 1, pessimistic: 1 },
+        'integer',
+      ),
+    ).toBe(333_333_333_333);
+  });
+
+  it('rounds half up exactly over random integer trios and decimal weights', () => {
+    const point = fc.integer({ min: 0, max: 50_000_000 });
+    const weight = fc.integer({ min: 0, max: 500 }).map((hundredths) => hundredths / 100);
+    fc.assert(
+      fc.property(fc.tuple(point, point, point), fc.tuple(weight, weight, weight), (points, w) => {
+        const [optimistic, realistic, pessimistic] = points.sort((a, b) => a - b);
+        const [wo, wr, wp] = w;
+        fc.pre(wo + wr + wp > 0);
+        const rounded = expectedMeasure(
+          { optimistic, realistic, pessimistic },
+          { optimistic: wo, realistic: wr, pessimistic: wp },
+          'integer',
+        );
+        // Half up in exact terms: (2r - 1)·D <= 2N < (2r + 1)·D over hundredths.
+        const hundredths = [wo, wr, wp].map((each) => BigInt(Math.round(each * 100)));
+        const [ho, hr, hp] = hundredths as [bigint, bigint, bigint];
+        const numerator =
+          ho * BigInt(optimistic) + hr * BigInt(realistic) + hp * BigInt(pessimistic);
+        const denominator = ho + hr + hp;
+        const r = BigInt(rounded);
+        expect((2n * r - 1n) * denominator <= 2n * numerator).toBe(true);
+        expect(2n * numerator < (2n * r + 1n) * denominator).toBe(true);
+      }),
+      { numRuns: 500 },
+    );
+  });
+
+  it('rounds a legacy fractional token estimate half up', () => {
+    expect(
+      expectedMeasure(
+        { optimistic: 2.5, realistic: 2.5, pessimistic: 2.5 },
+        DEFAULT_PERT_WEIGHTS,
+        'integer',
+      ),
+    ).toBe(3);
   });
 
   it('keeps a real measure unrounded', () => {

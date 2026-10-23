@@ -4517,7 +4517,9 @@ export class WorkItemService {
     // Proof: skipped, `copies a duplicated branch's trios and takes them with
     // the copy on undo` (measure-estimate-command.test.ts) read none on the
     // copy; watched 2026-10-23.
-    for (const each of copiedMeasureEstimates) await this.opts.measureEstimates.set(each, stamp);
+    // The single-point ones were copied as legacy token estimates above.
+    for (const each of copiedMeasureEstimates.filter(isRanged))
+      await this.opts.measureEstimates.set(each, stamp);
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
@@ -4952,7 +4954,10 @@ export class WorkItemService {
       // Proof: skipped, `hands a deleted last child's trios up to the parent and
       // takes them off again on undo` (measure-estimate-command.test.ts) read no
       // trio on the parent; watched 2026-10-23.
-      for (const each of estimatedHandedUp) await this.opts.measureEstimates.set(each, stamp);
+      // Single-point trios ride with the legacy rows just written, whose
+      // `recordedAt` a second write would restamp (design D28).
+      for (const each of estimatedHandedUp.filter(isRanged))
+        await this.opts.measureEstimates.set(each, stamp);
       // Proof: skipped, `hands the last child’s demand back up when its delete
       // promotes the parent, and back on undo` (resource-occupancy.db.test.ts)
       // read no demand on the parent, on both stores; watched 2026-10-20.
@@ -6017,8 +6022,8 @@ export class WorkItemService {
    * Takes one step node's trio in one measure back off, leaving its other
    * measures alone. Idempotent and not refused on a rolled-up row, exactly as
    * {@link WorkItemService.clearEstimate}; a key the organization does not
-   * define, `time`, or a definition without three points is refused as on
-   * the write.
+   * define and `time` are refused as on the write. A definition without three
+   * points is not: one patched since may still hold trios to clear.
    */
   async clearMeasureEstimate(
     id: string,
@@ -6034,8 +6039,13 @@ export class WorkItemService {
       requested,
       null,
     );
-    if (!decided.ok) return decided;
-    const { key } = decided.definition;
+    // A definition patched to `threePoint: false` may still hold trios stored
+    // before; clearing them is how they go (and what down.sql asks for).
+    // Proof: with this exception removed, `clears a trio stored before its
+    // measure stopped allowing three points` (measure-estimate-command.test.ts)
+    // answered three_point_forbidden; watched 2026-10-23.
+    if (!decided.ok && decided.reason !== 'three_point_forbidden') return decided;
+    const key = requested;
     const before = await this.storedMeasureEstimate(workItem.projectId, id, stepId, key);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.measureEstimates.remove(id, stepId, key, stamp);
@@ -7652,9 +7662,8 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        // A defined measure deleted since, or one whose definition stopped
-        // admitting three points: the store would throw on the first, and the
-        // second is a figure the organization no longer keeps.
+        // A defined measure deleted since: the store would throw on a key the
+        // organization no longer defines.
         // Proof: with this check skipped, `refuses an undo that would put a
         // trio back in a measure deleted since` (measure-estimate-command.test.ts)
         // threw from the store instead of refusing; watched 2026-10-23.
@@ -8281,7 +8290,7 @@ export class WorkItemService {
     // Proof: skipped, `hands a leaf's trios down to its first child and back up
     // on undo` (measure-estimate-command.test.ts) read no three-point trio on
     // the parent after the undo; watched 2026-10-23.
-    for (const each of command.setMeasureEstimates ?? [])
+    for (const each of (command.setMeasureEstimates ?? []).filter(isRanged))
       await this.opts.measureEstimates.set(each, stamp);
     // And the attempts, verbatim with their numbers, onto the leaf they came
     // from: the undo of a first-child create, whose child's delete above has
@@ -8333,17 +8342,29 @@ export class WorkItemService {
 
   /**
    * Why these trios cannot be written back: one is in a measure the project's
-   * organization no longer defines, or no longer estimates in three points
-   * (design D24 for estimates). Null when nothing stands in the way, and
-   * without a read when there are none.
+   * organization no longer defines (design D32, D24 for estimates). Null when
+   * nothing stands in the way, and without a read when there are none.
+   *
+   * Only absence refuses. A replay puts back what was there, so a definition
+   * that stopped allowing three points since is not a reason: refusing it
+   * would strand every undo carrying a legacy single-point token estimate
+   * once `tokens` is patched to `threePoint: false`.
+   *
+   * Proof: with `decideMeasureEstimate` deciding here again, `undoes a delete
+   * and a first-child create after tokens stops allowing three points`
+   * (measure-estimate-command.test.ts) answered the undo stale; watched 2026-10-23.
    */
   private async measureEstimatesRefusal(
     projectId: string,
     estimates: readonly MeasureEstimateKey[],
   ): Promise<ApplyOutcome | null> {
     if (estimates.length === 0) return null;
-    const definitions = await this.opts.measures.definitionsFor(projectId);
-    return estimates.some(({ key }) => !decideMeasureEstimate(definitions, key, null).ok)
+    const held = new Set(
+      definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId)).map(
+        ({ key }) => key,
+      ),
+    );
+    return estimates.some(({ key }) => !held.has(key))
       ? { ok: false, detail: 'a measure it estimated is no longer defined.' }
       : null;
   }
@@ -8541,7 +8562,12 @@ export class WorkItemService {
     // watched 2026-10-23.
     for (const key of command.removedMeasureEstimates ?? [])
       await this.opts.measureEstimates.remove(key.workItemId, key.stepId, key.key, stamp);
-    for (const each of command.measureEstimates ?? [])
+    // Single-point trios came back with their legacy rows in `insertSubtree`,
+    // `recordedAt` verbatim; writing them again would restamp it (design D28).
+    // Proof: with the filter removed, `restores a deleted leaf's legacy token
+    // estimate with its recordedAt verbatim` (measure-estimate-command.test.ts)
+    // read the undo's instant; watched 2026-10-23.
+    for (const each of (command.measureEstimates ?? []).filter(isRanged))
       await this.opts.measureEstimates.set(each, stamp);
     // The attempts after the rows they hang off: off the surviving parent
     // first (the redo of a first-child create), then onto the restored rows,
@@ -8842,15 +8868,6 @@ export class WorkItemService {
     return found?.days ?? null;
   }
 
-  /**
-   * One work item's recorded figure in one metric for one step, or null when it
-   * holds none in that metric.
-   *
-   * Null rather than 0, on {@link WorkItemService.storedActual}'s reading and
-   * per metric: a pair holding a token estimate and no hours has said one thing
-   * and not the other, and an undo of the hours must put back the absence
-   * rather than a zero beside a real figure.
-   */
   /** One step node's trio in one measure as stored, or null when it has none. */
   private async storedMeasureEstimate(
     projectId: string,
@@ -8865,6 +8882,15 @@ export class WorkItemService {
     );
   }
 
+  /**
+   * One work item's recorded figure in one metric for one step, or null when it
+   * holds none in that metric.
+   *
+   * Null rather than 0, on {@link WorkItemService.storedActual}'s reading and
+   * per metric: a pair holding a token estimate and no hours has said one thing
+   * and not the other, and an undo of the hours must put back the absence
+   * rather than a zero beside a real figure.
+   */
   private async storedMeasure(
     projectId: string,
     workItemId: string,
@@ -9108,6 +9134,15 @@ function projectSharedTree(
   // Proof: returning the tree unlabelled made `levels a demanded resource
   // (shared)` find no `resourceLabels`; watched 2026-10-20.
   return 'kind' in tree || !namesAResource(tree) ? tree : withResourceLabels(tree, reads.resources);
+}
+
+/**
+ * Whether a trio is held apart from the legacy token estimate: every trio
+ * but a single-point one, which is its legacy row (design D28) and travels
+ * with the measures.
+ */
+function isRanged(estimate: StoredMeasureEstimate): boolean {
+  return !estimate.singlePoint;
 }
 
 /**

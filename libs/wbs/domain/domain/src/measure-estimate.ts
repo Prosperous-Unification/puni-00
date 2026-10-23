@@ -106,8 +106,58 @@ export function decideMeasureEstimate(
   return { ok: true, definition };
 }
 
-/** How close a weighted figure must sit to a half to count as one: drift, not a value. */
-const HALF_DRIFT = 1e-9;
+/** The most decimal places a weight is scaled by before it is taken as inexact. */
+const MOST_WEIGHT_DECIMALS = 12;
+
+/**
+ * `value` as an integer times `10^-decimals` when it is one with at most
+ * {@link MOST_WEIGHT_DECIMALS} places (`1.2` is 12 × 10^-1), else null. The
+ * decimal a person typed, recovered from its double: the scaled value must
+ * divide back to exactly the same double.
+ */
+function decimalPlacesOf(value: number): number | null {
+  for (let decimals = 0; decimals <= MOST_WEIGHT_DECIMALS; decimals++) {
+    const scale = 10 ** decimals;
+    if (Math.round(value * scale) / scale === value) return decimals;
+  }
+  return null;
+}
+
+/**
+ * The weighted average of an integer trio rounded half up, in exact integer
+ * arithmetic: weights scaled to integers by their common decimal places, then
+ * `floor((2N + D) / 2D)` over BigInts. Null when a point is not an integer or
+ * a weight is not a short decimal, where the caller falls back to doubles.
+ *
+ * Exact because a half is a boundary no tolerance can find at every
+ * magnitude: under weights 1/1.2/1.4 the trio 2776814/17939787/24687947
+ * weighs exactly 16352134.5, which doubles compute as 16352134.499999998.
+ */
+function exactHalfUp(trio: MeasureTrio, weights: PertWeights): number | null {
+  const points = [trio.optimistic, trio.realistic, trio.pessimistic];
+  if (!points.every(Number.isSafeInteger)) return null;
+  const coefficients = [weights.optimistic, weights.realistic, weights.pessimistic];
+  let decimals = 0;
+  for (const coefficient of coefficients) {
+    const places = decimalPlacesOf(coefficient);
+    if (places === null) return null;
+    decimals = Math.max(decimals, places);
+  }
+  const scaled = coefficients.map((coefficient) =>
+    BigInt(Math.round(coefficient * 10 ** decimals)),
+  );
+  const [wo, wr, wp] = scaled as [bigint, bigint, bigint];
+  const numerator =
+    wo * BigInt(trio.optimistic) + wr * BigInt(trio.realistic) + wp * BigInt(trio.pessimistic);
+  const denominator = wo + wr + wp;
+  // Proof: with `numerator / denominator` (truncation) here, `rounds an
+  // integer measure half up, once` and the random-weights property
+  // (measure-estimate.test.ts) failed; watched 2026-10-23.
+  return Number((2n * numerator + denominator) / (2n * denominator));
+}
+
+/** How close a weighted figure must sit to a half to count as one, relative to its size. */
+const HALF_DRIFT = 1e-12;
 
 /**
  * The **expected measure** of one trio: the project's PERT weights applied to
@@ -116,9 +166,11 @@ const HALF_DRIFT = 1e-9;
  *
  * An integer measure is rounded half up, once, on the step node's own figure;
  * a parent sums its nodes' rounded figures rather than rounding a sum (the
- * order ADR 0011 fixes for days). A weighted average within {@link HALF_DRIFT}
- * of a half is snapped to it first, so a division's leftover bits cannot turn
- * 2.5 into 2. A real measure keeps the weighted figure as it comes out.
+ * order ADR 0011 fixes for days). The rounding is exact for integer points
+ * and decimal weights ({@link exactHalfUp}); otherwise (a legacy fractional
+ * token estimate, a weight no short decimal names) a weighted average within
+ * a relative {@link HALF_DRIFT} of a half is snapped to it first. A real
+ * measure keeps the weighted figure as it comes out.
  */
 export function expectedMeasure(
   trio: MeasureTrio,
@@ -127,10 +179,19 @@ export function expectedMeasure(
 ): number {
   const weighted = expectedDays(trio, weights);
   if (scale === 'real') return weighted;
+  // Proof: with this exact path skipped, `rounds a third down at a magnitude
+  // where any relative tolerance would call it a half` (measure-estimate.test.ts)
+  // read 333333333334; watched 2026-10-23. (The ten-million case is held by
+  // both paths.)
+  const exact = exactHalfUp(trio, weights);
+  if (exact !== null) return exact;
   const halves = Math.round(weighted * 2);
-  const snapped = Math.abs(weighted * 2 - halves) < HALF_DRIFT ? halves / 2 : weighted;
-  // Proof: with `Math.floor` here, `rounds an integer measure half up, once`
-  // and the roll-up case (measure-estimate.test.ts) failed; watched 2026-10-23.
+  const snapped =
+    Math.abs(weighted * 2 - halves) < HALF_DRIFT * Math.max(1, Math.abs(weighted * 2))
+      ? halves / 2
+      : weighted;
+  // Proof: with `Math.floor` here, `rounds a legacy fractional token estimate
+  // half up` (measure-estimate.test.ts) failed; watched 2026-10-23.
   return Math.round(snapped);
 }
 

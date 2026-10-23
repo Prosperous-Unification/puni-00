@@ -907,11 +907,6 @@ export function quoteName(name: string): string {
  *
  * @throws for any malformed claim or key.
  */
-/**
- * A restore's `demands`: each a whole number of units from 1 on a resource, on
- * one of the rows the restore writes. A demand on any other row would be
- * written onto work the entry does not put back.
- */
 /** Whether a journalled value names one measure estimate's step node and key. */
 function isMeasureEstimateKey(value: unknown): boolean {
   return (
@@ -952,6 +947,11 @@ function isMeasureEstimateRecord(value: unknown): boolean {
   );
 }
 
+/**
+ * A restore's `demands`: each a whole number of units from 1 on a resource, on
+ * one of the rows the restore writes. A demand on any other row would be
+ * written onto work the entry does not put back.
+ */
 function readRestoredDemands(value: object): void {
   const demands: unknown = Reflect.get(value, 'demands');
   const rows: unknown = Reflect.get(value, 'rows');

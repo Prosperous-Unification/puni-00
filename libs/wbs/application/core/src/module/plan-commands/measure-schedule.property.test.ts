@@ -20,13 +20,17 @@ const FACTS = ['tokens', 'cost', 'kwh', 'hours', 'token_estimate'] as const;
 
 /**
  * The schedule a plan read draws, and nothing else: every row's scheduled
- * span, dates and charged days, and every slice. What D2 says no measure but
- * time may move (`wbs-measure-budgets` task 2.4).
+ * span, dates and charged days, every slice, the schedule error and the
+ * waiting counts — what D2 says no measure but time may move
+ * (`wbs-measure-budgets` task 2.4). Ids are replaced by their place in the
+ * read (rows in tree order, steps in step order), so two sources holding the
+ * same plan under different ids digest alike.
  */
 function scheduleDigest(tree: PlanTree): string {
-  return JSON.stringify({
+  let digest = JSON.stringify({
     rows: tree.workItems.map((row) => ({
       id: row.id,
+      parentId: row.parentId,
       schedule: row.schedule,
       dates: row.dates,
       finalDays: row.finalDays,
@@ -34,7 +38,16 @@ function scheduleDigest(tree: PlanTree): string {
       charged: row.charged,
     })),
     slices: tree.slices,
+    scheduleError: tree.scheduleError,
+    waitingForPerson: tree.waitingForPerson,
+    waitingForCapacity: tree.waitingForCapacity,
+    waitingElsewhere: tree.waitingElsewhere ?? null,
   });
+  for (const [index, row] of tree.workItems.entries())
+    digest = digest.replaceAll(row.id, `row${String(index)}`);
+  for (const [index, step] of tree.steps.entries())
+    digest = digest.replaceAll(step.id, `step${String(index)}`);
+  return digest;
 }
 
 const trio = fc
@@ -51,35 +64,54 @@ const plan = fc.record({
   edges: fc.array(fc.tuple(fc.nat(6), fc.nat(6)), { maxLength: 5 }),
 });
 
-/** Random writes in measures other than time: trios, facts and their clears. */
-const write = fc.oneof(
+/** Writes in measures other than time: trios, facts and their clears. */
+const measureWrite = fc.oneof(
   fc.record({
     kind: fc.constant('setMeasureEstimate' as const),
-    row: fc.nat(6),
+    row: fc.nat(9),
     step: fc.nat(1),
     measure: fc.constantFrom(...ESTIMATED),
     estimate: trio,
   }),
   fc.record({
     kind: fc.constant('clearMeasureEstimate' as const),
-    row: fc.nat(6),
+    row: fc.nat(9),
     step: fc.nat(1),
     measure: fc.constantFrom(...ESTIMATED),
   }),
   fc.record({
     kind: fc.constant('setMeasure' as const),
-    row: fc.nat(6),
+    row: fc.nat(9),
     step: fc.nat(1),
     metric: fc.constantFrom(...FACTS),
     value: fc.nat({ max: 5000 }),
   }),
   fc.record({
     kind: fc.constant('clearMeasure' as const),
-    row: fc.nat(6),
+    row: fc.nat(9),
     step: fc.nat(1),
     metric: fc.constantFrom(...FACTS),
   }),
 );
+
+/**
+ * Structural writes, which do move the schedule and which both twins take:
+ * a child under a row (a leaf's first child takes its trios), a cascading
+ * delete (a last child hands them up), and a duplicate (which copies them).
+ */
+const structuralWrite = fc.oneof(
+  fc.record({ kind: fc.constant('createChild' as const), row: fc.nat(9) }),
+  fc.record({ kind: fc.constant('delete' as const), row: fc.nat(9) }),
+  fc.record({ kind: fc.constant('duplicate' as const), row: fc.nat(9) }),
+);
+
+const write = fc.oneof(
+  { arbitrary: measureWrite, weight: 3 },
+  { arbitrary: structuralWrite, weight: 1 },
+);
+
+type PlanShape = typeof plan extends fc.Arbitrary<infer Shape> ? Shape : never;
+type Write = typeof write extends fc.Arbitrary<infer Each> ? Each : never;
 
 /** A fresh source holding the random plan, and a way to write and read it. */
 async function seededPlan(shape: PlanShape) {
@@ -129,81 +161,121 @@ async function seededPlan(shape: PlanShape) {
   ]);
   if (!defined.ok) throw new Error(`kwh was refused: ${JSON.stringify(defined)}`);
   const run = (commands: readonly PlanCommand[]) => runner.run(projectId, F, commands);
-  const ids: string[] = [];
-  for (const [index, parent] of shape.parents.entries()) {
-    const parentId = parent >= 0 && parent < ids.length ? (ids[parent] ?? null) : null;
-    const made = await run([
-      { kind: 'createWorkItem', ref: 'row', name: `Row ${String(index)}`, parentId, afterId: null },
-    ]);
-    if (!made.ok) throw new Error(`row ${String(index)} was refused: ${JSON.stringify(made)}`);
-    const found = made.results.find((each) => 'ref' in each && each.ref === 'row');
-    if (found === undefined || !('id' in found) || typeof found.id !== 'string')
-      throw new Error(`row ${String(index)} has no id`);
-    ids.push(found.id);
-  }
-  const rowAt = (index: number): string => {
-    const id = ids.at(index % ids.length);
-    if (id === undefined) throw new Error(`no row at ${String(index)}`);
-    return id;
+  const tree = async (): Promise<PlanTree> => {
+    const read = await graph.workItems.tree(projectId);
+    if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
+    return read;
+  };
+  /** The row at `index` in the current tree order, the same place in either twin. */
+  const rowAt = async (index: number): Promise<string> => {
+    const rows = (await tree()).workItems;
+    const row = rows.at(index % rows.length);
+    if (row === undefined) throw new Error('the plan holds no rows');
+    return row.id;
   };
   const stepAt = (index: number): string => {
     const id = stepIds.at(index % stepIds.length);
     if (id === undefined) throw new Error(`no step at ${String(index)}`);
     return id;
   };
+  for (const [index, parent] of shape.parents.entries()) {
+    const parentId = parent >= 0 && parent < index ? await rowAt(parent) : null;
+    const made = await run([
+      { kind: 'createWorkItem', name: `Row ${String(index)}`, parentId, afterId: null },
+    ]);
+    if (!made.ok) throw new Error(`row ${String(index)} was refused: ${JSON.stringify(made)}`);
+  }
   // A refused time estimate (a parent) or edge (a cycle, an ancestor) leaves
-  // the plan as it was; the property is over whatever plan results.
+  // the plan as it was, in both twins alike; the property is over whatever
+  // plan results.
   for (const { row, step, days } of shape.estimates)
-    await run([{ kind: 'setEstimate', workItemId: rowAt(row), stepId: stepAt(step), days }]);
-  for (const [from, to] of shape.edges)
-    if (rowAt(from) !== rowAt(to))
-      await run([{ kind: 'addDependency', workItemId: rowAt(to), predecessorId: rowAt(from) }]);
-  const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
-    if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
-    return read;
+    await run([{ kind: 'setEstimate', workItemId: await rowAt(row), stepId: stepAt(step), days }]);
+  for (const [from, to] of shape.edges) {
+    const [predecessorId, workItemId] = [await rowAt(from), await rowAt(to)];
+    if (predecessorId !== workItemId)
+      await run([{ kind: 'addDependency', workItemId, predecessorId }]);
+  }
+  /** One random write as a command against this twin's ids; null once no row is left. */
+  const commandOf = async (each: Write): Promise<PlanCommand | null> => {
+    if ((await tree()).workItems.length === 0) return null;
+    const workItemId = await rowAt(each.row);
+    switch (each.kind) {
+      case 'createChild':
+        return { kind: 'createWorkItem', name: 'Child', parentId: workItemId, afterId: null };
+      case 'delete':
+        return { kind: 'deleteWorkItem', workItemId, strategy: 'cascade' };
+      case 'duplicate':
+        return { kind: 'duplicateWorkItem', workItemId };
+      case 'setMeasureEstimate':
+        return {
+          kind: each.kind,
+          workItemId,
+          stepId: stepAt(each.step),
+          measure: each.measure,
+          estimate: each.estimate,
+        };
+      case 'clearMeasureEstimate':
+        return { kind: each.kind, workItemId, stepId: stepAt(each.step), measure: each.measure };
+      case 'setMeasure':
+        return {
+          kind: each.kind,
+          workItemId,
+          stepId: stepAt(each.step),
+          metric: each.metric,
+          value: each.value,
+        };
+      case 'clearMeasure':
+        return { kind: each.kind, workItemId, stepId: stepAt(each.step), metric: each.metric };
+    }
   };
-  return { source, run, rowAt, stepAt, tree };
+  return { source, run, tree, commandOf };
 }
 
-type PlanShape = typeof plan extends fc.Arbitrary<infer Shape> ? Shape : never;
+const isStructural = (each: Write): boolean =>
+  each.kind === 'createChild' || each.kind === 'delete' || each.kind === 'duplicate';
 
 describe('measures other than time never move the schedule', () => {
   // Proof: with the tokens trios appended to the time estimates handed to
   // `canonicalScheduleParts` in `treeIsolated`, this property failed naming its
-  // seed and the shrunk counterexample; watched 2026-10-23.
-  it('keeps the schedule digest byte-identical over 200 random plans and measure writes', async () => {
+  // seed and the shrunk counterexample; watched 2026-10-23, before and after
+  // the structural writes and the twin were added.
+  it('keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans', async () => {
     // Counted across runs so a generator that only ever produced refused
     // writes, which would prove nothing, fails here instead.
     let applied = 0;
     let estimated = 0;
+    let structural = 0;
     await fc.assert(
       fc.asyncProperty(
         plan,
         fc.array(write, { minLength: 1, maxLength: 12 }),
         async (shape, writes) => {
-          const { source, run, rowAt, stepAt, tree } = await seededPlan(shape);
+          // `measured` takes every write; `twin` only the structural ones.
+          const measured = await seededPlan(shape);
+          const twin = await seededPlan(shape);
           try {
-            const before = scheduleDigest(await tree());
+            expect(scheduleDigest(await measured.tree())).toBe(scheduleDigest(await twin.tree()));
             for (const each of writes) {
-              const address = { workItemId: rowAt(each.row), stepId: stepAt(each.step) };
-              const command: PlanCommand =
-                each.kind === 'setMeasureEstimate'
-                  ? { kind: each.kind, ...address, measure: each.measure, estimate: each.estimate }
-                  : each.kind === 'clearMeasureEstimate'
-                    ? { kind: each.kind, ...address, measure: each.measure }
-                    : each.kind === 'setMeasure'
-                      ? { kind: each.kind, ...address, metric: each.metric, value: each.value }
-                      : { kind: each.kind, ...address, metric: each.metric };
-              // A refusal (a parent, a scale) writes nothing; the rest must not move dates.
-              if ((await run([command])).ok) {
+              const command = await measured.commandOf(each);
+              const mirror = await twin.commandOf(each);
+              // Both twins hold the same rows, so both run out of them together.
+              expect(mirror === null).toBe(command === null);
+              if (command === null || mirror === null) break;
+              const outcome = await measured.run([command]);
+              if (isStructural(each)) {
+                const mirrored = await twin.run([mirror]);
+                // A trio or fact never decides whether a structural write lands.
+                expect(mirrored.ok).toBe(outcome.ok);
+                if (outcome.ok) structural += 1;
+              } else if (outcome.ok) {
                 applied += 1;
-                if (command.kind === 'setMeasureEstimate') estimated += 1;
+                if (each.kind === 'setMeasureEstimate') estimated += 1;
               }
-              expect(scheduleDigest(await tree())).toBe(before);
+              expect(scheduleDigest(await measured.tree())).toBe(scheduleDigest(await twin.tree()));
             }
           } finally {
-            await source.close();
+            await measured.source.close();
+            await twin.source.close();
           }
         },
       ),
@@ -211,5 +283,6 @@ describe('measures other than time never move the schedule', () => {
     );
     expect(applied).toBeGreaterThan(200);
     expect(estimated).toBeGreaterThan(50);
-  }, 300_000);
+    expect(structural).toBeGreaterThan(50);
+  }, 600_000);
 });

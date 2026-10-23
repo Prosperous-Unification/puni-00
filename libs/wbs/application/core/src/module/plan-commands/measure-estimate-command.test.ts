@@ -589,6 +589,91 @@ describe('measure estimates follow their work item', () => {
   });
 });
 
+describe('a definition that stops allowing three points', () => {
+  const patchThreePoint = async (
+    runner: Awaited<ReturnType<typeof seeded>>['runner'],
+    source: Awaited<ReturnType<typeof seeded>>['source'],
+    key: string,
+  ) => {
+    const found = (await source.stores.directory.listMeasures(ORG)).find(
+      (each) => each.key === key,
+    );
+    if (found === undefined) throw new Error(`no ${key}`);
+    const patched = await runner.runDirectory(F, [
+      { kind: 'patchMeasure', measureId: found.id, patch: { threePoint: false } },
+    ]);
+    if (!patched.ok) throw new Error(`the patch was refused: ${JSON.stringify(patched)}`);
+  };
+
+  it('undoes a delete and a first-child create after tokens stops allowing three points', async () => {
+    const { source, runner, projectId, dev, idOf, run, facts, childOf } = await seeded();
+    try {
+      const [A, B] = [idOf('A'), idOf('B')];
+      await patchThreePoint(runner, source, 'tokens');
+      await run([
+        { kind: 'setMeasure', workItemId: A, stepId: dev, metric: 'token_estimate', value: 500 },
+        { kind: 'setMeasure', workItemId: B, stepId: dev, metric: 'token_estimate', value: 70 },
+      ]);
+      expect(await run([{ kind: 'deleteWorkItem', workItemId: A }])).toMatchObject({ ok: true });
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await facts()).toContainEqual({ workItemId: A, metric: 'token_estimate', value: 500 });
+      const C = childOf(
+        await run([{ kind: 'createWorkItem', ref: 'C', name: 'C', parentId: B, afterId: null }]),
+        'C',
+      );
+      expect(await facts()).toContainEqual({ workItemId: C, metric: 'token_estimate', value: 70 });
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await facts()).toContainEqual({ workItemId: B, metric: 'token_estimate', value: 70 });
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('clears a trio stored before its measure stopped allowing three points', async () => {
+    const { source, runner, dev, idOf, run, trios } = await seeded();
+    try {
+      const A = idOf('A');
+      await run([setTrio(A, dev, 'kwh')]);
+      await patchThreePoint(runner, source, 'kwh');
+      expect(await run([setTrio(A, dev, 'kwh')])).toMatchObject({
+        ok: false,
+        reason: 'three_point_forbidden',
+      });
+      expect(
+        await run([{ kind: 'clearMeasureEstimate', workItemId: A, stepId: dev, measure: 'kwh' }]),
+      ).toMatchObject({ ok: true });
+      expect(await trios()).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
+describe('the legacy token estimate through a restore', () => {
+  it("restores a deleted leaf's legacy token estimate with its recordedAt verbatim", async () => {
+    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    try {
+      const A = idOf('A');
+      await run([
+        { kind: 'setMeasure', workItemId: A, stepId: dev, metric: 'token_estimate', value: 40 },
+      ]);
+      const recorded = async () =>
+        (await source.stores.measures.listByProject(projectId)).find(
+          (each) => each.workItemId === A && each.metric === 'token_estimate',
+        )?.recordedAt;
+      const before = await recorded();
+      expect(before).toBeNumber();
+      await Bun.sleep(5);
+      await run([{ kind: 'deleteWorkItem', workItemId: A }]);
+      await Bun.sleep(5);
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await recorded()).toBe(before);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
 describe('replays across a deleted definition', () => {
   it('refuses an undo that would put a trio back in a measure deleted since', async () => {
     const { source, runner, projectId, dev, idOf, run, trios, kwhId } = await seeded();

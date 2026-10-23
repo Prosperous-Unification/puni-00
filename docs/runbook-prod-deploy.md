@@ -325,6 +325,27 @@ measures exist`. Both exits stay closed until those rows are cleared by hand: re
 `migrate-down-cli.ts --to=20261023100000_add_measure`. Tokens and hours facts keep their legacy
 names and need nothing.
 
+### Measure estimate rollback
+
+`20261023120000_add_measure_estimate` (slice 3) adds `measure_estimate`. Single-point `tokens`
+trios mirror the legacy `token_estimate` rows through triggers, so the older image keeps reading
+and writing its token estimates. Three-point trios and trios in other measures have no legacy
+row: `down.sql` refuses with `measure estimates the legacy token estimate cannot hold exist`
+until each is cleared with `clearMeasureEstimate` (allowed even on a definition patched to
+`threePoint: false`) or by SQL, then `migrate-down-cli.ts --to=20261023110000_key_step_measure`.
+
+An attended restart of the older image without `down.sql` keeps the table and its triggers but
+loses three-point trios in these ways, with no error:
+
+- its undo of a `setMeasure token_estimate` written over a three-point trio runs `clear_measure`
+  and takes the trio with the legacy row;
+- its delete, undo and first-child hand-down carry only legacy rows, so a three-point trio is
+  cascaded away on delete, not put back on undo, and left behind on the parent at a hand-down;
+- its step removal does not delete `measure_estimate` rows, so removing a step that holds a
+  three-point trio fails on the `measure_estimate.step_id` foreign key (500).
+
+Clear or record three-point trios before such a restart.
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at
