@@ -36,3 +36,19 @@ This is a bounded lifecycle proof. It
 does not establish missing or unreadable required save evidence rollback, full
 active writer integration, navigation access after deletion, client rendering,
 or the canonical h2puni host gate. Parent task 8.3 remains open.
+
+## Integrated-head receipt (2026-10-23)
+
+Astra High reviewed the corrected packet without remaining code findings. The
+original commit's two evidence logs had four trailing-space lines; the
+additive integration `4aa50eade` and normalization `a3f269785` preserve the
+same observed fault output while passing exact committed-range whitespace
+inspection. On `a3f269785`, running Bun's configured backend test runner over
+`src/http/elysia/saved-plan-connected-lifecycle.db.test.ts`,
+`src/service/saved-plan-connected-writer.db.test.ts`, and
+`src/service/saved-plan-read.db.test.ts` passed 23 tests / 206 assertions in
+7.24 seconds. The integrated lifecycle file itself passed both isolated and
+shared cases. The packet's changed-file lint/format, uncached backend typecheck,
+OpenSpec validation and independent fault receipts remain recorded above. The
+full exact-head CI and h2puni gate, missing/unreadable save-evidence matrix and
+parent 8.3 completion remain outstanding.
