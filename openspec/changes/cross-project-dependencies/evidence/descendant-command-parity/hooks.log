@@ -4,18 +4,18 @@
 │  website-migration-lint (skip) no files for inspection
 │  doc-caps (skip) no matching staged files
 │  migration-lint (skip) no files for inspection
-┃  tool-wiki ❯ 
+┃  tool-wiki ❯
 {"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
 
-┃  plaintext-secrets ❯ 
+┃  plaintext-secrets ❯
 
-┃  private-nesting ❯ 
+┃  private-nesting ❯
 
-┃  format ❯ 
+┃  format ❯
 Checking formatting...
 All matched files use Prettier code style!
 
-┃  lint ❯ 
+┃  lint ❯
 
   ────────────────────────────────────
 summary: (done in 3.92 seconds)
