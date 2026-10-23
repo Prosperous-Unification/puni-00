@@ -1,7 +1,11 @@
+import { CommandTimedOut } from './execute';
 import { redactDiagnostic } from './lab-diagnostics';
 
 /** Commands report exit status so only modeled Kubernetes lifecycle races can recover. */
 export interface McpObservationEffects {
+  apiCommand: readonly string[];
+  /** Docker name of the disposable lab's only K3s node (one server, no agents). */
+  node: string;
   invoke(
     args: readonly string[],
     timeoutMs: number,
@@ -58,31 +62,44 @@ function decodePods(stdout: string): McpPod[] {
       const exitCode = termination['exitCode'];
       if (typeof exitCode !== 'number' || !Number.isSafeInteger(exitCode) || exitCode < 0)
         throw new Error('malformed MCP exit code');
-      parsed.terminated = { exitCode, containerID: readText(termination['containerID']) };
+      const containerID = readText(termination['containerID']);
+      // Proof: removing this validation invoked the node for a malformed ID; its negative failed.
+      if (!/^containerd:\/\/[a-f0-9]{64}$/.test(containerID))
+        throw new Error('malformed MCP runtime ID');
+      parsed.terminated = { exitCode, containerID };
     }
     return parsed;
   });
 }
 function isLifecycleUnavailable(stderr: string, pod: McpPod | undefined): boolean {
-  if (pod === undefined) return false;
-  const message = stderr.trim();
-  // Proof: accepting a foreign pod or malformed runtime ID broke the unrelated-log negatives.
-  const missing = /^Error from server \(NotFound\): pods? "([^"\n]+)" not found$/.exec(message);
-  if (missing !== null) return missing[1] === pod.name;
-  const previous =
-    /^Error from server \(BadRequest\): previous terminated container "mcp" in pod "([^"\n]+)" not found$/.exec(
-      message,
-    );
-  if (previous !== null) return previous[1] === pod.name;
-  const unavailable = /^unable to retrieve container logs for (containerd:\/\/[a-f0-9]{64})$/.exec(
-    message,
-  );
-  return unavailable !== null;
+  if (pod?.terminated === undefined) return false;
+  const id = pod.terminated.containerID.slice('containerd://'.length);
+  const missing = `rpc error: code = NotFound desc = an error occurred when try to find container "${id}": not found`;
+  // Proof: accepting any NotFound ID made the foreign-ID negative retry; restoring exact
+  // matching passed it and the raw/logrus/klog garbage-collection convergence cases.
+  // Only the requested CRI ID's exact NotFound response models runtime garbage collection.
+  // Docker failures, authorization, tool absence and errors naming other IDs throw.
+  return stderr
+    .trim()
+    .split('\n')
+    .every((line) => {
+      if (line === missing) return true;
+      const logrus = /^time="[^"\n]+" level=(?:fatal|error) msg=/.exec(line);
+      if (logrus !== null) return line.slice(logrus[0].length) === JSON.stringify(missing);
+      const klog = /^E[0-9]{4} [0-9:.]+ +[0-9]+ (?:remote_runtime|log_rpc)\.go:[0-9]+\] /.exec(
+        line,
+      );
+      return (
+        klog !== null &&
+        line.slice(klog[0].length) ===
+          `"ContainerStatus from runtime service failed" err=${JSON.stringify(missing)} containerID=${JSON.stringify(id)}`
+      );
+    });
 }
 
 /**
- * Restart MCP, then require one replacement UID and terminated container ID to retain both
- * a nonzero exit and the missing-key log across a second status read. Only pod/log lifecycle
+ * Restart MCP on the disposable single-node k3d lab, then require one replacement UID and terminated container ID to retain both
+ * a nonzero exit and the missing-key log read by exact CRI ID, across a second status read. Only runtime GC
  * unavailability retries; malformed state and all other command failures throw immediately.
  * Every command and sleep shares the same deadline. Errors contain only redacted diagnostics.
  */
@@ -106,13 +123,39 @@ export async function observeMissingMcpKey(
     // command-time test also spends restart/read time from the same deadline.
     const remaining = deadline - effects.now();
     if (remaining <= 0) throw expired();
-    const invocation = await effects.invoke(
-      [`--request-timeout=${String(remaining)}ms`, '-n', 'wbs', ...args],
-      remaining,
-    );
+    // Proof: selecting kubectl here or substituting another runtime ID falsely accepted
+    // newer kubelet logs while both API reads stayed stale; the watched negative failed.
+    const command =
+      pod === undefined
+        ? [...effects.apiCommand, `--request-timeout=${String(remaining)}ms`, '-n', 'wbs', ...args]
+        : [
+            'docker',
+            'exec',
+            effects.node,
+            'k3s',
+            'crictl',
+            `--timeout=${String(remaining)}ms`,
+            '--runtime-endpoint=unix:///run/k3s/containerd/containerd.sock',
+            ...args,
+          ];
+    let invocation: Awaited<ReturnType<McpObservationEffects['invoke']>>;
+    try {
+      invocation = await effects.invoke(command, remaining);
+    } catch (cause) {
+      // Proof: removing timeout capture lost the real killed-process evidence; broadening
+      // it changed unrelated rejection identity. Both watched mutations failed their negatives.
+      if (!(cause instanceof CommandTimedOut)) throw cause;
+      // Boundary: subprocess argv may contain Secret material; preserve only redacted text.
+      // eslint-disable-next-line preserve-caught-error -- raw timeout causes may disclose Secrets.
+      throw new Error(
+        `${expired().message}; subprocess: ${redactDiagnostic(cause.message, secrets)}`,
+      );
+    }
     // Proof: omitting this check accepted a matching log/status read completed too late.
     if (effects.now() >= deadline) throw expired();
-    if (invocation.exitCode === 0) return invocation.stdout;
+    // Proof: dropping runtime stderr failed the missing-key stderr-only convergence test.
+    if (invocation.exitCode === 0)
+      return pod === undefined ? invocation.stdout : `${invocation.stdout}\n${invocation.stderr}`;
     observed = redactDiagnostic(invocation.stderr, secrets);
     // Proof: disabling lifecycle recovery broke replacement/disappearance convergence;
     // repeated modeled failures exhausted the clock and threw the last redacted state.
@@ -151,7 +194,12 @@ export async function observeMissingMcpKey(
     if (pod?.terminated !== undefined) {
       const termination = pod.terminated;
       const logs = await invoke(
-        ['logs', pod.name, '-c', 'mcp', '--previous', '--tail=40', '--limit-bytes=8192'],
+        [
+          'logs',
+          '--tail=40',
+          '--limit-bytes=8192',
+          termination.containerID.slice('containerd://'.length),
+        ],
         true,
         pod,
       );

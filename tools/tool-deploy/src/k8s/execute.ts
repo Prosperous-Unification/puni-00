@@ -939,7 +939,10 @@ interface Invocation {
   exitCode: number;
 }
 
-/** Runs one bounded subprocess. `timeoutMs` kills it and reports rather than waiting forever. */
+/** A subprocess exceeded its supplied execution budget and was killed by {@link run}. */
+export class CommandTimedOut extends Error {}
+
+/** Runs one bounded subprocess; throws {@link CommandTimedOut} after killing an over-budget child. */
 export async function run(
   cmd: readonly string[],
   stdin: string | null,
@@ -964,8 +967,10 @@ export async function run(
   clearTimeout(timer);
   // Proof: `run` kills a command past its deadline and reports it; with the timer removed
   // `kills a subprocess past its deadline` waited the full sleep and saw exit 0.
+  // Proof: throwing an untyped Error here lost the MCP observer's redacted last-state
+  // context in its real subprocess-timeout negative; restoring this type passed it.
   if (deadline.passed)
-    throw new Error(`${cmd.join(' ')} exceeded ${String(timeoutMs)}ms and was killed`);
+    throw new CommandTimedOut(`${cmd.join(' ')} exceeded ${String(timeoutMs)}ms and was killed`);
   return { stdout, stderr, exitCode };
 }
 

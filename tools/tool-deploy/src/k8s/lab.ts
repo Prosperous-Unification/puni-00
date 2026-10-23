@@ -209,12 +209,9 @@ async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
   // validation before MCP runs, so it cannot prove the application's startup refusal.
   const observed = await observeMissingMcpKey(
     {
-      invoke: (args, timeoutMs) =>
-        run(
-          [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT, ...args],
-          null,
-          timeoutMs,
-        ),
+      apiCommand: [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT],
+      node: `k3d-${CLUSTER}-server-0`,
+      invoke: (args, timeoutMs) => run(args, null, timeoutMs),
       now: Date.now,
       sleep: Bun.sleep,
     },
