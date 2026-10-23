@@ -1680,38 +1680,48 @@ it('boots local backend configuration from the rendered environment and keeps OI
     services: Record<string, { environment?: Record<string, string> }>;
   };
   const service = Object.values(compose.services)[0];
+  // Keep the product import isolated from the tool test process, but share its
+  // cold initialization across both explicit env sources instead of booting twice.
   const script = `
     import { loadConfig } from './apps/wbs/be-01/src/config.ts';
-    const config = loadConfig(JSON.parse(process.env['ORIGIN_CONFIG']));
-    console.log(config.appOrigin);
+    const env = JSON.parse(process.env['ORIGIN_CONFIG']);
+    console.log(JSON.stringify({
+      local: loadConfig({ ...env, AUTH_MODE: 'local' }).appOrigin,
+      oidc: loadConfig({ ...env, AUTH_MODE: 'oidc' }).appOrigin,
+    }));
   `;
-  for (const mode of ['local', 'oidc']) {
-    const config = {
-      PORT: '3100',
-      LOG_LEVEL: 'error',
-      GW_URL: 'http://gw',
-      DB_PATH: '/data/wbs.db',
-      INTERNAL_AUTH_SECRET: 's'.repeat(32),
-      JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
-      AUTH_MODE: mode,
-      BROWSER_SESSION_AUTHORITY: 'disabled',
-      ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
-      ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
-      ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
-      NODE_ENV: 'development',
-      ...service.environment,
-      AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',
-    };
-    const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
-      cwd: new URL('../../../../', import.meta.url).pathname,
-      env: { ORIGIN_CONFIG: JSON.stringify(config) },
-    });
-    expect(probe.exitCode).toBe(0);
-    expect(new TextDecoder().decode(probe.stdout).trim()).toBe(
-      mode === 'local' ? 'https://dev.wbs.bulletpoints.club' : 'https://oidc.example.test',
-    );
-  }
-});
+  const config = {
+    PORT: '3100',
+    LOG_LEVEL: 'error',
+    GW_URL: 'http://gw',
+    DB_PATH: '/data/wbs.db',
+    INTERNAL_AUTH_SECRET: 's'.repeat(32),
+    JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
+    BROWSER_SESSION_AUTHORITY: 'disabled',
+    ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+    ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+    ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
+    NODE_ENV: 'development',
+    ...service.environment,
+    AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',
+  };
+  const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+    cwd: new URL('../../../../', import.meta.url).pathname,
+    env: { ORIGIN_CONFIG: JSON.stringify(config) },
+    // One cold product import measured 8.24 s locally; bound it independently
+    // of the 45 s test deadline; 30 s keeps the 3x idle margin in docs/test-budgets.md.
+    // Proof: an infinite loop injected into config.ts failed this case at 30.15 s
+    // with exitCode null, before the outer 45 s deadline (2026-10-23).
+    timeout: 30_000,
+    killSignal: 'SIGKILL',
+  });
+  expect(probe.exitCode, new TextDecoder().decode(probe.stderr)).toBe(0);
+  // Proof: forcing OIDC to use APP_ORIGIN failed the oidc value below (2026-10-23).
+  expect(JSON.parse(new TextDecoder().decode(probe.stdout))).toEqual({
+    local: 'https://dev.wbs.bulletpoints.club',
+    oidc: 'https://oidc.example.test',
+  });
+}, 45_000);
 
 it('retains an explicitly configured HTTP scheme and port for a local Caddy address', () => {
   const context = tierComposeContext('be', 'green', `registry.test/wbs-be-01@${DIGEST}`, {
