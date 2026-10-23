@@ -1339,6 +1339,10 @@
           },
           {
             "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/dependency-navigation.tsx"
+          },
+          {
+            "kind": "path",
             "path": "apps/wbs/fe-01/src/components/wbs/dependency-selection.ts"
           },
           {
