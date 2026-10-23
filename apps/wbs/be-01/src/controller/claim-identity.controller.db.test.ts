@@ -17,6 +17,7 @@ let jwks: ReturnType<typeof Bun.serve>;
 let h: OrganizationHarness;
 let projectId: string;
 let leaf: string;
+let firstStep: string;
 
 beforeAll(async () => {
   signing = await generateKeyPair('RS256');
@@ -61,6 +62,13 @@ beforeEach(async () => {
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Claims' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   projectId = (created.body as { project: { id: string } }).project.id;
+  const step = h.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id = ? ORDER BY position LIMIT 1',
+    )
+    .get(projectId);
+  if (step === null) throw new Error('claim identity project has no first step');
+  firstStep = step.id;
   const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
@@ -93,7 +101,13 @@ function batch(username: string, commands: unknown[]): Promise<Answer> {
   return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
 }
 
-const claim = (personId: string) => ({ kind: 'claimWorkItem', workItemId: leaf, personId });
+// Identity admission claims the first runnable step; later unstarted workflow steps need Dev completion.
+const claim = (personId: string) => ({
+  kind: 'claimWorkItem',
+  workItemId: leaf,
+  personId,
+  steps: [firstStep],
+});
 
 /** A machine token for the fleet pair: no groups claim and no email, as Auth0 issues one. */
 function machineToken(): Promise<string> {
@@ -272,12 +286,19 @@ describe('a credential pinned to one person', () => {
     ]);
     if (created.status !== 200) throw new Error(`child refused: ${JSON.stringify(created)}`);
     const under = (created.body as { results: { id: string }[] }).results[0]?.id ?? '';
-    expect((await asFleet([claim('claire')])).status).toBe(200);
+    expect(
+      (await asFleet([{ kind: 'claimWorkItem', workItemId: leaf, personId: 'claire' }])).status,
+    ).toBe(200);
     const parentClaim = h.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM claim WHERE work_item_id = ?')
       .get(leaf)?.id;
     expect(parentClaim).toBeDefined();
-    const delegated = { kind: 'claimWorkItem', workItemId: under, personId: 'codex' };
+    const delegated = {
+      kind: 'claimWorkItem',
+      workItemId: under,
+      personId: 'codex',
+      steps: [firstStep],
+    };
     expect(await asFleet([delegated])).toEqual(refused('credential_not_for_person'));
     expect(claimsOf('codex')).toBe(0);
     expect((await asFleet([{ ...delegated, parentClaim }])).status).toBe(200);

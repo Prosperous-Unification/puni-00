@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,10 +12,6 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
 const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
-const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
-/** The newer organization limits migrations, which reverse first. */
-const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
-const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -121,9 +117,11 @@ describe(AUDIT_WIDENING, () => {
     const down = await rollBack(root, dbPath, MACHINE_CREDENTIAL);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(
-      `rolled back: ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
-    );
+    const reversed = readdirSync(join(root, 'drizzle'))
+      .filter((name) => name >= AUDIT_WIDENING)
+      .sort()
+      .reverse();
+    expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(auditRows(dbPath)).toEqual([
       { action: 'restricted_project_recovery', subject_kind: 'project' },
     ]);

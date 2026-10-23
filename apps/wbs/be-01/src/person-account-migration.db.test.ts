@@ -11,15 +11,6 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const PERSON_ACCOUNT = '20261019130000_add_person_account';
 const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
-/** Newer than both, empty here, so they reverse first on every rollback below them. */
-const RESOURCES = '20261020120000_add_resources';
-const OCCUPANCY = '20261020130000_add_claim_occupancy';
-const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
-const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
-const ID_SHAPE = '20261022110100_check_machine_credential_id';
-const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
-const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
-const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -125,9 +116,11 @@ describe('person account and credential pin migrations', () => {
     const down = await rollBack(root, dbPath, baseline());
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(
-      `rolled back: 20261022212000_add_cross_project_dependency_activation, 20261022211000_add_external_dependencies, 20261022210000_add_project_abbreviations, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
-    );
+    const reversed = readdirSync(join(root, 'drizzle'))
+      .filter((name) => name >= PERSON_ACCOUNT)
+      .sort()
+      .reverse();
+    expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');
     expect(appliedNames(dbPath).at(-1)).toBe(baseline());

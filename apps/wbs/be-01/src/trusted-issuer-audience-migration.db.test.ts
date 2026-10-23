@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,9 +11,6 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
-/** The newer organization limits migrations, which reverse first. */
-const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
-const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const SUBJECT = 'repo:acme/wbs:ref:refs/heads/main';
 const roots: string[] = [];
@@ -110,9 +107,11 @@ describe(AUDIENCE_SCOPE, () => {
     const down = await rollBack(root, dbPath, ID_SHAPE);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(
-      `rolled back: ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
-    );
+    const reversed = readdirSync(join(root, 'drizzle'))
+      .filter((name) => name >= AUDIENCE_SCOPE)
+      .sort()
+      .reverse();
+    expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);
 

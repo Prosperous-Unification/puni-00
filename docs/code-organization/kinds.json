@@ -53,7 +53,7 @@
       "path": "apps/wbs/be-01/src/service/saved-plan-connected.fixture.ts",
       "kind": "support",
       "disposition": "test fixture support for connected saved-plan persistence proofs; keep beside its saved-plan service tests",
-      "rationale": "saved-plan-connected.test.ts and saved-plan-connected-writer.test.ts capture detached connected observations from migrated SQLite fixtures, including mixed optimization selections"
+      "rationale": "saved-plan-connected.test.ts and saved-plan-connected-writer.db.test.ts capture detached connected observations from migrated SQLite fixtures, including mixed optimization selections"
     },
     {
       "path": "libs/wbs/application/core/src/service/auth.service.ts",

@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -105,7 +105,11 @@ describe(LIMITS_AUDIT, () => {
     const down = await rollBack(root, dbPath, ORGANIZATION_LIMITS);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${LIMITS_AUDIT}\n`);
+    const reversed = readdirSync(join(root, 'drizzle'))
+      .filter((name) => name >= LIMITS_AUDIT)
+      .sort()
+      .reverse();
+    expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(auditRows(dbPath)).toEqual([
       { action: 'session_policy_changed', subject_kind: 'session_policy' },
     ]);

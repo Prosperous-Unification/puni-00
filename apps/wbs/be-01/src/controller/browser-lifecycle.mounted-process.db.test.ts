@@ -299,6 +299,9 @@ async function withLifecycle<T>(
   }
 }
 
+// Proof: the original 10 s suite budget timed out during the two real worker
+// startups under concurrent test load; the same protocol completed in 9.66 s
+// in isolation with a 30 s suite budget. Each operation still has its 10 s bound.
 test('mounted worker protocol buffers split and coalesced frames and fails promptly on child exit', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-protocol-'));
   const path = join(dir, 'shared.db');
@@ -340,7 +343,7 @@ test('mounted worker protocol buffers split and coalesced frames and fails promp
       expect(String(cause)).toContain('worker did not preserve both framed replies');
     },
   );
-});
+}, 30_000);
 
 // Proof: adding 3.5 s after each ready frame reproduced wave11 CI's 10 s total timeout;
 // this 30 s budget passed the same delayed run, while withheld readiness still failed at

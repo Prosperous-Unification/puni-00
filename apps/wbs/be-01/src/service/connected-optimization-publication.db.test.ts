@@ -15,33 +15,33 @@ import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it } from 'bun:test';
 
-import { openDatabase } from '../../repository/db';
-import { DrizzleEventLogStore } from '../../repository/event-log';
-import { OPEN } from '../../repository/gate';
-import { runMigrations } from '../../repository/migrate';
-import { createOptimizationRepository } from '../../repository/optimization';
-import { allocateGeneration } from '../../repository/optimization-generation';
-import { readGeneration } from '../../repository/optimization-generation';
-import { enqueueSolverRequest } from '../../repository/optimization-queue';
-import { scheduleInputHash } from '../../repository/schedule-input-hash';
+import type { ReservedSpawnRequest } from '../module/optimization/contract';
+import {
+  OptimizationCoordinator,
+  type OptimizationCoordinatorOptions,
+} from '../module/optimization/optimization.feature';
+import { openDatabase } from '../repository/db';
+import { DrizzleEventLogStore } from '../repository/event-log';
+import { OPEN } from '../repository/gate';
+import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
+import { allocateGeneration } from '../repository/optimization-generation';
+import { readGeneration } from '../repository/optimization-generation';
+import { enqueueSolverRequest } from '../repository/optimization-queue';
+import { scheduleInputHash } from '../repository/schedule-input-hash';
 import {
   eventSequencer,
   optimizationGeneration,
   optimizedScheduleCache,
   solverQueue,
-} from '../../repository/schema';
-import { eventLog, optimizationBoundaryCertificate, solverSlot } from '../../repository/schema';
-import { createDequeueReservationOwner } from '../../service/optimization-dequeue-reservation';
-import { createInitialReservationOwner } from '../../service/optimization-initial-reservation';
-import { createOptimizationObservationOwner } from '../../service/optimization-observation';
-import { createOptimizationOutcomeOwner } from '../../service/optimization-outcome';
-import { createRetryReservationOwner } from '../../service/optimization-retry-reservation';
-import { capturedSchedulerFixture } from '../../testing/captured-scheduler-fixture';
-import type { ReservedSpawnRequest } from './contract';
-import {
-  OptimizationCoordinator,
-  type OptimizationCoordinatorOptions,
-} from './optimization.feature';
+} from '../repository/schema';
+import { eventLog, optimizationBoundaryCertificate, solverSlot } from '../repository/schema';
+import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
+import { createDequeueReservationOwner } from './optimization-dequeue-reservation';
+import { createInitialReservationOwner } from './optimization-initial-reservation';
+import { createOptimizationObservationOwner } from './optimization-observation';
+import { createOptimizationOutcomeOwner } from './optimization-outcome';
+import { createRetryReservationOwner } from './optimization-retry-reservation';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
 const directories: string[] = [];
@@ -65,7 +65,7 @@ function fixture(
   const directory = mkdtempSync(join(tmpdir(), 'connected-publication-'));
   directories.push(directory);
   const path = join(directory, 'store.db');
-  runMigrations(path, new URL('../../../drizzle', import.meta.url).pathname);
+  runMigrations(path, new URL('../../drizzle', import.meta.url).pathname);
   const sqlite = openDatabase(path);
   sqlite.run("INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)");
   sqlite.run(
