@@ -1,7 +1,6 @@
 import { deriveNumbers, treeOrder } from '@wbs/domain';
 
-import type { StampedClaim } from '../../ports/claim-store';
-import type { LabelledWorkItem } from '../../ports/work-item-store';
+import type { ClaimedTreeRow, StampedClaim } from '../../ports/claim-store';
 import type { NamedPerson, WorkItemAddress } from './startable';
 
 /**
@@ -31,9 +30,9 @@ export interface ProjectClaims {
   readonly claims: ProjectClaim[];
 }
 
-/** Everything {@link findProjectClaims} reads, gathered in one admitted read. */
+/** Everything {@link findProjectClaims} reads, gathered in one observation. */
 export interface ProjectClaimsReads {
-  readonly rows: readonly LabelledWorkItem[];
+  readonly rows: readonly ClaimedTreeRow[];
   /** The project's steps in project order. */
   readonly stepIds: readonly string[];
   readonly claims: readonly StampedClaim[];
@@ -49,8 +48,10 @@ export interface ProjectClaimsReads {
  * claims of the same item, step claims in project step order.
  *
  * @throws when a claim sits on a row or names a step this read does not hold,
- * or its holder has no name in this read: claims, rows and names come from one
- * admitted observation, so a miss is corrupt trusted state.
+ * or its holder has no name in this read: claims, rows, steps and names come
+ * from one observation (`ClaimStore.observeProject`) no write lands inside, and
+ * a claim's row, step and person are foreign keys, so a miss is corrupt
+ * trusted state.
  */
 export function findProjectClaims(reads: ProjectClaimsReads): ProjectClaims {
   const { rows } = reads;
@@ -91,9 +92,10 @@ export function findProjectClaims(reads: ProjectClaimsReads): ProjectClaims {
   return {
     readAt: reads.readAt,
     claims: listed
-      // Proof: sorted by claim id instead, `lists every claim whatever its leaf
-      // status, …` and two more cases of project-claims.test.ts failed (2 pass,
-      // 3 fail); watched 2026-10-23.
+      // Proof, each watched 2026-10-23 on project-claims.test.ts, whose step
+      // ids sort the reverse of step order: sorted by claim id, 2 pass, 3 fail;
+      // steps compared by id, 3 pass, 2 fail; a subtree claim placed after its
+      // item's step claims, 3 pass, 2 fail.
       .toSorted((left, right) => left.place - right.place || left.step - right.step)
       .map(({ claim }) => claim),
   };

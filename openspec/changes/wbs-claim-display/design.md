@@ -2,16 +2,16 @@
 
 Read on 2026-10-23 on `main` at `e70166d28` and on `plan/wbs-claim-leases` at `485972419`:
 
-| Need                              | Exists today                                                                                       | Missing                                     |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Every claim of a project, at once | `ClaimStore.listStampedByProject`; startable `claimed` (startable leaves only) and `subtreeClaims` | a read that answers all of them             |
-| A lease on the wire               | `leaseExpiresAt` on startable and person-work (leases L12); `lease_revoked_at` stored, never read  | the revocation instant on a read            |
-| A client told a lease moved       | nothing: `POST /api/claims/renew` commits without an announcement; a batch renewal rides its tree  | an event                                    |
-| A client told a claim went        | claim, release and the sweep (`releaseExpiredLeases`) all call `announceTree` → `tree_replaced`    | nothing                                     |
-| Why a claim went                  | `plan_event` kinds `claim` and `release`; a reap's `after` is `remove_claims` with `reason`        | a read that names holder, run, item, reason |
-| Where fe-01 shows a step's person | the folded `${step}-final` cell's `ASSIGNEE_SLOT_PX` slot and the unfolded `by` column             | the claim beside it                         |
-| How fe-01 refreshes               | `plan-refresh` coordinator: resources tree, steps, directory, markers; `resourcesFor(event)`       | a claims resource                           |
-| A history view                    | none; fe-01 never calls `getApiProjectsByIdHistory`, which has no limit                            | a bounded claim-only projection             |
+| Need                              | Exists today                                                                                                   | Missing                                     |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Every claim of a project, at once | `ClaimStore.listStampedByProject`; startable `claimed` and `subtreeClaims` (complete only with no team filter) | a read that answers all of them             |
+| A lease on the wire               | `leaseExpiresAt` on startable and person-work (leases L12); `lease_revoked_at` stored, never read              | the revocation instant on a read            |
+| A client told a lease moved       | nothing: `POST /api/claims/renew` commits without an announcement; a batch renewal rides its tree              | an event                                    |
+| A client told a claim went        | claim, release and the sweep (`releaseExpiredLeases`) all call `announceTree` → `tree_replaced`                | nothing                                     |
+| Why a claim went                  | `plan_event` kinds `claim` and `release`; a reap's `after` is `remove_claims` with `reason`                    | a read that names holder, run, item, reason |
+| Where fe-01 shows a step's person | the folded `${step}-final` cell's `ASSIGNEE_SLOT_PX` slot and the unfolded `by` column                         | the claim beside it                         |
+| How fe-01 refreshes               | `plan-refresh` coordinator: resources tree, steps, directory, markers; `resourcesFor(event)`                   | a claims resource                           |
+| A history view                    | none; fe-01 never calls `getApiProjectsByIdHistory`, which has no limit                                        | a bounded claim-only projection             |
 
 The tree read (`getApiProjectsByIdWork-items`) is the whole plan, hundreds of KB on a large
 project, documented to MCP as "for export only", refused `engine_unavailable` when the
@@ -35,12 +35,12 @@ All assumed on 2026-10-23 for Dany's review; each is overrulable by id.
 (`getApiProjectsByIdClaims`), policy as the tree read (an organization viewer reads it).
 Weighed:
 
-| Source                   | Payload per refresh          | Fresh on heartbeat                | MCP surface                        | Complete                   |
-| ------------------------ | ---------------------------- | --------------------------------- | ---------------------------------- | -------------------------- |
-| Claims in the tree read  | whole tree (hundreds of KB)  | only by refetching the whole tree | none new; buried in an export read | yes                        |
-| Startable read           | tree folds + fit per call    | same cost                         | exists                             | no (startable leaves only) |
-| Person-work read         | small                        | one request per holder            | exists                             | per person only            |
-| **Complete claims read** | one row per claim (a few KB) | cheap: refetch claims alone       | +1 tool, the "who holds what" read | yes                        |
+| Source                   | Payload per refresh          | Fresh on heartbeat                | MCP surface                        | Complete                                                                            |
+| ------------------------ | ---------------------------- | --------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
+| Claims in the tree read  | whole tree (hundreds of KB)  | only by refetching the whole tree | none new; buried in an export read | yes                                                                                 |
+| Startable read           | tree folds + fit per call    | same cost                         | exists                             | only with no team filter, at the cost of the full fold, fit and team reads per call |
+| Person-work read         | small                        | one request per holder            | exists                             | per person only                                                                     |
+| **Complete claims read** | one row per claim (a few KB) | cheap: refetch claims alone       | +1 tool, the "who holds what" read | yes                                                                                 |
 
 Rejected the tree read for four reasons: a heartbeat (at most one per agent per minute) would
 refetch the whole tree for every viewer; claims would go dark whenever the tree read is refused

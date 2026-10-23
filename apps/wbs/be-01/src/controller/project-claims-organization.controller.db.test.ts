@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { ProjectRepository } from '@wbs/store-sqlite/project';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -11,8 +12,10 @@ import { OrganizationHarness } from '../testing/organization-harness';
 let h: OrganizationHarness;
 let own: string;
 let foreign: string;
-let dev: string;
-let qa: string;
+// Step ids whose lexical order is the reverse of project step order: both
+// stores answer claims by step id, so only the read's own order is right.
+const dev = 'step-z-dev';
+const qa = 'step-a-qa';
 
 beforeEach(async () => {
   h = OrganizationHarness.open();
@@ -28,7 +31,17 @@ beforeEach(async () => {
   h.activate();
   own = await create('ada', 'A plan');
   foreign = await create('grace', 'B plan');
-  [dev, qa] = await stepsOf('ada', own);
+  for (const [id, name, position] of [
+    [dev, 'Build', -20],
+    [qa, 'Check', -10],
+  ] as const) {
+    h.sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, ?)', [
+      id,
+      own,
+      name,
+      position,
+    ]);
+  }
   for (const [id, name] of [
     ['pe-claire', 'Claire'],
     ['pe-codex', 'codex-fleet'],
@@ -82,15 +95,6 @@ async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
   return (answer.body as { project: { id: string } }).project.id;
-}
-
-async function stepsOf(username: string, projectId: string): Promise<[string, string]> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
-  const { steps } = answer.body as { steps: { id: string }[] };
-  const first = steps.at(0);
-  const second = steps.at(1);
-  if (first === undefined || second === undefined) throw new Error('the project has no two steps');
-  return [first.id, second.id];
 }
 
 /** The answer with `readAt` checked to lie between `before` and now, then dropped. */
@@ -196,6 +200,40 @@ describe('the claims read', () => {
         status: 403,
         body: { error: 'no_active_organization' },
       });
+    }
+  });
+
+  it('refuses a removed member alike with the tree read', async () => {
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('vic')]);
+    const tree = await h.call('vic', 'GET', `/api/projects/${own}/work-items`);
+    expect(tree).toEqual({ status: 403, body: { error: 'not_a_member' } });
+    expect(await h.call('vic', 'GET', `/api/projects/${own}/claims`)).toEqual(tree);
+  });
+
+  it('refuses a member removed between admission and the observation, as the tree read does', async () => {
+    // The admission reads the project's cross references after resolving
+    // access; the membership goes there, before the claims observation.
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- the seam calls it with its own repository receiver.
+    const original = ProjectRepository.prototype.findCrossReferences;
+    let revoke = true;
+    const seam = spyOn(ProjectRepository.prototype, 'findCrossReferences').mockImplementation(
+      async function (this: ProjectRepository, projectId, organizationId) {
+        const crossing = await original.call(this, projectId, organizationId);
+        if (revoke) {
+          revoke = false;
+          h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
+        }
+        return crossing;
+      },
+    );
+    try {
+      expect(await h.call('ada', 'GET', `/api/projects/${own}/claims`)).toEqual({
+        status: 403,
+        body: { error: 'not_a_member' },
+      });
+      expect(revoke).toBe(false);
+    } finally {
+      seam.mockRestore();
     }
   });
 

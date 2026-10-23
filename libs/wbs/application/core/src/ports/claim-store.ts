@@ -1,9 +1,16 @@
 import type { CredentialPin } from '@wbs/contracts';
 
 export type { CredentialPair, CredentialPin } from '@wbs/contracts';
-import type { Claim, LeaseReleaseReason, LeaseStanding, OccupancyRow } from '@wbs/domain';
+import type {
+  Claim,
+  LeaseReleaseReason,
+  LeaseStanding,
+  OccupancyRow,
+  WorkItemPlacement,
+} from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
+import type { ResourceAccess } from './organization-access';
 import type { ProgressKey } from './progress-store';
 import type { WriteStamp } from './write-stamp';
 
@@ -46,6 +53,32 @@ export function unstampClaim({
 }): Claim {
   return claim;
 }
+
+/** A work item as a claims observation reads it: enough to number and order it, and its name. */
+export interface ClaimedTreeRow extends WorkItemPlacement {
+  readonly name: string;
+}
+
+/**
+ * What {@link ClaimStore.observeProject} answers: one coherent observation of a
+ * project's rows, steps in project order, stamped claims and their holders'
+ * display names; or the project gone, or the caller's access gone, both
+ * decided inside that same observation.
+ */
+export type ClaimObservation =
+  | {
+      readonly kind: 'observed';
+      readonly rows: readonly ClaimedTreeRow[];
+      readonly stepIds: readonly string[];
+      readonly claims: readonly StampedClaim[];
+      /** Each holder's name as the access names them; a holder it cannot name is absent. */
+      readonly personNames: ReadonlyMap<string, string>;
+    }
+  | { readonly kind: 'not_found' }
+  | {
+      readonly kind: 'access_refused';
+      readonly refusal: 'no_active_organization' | 'not_a_member';
+    };
 
 /** The lease one claim is written with: the instant it must be renewed by (L1). */
 export interface ClaimLease {
@@ -91,6 +124,17 @@ export interface ClaimStore extends ClaimIdentity {
    * through {@link add}, which stamps it.
    */
   listStampedByProject(projectId: string): Promise<StampedClaim[]>;
+  /**
+   * The project's rows, steps, stamped claims and holder names in one
+   * observation no write lands inside (`wbs-claim-display` C1, C2), so every
+   * claim it answers sits on a row and a step it answers. Under scoped access
+   * it rechecks, inside that observation, what the tree read's snapshot
+   * rechecks: the deployment is activated, the caller is still a member, and
+   * the project is the organization's; names are the organization's own.
+   * Under legacy access the deployment must not be activated, and names are
+   * the root names.
+   */
+  observeProject(projectId: string, access: ResourceAccess): Promise<ClaimObservation>;
   /** One claim of the project by id; null when absent, released or another project's. */
   findById(projectId: string, claimId: string): Promise<Claim | null>;
   /**

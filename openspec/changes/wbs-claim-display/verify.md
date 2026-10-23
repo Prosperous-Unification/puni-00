@@ -34,7 +34,8 @@ in the PR description for the proposal commit.
 ### Slice 1: complete claims read (be-01), 2026-10-23
 
 Branch `feat/wbs-claim-display-read`, on `plan/wbs-claim-display` with `origin/main` (1de277850,
-claim leases slice 1) merged in rather than rebased (task 0.2). Commands ran with
+claim leases slice 1) merged in, not rebased (task 0.2), and later `plan/wbs-claim-display`
+(b6fae8a20) merged in too. Commands ran with
 `env -u CLAUDECODE` from the worktree.
 
 **1.1** `StampedClaim.leaseRevokedAt`; conformance case `claims.lease:revoked-instant-read`
@@ -47,7 +48,7 @@ also gained what SQLite already did: renewal skips a revoked lease, and expiry r
 
 | R5 fault (watched)                                         | Observed                                   |
 | ---------------------------------------------------------- | ------------------------------------------ |
-| SQLite read selects a constant null for `lease_revoked_at` | SQLite certification fails the case (72/3) |
+| SQLite read selects a constant null for `lease_revoked_at` | SQLite certification fails the case (74/1) |
 | memory read answers `leaseRevokedAt: null`                 | memory certification fails the case (74/1) |
 | memory renewal ignores the revocation                      | case fails: a revoked lease renewed (74/1) |
 | memory expiry answers `lease_expired` for every claim      | case fails on the reason (74/1)            |
@@ -84,12 +85,52 @@ Deviation: the task named the stranger's read as the policy's negative; the poli
 the expected-organization header and the inventory check, so its watched negative is the
 inventory test. The admission's negative is the stranger case.
 
-Results (fresh, 2026-10-23): store-sqlite `source-conformance.db.test.ts` 75 pass; claim DB tests
-(`claim`, `claim-occupancy-race`, `claim-race`, `claim-lease`, `claim-lease-race`) 37 pass;
-store-memory 193 pass; conformance 35 pass; contracts 496 pass; core `module/work-item` plus
-`resource-command` and `claim-command` 268 pass; be-01 `project-claims-organization`,
-`app.routes`, `organization-context`, `person-work-organization`, `claim-lease` controller tests
-pass; mcp-01 516 pass; typecheck wbs-contracts, wbs-core (+module), wbs-conformance,
-wbs-store-memory, wbs-store-sqlite, wbs-be-01 (+module), wbs-mcp-01, wbs-fe-01 `typecheck:module`
-pass; Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275. Lint of wbs-contracts, wbs-core, wbs-conformance, wbs-store-memory, wbs-store-sqlite, wbs-be-01 and wbs-mcp-01 passes; `tool-devsync:test` passes. Not run locally: the full
-be-01 and fe-01 suites (CI carries them).
+**Review round (Fable, PR #691, no S1 or S2).**
+
+- S3-1: `claimsWithin` read rows, steps, claims and names as four awaited reads, so a batch
+  landing between them could make a claim name a row the read did not hold, a 500. They are now
+  one `ClaimStore.observeProject` observation. On SQLite every read is synchronous on the
+  process connection with no await between them, inside a savepoint (a savepoint nests inside a
+  batch's open transaction where `BEGIN` would fail, and holds one snapshot against the other
+  colour's commits). The memory twin reads its tables synchronously. A new conformance case,
+  `claims.observeProject:legacy-observation`, runs on both stores, and
+  `claim-observation.db.test.ts` sweeps a racing insert-and-claim over 40 interleavings.
+- S3-4: under scoped access the observation rechecks activation, membership and the project's
+  organization, as the tree read's snapshot does, and the route maps a refusal to the same 403.
+  Under legacy access it rechecks that the deployment is not activated. The memory twin refuses
+  a scoped observation as misuse, as the memory project store refuses organization edits.
+- S3-2: the core and controller tests use step ids whose lexical order is the reverse of project
+  step order. The core swarm adds a step claim on the item that holds the subtree claim. No
+  command writes one (a step belongs to a leaf), but nothing in the store refuses one.
+- S3-3: the proposal and design no longer claim that the startable read lists only startable
+  leaves.
+- S4-1: the SQLite constant-null fault reran clean at 74 pass, 1 fail.
+- S4-2: added a route case: a removed member is refused `not_a_member` exactly as the tree read
+  refuses them.
+
+| R5 fault (watched)                                                       | Observed                                                       |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `claimsWithin` back to four awaited reads                                | race sweep throws `claim claim-w-8 is on no row` (2/1)         |
+| SQLite scoped membership recheck skipped                                 | removed-between-admission case answers 200 with the claims     |
+| SQLite legacy activation recheck skipped                                 | `refuses legacy access once the deployment is activated` (2/1) |
+| SQLite observation rows unfiltered by project                            | SQLite certification fails `legacy-observation` (74/1)         |
+| memory observation keeps every claim                                     | memory certification fails `legacy-observation` (74/1)         |
+| steps compared by id (deterministic ids)                                 | project-claims 3 pass, 2 fail                                  |
+| subtree claim placed after its item's step claims                        | project-claims 3 pass, 2 fail                                  |
+| sorted by claim id / status filter / holder check never true (rewatched) | 2/3, 2/3, 4/1                                                  |
+
+A store-level fault that only split the claims read after two awaits did not hit the sweep's
+window; the service-level fault above (the code as it shipped) does, deterministically at delay 8.
+
+Results after the review round (fresh, 2026-10-23): store-sqlite conformance, claim, claim-race,
+claim-occupancy-race, claim-lease, claim-lease-race, claim-observation, person-work-scope and
+startable-scope DB tests 119 pass; store-memory 193 pass; conformance 35 pass; core
+`module/work-item` and `module/plan-commands` 381 pass; be-01 `project-claims-organization` (6),
+`app.routes`, `organization-context`, `person-work-organization`, `claim-lease`,
+`startable-organization`, `claim-identity` 42 pass; mcp-01 516 pass; typecheck wbs-contracts,
+wbs-core (+module), wbs-conformance, wbs-store-memory, wbs-store-sqlite, wbs-be-01 (+module),
+wbs-mcp-01 and wbs-fe-01 `typecheck:module` pass; lint wbs-core, wbs-conformance,
+wbs-store-memory, wbs-store-sqlite, wbs-be-01 pass (contracts and mcp-01 unchanged since the
+first round's lint); Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all
+--json` 275 of 275; `tool-devsync:test` 921 tests pass. Not run locally: the full be-01 and
+fe-01 suites (CI carries them).

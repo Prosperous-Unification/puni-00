@@ -3,8 +3,9 @@
 People managing a swarm cannot see it in fe-01. Claims exist since `wbs-team-claims` and leases
 since `wbs-claim-leases`, yet the table shows no claim at all: `wbs-team-claims` 1.7 was never
 built, `wbs-claim-leases` 2.1 was planned on a chip that does not exist, and fe-01 never reads
-the plan history. No existing read can carry the chip: the startable read shows claimed steps
-only of startable leaves, the person-work read is one person, the tree read carries no claims
+the plan history. No existing read can carry the chip: the startable read is complete only
+with no team filter, at the cost of the full fold, fit and team reads per call, the person-work
+read is one person, the tree read carries no claims
 and refetching it on every heartbeat would be heavy.
 
 ## What Changes

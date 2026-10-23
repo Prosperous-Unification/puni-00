@@ -1,5 +1,6 @@
 import {
   type Claim,
+  type ClaimedTreeRow,
   type ClaimIdentity,
   type ClaimOccupancy,
   type ClaimStore,
@@ -9,7 +10,9 @@ import {
 } from '@wbs/core';
 import { renewalAt } from '@wbs/domain';
 
+import type { MemoryWorkItemTables } from './memory-work-item-fixture';
 import type { MemoryProgressTable } from './progress-fixture';
+import type { MemoryProjectTables } from './project-fixture';
 
 /**
  * Cloneable claims owned by the memory source, each with the instant it was
@@ -21,6 +24,17 @@ export interface MemoryClaimTable {
 }
 export function memoryClaimTable(): MemoryClaimTable {
   return { rows: [], occupancy: [] };
+}
+
+/**
+ * The source tables a claims observation reads beside its own: projects and
+ * their steps, work items, and people. Read synchronously, so no write lands
+ * inside an observation, as SQLite's savepoint and synchronous reads ensure.
+ */
+export interface MemoryPlanTables {
+  readonly projects: Pick<MemoryProjectTables, 'projects' | 'steps'>;
+  readonly workItems: Pick<MemoryWorkItemTables, 'byId'>;
+  readonly people: ReadonlyMap<string, { readonly name: string }>;
 }
 
 /**
@@ -40,6 +54,11 @@ export function memoryClaimTable(): MemoryClaimTable {
  * `holdsResource` answers whether the directory still holds a resource, which
  * SQLite's foreign key on `claim_occupancy.resource_id` answers there.
  *
+ * `plan` is what {@link ClaimStore.observeProject} reads beside the claims.
+ * The memory source holds no organization activation or membership, so a
+ * scoped observation is refused as a misuse, as the memory project store
+ * refuses organization edits: scoped access never arises over this store.
+ *
  * @throws on a read of a claim whose work item is gone, and on a removal of a
  * claim that is not stored: both are trusted state gone wrong.
  */
@@ -49,6 +68,7 @@ export function inMemoryClaims(
   table: MemoryClaimTable,
   identity: ClaimIdentity,
   holdsResource: (resourceId: string) => boolean,
+  plan: MemoryPlanTables,
 ): ClaimStore {
   const inProject = async (projectId: string): Promise<StampedClaim[]> => {
     const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
@@ -74,6 +94,37 @@ export function inMemoryClaims(
   return {
     listByProject: async (projectId) => (await inProject(projectId)).map(unstampClaim),
     listStampedByProject: inProject,
+    observeProject(projectId, access) {
+      if (access.kind === 'scoped')
+        return Promise.reject(new Error('the in-memory claims store has no organization reads'));
+      // Every read below is synchronous: no write lands between them.
+      if (!plan.projects.projects.has(projectId)) return Promise.resolve({ kind: 'not_found' });
+      const rows: ClaimedTreeRow[] = [...plan.workItems.byId.values()]
+        .filter((row) => row.projectId === projectId)
+        .map(({ id, parentId, position, frozenNumber, name }) => ({
+          id,
+          parentId,
+          position,
+          frozenNumber,
+          name,
+        }));
+      const ids = new Set(rows.map(({ id }) => id));
+      const stepIds = [...(plan.projects.steps.get(projectId) ?? [])]
+        .sort((left, right) => left.position - right.position || compare(left.id, right.id))
+        .map(({ id }) => id);
+      // Proof: with every claim kept, the memory certification's
+      // `claims.observeProject:legacy-observation` case read project A's claim
+      // in project B (74 pass, 1 fail); watched 2026-10-23.
+      const claims = table.rows
+        .filter(({ workItemId }) => ids.has(workItemId))
+        .map((claim) => ({ ...claim }));
+      const personNames = new Map<string, string>();
+      for (const { personId } of claims) {
+        const holder = plan.people.get(personId);
+        if (holder !== undefined) personNames.set(personId, holder.name);
+      }
+      return Promise.resolve({ kind: 'observed', rows, stepIds, claims, personNames });
+    },
     async findById(projectId, claimId) {
       const found = (await inProject(projectId)).find(({ id }) => id === claimId);
       return found === undefined ? null : unstampClaim(found);

@@ -453,6 +453,63 @@ export function existingStoreRegistrations(
         expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
       },
     ),
+    // `wbs-claim-display` C1: one observation answers the rows, steps, claims
+    // and holder names the claims read joins, so every claim sits on a row
+    // and a step it answers.
+    storeCase(
+      'claims',
+      'claims.observeProject:legacy-observation',
+      openers.claims,
+      async ({ port, seed, readers }) => {
+        const [projectId] = seed.projectIds;
+        const [leaf, child] = seed.workItemIds[0];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const [agent] = seed.personIds;
+        const held = {
+          id: 'claim-observed',
+          workItemId: child,
+          stepId: otherStepId,
+          personId: agent,
+          runId: 'run-observed',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        expect(await port.add([held], [], seed.stamps[0], [])).toBe('written');
+        const observed = await port.observeProject(projectId, { kind: 'legacy' });
+        if (observed.kind !== 'observed')
+          throw new Error(`the observation answered ${observed.kind}`);
+        const placement = (row: {
+          id: string;
+          parentId: string | null;
+          position: number;
+          frozenNumber: string | null;
+          name: string;
+        }) => [row.id, row.parentId, row.position, row.frozenNumber, row.name];
+        const byId = (left: unknown[], right: unknown[]) =>
+          String(left[0]) < String(right[0]) ? -1 : 1;
+        expect(observed.rows.map(placement).sort(byId)).toEqual(
+          (await readers.workItems.listByProject(projectId)).map(placement).sort(byId),
+        );
+        expect(observed.rows.map(({ id }) => id).sort()).toEqual([leaf, child].sort());
+        expect(observed.stepIds).toEqual(
+          (await readers.projects.stepsOf(projectId)).map(({ id }) => id),
+        );
+        expect(observed.stepIds).toContain(stepId);
+        expect(observed.claims).toEqual([
+          { ...held, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
+        ]);
+        const named = (await readers.directory.listPeople()).find(({ id }) => id === agent);
+        if (named === undefined) throw new Error('the seed holds no such person');
+        expect([...observed.personNames]).toEqual([[agent, named.name]]);
+        const other = await port.observeProject(seed.projectIds[1], { kind: 'legacy' });
+        if (other.kind !== 'observed') throw new Error(`the observation answered ${other.kind}`);
+        expect(other.claims).toEqual([]);
+        expect(other.personNames.size).toBe(0);
+        expect(await port.observeProject('project-absent', { kind: 'legacy' })).toEqual({
+          kind: 'not_found',
+        });
+      },
+    ),
     // `wbs-claim-leases` L8 and `wbs-claim-display` C2: a revocation ends the
     // lease at its instant, and the stamped read answers that instant beside
     // the expiry, so a client can say why the claim is releasing.

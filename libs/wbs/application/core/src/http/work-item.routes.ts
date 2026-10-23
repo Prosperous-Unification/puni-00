@@ -776,6 +776,7 @@ export function workItemRoutes(
         if (!resolved.ok) return organizationRefusal(resolved);
         const claims = await workItems.claimsWithin(params.id, resolved.access);
         if (claims === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in claims) return organizationRefusal(claims.refusal);
         return { ok: true, status: 200, body: claims };
       },
     ),

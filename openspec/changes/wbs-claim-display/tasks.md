@@ -4,8 +4,8 @@
       read, not the tree read), C4 (heartbeat events), C7 (no minutes in the folded chip) and
       C13 (a claim history read rather than a history view). Slices build on the assumptions;
       an amendment lands as a follow-up slice.
-- [x] 0.2 `wbs-claim-leases` slice 1 (PR #671) is on `main`; this change's branch is rebased
-      onto it. Slices 1, 3, 6 and 8 need its fields and the renew route.
+- [x] 0.2 `wbs-claim-leases` slice 1 (PR #671) is on `main`; it is merged into this change's
+      branch (merged, not rebased: `plan/wbs-claim-display` is shared). Slices 1, 3, 6 and 8 need its fields and the renew route.
 
 ## 1. Complete claims read (be-01)
 

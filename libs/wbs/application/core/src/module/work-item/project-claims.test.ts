@@ -4,10 +4,12 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import type { AccessRefused } from '../../ports/shared-people-values';
 import type { WorkItem } from '../../ports/work-item-store';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
+import type { ProjectClaims } from './project-claims';
 
 const OWNER = 'account-f';
 const LEGACY = { kind: 'legacy' } as const;
@@ -30,19 +32,30 @@ async function seeded() {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = await graph.projects.create('Claims', OWNER);
-  const projectId = created.project.id;
+  const created = await graph.projects.create('Template', OWNER);
+  const first = created.steps.at(0);
+  const second = created.steps.at(1);
+  if (first === undefined || second === undefined) throw new Error('the project has no two steps');
+  // Step ids whose lexical order is the reverse of project step order, so a
+  // read ordered by step id (as both stores answer claims) reads the wrong way.
+  const projectId = 'p-claims';
+  const dev = 'step-z-dev';
+  const qa = 'step-a-qa';
+  const steps = [
+    { ...first, id: dev, projectId, position: 10 },
+    { ...second, id: qa, projectId, position: 20 },
+  ];
+  await source.stores.projects.create({ ...created.project, id: projectId }, steps, {
+    at: 1,
+    by: OWNER,
+  });
   // The memory source keeps a project's steps apart from the step table its progress reads.
-  for (const step of created.steps) {
+  for (const step of steps) {
     await source.stores.steps.add(
       { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
       { at: 1, by: OWNER },
     );
   }
-  const stepIds = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
-  const dev = stepIds.at(0);
-  const qa = stepIds.at(1);
-  if (dev === undefined || qa === undefined) throw new Error('the project has no Dev and QA');
   for (const id of ['claire', 'claire-worker', 'codex-fleet', 'ada']) {
     await source.stores.directory.addPerson({ id, name: `${id} name`, kind: 'agent' }, [], {
       at: 1,
@@ -100,16 +113,27 @@ async function swarm() {
   await claim('c-1', 'w-on-hold', qa, 'claire-worker', { at: 120, parentClaimId: 'c-9' });
   await claim('c-2', 'w-on-hold', dev, 'codex-fleet', { at: 130, parentClaimId: 'c-9' });
   await claim('c-3', 'w-blocked', dev, 'codex-fleet', { at: 140, leaseExpiresAt: 900_000 });
+  // No command writes a step claim on a non-leaf (a step belongs to a leaf),
+  // but nothing in the store refuses one; the order still puts the subtree
+  // claim first.
+  await claim('c-5', 'w-080', qa, 'ada', { at: 160 });
   return seed;
+}
+
+/** The read's answer, refusing the two outcomes a scenario does not expect. */
+function answered(answer: ProjectClaims | AccessRefused | null): ProjectClaims {
+  if (answer === null) throw new Error('the read answered not found');
+  if ('kind' in answer) throw new Error(`the read refused ${answer.refusal}`);
+  return answer;
 }
 
 describe('the claims read', () => {
   it('lists every claim whatever its leaf status, the subtree claim first, in tree then step order', async () => {
     const { read } = await swarm();
-    const answer = await read();
-    if (answer === null) throw new Error('the read answered not found');
+    const answer = answered(await read());
     expect(answer.claims.map(({ claimId }) => claimId)).toEqual([
       'c-9',
+      'c-5',
       'c-3',
       'c-2',
       'c-1',
@@ -119,10 +143,9 @@ describe('the claims read', () => {
 
   it('answers each claim with its address, holder, run, parent and lease, and the read instant', async () => {
     const { dev, read } = await swarm();
-    const answer = await read();
-    if (answer === null) throw new Error('the read answered not found');
+    const answer = answered(await read());
     expect(answer.readAt).toBe(READ_AT);
-    expect(answer.claims.slice(0, 3)).toEqual([
+    expect(answer.claims.filter(({ claimId }) => ['c-9', 'c-3', 'c-2'].includes(claimId))).toEqual([
       {
         workItemId: 'w-080',
         number: '080',
@@ -171,8 +194,7 @@ describe('the claims read', () => {
   it('reads a revoked lease with its revocation instant beside the moved expiry', async () => {
     const { fixture, read } = await swarm();
     expect(fixture.endLeasesOf('codex-fleet', 600_000)).toBe(1);
-    const answer = await read();
-    if (answer === null) throw new Error('the read answered not found');
+    const answer = answered(await read());
     const leases = answer.claims.map(({ claimId, leaseExpiresAt, leaseRevokedAt }) => ({
       claimId,
       leaseExpiresAt,
@@ -180,6 +202,7 @@ describe('the claims read', () => {
     }));
     expect(leases).toEqual([
       { claimId: 'c-9', leaseExpiresAt: null, leaseRevokedAt: null },
+      { claimId: 'c-5', leaseExpiresAt: null, leaseRevokedAt: null },
       { claimId: 'c-3', leaseExpiresAt: 600_000, leaseRevokedAt: 600_000 },
       { claimId: 'c-2', leaseExpiresAt: null, leaseRevokedAt: null },
       { claimId: 'c-1', leaseExpiresAt: null, leaseRevokedAt: null },
@@ -188,8 +211,18 @@ describe('the claims read', () => {
   });
 
   it('answers an unclaimed project with no claims, and an absent one as not found', async () => {
-    const { graph, read } = await seeded();
+    const { graph, source, projectId, read } = await seeded();
     expect(await read()).toEqual({ readAt: READ_AT, claims: [] });
+    // The memory source holds no organization membership to recheck.
+    const scoped = {
+      kind: 'scoped',
+      scope: { organizationId: 'org', userId: OWNER, role: 'admin' },
+    } as const;
+    const misuse = await source.stores.claims.observeProject(projectId, scoped).then(
+      () => 'answered',
+      (error: unknown) => String(error),
+    );
+    expect(misuse).toContain('no organization reads');
     expect(await graph.workItems.claimsWithin('missing', LEGACY)).toBeNull();
   });
 

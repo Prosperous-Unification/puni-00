@@ -3,6 +3,7 @@ import {
   type ClaimIdentity,
   claimIdentityOf,
   type ClaimLease,
+  type ClaimObservation,
   type ClaimOccupancy,
   type ClaimStore,
   type ClaimWriteOutcome,
@@ -11,6 +12,7 @@ import {
   type LeaseStanding,
   type OccupancyRow,
   type ProgressKey,
+  type ResourceAccess,
   type StampedClaim,
   unstampClaim,
   type WriteStamp,
@@ -23,15 +25,29 @@ import type { Drizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
 import type { ImmediateTransaction } from './immediate-write';
+import { currentMembershipAccess } from './organization-access';
+import { readOrganizationActivation } from './organization-activation';
 import { bumpWorkItems } from './revision';
 import {
   claim,
   claimOccupancy,
   machineCredential,
+  person,
+  personOrganization,
+  project,
+  projectOrganization,
   resource,
+  step,
   stepProgress,
   workItem,
 } from './schema';
+
+/** A stored claim with its write instant (null for a row written outside `add`) and lease. */
+type StoredClaim = Claim & {
+  readonly claimedAt: number | null;
+  readonly leaseExpiresAt: number | null;
+  readonly leaseRevokedAt: number | null;
+};
 
 /**
  * Claims in the `claim` table (`20261019120000_add_claim`) and the
@@ -67,12 +83,7 @@ export class ClaimRepository implements ClaimStore {
   }
 
   async listStampedByProject(projectId: string): Promise<StampedClaim[]> {
-    return (await this.read(projectId)).map(({ claimedAt, ...each }) => {
-      // Proof: with this check removed, `refuses a stamped read of a claim with
-      // no write instant` read it with a null instant; watched 2026-10-19.
-      if (claimedAt === null) throw new Error(`claim ${each.id} has no write instant`);
-      return { ...each, claimedAt };
-    });
+    return (await this.read(projectId)).map(stampedOf);
   }
 
   async findById(projectId: string, claimId: string): Promise<Claim | null> {
@@ -105,21 +116,126 @@ export class ClaimRepository implements ClaimStore {
     return this.identity.pinnedPersonOf(credential);
   }
 
+  async observeProject(projectId: string, access: ResourceAccess): Promise<ClaimObservation> {
+    await Promise.resolve();
+    return this.observeNow(projectId, access);
+  }
+
   /**
-   * Claims with their write instant as stored, null for a row written outside
-   * {@link add}, and their lease's expiry and revocation instants.
+   * {@link observeProject}'s reads, every one synchronous on this process's
+   * connection with no await between them, inside one savepoint. No other
+   * request of this process runs until it returns, and the savepoint holds
+   * one read snapshot against another process's commits (blue and green
+   * share the file mid-swap). A savepoint, not `BEGIN`: it nests inside a
+   * batch's open transaction on the same connection instead of failing.
    */
-  private async read(
-    projectId: string,
-    claimId?: string,
-  ): Promise<
-    (Claim & {
-      readonly claimedAt: number | null;
-      readonly leaseExpiresAt: number | null;
-      readonly leaseRevokedAt: number | null;
-    })[]
-  > {
-    const rows = await this.db
+  private observeNow(projectId: string, access: ResourceAccess): ClaimObservation {
+    this.db.run(sql.raw('SAVEPOINT claim_observation'));
+    try {
+      const observed = this.observeIn(projectId, access);
+      this.db.run(sql.raw('RELEASE claim_observation'));
+      return observed;
+    } catch (cause) {
+      this.db.run(sql.raw('ROLLBACK TO claim_observation'));
+      this.db.run(sql.raw('RELEASE claim_observation'));
+      throw cause;
+    }
+  }
+
+  private observeIn(projectId: string, access: ResourceAccess): ClaimObservation {
+    const activated = readOrganizationActivation(this.db) !== 'pre_activation';
+    if (access.kind === 'legacy') {
+      // Proof: with this recheck skipped, `refuses legacy access once the
+      // deployment is activated` (claim-observation.db.test.ts) observed the
+      // project (2 pass, 1 fail); watched 2026-10-23.
+      if (activated) return { kind: 'access_refused', refusal: 'no_active_organization' };
+      const found = this.db
+        .select({ id: project.id })
+        .from(project)
+        .where(eq(project.id, projectId))
+        .get();
+      if (found === undefined) return { kind: 'not_found' };
+    } else {
+      if (!activated) return { kind: 'access_refused', refusal: 'no_active_organization' };
+      const { organizationId, userId } = access.scope;
+      const member = currentMembershipAccess(this.db, organizationId, userId);
+      // Proof: with this recheck skipped, `refuses a member removed between
+      // admission and the observation, as the tree read does`
+      // (project-claims-organization.controller.db.test.ts) answered 200 with
+      // the claims; watched 2026-10-23.
+      if (!member.ok) return { kind: 'access_refused', refusal: member.refusal };
+      const owned = this.db
+        .select({ id: projectOrganization.resourceId })
+        .from(projectOrganization)
+        .where(
+          and(
+            eq(projectOrganization.resourceId, projectId),
+            eq(projectOrganization.organizationId, organizationId),
+          ),
+        )
+        .get();
+      if (owned === undefined) return { kind: 'not_found' };
+    }
+    const rows = this.db
+      .select({
+        id: workItem.id,
+        parentId: workItem.parentId,
+        position: workItem.position,
+        frozenNumber: workItem.frozenNumber,
+        name: workItem.name,
+      })
+      .from(workItem)
+      // Proof: with this filter dropped, the SQLite certification's
+      // `claims.observeProject:legacy-observation` case read the other
+      // project's rows (74 pass, 1 fail); watched 2026-10-23.
+      .where(eq(workItem.projectId, projectId))
+      .all();
+    const stepIds = this.db
+      .select({ id: step.id })
+      .from(step)
+      .where(eq(step.projectId, projectId))
+      .orderBy(step.position, step.id)
+      .all()
+      .map(({ id }) => id);
+    const claims = this.readNow(projectId).map(stampedOf);
+    const holders = [...new Set(claims.map(({ personId }) => personId))];
+    const named =
+      holders.length === 0
+        ? []
+        : access.kind === 'scoped'
+          ? this.db
+              .select({ id: personOrganization.resourceId, name: personOrganization.name })
+              .from(personOrganization)
+              .where(
+                and(
+                  eq(personOrganization.organizationId, access.scope.organizationId),
+                  inArray(personOrganization.resourceId, holders),
+                ),
+              )
+              .all()
+          : this.db
+              .select({ id: person.id, name: person.name })
+              .from(person)
+              .where(inArray(person.id, holders))
+              .all();
+    return {
+      kind: 'observed',
+      rows,
+      stepIds,
+      claims,
+      personNames: new Map(named.map(({ id, name }) => [id, name])),
+    };
+  }
+
+  /** Claims with their write instant as stored and their lease, as {@link StoredClaim}. */
+  private async read(projectId: string, claimId?: string): Promise<StoredClaim[]> {
+    await Promise.resolve();
+    return this.readNow(projectId, claimId);
+  }
+
+  /** {@link read}, synchronously, for an observation that must not yield. */
+  private readNow(projectId: string, claimId?: string): StoredClaim[] {
+    const rows = this.db
       .select({
         id: claim.id,
         workItemId: claim.workItemId,
@@ -132,7 +248,7 @@ export class ClaimRepository implements ClaimStore {
         leaseExpiresAt: claim.leaseExpiresAt,
         // Proof: with a constant null selected here in place of the column, the
         // SQLite certification's `claims.lease:revoked-instant-read` case read
-        // the revoked lease as unrevoked (72 pass, 3 fail); watched 2026-10-23.
+        // the revoked lease as unrevoked (74 pass, 1 fail); watched 2026-10-23.
         leaseRevokedAt: claim.leaseRevokedAt,
       })
       .from(claim)
@@ -143,7 +259,8 @@ export class ClaimRepository implements ClaimStore {
           claimId === undefined ? undefined : eq(claim.id, claimId),
         ),
       )
-      .orderBy(asc(claim.workItemId), asc(claim.stepId), asc(claim.id));
+      .orderBy(asc(claim.workItemId), asc(claim.stepId), asc(claim.id))
+      .all();
     return rows.map(({ accountId, claimedAt, ...row }) => {
       // Proof: with this check removed, `refuses a stored claim with no writing
       // account` read it with a null account; watched 2026-10-19.
@@ -362,6 +479,19 @@ export class ClaimRepository implements ClaimStore {
       });
     });
   }
+}
+
+/**
+ * A stored claim with its write instant required.
+ *
+ * @throws for a claim with no write instant: every claim is written through
+ * `add`, which stamps it.
+ */
+function stampedOf({ claimedAt, ...each }: StoredClaim): StampedClaim {
+  // Proof: with this check removed, `refuses a stamped read of a claim with
+  // no write instant` read it with a null instant; watched 2026-10-19.
+  if (claimedAt === null) throw new Error(`claim ${each.id} has no write instant`);
+  return { ...each, claimedAt };
 }
 
 /**

@@ -81,6 +81,7 @@ async function seeded(hold?: Hold) {
     },
     listStampedByProject: (id) => claims.listStampedByProject(id),
     findById: (id, claimId) => claims.findById(id, claimId),
+    observeProject: (id, access) => claims.observeProject(id, access),
     occupancyOf: (id) => claims.occupancyOf(id),
     add: (written, stated, stamp, occupancy, leases) =>
       claims.add(written, stated, stamp, occupancy, leases),

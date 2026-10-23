@@ -144,6 +144,7 @@ export const CASE_MANIFEST = {
     'claims.remove:delegated-cascade',
     'claims.moveAll:in-place',
     'claims.lease:write-renew-expire',
+    'claims.observeProject:legacy-observation',
     'claims.lease:revoked-instant-read',
     'claims.occupancy:hold-read-cascade',
   ],
