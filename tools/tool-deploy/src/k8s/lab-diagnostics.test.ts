@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 
-import { assertSecretApplied, redactDiagnostic } from './lab';
+import { assertSecretApplied, redactDiagnostic, requireRolledBackRelease } from './lab';
 
 it('bounds pod diagnostics and removes generated key material', () => {
   const secret = 'generated-key-material';
@@ -17,4 +17,15 @@ it('fails a rejected lab Secret write without disclosing its keys', () => {
       'generated-key-material',
     ]);
   }).toThrow('wbs-mcp-secrets apply failed: key=[REDACTED]');
+});
+
+it('reports a redacted binary preflight refusal before preserving the rollback assertion', () => {
+  const secret = 'generated-key-material';
+  const printed: string[] = [];
+  expect(() => {
+    requireRolledBackRelease(new Error(`binary preflight refused ${secret}`), [secret], (line) =>
+      printed.push(line),
+    );
+  }).toThrow('ASSERTION FAILED: release ended rolled-back');
+  expect(printed).toEqual(['release outcome: Error: binary preflight refused [REDACTED]']);
 });

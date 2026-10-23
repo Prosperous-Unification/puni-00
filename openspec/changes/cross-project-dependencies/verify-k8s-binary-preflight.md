@@ -133,3 +133,23 @@ condition: TypeScript narrowed the callback-mutated `held.lost` through the
 new inline guard. Moving the check into `assertHeartbeat` preserves fresh reads
 without carrying that narrowing across awaited effects. The final scoped checks
 and the full configured rerun above cover this form.
+
+## Live k3s rehearsal diagnostic follow-up (2026-10-23)
+
+[PR-head-associated infra-check run 39874303244](https://github.com/Prosperous-Unification/puni-00/actions/runs/39874303244)
+failed in the real k3s rehearsal after `admit-images`, before `suspend-flux`.
+The job printed source `f6b4d6c466d516ade5c5aa45f93a6f7a3eb07672`
+(the PR merge checkout), while the pushed branch head was `2ddea72ee`.
+MCP key restoration and session survival had already passed. The lab's
+`release ended rolled-back` assertion masked the actual caught value because
+it printed the failure only after asserting its phase. The binary preflight
+is outside generic rollback intentionally; a raw refusal should still refuse
+without changing the release into `rolled-back`.
+
+`requireRolledBackRelease` now prints a bounded, key-redacted caught value
+before preserving that same phase assertion. Its mounted diagnostic test passed
+3/3; deleting only the emission made the new test fail with an empty printed
+list while the phase assertion still threw, then restoration passed 3/3.
+Changed-file Prettier and `tool-deploy:typecheck --skipNxCache` passed. This
+packet does **not** identify the Job/Pod field or binary output that was refused;
+the next live rehearsal must supply that diagnostic before a semantic fix.

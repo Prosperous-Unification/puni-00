@@ -328,6 +328,21 @@ function assert(condition: boolean, message: string): void {
   log(`assert ok: ${message}`);
 }
 
+/** Preserve the actual rehearsal failure while requiring the expected rollback outcome. */
+export function requireRolledBackRelease(
+  failure: unknown,
+  secrets: readonly string[],
+  emit: (line: string) => void,
+): void {
+  // Proof: omitting this diagnostic made the raw binary-preflight refusal test lose its
+  // redacted cause before the unchanged rollback assertion threw.
+  emit(`release outcome: ${redactDiagnostic(String(failure), secrets)}`);
+  assert(
+    failure instanceof ReleaseFailedError && failure.state.phase === 'rolled-back',
+    'release ended rolled-back',
+  );
+}
+
 async function versionOf(cmd: readonly string[]): Promise<string> {
   return sh(cmd, null, 30_000);
 }
@@ -913,11 +928,7 @@ async function main(): Promise<void> {
       (e: unknown) => e,
     );
     let seen = await writers.stop();
-    assert(
-      failed instanceof ReleaseFailedError && failed.state.phase === 'rolled-back',
-      `release ended rolled-back`,
-    );
-    if (failed instanceof ReleaseFailedError) log(failed.message);
+    requireRolledBackRelease(failed, [mcpKeys.store, mcpKeys.signing], log);
     const admitted = (
       await k([
         '-n',
