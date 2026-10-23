@@ -5477,3 +5477,16 @@ uninterruptibly blocked after 35 minutes. Its own Nx coordinator and hung test
 were terminated, yielding exit 130; the wrapper released the canonical lock
 (`heavy lock: holder none`). This is **not** a passing gate and does not satisfy
 task 11.2. Focused repairs and a fresh exact-SHA gate are required.
+
+## Persisted remote type editing integration (2026-10-23)
+
+The bounded desktop/phone fixed-endpoint FS/SS/FF editor is detailed in
+[verify-9-2-persisted-edit.md](verify-9-2-persisted-edit.md). Astra High
+independently reviewed the stable relationship and remote endpoint identity,
+owner/read-only state, stale gesture and refusal handling and found no blocker;
+its 69-case mounted rerun passed. After integration, the six configured
+frontend suites passed 158/158 (`/tmp/puni-integrated-persisted-edit-tests.log`)
+and `tsc --build --force apps/wbs/fe-01/tsconfig.json` exited 0
+(`/tmp/puni-integrated-persisted-edit-typecheck.log`). This proves frontend
+serialization and the mounted inactive refusal, not accepted production
+backend persistence, browser geometry or full task 9.2.
