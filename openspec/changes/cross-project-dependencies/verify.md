@@ -7212,3 +7212,37 @@ fixtures. At `7036af7b898246854705b89e887252d1f7150355`, fresh focused
 `/tmp/puni-h4-failures-current-7036af7b8.log`. This demonstrates the changed
 current-head fixtures/runtime for those failures, not a passing broad gate;
 the older gate's complete terminal result is still pending.
+
+## Completed older h4 gate and corrected integration — 2026-10-23
+
+The broad h4 gate at `9f257ca84ccbf4195f8127d0259c05d8a872bcab`
+completed with exit **1**. Nx reported 177 successful tasks and four failed
+targets: `wbs-be-01:test`, `wbs-fe-01:test`, `wbs-mcp-01:test` and
+`tool-bootstrap:test`. Output: `/tmp/puni-pr630-h4-gate-9f257ca84.log` on
+h4; the terminal exit file is 1. This gate is not green.
+
+All four observed failure classes have separately verified current-source
+corrections: backend unsupported-runtime fixture cases passed 85 focused tests;
+MCP exact V1/durable dormancy passed 625 configured tests; frontend V1 expectation
+passed the complete configured Node/DOM/Auckland target; bootstrap fixtures now
+isolate their edge state and passed 65 configured tests. The scoped verification
+records preserve the original failures, timeouts and interrupted attempts. These
+results do not replace a passing broad integrated host gate.
+
+After integrating reviewed solver drain at `a154219c4`, a fresh combined
+solver/host/cohort/owner/runtime/installer/ingress/native-publication/CLI suite
+passed **171 tests across 13 files, zero failures, 821 assertions**, exit 0.
+Uncached `tool-remote-scripts` lint/typecheck/build plus three prerequisites
+passed. Full OpenSpec validation passed **277/277** entries. Outputs:
+`/tmp/puni-integrated-solver-ingress-a154219c4.log`,
+`/tmp/puni-integrated-solver-ingress-checks-a154219c4.log` and
+`/tmp/puni-openspec-a154219c4.json`.
+
+Whole-repository `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx
+format:check --all` at pre-solver-drain integration `bb46cfb6b` exited0 with
+durable child/exit capture. The earlier quiet attempt's terminal status was not
+recovered before rerunning; no result is inferred from its empty output. The
+new source packet also passed scoped formatting and normal hooks. The next
+broad gate must check its complete candidate tree. Actual solver-host acceptance,
+installed-authority audit, complete exclusion/restoration, final exact-SHA h2
+gate, CI and deployment remain open.
