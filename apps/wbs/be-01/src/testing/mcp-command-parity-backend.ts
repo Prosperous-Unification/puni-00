@@ -30,13 +30,12 @@ const harness = OrganizationHarness.openComposedWith({
       verdict: () => undefined,
     });
   },
-  ...(process.env['MCP_PARITY_ACTIVE'] === 'true' ? { syntheticExternalCommands: true } : {}),
   pushFetch: (url) => {
     pushes.push(url);
     return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
   },
 });
-seedDependencyAuthority(harness.databasePath());
+if (process.env['MCP_PARITY_ACTIVE'] === 'true') seedDependencyAuthority(harness.databasePath());
 await harness.register('ada');
 harness.organization('org-a');
 harness.member('org-a', 'ada', 'super_admin');

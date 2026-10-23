@@ -327,10 +327,16 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         expect(reply.isError).not.toBe(true);
         committed = JSON.parse(reply.text) as unknown;
         const write = fixture.forwarded.find((request) => request.method === 'POST');
+        // Proof: omitting wbs-client's production V1 claim failed this exact equality
+        // with the missing header (2026-10-23).
         expect(write).toEqual({
           url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
           method: 'POST',
-          headers: { authorization: `Bearer ${fixture.key}`, 'content-type': 'application/json' },
+          headers: {
+            'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
+            authorization: `Bearer ${fixture.key}`,
+            'content-type': 'application/json',
+          },
           body: JSON.stringify({ commands }),
         });
       } else {
@@ -398,7 +404,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
 }
 
 // Proof: switching compose.ts inactive authoring to active made this call succeed
-// (isError undefined instead of true), watched 2026-10-22.
+// (isError undefined instead of true), watched 2026-10-22. Unconditionally seeding
+// ENABLED reproduced the same failure with the capable source (2026-10-23).
 test('ordinary MCP composition refuses dormant external commands without durable effects or pushes', async () => {
   const fixture = await openFixture(false);
   try {
@@ -941,6 +948,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
               url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
               method: 'POST',
               headers: {
+                'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
                 authorization: `Bearer ${fixture.key}`,
                 'content-type': 'application/json',
               },
