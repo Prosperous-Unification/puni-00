@@ -156,6 +156,9 @@ function fixture(fault = '', purpose: 'candidate' | 'store' = 'candidate') {
         'status-phase': ['status.phase', 'Unknown'],
         'status-missing-phase': ['status.phase', undefined],
         'status-image': ['status.containerStatuses.0.image', 'foreign'],
+        'status-image-long': ['status.containerStatuses.0.image', 'x'.repeat(4096)],
+        'status-image-missing': ['status.containerStatuses.0.image', undefined],
+        'status-image-malformed': ['status.containerStatuses.0.image', { name: 'foreign' }],
         'status-name': ['status.containerStatuses.0.name', 'foreign'],
         'status-count': ['status.containerStatuses', []],
         restarts: ['status.containerStatuses.0.restartCount', 1],
@@ -229,6 +232,50 @@ test('fresh capability Job has no storage and returns Pod-attributed evidence', 
   const pod = cluster.request.manifest.spec.template.spec;
   expect(pod).not.toHaveProperty('volumes');
   expect(pod.containers[0]).not.toHaveProperty('env');
+});
+
+test('status image mismatch retains bounded observation identity for the lab diagnostic', async () => {
+  const cluster = fixture('status-image');
+  try {
+    await observeDependencyJob(cluster.request, cluster.call);
+    throw new Error('status image mismatch was accepted');
+  } catch (failure) {
+    expect(failure).toMatchObject({
+      message: 'dependency observation status image differs from pinned manifest',
+      observation: {
+        observationId: cluster.request.observationId,
+        purpose: 'candidate',
+        jobName: cluster.request.manifest.metadata.name,
+        jobUid: 'job-uid',
+        podName: 'observed-pod',
+        podUid: 'pod-uid',
+        expectedImage: image,
+        observedName: 'task',
+        observedImage: 'foreign',
+        observedImageId: `containerd://${image}`,
+        restartCount: 0,
+      },
+    });
+  }
+});
+
+test.each([
+  ['status-image-long', '<oversized:string>'],
+  ['status-image-missing', '<missing>'],
+  ['status-image-malformed', '<non-string:object>'],
+])('status image diagnostic bounds %s without accepting it', async (fault, suffix) => {
+  const cluster = fixture(fault);
+  try {
+    await observeDependencyJob(cluster.request, cluster.call);
+    throw new Error('status image mismatch was accepted');
+  } catch (failure) {
+    expect(failure).toMatchObject({
+      message: 'dependency observation status image differs from pinned manifest',
+    });
+    const observation = (failure as { observation?: { observedImage?: string } }).observation;
+    expect(observation?.observedImage).toEndWith(suffix);
+    expect(observation?.observedImage?.length).toBeLessThanOrEqual(1024);
+  }
 });
 test('each invocation and role has a fresh bounded name', () => {
   const names = [

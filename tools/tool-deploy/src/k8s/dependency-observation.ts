@@ -34,6 +34,29 @@ export interface DependencyStoreObservation {
   authority: DormantDependencyStore;
 }
 
+/** A bounded snapshot of the exact Pod status that disagreed with the pinned Job image. */
+export interface DependencyStatusImageEvidence {
+  observationId: string;
+  purpose: string;
+  jobName: string;
+  jobUid: string;
+  podName: string;
+  podUid: string;
+  expectedImage: string;
+  observedName: string;
+  observedImage: string;
+  observedImageId: string;
+  restartCount: number | string;
+  nodeName: string;
+}
+
+/** Keeps the refusal generic while allowing the disposable lab to print bounded identity evidence. */
+export class DependencyStatusImageMismatch extends Error {
+  constructor(readonly observation: DependencyStatusImageEvidence) {
+    super('dependency observation status image differs from pinned manifest');
+  }
+}
+
 /** Separate from release effects so observations cannot accidentally admit migration or exposure. */
 export interface DependencyObservationEffects {
   observeDependencyBinaries(
@@ -204,6 +227,16 @@ function readString(value: unknown, label: string): string {
     throw new Error(`missing or malformed ${label}`);
   return value;
 }
+
+/** A diagnostic field never copies an arbitrary JSON object or an unbounded image string. */
+function boundedStatusField(value: unknown): string {
+  if (value === undefined) return '<missing>';
+  if (typeof value !== 'string') return `<non-string:${typeof value}>`;
+  // Proof: returning the raw field made the long-status-image diagnostic test
+  // print 4096 characters instead of the bounded marker (2026-10-23).
+  // A prefix could end halfway through a secret, so omit oversized values whole.
+  return value.length <= 1024 ? value : '<oversized:string>';
+}
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (typeof value === 'object' && value !== null)
@@ -332,7 +365,24 @@ function readPod(
     throw new Error('missing task status');
   const task = readRecord(status['containerStatuses'][0], 'task status');
   assertEqual(task['name'], 'task', 'status container');
-  assertEqual(task['image'], request.image, 'status image');
+  // Proof: bypassing this comparison made the foreign-status-image observation
+  // complete instead of refusing and retaining its Pod evidence (2026-10-23).
+  if (task['image'] !== request.image)
+    throw new DependencyStatusImageMismatch({
+      observationId: request.observationId,
+      purpose: request.purpose,
+      jobName: request.manifest.metadata.name,
+      jobUid,
+      podName: name,
+      podUid: uid,
+      expectedImage: boundedStatusField(request.image),
+      observedName: boundedStatusField(task['name']),
+      observedImage: boundedStatusField(task['image']),
+      observedImageId: boundedStatusField(task['imageID']),
+      restartCount:
+        typeof task['restartCount'] === 'number' ? task['restartCount'] : '<non-number>',
+      nodeName: boundedStatusField(readRecord(pod['spec'], 'Pod spec')['nodeName']),
+    });
   const imageId = readString(task['imageID'], 'task imageID');
   const digest = request.image.slice(request.image.lastIndexOf('@') + 1);
   // Proof: removing digest attribution admitted the foreign runtime imageID negative.

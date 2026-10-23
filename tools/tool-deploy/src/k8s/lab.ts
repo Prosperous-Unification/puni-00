@@ -12,6 +12,7 @@ import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { DependencyStatusImageMismatch } from './dependency-observation';
 import {
   backendTaskJob,
   executeRelease,
@@ -337,6 +338,12 @@ export function requireRolledBackRelease(
   // Proof: omitting this diagnostic made the raw binary-preflight refusal test lose its
   // redacted cause before the unchanged rollback assertion threw.
   emit(`release outcome: ${redactDiagnostic(String(failure), secrets)}`);
+  // Proof: omitting this line lost the status-image Pod snapshot; bypassing its
+  // redactor printed generated-key-material in lab-diagnostics.test.ts (2026-10-23).
+  if (failure instanceof DependencyStatusImageMismatch)
+    emit(
+      `dependency observation Pod: ${redactDiagnostic(JSON.stringify(failure.observation), secrets)}`,
+    );
   assert(
     failure instanceof ReleaseFailedError && failure.state.phase === 'rolled-back',
     'release ended rolled-back',

@@ -153,3 +153,50 @@ list while the phase assertion still threw, then restoration passed 3/3.
 Changed-file Prettier and `tool-deploy:typecheck --skipNxCache` passed. This
 packet does **not** identify the Job/Pod field or binary output that was refused;
 the next live rehearsal must supply that diagnostic before a semantic fix.
+
+## Status-image observation diagnostic (2026-10-23)
+
+[Infra-check run 39876501539](https://github.com/Prosperous-Unification/puni-00/actions/runs/39876501539)
+passed fleet-check and failed the k3s rehearsal before protected effects. The
+new redacted release outcome identified the exact rejected comparison:
+`dependency observation status image differs from pinned manifest`. It did not
+print the observation Pod's `status.image` or `imageID`; the MCP Pod description
+in that log belongs to another Pod. No compatibility exception is justified
+from this log alone.
+
+The next diagnostic keeps the exact refusal. At the comparison point it retains
+only the observation ID/purpose, Job and Pod names/UIDs, expected image, status
+container name/image/imageID/restart count and node name. Image fields are capped
+at 1,024 characters; an oversized value is omitted whole to avoid printing a
+partial secret. The lab prints this snapshot through its generated-key redactor
+and 8,192-character output cap before preserving the original phase assertion.
+It does not dump the Pod, command, environment, annotations, Secret or logs.
+
+TDD receipts: `/tmp/puni-status-image-diagnostic-red.log` failed because the
+generic mismatch error carried no Pod evidence; the new source assertion then
+passed. `/tmp/puni-status-image-lab-red.log` failed because the lab printed only
+the generic cause; the redacted snapshot then passed. The oversized-value test
+first failed against a prefix-truncating implementation
+(`/tmp/puni-status-image-oversized-red.log`), then passed with the whole-value
+omission. Final focused dependency-observation and lab diagnostics:
+`bun test --preload ../test/scratch/preload.ts --timeout=10000
+src/k8s/dependency-observation.test.ts src/k8s/lab-diagnostics.test.ts` from
+`tools/tool-deploy`: **92 passed, 0 failed, 210 assertions**.
+
+Watched production faults each exited 1 and were restored before the final run:
+
+- Bypassing the status-image comparison accepted the foreign status image;
+  `status image mismatch retains bounded observation identity` failed
+  (`/tmp/puni-status-image-fault-guard.log`).
+- Returning the raw 4,096-character image made the bounded diagnostic test
+  print it instead of `<oversized:string>`
+  (`/tmp/puni-status-image-fault-bound-final.log`).
+- Omitting the diagnostic line was the lab test's initial red. Removing only
+  its redactor printed `generated-key-material` and failed the lab test
+  (`/tmp/puni-status-image-fault-redaction.log`).
+
+Changed-file Prettier and uncached configured `tool-deploy` lint/typecheck
+passed after correcting import order and the test callback's void expression.
+The first two configured attempts failed on those style errors; they are not
+counted as passing evidence. The next live k3s rehearsal, full exact-SHA host
+gate, semantic status-image compatibility and activation remain outstanding.
