@@ -7,19 +7,19 @@ Commands, their output, and the failure-proof table R5 asks for.
 Run on the Linux laptop, on `feat/wbs-create-agent-and-exhaustion-detail` off `937da8cb5`,
 every one with `env -u CLAUDECODE`, one heavy target at a time.
 
-| Command                                                                                                 | Result                  |
-| ------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `bun test libs/wbs/domain/domain/src/claim-occupancy.test.ts`                                           | 18 pass, 0 fail         |
-| `bun test libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts`                             | 70 pass, 0 fail         |
-| `bun test libs/wbs/adapters/store-sqlite/src/agent-person-limit-race.db.test.ts`                        | 2 pass, 0 fail          |
-| `bun test apps/wbs/be-01/src/controller/agent-person-limit.controller.db.test.ts`                       | 20 pass, 0 fail         |
-| `bun test libs/wbs/domain/contracts/src/http/{plan-command-shapes,work-item-shapes}.test.ts`            | 9 pass, 0 fail          |
-| related files: claim-occupancy-race, resource-organization, swarm-rehearsal, directory controllers, MCP | all pass (see PR body)  |
-| `nx run <lib>:typecheck` for the 13 WBS projects of the brief, one at a time                            | each succeeded          |
-| `nx run wbs-{domain,contracts,core,store-sqlite,be-01}:lint`                                            | each succeeded          |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`             | exit 0                  |
-| `bunx openspec validate --all --json`                                                                   | 271 passed, 0 failed    |
-| `nx run tool-devsync:test --skip-nx-cache`                                                              | recorded in the PR body |
+| Command                                                                                                                                                                                                     | Result                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test libs/wbs/domain/domain/src/claim-occupancy.test.ts`                                                                                                                                               | 18 pass, 0 fail                                                                                                                       |
+| `bun test libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts`                                                                                                                                 | 70 pass, 0 fail                                                                                                                       |
+| `bun test libs/wbs/adapters/store-sqlite/src/agent-person-limit-race.db.test.ts`                                                                                                                            | 2 pass, 0 fail                                                                                                                        |
+| `bun test apps/wbs/be-01/src/controller/agent-person-limit.controller.db.test.ts`                                                                                                                           | 20 pass, 0 fail                                                                                                                       |
+| `bun test libs/wbs/domain/contracts/src/http/{plan-command-shapes,work-item-shapes}.test.ts`                                                                                                                | 9 pass, 0 fail                                                                                                                        |
+| claim-occupancy-race, resource-organization, swarm-rehearsal, directory and directory-command-organization controllers, directory.resource, plan-commands, command-bindings, definitions, MCP openapi-tools | each 0 fail                                                                                                                           |
+| `nx run <lib>:typecheck` for the 13 WBS projects of the brief, one at a time                                                                                                                                | each succeeded                                                                                                                        |
+| `nx run wbs-{domain,contracts,core,store-sqlite,be-01}:lint`                                                                                                                                                | each succeeded                                                                                                                        |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                 | exit 0                                                                                                                                |
+| `bunx openspec validate --all --json`                                                                                                                                                                       | 271 passed, 0 failed                                                                                                                  |
+| `nx run tool-devsync:test --skip-nx-cache`                                                                                                                                                                  | exit 0 on the committed tree (a first run, before `verify.md` was tracked, failed only the index-checker case on that untracked path) |
 
 ### Not run, and why
 
