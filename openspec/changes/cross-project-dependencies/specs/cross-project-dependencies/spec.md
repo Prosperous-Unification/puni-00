@@ -1459,6 +1459,14 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 - **AND** an own undefined or malformed Init, shared PID namespace, unfinished terminal lifecycle or absent-to-present Init shape drift refuses
 - **AND** native mutable-tag substitution still refuses independently before effects; initialized managed participant requirements remain unchanged
 
+#### Scenario: Tighter source observer deadlines preserve original authority
+
+- **GIVEN** a live source exclusion has an original deadline and the caller supplies a finite future observation deadline
+- **WHEN** either public source observer reads nested inventory, images, owner state and retained evidence
+- **THEN** the local read scope uses the earlier deadline, aborts Docker children, and checks native filesystem reads at awaited boundaries
+- **AND** expired or nonfinite supplied deadlines refuse before reads, longer deadlines cannot extend the original, and the original scope is never mutated or replaced
+- **AND** final token expiry is checked against the original WeakMap scope, so a completed or in-flight read cannot recreate authority
+
 #### Scenario: Native source mount permutations preserve complete identity
 
 - **GIVEN** the exact live source member has the three supported unique mount destinations

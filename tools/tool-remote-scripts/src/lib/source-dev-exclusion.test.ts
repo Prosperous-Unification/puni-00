@@ -5,10 +5,12 @@ import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { sourceFixture } from '../fixtures/source-dev';
+import type { RunDocker } from './docker-deadline';
 import { withDependencyOwner } from './edge-ownership';
 import { envLayout, sourceDevContract } from './env';
 import {
   inspectExcludedSourceMember,
+  inspectSourceDevExclusion,
   type SourceDevExclusion,
   withSourceDevExcluded,
 } from './source-dev-exclusion';
@@ -481,7 +483,6 @@ test('source actual initial inventory refuses additional dev backend before effe
 
 for (const operation of ['recognition', 'inspection'] as const)
   test(`in-flight source ${operation} cannot return proof after token expiry`, async () => {
-    const { inspectSourceDevExclusion } = await import('./source-dev-exclusion');
     const f = await fixture();
     let resume: () => void = () => {
       throw new Error('missing gate');
@@ -518,8 +519,14 @@ for (const operation of ['recognition', 'inspection'] as const)
             paused = true;
             pending =
               operation === 'recognition'
-                ? inspectExcludedSourceMember(owner, f.layouts.prod, token, f.inventory)
-                : inspectSourceDevExclusion(owner, token);
+                ? inspectExcludedSourceMember(
+                    owner,
+                    f.layouts.prod,
+                    token,
+                    f.inventory,
+                    performance.now() + 5000,
+                  )
+                : inspectSourceDevExclusion(owner, token, performance.now() + 5000);
             await started;
           },
         );
@@ -607,3 +614,162 @@ test('source mount order may vary on successive complete inventory observations'
   );
   expect(entered).toBe(true);
 });
+
+for (const operation of ['inspection', 'recognition'] as const) {
+  for (const invalid of [NaN, Infinity, -1])
+    test(`source ${operation} refuses invalid supplied deadline ${String(invalid)} before Docker reads`, async () => {
+      const f = await fixture();
+      await withDependencyOwner(
+        { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+        (owner) =>
+          withSourceDevExcluded(
+            owner,
+            f.layouts,
+            'a'.repeat(40),
+            f.docker,
+            performance.now() + 5000,
+            async (token) => {
+              const before = f.commands.length;
+              await rejects(
+                operation === 'inspection'
+                  ? inspectSourceDevExclusion(owner, token, invalid)
+                  : inspectExcludedSourceMember(owner, f.layouts.prod, token, f.inventory, invalid),
+                /source dev observer deadline invalid/,
+              );
+              expect(f.commands.length).toBe(before);
+            },
+          ),
+        f.root,
+      );
+    });
+  for (const stalled of ['ps', 'image'])
+    test(`source ${operation} tighter deadline aborts and reaps stalled ${stalled} child without changing original scope`, async () => {
+      const f = await fixture();
+      let armed = false;
+      const children: Bun.Subprocess<'ignore', 'ignore', 'ignore'>[] = [];
+      const signals: AbortSignal[] = [];
+      const docker: RunDocker = (args, signal) => {
+        if (armed && args[0] === stalled) {
+          armed = false;
+          if (signal === undefined) throw new Error('source child signal absent');
+          signals.push(signal);
+          const child = Bun.spawn([process.execPath, '-e', 'setInterval(() => {}, 1000)'], {
+            stdin: 'ignore',
+            stdout: 'ignore',
+            stderr: 'ignore',
+            signal,
+            killSignal: 'SIGKILL',
+          });
+          children.push(child);
+          return child.exited.then(() => {
+            throw new Error('stalled source child reaped');
+          });
+        }
+        return f.docker(args);
+      };
+      try {
+        await withDependencyOwner(
+          { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+          (owner) =>
+            withSourceDevExcluded(
+              owner,
+              f.layouts,
+              'a'.repeat(40),
+              docker,
+              performance.now() + 2000,
+              async (token) => {
+                armed = true;
+                const deadline = performance.now() + 100;
+                await rejects(
+                  operation === 'inspection'
+                    ? inspectSourceDevExclusion(owner, token, deadline)
+                    : inspectExcludedSourceMember(
+                        owner,
+                        f.layouts.prod,
+                        token,
+                        f.inventory,
+                        deadline,
+                      ),
+                  /deadline/,
+                );
+                expect(performance.now()).toBeLessThan(deadline + 500);
+                expect(signals).toHaveLength(1);
+                expect(signals[0]?.aborted).toBe(true);
+                for (const child of children) {
+                  await child.exited;
+                  expect(child.signalCode).toBe('SIGKILL');
+                }
+                await inspectSourceDevExclusion(owner, token, performance.now() + 1000);
+                await inspectSourceDevExclusion(owner, token);
+              },
+            ),
+          f.root,
+        );
+      } finally {
+        for (const child of children) {
+          if (child.exitCode === null) child.kill('SIGKILL');
+          await child.exited;
+        }
+      }
+    });
+}
+
+for (const operation of ['inspection', 'recognition'] as const)
+  test(`source ${operation} supplied longer deadline cannot extend original scope`, async () => {
+    const f = await fixture();
+    let armed = false,
+      aborted = 0,
+      completedAt = 0;
+    const docker: RunDocker = (args, signal) => {
+      if (armed && args[0] === 'ps') {
+        armed = false;
+        if (signal === undefined) throw new Error('deadline signal absent');
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              aborted++;
+              reject(new Error('Docker read deadline aborted'));
+            },
+            { once: true },
+          );
+        });
+      }
+      return f.docker(args);
+    };
+    const originalDeadline = performance.now() + 1000;
+    await rejects(
+      withDependencyOwner(
+        { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+        (owner) =>
+          withSourceDevExcluded(
+            owner,
+            f.layouts,
+            'a'.repeat(40),
+            docker,
+            originalDeadline,
+            async (token) => {
+              armed = true;
+              await rejects(
+                operation === 'inspection'
+                  ? inspectSourceDevExclusion(owner, token, performance.now() + 2000)
+                  : inspectExcludedSourceMember(
+                      owner,
+                      f.layouts.prod,
+                      token,
+                      f.inventory,
+                      performance.now() + 2000,
+                    ),
+                /deadline/,
+              );
+              completedAt = performance.now();
+            },
+          ),
+        f.root,
+      ),
+      /deadline/,
+    );
+    expect(aborted).toBe(1);
+    expect(completedAt).toBeGreaterThan(0);
+    expect(completedAt).toBeLessThan(originalDeadline + 300);
+  });

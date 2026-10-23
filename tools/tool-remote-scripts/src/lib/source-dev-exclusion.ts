@@ -29,15 +29,34 @@ interface SourceScope {
 }
 const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
 
-async function assertScope(scope: SourceScope): Promise<void> {
-  await assertDependencyOwner(scope.owner, scope.layouts.prod, scope.sha);
-  await assertDependencyOwner(scope.owner, scope.layouts.dev, scope.sha);
+function assertScopeDeadline(scope: SourceScope): void {
   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
     throw new Error('source dev exclusion deadline exceeded');
+}
+/** A local read view only; never stored, mutated into the original or used as WeakMap authority. */
+function limitObservation(scope: SourceScope, deadline?: number): SourceScope {
+  // Proof: validation omission lost invalid-supplied classification; six deadline input negatives failed.
+  if (deadline !== undefined && (!Number.isFinite(deadline) || performance.now() >= deadline))
+    throw new Error('source dev observer deadline invalid');
+  // Proof: original-limit omission let a longer supplied deadline outlive original authority; both longer-limit negatives failed.
+  // Proof: tighter-scope omission failed real stalled child abort and original-scope reuse negatives.
+  return deadline === undefined
+    ? scope
+    : { ...scope, deadline: Math.min(scope.deadline, deadline) };
+}
+async function assertScope(scope: SourceScope): Promise<void> {
+  // Native filesystem syscalls are checked at awaited boundaries; Docker children receive hard abort.
+  assertScopeDeadline(scope);
+  await assertDependencyOwner(scope.owner, scope.layouts.prod, scope.sha);
+  assertScopeDeadline(scope);
+  await assertDependencyOwner(scope.owner, scope.layouts.dev, scope.sha);
+  assertScopeDeadline(scope);
   // Proof: source-bytes omission admitted changed intent; source final readback refuses bytes failed (exit 1).
-  for (const record of scope.records)
-    if ((await readRecord(record.path)) !== record.contents)
-      throw new Error('source dev retained evidence changed');
+  for (const record of scope.records) {
+    const contents = await readRecord(record.path);
+    assertScopeDeadline(scope);
+    if (contents !== record.contents) throw new Error('source dev retained evidence changed');
+  }
 }
 
 function findSource(inventory: readonly unknown[], layout: EnvLayout): unknown {
@@ -258,16 +277,19 @@ export async function identifySourceAuditInventory(
  * Recognizes only the exact raw member of this same complete audit inventory, under the exact
  * live owner/layout/SHA and retained byte binding, then independently re-observes current exclusion.
  * Copied/foreign/expired tokens and missing/replaced/restarted inventory members always refuse.
+ * An optional finite future deadline only tightens nested reads; final authority remains the original scope.
  */
 export async function inspectExcludedSourceMember(
   owner: DependencyOwner,
   layout: EnvLayout,
   token: SourceDevExclusion,
   inventory: readonly unknown[],
+  deadline?: number,
 ): Promise<unknown> {
-  const scope = exclusions.get(token);
+  const original = exclusions.get(token);
   // Proof: owner-comparison omission admitted the foreign live owner; foreign-owner recognition negative failed (exit 1).
-  if (scope?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
+  if (original?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
+  const scope = limitObservation(original, deadline);
   assertSame(scope.layouts.prod, layout, 'source dev backend layout');
   await assertScope(scope);
   const current = await inspectInventory(scope);
@@ -285,23 +307,30 @@ export async function inspectExcludedSourceMember(
   assertSame(scope.member, observed, 'source dev audit inventory member');
   assertSourceDevExcluded(observed);
   await inspectScope(scope);
-  // Proof: final live-scope omission returned in-flight source proof after callback expiry; gated recognition/inspection negatives failed.
-  if (exclusions.get(token) !== scope)
+  // Proof: final-expiry omission returned in-flight proof after callback expiry; original-authority
+  // substitution also failed successful bounded reads. Both use original WeakMap authority.
+  if (exclusions.get(token) !== original)
     throw new Error('source dev exclusion expired during inspection');
   return raw;
 }
 
-/** Fresh owner-only source inspection; retained completion has no ordinary admission meaning. */
+/**
+ * Fresh owner-only source inspection; retained completion grants no ordinary admission.
+ * An optional deadline tightens nested reads without extending or replacing original scope authority.
+ */
 export async function inspectSourceDevExclusion(
   owner: DependencyOwner,
   token: SourceDevExclusion,
+  deadline?: number,
 ): Promise<void> {
-  const scope = exclusions.get(token);
+  const original = exclusions.get(token);
   // Proof: owner-comparison omission admitted the foreign live owner; foreign-owner recognition negative failed (exit 1).
-  if (scope?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
+  if (original?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
+  const scope = limitObservation(original, deadline);
   await inspectScope(scope);
-  // Proof: final live-scope omission returned in-flight source proof after callback expiry; gated recognition/inspection negatives failed.
-  if (exclusions.get(token) !== scope)
+  // Proof: final-expiry omission returned in-flight proof after callback expiry; original-authority
+  // substitution also failed successful bounded reads. Both use original WeakMap authority.
+  if (exclusions.get(token) !== original)
     throw new Error('source dev exclusion expired during inspection');
 }
 
