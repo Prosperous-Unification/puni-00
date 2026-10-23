@@ -108,6 +108,8 @@ export interface OpenCommandGraph {
 
 /** Repository-free operations available to a command act. */
 export interface CommandAdmission {
+  /** Coordinator expiry without caller admission. */
+  releaseExpiredLeases(projectId: string, broadcast: Broadcaster): Promise<number>;
   resolveAccess: CommandAccess['resolve'];
   refuseOutsideScope: AdmittedScope['refuseOutsideScope'];
   listCrossReferenceKinds: AdmittedScope['listCrossReferenceKinds'];

@@ -3,7 +3,7 @@ import type { DependencyContext } from '../../ports/dependency-context';
 import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { CapturedFanout } from '../../ports/fanout-capture-store';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from '../../ports/fanout-capture-store';
-import type { ResourceAccess } from '../../ports/organization-access';
+import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import {
@@ -79,7 +79,66 @@ export function commandTransaction(
             before: null,
             organizationId: null,
           };
+          const addressedCauses: string[] = [];
           const resources: CommandAdmission = {
+            releaseExpiredLeases: async (projectId, broadcast) => {
+              // Proof: removing this assertion changed the escaped lifecycle negative's
+              // refusal to a borrowed snapshot error (2026-10-23).
+              assertObservation();
+              const capture = rawScope.fanoutCapture;
+              const resolveOwner = capture?.resolveLifecycleOwner;
+              // Proof: removing this refusal reached the write graph in both missing
+              // capture and missing owner integration negatives (2026-10-23).
+              if (resolveOwner === undefined && rawScope.stores.livePlans !== undefined)
+                throw new Error('claim lease lifecycle ownership is missing');
+              if (capture !== undefined && resolveOwner !== undefined) {
+                const owner = await resolveOwner(projectId);
+                assertObservation();
+                if (owner.kind === 'absent') return 0;
+                if (owner.kind === 'scoped') {
+                  captureState.organizationId = owner.organizationId;
+                  captureState.before = await capture.capture(owner.organizationId);
+                  assertObservation();
+                  // Proof: removing this prewrite refusal reached the throwing write
+                  // graph in the missing delivery integration negative (2026-10-23).
+                  if (
+                    (captureState.before.observation.mode === 'shared' ||
+                      captureState.before.dependency !== null) &&
+                    committedFanout === undefined
+                  )
+                    throw new Error('committed fan-out delivery is missing');
+                }
+              }
+              const workingPlan = createWorkingPlan(rawScope, projectId);
+              const dependencies = createDependencyContext(
+                rawScope.stores,
+                {
+                  projectId: null,
+                  actorId: 'claim-lease-sweep',
+                  access: LEGACY_ACCESS,
+                  admission: NO_ADMISSION,
+                },
+                assertObservation,
+                { kind: 'raw' },
+              );
+              try {
+                const graph = factory(
+                  { stores: workingPlan.stores },
+                  broadcast,
+                  NO_ADMISSION,
+                  dependencies.context,
+                );
+                const released = await graph.workItems.releaseExpiredLeases(projectId);
+                assertObservation();
+                // Proof: omitting this cause lost both connected recipients despite
+                // releasing the claim in the mounted integration test (2026-10-23).
+                if (released > 0) addressedCauses.push(projectId);
+                return released;
+              } finally {
+                dependencies.close();
+                workingPlan.close();
+              }
+            },
             // Proof: pre-resolving this same source authority before writer admission
             // changed queued membership's HTTP403 error from not_a_member to forbidden;
             // native revocation reached the fan-out tripwire (HTTP500 instead of 403).
@@ -161,6 +220,7 @@ export function commandTransaction(
                   captureState.before,
                   after,
                   () => committedFanout.now(),
+                  addressedCauses,
                 );
               }
             }

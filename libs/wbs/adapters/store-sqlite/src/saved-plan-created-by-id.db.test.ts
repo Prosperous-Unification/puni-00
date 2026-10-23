@@ -179,6 +179,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
       '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
@@ -317,6 +318,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
       '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',

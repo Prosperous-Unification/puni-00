@@ -211,6 +211,7 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
       '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
@@ -260,9 +261,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe(
-      '20261022213000_add_optimization_boundary_certificates',
-    );
+    expect(readAppliedMigrations().at(-1)).toBe('20261023100000_add_claim_lease');
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 

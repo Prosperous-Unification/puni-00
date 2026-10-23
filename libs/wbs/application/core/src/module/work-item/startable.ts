@@ -118,6 +118,8 @@ export interface ClaimedStep extends WorkItemAddress {
   readonly parentClaimId: string | null;
   /** When the claim was written, epoch milliseconds. */
   readonly claimedAt: number;
+  /** When its lease runs out, epoch milliseconds; null for a claim no agent renews. */
+  readonly leaseExpiresAt: number | null;
 }
 
 /** A subtree claim in force anywhere in the project, so a silent one shows too. */
@@ -128,6 +130,8 @@ export interface HeldSubtree extends WorkItemAddress {
   readonly parentClaimId: string | null;
   /** When the claim was written, epoch milliseconds. */
   readonly claimedAt: number;
+  /** When its lease runs out, epoch milliseconds; null for a claim no agent renews. */
+  readonly leaseExpiresAt: number | null;
 }
 
 /** Current prerequisite truth for a target step; started work remains observable after upstream edits. */
@@ -331,6 +335,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
           runId: holding.runId,
           parentClaimId: holding.parentClaimId,
           claimedAt: holding.claimedAt,
+          leaseExpiresAt: holding.leaseExpiresAt,
         });
       } else if (!done.has(key)) {
         const nodeKey = sliceKey(leafId, stepId);
@@ -394,6 +399,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         runId: holding.runId,
         parentClaimId: holding.parentClaimId,
         claimedAt: holding.claimedAt,
+        leaseExpiresAt: holding.leaseExpiresAt,
       };
     });
   const occupied = new Map(

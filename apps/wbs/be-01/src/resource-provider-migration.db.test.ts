@@ -12,7 +12,8 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
 const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_providers';
-const CROSS_PROJECT_ROLLBACK = [
+const NEWER = [
+  '20261023100000_add_claim_lease',
   '20261022213000_add_optimization_boundary_certificates',
   '20261022212000_add_cross_project_dependency_activation',
   '20261022211000_add_external_dependencies',
@@ -80,7 +81,7 @@ function limitsOnlyStore(): string {
   const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-baseline-'));
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
-  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING])
+  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING, ...NEWER])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
@@ -183,7 +184,7 @@ describe(RESOURCE_PROVIDER, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toBe(
-      `rolled back: ${[...CROSS_PROJECT_ROLLBACK, AUDIT_WIDENING, RESOURCE_PROVIDER].join(', ')}\n`,
+      `rolled back: ${[...NEWER, AUDIT_WIDENING, RESOURCE_PROVIDER].join(', ')}\n`,
     );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);

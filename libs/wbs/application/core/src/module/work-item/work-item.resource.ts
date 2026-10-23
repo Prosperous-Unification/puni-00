@@ -11,6 +11,7 @@ import {
   type ChargedEstimate,
   chargedWorkdays,
   type Claim,
+  CLAIM_LEASE_MS,
   type Days,
   deadlineOffsetOf,
   decideClaim,
@@ -31,6 +32,8 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  leaseOf,
+  type LeaseReleaseReason,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
   MEASURE_METRICS,
@@ -91,11 +94,14 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
-import type {
-  ClaimIdentity,
-  ClaimOccupancy,
-  ClaimStore,
-  CredentialPin,
+import {
+  type ClaimIdentity,
+  type ClaimLease,
+  type ClaimOccupancy,
+  type ClaimStore,
+  type CredentialPin,
+  type LeaseStanding,
+  unstampClaim,
 } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
@@ -762,6 +768,14 @@ function withClaimsRestored(restore: CompensatingCommand, taken: ClaimsTaken): C
       { do: 'add_claims', claims: taken.claims, stated: [], occupancy: taken.occupancy },
     ],
   };
+}
+
+/**
+ * The `leased` field of an `add_claims` naming `ids`, or nothing when none is
+ * leased, so an entry of human claims is written as it was before leases.
+ */
+function leasedOf(ids: readonly string[]): { leased?: string[] } {
+  return ids.length === 0 ? {} : { leased: [...ids] };
 }
 
 /** The claims a delete takes, parents before the claims delegated under them, and their occupancy. */
@@ -3508,6 +3522,7 @@ export class WorkItemService {
         ] as const;
       }),
     );
+    const pinnedPersonId = await identity.pinnedPersonOf(credential);
     const decided = decideClaim({
       admission,
       target: {
@@ -3523,7 +3538,7 @@ export class WorkItemService {
       caller: {
         accountId: actorId,
         isAdmin: isClaimAdmin(access),
-        pinnedPersonId: await identity.pinnedPersonOf(credential),
+        pinnedPersonId,
       },
       claimant: {
         personId: input.personId,
@@ -3591,7 +3606,14 @@ export class WorkItemService {
     const copies = written.flatMap((each) =>
       decided.occupancy.map(({ resourceId, units }) => ({ claimId: each.id, resourceId, units })),
     );
-    const outcome = await claims.add(written, statements, stamp, copies);
+    // An agent's claim for itself is leased; anybody else's is not (L1).
+    // Proof: with `leaseOf` answering null, `leases an agent's claim for
+    // itself and nobody else's` and eight more cases of claim-lease.db.test.ts
+    // failed (1 pass, 9 fail); watched 2026-10-23.
+    const expiresAt = leaseOf(pinnedPersonId, input.personId, stamp.at);
+    const leases: ClaimLease[] =
+      expiresAt === null ? [] : written.map((each) => ({ claimId: each.id, expiresAt }));
+    const outcome = await claims.add(written, statements, stamp, copies, leases);
     // Read in this same unit of work a moment ago: a refusal here is the
     // write coordinator failing to serialize, not an outcome to model.
     if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
@@ -3623,7 +3645,16 @@ export class WorkItemService {
     }));
     await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
       forward: oneCommandOf([
-        { do: 'add_claims', claims: written, stated: statements, occupancy: copies },
+        {
+          do: 'add_claims',
+          claims: written,
+          stated: statements,
+          occupancy: copies,
+          // Proof: with this field left out, `refuses the holder’s undo after a
+          // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+          // redid it leaseless (9 pass, 1 fail); watched 2026-10-23.
+          ...leasedOf(leases.map(({ claimId }) => claimId)),
+        },
         ...assigning,
       ]),
       // Proof: with `unassigning` left out, `undo clears both the claim and the
@@ -3697,15 +3728,120 @@ export class WorkItemService {
     const occupancy = (await claims.occupancyOf(projectId))
       .filter((row) => ids.has(row.claimId))
       .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
+    const leased = await this.leasedAmong(projectId, ids);
     await claims.remove(removed, [], stamp);
     await this.announceTree(projectId);
     await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
       forward: { do: 'remove_claims', claims: removed, cleared: [] },
-      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy },
+      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy, ...leasedOf(leased) },
       touched: [...new Set(removed.map((each) => each.workItemId))],
       before: rows,
     });
     return { ok: true, value: null };
+  }
+
+  /**
+   * Renews every lease of `personId` due at this instant, in every project
+   * (`wbs-claim-leases` L4), and answers the person's standing after it. The
+   * store writes only when one is due, so a call within the resolution of the
+   * last one writes nothing.
+   */
+  renewLeases(personId: string): Promise<LeaseStanding> {
+    return this.claiming().claims.renewLeases(personId, () => this.clock.now());
+  }
+
+  /**
+   * Releases every claim of the project whose lease has run out now
+   * (`wbs-claim-leases` L5–L10, L15), with every claim delegated under one,
+   * and answers how many claims went. Expiry is read here, so a caller that
+   * holds the write turn decides against the state its turn commits: a renewal
+   * admitted before it has moved the lease, one admitted after finds the
+   * claim gone. Each writing account's claims of one reason go in one store
+   * call, stamped by that account, and one history event (kind `release`, the
+   * reason in its label and its `after`) that no account's undo reaches.
+   */
+  async releaseExpiredLeases(projectId: string): Promise<number> {
+    const { claims } = this.claiming();
+    const at = this.clock.now();
+    const expired = await claims.expiredLeasesOf(projectId, at);
+    if (expired.length === 0) return 0;
+    const stored = await claims.listStampedByProject(projectId);
+    const byId = new Map(stored.map((each) => [each.id, each]));
+    const taken = new Set<string>();
+    const groups = new Map<
+      string,
+      { accountId: string; reason: LeaseReleaseReason; ids: string[] }
+    >();
+    for (const { claimId, reason } of expired) {
+      if (taken.has(claimId)) continue;
+      const root = byId.get(claimId);
+      if (root === undefined)
+        throw new Error(`expired claim ${claimId} is not a claim of ${projectId}`);
+      const key = JSON.stringify([root.accountId, reason]);
+      const group = groups.get(key) ?? { accountId: root.accountId, reason, ids: [] };
+      groups.set(key, group);
+      // A subtree claim takes every claim delegated under it, transitively (L15).
+      // Proof: with the cascade loop skipped, `releases the claims delegated
+      // under an expired subtree claim` (claim-lease.db.test.ts) counted one:
+      // the foreign key took the delegated claim unrecorded (9 pass, 1 fail);
+      // watched 2026-10-23.
+      const frontier = [claimId];
+      for (let next = frontier.pop(); next !== undefined; next = frontier.pop()) {
+        if (taken.has(next)) continue;
+        taken.add(next);
+        group.ids.push(next);
+        for (const each of stored) if (each.parentClaimId === next) frontier.push(each.id);
+      }
+    }
+    const occupancy = await claims.occupancyOf(projectId);
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const nameOf = new Map(rows.map((row) => [row.id, row.name]));
+    for (const { accountId, reason, ids } of groups.values()) {
+      const going = new Set(ids);
+      const removed = stored.filter((each) => going.has(each.id)).map(unstampClaim);
+      const leased = removed.flatMap((each) =>
+        byId.get(each.id)?.leaseExpiresAt === null ? [] : [each.id],
+      );
+      const stamp: WriteStamp = { at, by: accountId };
+      await claims.remove(removed, [], stamp);
+      const items = [...new Set(removed.map((each) => each.workItemId))];
+      const [only] = items;
+      const what =
+        items.length === 1
+          ? quoteName(nameOf.get(only) ?? only)
+          : `${String(removed.length)} claims`;
+      const why = reason === 'lease_expired' ? 'lease expired' : 'credential revoked';
+      const inverse: CompensatingCommand = {
+        do: 'add_claims',
+        claims: removed,
+        stated: [],
+        occupancy: occupancy
+          .filter((row) => going.has(row.claimId))
+          .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units })),
+        ...leasedOf(leased),
+      };
+      await this.opts.journal.appendEvent({
+        id: this.clock.newId(),
+        projectId,
+        userId: accountId,
+        kind: 'release',
+        label: `release ${what} (${why})`,
+        workItemId: items.length === 1 ? only : null,
+        stepId: null,
+        before: inverse,
+        after: { do: 'remove_claims', claims: removed, cleared: [], reason },
+        createdAt: at,
+      });
+    }
+    await this.announceTree(projectId);
+    return taken.size;
+  }
+
+  /** The ids among `ids` of the project's claims that carry a lease (L11). */
+  private async leasedAmong(projectId: string, ids: ReadonlySet<string>): Promise<string[]> {
+    return (await this.claiming().claims.listStampedByProject(projectId))
+      .filter((each) => ids.has(each.id) && each.leaseExpiresAt !== null)
+      .map(({ id }) => id);
   }
 
   /**
@@ -8091,12 +8227,21 @@ export class WorkItemService {
               detail: `claim_limit: cap ${String(crossed.cap)}, current ${String(crossed.current)}.`,
             };
         }
+        // A leased claim comes back with a lease from this replay's instant (L11).
+        // Proof: with these leases left out, `refuses the holder’s undo after a
+        // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+        // put it back leaseless (9 pass, 1 fail); watched 2026-10-23.
+        const leases = (command.leased ?? []).map((claimId) => ({
+          claimId,
+          expiresAt: stamp.at + CLAIM_LEASE_MS,
+        }));
         const added = await claims.add(
           command.claims,
           command.stated,
           stamp,
           // Absent on an entry written before claim occupancy: its claims held nothing.
           command.occupancy ?? [],
+          leases,
         );
         // Proof: answering ok here made `refuses a redo of a claim once another
         // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.

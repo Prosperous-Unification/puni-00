@@ -478,6 +478,11 @@ type BareRefusalCode =
    * person is no longer bound to the account (`wbs-machine-credentials` A20).
    */
   | 'credential_revoked'
+  /**
+   * `POST /api/claims/renew` from a caller whose credential is pinned to no
+   * person (a session, an upstream pair): it holds no lease (`wbs-claim-leases` L13).
+   */
+  | 'not_pinned'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'

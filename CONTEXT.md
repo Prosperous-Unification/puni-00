@@ -519,6 +519,13 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Claim lease**:
+The instant by which a claim an agent took for itself must be renewed, or the coordinator
+releases it: every committed write of that agent, or its heartbeat, renews it; revoking the
+agent's last live credential ends it. A human's claim has none and is never released by
+expiry.
+_Avoid_: TTL, heartbeat lock, expiry (alone), lease (alone, which a claim is not)
+
 **Delegated claim**:
 A claim that names a subtree claim as its parent and is written by the same account: how a
 superagent lets its subagents claim leaves inside its subtree. Released with its parent.

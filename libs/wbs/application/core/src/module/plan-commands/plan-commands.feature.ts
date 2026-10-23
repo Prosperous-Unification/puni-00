@@ -1,6 +1,11 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 import { type AuthenticatedUser, type CredentialPin, credentialPinOf } from '@wbs/contracts';
-import type { ExecutionPrerequisite, ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type {
+  ExecutionPrerequisite,
+  LeaseStanding,
+  ResourceUnits,
+  WorkItemStatus,
+} from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { CommandCaller } from '../../ports/command-access';
@@ -540,6 +545,15 @@ export class PlanCommandRunner {
             } else {
               applied = collected;
             }
+            // A committed batch by an agent renews its leases in this same
+            // transaction, so the renewal takes no write turn of its own
+            // (`wbs-claim-leases` L4).
+            // Proof: with this renewal skipped, `renews an agent's lease on
+            // every committed write, and not on a refused one`
+            // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
+            // watched 2026-10-23.
+            if (!('ok' in applied) && credential !== null && 'personId' in credential)
+              await graph.workItems.renewLeases(credential.personId);
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
@@ -577,6 +591,35 @@ export class PlanCommandRunner {
     if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
     const state = await afterCommit.workItems.undoState(projectId, actorId);
     return { ok: true, results: done.result, ...state };
+  }
+
+  /**
+   * Releases the project's claims whose lease has run out, as one unit of
+   * work of its own (`wbs-claim-leases` L7): expiry is read inside the turn,
+   * so a renewal admitted before it has moved the lease and one admitted after
+   * finds the claim gone. It admits no user's write (`NO_ADMISSION`): what it
+   * writes is the coordinator's, recorded in history alone. Its announcement
+   * leaves after the commit, as a batch's does. Answers the claims released.
+   */
+  async releaseExpiredLeases(projectId: string): Promise<number> {
+    const collector = new AnnouncementCollector(this.opts.announcements);
+    const released = await this.opts.transaction.run<number>(
+      async (scope): Promise<CommandDecision<number>> => {
+        const count = await scope.releaseExpiredLeases(projectId, collector);
+        return { commit: true, value: count };
+      },
+    );
+    await collector.send();
+    return released;
+  }
+
+  /**
+   * Renews `personId`'s leases outside any batch: the heartbeat route's
+   * write, through the public graph, which reads first and takes the write
+   * turn only when a lease is due (L4).
+   */
+  renewLeases(personId: string): Promise<LeaseStanding> {
+    return this.opts.publicServices.workItems.renewLeases(personId);
   }
 
   undo(projectId: string, actorId: string): Promise<ScopedUndoOutcome> {

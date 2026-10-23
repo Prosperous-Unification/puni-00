@@ -14,6 +14,7 @@ const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const NEWER = [
+  '20261023100000_add_claim_lease',
   '20261022213000_add_optimization_boundary_certificates',
   '20261022212000_add_cross_project_dependency_activation',
   '20261022211000_add_external_dependencies',
