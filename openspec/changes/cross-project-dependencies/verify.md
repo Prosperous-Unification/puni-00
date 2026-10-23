@@ -5463,6 +5463,15 @@ causes are stale test fixtures/inventories, migration expectation sets and two
 host-load-sensitive subprocess timeouts; the old log is
 `/tmp/puni-h2-gate-2ddea72ee.log`.
 
+The contracts export-variant failure was an order-dependent test assumption,
+not a missing v10/v11 arm. The actual OpenAPI union emitted v11 first.
+`project-shapes.test.ts` now binds each arm by its declared version, asserts
+both and still rejects undo/redo flags. The old test failed locally
+(`/tmp/puni-export-union-order-red.log`); after repair the entire file passed
+4/4 with 40 assertions (`/tmp/puni-project-shapes-full-green.log`). Changed-file
+ESLint and uncached configured `wbs-contracts:typecheck` passed
+(`/tmp/puni-contracts-order-typecheck.log`). Other old-gate failures remain.
+
 The obsolete gate was already red and one coverage test remained
 uninterruptibly blocked after 35 minutes. Its own Nx coordinator and hung test
 were terminated, yielding exit 130; the wrapper released the canonical lock

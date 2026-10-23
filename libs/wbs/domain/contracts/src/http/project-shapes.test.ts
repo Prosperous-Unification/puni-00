@@ -43,12 +43,21 @@ test('preserves seven operation ids and declares both export representations wit
   if (schema === undefined || !('anyOf' in schema))
     throw new Error('export response must declare versioned document arms');
   expect(schema.anyOf).toHaveLength(2);
-  for (const [index, arm] of schema.anyOf.entries()) {
+  const armsByVersion = new Map(
+    schema.anyOf.map((arm) => [
+      (arm as { properties?: { document?: { properties?: { version?: { const?: unknown } } } } })
+        .properties?.document?.properties?.version?.const,
+      arm,
+    ]),
+  );
+  expect(armsByVersion.size).toBe(2);
+  for (const version of [10, 11]) {
+    const arm = armsByVersion.get(version);
     expect(arm).toMatchObject({
       type: 'object',
       properties: {
         document: {
-          properties: { format: { const: 'wbs-plan' }, version: { const: [10, 11][index] } },
+          properties: { format: { const: 'wbs-plan' }, version: { const: version } },
           required: ['exportedAt', 'format', 'version'],
         },
         project: { type: 'object' },
