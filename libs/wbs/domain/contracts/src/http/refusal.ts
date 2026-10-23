@@ -55,9 +55,9 @@ export type ParserRefusalCode =
   | 'first_band_must_start_at_1'
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
-  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId'}_must_be_an_id`
+  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId' | 'providerId'}_must_be_id_or_null`
+  | `${'name' | 'notes' | 'kind' | 'personKind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -71,7 +71,7 @@ export type ParserRefusalCode =
   | 'deadline_must_be_a_date'
   | 'on_must_be_a_date'
   | `${'factStart' | 'factEnd'}_must_be_a_date`
-  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber'}_must_be_a_whole_number_from_1`
+  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber' | 'units'}_must_be_a_whole_number_from_1`
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
   | 'startNoEarlierThanReason_must_be_at_most_200_characters'
@@ -82,7 +82,21 @@ export type ParserRefusalCode =
   | 'steps_must_be_a_list_of_ids'
   | 'steps_must_be_at_most_50'
   /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
-  | 'steps_must_name_a_step';
+  | 'steps_must_name_a_step'
+  /** A `claimWorkItem` whose `resources` is not a list of `{ resourceId, units }` (`wbs-resources` R4). */
+  | 'resources_must_be_a_list'
+  | 'resources_must_name_a_resource'
+  | 'resources_must_be_at_most_50'
+  | 'resources_must_name_each_resource_once'
+  // Resources (`wbs-resources`): a `patchResource` naming the kind, a capacity or
+  // demand without its units, a capacity below 0, a figure above the product
+  // bound, and a unit label too long to sit beside a number.
+  | 'kind_is_immutable'
+  | 'resourceKind_must_be_exclusive_or_divisible'
+  | 'units_required'
+  | 'units_must_be_a_whole_number_from_0'
+  | 'units_must_be_at_most_1000000000'
+  | 'unitLabel_must_be_at_most_40_characters';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -144,6 +158,18 @@ export type CommandRefusalCode =
   | 'unknown_service'
   | 'unknown_type'
   | 'unknown_system'
+  /** A resource the directory does not hold, or one another organization owns (`wbs-resources`). */
+  | 'unknown_resource'
+  /** `patchResource.providerId` naming no provider instance (`compute-providers` P3). */
+  | 'unknown_provider'
+  /**
+   * `patchResource.providerId` naming another organization's provider
+   * instance: the caller already holds the id, so confirming it exists leaks
+   * nothing (`compute-providers` P3).
+   */
+  | 'provider_not_in_organization'
+  /** `setDemand` of other than 1 unit on an `exclusive` resource. */
+  | 'exclusive_demand_is_one'
   /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
   | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
@@ -181,11 +207,60 @@ export type CommandRefusalCode =
   | 'not_startable'
   | 'step_done'
   | 'already_claimed'
+  // `claimWorkItem` occupancy (`wbs-resources` R3, R4), between already_claimed
+  // and inside_subtree_claim in the claim's order.
+  | 'resources_on_subtree'
+  | 'below_declared_demand'
+  | 'below_held_occupancy'
+  | 'resources_exhausted'
   | 'inside_subtree_claim'
   | 'overlaps_subtree_claim'
   | 'not_claimed_by'
   /** `moveWorkItem` under a leaf whose steps are claimed; names the holders. */
-  | 'destination_claimed';
+  | 'destination_claimed'
+  /**
+   * `deleteWorkItem` promoting the parent while claims sit on more than one
+   * deleted row, or on that parent as well; names the holders.
+   */
+  | 'children_claimed'
+  /**
+   * `patchPerson` making an agent, or an add of an agent, past the
+   * organization's cap (`wbs-organization-limits` L9); names the numbers.
+   */
+  | 'agent_person_limit'
+  /**
+   * `claimWorkItem` adding one more bound claim than the organization's cap
+   * allows (`wbs-organization-limits` L9), checked after every other claim
+   * refusal; names the cap and the bound claims held.
+   */
+  | 'claim_limit'
+  /**
+   * `setResourceCapacity` raising a project's units of a resource past the
+   * organization's cap on the sum over its projects (`wbs-organization-limits`
+   * L2, L9); names the resource, cap, the other projects' units and the asked.
+   */
+  | 'capacity_limit';
+
+/** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */
+export interface CapacityLimitRefusalDetail {
+  resourceId: string;
+  cap: number;
+  declared: number;
+  asked: number;
+}
+
+/** What a refused claim names: the organization's cap on bound claims and how many it holds. */
+export interface ClaimLimitRefusalDetail {
+  cap: number;
+  current: number;
+}
+
+/** What an organization limit refusal names: the cap, what was held and what the write would add. */
+export interface LimitRefusalDetail {
+  cap: number;
+  current: number;
+  added: number;
+}
 
 /** One claim a claim refusal names: the claim, its person by id and name, and its run. */
 export interface ClaimRefusalHolder {
@@ -193,6 +268,26 @@ export interface ClaimRefusalHolder {
   personId: string;
   name: string;
   runId: string | null;
+}
+
+/** One holder `resources_exhausted` names: a claimant and run on one leaf. */
+export interface OccupancyRefusalHolder {
+  personId: string;
+  name: string;
+  runId: string | null;
+  workItemId: string;
+}
+
+/**
+ * One resource `resources_exhausted` names: the units asked, the units free
+ * and who holds the rest. The refusal's own fields are its first short
+ * resource; `resources` lists every one in resource-id order.
+ */
+export interface ResourceShortageDetail {
+  resourceId: string;
+  asked: number;
+  free: number;
+  holders: OccupancyRefusalHolder[];
 }
 
 /**
@@ -213,7 +308,22 @@ export type DirectoryEffect =
   | { kind: 'label_nulled' }
   | { kind: 'label_removed' }
   | { kind: 'capacity_released'; size: number; fromId: string }
+  /** The row's demand on the resource being removed goes with it (`wbs-resources`). */
+  | { kind: 'demand_removed'; units: number }
   | { kind: 'assumed_assignee_changed'; assumedNow: string | null; assumedAfter: string | null };
+
+/** What a resource removal would take, counted (`wbs-resources` R8). */
+export interface ResourceUsageCounts {
+  demands: number;
+  capacities: number;
+  occupancies: number;
+  /**
+   * The provider instance the resource names, whose reference and report a
+   * confirmed removal takes with it (`compute-providers` P3), or null.
+   * Optional on the wire: an outgoing be-01 mid-swap names none.
+   */
+  providerId?: string | null;
+}
 
 /** Both affected-project and directory-member lists are present, including when empty. */
 export interface DirectoryUsage {
@@ -228,6 +338,12 @@ export interface DirectoryUsage {
    * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
    */
   pinnedCredentials?: number;
+  /**
+   * Unrevoked machine credentials of the person, revoked by a confirmed
+   * removal and refusing an unbind or rebind. Optional on the wire: an
+   * outgoing be-01 mid-swap counts none.
+   */
+  machineCredentials?: number;
 }
 
 /**
@@ -295,18 +411,30 @@ export type CommandRefusalDetail = {
         : C extends 'node_on_parent' | 'descendant_step_on_leaf'
           ? { dependencyIds: string[] }
           : C extends 'in_use'
-            ? { usage: DirectoryUsage }
+            ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
             : C extends 'taken'
               ? { name?: string }
               : C extends 'not_startable'
                 ? { status: string }
                 : C extends 'step_done'
                   ? { stepIds: string[] }
-                  : C extends 'already_claimed' | 'destination_claimed'
+                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
                     ? { holders: ClaimRefusalHolder[] }
                     : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
                       ? { holder: ClaimRefusalHolder }
-                      : Record<never, never>);
+                      : C extends 'below_declared_demand'
+                        ? { resourceId: string; asked: number; declared: number }
+                        : C extends 'below_held_occupancy'
+                          ? { resourceId: string; asked: number; held: number }
+                          : C extends 'resources_exhausted'
+                            ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
+                            : C extends 'agent_person_limit'
+                              ? LimitRefusalDetail
+                              : C extends 'claim_limit'
+                                ? ClaimLimitRefusalDetail
+                                : C extends 'capacity_limit'
+                                  ? CapacityLimitRefusalDetail
+                                  : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -322,6 +450,20 @@ type BareRefusalCode =
   | 'onboarding_inactive'
   | 'context_inactive'
   | 'invalid_binding'
+  /** mcp-01 asked for a delegation the deployment cannot issue: no key pair (after activation). */
+  | 'delegation_inactive'
+  /** An MCP session's upstream token now resolves to another account than it was bound to. */
+  | 'binding_changed'
+  /**
+   * An MCP consent family's credential is revoked, names another family, or its
+   * person is no longer bound to the account (`wbs-machine-credentials` A20).
+   */
+  | 'credential_revoked'
+  /**
+   * `POST /api/claims/renew` from a caller whose credential is pinned to no
+   * person (a session, an upstream pair): it holds no lease (`wbs-claim-leases` L13).
+   */
+  | 'not_pinned'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'
@@ -347,7 +489,8 @@ type BareRefusalCode =
   /**
    * A verified machine token (no groups claim) whose `(issuer, subject)` no
    * account is linked to (`wbs-team-claims` D6b): refused before any account
-   * is minted.
+   * is minted. Also a `wbs_mk_` API key that is malformed or that no live
+   * machine credential admits (`wbs-machine-credentials` A13, A22).
    */
   | 'unknown_identity'
   | 'invalid_body'
@@ -423,7 +566,28 @@ type BareRefusalCode =
   | 'sso_connection_not_found'
   // Provisioning tokens (`organization-scim`): two tokens already live
   // (`sso_connection_unproven` above also refuses a token).
-  | 'token_limit';
+  | 'token_limit'
+  // Machine credentials (`wbs-machine-credentials`): an agent person bound to
+  // an account that is no member; a second rotation inside the window; a
+  // rotation of a credential whose secret its issuer rotates.
+  | 'account_not_member'
+  | 'rotation_in_progress'
+  | 'rotation_at_issuer'
+  // OIDC credentials and trusted issuers (`wbs-machine-credentials` A16):
+  // registration's discovery and gate refusals, a credential naming another
+  // organization's issuer, and a pair another credential holds.
+  | 'issuer_unreachable'
+  | 'issuer_mismatch'
+  | 'issuer_reserved'
+  | 'issuer_not_oidc'
+  | 'issuer_taken'
+  | 'unknown_sso_connection'
+  | 'unknown_trusted_issuer'
+  | 'subject_taken'
+  // A25: another organization registered the issuer with this audience; an
+  // organization at its trusted issuer cap.
+  | 'audience_taken'
+  | 'trusted_issuer_limit';
 
 type SharedCommandCode =
   | 'not_found'
@@ -434,7 +598,12 @@ type SharedCommandCode =
   | 'calendar_range'
   | 'referenced_by_step_parallel'
   | 'already_claimed'
-  | 'unknown_team';
+  | 'unknown_team'
+  | 'unknown_person'
+  | 'agent_person_limit'
+  | 'capacity_limit'
+  | 'person_not_bound'
+  | 'unknown_provider';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -463,7 +632,38 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     already_claimed: undefined | CommandRefusalDetail['already_claimed'];
     /** Bare from the startable read's `team` filter; with its command context from a batch. */
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
-    in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
+    /** Bare from the by-person read; with its command context from a batch. */
+    unknown_person: undefined | CommandRefusalDetail['unknown_person'];
+    /** Without a command position from the plan import; with one from a batch. */
+    agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
+    /** Without a command position from the plan import; with one from a batch. */
+    capacity_limit: CapacityLimitRefusalDetail | CommandRefusalDetail['capacity_limit'];
+    /** Naming the person from a machine credential create; with its command context from a batch. */
+    person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
+    /**
+     * Also a trusted issuer that unrevoked machine credentials name
+     * (`wbs-machine-credentials` A16), and a provider instance resources name
+     * (`compute-providers` P2).
+     */
+    in_use:
+      | { inUse: StepInUse }
+      | { machineCredentials: number }
+      | { resources: { id: string; name: string }[] }
+      | CommandRefusalDetail['in_use'];
+    /** Bare from the compute provider routes; with its command context from a `patchResource` batch. */
+    unknown_provider: undefined | CommandRefusalDetail['unknown_provider'];
+    /**
+     * A capacity report from a principal that is no machine credential of an
+     * agent person (`compute-providers` P6): which carrier it was, or the
+     * pinned person's kind.
+     */
+    not_an_agent_principal: { authentication: 'session' | 'delegation' } | { personKind: 'person' };
+    /** A capacity report observed further ahead of WBS's clock than the tolerance, by this much. */
+    observedAt_in_future: { skewMs: number };
+    /** A capacity report for a resource that names another instance, or none. */
+    provider_mismatch: { providerId: string | null };
+    /** A capacity report not newer than the stored one, naming the stored instant. */
+    report_superseded: { storedObservedAt: number };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

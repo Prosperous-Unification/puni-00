@@ -14,7 +14,8 @@ _Avoid_: Twilight coordinator, software-delivery role
 A recurring agent identity across assignments, with conversations the person can
 join directly. Its name is freely changeable by the person without changing its
 identity or the ownership of its history and assignments.
-_Avoid_: Job title, assignment, session, Twilight execution worker
+_Avoid_: Job title, assignment, session, Twilight execution
+[Worker](../twilight-structure/CONTEXT.md#execution)
 
 **Assignment**:
 A piece of work entrusted to a worker, distinct from the worker's recurring

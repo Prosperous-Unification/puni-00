@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
 import {
   OrganizationOwnershipRepository,
   OWNERSHIP_CONFLICT_KINDS,
@@ -15,11 +14,27 @@ import {
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 /**
- * The migration below the ownership freeze. The conflicts here re-own roots,
- * which the freeze now refuses; reconciliation still guards a database that
- * reached such a state before the freeze applied, so the fixture builds one.
+ * The conflicts here re-own roots, which the ownership freeze refuses;
+ * reconciliation still guards a database that reached such a state before the
+ * freeze applied, so the fixture builds one by dropping the freeze triggers of
+ * a fully migrated database. Rolling back below the freeze instead would also
+ * take every newer table a conflict query reads (`project_resource_capacity`,
+ * `work_item_resource_demand`).
  */
-const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+function dropOwnershipFreeze(): void {
+  const db = openDatabase(path);
+  try {
+    const frozen = db
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_organization_frozen_%'",
+      )
+      .all();
+    if (frozen.length === 0) throw new Error('the ownership freeze has no triggers to drop');
+    for (const { name } of frozen) db.run(`DROP TRIGGER \`${name}\``);
+  } finally {
+    db.close();
+  }
+}
 
 let dir: string;
 let path: string;
@@ -52,6 +67,7 @@ function roots(org: string): string[] {
     `INSERT INTO external_system (id, name) VALUES ('es-${org}', 'System ${org}')`,
     `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp-${org}', 'p-${org}', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
+    `INSERT INTO resource (id, name, kind, unit_label) VALUES ('rs-${org}', 'RAM ${org}', 'divisible', 'GB')`,
   ];
   if (org === 'b')
     for (const kind of [
@@ -63,6 +79,7 @@ function roots(org: string): string[] {
       'work_item_type',
       'external_system',
       'saved_plan',
+      'resource',
     ])
       statements.push(
         `UPDATE ${kind}_organization SET organization_id = 'org-b' WHERE resource_id LIKE '%-b'`,
@@ -88,6 +105,8 @@ function links(org: string): string[] {
     `INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-${org}', 'tm-${org}')`,
     `INSERT INTO team_service (team_id, service_id) VALUES ('tm-${org}', 'sv-${org}')`,
     `INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p-${org}', 'tm-${org}', 1)`,
+    `INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p-${org}', 'rs-${org}', 8)`,
+    `INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES ('w2-${org}', 'rs-${org}', 2)`,
     `INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES ('e-${org}', 'p-${org}', 'u1', 'k', 'l', 'w-${org}', 'st-${org}', '{}', '{}', 1)`,
     `INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:p-${org}', 1)`,
     `INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:p-${org}', 0, '{}', 1)`,
@@ -98,7 +117,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-reconciliation-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE);
+  dropOwnershipFreeze();
   run([
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('legacy', 'Legacy', 1, 1)",
@@ -189,6 +208,14 @@ const INJECTIONS: Record<OwnershipConflictKind, readonly [string, string]> = {
   project_team_capacity: [
     "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p-a', 'tm-b', 1)",
     'p-a/tm-b',
+  ],
+  project_resource_capacity: [
+    "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p-a', 'rs-b', 1)",
+    'p-a/rs-b',
+  ],
+  work_item_resource_demand: [
+    "INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES ('w-a', 'rs-b', 1)",
+    'w-a/rs-b',
   ],
   plan_event_subject: [
     "INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES ('e-x', 'p-a', 'u1', 'k', 'l', 'w-b', NULL, '{}', '{}', 1)",

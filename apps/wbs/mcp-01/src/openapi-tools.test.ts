@@ -42,6 +42,29 @@ const fixture = (): FixtureDocument => ({
     '/api/organization/provisioning-tokens/{id}': {
       delete: { operationId: 'deleteApiOrganizationProvisioningTokensById' },
     },
+    '/api/organization/machine-credentials': {
+      post: { operationId: 'postApiOrganizationMachine-credentials' },
+    },
+    '/api/organization/machine-credentials/{id}': {
+      delete: { operationId: 'deleteApiOrganizationMachine-credentialsById' },
+    },
+    '/api/organization/trusted-issuers': {
+      post: { operationId: 'postApiOrganizationTrusted-issuers' },
+    },
+    '/api/organization/trusted-issuers/{id}': {
+      delete: { operationId: 'deleteApiOrganizationTrusted-issuersById' },
+    },
+    '/api/organization/compute-providers': {
+      post: { operationId: 'postApiOrganizationCompute-providers' },
+    },
+    '/api/organization/compute-providers/{id}': {
+      delete: { operationId: 'deleteApiOrganizationCompute-providersById' },
+    },
+    '/api/compute-providers/{providerId}/resources/{resourceId}/capacity-report': {
+      put: {
+        operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+      },
+    },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
     '/api/projects/': {
@@ -252,7 +275,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(7);
+    expect(EXCLUDED_PATHS).toHaveLength(14);
   });
 
   it('never offers the sign-in method list as a tool', () => {
@@ -337,6 +360,8 @@ describe('toolsFromDocument, on the generated document', () => {
       'setMeasure',
       'clearMeasure',
       'setAssignee',
+      // `wbs-resources` R7: one more batch kind; the tool count does not move for it.
+      'assignSubtree',
       // `wbs-team-claims`: the batch tool carries both; the tool count does not move.
       'claimWorkItem',
       'releaseWorkItem',
@@ -350,6 +375,10 @@ describe('toolsFromDocument, on the generated document', () => {
       'unfreezeProject',
       'unfreezeWorkItem',
       'setCapacity',
+      // `wbs-resources`: the batch tool carries the five resource kinds; the
+      // project resource read is the one tool the change adds.
+      'setResourceCapacity',
+      'setDemand',
       'setStepAllowance',
       'setPriorityBands',
       'createTeam',
@@ -367,6 +396,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'createWorkItemType',
       'patchWorkItemType',
       'deleteWorkItemType',
+      'createResource',
+      'patchResource',
+      'deleteResource',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
     const emittedCounts = Object.fromEntries(

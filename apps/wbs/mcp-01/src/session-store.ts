@@ -11,6 +11,12 @@ import {
 } from './store-migrations';
 
 const VERSION = 1;
+/**
+ * The durable epoch as a scalar subquery. Comparing a family's epoch with it at every session
+ * read and refresh retires older credentials in a running process, not only at startup; a
+ * missing row reads NULL and matches nothing.
+ */
+const DURABLE_EPOCH = '(SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1)';
 const NONCE_BYTES = 12;
 type Row = Record<string, string | number | Uint8Array | null>;
 
@@ -33,7 +39,30 @@ export interface FamilyInput {
   readonly absoluteExpiresAt: number;
   /** Omitted for legacy epoch-0 issuance; the store stamps the durable epoch either way. */
   readonly binding?: CredentialBinding;
+  /**
+   * The agent person a bound consent acts as and the be-01 `mcp_consent` credential it rides on
+   * (`wbs-machine-credentials` A20); omitted when the human authorized as themself.
+   */
+  readonly consent?: ConsentBinding;
 }
+
+/** The agent person and consent credential of a family that acts as an agent person. */
+export interface ConsentBinding {
+  readonly personId: string;
+  readonly credentialId: string;
+}
+
+/**
+ * A consent credential whose family ended, or whose code expired unexchanged, and whose end
+ * be-01 has not yet acknowledged.
+ */
+export interface EndedConsent {
+  readonly familyId: string;
+  readonly credentialId: string;
+}
+
+/** The pending consent of `familyId` was gone or expired when its code was exchanged. */
+export class McpConsentPendingGone extends Error {}
 export interface FamilyRecord extends FamilyInput {
   readonly credentialEpoch: number;
   readonly upstreamRefreshedAt: number | null;
@@ -44,11 +73,31 @@ export interface FamilyRecord extends FamilyInput {
 }
 export class McpRefreshFamilyCorrupt extends Error {}
 
+/**
+ * A dynamically registered public OAuth client. `expiresAt` is the sliding lifetime cleanup
+ * enforces; `unprovenExpiresAt` caps how far authorization may extend a client that has not yet
+ * completed a token exchange (`proven`).
+ */
+export interface RegisteredClient {
+  readonly clientId: string;
+  readonly source: string;
+  readonly redirectUris: readonly string[];
+  readonly proven: boolean;
+  readonly expiresAt: number;
+  readonly unprovenExpiresAt: number;
+}
+
+/** The live clients a registration is admitted against: all of them, and its source's. */
+export interface ClientCensus {
+  readonly total: number;
+  readonly fromSource: readonly RegisteredClient[];
+}
+
 export type RefreshOutcome =
   | { readonly outcome: 'ok'; readonly family: FamilyRecord }
   | { readonly outcome: 'invalid' | 'reuse' };
 
-/** Durable, process-shared authority for MCP refresh families and sessions. */
+/** Durable, process-shared authority for MCP registered clients, refresh families and sessions. */
 export class McpSessionStore {
   private readonly db: Database;
 
@@ -73,11 +122,11 @@ export class McpSessionStore {
       db.run('PRAGMA synchronous = FULL');
       migrateMcpStore(db, created);
       const epoch = readCredentialEpoch(db);
-      // Proof: 2026-09-27, with this check removed `refuses startup on a unsupported epoch without
-      // reseeding` opened a store at epoch 1.
-      if (epoch !== SUPPORTED_CREDENTIAL_EPOCH)
+      // Proof: 2026-10-21, with this check removed `refuses startup on a unsupported epoch without
+      // reseeding` (store-migrations.test.ts) opened a store at epoch 2.
+      if (epoch > SUPPORTED_CREDENTIAL_EPOCH)
         throw new McpStoreRefused(
-          `MCP credential epoch ${String(epoch)} needs organization-aware mcp-01`,
+          `MCP credential epoch ${String(epoch)} is newer than this mcp-01 understands`,
         );
     } catch (cause) {
       db?.close();
@@ -93,21 +142,53 @@ export class McpSessionStore {
     this.db.close();
   }
 
+  /**
+   * The durable credential epoch, read now rather than remembered from startup, so a running
+   * process sees an advance at its next code issue or exchange.
+   *
+   * @throws {McpStoreRefused} when the epoch is missing, unreadable or malformed.
+   */
+  credentialEpoch(): number {
+    return readCredentialEpoch(this.db);
+  }
+
+  /**
+   * Creates the family with its first session and refresh token. A consent family also takes
+   * over its pending consent ({@link recordPendingConsent}) in the same transaction.
+   *
+   * @throws {McpConsentPendingGone} when a consent family's pending row is gone or expired at
+   *   `now`: its end may already be reported to be-01, so the family must not begin.
+   */
   createFamily(
     input: FamilyInput,
     jti: string,
     sessionExpiresAt: number,
     refreshToken: string,
+    now: number = Date.now(),
   ): void {
     this.db.transaction(() => {
+      if (input.consent !== undefined) {
+        const taken = this.db
+          .query(
+            `DELETE FROM mcp_consent_pending
+            WHERE family_id = ? AND credential_id = ? AND expires_at > ?`,
+          )
+          .run(input.familyId, input.consent.credentialId, now);
+        // Proof: 2026-10-22, with this refusal removed `refuses to exchange a consent code whose
+        // pending consent was already reported ended` (store-migrations.test.ts) created the family.
+        if (taken.changes !== 1)
+          throw new McpConsentPendingGone(
+            `MCP consent for family ${input.familyId} is no longer pending`,
+          );
+      }
       this.db
         .query(
           `INSERT INTO mcp_family (
         family_id, client_id, subject, scope, upstream_access_ct, upstream_refresh_ct,
         upstream_expires_at, idle_expires_at, absolute_expires_at, version,
-        organization_id, user_id, issuer, credential_epoch
+        organization_id, user_id, issuer, credential_epoch, act_as_person_id, credential_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
-        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1))`,
+        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1), ?, ?)`,
         )
         .run(
           input.familyId,
@@ -124,18 +205,88 @@ export class McpSessionStore {
           input.binding?.organizationId ?? null,
           input.binding?.userId ?? null,
           input.binding?.issuer ?? null,
+          input.consent?.personId ?? null,
+          input.consent?.credentialId ?? null,
         );
       this.insertSession(jti, input.familyId, sessionExpiresAt);
       this.insertRefresh(refreshToken, input.familyId, input.absoluteExpiresAt);
     })();
   }
 
+  /**
+   * Records, before be-01 is asked to mint it, a consent credential whose family does not exist
+   * yet, so that a code never exchanged is still reported ended once it expires at `expiresAt`.
+   */
+  recordPendingConsent(familyId: string, credentialId: string, expiresAt: number): void {
+    this.db
+      .query(
+        'INSERT INTO mcp_consent_pending (family_id, credential_id, expires_at) VALUES (?, ?, ?)',
+      )
+      .run(familyId, credentialId, expiresAt);
+  }
+
+  /** Forgets a pending consent be-01 refused to mint: nothing exists there to report ended. */
+  forgetPendingConsent(familyId: string): void {
+    this.db.query('DELETE FROM mcp_consent_pending WHERE family_id = ?').run(familyId);
+  }
+
+  /**
+   * Consent credentials whose family has ended at `now` (revoked, idle or absolutely expired, or
+   * of an older epoch than the durable one) or whose pending code expired unexchanged, and whose
+   * end be-01 has not acknowledged; at most `limit`, earliest end first: a family by its
+   * revocation time, else its earlier expiry; a pending consent by its code's expiry.
+   */
+  // Proof: 2026-10-22, dropping the epoch comparison made `reports a consent family retired by
+  // the epoch advance, or by another writer` (credential-epoch.test.ts) report nothing for the
+  // other writer; dropping the pending half made `reports a consent whose code was never
+  // exchanged, once it expires` (organization-delegation.test.ts) report nothing.
+  endedConsents(now: number, limit: number): EndedConsent[] {
+    return this.db
+      .query<{ family_id: string; credential_id: string }, [number, number, number, number]>(
+        `SELECT family_id, credential_id,
+            COALESCE(revoked_at, MIN(idle_expires_at, absolute_expires_at)) AS ended_at
+          FROM mcp_family
+          WHERE credential_id IS NOT NULL AND consent_ended_reported_at IS NULL
+            AND (revoked_at IS NOT NULL OR idle_expires_at <= ? OR absolute_expires_at <= ?
+              OR credential_epoch IS NOT ${DURABLE_EPOCH})
+        UNION ALL
+        SELECT family_id, credential_id, expires_at AS ended_at
+          FROM mcp_consent_pending WHERE expires_at <= ?
+        ORDER BY ended_at, family_id
+        LIMIT ?`,
+      )
+      .all(now, now, now, limit)
+      .map((row) => ({ familyId: row.family_id, credentialId: row.credential_id }));
+  }
+
+  /** Records that be-01 acknowledged the end of `ended`: it is never reported again. */
+  acknowledgeConsentEnd(ended: EndedConsent, now: number): void {
+    this.db.transaction(() => {
+      this.db
+        .query(
+          `UPDATE mcp_family SET consent_ended_reported_at = ?
+          WHERE family_id = ? AND credential_id = ? AND consent_ended_reported_at IS NULL`,
+        )
+        .run(now, ended.familyId, ended.credentialId);
+      this.db
+        .query('DELETE FROM mcp_consent_pending WHERE family_id = ? AND credential_id = ?')
+        .run(ended.familyId, ended.credentialId);
+    })();
+  }
+
+  /**
+   * The live family behind session `jti`: unexpired, unrevoked and at the durable epoch, so a
+   * session issued before an epoch advance reads as absent.
+   */
+  // Proof: 2026-10-21, without the epoch comparison `refuses an older-epoch session at every
+  // use` (credential-epoch.test.ts) resolved the stale session's upstream token.
   familyForSession(jti: string, now: number): FamilyRecord | null {
     const row = this.db
       .query(
         `SELECT f.* FROM mcp_session s JOIN mcp_family f USING (family_id)
       WHERE s.jti = ? AND s.expires_at > ? AND f.revoked_at IS NULL
-        AND f.idle_expires_at > ? AND f.absolute_expires_at > ?`,
+        AND f.idle_expires_at > ? AND f.absolute_expires_at > ?
+        AND f.credential_epoch = ${DURABLE_EPOCH}`,
       )
       .get(jti, now, now, now) as Row | null;
     return row === null ? null : this.familyOf(row);
@@ -154,7 +305,7 @@ export class McpSessionStore {
       const digest = digestOf(token);
       const row = this.db
         .query(
-          `SELECT r.family_id, r.consumed_at, r.expires_at, f.*
+          `SELECT r.family_id, r.consumed_at, r.expires_at, f.*, ${DURABLE_EPOCH} AS durable_epoch
         FROM mcp_refresh r JOIN mcp_family f USING (family_id) WHERE r.token_digest = ?`,
         )
         .get(digest) as Row | null;
@@ -165,11 +316,15 @@ export class McpSessionStore {
         this.revokeFamily(familyId, now);
         return { outcome: 'reuse' as const };
       }
+      // Proof: 2026-10-21, without the epoch comparison `refuses a refresh whose epoch advanced
+      // during the provider refresh` (credential-epoch.test.ts) threw the session trigger's
+      // SQLiteError instead of answering 400 invalid_grant.
       if (
         Number(row['expires_at']) <= now ||
         row['revoked_at'] !== null ||
         Number(row['idle_expires_at']) <= now ||
-        Number(row['absolute_expires_at']) <= now
+        Number(row['absolute_expires_at']) <= now ||
+        row['credential_epoch'] !== row['durable_epoch']
       )
         return { outcome: 'invalid' as const };
       this.db
@@ -199,7 +354,7 @@ export class McpSessionStore {
   prepareRefresh(token: string, clientId: string, now: number): RefreshOutcome {
     const row = this.db
       .query(
-        `SELECT r.family_id, r.consumed_at, r.expires_at, f.*
+        `SELECT r.family_id, r.consumed_at, r.expires_at, f.*, ${DURABLE_EPOCH} AS durable_epoch
         FROM mcp_refresh r JOIN mcp_family f USING (family_id) WHERE r.token_digest = ?`,
       )
       .get(digestOf(token)) as Row | null;
@@ -209,11 +364,14 @@ export class McpSessionStore {
       this.revokeFamily(familyId, now);
       return { outcome: 'reuse' };
     }
+    // Proof: 2026-10-21, without the epoch comparison `refuses an older-epoch refresh before any
+    // provider work` (credential-epoch.test.ts) called the provider refresh.
     if (
       Number(row['expires_at']) <= now ||
       row['revoked_at'] !== null ||
       Number(row['idle_expires_at']) <= now ||
-      Number(row['absolute_expires_at']) <= now
+      Number(row['absolute_expires_at']) <= now ||
+      row['credential_epoch'] !== row['durable_epoch']
     )
       return { outcome: 'invalid' };
     return { outcome: 'ok', family: this.familyOf(row) };
@@ -353,13 +511,117 @@ export class McpSessionStore {
     return row === null ? null : this.familyOf(row);
   }
 
-  /** Copies the family's binding and epoch; the insert trigger rejects a stale epoch. */
+  /**
+   * Registers the client `create` builds when `admits` accepts the census of clients live at
+   * `now`. Census and insert run in one IMMEDIATE transaction, which takes SQLite's write lock
+   * first, so another writer on the store (blue and green mid-swap) cannot register between
+   * them; no test exercises two processes here. `create` runs only once admitted, so a refused
+   * registration consumes no client id.
+   *
+   * @returns the registered client, or `null` when `admits` refused.
+   */
+  admitClient(
+    source: string,
+    now: number,
+    admits: (census: ClientCensus) => boolean,
+    create: () => RegisteredClient,
+  ): RegisteredClient | null {
+    return this.db
+      .transaction(() => {
+        const total = this.db
+          .query<{ n: number }, [number]>(
+            'SELECT COUNT(*) AS n FROM mcp_client WHERE expires_at > ?',
+          )
+          .get(now)?.n;
+        if (total === undefined) throw new Error('MCP client count returned no row');
+        // Proof: 2026-10-21, a census of `total: 0` failed `counts clients registered before the
+        // restart against the global and source limits` and `refuses registration at capacity
+        // without evicting a live connector`; an empty `fromSource` failed the same restart case
+        // and `keeps a promoted client proven and counted across the restart` (oauth.test.ts).
+        if (!admits({ total, fromSource: this.clientsFromSource(source, now) })) return null;
+        const client = create();
+        // Proof: 2026-10-21, deleting every mcp_client row when the store opened made
+        // `authorizes and exchanges a code for a client registered before the restart`
+        // (oauth.test.ts) answer 400 instead of 302: the restart forgot the client (#607).
+        this.db
+          .query(
+            `INSERT INTO mcp_client (
+          client_id, source, redirect_uris, proven, expires_at, unproven_expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            client.clientId,
+            client.source,
+            JSON.stringify(client.redirectUris),
+            client.proven ? 1 : 0,
+            client.expiresAt,
+            client.unprovenExpiresAt,
+          );
+        return client;
+      })
+      .immediate();
+  }
+
+  /**
+   * The client registered as `clientId` and still live at `now`, or `null` when it was never
+   * registered here or has expired.
+   *
+   * @throws when the stored row is malformed; trusted state is never read as an absent client.
+   */
+  // Proof: 2026-10-21, dropping the `expires_at > ?` filter from this read, from
+  // `clientsFromSource` or from the census count, or turning `deleteExpiredClients` into a
+  // SELECT, each failed `keeps a registered client across a reopen until it expires`
+  // (store-migrations.test.ts).
+  client(clientId: string, now: number): RegisteredClient | null {
+    const row = this.db
+      .query('SELECT * FROM mcp_client WHERE client_id = ? AND expires_at > ?')
+      .get(clientId, now) as Row | null;
+    return row === null ? null : clientOf(row);
+  }
+
+  /** The clients registered from `source` and still live at `now`. */
+  clientsFromSource(source: string, now: number): RegisteredClient[] {
+    return (
+      this.db
+        .query('SELECT * FROM mcp_client WHERE source = ? AND expires_at > ?')
+        .all(source, now) as Row[]
+    ).map(clientOf);
+  }
+
+  /**
+   * Moves the client's sliding lifetime forward to `expiresAt`, never back, so an extension
+   * computed before a concurrent promotion (another process) cannot shorten the promoted
+   * lifetime. A vanished client stays absent.
+   */
+  extendClient(clientId: string, expiresAt: number): void {
+    // Proof: 2026-10-21, `SET expires_at = ?` without MAX failed `never shortens a lifetime
+    // when an extension follows a promotion` (store-migrations.test.ts).
+    this.db
+      .query('UPDATE mcp_client SET expires_at = MAX(expires_at, ?) WHERE client_id = ?')
+      .run(expiresAt, clientId);
+  }
+
+  /** Marks the client proven after a code exchange and gives it the active lifetime. */
+  promoteClient(clientId: string, expiresAt: number): void {
+    this.db
+      .query('UPDATE mcp_client SET proven = 1, expires_at = ? WHERE client_id = ?')
+      .run(expiresAt, clientId);
+  }
+
+  /** Deletes every client whose lifetime ended at or before `now`. */
+  deleteExpiredClients(now: number): void {
+    this.db.query('DELETE FROM mcp_client WHERE expires_at <= ?').run(now);
+  }
+
+  /** Copies the family's binding, person and epoch; the insert trigger rejects a stale epoch. */
   private insertSession(jti: string, familyId: string, expiresAt: number): void {
     const inserted = this.db
       .query(
         `INSERT INTO mcp_session (
-        jti, family_id, expires_at, organization_id, user_id, issuer, credential_epoch
-      ) SELECT ?, family_id, ?, organization_id, user_id, issuer, credential_epoch
+        jti, family_id, expires_at, organization_id, user_id, issuer, credential_epoch,
+        act_as_person_id, credential_id
+      ) SELECT ?, family_id, ?, organization_id, user_id, issuer, credential_epoch,
+        act_as_person_id, credential_id
         FROM mcp_family WHERE family_id = ?`,
       )
       .run(jti, expiresAt, familyId);
@@ -437,6 +699,7 @@ export class McpSessionStore {
         version: Number(row['version']),
         credentialEpoch: Number(row['credential_epoch']),
         ...bindingOf(row),
+        ...consentOf(row),
       };
     } catch (cause) {
       this.revokeFamily(familyId, Date.now());
@@ -527,6 +790,64 @@ function bindingOf(row: Row): { binding?: CredentialBinding } {
   )
     throw new Error('MCP family binding is malformed');
   return { binding: { organizationId, userId, issuer } };
+}
+
+/** Reads a row's consent person; the family CHECK makes the two columns both null or both set. */
+function consentOf(row: Row): { consent?: ConsentBinding } {
+  const personId = row['act_as_person_id'];
+  const credentialId = row['credential_id'];
+  if (personId === null && credentialId === null) return {};
+  if (typeof personId !== 'string' || typeof credentialId !== 'string')
+    throw new Error('MCP family consent person is malformed');
+  return { consent: { personId, credentialId } };
+}
+
+/**
+ * Reads a stored client row. The table has no CHECK constraints, so this is where a malformed
+ * row (wrong types, an unparseable or empty redirect list, `proven` outside 0/1) refuses.
+ *
+ * @throws when any column is malformed.
+ */
+function clientOf(row: Row): RegisteredClient {
+  // Proof: 2026-10-21, dropping the `proven` and `expires_at` checks failed the `proven outside 0
+  // and 1` and `a text expiry` cases, dropping the redirect list checks failed the `empty
+  // redirect list` and `non-string redirect` cases, and swallowing the JSON error failed the
+  // `unparseable redirect_uris` case of `refuses a stored client with … instead of reading it
+  // as absent` (store-migrations.test.ts).
+  const clientId = row['client_id'];
+  const source = row['source'];
+  const encoded = row['redirect_uris'];
+  const proven = row['proven'];
+  const expiresAt = row['expires_at'];
+  const unprovenExpiresAt = row['unproven_expires_at'];
+  if (
+    typeof clientId !== 'string' ||
+    typeof source !== 'string' ||
+    typeof encoded !== 'string' ||
+    (proven !== 0 && proven !== 1) ||
+    typeof expiresAt !== 'number' ||
+    typeof unprovenExpiresAt !== 'number'
+  )
+    throw new Error(`MCP client row is malformed: ${String(clientId)}`);
+  let redirectUris: unknown;
+  try {
+    redirectUris = JSON.parse(encoded);
+  } catch (cause) {
+    throw new Error(`MCP client ${clientId} redirect_uris is not JSON`, { cause });
+  }
+  const uris = Array.isArray(redirectUris)
+    ? redirectUris.filter((uri): uri is string => typeof uri === 'string')
+    : [];
+  if (!Array.isArray(redirectUris) || uris.length === 0 || uris.length !== redirectUris.length)
+    throw new Error(`MCP client ${clientId} redirect_uris is not a list of strings`);
+  return {
+    clientId,
+    source,
+    redirectUris: uris,
+    proven: proven === 1,
+    expiresAt,
+    unprovenExpiresAt,
+  };
 }
 
 function digestOf(token: string): Buffer {

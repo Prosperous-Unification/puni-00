@@ -1,6 +1,6 @@
 import type { CredentialRuleFacts } from '@wbs/core';
 
-import type { CredentialBinding, FamilyRecord } from './session-store';
+import type { ConsentBinding, CredentialBinding, FamilyRecord } from './session-store';
 
 /** Immutable identity supplied to the independently trusted authority boundary. */
 export interface McpRefreshAuthority {
@@ -10,14 +10,17 @@ export interface McpRefreshAuthority {
   readonly scope: string;
   readonly credentialEpoch: number;
   readonly binding: CredentialBinding;
+  /** The agent person and consent credential a consent family acts as (A20). */
+  readonly consent?: ConsentBinding;
 }
 
 /**
  * Reads current membership and verified issuer-subject ownership together with current
  * proven SSO connections, policy and independently trusted grant lifecycle evidence.
  * An admitted read must echo the identity it actually verified. Missing/malformed trusted
- * state throws; only a modeled service outage returns unavailable. This port is absent
- * from production composition until binding issuance and final delegation are implemented.
+ * state throws; only a modeled service outage returns unavailable. Production composes
+ * be-01's family authority read (`organization-authority.ts`) when mcp-01 has
+ * `INTERNAL_AUTH_SECRET`.
  */
 export type McpRefreshAuthorityReader = (authority: McpRefreshAuthority) => Promise<
   | { readonly outcome: 'denied' }
@@ -33,6 +36,8 @@ export type McpRefreshAuthorityReader = (authority: McpRefreshAuthority) => Prom
  * Compares all immutable authority fields; provider rotation changes none of them.
  * Proof: 2026-10-13, omitting each of the eight comparisons separately made all three
  * corresponding `checks substituted <field>` production-path negatives release credentials.
+ * Proof: 2026-10-22, with the two consent comparisons removed, `refuses an authority whose
+ * consent credential differs from the family` (refresh-authority.test.ts) matched.
  */
 export function matchesRefreshAuthority(
   authority: McpRefreshAuthority,
@@ -46,6 +51,8 @@ export function matchesRefreshAuthority(
     authority.credentialEpoch === family.credentialEpoch &&
     authority.binding.organizationId === family.binding?.organizationId &&
     authority.binding.userId === family.binding.userId &&
-    authority.binding.issuer === family.binding.issuer
+    authority.binding.issuer === family.binding.issuer &&
+    authority.consent?.personId === family.consent?.personId &&
+    authority.consent?.credentialId === family.consent?.credentialId
   );
 }

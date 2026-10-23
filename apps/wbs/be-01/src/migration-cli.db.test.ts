@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261019130100_add_external_identity_person');
+    expect(baselineLedger.at(-1)?.name).toBe('20261023100000_add_claim_lease');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1137,13 +1137,25 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    // The empty binding migrations newer than add_claim reverse first, each in
-    // its own transaction, so add_claim's refusal leaves them reversed.
+    // The empty binding, resource, occupancy and organization limits migrations
+    // newer than add_claim reverse first, each in its own transaction, so
+    // add_claim's refusal leaves them reversed.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
           name !== '20261019130000_add_person_account' &&
-          name !== '20261019130100_add_external_identity_person',
+          name !== '20261019130100_add_external_identity_person' &&
+          name !== '20261020120000_add_resources' &&
+          name !== '20261020130000_add_claim_occupancy' &&
+          name !== '20261022100000_add_machine_credential' &&
+          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
+          name !== '20261022110100_check_machine_credential_id' &&
+          name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022130000_add_organization_limits' &&
+          name !== '20261022130100_widen_organization_audit_organization_limits' &&
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
+          name !== '20261023100000_add_claim_lease',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1161,6 +1173,91 @@ describe('migration deploy entrypoints', () => {
     expect(empty.exitCode).toBe(0);
     expect(empty.stdout).toContain('rolled back: 20261019120000_add_claim');
     expect(schemaAt(dbPath)).not.toContain('CREATE TABLE `claim`');
+  }, 60_000);
+
+  it('refuses to reverse add_resources while any resource row exists, then reverses and reapplies', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-resources-down-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)");
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','P','u',0,1)",
+      );
+      sqlite.run(
+        "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('w','p','W',1,0)",
+      );
+      sqlite.run(
+        "INSERT INTO resource (id,name,kind,unit_label) VALUES ('ram','h2puni ram','divisible','GB')",
+      );
+      sqlite.run(
+        "INSERT INTO project_resource_capacity (project_id,resource_id,units) VALUES ('p','ram',32)",
+      );
+      sqlite.run(
+        "INSERT INTO work_item_resource_demand (work_item_id,resource_id,units) VALUES ('w','ram',4)",
+      );
+    } finally {
+      sqlite.close();
+    }
+    const ledger = migrationLedgerAt(dbPath);
+    // Proof: with down.sql's guard statements removed, this down exited 0 and
+    // the three tables were gone with their rows; watched 2026-10-20.
+    const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
+    expect(down.exitCode).not.toBe(0);
+    expect(down.stderr).toContain('resources exist');
+    // The newer, empty claim occupancy, machine credential and organization limits migrations reverse first.
+    expect(migrationLedgerAt(dbPath)).toEqual(
+      ledger.filter(
+        ({ name }) =>
+          name !== '20261020130000_add_claim_occupancy' &&
+          name !== '20261022100000_add_machine_credential' &&
+          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
+          name !== '20261022110100_check_machine_credential_id' &&
+          name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022130000_add_organization_limits' &&
+          name !== '20261022130100_widen_organization_audit_organization_limits' &&
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
+          name !== '20261023100000_add_claim_lease',
+      ),
+    );
+    const after = openDatabase(dbPath);
+    try {
+      after.run('DELETE FROM work_item_resource_demand');
+      after.run('DELETE FROM project_resource_capacity');
+    } finally {
+      after.close();
+    }
+    const onlyResource = await runCli(
+      'migrate-down-cli.ts',
+      dbPath,
+      '--to=20261019120000_add_claim',
+    );
+    expect(onlyResource.exitCode).not.toBe(0);
+    expect(onlyResource.stderr).toContain('resources exist');
+    const cleared = openDatabase(dbPath);
+    try {
+      cleared.run('DELETE FROM resource');
+    } finally {
+      cleared.close();
+    }
+    const empty = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
+    expect(empty.exitCode).toBe(0);
+    // The empty occupancy migration was reversed by the first, refused attempt.
+    expect(empty.stdout).toContain('rolled back: 20261020120000_add_resources');
+    const reversed = schemaAt(dbPath).join('\n');
+    for (const table of [
+      'resource',
+      'resource_organization',
+      'project_resource_capacity',
+      'work_item_resource_demand',
+    ])
+      expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
+    runMigrations(dbPath, MIGRATIONS);
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261023100000_add_claim_lease');
+    expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 
   it('previews organization selection read-only, and fails without a database', async () => {

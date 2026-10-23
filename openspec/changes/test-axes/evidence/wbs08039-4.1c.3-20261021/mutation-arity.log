@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+(pass) [TEST-AXES-105] refuses unsupported operands [] [244.73ms]
+(pass) [TEST-AXES-105] refuses unsupported operands ["--now","2026-02-30T00:00:00.000Z"] [145.15ms]
+457 |
+458 | for (const extra of [[], ['--now', '2026-02-30T00:00:00.000Z'], ['--now', now, 'extra']])
+459 |   test(`[TEST-AXES-105] refuses unsupported operands ${JSON.stringify(extra)}`, async () => {
+460 |     const setup = fixture();
+461 |     const invocation = await invokeCli([...operands(setup).slice(0, 7), ...extra]);
+462 |     expect(invocation.exitCode).toBe(1);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:462:33)
+(fail) [TEST-AXES-105] refuses unsupported operands ["--now","2026-10-15T00:00:00.000Z","extra"] [278.12ms]
+
+ 2 pass
+ 56 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 3 tests across 1 file. [1.58s]

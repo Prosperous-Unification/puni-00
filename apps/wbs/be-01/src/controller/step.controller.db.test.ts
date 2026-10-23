@@ -10,6 +10,7 @@ import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -193,6 +194,8 @@ beforeEach(async () => {
       typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory,
       capacity: inMemoryCapacity(),
+      demands: new DemandRepository(db, OPEN),
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
@@ -923,7 +926,7 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
   const actualAuthenticate = auth.authenticateOrRefuse.bind(auth);
   const readScope = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (credential) => {
     const account = await actualAuthenticate(credential);
-    return account === null || account === 'unknown_identity'
+    return account === null || typeof account === 'string'
       ? account
       : { ...account, scopes: ['read'] };
   });

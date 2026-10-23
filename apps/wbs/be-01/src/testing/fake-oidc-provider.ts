@@ -100,6 +100,7 @@ export class FakeOidcProvider {
       tokens: new InMemoryTokenStore({ now: this.now }),
       transactions: this.transactions,
       verifier: this.verifier,
+      issuer: () => Promise.resolve('https://idp.test'),
     };
   }
 }

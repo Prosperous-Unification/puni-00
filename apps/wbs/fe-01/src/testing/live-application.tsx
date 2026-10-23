@@ -4,11 +4,13 @@ import {
   type RenderOptions,
   type RenderResult,
 } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach } from 'vitest';
 
+import { LEGACY_ORGANIZATION } from '@/lib/organization-context';
 import { acquireApplicationRuntime, applicationSlot } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 
 /**
  * Publishes the page's own runtime before every test of the calling file, and
@@ -48,17 +50,33 @@ export function publishApplicationRuntimeForEachTest(): void {
 }
 
 /**
+ * The page's two providers as `app.tsx` mounts them: its application services,
+ * and the organization resources scope every signed-in page sits under — a
+ * legacy one here, as `organization-render.tsx` gives panel fixtures, because
+ * the plan's settings hold a section that reads through it.
+ */
+function LiveApplication({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <OrganizationResourcesProvider
+      scope={{ organization: LEGACY_ORGANIZATION, isCurrent: () => true, refuse: () => undefined }}
+    >
+      <ApplicationServicesProvider>{children}</ApplicationServicesProvider>
+    </OrganizationResourcesProvider>
+  );
+}
+
+/**
  * Testing Library's `render`, below the page's own
- * {@link ApplicationServicesProvider}.
+ * {@link ApplicationServicesProvider} and a legacy organization resources scope.
  *
  * The provider is given no `slot`, so it publishes `applicationSlot` — the one
  * {@link publishApplicationRuntimeForEachTest} makes live. A `rerender` from
- * the result keeps the same wrapper. A test that needs its own slot renders its
- * own provider inside this one; the nearer provider wins.
+ * the result keeps the same wrapper. A test that needs its own slot or scope
+ * renders its own provider inside this one; the nearer provider wins.
  */
 export function render(
   ui: ReactElement,
   options: Omit<RenderOptions, 'wrapper'> = {},
 ): RenderResult {
-  return renderInTree(ui, { ...options, wrapper: ApplicationServicesProvider });
+  return renderInTree(ui, { ...options, wrapper: LiveApplication });
 }

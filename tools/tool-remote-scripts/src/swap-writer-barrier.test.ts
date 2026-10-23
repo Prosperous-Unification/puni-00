@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { ROOT } from './lib/docker';
 import { planSwap } from './lib/reconcile';
@@ -688,7 +688,7 @@ function backendPreparation(
       events.push('read');
       if (path.endsWith('/be-01.env'))
         return Promise.resolve(
-          'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\n',
+          'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\nORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50\nORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200\nORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000\n',
         );
       if (path === oidcPath)
         return Promise.resolve(
@@ -1596,6 +1596,12 @@ async function assertRefusal(pending: Promise<unknown>, message = '') {
 
 async function activationFixture(fault = '') {
   const f = await fixture();
+  let enterStall: () => void = () => {
+    throw new Error('stall signal is not initialized');
+  };
+  const stalled = new Promise<void>((resolve) => {
+    enterStall = resolve;
+  });
   const original = f.io.sh;
   let attempted = false;
   let maintenanceStarted = false;
@@ -1609,6 +1615,7 @@ async function activationFixture(fault = '') {
     prepared.verifyMaintenance = (identity, signal) => {
       if (attempted && fault === 'maintenance-stall') {
         signal?.addEventListener('abort', () => f.events.push('aborted'));
+        enterStall();
         return new Promise<string>(() => undefined).then(() => undefined);
       }
       if (maintenanceStarted && fault === 'maintenance-drift')
@@ -1618,7 +1625,10 @@ async function activationFixture(fault = '') {
     return prepared;
   };
   f.io.resolveMount = (path) => {
-    if (attempted && fault === 'resolve-stall') return new Promise<string>(() => undefined);
+    if (attempted && fault === 'resolve-stall') {
+      enterStall();
+      return new Promise<string>(() => undefined);
+    }
     return Promise.resolve(
       maintenanceStarted && fault === 'database-drift' && path.endsWith('/wbs.db')
         ? '/replaced/wbs.db'
@@ -1627,13 +1637,17 @@ async function activationFixture(fault = '') {
   };
   const namespaceProof = f.io.namespaceProof;
   if (namespaceProof === undefined) throw new Error('fixture missing namespace proof');
-  f.io.namespaceProof = (...args) =>
-    attempted && fault === 'namespace-stall'
-      ? new Promise<void>(() => undefined)
-      : namespaceProof(...args);
+  f.io.namespaceProof = (...args) => {
+    if (attempted && fault === 'namespace-stall') {
+      enterStall();
+      return new Promise<void>(() => undefined);
+    }
+    return namespaceProof(...args);
+  };
   f.io.sh = async (args, signal) => {
     const stall = () => {
       signal?.addEventListener('abort', () => f.events.push('aborted'));
+      enterStall();
       return new Promise<string>(() => undefined);
     };
     if (attempted && fault === 'stopped-stall' && args[0] === 'inspect' && args[3] === outgoingId)
@@ -1721,7 +1735,7 @@ async function activationFixture(fault = '') {
     }
     return original(args);
   };
-  return { ...f, attempted: () => attempted };
+  return { ...f, stalled, attempted: () => attempted };
 }
 
 for (const fault of ['candidate-incapable', 'rollback-incapable', 'missing-receipt-migration']) {
@@ -1794,6 +1808,74 @@ test('activation refuses a non-backend plan before preflight', async () => {
   expect(f.events).toEqual([]);
 });
 
+/** Control only the deadline clock; fixture filesystem work keeps its real asynchronous IO. */
+function controlActivationClock() {
+  let now = 0;
+  const setTimer = globalThis.setTimeout;
+  const clearTimer = globalThis.clearTimeout;
+  const scheduled = new Map<ReturnType<typeof setTimeout>, { at: number; fire: () => void }>();
+  const clock = spyOn(performance, 'now').mockImplementation(() => now);
+  // Bun uses object tokens here; the unused DOM overload declares a numeric return.
+  const timer = spyOn(globalThis, 'setTimeout').mockImplementation(
+    Object.assign(
+      (callback: unknown, milliseconds = 0, ...args: unknown[]) => {
+        if (typeof callback !== 'function') throw new Error('deadline requires a callback');
+        const token = setTimer(() => undefined, 2_147_483_647);
+        scheduled.set(token, {
+          at: now + milliseconds,
+          fire: () => {
+            Reflect.apply(callback, undefined, args);
+          },
+        });
+        return token;
+      },
+      { __promisify__: setTimer.__promisify__ },
+    ) as typeof setTimeout,
+  );
+  const cancellation = spyOn(globalThis, 'clearTimeout').mockImplementation((token) => {
+    Reflect.apply(clearTimer, globalThis, [token]);
+    for (const pending of scheduled.keys()) {
+      if (pending === token) scheduled.delete(pending);
+    }
+  });
+  return {
+    elapse: (milliseconds: number) => {
+      now += milliseconds;
+    },
+    advance: async (at: number) => {
+      now = at;
+      let fired = 0;
+      for (;;) {
+        const due = [...scheduled.entries()]
+          .filter(([, pending]) => pending.at <= now)
+          .sort(([, left], [, right]) => left.at - right.at)
+          .at(0);
+        if (due === undefined) break;
+        if (fired >= 100) throw new Error('deadline clock did not converge');
+        fired += 1;
+        const [token, pending] = due;
+        scheduled.delete(token);
+        clearTimer(token);
+        pending.fire();
+        // A real event-loop turn lets promise continuations cancel another due timer.
+        await new Promise<void>((resolve) => {
+          setTimer(resolve, 0);
+        });
+      }
+      await new Promise<void>((resolve) => {
+        setTimer(resolve, 0);
+      });
+    },
+    deadlines: () => [...scheduled.values()].map((pending) => pending.at),
+    restore: () => {
+      cancellation.mockRestore();
+      timer.mockRestore();
+      clock.mockRestore();
+      for (const token of scheduled.keys()) clearTimer(token);
+    },
+  };
+}
+
 for (const fault of [
   'capability-stall',
   'inspect-stall',
@@ -1804,23 +1886,84 @@ for (const fault of [
   'resolve-stall',
   'namespace-stall',
 ]) {
-  test(`activation total budget bounds production caller ${fault} and retains uncertainty`, async () => {
-    const f = await activationFixture(fault);
-    f.io.activationBudgetMs = 30;
-    await assertRefusal(execute(f.plan, image, 'release', f.io, true), 'deadline exceeded');
-    expect(f.events).not.toContain('start');
-    expect(f.events).not.toContain('alias');
-    if (fault !== 'resolve-stall' && fault !== 'namespace-stall')
-      expect(f.events).toContain('aborted');
-    expect(f.isBlueRunning()).toBe(false);
-    expect(await readFile(join(f.root, 'be-writer-stop.json'), 'utf8')).toContain(image);
-    if (fault === 'capability-stall' || fault === 'inspect-stall') {
-      await assertRefusal(readFile(join(f.root, 'be-writer-activation.json')), 'ENOENT');
-      expect(f.attempted()).toBe(false);
-    } else {
-      for (const boundary of ['maintenance', 'migration', 'activation'])
-        expect(await readFile(join(f.root, `be-writer-${boundary}.json`), 'utf8')).toContain(image);
-    }
-    await assertRefusal(execute(f.plan, image, 'release', f.io), 'explicit recovery');
-  }, 500);
+  test.serial(
+    `activation total budget bounds production caller ${fault} and retains uncertainty`,
+    async () => {
+      const f = await activationFixture(fault);
+      f.io.activationBudgetMs = 30;
+      const setTimer = globalThis.setTimeout;
+      const clearTimer = globalThis.clearTimeout;
+      let watchdogToken: ReturnType<typeof setTimeout> | undefined;
+      const watchdog = new Promise<never>((_, reject) => {
+        watchdogToken = setTimer(() => {
+          reject(new Error('activation deadline did not settle'));
+        }, 4000);
+      });
+      const clock = controlActivationClock();
+      try {
+        if (fault === 'inspect-stall') {
+          const runDocker = f.io.sh;
+          let consumed = false;
+          f.io.sh = async (args, signal) => {
+            const output = await runDocker(args, signal);
+            if (
+              !consumed &&
+              signal !== undefined &&
+              args.includes('src/step-blockage-replay-kinds-cli.ts')
+            ) {
+              consumed = true;
+              clock.elapse(10);
+            }
+            return output;
+          };
+        }
+        let settled = false;
+        const refusal = assertRefusal(
+          execute(f.plan, image, 'release', f.io, true),
+          'deadline exceeded',
+        ).then(() => {
+          settled = true;
+        });
+        await Promise.race([
+          f.stalled,
+          refusal.then(() => {
+            throw new Error('activation refused before the named stall');
+          }),
+          watchdog,
+        ]);
+        // Stall entry happens inside the runner, before runDockerBefore registers its timer.
+        await Promise.resolve();
+        // Proof: resetting preparation deadlines per call failed here after the 10ms capability.
+        expect(clock.deadlines().length).toBeGreaterThan(0);
+        expect(clock.deadlines().every((deadline) => deadline === 30)).toBe(true);
+        await clock.advance(29);
+        expect(settled).toBe(false);
+        expect(f.events).not.toContain('aborted');
+        // Proof: suppressing the production timer callback hit the independent 4s watchdog.
+        await clock.advance(30);
+        await Promise.race([refusal, watchdog]);
+      } finally {
+        clock.restore();
+        clearTimer(watchdogToken);
+      }
+      expect(f.events).not.toContain('start');
+      expect(f.events).not.toContain('alias');
+      // Proof: suppressing abort or removing preparation signal forwarding lost this event.
+      if (fault !== 'resolve-stall' && fault !== 'namespace-stall')
+        expect(f.events).toContain('aborted');
+      expect(f.isBlueRunning()).toBe(false);
+      expect(await readFile(join(f.root, 'be-writer-stop.json'), 'utf8')).toContain(image);
+      if (fault === 'capability-stall' || fault === 'inspect-stall') {
+        await assertRefusal(readFile(join(f.root, 'be-writer-activation.json')), 'ENOENT');
+        expect(f.attempted()).toBe(false);
+      } else {
+        for (const boundary of ['maintenance', 'migration', 'activation'])
+          expect(await readFile(join(f.root, `be-writer-${boundary}.json`), 'utf8')).toContain(
+            image,
+          );
+      }
+      await assertRefusal(execute(f.plan, image, 'release', f.io), 'explicit recovery');
+    },
+    5000,
+  );
 }

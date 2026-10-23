@@ -545,7 +545,7 @@ jq -s -e '
 — rehearsed this response, on the unchanged `76f871d8` tree: owned path exit 0, `13 files / 99
 tests` (section 3.4's own owned-path baseline). Sandbox subset exit 0, `46 files / 674 tests`
 (section 3.4's own sandbox baseline — this is the same command section 8's own sandbox stop
-condition checks "at any point before slice 3's own step 3b", now confirmed at this slice's own
+condition checks "at any point before slice 3's own step 2b", now confirmed at this slice's own
 starting point rather than assumed unchanged from section 3.4). Strict OpenSpec exit 0, `114`/
 `114`/`0`, predicate holds — the same figure section 8's own OpenSpec stop condition names as
 "section 3.4's own pre-implementation baseline".
@@ -1099,7 +1099,7 @@ assertions (`toHaveLength(1)` and the name check) on the unchanged config. The t
 bfcache spec either way'` (`expect(matches(defaultProject.testIgnore, …)).toBe(true)` → `expected
 false to be true`, no `testIgnore` yet).
 
-**Step 3b — implement, executor.** Apply the `playwright.config.ts` diff (section 7.8): the gated
+**Step 2b — implement, executor.** Apply the `playwright.config.ts` diff (section 7.8): the gated
 `chromium-regular` project and the default project's own `testIgnore`. Add
 `e2e/lifetime-bfcache-probe.ts` and `e2e/lifetime-bfcache.spec.ts` (sections 7.6, 7.7).
 

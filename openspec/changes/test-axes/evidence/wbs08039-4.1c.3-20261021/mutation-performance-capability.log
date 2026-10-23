@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+544 |       ],
+545 |       { stdout: 'pipe', stderr: 'pipe' },
+546 |     );
+547 |     expect(invocation.exitCode).toBe(1);
+548 |     expect(invocation.stdout.toString()).toBe('');
+549 |     expect(invocation.stderr.toString()).toContain(
+                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Performance scope or diagnostic boundary differs"
+Received: "scenario ledger authority capability differs\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:549:42)
+(fail) [TEST-AXES-105] refuses substituted Performance capability [1297.71ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.20s]

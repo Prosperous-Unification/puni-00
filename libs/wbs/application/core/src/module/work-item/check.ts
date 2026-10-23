@@ -50,6 +50,15 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       claimStore: DiBag.createProvider(() => requirements.claims, {
         factoryReturnKind: 'sync-value',
       }),
+      organizationLimits: DiBag.createProvider(() => requirements.organizationLimits ?? null, {
+        factoryReturnKind: 'sync-value',
+      }),
+      demandStore: DiBag.createProvider(() => requirements.demands, {
+        factoryReturnKind: 'sync-value',
+      }),
+      resourceCapacityStore: DiBag.createProvider(() => requirements.resourceCapacity, {
+        factoryReturnKind: 'sync-value',
+      }),
       directoryStore: DiBag.createProvider(() => requirements.directory, {
         factoryReturnKind: 'sync-value',
       }),

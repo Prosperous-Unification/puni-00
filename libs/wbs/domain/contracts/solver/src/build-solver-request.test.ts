@@ -96,7 +96,7 @@ const baselineOf = (plan: SolverRequestPlan) =>
 
 const spawnOf = (plan: SolverRequestPlan, over: Partial<SolverSpawn> = {}): SolverSpawn => ({
   baselineOffsets: baselineOf(plan),
-  solverVersion: '0.2.0',
+  solverVersion: '0.3.0',
   budgetMs: 30_000,
   ...over,
 });
@@ -130,10 +130,10 @@ describe('buildSolverRequest', () => {
     const request = requestOf(planOf());
     expect(request.wireVersion).toBe(SOLVER_WIRE_VERSION);
     expect(request.quantum).toBe(SOLVER_QUANTUM);
-    expect(request.solverVersion).toBe('0.2.0');
+    expect(request.solverVersion).toBe('0.3.0');
     // The solver's version alone would describe none of the durations, the leaf
     // expansion or the baseline — all of which Bun produced.
-    expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.2.0`);
+    expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.3.0`);
   });
 
   it('projects the slices, the graph and only the pools the request names', () => {
@@ -253,7 +253,7 @@ describe('buildSolverRequest', () => {
     const plan = planOf({ rows: [rowOf('A', null, null)], edges: [], slices: [long] });
     const built = buildSolverRequest(plan, 'pri', {
       baselineOffsets: { [sliceKey('A', 'design')]: 0 },
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 30_000,
     });
     expect(built.ok).toBe(false);
@@ -281,7 +281,7 @@ describe('buildSolverRequest', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: {},
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 30_000,
       }),
     ).toThrow('slice for P, which is not a leaf of this project');
@@ -384,7 +384,7 @@ describe('buildSolverRequest', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: {},
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 30_000,
       }),
     ).toThrow('no slices');

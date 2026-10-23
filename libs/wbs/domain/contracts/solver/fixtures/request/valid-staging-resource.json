@@ -1,0 +1,62 @@
+{
+  "wireVersion": 4,
+  "contractVersion": "17+0.3.0",
+  "solverVersion": "0.3.0",
+  "objective": "pri",
+  "budgetMs": 30000,
+  "stageBudgetSplit": [0.6, 0.25, 0.15],
+  "quantum": 48,
+  "horizonUnits": 96,
+  "slices": [
+    {
+      "workItemKey": "wi-a",
+      "key": "wi-a\u0000dev",
+      "durationUnits": 48,
+      "width": 1,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "notBeforeUnits": 0,
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "demands": [
+        {
+          "resourceId": "staging",
+          "units": 1
+        }
+      ]
+    },
+    {
+      "workItemKey": "wi-b",
+      "key": "wi-b\u0000dev",
+      "durationUnits": 48,
+      "width": 1,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "notBeforeUnits": 0,
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "demands": [
+        {
+          "resourceId": "staging",
+          "units": 1
+        }
+      ]
+    }
+  ],
+  "edges": [],
+  "pools": {},
+  "baselineOffsets": {
+    "wi-a\u0000dev": 0,
+    "wi-b\u0000dev": 48
+  },
+  "fastHint": {
+    "wi-a\u0000dev": 0,
+    "wi-b\u0000dev": 48
+  },
+  "elsewhere": {},
+  "resources": {
+    "staging": 1
+  }
+}

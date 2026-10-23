@@ -35,6 +35,7 @@ function fixture(methods: OidcRouteOptions['methods'] = []) {
     random: () => `random-${String(++counter)}`,
     transactions: new InMemoryOidcTransactionStore({ now: () => clock, ttlMs: 300000 }),
     tokens: new InMemoryTokenStore({ now: () => clock }),
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: { verify: () => Promise.resolve(claims) },
     logger: {
       info: (fields) => {

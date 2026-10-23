@@ -46,6 +46,12 @@ When a leaf that holds step claims gains its first child, the claims SHALL move 
 with the other step facts (estimates, progress, assignments), so they stay releasable, keep
 fencing, and appear in the startable read; undoing the first child SHALL move them back. Moving an existing work item under a leaf that holds step claims SHALL be refused `destination_claimed` carrying the holders, because the moved row is other work and the claims must not change hands.
 
+When `deleteWorkItem` promotes the parent back to a leaf, the claims of the one deleted former
+leaf holding any SHALL move to the parent in place (ids, holders, runs, parent claim ids and
+occupancy kept) in the delete's journal entry, its undo SHALL move them back to the restored
+child and its redo up again. The delete SHALL be refused `children_claimed` carrying every holder
+when claims sit on more than one deleted row, or when the parent holds a claim itself.
+
 #### Scenario: A whole leaf is claimed by default
 
 - **WHEN** a batch applies `claimWorkItem` for a leaf whose `Impl` is `done` and whose `Plan`
@@ -108,6 +114,19 @@ fencing, and appear in the startable read; undoing the first child SHALL move th
 - **THEN** the claim sits on the child with the same step, `releaseWorkItem` on the child
   succeeds, a stranger's claim on the child is refused `already_claimed`, and the startable
   read lists the child under claimed steps
+
+#### Scenario: The only child of a claimed leaf is deleted
+
+- **WHEN** `claire` holds `Impl` of leaf `080.25`, a first child took the claim and that child is
+  deleted
+- **THEN** the claim and its occupancy sit on `080.25` again, `releaseWorkItem` on it succeeds,
+  and undo and redo of the delete move the claim to the restored child and back
+
+#### Scenario: A deleted branch holds claims on two leaves
+
+- **WHEN** the only child of `080` is a branch whose leaves `080.1.1` and `080.1.2` are claimed
+  and `deleteWorkItem` cascades it
+- **THEN** the batch is refused `children_claimed` naming both holders and nothing changes
 
 #### Scenario: A row is moved under a claimed leaf
 

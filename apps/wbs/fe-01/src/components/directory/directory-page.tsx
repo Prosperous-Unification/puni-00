@@ -1,9 +1,8 @@
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@ui/saas-01';
 import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { CreatablePicker } from '@/components/wbs/creatable-picker';
 import {
   Modal,
   ModalContent,
@@ -11,8 +10,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
-} from '@/components/ui/modal';
-import { CreatablePicker } from '@/components/wbs/creatable-picker';
+} from '@/components/wbs/modal';
 import {
   type DirectoryEffect,
   directoryRefusalSentence,
@@ -39,6 +37,13 @@ export interface DirectoryPageProps {
    * line, which is how the page's own suite draws it without a router.
    */
   loadOf?: (person: { id: string; name: string }) => ReactNode;
+  /**
+   * An agent person's machine credentials, drawn under their row
+   * (`wbs-machine-credentials` task 6.3). The route supplies it in an
+   * organization; left out, as in a deployment without organizations, rows
+   * carry none.
+   */
+  credentialsOf?: (person: PersonView) => ReactNode;
 }
 
 export type { DirectoryKind };
@@ -135,6 +140,10 @@ export function effectSentence(effect: DirectoryEffect, on: EffectContext): stri
         : `No longer limited to ${String(effect.size)} at a time — the limit it inherits from ${
             on.rowNamed(effect.fromId) ?? 'a row above it'
           }. Dates may move earlier.`;
+    case 'demand_removed':
+      // Resources are removed through the command batch, not this page (wbs-resources
+      // 1.5 adds their screen); the sentence is here so a usage naming one still reads.
+      return `Its demand of ${String(effect.units)} on this resource goes.`;
     case 'assumed_assignee_changed':
       return `Assumed to be doing all of it: ${assumedName(effect.assumedNow)} now, ${assumedName(
         effect.assumedAfter,
@@ -182,7 +191,13 @@ const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_inpu
  * from what came back, so a refused change leaves the screen as it was with the
  * refusal on it.
  */
-export function DirectoryPage({ directory: management, nav, account, loadOf }: DirectoryPageProps) {
+export function DirectoryPage({
+  directory: management,
+  nav,
+  account,
+  loadOf,
+  credentialsOf,
+}: DirectoryPageProps) {
   const shown = useDirectoryManagement(management);
   const { people, teams, tags, services, workItemTypes, busy, problem } = shown;
 
@@ -569,6 +584,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                         </span>
                       </div>
                       {loadOf?.(person)}
+                      {credentialsOf?.(person)}
                     </li>
                   ))}
                 </ul>

@@ -67,7 +67,9 @@ describe('the closed case manifest', () => {
       'projectRanks',
       'users',
       'directory',
+      'organizationLimits',
       'capacity',
+      'resourceCapacity',
       'priorityBands',
       'calendarMarkers',
       'eventLog',
@@ -82,6 +84,7 @@ describe('the closed case manifest', () => {
       'blockages',
       'stepParallels',
       'claims',
+      'demands',
       'dependencies',
       'typedDependencies',
       'subtrees',
@@ -96,6 +99,8 @@ describe('the closed case manifest', () => {
       'claims.listStampedByProject:write-instant',
       'claims.remove:delegated-cascade',
       'claims.moveAll:in-place',
+      'claims.lease:write-renew-expire',
+      'claims.occupancy:hold-read-cascade',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],

@@ -47,17 +47,20 @@ The gate is now split into four jobs. `ci.yml` is the source of truth; the jobs 
 
 Each shard keeps `--parallel=2`, so the load on each runner is unchanged. No work was removed.
 The integrator and `tool-deploy`'s descriptor read the check named `gate`, and that check
-still exists. GitHub has no branch protection or ruleset that requires checks on `main`. The
-only ruleset covers release tags.
+still exists. Before 2026-10-23, GitHub had no branch protection or ruleset requiring
+checks on `main`; the only ruleset covered release tags. Since 2026-10-23, active
+ruleset `25730010` (main merge checks) requires a pull request and the `gate` and
+`pixels` verdicts from GitHub Actions on `main`, with zero required approvals,
+no bypass actors and no latest-base refresh requirement. Documentation-only
+changes retain the existing document checks and explicit runtime/browser skips.
 
 Proofs: `tools/tool-git-hooks/src/hooks/gate-workflow.test.ts` runs the production `gate`
 script with each shard result, and its `Proof:` comments record the faults that were watched
 failing.
 
-On 2026-10-12 the shard was renamed from `gate_tool_wiki` to `gate_twilight` and now also runs
-`twilight-dash`, which receives the activation controller (WBS a81d93a0). The workspace shard
-and `bin/h2puni-gate-steps.sh` exclude both projects. The measurements below predate that
-change and still name the shard Tool Wiki.
+Since the 2026-10-12 rename the shard also runs `twilight-dash`, which receives the activation
+controller (WBS a81d93a0). The workspace shard and `bin/h2puni-gate-steps.sh` exclude both
+projects. The measurements below predate the rename and still name the shard Tool Wiki.
 
 ## Measurements after the split
 

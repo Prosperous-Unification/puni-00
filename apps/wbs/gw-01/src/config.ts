@@ -31,7 +31,11 @@ export function oidcAppOriginFromEnv(env: Readonly<Record<string, string | undef
 
 export const loadConfig = (
   envSource: Record<string, string | undefined> = process.env,
-  oidcVerifierFromEnv: typeof oidcTokenVerifierFromEnv = oidcTokenVerifierFromEnv,
+  // gw-01 only verifies tokens; it never reads the configured issuer, so it
+  // asks for a `TokenVerifier`, not `oidcTokenVerifierFromEnv`'s wider shape.
+  oidcVerifierFromEnv: (
+    env: Readonly<Record<string, string | undefined>>,
+  ) => TokenVerifier = oidcTokenVerifierFromEnv,
 ): GwConfig & { wsAuth?: WsAuthOptions } => {
   const mode = authModeOf(envSource);
   const config = defineConfig(GwConfig, envSource);

@@ -179,6 +179,17 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261023100000_add_claim_lease',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
+      '20261020130000_add_claim_occupancy',
+      '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
       '20261019120000_add_claim',
@@ -303,6 +314,17 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261023100000_add_claim_lease',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
+      '20261020130000_add_claim_occupancy',
+      '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
       '20261019120000_add_claim',

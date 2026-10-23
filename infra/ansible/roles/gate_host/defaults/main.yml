@@ -1,0 +1,29 @@
+---
+# The account name is fixed, not a preference: `resolve_heavy_lock_path` in bin/heavy-lock-lib.sh
+# hard-codes `/home/puni1/.cache/wbs-heavy-work.lock` on Linux and deliberately takes no override,
+# because a caller that can name its own lock can opt out of it. Naming the account `puni1` keeps
+# that path, the Bun path and every gate runbook line identical to h2puni's. Each gate host still
+# has its own lock: the path is per host, so h4claw's gates queue only behind h4claw's.
+puni_gate_user: puni1
+puni_gate_home: /home/puni1
+# Distinct from h2puni's lane trees; one tree per host, owned by the gate account.
+puni_gate_checkout: /home/puni1/puni-00-gate-tbf
+puni_gate_repository_url: https://github.com/Prosperous-Unification/puni-00.git
+# /tmp is a RAM-sized tmpfs on these hosts and be-01's test databases live in os.tmpdir(), which
+# is why h2puni's ~/.bashrc points TMPDIR at the disk.
+puni_gate_tmpdir: /var/tmp
+# The pins come from the controller's reviewed checkout, never from the gate tree, whose head
+# moves with every gate: reading them there would make a second run diverge.
+puni_gate_repository_root: '{{ role_path }}/../../../..'
+puni_gate_bun_version: "{{ lookup('ansible.builtin.file', puni_gate_repository_root + '/.bun-version') | trim }}"
+puni_gate_bun_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.solverBun }}"
+# Nx's bin is `#!/usr/bin/env node`, so every `bun run <nx script>` needs a Node on PATH; h2puni
+# has 24.18.1 (Volta), CI has the runner's. The pin lives in toolchain.json like the Bun one.
+puni_gate_node_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateNode }}"
+puni_gate_node_version: '{{ puni_gate_node_lock.version }}'
+# twilight-dash's activation tests run the real offline verifier at /usr/bin/gh (its bytes are the
+# runtime identity they hash); h2puni has gh from GitHub's apt repository, CI the runner's. That
+# repository keeps only the newest release, so the pin is the release .deb in toolchain.json.
+puni_gate_gh_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateGh }}"
+puni_gate_gh_version: '{{ puni_gate_gh_lock.version }}'
+puni_gate_solver_requirements: '{{ puni_gate_repository_root }}/libs/wbs/adapters/solver-py/requirements.lock'

@@ -7,11 +7,14 @@ import {
   isDependencyEndpointScope,
   isIsoDate,
   type IsoDate,
+  isResourceKind,
   isSettableStatus,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
   MOST_PEOPLE_AT_ONCE,
+  MOST_RESOURCE_UNITS,
   parseStepNodeId,
+  type ResourceKind,
 } from '@wbs/domain';
 export type CommandInput<Kind extends PlanCommandKind> =
   (typeof commandDefinitions)[Kind]['schema']['infer'];
@@ -533,6 +536,43 @@ export function asOptionalStepIds(value: unknown): readonly string[] | undefined
   return stepIds;
 }
 
+/**
+ * A claim's `resources` (`wbs-resources` R4): absent, or 1 to
+ * {@link MOST_REFS_ON_ONE_ITEM} entries of `{ resourceId, units }`, each naming
+ * a different resource with a whole number of units from 1 to
+ * {@link MOST_RESOURCE_UNITS}. An empty list asks for nothing and is refused as
+ * an empty `steps` is; a resource named twice asks for two answers at once.
+ *
+ * Proof: with the duplicate refusal removed, `refuses resources naming one
+ * resource twice` (command-normalizers.test.ts) normalized both entries;
+ * watched 2026-10-20.
+ */
+export function asOptionalResourceUnits(
+  value: unknown,
+): readonly { resourceId: string; units: number }[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new CommandNormalizationError('resources_must_be_a_list');
+  const entries: readonly unknown[] = value;
+  if (entries.length === 0) throw new CommandNormalizationError('resources_must_name_a_resource');
+  if (entries.length > MOST_REFS_ON_ONE_ITEM)
+    throw new CommandNormalizationError(
+      `resources_must_be_at_most_${String(MOST_REFS_ON_ONE_ITEM)}`,
+    );
+  const asked = entries.map((entry) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry))
+      throw new CommandNormalizationError('resources_must_be_a_list');
+    const resourceId = 'resourceId' in entry ? entry.resourceId : undefined;
+    if (typeof resourceId !== 'string')
+      throw new CommandNormalizationError('resourceId_must_be_an_id');
+    const units = resourceUnitsOf(entry, 1);
+    if (units === null) throw new CommandNormalizationError('units_must_be_a_whole_number_from_1');
+    return { resourceId, units };
+  });
+  if (new Set(asked.map(({ resourceId }) => resourceId)).size !== asked.length)
+    throw new CommandNormalizationError('resources_must_name_each_resource_once');
+  return asked;
+}
+
 /** A boolean or absent, or the field's refusal. */
 export function asOptionalFlag(value: unknown, field: string): boolean | undefined {
   if (value === undefined) return undefined;
@@ -704,4 +744,54 @@ export function stepAllowanceOf(raw: number): AllowancePercent {
     throw new CommandNormalizationError('allowancePercent_must_be_0_to_1000_with_two_decimals');
   }
   return percent;
+}
+
+/** The most characters a resource's unit label may carry; it sits beside every number of it. */
+export const MOST_CHARACTERS_IN_A_UNIT_LABEL = 40;
+
+/**
+ * A resource capacity's or demand's `units`, or `null` to clear it: a whole
+ * number from `floor` to {@link MOST_RESOURCE_UNITS}. Absent is refused rather
+ * than read as a clear, for `capacityOf`'s reason: the command writes one field.
+ * A capacity's floor is 0 (the plan may use none) and a demand's is 1 (a demand
+ * of nothing is the absence of one, written `null`).
+ *
+ * Proof: with the integer guard reduced to a type test, `refuses units below 0
+ * or above the bound at the command boundary` and the stored-demand property in
+ * resource-command.test.ts failed (a capacity of -1, a demand of 0 stored); with
+ * the ceiling removed the first normalized 1000000001; watched 2026-10-20.
+ */
+export function resourceUnitsOf(raw: object, floor: 0 | 1): number | null {
+  if (!('units' in raw)) throw new CommandNormalizationError('units_required');
+  const value: unknown = raw.units;
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < floor) {
+    throw new CommandNormalizationError(
+      floor === 0 ? 'units_must_be_a_whole_number_from_0' : 'units_must_be_a_whole_number_from_1',
+    );
+  }
+  if (value > MOST_RESOURCE_UNITS) {
+    throw new CommandNormalizationError(`units_must_be_at_most_${String(MOST_RESOURCE_UNITS)}`);
+  }
+  return value;
+}
+
+/** A unit label, trimmed, of at most {@link MOST_CHARACTERS_IN_A_UNIT_LABEL} characters; empty is allowed. */
+export function asUnitLabel(value: unknown): string {
+  const label = asText(value, 'unitLabel').trim();
+  if (label.length > MOST_CHARACTERS_IN_A_UNIT_LABEL) {
+    throw new CommandNormalizationError('unitLabel_must_be_at_most_40_characters');
+  }
+  return label;
+}
+
+/**
+ * A resource's kind as a create names it. Checked here although the structural
+ * schema names the two literals, because a body the schema refused still reaches
+ * the normalizer for its semantic refusal.
+ */
+export function asResourceKind(value: unknown): ResourceKind {
+  if (!isResourceKind(value))
+    throw new CommandNormalizationError('resourceKind_must_be_exclusive_or_divisible');
+  return value;
 }

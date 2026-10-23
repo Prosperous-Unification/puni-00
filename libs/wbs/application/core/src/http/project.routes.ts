@@ -154,6 +154,7 @@ export function projectRoutes(
     markers: calendarMarkers,
     clock,
     stepParallels,
+    resourceFacts: workItems,
   });
   return [
     bind(

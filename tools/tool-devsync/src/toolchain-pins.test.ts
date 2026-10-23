@@ -1,8 +1,6 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
 
-import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 /**
@@ -199,6 +197,7 @@ describe('the React version ESLint is told', () => {
 });
 
 interface WorkflowStep {
+  if?: string;
   name?: string;
   id?: string;
   env?: Record<string, string>;
@@ -219,7 +218,7 @@ interface CiJob {
  * present and `no-unnecessary-condition` then rejects the `?.` a missing job needs.
  */
 interface CiWorkflow {
-  jobs?: { gate_mode?: CiJob; gate_workspace?: CiJob; gate_twilight?: CiJob };
+  jobs?: { gate_mode?: CiJob; gate_docs?: CiJob; gate_workspace?: CiJob; gate_twilight?: CiJob };
 }
 
 type GateJob = keyof NonNullable<CiWorkflow['jobs']>;
@@ -337,48 +336,29 @@ describe('the CI gate scope', () => {
     );
   });
 
-  it('takes the pull-request boundary from the validated synthetic merge', async () => {
+  it('takes the pull-request boundary from the validated synthetic merge plan', async () => {
     const step = gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode');
-
-    // The same shape `Corpus version lint` uses: payload values arrive as environment
-    // variables, never interpolated into the shell, and a mutable ref is not a fallback.
     expect(step.env).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
       PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
       PR_NUMBER: '${{ github.event.pull_request.number }}',
     });
-    expect(step.env).not.toHaveProperty('PR_BASE_REF');
-    expect(step.run).toContain('base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"');
-    // Pinned as the ARM, not as three loose literals. `toContain` on each printf says only
-    // that the strings exist somewhere in the script — it is equally happy with the two arm
-    // bodies swapped, which is `mode=full` on pull requests and `mode=affected`, with no
-    // base, on everything else.
-    //
-    // Proof (2026-09-16): with the `pull_request` and `push | merge_group |
-    // workflow_dispatch` bodies exchanged in the production workflow, this failed on
-    // `Expected to contain: "pull_request) : \"${PR_BASE_SHA:?pull_request payload carries
-    // no base SHA}\" printf 'mode=affected\\n' >> \"$GITHUB_OUTPUT\""` — 16 passed /
-    // 1 failed.
-    const mode = oneLine(commandsOf(step.run ?? ''));
-    expect(mode).toContain(
-      `pull_request) base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)" ` +
-        `printf 'mode=affected\\n' >> "$GITHUB_OUTPUT"`,
+    const commands = oneLine(commandsOf(step.run ?? ''));
+    expect(commands).toContain(
+      'pull_request) base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)" bun run tools/tool-git-hooks/src/hooks/ci-plan.ts "$base" "$GITHUB_SHA" . > ci-selection.json',
     );
-    expect(mode).toContain(`printf 'base=%s\\n' "$base" >> "$GITHUB_OUTPUT"`);
-    expect(mode).toContain(
-      `push | merge_group | workflow_dispatch) printf 'mode=full\\n' >> "$GITHUB_OUTPUT" ` +
-        `printf 'twilight=run\\n' >> "$GITHUB_OUTPUT" ;;`,
+    expect(commands).toContain(
+      'push | merge_group | workflow_dispatch) printf \'mode=full\\n\' >> "$GITHUB_OUTPUT" printf \'twilight=run\\n\' >> "$GITHUB_OUTPUT"',
     );
+    expect(commands).not.toContain('grep');
   });
 
-  it('runs affected on a pull request and the unchanged full gate everywhere else', async () => {
+  it('runs validated PR projects and keeps the unchanged full workspace command', async () => {
     const step = gateStep(
       await readCiWorkflow(),
       'gate_workspace',
       'Gate — test, lint, typecheck, build',
     );
-    const script = commandsOf(step.run ?? '');
-
     expect(step.env).toEqual({
       GATE_MODE: '${{ needs.gate_mode.outputs.mode }}',
       GATE_BASE: '${{ needs.gate_mode.outputs.base }}',
@@ -386,41 +366,14 @@ describe('the CI gate scope', () => {
       PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
       PR_NUMBER: '${{ github.event.pull_request.number }}',
     });
-    // The SELECTOR and the BRANCH BODIES, not only the two command lines. Until 2026-09-16
-    // nothing pinned either, and each gap has its own way of narrowing `push` and
-    // `merge_group` to `nx affected --base=""` — the silent narrowing this change exists to
-    // avoid, on the two events that must never narrow.
-    //
-    // Pinning the predicate alone is not enough, and this file claimed otherwise for one
-    // commit: with the predicate intact and the `then`/`else` BODIES exchanged, every
-    // assertion here passed — the predicate text is present, both command lines are present,
-    // and all occurrence counts are unchanged, because a swap moves commands without adding
-    // or removing any. Watched 2026-09-16: 17 passed / 0 failed on that fault. So the branch
-    // and its body are pinned together, as one normalised string each.
-    //
-    // Proof (2026-09-28, re-observed on the workspace shard), each fault watched separately
-    // against the production workflow:
-    //   predicate -> `if true; then`   fails on `Expected to contain: "if [ \"$GATE_MODE\" =
-    //                                  affected ]; then"`
-    //   bodies exchanged               fails on `Expected to contain: "if [ \"$GATE_MODE\" =
-    //                                  affected ]; then bunx nx affected -t test lint
-    //                                  typecheck build --base=\"$GATE_BASE\" --head=HEAD"`
-    const branches = oneLine(script);
-    expect(script).toContain('if [ "$GATE_MODE" = affected ]; then');
-    expect(branches).toContain(
-      'if [ "$GATE_MODE" = affected ]; then ' +
-        'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
+    const commands = oneLine(commandsOf(step.run ?? ''));
+    expect(commands).toContain(
+      'if [ "$GATE_MODE" = affected ]; then bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" .',
     );
-    expect(branches).toContain('else bunx nx run-many -t test lint typecheck build --parallel=2');
-    // Both branches run the workspace without the Twilight suite, whose targets the Twilight
-    // shard, `gate_twilight`, owns. Counting rather than containing, because one branch quietly
-    // losing its exclusion — Burokrat's 26-minute suite back on this runner, or Dash's targets
-    // left to a shard that no longer gates them on their own — is what this is here to see.
-    // Proof (2026-10-12): with `,twilight-dash` dropped from the `run-many` branch's exclusion
-    // this failed on `Expected: 2 · Received: 1`.
-    expect(occurrences(script, '--exclude=twilight-burokrat,twilight-dash')).toBe(2);
-    expect(occurrences(script, 'twilight-burokrat')).toBe(2);
-    expect(occurrences(script, 'twilight-dash')).toBe(2);
+    expect(commands).toContain(
+      'else bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \\ --exclude=twilight-burokrat,twilight-dash > nx-gate.log 2>&1',
+    );
+    expect(occurrences(commands, '--exclude=twilight-burokrat,twilight-dash')).toBe(1);
   });
 
   it('runs the h2puni gate with the same Twilight split as CI', async () => {
@@ -444,35 +397,17 @@ describe('the CI gate scope', () => {
     expect(steps).toContain('bunx nx run twilight-dash:lint --skip-nx-cache');
   });
 
-  it('keeps the Twilight suite in the gate as its own shard, read as JSON rather than grepped', async () => {
-    // Proof (2026-09-16): with the Tool Wiki branch of the then single gate step replaced by
-    // `true`, this case failed on the missing branch — 2 failed / 14 passed. A pull request
-    // touching Tool Wiki would have gated everything except Tool Wiki. Since 2026-09-28 that
-    // branch is the shard's job-level `if` (`gate_twilight` since 2026-10-12), and the `gate`
-    // check refuses the job's skip unless `gate_mode` said `skip` (`gate-workflow.test.ts`).
-    // Proof (2026-09-28): with that `if` reading `outputs.mode` instead, this failed on the job
-    // condition; with the `lint:source` command deleted, on that command.
-    // The `not.toContain('grep')` is the second fault this pins: measured on Nx 23.2.0,
-    // 2026-09-16, `bunx nx show projects --affected --base=HEAD~1 --head=HEAD` prints a
-    // ONE-LINE JSON array on a non-TTY runner whatever `--sep` asks for, so a
-    // `grep -qx twilight-burokrat` over it can never match and would drop the project from every
-    // pull request while exiting 0.
+  it('keeps selected Twilight runtime checks separate from the full suite', async () => {
     const workflow = await readCiWorkflow();
-    const mode = commandsOf(gateStep(workflow, 'gate_mode', 'Gate mode').run ?? '');
     const twilight = workflow.jobs?.gate_twilight;
     const targets = commandsOf(
       gateStep(workflow, 'gate_twilight', 'Twilight — test, typecheck, build, lint').run ?? '',
     );
-
-    expect(mode).toContain('bunx nx show projects --affected --base="$base" --head=HEAD --json');
-    expect(mode).toContain(
-      `jq -s -e '.[0] | index("twilight-burokrat") != null or index("twilight-dash") != null'`,
-    );
-    expect(mode).not.toContain('grep');
-    expect(mode).toContain(`printf 'twilight=run\\n' >> "$GITHUB_OUTPUT"`);
-    expect(mode).toContain(`printf 'twilight=skip\\n' >> "$GITHUB_OUTPUT"`);
     expect(twilight?.needs).toBe('gate_mode');
     expect(twilight?.if).toBe("${{ needs.gate_mode.outputs.twilight == 'run' }}");
+    expect(oneLine(targets)).toContain(
+      'if [ "$GATE_MODE" = affected ]; then bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts twilight "$GATE_BASE" "$GITHUB_SHA" .',
+    );
     expect(targets).toContain(
       'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash \\',
     );
@@ -484,95 +419,22 @@ describe('the CI gate scope', () => {
     );
   });
 
-  it('puts the Twilight shard in scope when either Twilight project is affected', async () => {
-    // The shipped `Gate mode` script, run in bash with a `bunx` stub standing in for
-    // `nx show projects --affected --json`, so the verdict under test is what the step writes
-    // to `$GITHUB_OUTPUT` rather than its text.
-    // Proof (2026-10-12): with the filter put back to `index("twilight-burokrat") != null`
-    // alone, the `["twilight-dash"]` case failed on `Expected: "twilight=run" · Received:
-    // "twilight=skip"`.
-    const script = gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode').run ?? '';
-    const directory = await scratchAsync('ci-gate-mode-');
-    const bin = join(directory, 'bin');
-    await mkdir(bin);
-    await writeFile(join(bin, 'bunx'), '#!/usr/bin/env bash\nprintf \'%s\\n\' "$STUB_AFFECTED"\n');
-    await chmod(join(bin, 'bunx'), 0o755);
-    await writeFile(
-      join(bin, 'bun'),
-      "#!/usr/bin/env bash\nprintf '0000000000000000000000000000000000000000\\n'\n",
-    );
-    await chmod(join(bin, 'bun'), 0o755);
-
-    const verdict = async (affected: string[]): Promise<string> => {
-      const output = join(directory, 'output');
-      await writeFile(output, '');
-      const run = Bun.spawnSync(['bash', '-c', script], {
-        env: {
-          PATH: `${bin}:${process.env['PATH'] ?? ''}`,
-          EVENT_NAME: 'pull_request',
-          PR_BASE_SHA: '0000000000000000000000000000000000000000',
-          GITHUB_OUTPUT: output,
-          STUB_AFFECTED: JSON.stringify(affected),
-        },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      });
-      expect(run.exitCode, run.stderr.toString()).toBe(0);
-      const lines = (await readFile(output, 'utf8')).split('\n');
-      return lines.find((line) => line.startsWith('twilight=')) ?? '';
-    };
-
-    expect(await verdict(['twilight-dash'])).toBe('twilight=run');
-    expect(await verdict(['wbs-be-01', 'twilight-burokrat'])).toBe('twilight=run');
-    expect(await verdict(['wbs-be-01', 'tool-devsync'])).toBe('twilight=skip');
-  });
-
-  it('refuses a jq failure instead of reading it as the Twilight suite being unaffected', async () => {
-    // `if jq -e … ; then run; else skip; fi` conflates two different answers. jq exits 1 for
-    // `false` and 2 or more for an error — a parse failure on polluted stdout, a type error —
-    // and the `else` swallowed both, so a broken read would have dropped Tool Wiki from the
-    // pull-request gate while the step exited 0. That is the exact shape this repo's incident
-    // catalogue is made of, and it contradicted this change's own spec scenario: "the affected
-    // project list cannot be computed → the gate-mode step fails".
-    //
-    // Proof (2026-09-16), two halves. The oracle: with the production switch returned to its
-    // two-branch `if jq -e 'index("tool-wiki") != null' … then … else … fi`, this failed on
-    // the missing array guard — 16 passed / 1 failed.
-    //
-    // `-s` is the second half of the guard and it is load-bearing. Without it jq judges only
-    // the LAST document in its input. Watched through this production step script, driven
-    // with a `bunx` stub printing `"tool-wiki"` and then `["wbs-be-01","tool-devsync"]`:
-    // the unslurped form wrote `tool_wiki=skip` and exited 0 — with `tool-wiki` right there
-    // in the output — while this one printed `nx show projects did not return one JSON
-    // array: …` and exited 1. Same form as `bin/h2puni-gate-steps.sh`.
-    // The behaviour, both forms run in a real shell on
-    // `affected='Nx read error: could not find project graph'`: the two-branch form printed
-    // `tool_wiki=skip` and exited 0 — the silent drop — while this one printed
-    // `nx show projects did not return one JSON array: Nx read error…` and exited 1. (That
-    // measurement predates `-s`; the message it quotes is the current one.)
-    //
-    // Stated at the strength it is known: once the output IS a validated array, the
-    // membership filter returns true or false and never errors — `[1,2]`, `[{"a":1}]`,
-    // `["a","b"]` and `[[1],[2]]` all exit 1, checked. So the `*)` arm guards jq ITSELF
-    // failing, not a shape the guard above already caught, and it was watched doing that:
-    // with a `jq` stub that works once and then exits 2, the step printed
-    // `jq failed reading the affected project list (status 2)` and exited 2, where the
-    // two-branch form would have recorded Tool Wiki as unaffected.
-    const mode = commandsOf(gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode').run ?? '');
-
-    // The shape is: assert the output IS an array, then branch on the explicit status.
-    expect(mode).toContain(`jq -s -e 'length == 1 and (.[0] | type == "array")'`);
-    expect(mode).toContain('twilight_status=0');
-    expect(mode).toContain('|| twilight_status=$?');
-    expect(mode).toContain('exit "$twilight_status"');
-    expect(mode.indexOf(`jq -s -e 'length == 1 and (.[0] | type == "array")'`)).toBeLessThan(
-      mode.indexOf(`jq -s -e '.[0] | index("twilight-burokrat") != null`),
-    );
+  it('runs Burokrat packaging only for full gates or exact project membership', async () => {
+    const workflow = await readCiWorkflow();
+    for (const name of [
+      'Provision bubblewrap for the packed package suite',
+      'Twilight Burokrat packed package suite',
+    ]) {
+      const step = gateStep(workflow, 'gate_twilight', name);
+      expect(step.if).toBe(
+        "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-burokrat') }}",
+      );
+    }
   });
 
   it('checks every gate job out at full depth, which --base cannot resolve without', async () => {
     const workflow = await readCiWorkflow();
-    for (const job of ['gate_mode', 'gate_workspace', 'gate_twilight'] as const) {
+    for (const job of ['gate_mode', 'gate_docs', 'gate_workspace', 'gate_twilight'] as const) {
       const checkout = workflow.jobs?.[job]?.steps?.find(({ uses }) =>
         uses?.startsWith('actions/checkout@'),
       );

@@ -6,6 +6,12 @@ const PATTERNS: { name: string; re: RegExp }[] = [
   { name: 'age secret key', re: /AGE-SECRET-KEY-1[0-9A-Z]{58}/ },
   { name: 'GitHub PAT (ghp_)', re: /\bghp_[A-Za-z0-9]{36}\b/ },
   { name: 'slack token', re: /xox[baprs]-[A-Za-z0-9-]{10,}/ },
+  // A WBS machine-credential API key (`wbs-machine-credentials` A14, A22):
+  // `wbs_mk_`, the credential's UUID, `.`, and a 43-character base64url secret.
+  {
+    name: 'WBS API key (wbs_mk_)',
+    re: /wbs_mk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}/,
+  },
 ];
 
 export interface ScanResult {

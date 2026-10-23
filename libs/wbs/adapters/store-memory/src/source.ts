@@ -1,4 +1,5 @@
 import type {
+  OrganizationLimitGauge,
   PlanEvent,
   PlanInputReads,
   SavedPlanHoldingRow,
@@ -12,11 +13,16 @@ import type {
   StoredSavedPlan,
   TransactionalStores,
 } from '@wbs/core';
+import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import { credentialKey } from './directory-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { bindStores, MemoryState, replaceMap } from './memory-stores';
+import {
+  checkedOrganizationLimits,
+  inMemoryOrganizationLimitGauge,
+} from './organization-limits-fixture';
 
 export { MemoryState } from './memory-stores';
 
@@ -90,10 +96,15 @@ function coordinatedStores(
         'removePerson',
         'removeTeam',
         'assign',
+        'addResource',
+        'patchResource',
+        'setResourceProvider',
+        'removeResource',
       ],
       coordinator,
     ),
     capacity: coordinatedStore(stores.capacity, ['set'], coordinator),
+    resourceCapacity: coordinatedStore(stores.resourceCapacity, ['set'], coordinator),
     priorityBands: coordinatedStore(stores.priorityBands, ['replace'], coordinator),
     calendarMarkers: coordinatedStore(
       stores.calendarMarkers,
@@ -120,6 +131,7 @@ function coordinatedStores(
     blockages: coordinatedStore(stores.blockages, ['set', 'remove', 'moveAll'], coordinator),
     stepParallels: coordinatedStore(stores.stepParallels, ['set', 'remove'], coordinator),
     claims: coordinatedStore(stores.claims, ['add', 'remove'], coordinator),
+    demands: coordinatedStore(stores.demands, ['set'], coordinator),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
@@ -180,6 +192,28 @@ export interface MemorySourceFixture {
    * `link-credential-cli.ts` writes on SQLite; no memory port writes it.
    */
   pinCredential(issuer: string, subject: string, personId: string): void;
+  /**
+   * Gives a project an owning organization, the `project_organization` row
+   * SQLite holds and no memory port writes, so the limits gauge counts its claims.
+   */
+  ownProjectInOrganization(projectId: string, organizationId: string): void;
+  /**
+   * Gives a resource an owning organization, the `resource_organization` row
+   * SQLite holds, so the limits gauge sums its stated capacity.
+   */
+  ownResourceInOrganization(resourceId: string, organizationId: string): void;
+  /**
+   * Writes an organization's own caps, the `organization_limits` row the
+   * operator CLI writes on SQLite.
+   *
+   * @throws when any cap is outside the bounds an organization may hold.
+   */
+  setOrganizationLimits(organizationId: string, limits: OrganizationLimitValues): void;
+  /**
+   * The limits gauge over the committed state with `defaults`, as the scopes
+   * this source's unit of work admits carry it; for conformance reads only.
+   */
+  organizationLimitGauge(defaults: OrganizationLimitValues): OrganizationLimitGauge;
   /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
   deriveNextEventSeqFromRetained(subscription: string): void;
   /**
@@ -223,9 +257,19 @@ export interface MemorySourceFixture {
   readonly commandStagedSavedPlans: SavedPlanStore;
 }
 
+/** What a memory source is opened with beyond its seams. */
+export interface MemorySourceOptions {
+  /**
+   * The deployment default organization limits. Given, the scopes the unit of
+   * work admits carry the limits gauge and only they, as on SQLite; absent, an
+   * acquisition under scoped access throws rather than admitting uncapped.
+   */
+  readonly organizationDefaultLimits?: OrganizationLimitValues;
+}
+
 /** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
-export function openMemorySourceFixture(): MemorySourceFixture {
-  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, inertMemoryCaptureReadSeam);
+export function openMemorySourceFixture(options: MemorySourceOptions = {}): MemorySourceFixture {
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, inertMemoryCaptureReadSeam, options);
 }
 
 /** @internal */
@@ -245,7 +289,9 @@ export function openMemorySourceWithCaptureReadSeam(
 function openMemorySourceWithSeams(
   lateWrite: MemoryLateWriteSeam,
   captureRead: CaptureReadSeam,
+  options: MemorySourceOptions = {},
 ): MemorySourceFixture {
+  const limits = options.organizationDefaultLimits;
   const committed = new MemoryState();
   const coordinator = new MemoryCoordinator();
   const historyCoordinator = new MemoryCoordinator();
@@ -440,6 +486,29 @@ function openMemorySourceWithSeams(
     pinCredential(issuer, subject, personId) {
       committed.tables.directory.credentialPins.set(credentialKey(issuer, subject), personId);
     },
+    ownProjectInOrganization(projectId, organizationId) {
+      committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);
+    },
+    ownResourceInOrganization(resourceId, organizationId) {
+      committed.tables.directory.organizationOf.set(resourceId, organizationId);
+    },
+    setOrganizationLimits(organizationId, caps) {
+      committed.tables.organizationLimits.caps.set(
+        organizationId,
+        checkedOrganizationLimits(caps, `organization ${organizationId}`),
+      );
+    },
+    organizationLimitGauge(defaults) {
+      return inMemoryOrganizationLimitGauge(
+        {
+          limits: committed.tables.organizationLimits,
+          directory: committed.tables.directory,
+          claims: committed.tables.claims,
+          workItems: committed.tables.workItems,
+        },
+        defaults,
+      );
+    },
     ownPersonInOrganization(personId, organizationId, memberIds) {
       committed.tables.directory.organizationOf.set(personId, organizationId);
       committed.tables.directory.organizationMembers.set(organizationId, new Set(memberIds));
@@ -472,11 +541,11 @@ function openMemorySourceWithSeams(
         run: (act) =>
           coordinator.run(async () => {
             const staged = committed.clone();
-            const decision = await act({ stores: bindStores(staged, lateWrite) });
+            const decision = await act({ stores: bindStores(staged, lateWrite, limits) });
             // Proof: unconditional commit injected; sparse override replacement/removal rollback negative failed (memory-rollback.txt), 2026-10-15.
             if (decision.commit) committed.replaceWith(staged);
             else if (decision.afterRollback !== undefined) {
-              await decision.afterRollback({ stores: bindStores(committed, lateWrite) });
+              await decision.afterRollback({ stores: bindStores(committed, lateWrite, limits) });
             }
             return decision.value;
           }),
@@ -654,6 +723,9 @@ async function capturePlanInput(
     typedDependencies,
     assignmentRows,
     capacity,
+    demands,
+    resourceCapacities,
+    resourceCatalog,
     priorityBands,
     people,
     teams,
@@ -676,6 +748,9 @@ async function capturePlanInput(
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
+    stores.demands.listByProject(projectId),
+    stores.resourceCapacity.listFor(projectId),
+    stores.directory.listResources(),
     stores.priorityBands.listFor(projectId),
     stores.directory.listPeople(),
     stores.directory.listTeams(),
@@ -703,6 +778,12 @@ async function capturePlanInput(
     })),
     assignments: assignmentRows.assignments,
     capacity,
+    // Proof: both reads replaced with `[]` made `captures demands and resource
+    // capacities detached from later memory writes` (memory-source.test.ts)
+    // capture none; watched 2026-10-20.
+    demands,
+    resourceCapacities,
+    resources: resourceCatalog,
     priorityBands,
     people,
     teams,

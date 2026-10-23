@@ -1,4 +1,17 @@
+import {
+  acquiredUnitsOf,
+  askedUnitsOf,
+  type BelowDeclaredDemand,
+  type BelowHeldOccupancy,
+  expandedUnitsOf,
+  leafOccupancyOf,
+  type OccupancyRow,
+  refuseOccupancy,
+  type ResourcesExhausted,
+  type ResourceUnits,
+} from './occupancy';
 import type { ProgressStatus, WorkItemStatus } from './progress';
+import type { ResourceCapacity } from './resource';
 
 /**
  * Who occupies one step of a leaf now (`stepId` set), or reserves dispatch of a
@@ -57,6 +70,11 @@ export interface ClaimRequest {
   readonly stepIds: readonly string[] | null;
   readonly runId: string | null;
   readonly parentClaimId: string | null;
+  /**
+   * Also make the claimant the assignee of every step the claim writes
+   * (`wbs-resources` R7): "claim = assign" is this flag, never a rule.
+   */
+  readonly assign: boolean;
   /** The claim `parentClaimId` names, read by id; null when absent or released. */
   readonly parentClaim: Claim | null;
   /**
@@ -64,6 +82,18 @@ export interface ClaimRequest {
    * parent chain of `parentClaim` lies on ancestors, so it is among them.
    */
   readonly claims: readonly Claim[];
+  /** The leaf's declared demand vector (`wbs-resources` R1); empty for a non-leaf. */
+  readonly demand: readonly ResourceUnits[];
+  /**
+   * The claim's `resources`: what it asks to hold in place of the declared
+   * demand, each entry at least the declared units (R4), or null to hold the
+   * declared demand.
+   */
+  readonly resources: readonly ResourceUnits[] | null;
+  /** The project's stated resource capacities; a resource with none is unstated. */
+  readonly capacities: readonly ResourceCapacity[];
+  /** Every occupancy row of the project's claims ({@link OccupancyRow}). */
+  readonly occupancy: readonly OccupancyRow[];
 }
 
 /** One holder a refusal names; the command adds the person's name. */
@@ -80,11 +110,15 @@ export type ClaimRefusal =
   | { readonly reason: 'parent_claim_foreign' }
   | { readonly reason: 'parent_claim_not_ancestor' }
   | { readonly reason: 'steps_on_subtree' }
+  | { readonly reason: 'resources_on_subtree' }
   | { readonly reason: 'item_done' }
   | { readonly reason: 'no_steps' }
   | { readonly reason: 'not_startable'; readonly status: WorkItemStatus }
   | { readonly reason: 'step_done'; readonly stepIds: readonly string[] }
   | { readonly reason: 'already_claimed'; readonly holders: readonly ClaimHolder[] }
+  | BelowDeclaredDemand
+  | BelowHeldOccupancy
+  | ResourcesExhausted
   | { readonly reason: 'inside_subtree_claim'; readonly holder: ClaimHolder }
   | { readonly reason: 'overlaps_subtree_claim'; readonly holder: ClaimHolder };
 
@@ -94,6 +128,21 @@ export type ClaimDecision =
       readonly drafts: readonly ClaimDraft[];
       /** Claimed steps whose progress is unstated, to be stated `in_progress`. */
       readonly stateInProgress: readonly string[];
+      /**
+       * The steps to assign the claimant to: with `assign`, exactly the steps
+       * the drafts write, else none. A subtree claim writes no step, so it
+       * assigns nothing.
+       */
+      readonly assignStepIds: readonly string[];
+      /**
+       * The leaf's occupancy every draft carries a copy of: what the first
+       * claim on a leaf acquires, or the leaf's standing occupancy for any
+       * later claim, which acquires nothing (`wbs-resources` R3). Empty for a
+       * subtree claim.
+       */
+      readonly occupancy: readonly ResourceUnits[];
+      /** The units this claim newly acquires: `occupancy` on a first claim, else none. */
+      readonly acquired: readonly ResourceUnits[];
     }
   | { readonly kind: 'alreadyHeld' }
   | { readonly kind: 'refused'; readonly refusal: ClaimRefusal };
@@ -172,16 +221,28 @@ function refuseIdentity(
  * A leaf claims the named steps, or every step that is not done; a non-leaf
  * writes one subtree claim with no step and is refused on `done` alone (D3).
  * Steps the same person and run already hold are skipped, and a claim whose
- * every step is so held answers `alreadyHeld`. All or none otherwise: one step
+ * every step is so held answers `alreadyHeld` (and so assigns nothing, even
+ * with `assign`). All or none otherwise: one step
  * held by anybody else refuses the whole claim.
  *
  * `inside_subtree_claim` precedes `overlaps_subtree_claim`, so an ancestor's
  * foreign subtree claim answers the former on a non-leaf as well; the latter
  * fires for descendants.
  *
+ * Occupancy (`wbs-resources` R3, R4) comes after `already_claimed` and before
+ * `inside_subtree_claim`, in this order: `below_declared_demand` when
+ * `resources` asks less than the leaf declares, `below_held_occupancy` when it
+ * asks less than the leaf's standing occupancy, then `resources_exhausted` from
+ * {@link refuseOccupancy}. A leaf's first claim acquires its whole vector. A
+ * claim on a leaf some claim already holds copies the standing occupancy and
+ * acquires nothing more unless `resources` asks more: the units above the
+ * standing copy are acquired through the same check, or the claim is refused
+ * `resources_exhausted`; the leaf then holds its largest standing copy.
+ *
  * Beyond the spec's list: steps named on a non-leaf answer `steps_on_subtree`
- * (a subtree claim has no step) and a leaf of a project with no steps answers
- * `no_steps`. The same holder repeating its claim under another parent answers
+ * (a subtree claim has no step), `resources` named on a non-leaf answer
+ * `resources_on_subtree` (a subtree claim acquires nothing), and a leaf of a
+ * project with no steps answers `no_steps`. The same holder repeating its claim under another parent answers
  * `already_claimed` naming itself, as another run does: the chain it asks for
  * is not the one held.
  *
@@ -209,6 +270,12 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
   }
 
   if (!target.isLeaf && request.stepIds !== null) return refused({ reason: 'steps_on_subtree' });
+  // Proof: with this refusal removed, `acquires nothing on a subtree claim and
+  // refuses resources named on one` (claim-occupancy.test.ts) claimed the
+  // subtree and dropped the ask; watched 2026-10-20.
+  if (!target.isLeaf && request.resources !== null) {
+    return refused({ reason: 'resources_on_subtree' });
+  }
   if (target.status === 'done') return refused({ reason: 'item_done' });
   if (target.isLeaf && target.steps.length === 0) return refused({ reason: 'no_steps' });
   if (target.isLeaf && !isStartableStatus(target.status)) {
@@ -253,6 +320,30 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
   const free = wanted.filter((stepId) => holding(stepId) === undefined);
   if (free.length === 0) return { kind: 'alreadyHeld' };
 
+  let occupancy: readonly ResourceUnits[] = [];
+  let acquired: readonly ResourceUnits[] = [];
+  if (target.isLeaf) {
+    const asked = askedUnitsOf(request.demand, request.resources);
+    if (!Array.isArray(asked)) return refused(asked);
+    // A held leaf's later claim starts from the standing copy, not the
+    // declared demand, and acquires only what its ask adds above it.
+    // Proof: with `onTarget.length > 0` replaced by `false`, `a second claim on
+    // another step of the leaf acquires nothing` (claim-occupancy.test.ts)
+    // answered the demand as acquired again; watched 2026-10-20.
+    const held = onTarget.length > 0 ? leafOccupancyOf(request.occupancy, target.workItemId) : [];
+    const carried = onTarget.length > 0 ? expandedUnitsOf(held, request.resources) : asked;
+    if (!Array.isArray(carried)) return refused(carried);
+    const exhausted = refuseOccupancy({
+      workItemId: target.workItemId,
+      asked: carried,
+      capacities: request.capacities,
+      occupancy: request.occupancy,
+    });
+    if (exhausted !== null) return refused(exhausted);
+    occupancy = carried;
+    acquired = acquiredUnitsOf(held, carried);
+  }
+
   const delegatedFrom = new Set(parentChain.map((each) => each.id));
   const foreignSubtree = (each: Claim): boolean =>
     each.stepId === null && each.personId !== claimant.personId && !delegatedFrom.has(each.id);
@@ -283,6 +374,11 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
     stateInProgress: free.filter(
       (stepId): stepId is string => stepId !== null && progressOf.get(stepId) === 'unknown',
     ),
+    // Proof: with `free` replaced by `[]` here, `assigns exactly the steps it
+    // claims` and the claim-and-assign property in claim.test.ts failed; watched 2026-10-20.
+    assignStepIds: request.assign ? free.filter((stepId): stepId is string => stepId !== null) : [],
+    occupancy,
+    acquired,
   };
 }
 

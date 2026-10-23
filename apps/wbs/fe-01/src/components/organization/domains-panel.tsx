@@ -1,3 +1,4 @@
+import { Button, Input } from '@ui/saas-01';
 import {
   type ClientReply,
   createDomainChallenge,
@@ -8,8 +9,6 @@ import {
 } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 

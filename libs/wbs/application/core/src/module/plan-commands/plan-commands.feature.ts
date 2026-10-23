@@ -1,11 +1,12 @@
-import type { CredentialPair } from '@wbs/contracts';
+import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { WorkItemStatus } from '@wbs/domain';
+import type { LeaseStanding, ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
   Person,
   PersonWithTeams,
+  Resource,
   ServiceTeam,
   TeamWithServices,
 } from '../../ports/directory-values';
@@ -19,10 +20,15 @@ import {
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
-import type { DirectoryUsage } from '../../service/directory-usage';
+import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
-import type { DirectoryOutcome, RemoveDirectoryOutcome } from '../directory/directory.resource';
-import type { NamedClaimHolder, PlainClaimReason } from '../work-item/claims';
+import type { ResourceCapacityOutcome } from '../capacity/capacity.resource';
+import type {
+  DirectoryOutcome,
+  RemoveDirectoryOutcome,
+  RemoveResourceOutcome,
+} from '../directory/directory.resource';
+import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
 import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
@@ -63,6 +69,8 @@ interface CommandEntities {
   patchService: Service;
   createWorkItemType: WorkItemType;
   patchWorkItemType: WorkItemType;
+  createResource: Resource;
+  patchResource: Resource;
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
@@ -86,6 +94,9 @@ export type AppliedCommand =
       entity?: never;
       alreadyHeld: boolean;
       claimIds: string[];
+      assignedStepIds: string[];
+      /** The units the claim newly acquired (`wbs-resources` R3, R4): past a leaf's first claim, only what its ask adds. */
+      acquired: ResourceUnits[];
     })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
   | {
@@ -108,13 +119,51 @@ export type Refusal =
     }
   | { reason: 'taken'; detail: { name: string } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
+  /** A resource removal's refusal also counts what names it (`wbs-resources` R8). */
+  | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }
   | { reason: PlainClaimReason; detail?: never }
   | { reason: 'not_startable'; detail: { status: WorkItemStatus } }
   | { reason: 'step_done'; detail: { stepIds: string[] } }
-  | { reason: 'already_claimed' | 'destination_claimed'; detail: { holders: NamedClaimHolder[] } }
+  | {
+      reason: 'already_claimed' | 'destination_claimed' | 'children_claimed';
+      detail: { holders: NamedClaimHolder[] };
+    }
   | {
       reason: 'inside_subtree_claim' | 'overlaps_subtree_claim';
       detail: { holder: NamedClaimHolder };
+    }
+  | {
+      reason: 'below_declared_demand';
+      detail: { resourceId: string; asked: number; declared: number };
+    }
+  | {
+      reason: 'below_held_occupancy';
+      detail: { resourceId: string; asked: number; held: number };
+    }
+  | {
+      reason: 'resources_exhausted';
+      detail: {
+        resourceId: string;
+        asked: number;
+        free: number;
+        holders: NamedOccupancyHolder[];
+        /** Every short resource in resource-id order; the fields above repeat the first. */
+        resources: {
+          resourceId: string;
+          asked: number;
+          free: number;
+          holders: NamedOccupancyHolder[];
+        }[];
+      };
+    }
+  /** One more agent person than the organization's cap allows (`wbs-organization-limits` L9). */
+  | { reason: 'agent_person_limit'; detail: { cap: number; current: number; added: number } }
+  /** One more bound claim than the organization's cap allows (`wbs-organization-limits` L9). */
+  | { reason: 'claim_limit'; detail: { cap: number; current: number } }
+  /** More stated units of a resource than the organization's cap allows (`wbs-organization-limits` L9). */
+  | {
+      reason: 'capacity_limit';
+      detail: { resourceId: string; cap: number; declared: number; asked: number };
     };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
@@ -124,7 +173,11 @@ export type ServiceRefusal =
       reason: 'referenced_by_step_parallel';
       nodes: readonly { workItemId: string; stepId: string }[];
     }
-  | { ok: false; reason: 'destination_claimed'; holders: readonly NamedClaimHolder[] }
+  | {
+      ok: false;
+      reason: 'destination_claimed' | 'children_claimed';
+      holders: readonly NamedClaimHolder[];
+    }
   | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {
@@ -133,7 +186,13 @@ export type ServiceRefusal =
       workItemId?: string;
       projectDayZero?: string;
     }
-  | Extract<DirectoryOutcome<never> | RemoveDirectoryOutcome, { ok: false }>;
+  | Extract<
+      | DirectoryOutcome<never>
+      | RemoveDirectoryOutcome
+      | RemoveResourceOutcome
+      | ResourceCapacityOutcome,
+      { ok: false }
+    >;
 
 export type BatchOutcome =
   { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean } | BatchRefusal;
@@ -193,6 +252,9 @@ const CALENDAR_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
   'duplicateWorkItem',
   'setEstimate',
   'setAssignee',
+  // Proof: left out, `refuses assignSubtree with calendar_range and writes
+  // nothing` (assignee-calendar.test.ts) applied the batch; watched 2026-10-20.
+  'assignSubtree',
   'addDependency',
   'setCapacity',
   'setStepAllowance',
@@ -252,7 +314,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome> {
     return this.execute(projectId, actorId, commands, access, credential);
   }
@@ -267,7 +329,7 @@ export class PlanCommandRunner {
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     return this.execute(projectId, actorId, commands, access, credential, prelude);
   }
@@ -330,14 +392,14 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private async execute<R>(
@@ -345,7 +407,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     // This batch's own collector and its own graph over it. Two batches never
@@ -414,8 +476,15 @@ export class PlanCommandRunner {
               this.applyAll(graph, scope, projectId, actorId, commands, access, credential),
             );
             if (projectId !== null) {
-              const needsCalendarPreflight = commands.some(({ kind }) =>
-                CALENDAR_AFFECTING_KINDS.has(kind),
+              // A claim that also assigns changes assignments as setAssignee
+              // does; one that does not leaves the calendar alone.
+              // Proof: with the claim arm replaced by `false`, `refuses a claim
+              // that assigns past the calendar` (assignee-calendar.test.ts)
+              // applied the claim; watched 2026-10-20.
+              const needsCalendarPreflight = commands.some(
+                (command) =>
+                  CALENDAR_AFFECTING_KINDS.has(command.kind) ||
+                  (command.kind === 'claimWorkItem' && command.assign === true),
               );
               const tree = needsCalendarPreflight ? await graph.workItems.tree(projectId) : null;
               if (needsCalendarPreflight && tree === null)
@@ -437,6 +506,15 @@ export class PlanCommandRunner {
             } else {
               applied = collected;
             }
+            // A committed batch by an agent renews its leases in this same
+            // transaction, so the renewal takes no write turn of its own
+            // (`wbs-claim-leases` L4).
+            // Proof: with this renewal skipped, `renews an agent's lease on
+            // every committed write, and not on a refused one`
+            // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
+            // watched 2026-10-23.
+            if (!('ok' in applied) && credential !== null && 'personId' in credential)
+              await graph.workItems.renewLeases(credential.personId);
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
@@ -474,6 +552,40 @@ export class PlanCommandRunner {
     if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
     const state = await afterCommit.workItems.undoState(projectId, actorId);
     return { ok: true, results: done.result, ...state };
+  }
+
+  /**
+   * Releases the project's claims whose lease has run out, as one unit of
+   * work of its own (`wbs-claim-leases` L7): expiry is read inside the turn,
+   * so a renewal admitted before it has moved the lease and one admitted after
+   * finds the claim gone. It admits no user's write (`NO_ADMISSION`): what it
+   * writes is the coordinator's, recorded in history alone. Its announcement
+   * leaves after the commit, as a batch's does. Answers the claims released.
+   */
+  async releaseExpiredLeases(projectId: string): Promise<number> {
+    const collector = new AnnouncementCollector(this.opts.announcements);
+    const released = await this.opts.transaction.run<number>(
+      async (scope): Promise<CommandDecision<number>> => {
+        const workingPlan = scope.openCommandGraph(projectId, collector, NO_ADMISSION);
+        try {
+          const count = await workingPlan.services.workItems.releaseExpiredLeases(projectId);
+          return { commit: true, value: count };
+        } finally {
+          workingPlan.close();
+        }
+      },
+    );
+    await collector.send();
+    return released;
+  }
+
+  /**
+   * Renews `personId`'s leases outside any batch: the heartbeat route's
+   * write, through the public graph, which reads first and takes the write
+   * turn only when a lease is due (L4).
+   */
+  renewLeases(personId: string): Promise<LeaseStanding> {
+    return this.opts.publicServices.workItems.renewLeases(personId);
   }
 
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
@@ -615,7 +727,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-    credential: CredentialPair | null,
+    credential: CredentialPin | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);

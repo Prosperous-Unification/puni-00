@@ -33,7 +33,7 @@ export const PLAN_REFERENCE_FLAGS = [
 type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
 
 /** Explicit supported wire versions; a future WBS bump requires contract review here. */
-const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9] as const;
+const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9, 10] as const;
 
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
@@ -49,8 +49,17 @@ const PlanDocumentHeader = type({
 // Proof: retaining the v9 stepBlockages requirement broke valid v7 and v8 exports
 // in plan-reference.test.ts (injected schema dependency fault, 2026-10-14).
 const HistoricalPlanDocument = planDocument
-  .omit('document', 'steps', 'workItems', 'stepBlockages')
+  .omit(
+    'document',
+    'steps',
+    'workItems',
+    'stepBlockages',
+    'resourceCapacities',
+    'demands',
+    'directory',
+  )
   .and({
+    directory: planDocument.get('directory').omit('resources'),
     document: {
       format: "'wbs-plan'",
       version: '7',
@@ -67,15 +76,34 @@ const HistoricalPlanDocument = planDocument
 // Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
 // Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
 const Version8PlanDocument = planDocument
-  .omit('document', 'stepBlockages')
-  .and({ document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' } })
+  .omit('document', 'stepBlockages', 'resourceCapacities', 'demands', 'directory')
+  .and({
+    document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' },
+    directory: planDocument.get('directory').omit('resources'),
+  })
   .onDeepUndeclaredKey('reject');
 
-/** Strict current external wire shape, without historical defaults or discarded keys. */
+/**
+ * Navigator's v9 wire contract: the current document without the resource facts
+ * version 10 added (`wbs-resources`).
+ */
 // Proof: removing deep rejection accepted `refuses v9 unknown nested key`; defaulting a missing
 // collection accepted `refuses v9 missing facts`; truncating accepted `refuses v9 fractional time`
 // through plan-reference.test.ts production dispatch (2026-10-15).
-const Version9PlanDocument = planDocument.onDeepUndeclaredKey('reject');
+// Proof: reading v9 through the v10 schema refused both v9 positives on the absent resource
+// lists (plan-reference.test.ts, 2026-10-20).
+const Version9PlanDocument = planDocument
+  .omit('document', 'resourceCapacities', 'demands', 'directory')
+  .and({
+    document: { format: "'wbs-plan'", version: '9', exportedAt: 'string' },
+    directory: planDocument.get('directory').omit('resources'),
+  })
+  .onDeepUndeclaredKey('reject');
+
+/** Strict current external wire shape, without historical defaults or discarded keys. */
+// Proof: removing deep rejection accepted `refuses v10 unknown nested key` through
+// plan-reference.test.ts production dispatch (2026-10-20).
+const Version10PlanDocument = planDocument.onDeepUndeclaredKey('reject');
 
 /**
  * Checks only direct archival facts at Navigator's external export boundary. Retained facts
@@ -106,7 +134,12 @@ function validateBlockageFacts(document: PlanDocument): void {
 
 interface DecodedPlanExport {
   document: PlanDocument;
-  wireVersion: 7 | 8 | 9;
+  wireVersion: 7 | 8 | 9 | 10;
+}
+
+/** The resource facts a document before version 10 carries: none. */
+function noResourceFacts(): Pick<PlanDocument, 'resourceCapacities' | 'demands'> {
+  return { resourceCapacities: [], demands: [] };
 }
 
 function sha256Hex(bytes: Uint8Array): string {
@@ -132,24 +165,38 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   if (
     header.document.version !== 7 &&
     header.document.version !== 8 &&
-    header.document.version !== 9
+    header.document.version !== 9 &&
+    header.document.version !== 10
   ) {
     throw new Error(
       `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads versions ${NAVIGATOR_PLAN_DOCUMENT_VERSIONS.join(' and ')} only`,
     );
   }
   try {
+    if (header.document.version === 10) {
+      const document = parseOrThrow(Version10PlanDocument, parsed);
+      validateBlockageFacts(document);
+      return { document, wireVersion: 10 };
+    }
     if (header.document.version === 9) {
       const document = parseOrThrow(Version9PlanDocument, parsed);
-      validateBlockageFacts(document);
-      return { document, wireVersion: 9 };
+      const current: PlanDocument = {
+        ...document,
+        ...noResourceFacts(),
+        document: { ...document.document, version: 10 },
+        directory: { ...document.directory, resources: [] },
+      };
+      validateBlockageFacts(current);
+      return { document: current, wireVersion: 9 };
     }
     if (header.document.version === 8) {
       const document = parseOrThrow(Version8PlanDocument, parsed);
       return {
         document: {
           ...document,
-          document: { ...document.document, version: 9 },
+          ...noResourceFacts(),
+          document: { ...document.document, version: 10 },
+          directory: { ...document.directory, resources: [] },
           stepBlockages: [],
         },
         wireVersion: 8,
@@ -160,7 +207,9 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
       wireVersion: 7,
       document: {
         ...document,
-        document: { ...document.document, version: 9 },
+        ...noResourceFacts(),
+        document: { ...document.document, version: 10 },
+        directory: { ...document.directory, resources: [] },
         stepBlockages: [],
         steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
       },
@@ -177,7 +226,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
  * @throws when a parent, an estimate's step or a step code is missing or repeated, since the
  * export would then not describe one tree.
  */
-export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8 | 9): PlanTasks {
+export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8 | 9 | 10): PlanTasks {
   const steps = [...document.steps]
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
     .map((step) => ({

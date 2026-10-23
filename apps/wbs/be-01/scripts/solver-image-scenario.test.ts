@@ -14,14 +14,14 @@ describe('shared-person solver image scenario', () => {
   it('requires a publishing answer for the exact shared request', () => {
     const request = sharedPersonRequest();
     expect(() => {
-      verifyImageSolverResponse(request, '{"wireVersion":3,"status":"unknown"}\n');
+      verifyImageSolverResponse(request, '{"wireVersion":4,"status":"unknown"}\n');
     }).toThrow('not feasible');
     expect(() => {
-      verifyImageSolverResponse(request, '{"wireVersion":3,"status":"infeasible"}\n');
+      verifyImageSolverResponse(request, '{"wireVersion":4,"status":"infeasible"}\n');
     }).toThrow('not feasible');
     const responseAt = (start: number) =>
       JSON.stringify({
-        wireVersion: 3,
+        wireVersion: 4,
         status: 'feasible',
         offsets: { [request.slices[0].key]: start },
         objectiveValues: {

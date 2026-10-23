@@ -1,4 +1,9 @@
 import { unreachable } from '@/lib/http';
+import {
+  agentPersonLimitSentence,
+  capacityLimitSentence,
+  claimLimitSentence,
+} from '@/lib/organization-limit-words';
 import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 import {
   wbsFailureCode,
@@ -359,6 +364,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'name_must_be_text':
     case 'notes_must_be_text':
     case 'kind_must_be_text':
+    case 'personKind_must_be_text':
     case 'startNoEarlierThanReason_must_be_text':
     case 'stepId_must_be_text':
     case 'metric_must_be_text':
@@ -502,6 +508,45 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
       return refusal.error;
     // A move under a leaf whose steps are claimed: the table's own drag sends it.
     case 'destination_claimed':
+      return refusal.error;
+    // A delete that would hand two rows' claims up to one leaf.
+    case 'children_claimed':
+      return refusal.error;
+    // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
+    case 'resources_must_be_a_list':
+    case 'resources_must_name_a_resource':
+    case 'resources_must_be_at_most_50':
+    case 'resources_must_name_each_resource_once':
+    case 'resources_on_subtree':
+    case 'below_declared_demand':
+    case 'below_held_occupancy':
+    case 'resources_exhausted':
+      return refusal.error;
+    // Resources (`wbs-resources`): the table sends none of these until 1.5, so
+    // they arrive only from a batch another client wrote, or from the project
+    // settings' Resources section (`compute-providers` slice 5), which sends
+    // `setResourceCapacity` and a provider reference.
+    case 'kind_is_immutable':
+    case 'resourceKind_must_be_exclusive_or_divisible':
+    case 'units_required':
+    case 'units_must_be_a_whole_number_from_0':
+    case 'units_must_be_a_whole_number_from_1':
+    case 'units_must_be_at_most_1000000000':
+    case 'unitLabel_must_be_text':
+    case 'unitLabel_must_be_at_most_40_characters':
+    case 'resourceId_must_be_an_id':
+    case 'resourceRef_must_be_an_id':
+    case 'unknown_resource':
+    case 'exclusive_demand_is_one':
+    case 'providerId_must_be_id_or_null':
+    case 'unknown_provider':
+    case 'provider_not_in_organization':
+      return refusal.error;
+    // The organization limits (`wbs-organization-limits` L9): worded with the
+    // body's numbers by `limitSentence` before this code is ever read.
+    case 'agent_person_limit':
+    case 'claim_limit':
+    case 'capacity_limit':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -744,6 +789,34 @@ export const PLAN_REFUSALS: RefusalWords = {
       'That change cannot be made while the affected steps have individual parallelism overrides.',
     destination_claimed:
       'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
+    // The organization's cap on concurrent claims (`wbs-organization-limits`
+    // L9), for the code carried without its body; a refused batch is worded
+    // with the body's numbers by `limitSentence` instead.
+    // Proof: with this entry struck, `words the claim cap rather than naming
+    // its code` (claim-limit-words.test.ts) read the fallback carrying
+    // `claim_limit`; watched 2026-10-22.
+    claim_limit:
+      'Organization limit: your organization already holds as many concurrent claims as it may. Release a claim first. Nothing was changed.',
+    // The organization's cap on stated units per resource (`wbs-organization-limits`
+    // L2, L9), for the code carried without its body; a refused batch is worded
+    // with the body's numbers by `limitSentence` instead.
+    // Proof: with this entry struck, `words the capacity cap rather than naming
+    // its code` (capacity-limit-words.test.ts) read the fallback carrying
+    // `capacity_limit`; watched 2026-10-22.
+    capacity_limit:
+      'Organization limit: your projects together would state more units of that resource than your organization may. Lower another project’s capacity first. Nothing was changed.',
+    // A resource's compute provider reference (`compute-providers` P3): the
+    // settings' Resources section offers only the organization's own
+    // instances, so each is reachable when the list moved under an open picker.
+    // Proof: 2026-10-23, with both entries struck, `words both provider
+    // reference refusals` (compute-provider-refusal-words.test.ts) read the
+    // fallback carrying the code.
+    unknown_provider:
+      'That compute provider is no longer registered — someone may have removed it. Nothing was changed.',
+    provider_not_in_organization:
+      'That compute provider belongs to another organization, so this resource cannot name it. Nothing was changed.',
+    children_claimed:
+      'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:
       'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:
@@ -782,8 +855,63 @@ export const PLAN_REFUSALS: RefusalWords = {
  * @param thrown Whatever the request rejected with; anything that is not an
  * `Error` reads as an unknown code rather than being guessed at.
  */
+// Proof: 2026-10-22, dropping `limitSentence` here failed five cases of
+// organization-limit-words.test.ts: each read the code-only fallback.
 export const refusalSentence = (thrown: unknown): string =>
-  sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+  limitSentence(thrown) ?? sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+
+/**
+ * The sentence for a batch refused by an organization limit, naming the
+ * refusal body's numbers (`wbs-organization-limits` L14), or null for any
+ * other failure. Read from the body rather than the code, because the code
+ * alone is all {@link failureText} keeps and it carries no number.
+ */
+export function limitSentence(thrown: unknown): string | null {
+  if (!(thrown instanceof WbsRequestError) || thrown.problem.kind !== 'refusal') return null;
+  const problem = thrown.problem;
+  if (
+    problem.operation !== 'postApiProjectsByIdCommands' &&
+    problem.operation !== 'postApiDirectoryCommands'
+  )
+    return null;
+  return batchLimitSentence(problem.refusal);
+}
+
+/**
+ * A refused command batch. The project and the directory commands routes
+ * answer one refusal union (`batchRefusals` in the contract), so either
+ * route's body is this type.
+ */
+export type BatchRefusal = RefusalOf<'postApiProjectsByIdCommands'>;
+
+/**
+ * The organization-limit sentence of a refused batch body, or null for any
+ * other refusal. `resourceName` names a `capacity_limit`'s resource when the
+ * surface holds it.
+ */
+function batchLimitSentence(refusal: BatchRefusal, resourceName?: string): string | null {
+  switch (refusal.error) {
+    case 'agent_person_limit':
+      return agentPersonLimitSentence(refusal);
+    case 'claim_limit':
+      return claimLimitSentence(refusal);
+    case 'capacity_limit':
+      return capacityLimitSentence(refusal, resourceName);
+    default:
+      return null;
+  }
+}
+
+/**
+ * The sentence for a refused batch body, for a surface that reads the reply
+ * rather than catching a thrown {@link WbsRequestError}: the limit sentences
+ * with the body's numbers first, then {@link PLAN_REFUSALS}.
+ */
+export function batchRefusalSentence(refusal: BatchRefusal, resourceName?: string): string {
+  return (
+    batchLimitSentence(refusal, resourceName) ?? sentenceForRefusal(PLAN_REFUSALS, refusal.error)
+  );
+}
 
 /**
  * be-01's word for "the row you named is not there", which is the one refusal

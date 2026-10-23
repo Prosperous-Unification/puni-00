@@ -1,7 +1,8 @@
 import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
-import type { Claim } from '../ports/claim-store';
+import type { Claim, ClaimOccupancy } from '../ports/claim-store';
+import type { Demand } from '../ports/demand-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
@@ -83,11 +84,28 @@ export type CompensatingCommand =
     }
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
   /**
+   * One work item's demand on one resource written back, or removed on `null`
+   * (`wbs-resources`): `setDemand`'s forward and inverse alike.
+   */
+  | { do: 'set_demand'; workItemId: string; resourceId: string; units: number | null }
+  /**
    * Claims written back verbatim — id, run, parent and writing account — with
    * the `in_progress` statements the claim made on steps nobody had spoken
    * about: the redo of a claim and the undo of a release (`wbs-team-claims`).
+   * `occupancy` is every row the claims carried (`wbs-resources` R3); putting
+   * them back re-acquires, so it passes the occupancy check a fresh claim does.
+   * Absent on entries written before `20261020130000_add_claim_occupancy`,
+   * whose claims held nothing; every new entry writes it. `leased` names the
+   * claims that carried a lease; a replay puts those back with a fresh one
+   * from its own instant (`wbs-claim-leases` L11). Absent: none was leased.
    */
-  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[] }
+  | {
+      do: 'add_claims';
+      claims: Claim[];
+      stated: ProgressKey[];
+      occupancy?: ClaimOccupancy[];
+      leased?: string[];
+    }
   /**
    * Claims taken off by id, with the statements the claim had made: the undo
    * of a claim and the redo of a release. A release clears nothing.
@@ -328,6 +346,13 @@ export interface RestoreSubtree {
    */
   issuedAttemptNumbers?: IssuedAttemptNumber[];
   assignments: Assignment[];
+  /**
+   * The restored rows' resource demands, put back with them
+   * ({@link SubtreeCopy.demands}): every demand a delete's cascade took, or a
+   * duplicate's copies. Absent from journals written before demands travelled
+   * with a subtree, which restore none, as they recorded none.
+   */
+  demands?: Demand[];
   /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
   stepNodeMapping?: { from: string; to: string }[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */

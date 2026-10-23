@@ -1,5 +1,10 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
-import { attemptOf, canWriteInOrganization } from '@wbs/domain';
+import {
+  attemptOf,
+  canWriteInOrganization,
+  type CapacityLimitCrossed,
+  type LimitCrossed,
+} from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
@@ -53,13 +58,28 @@ export interface ImportForbidden {
   detail: null;
 }
 
+/**
+ * The import would make the organization hold more agent persons than its cap
+ * allows (`wbs-organization-limits` L9): `added` is every agent the import
+ * would create, counted once, and nothing is written.
+ */
+export type ImportLimitRefusal =
+  | ({ ok: false; code: 'agent_person_limit' } & LimitCrossed)
+  /**
+   * A capacity the import would state crosses the organization's cap on that
+   * resource (L9): the first such, in the file's order; nothing is written.
+   */
+  | ({ ok: false; code: 'capacity_limit' } & CapacityLimitCrossed);
+
 export type ImportOutcome =
   | ImportAdmission
   | ImportSourceRefusal
   | ImportForbidden
+  | ImportLimitRefusal
   | Extract<ImportPreparation, { ok: false }>;
 
-type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal | ImportForbidden;
+type AdmittedImportOutcome =
+  ImportAdmission | ImportSourceRefusal | ImportForbidden | ImportLimitRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -184,15 +204,37 @@ export class ImportService {
       collector,
       async ({ writes, services: graph }) => {
         const directory = graph.directory;
-        const [services, teams, people, tags, types, systems] = await Promise.all([
+        const [services, teams, people, tags, types, systems, resources] = await Promise.all([
           directory.listWithin('services', access),
           directory.listWithin('teams', access),
           directory.listWithin('people', access),
           directory.listWithin('tags', access),
           directory.listWithin('workItemTypes', access),
           directory.listWithin('externalSystems', access),
+          directory.listWithin('resources', access),
         ]);
         const prepared = preparation.value;
+        // Every agent the import would create, against the cap once and before
+        // anything is created: the import is all or none (L9), and a name the
+        // organization already holds keeps its own kind, so it adds nothing.
+        // Proof, each watched 2026-10-22 in agent-person-limit.controller.db.test.ts:
+        // with this whole-import check removed, `refuses an import of three
+        // agents at 6 of 8, writing nothing` answered 500 from the third
+        // agent's own refusal in `addPersonWithin` instead of 409 with added 3;
+        // counting the file's agents the organization already holds made
+        // `imports at the cap when every agent of the file is already held`
+        // refuse (11 pass, 1 fail each).
+        const heldPersonNames = new Set(people.map(({ name }) => name));
+        const addedAgents = new Set(
+          [...prepared.personByFileId.values()]
+            .filter((person) => person.kind === 'agent' && !heldPersonNames.has(person.name))
+            .map(({ name }) => name),
+        ).size;
+        if (addedAgents > 0) {
+          const crossed = await directory.refuseAgentPersonsWithin(access, addedAgents);
+          if (crossed !== null)
+            return { commit: false, value: { ok: false, code: 'agent_person_limit', ...crossed } };
+        }
         const created = {
           services: createdNames(prepared.serviceByFileId, services),
           teams: createdNames(prepared.teamByFileId, teams),
@@ -207,7 +249,8 @@ export class ImportService {
           importsNewName(prepared.personByFileId, people) ||
           importsNewName(prepared.tagByFileId, tags) ||
           importsNewName(prepared.typeByFileId, types) ||
-          importsNewName(prepared.externalSystemByFileId, systems);
+          importsNewName(prepared.externalSystemByFileId, systems) ||
+          importsNewName(prepared.resourceByFileId, resources);
         const servicesByFileId = await resolveNamed(
           prepared.serviceByFileId,
           existingIds(services),
@@ -279,6 +322,39 @@ export class ImportService {
           existingIds(systems),
           async (name) => await directory.addWithin('externalSystems', actorId, name, access),
         );
+        // Resources resolve by name like every catalog, and an existing one is
+        // authoritative for its unit label; one of another kind is refused,
+        // because every demand on it was checked against the file's kind.
+        // Proof: with the kind comparison removed, `refuses a resource the
+        // directory holds under another kind, writing no project`
+        // (import-service-source-contract.ts, memory source) imported the plan
+        // onto the divisible resource; watched 2026-10-20.
+        const heldResources = new Map(resources.map((each) => [each.name, each] as const));
+        const resourcesByFileId = new Map<string, string>();
+        for (const [at, resource] of [...prepared.resourceByFileId.values()].entries()) {
+          const held = heldResources.get(resource.name);
+          if (held !== undefined) {
+            if (held.kind !== resource.kind)
+              return {
+                commit: false,
+                value: {
+                  ok: false,
+                  code: 'source_refused',
+                  path: `directory.resources[${String(at)}].kind`,
+                  detail: 'kind_is_immutable',
+                },
+              };
+            resourcesByFileId.set(resource.fileId, held.id);
+            continue;
+          }
+          const created = await directory.addResourceWithin(
+            actorId,
+            { name: resource.name, kind: resource.kind, unitLabel: resource.unitLabel },
+            access,
+          );
+          if (!created.ok) throw new Error(`created resource was refused: ${created.reason}`);
+          resourcesByFileId.set(resource.fileId, created.value.id);
+        }
         const requested = prepared.settings.solutionRef;
         const solutionRef =
           requested === null
@@ -336,6 +412,27 @@ export class ImportService {
             throw new Error(`prepared capacity team mapping disappeared: ${capacity.teamFileId}`);
           await writes.setCapacity(projectId, teamId, capacity.size, stamp);
         }
+        // Every capacity against the cap before any is written, and the import
+        // whole: a refusal rolls back the project and directory entries
+        // written above (L9). A file states each resource at most once.
+        // Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts:
+        // with this check removed, `refuses an import stating past the cap,
+        // writing nothing` and the import beside another project were
+        // admitted (10 pass, 2 fail); with the other projects' sum read as 0 in
+        // `refuseCapacityWithin`, `refuses an import that would state past the
+        // cap beside another project, the export’s source among them` was
+        // admitted (11 pass, 1 fail).
+        const capacities = prepared.resourceCapacities.map((stated) => ({
+          resourceId: resolvedId(resourcesByFileId, stated.resourceFileId, 'capacity resource'),
+          units: stated.units,
+        }));
+        for (const { resourceId, units } of capacities) {
+          const crossed = await writes.refuseCapacityWithin(access, projectId, resourceId, units);
+          if (crossed !== null)
+            return { commit: false, value: { ok: false, code: 'capacity_limit', ...crossed } };
+        }
+        for (const { resourceId, units } of capacities)
+          await writes.setResourceCapacity(projectId, resourceId, units, stamp);
         for (const marker of prepared.calendarMarkers) {
           await writes.createCalendarMarker({
             id: this.opts.clock.newId(),
@@ -428,6 +525,8 @@ export class ImportService {
                 recordedAt: stamp.at,
               })),
             ),
+            // Written below through `setDemand`, which answers the file's resource ids.
+            demands: [],
             assignments: prepared.workItems.flatMap((row) =>
               row.assignments.map((assignment) => ({
                 workItemId: resolvedId(rowsByFileId, row.fileId, 'assigned work item'),
@@ -456,6 +555,13 @@ export class ImportService {
           },
           stamp,
         );
+        for (const demand of prepared.demands)
+          await writes.setDemand(
+            resolvedId(rowsByFileId, demand.workItemFileId, 'demanding work item'),
+            resolvedId(resourcesByFileId, demand.resourceFileId, 'demanded resource'),
+            demand.units,
+            stamp,
+          );
         // Proof: omitting the write, either ID remap, or exact time failed the memory source-contract remap/time test (2026-10-14).
         // Proof: borrowing committed memory state or replacing SQLite rollback with COMMIT failed import rollback negatives after the first fact (2026-10-14).
         for (const fact of prepared.stepBlockages) {

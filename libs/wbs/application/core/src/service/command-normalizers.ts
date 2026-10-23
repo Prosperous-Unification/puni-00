@@ -11,12 +11,15 @@ import {
   asOptionalIds,
   asOptionalInstant,
   asOptionalPriority,
+  asOptionalResourceUnits,
   asOptionalRunId,
   asOptionalStepIds,
   asOptionalText,
   asOptionalTypeIds,
+  asResourceKind,
   assertRecord,
   asText,
+  asUnitLabel,
   type CommandInput,
   CommandNormalizationError,
   MOST_SERVICES_ON_ONE_ITEM,
@@ -39,6 +42,7 @@ import {
   present,
   ref,
   refuseDerivedFields,
+  resourceUnitsOf,
   stepAllowanceOf,
   target,
 } from './command-fields';
@@ -219,6 +223,14 @@ export const commandNormalizers = {
       personId: asIdOrNull(raw.personId, 'personId'),
       personRef: asOptionalId(raw.personRef, 'personRef'),
     }),
+  assignSubtree: (raw: CommandInput<'assignSubtree'>) =>
+    present({
+      kind: 'assignSubtree' as const,
+      ...target(raw),
+      stepId: asText(raw.stepId, 'stepId'),
+      personId: asIdOrNull(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+    }),
   claimWorkItem: (raw: CommandInput<'claimWorkItem'>) =>
     present({
       kind: 'claimWorkItem' as const,
@@ -228,6 +240,9 @@ export const commandNormalizers = {
       steps: asOptionalStepIds(raw.steps),
       runId: asOptionalRunId(raw.runId),
       parentClaim: asOptionalId(raw.parentClaim, 'parentClaim'),
+      // The schema admits only a boolean; absent stays absent and reads as false.
+      assign: raw.assign,
+      resources: asOptionalResourceUnits(raw.resources),
     }),
   releaseWorkItem: (raw: CommandInput<'releaseWorkItem'>) =>
     present({
@@ -321,6 +336,7 @@ export const commandNormalizers = {
       ...normalizeNamed('createPerson', raw),
       teamIds: asOptionalIds(raw.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
       teamRefs: asOptionalIds(raw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
+      personKind: asOptionalText(raw.personKind, 'personKind'),
     }),
   patchPerson(raw: CommandInput<'patchPerson'>) {
     const patch = raw.patch;
@@ -390,6 +406,51 @@ export const commandNormalizers = {
       kind: 'deleteWorkItemType' as const,
       typeId: asOptionalId(raw.typeId, 'typeId'),
       typeRef: asOptionalId(raw.typeRef, 'typeRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
+    }),
+  setResourceCapacity: (raw: CommandInput<'setResourceCapacity'>) =>
+    present({
+      kind: 'setResourceCapacity' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      units: resourceUnitsOf(raw, 0),
+    }),
+  setDemand: (raw: CommandInput<'setDemand'>) =>
+    present({
+      kind: 'setDemand' as const,
+      ...target(raw),
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      units: resourceUnitsOf(raw, 1),
+    }),
+  createResource: (raw: CommandInput<'createResource'>) => ({
+    ...normalizeNamed('createResource', raw),
+    resourceKind: asResourceKind(raw.resourceKind),
+    unitLabel: asUnitLabel(raw.unitLabel),
+  }),
+  patchResource(raw: CommandInput<'patchResource'>) {
+    const patch = raw.patch;
+    assertRecord(patch);
+    // Proof: with this refusal removed, `refuses a patch naming the kind at the
+    // command boundary` (resource-command.test.ts) normalized the patch instead
+    // of throwing; watched 2026-10-20.
+    if ('resourceKind' in patch) throw new CommandNormalizationError('kind_is_immutable');
+    return present({
+      kind: 'patchResource' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      patch: present({
+        name: asOptionalText(patch.name, 'name'),
+        unitLabel: patch.unitLabel === undefined ? undefined : asUnitLabel(patch.unitLabel),
+        providerId: 'providerId' in patch ? asIdOrNull(patch.providerId, 'providerId') : undefined,
+      }),
+    });
+  },
+  deleteResource: (raw: CommandInput<'deleteResource'>) =>
+    present({
+      kind: 'deleteResource' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
       cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
 } as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;

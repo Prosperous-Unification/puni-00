@@ -44,10 +44,10 @@ _Avoid_: Quota, budget
 
 **Source**:
 The pseudonymous, daily-salted hash of the client address behind the gateway, used only to bound how many conversations and how much spend one address may start in a day.
-_Avoid_: IP, visitor id
+_Avoid_: IP, visitor id; not the WBS [Source](../../CONTEXT.md#architecture), a set of store adapters
 
 **Concept preview**:
-An optional interactive illustration of a possible interface, rendered from constrained components. It makes no claim that the software has been built. Retired with the account path (ADR 0039); no route serves it until it is re-planned on the conversation.
+An optional interactive illustration of a possible interface, rendered from constrained components, that makes no claim the software has been built. Retired with the account path, and served by no route until re-planned on the conversation ([ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)).
 _Avoid_: Prototype delivery
 
 **Proposal request**:
@@ -55,7 +55,7 @@ The prospect's explicit submission of a request brief and contact details for hu
 _Avoid_: Contract, order
 
 **Funnel count**:
-A per-UTC-day number derived from stored funnel rows: drafts, conversations started, briefs captured, exhausted conversations by reason, proposal requests split into manual and from-chat, and ceiling-settled operations. It is shown on the operator overview and is never a browser event.
+A per-UTC-day count of one funnel step — drafts, conversations started, briefs captured, exhausted conversations by reason, manual or from-chat proposal requests, ceiling-settled operations — derived only from stored funnel rows. It is shown on the operator overview and is never a browser event.
 _Avoid_: Analytics event, conversion beacon
 
 **Operator inbox**:
@@ -131,7 +131,3 @@ _Avoid_: Kill switch, outage
 **Guardrail alert**:
 A durable, deduplicated record that a guardrail threshold was crossed, optionally pushed to the operator's webhook.
 _Avoid_: Notification, incident
-
-**Funnel count**:
-A per-UTC-day count of one funnel step (drafts, started conversations, captured briefs, exhausted conversations, manual or from-chat proposal requests, ceiling-settled operations) derived only from stored rows and shown to the operator.
-_Avoid_: Analytics event, conversion beacon

@@ -4,25 +4,19 @@ Status: opt-in repository workflow, exercised by the
 [documentation trial](../../openspec/changes/twilight-sdlc-pilot/verify.md).
 Runtime enforcement is planned in the [control-plane tasks](../../openspec/changes/twilight-control-plane/tasks.md).
 
-The personal-phase [testing and delivery requirements](spec.md) now also require
-exhaustive Given/When/Then scenarios, layered automated tests, frequent commits
-and main/dev publication, and scheduled manual cloud-browser sweeps with reports.
-The later [environment requirement](../../.scratch/twilight-structure/issues/07-staging-and-branch-devs.md)
-adds concurrent branch devs, dev-main tracking main, and final production-like
-staging acceptance before merge. It supersedes the intermediate automated-only
-main-merge gate; frequent branch-dev updates and scheduled dev sweeps remain.
-Staging tests the feature branch composed with current main; the exact tested
-candidate is merged and the same built artifact is promoted to production on an
-explicit human command. A moved main requires recomposition and fresh testing. The
+The personal-phase [testing, environment and delivery requirements](spec.md) (TS-32–37,
+including staging acceptance of the composed candidate before merge) and the
 [resolved phase allocation](../../.scratch/twilight-structure/issues/05-product-phase-boundaries.md)
-is now encoded by the workflow profile and runtime plan.
+are encoded by the workflow profile and runtime plan; the staging and promotion flow is
+agreed in [branch devs and staging](../../.scratch/twilight-structure/issues/07-staging-and-branch-devs.md).
 
-Default WBS changes still use `sdd-lean`. Select the workflow per change:
+Default WBS changes still use `sdd-lean`. Select the workflow per change (the
+repository pins the OpenSpec version):
 
 ```sh
-bunx @fission-ai/openspec@1.12.0 new change <name> --schema twilight-v1
-bunx @fission-ai/openspec@1.12.0 status --change <name> --json
-bunx @fission-ai/openspec@1.12.0 instructions intent --change <name> --json
+bunx @fission-ai/openspec new change <name> --schema twilight-v1
+bunx @fission-ai/openspec status --change <name> --json
+bunx @fission-ai/openspec instructions intent --change <name> --json
 ```
 
 The [schema](../../openspec/schemas/twilight-v1/schema.yaml) owns the independent
@@ -61,17 +55,16 @@ their explanatory projection, not a second dependency source.
 | `release`           | Separate explicit human command and registered production adapter                            | Personal-delivery terminates with attributed production health/recovery evidence               | Controlled recovery; no false success              |
 
 Stage scope controls each ordering boundary: implementation, knowledge, review and
-verification advance per deliverable; integration through publication join candidate members; handoff
-joins required accepted outcomes. Independent deliverables pipeline across stages.
+verification advance per deliverable; integration through publication join candidate
+members; handoff joins required accepted outcomes. Independent deliverables pipeline across stages.
 Disabled activities preserve their scoped dispositions without inventing evidence.
 Per-task tests do not replace the selected floor's integrated gate. Knowledge
-updates as they resolve and are reconciled before verification. Development completion is distinct from
-production delivery, and `release` never starts from stage completion. Which
+updates as they resolve and are reconciled before verification. Development completion
+is distinct from production delivery, and `release` never starts from stage completion. Which
 activities a run performs is the delivery profile's choice within the repository
 and organization floors; changing enablement is one audited activity override.
 
-Request through planning are Twilight Navigator's stages, implementation through
-release are Twilight Dash's stages, and every stage gate is Twilight Burokrat's.
+Which tool owns which stage is in [names and boundaries](names.md#where-existing-things-land).
 
 ## Authority and assumptions
 
@@ -84,10 +77,8 @@ Mandatory unavailable checks block.
 
 ## Focus profile across stages
 
-The focus profile is described once in
-[product experience](product-experience.md#focus-profile). It is a per-actor
-presentation preference selected in the execution profile's `presentation`
-section, neither a stage nor a diagnosis. The upstream skill was inspected locally
+The [focus profile](product-experience.md#focus-profile) is selected in the execution
+profile's `presentation` section; it is not a stage. The upstream skill was inspected locally
 and online; this trial did not install it or activate global preferences.
 
 ## What the CLI establishes

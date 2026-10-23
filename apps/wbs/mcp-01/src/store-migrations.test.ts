@@ -5,7 +5,14 @@ import { join } from 'node:path';
 import { Database, SQLiteError } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { type FamilyInput, McpSessionStore, switchToWal } from './session-store';
+import {
+  type ClientCensus,
+  type FamilyInput,
+  McpConsentPendingGone,
+  McpSessionStore,
+  type RegisteredClient,
+  switchToWal,
+} from './session-store';
 import {
   MCP_STORE_MIGRATIONS,
   migrateMcpStore,
@@ -17,6 +24,8 @@ const KEY = Buffer.alloc(32, 7);
 const NOW = 1_000_000;
 const BASELINE = '20260921090000_mcp_refresh_family';
 const BINDING = '20260927120000_mcp_credential_binding';
+const CLIENT = '20261021120000_mcp_client';
+const PERSON = '20261022130000_mcp_family_person';
 const roots: string[] = [];
 
 /** The exact constructor schema every store written before the ledger carries. */
@@ -104,7 +113,7 @@ function withDb<T>(path: string, use: (db: Database) => T): T {
 }
 
 describe('MCP store migrations', () => {
-  it('creates an absent store at epoch 0 with both migrations recorded once', () => {
+  it('creates an absent store at epoch 0 with every migration recorded once', () => {
     const path = storePath();
     const store = new McpSessionStore(path, [KEY]);
     store.createFamily(familyInput('family-1'), 'session-1', NOW + 60_000, 'refresh-1');
@@ -112,7 +121,7 @@ describe('MCP store migrations', () => {
     const reopened = new McpSessionStore(path, [KEY]);
     expect(reopened.familyForSession('session-1', NOW)?.credentialEpoch).toBe(0);
     reopened.close();
-    expect(ledger(path)).toEqual([BASELINE, BINDING]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
     expect(withDb(path, readCredentialEpoch)).toBe(0);
   });
 
@@ -135,7 +144,7 @@ describe('MCP store migrations', () => {
       db.run('DETACH DATABASE scratch');
     });
     const store = new McpSessionStore(path, [KEY]);
-    expect(ledger(path)).toEqual([BASELINE, BINDING]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
     const legacy = store.familyForSession('legacy-session', NOW);
     expect(legacy?.upstreamAccessToken).toBe('legacy-access');
     expect(legacy?.upstreamRefreshToken).toBe('legacy-refresh');
@@ -168,7 +177,7 @@ describe('MCP store migrations', () => {
       ).toEqual([...DEV_STORE_SCHEMA].sort(bySqliteMasterOrder));
     });
     new McpSessionStore(path, [KEY]).close();
-    expect(ledger(path)).toEqual([BASELINE, BINDING]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
   });
 
   it.each([
@@ -289,7 +298,7 @@ describe('MCP store migrations', () => {
     const script = join(path, '..', 'start.ts');
     writeFileSync(
       script,
-      `import { McpSessionStore } from ${JSON.stringify(join(import.meta.dir, 'session-store.ts'))};
+      `import { McpConsentPendingGone, McpSessionStore } from ${JSON.stringify(join(import.meta.dir, 'session-store.ts'))};
       try { new McpSessionStore(process.argv[2], [Buffer.alloc(32, 7)]).close(); console.log('opened'); }
       catch (error) { console.log('refused', String(error)); }`,
     );
@@ -305,7 +314,7 @@ describe('MCP store migrations', () => {
     );
     for (const output of outputs) expect(output).toMatch(/^opened|^refused.*exists but is empty/);
     new McpSessionStore(path, [KEY]).close();
-    expect(ledger(path)).toEqual([BASELINE, BINDING]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
   });
 });
 
@@ -546,8 +555,17 @@ describe('MCP credential bindings', () => {
   it('refuses to refresh a family issued before the epoch advanced', () => {
     const { path, store } = freshStore();
     store.createFamily(familyInput('family-1'), 'session-1', NOW + 60_000, 'refresh-1');
-    withDb(path, (db) => db.run('UPDATE mcp_credential_epoch SET epoch = 1'));
-    expect(() =>
+    withDb(path, (db) => {
+      db.run('UPDATE mcp_credential_epoch SET epoch = 1');
+      // The store's own reads refuse the stale family first; the trigger is the last line.
+      expect(() =>
+        db.run(
+          "INSERT INTO mcp_session (jti, family_id, expires_at) VALUES ('session-2', 'family-1', ?)",
+          [NOW + 60_000],
+        ),
+      ).toThrow(/mcp_session binding must equal its family and the durable epoch/);
+    });
+    expect(
       store.consumeRefresh(
         'refresh-1',
         'client-1',
@@ -557,7 +575,7 @@ describe('MCP credential bindings', () => {
         NOW + 120_000,
         NOW,
       ),
-    ).toThrow(/mcp_session binding must equal its family and the durable epoch/);
+    ).toEqual({ outcome: 'invalid' });
     expect(store.familyForSession('session-2', NOW)).toBeNull();
     store.close();
   });
@@ -591,7 +609,7 @@ describe('MCP credential epoch at startup', () => {
       "PRAGMA ignore_check_constraints = ON; UPDATE mcp_credential_epoch SET epoch = 'zero'",
       /credential epoch is missing or malformed/,
     ],
-    ['unsupported epoch', 'UPDATE mcp_credential_epoch SET epoch = 1', /epoch 1 needs/],
+    ['unsupported epoch', 'UPDATE mcp_credential_epoch SET epoch = 2', /epoch 2 is newer/],
   ])('refuses startup on a %s without reseeding', (_label, fault, message) => {
     const path = migrated();
     withDb(path, (db) => {
@@ -646,7 +664,7 @@ describe('MCP store rollback', () => {
     const { path, at } = bound('live', 'without');
     withDb(path, (db) => {
       expect(() => rollbackMcpStore(db, BASELINE, at)).toThrow(/1 usable bound families/);
-      expect(ledger(path)).toEqual([BASELINE, BINDING]);
+      expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
     });
   });
 
@@ -669,7 +687,7 @@ describe('MCP store rollback', () => {
   it('purges dead bound credentials, preserves legacy ones and reaches the baseline', () => {
     const { path, at } = bound('expired', 'with');
     withDb(path, (db) => {
-      expect(rollbackMcpStore(db, BASELINE, at)).toEqual([BINDING]);
+      expect(rollbackMcpStore(db, BASELINE, at)).toEqual([PERSON, CLIENT, BINDING]);
       expect(db.query('SELECT family_id FROM mcp_family').all()).toEqual([{ family_id: 'legacy' }]);
       expect(db.query('SELECT jti FROM mcp_session').all()).toEqual([{ jti: 'legacy-session' }]);
       expect(db.query('SELECT family_id FROM mcp_refresh').all()).toEqual([
@@ -681,5 +699,282 @@ describe('MCP store rollback', () => {
     const reopened = new McpSessionStore(path, [KEY]);
     expect(reopened.familyForSession('legacy-session', NOW)?.familyId).toBe('legacy');
     reopened.close();
+  });
+});
+
+describe('MCP family-person migration', () => {
+  const CLAIRE = { personId: 'p-claire', credentialId: 'credential-claire' };
+
+  /** A store holding a legacy family and a bound family acting as `claire`. */
+  function consented() {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.createFamily(familyInput('legacy'), 'legacy-session', NOW + 60_000, 'legacy-refresh');
+    store.recordPendingConsent('claire', CLAIRE.credentialId, NOW + 60_000);
+    store.createFamily(
+      { ...familyInput('claire', BOUND), consent: CLAIRE },
+      'claire-session',
+      NOW + 60_000,
+      'claire-refresh',
+      NOW,
+    );
+    return { path, store };
+  }
+
+  it('stores the person on the family and copies it to every session', () => {
+    const { path, store } = consented();
+    store.consumeRefresh(
+      'claire-refresh',
+      'client-1',
+      'claire-refresh-2',
+      'claire-session-2',
+      NOW + 60_000,
+      NOW + 120_000,
+      NOW,
+    );
+    expect(store.familyForSession('claire-session-2', NOW)?.consent).toEqual(CLAIRE);
+    expect(store.familyForSession('legacy-session', NOW)?.consent).toBeUndefined();
+    store.close();
+    expect(
+      withDb(path, (db) =>
+        db
+          .query(
+            "SELECT DISTINCT act_as_person_id, credential_id FROM mcp_session WHERE family_id = 'claire'",
+          )
+          .all(),
+      ),
+    ).toEqual([{ act_as_person_id: 'p-claire', credential_id: 'credential-claire' }]);
+  });
+
+  it('refuses to exchange a consent code whose pending consent was already reported ended', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    store.recordPendingConsent('claire', CLAIRE.credentialId, NOW + 60_000);
+    store.acknowledgeConsentEnd({ familyId: 'claire', credentialId: CLAIRE.credentialId }, NOW);
+    const create = (at: number) => {
+      store.createFamily(
+        { ...familyInput('claire', BOUND), consent: CLAIRE },
+        'claire-session',
+        NOW + 60_000,
+        'claire-refresh',
+        at,
+      );
+    };
+    expect(() => {
+      create(NOW);
+    }).toThrow(McpConsentPendingGone);
+    store.recordPendingConsent('claire', CLAIRE.credentialId, NOW + 60_000);
+    expect(() => {
+      create(NOW + 60_000);
+    }).toThrow(McpConsentPendingGone);
+    expect(store.family('claire')).toBeNull();
+    create(NOW);
+    expect(store.family('claire')?.consent).toEqual(CLAIRE);
+    store.close();
+  });
+
+  it.each([
+    [
+      'family that names a person without its credential',
+      "INSERT INTO mcp_family (family_id, client_id, subject, scope, upstream_access_ct, upstream_expires_at, idle_expires_at, absolute_expires_at, version, organization_id, user_id, issuer, act_as_person_id) VALUES ('f2', 'c', 's', 'x', x'00', 1, 2, 3, 0, 'o', 'u', 'i', 'p')",
+      /CHECK constraint failed/,
+    ],
+    [
+      'person on an unbound family',
+      "INSERT INTO mcp_family (family_id, client_id, subject, scope, upstream_access_ct, upstream_expires_at, idle_expires_at, absolute_expires_at, version, act_as_person_id, credential_id) VALUES ('f2', 'c', 's', 'x', x'00', 1, 2, 3, 0, 'p', 'c')",
+      /CHECK constraint failed/,
+    ],
+    [
+      "session unlike its family's person",
+      "INSERT INTO mcp_session (jti, family_id, expires_at, organization_id, user_id, issuer, act_as_person_id, credential_id) VALUES ('s2', 'claire', 1, 'org-a', 'user-1', 'https://idp.example/', 'p-claire', 'another')",
+      /mcp_session person must equal its family/,
+    ],
+    [
+      "session of a person's family acting as its human",
+      "INSERT INTO mcp_session (jti, family_id, expires_at, organization_id, user_id, issuer) VALUES ('s2', 'claire', 1, 'org-a', 'user-1', 'https://idp.example/')",
+      /mcp_session person must equal its family/,
+    ],
+    [
+      'changed family person',
+      "UPDATE mcp_family SET act_as_person_id = 'p-other' WHERE family_id = 'claire'",
+      /mcp_family person is immutable/,
+    ],
+    [
+      'changed session person',
+      "UPDATE mcp_session SET credential_id = 'another' WHERE family_id = 'claire'",
+      /mcp_session person is immutable/,
+    ],
+    [
+      'reported end of a family acting as nobody',
+      "UPDATE mcp_family SET consent_ended_reported_at = 1 WHERE family_id = 'legacy'",
+      /CHECK constraint failed/,
+    ],
+  ])('refuses a %s', (_label, statement, message) => {
+    const { path, store } = consented();
+    store.close();
+    withDb(path, (db) => {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- fault injection
+      expect(() => db.exec(statement)).toThrow(message);
+    });
+  });
+
+  it('refuses to roll back while a family names a person', () => {
+    const { path, store } = consented();
+    store.revokeFamily('claire', NOW);
+    store.close();
+    withDb(path, (db) => {
+      expect(() => rollbackMcpStore(db, CLIENT, NOW)).toThrow(/1 families acting as a person/);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    const reopened = new McpSessionStore(path, [KEY]);
+    expect(reopened.endedConsents(NOW, 10)).toEqual([
+      { familyId: 'claire', credentialId: CLAIRE.credentialId },
+    ]);
+    reopened.acknowledgeConsentEnd({ familyId: 'claire', credentialId: CLAIRE.credentialId }, NOW);
+    expect(reopened.endedConsents(NOW, 10)).toEqual([]);
+    reopened.close();
+    withDb(path, (db) => {
+      expect(rollbackMcpStore(db, CLIENT, NOW)).toEqual([PERSON]);
+      // The dead, reported family is purged; the legacy one stays.
+      expect(db.query('SELECT family_id FROM mcp_family').all()).toEqual([{ family_id: 'legacy' }]);
+      expect(db.query('SELECT family_id FROM mcp_refresh').all()).toEqual([
+        { family_id: 'legacy' },
+      ]);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT]);
+    const forward = new McpSessionStore(path, [KEY]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(forward.familyForSession('legacy-session', NOW)?.familyId).toBe('legacy');
+    forward.close();
+  });
+
+  it('lists ended consents earliest end first, within the limit', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    for (const familyId of ['first-made', 'second-made']) {
+      store.recordPendingConsent(familyId, `credential-${familyId}`, NOW + 60_000);
+      store.createFamily(
+        {
+          ...familyInput(familyId, BOUND),
+          consent: { personId: 'p-claire', credentialId: `credential-${familyId}` },
+        },
+        `session-${familyId}`,
+        NOW + 60_000,
+        `refresh-${familyId}`,
+        NOW,
+      );
+    }
+    store.revokeFamily('second-made', NOW + 1);
+    store.revokeFamily('first-made', NOW + 2);
+    store.recordPendingConsent('pending', 'credential-pending', NOW);
+    expect(store.endedConsents(NOW + 3, 10).map((ended) => ended.familyId)).toEqual([
+      'pending',
+      'second-made',
+      'first-made',
+    ]);
+    expect(store.endedConsents(NOW + 3, 1).map((ended) => ended.familyId)).toEqual(['pending']);
+    store.close();
+  });
+
+  it('refuses to roll back while a consent is pending', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.recordPendingConsent('claire', CLAIRE.credentialId, NOW + 60_000);
+    store.close();
+    withDb(path, (db) => {
+      expect(() => rollbackMcpStore(db, CLIENT, NOW)).toThrow(/1 pending consents/);
+    });
+  });
+});
+
+describe('MCP registered-client migration', () => {
+  function client(clientId: string, expiresAt = NOW + 60_000): RegisteredClient {
+    return {
+      clientId,
+      source: '203.0.113.1',
+      redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+      proven: false,
+      expiresAt,
+      unprovenExpiresAt: expiresAt + 60_000,
+    };
+  }
+
+  function admit(store: McpSessionStore, registered: RegisteredClient): void {
+    expect(
+      store.admitClient(
+        registered.source,
+        NOW,
+        () => true,
+        () => registered,
+      ),
+    ).toEqual(registered);
+  }
+
+  it('rolls back to the binding migration, dropping clients, and forward again', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.createFamily(familyInput('legacy'), 'legacy-session', NOW + 60_000, 'legacy-refresh');
+    admit(store, client('client-a'));
+    store.close();
+    withDb(path, (db) => {
+      expect(rollbackMcpStore(db, BINDING, NOW)).toEqual([PERSON, CLIENT]);
+      expect(
+        db.query("SELECT name FROM sqlite_master WHERE name LIKE 'mcp_client%'").all(),
+      ).toEqual([]);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING]);
+    const reopened = new McpSessionStore(path, [KEY]);
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON]);
+    expect(reopened.client('client-a', NOW)).toBeNull();
+    expect(reopened.familyForSession('legacy-session', NOW)?.familyId).toBe('legacy');
+    admit(reopened, client('client-b'));
+    reopened.close();
+  });
+
+  it('keeps a registered client across a reopen until it expires', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    admit(store, client('client-a', NOW + 1_000));
+    store.close();
+    const reopened = new McpSessionStore(path, [KEY]);
+    expect(reopened.client('client-a', NOW)).toEqual(client('client-a', NOW + 1_000));
+    expect(reopened.client('client-a', NOW + 1_000)).toBeNull();
+    expect(reopened.clientsFromSource('203.0.113.1', NOW + 1_000)).toEqual([]);
+    const censuses: ClientCensus[] = [];
+    reopened.admitClient(
+      '203.0.113.1',
+      NOW + 1_000,
+      (census) => {
+        censuses.push(census);
+        return false;
+      },
+      () => client('refused'),
+    );
+    expect(censuses).toEqual([{ total: 0, fromSource: [] }]);
+    reopened.deleteExpiredClients(NOW + 1_000);
+    expect(reopened.clientsFromSource('203.0.113.1', NOW)).toEqual([]);
+    reopened.close();
+  });
+
+  it('never shortens a lifetime when an extension follows a promotion', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    admit(store, client('client-a', NOW + 1_000));
+    store.promoteClient('client-a', NOW + 86_400_000);
+    store.extendClient('client-a', NOW + 600_000);
+    expect(store.client('client-a', NOW)?.expiresAt).toBe(NOW + 86_400_000);
+    store.close();
+  });
+
+  it.each([
+    ['unparseable redirect_uris', "UPDATE mcp_client SET redirect_uris = 'not json'"],
+    ['an empty redirect list', "UPDATE mcp_client SET redirect_uris = '[]'"],
+    ['a non-string redirect', "UPDATE mcp_client SET redirect_uris = '[1]'"],
+    ['proven outside 0 and 1', 'UPDATE mcp_client SET proven = 2'],
+    ['a text expiry', "UPDATE mcp_client SET expires_at = 'later'"],
+  ])('refuses a stored client with %s instead of reading it as absent', (_label, fault) => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    admit(store, client('client-a'));
+    withDb(path, (db) => db.run(fault));
+    expect(() => store.client('client-a', NOW)).toThrow(/MCP client/);
+    store.close();
   });
 });

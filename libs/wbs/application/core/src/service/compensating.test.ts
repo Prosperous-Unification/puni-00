@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { workItemRow } from '../testing/work-item-fixture';
 import {
   boundEstimateUnits,
   type CompensatingCommand,
@@ -334,6 +335,7 @@ describe('claim replay vocabulary', () => {
     do: 'add_claims',
     claims: [claim],
     stated: [{ workItemId: 'w1', stepId: 'dev' }],
+    occupancy: [{ claimId: 'c1', resourceId: 'ram', units: 4 }],
   };
   const remove: CompensatingCommand = { do: 'remove_claims', claims: [claim], cleared: [] };
 
@@ -347,6 +349,7 @@ describe('claim replay vocabulary', () => {
       workItems: ['w1', 'w1'],
       steps: ['dev', 'dev'],
       people: ['claire'],
+      resources: ['ram'],
     });
     expect(subjectOf(add)).toEqual({ workItemId: 'w1', stepId: 'dev' });
   });
@@ -358,7 +361,7 @@ describe('claim replay vocabulary', () => {
       { do: 'add_claims', claims: [], stated: [] },
       { do: 'add_claims', claims: [{ ...claim, accountId: null }], stated: [] },
       { do: 'add_claims', claims: [{ ...claim, runId: 7 }], stated: [] },
-      { do: 'add_claims', claims: [claim] },
+      { do: 'add_claims', claims: [claim], occupancy: [] },
       { do: 'remove_claims', claims: [claim], cleared: [{ workItemId: 'w1' }] },
     ])
       expect(() => readCommand(malformed)).toThrow(/claim replay/);
@@ -399,5 +402,103 @@ describe('claim replay vocabulary', () => {
       { do: 'move_claims', fromWorkItemId: 'w3', toWorkItemId: 'w2', claims: [claim] },
     ])
       expect(() => readCommand(malformed)).toThrow(/claim (move|replay)/);
+  });
+
+  it('reads a claim replay written before occupancy as holding nothing', () => {
+    const legacy: CompensatingCommand = { do: 'add_claims', claims: [claim], stated: [] };
+    expect(readCommand(legacy)).toEqual(legacy);
+    expect(referencesOf(readCommand(legacy))).toMatchObject({ resources: [] });
+  });
+
+  it('refuses a claim replay whose occupancy is malformed or names a claim it does not carry', () => {
+    for (const malformed of [
+      { ...add, occupancy: null },
+      { ...add, occupancy: [{ claimId: 'other', resourceId: 'ram', units: 4 }] },
+      { ...add, occupancy: [{ claimId: 'c1', resourceId: 'ram', units: 0 }] },
+      { ...add, occupancy: [{ claimId: 'c1', resourceId: '', units: 1 }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
+
+  it('reads a claim replay naming its leased claims back', () => {
+    const leased: CompensatingCommand = { ...add, leased: ['c1'] };
+    expect(readCommand(leased)).toEqual(leased);
+  });
+
+  it('refuses a claim replay whose leased list is malformed or names a claim it does not carry', () => {
+    for (const malformed of [
+      { ...add, leased: null },
+      { ...add, leased: 'c1' },
+      { ...add, leased: ['other'] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
+});
+
+describe('demand replay vocabulary', () => {
+  const set: CompensatingCommand = {
+    do: 'set_demand',
+    workItemId: 'w1',
+    resourceId: 'ram',
+    units: 4,
+  };
+  const clear: CompensatingCommand = { ...set, units: null };
+
+  it('reads both directions back and names their row and resource', () => {
+    expect(readCommand(set)).toEqual(set);
+    expect(readCommand(clear)).toEqual(clear);
+    expect(touchedBy(set)).toEqual(['w1']);
+    expect(referencesOf(set)).toMatchObject({ workItems: ['w1'], resources: ['ram'] });
+    expect(subjectOf(set)).toEqual({ workItemId: 'w1', stepId: null });
+  });
+
+  // Proof: with the set_demand check removed from readCommand, every malformed
+  // shape below read back without throwing; watched 2026-10-20.
+  it('refuses a malformed demand replay', () => {
+    for (const malformed of [
+      { do: 'set_demand', workItemId: 'w1', resourceId: 'ram', units: 0 },
+      { do: 'set_demand', workItemId: 'w1', resourceId: 'ram', units: 1.5 },
+      { do: 'set_demand', workItemId: 'w1', resourceId: 'ram' },
+      { do: 'set_demand', workItemId: 'w1', units: 2 },
+      { do: 'set_demand', resourceId: 'ram', units: 2 },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/demand replay/);
+  });
+
+  const restore: CompensatingCommand = {
+    do: 'restore_subtree',
+    rows: [workItemRow({ id: 'w1', projectId: 'p', parentId: null, position: 1, name: 'Build' })],
+    rootPosition: 1,
+    reparented: [],
+    estimates: [],
+    actuals: [],
+    progress: [],
+    measures: [],
+    assignments: [],
+    demands: [{ workItemId: 'w1', resourceId: 'ram', units: 4 }],
+    internalDependencies: [],
+    externalDependencies: [],
+    removedEstimates: [],
+    removedActuals: [],
+    removedProgress: [],
+    removedMeasures: [],
+  };
+
+  it('names the resources a restore’s demands name', () => {
+    expect(readCommand(restore)).toEqual(restore);
+    expect(referencesOf(restore).resources).toEqual(['ram']);
+  });
+
+  it('refuses a malformed restored demand', () => {
+    const demand = { workItemId: 'w1', resourceId: 'ram', units: 4 };
+    for (const demands of [
+      null,
+      [{ ...demand, units: 0 }],
+      [{ ...demand, units: 1.5 }],
+      [{ ...demand, resourceId: '' }],
+      [{ ...demand, workItemId: 'not-restored' }],
+      [{ workItemId: 'w1', resourceId: 'ram' }],
+    ])
+      expect(() => readCommand({ ...restore, demands })).toThrow(/restore holds/);
   });
 });

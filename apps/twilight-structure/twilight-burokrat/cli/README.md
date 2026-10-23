@@ -239,7 +239,7 @@ It checks existing plan/task consistency, the complete plan reference and each r
 leaf task ID and step code membership. Navigator reuses `checkProgressReceiptConsistency` before
 constructing commands. The report grants no certification, authorship, freshness, evidence
 authority, approval, admission or authority over current WBS state. Historical v6/v7/v8 references
-remain supported; v9 requires task schema 2 and v10 is refused. Schema 1 receipts bind the six-field
+remain supported; v9 and v10 require task schema 2 and v11 is refused. Schema 1 receipts bind the six-field
 PlanRef. Schema 2 receipts additionally bind referenceDigest, which must match the supplied plan
 reference. Neither establishes live WBS freshness. Missing, unreadable, malformed and inconsistent
 inputs fail with no success stdout. This command reads files only.

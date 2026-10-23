@@ -1,4 +1,4 @@
-import { type AuthenticatedUser, credentialPairOf } from '@wbs/contracts';
+import { type AuthenticatedUser, credentialPinOf } from '@wbs/contracts';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
@@ -37,7 +37,7 @@ export function runCommandBatch(
         input.actor.id,
         input.commands,
         input.access,
-        credentialPairOf(input.actor.authentication),
+        credentialPinOf(input.actor.authentication),
       );
 }
 
@@ -62,6 +62,6 @@ export function runCommandBatchAfter<R>(
     prelude,
     input.commands,
     input.access,
-    credentialPairOf(input.actor.authentication),
+    credentialPinOf(input.actor.authentication),
   );
 }

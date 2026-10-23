@@ -79,16 +79,19 @@ export * from './module/capacity/capacity.resource';
 export * from './module/directory/directory.resource';
 export * from './module/plan-commands/command-bindings';
 export * from './module/realtime/gateway-broadcaster';
+export * from './ports/compute-providers';
 export * from './ports/credential-rules';
 export * from './ports/email-delivery';
 export * from './ports/email-verification';
 export * from './ports/enterprise-connections';
 export * from './ports/invitation';
 export * from './ports/join-request';
+export * from './ports/machine-credentials';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';
 export * from './ports/organization-audit';
+export * from './ports/organization-limits';
 export * from './ports/project-event';
 export * from './ports/project-rank-store';
 export * from './ports/project-store';
@@ -124,6 +127,7 @@ export * from './ports/step-store';
 export * from './ports/stores';
 export * from './ports/subtree-store';
 export type { Intervals, Timers } from './ports/timers';
+export * from './ports/trusted-issuers';
 export type { Decision, Scope, UnitOfWork } from './ports/unit-of-work';
 export * from './ports/user-store';
 export * from './ports/work-item-store';
@@ -132,6 +136,7 @@ export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime
 export * from './service/auth.service';
 export * from './service/compensating';
 export * from './service/directory-usage';
+export * from './service/machine-key';
 // Compatibility export: these domain rules moved to `@wbs/domain` (task 6.1) and keep their
 // barrel names until importers name the domain library; task 7.1 retires it.
 export {
@@ -189,6 +194,8 @@ export * from './module/step/step.resource';
 export * from './module/work-item/work-item.resource';
 export * from './ports/chain-snapshot-store';
 export * from './ports/claim-store';
+export * from './ports/demand-store';
+export * from './ports/resource-capacity-store';
 export * from './ports/shared-people-restore-approvals';
 export * from './ports/shared-people-values';
 export * from './ports/step-blockage-store';

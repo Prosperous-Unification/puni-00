@@ -99,6 +99,7 @@ describe('the startable read', () => {
             assignees: [],
             teams: [{ teamId: 'tm-platform', name: 'Platform', fromId: 'w-080' }],
             unfinishedPredecessorIds: [],
+            fits: true,
             subtreeClaim: {
               claimId: 'c-subtree',
               workItemId: 'w-080',
@@ -121,6 +122,7 @@ describe('the startable read', () => {
             runId: 'run-c-dev',
             parentClaimId: 'c-subtree',
             claimedAt: 200,
+            leaseExpiresAt: null,
           },
         ],
         subtreeClaims: [
@@ -134,8 +136,12 @@ describe('the startable read', () => {
             runId: 'run-c-subtree',
             parentClaimId: null,
             claimedAt: 100,
+            leaseExpiresAt: null,
           },
         ],
+        doesNotFit: [],
+        resources: [],
+        occupancyScope: 'project',
       },
     });
     expect(await h.call('vic', 'GET', `/api/projects/${own}/startable?team=tm-platform`)).toEqual(
@@ -146,6 +152,73 @@ describe('the startable read', () => {
     expect(
       (every.body as { leaves: { workItemId: string }[] }).leaves.map((leaf) => leaf.workItemId),
     ).toEqual(['w-080-25', 'w-090']);
+  });
+
+  // be-01's own answer always carries the fit fields the wire shape leaves
+  // optional for an outgoing release mid-swap (`wbs-resources` R6).
+  it("answers fit with the organization's resource names, a member and a viewer alike", async () => {
+    h.sqlite.run(
+      "INSERT INTO resource (id, name, kind, unit_label) VALUES ('rs-ram', 'root-rs-ram', 'divisible', 'GB')",
+    );
+    h.sqlite.run(
+      "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('rs-ram', 'org-a', 'h2puni ram')",
+    );
+    h.sqlite.run(
+      "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, 'rs-ram', 8)",
+      [own],
+    );
+    for (const [workItemId, units] of [
+      ['w-080-25', 4],
+      ['w-090', 8],
+    ] as const)
+      h.sqlite.run(
+        'INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES (?, ?, ?)',
+        [workItemId, 'rs-ram', units],
+      );
+    // The claim on 080.25's Dev holds its 4 GB, leaving 4 free for 090's 8.
+    h.sqlite.run(
+      "INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES ('c-dev', 'rs-ram', 4)",
+    );
+    const forMember = await h.call('ada', 'GET', `/api/projects/${own}/startable`);
+    expect(forMember.status).toBe(200);
+    const body = forMember.body as {
+      leaves: { workItemId: string; fits: boolean }[];
+      doesNotFit: { workItemId: string; fits: boolean; exhausted: unknown }[];
+      resources: unknown[];
+      occupancyScope: string;
+    };
+    expect(body.leaves.map(({ workItemId, fits }) => ({ workItemId, fits }))).toEqual([
+      { workItemId: 'w-080-25', fits: true },
+    ]);
+    expect(
+      body.doesNotFit.map(({ workItemId, fits, exhausted }) => ({ workItemId, fits, exhausted })),
+    ).toEqual([
+      {
+        workItemId: 'w-090',
+        fits: false,
+        exhausted: {
+          resourceId: 'rs-ram',
+          name: 'h2puni ram',
+          unitLabel: 'GB',
+          asked: 8,
+          free: 4,
+          shortfall: 4,
+        },
+      },
+    ]);
+    expect(body.resources).toEqual([
+      {
+        resourceId: 'rs-ram',
+        name: 'h2puni ram',
+        unitLabel: 'GB',
+        kind: 'divisible',
+        capacity: 8,
+        occupied: 4,
+        free: 4,
+      },
+    ]);
+    expect(body.occupancyScope).toBe('project');
+    expect(await h.call('vic', 'GET', `/api/projects/${own}/startable`)).toEqual(forMember);
   });
 
   it('refuses a stranger exactly as the tree read does', async () => {

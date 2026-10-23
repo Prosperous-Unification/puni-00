@@ -20,6 +20,7 @@ import {
   exportProject as exportProjectShape,
   getWorkItems,
   importProject as importProjectShape,
+  type LimitRefusalDetail,
   listCalendarMarkers as listCalendarMarkersShape,
   listExternalSystems as listExternalSystemsShape,
   listPeople as listPeopleShape,
@@ -62,6 +63,7 @@ import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
 import type { ResourceScope } from './organization-context';
+import { agentPersonLimitSentence } from './organization-limit-words';
 import { type RefusalWords, sentenceForRefusal } from './refusal';
 
 /**
@@ -221,6 +223,12 @@ export interface SliceView {
   resourcePredecessorId: string | null;
   /** The team pool that set a capacity floor, or null for every other floor. */
   capacityTeamId: string | null;
+  /**
+   * The resource whose pool set a capacity floor, and the units this slice
+   * held of it (`wbs-resources` R5). Present exactly when `boundBy` is
+   * `capacity` and the pool was a resource's; `capacityTeamId` is then null.
+   */
+  capacityResource?: { resourceId: string; units: number };
   /**
    * How many of its team's slots this slice held while it ran — the
    * **effective** width be-01 scheduled with.
@@ -1021,6 +1029,8 @@ export type DirectoryEffect =
        */
       fromId: string;
     }
+  /** The row's demand on the resource being removed goes with it (`wbs-resources`). */
+  | { kind: 'demand_removed'; units: number }
   | {
       kind: 'assumed_assignee_changed';
       /**
@@ -2176,12 +2186,16 @@ export const STEP_REFUSALS: RefusalWords = {
 /**
  * Why a directory write was refused, as this client has to phrase it.
  *
- * Two arms rather than a bare code, because `taken` is the one refusal that
- * carries a value: the name the directory kept. {@link directoryRefusedWith}
- * makes the other arm out of whatever was thrown.
+ * Arms rather than a bare code, because two refusals carry values: `taken`
+ * the name the directory kept, and `agent_person_limit` the organization's
+ * cap, the agents it holds and how many the write would add
+ * (`wbs-organization-limits` L14). The directory resource's `runWrite` makes
+ * the `refused` arm out of whatever else was thrown.
  */
 export type DirectoryRefusal =
-  { reason: 'taken'; survivingName: string } | { reason: 'refused'; code: string };
+  | { reason: 'taken'; survivingName: string }
+  | { reason: 'agent_person_limit'; limit: LimitRefusalDetail }
+  | { reason: 'refused'; code: string };
 
 /**
  * The leader of be-01's over-the-ceiling refusal code, whose tail is the
@@ -2347,10 +2361,16 @@ const DIRECTORY_REFUSALS: RefusalWords = {
 };
 
 export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
-  if (refusal.reason === 'taken') {
-    return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
+  switch (refusal.reason) {
+    case 'taken':
+      return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
+    case 'agent_person_limit':
+      return agentPersonLimitSentence(refusal.limit);
+    case 'refused':
+      return sentenceForRefusal(DIRECTORY_REFUSALS, refusal.code);
+    default:
+      return unreachable(refusal);
   }
-  return sentenceForRefusal(DIRECTORY_REFUSALS, refusal.code);
 }
 
 /**
@@ -2370,9 +2390,11 @@ interface BatchAnswer {
     entity?: {
       id: string;
       name: string;
-      kind?: PersonKindView;
+      /** A person's kind, or a resource's on `createResource` (`wbs-resources`). */
+      kind?: PersonKindView | 'exclusive' | 'divisible';
       serviceIds?: string[];
       teamIds?: string[];
+      unitLabel?: string;
     };
   }[];
   undoable?: boolean;
@@ -2421,9 +2443,14 @@ function entryOf(answer: BatchAnswer): NonNullable<BatchAnswer['results'][number
 
 function personEntry(answer: BatchAnswer): PersonView {
   const entity = entryOf(answer);
-  if (entity.kind === undefined || entity.teamIds === undefined)
-    throw new Error('unexpected_response');
-  return { id: entity.id, name: entity.name, kind: entity.kind, teamIds: entity.teamIds };
+  const kind = personKindOf(entity.kind);
+  if (kind === null || entity.teamIds === undefined) throw new Error('unexpected_response');
+  return { id: entity.id, name: entity.name, kind, teamIds: entity.teamIds };
+}
+
+/** A person's kind off a batch entity, or null when the entity carries none or a resource's. */
+function personKindOf(kind: string | undefined): PersonKindView | null {
+  return kind === 'person' || kind === 'agent' ? kind : null;
 }
 
 /** A create-person result; memberships are available from the directory read. */
@@ -2431,8 +2458,9 @@ function personIdentityEntry(answer: BatchAnswer): PersonIdentityView {
   const entity = entryOf(answer);
   // Proof: requiring teamIds rejected be-01's successful create response with
   // `unexpected_response`; the directory-client create test observed it.
-  if (entity.kind === undefined) throw new Error('unexpected_response');
-  return { id: entity.id, name: entity.name, kind: entity.kind };
+  const kind = personKindOf(entity.kind);
+  if (kind === null) throw new Error('unexpected_response');
+  return { id: entity.id, name: entity.name, kind };
 }
 
 function teamEntry(answer: BatchAnswer): TeamView {

@@ -1,0 +1,45 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+175 |     rewrite(setup, (authority) => {
+176 |       authority['obligations'] = obligations;
+177 |     });
+178 |     const invocation = await inspect(setup);
+179 |     expect(invocation.exitCode).toBe(1);
+180 |     expect(invocation.stdout).toBe('');
+                                    ^
+error: expect(received).toBe(expected)
+
+- ""
++ "{"schemaVersion":1,"kind":"scenario-ledger","revision":"2155fc9a675c901175a2ad9f86985006a1f145fb","... (3450 bytes truncated) ...ifies":false,"observationDigest":"3e93d63a714f37eaf81dc673f76bf3a3fe744546f6082403988700d8b9a9a303"}
++ "
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:180:31)
+(fail) [TEST-AXES-105] refuses foreign [321.24ms]
+607 |     ledgerPath,
+608 |     '--now',
+609 |     now,
+610 |   ]);
+611 |   expect(invocation.exitCode).toBe(1);
+612 |   expect(invocation.stdout).toBe('');
+                                  ^
+error: expect(received).toBe(expected)
+
+- ""
++ "{"schemaVersion":1,"kind":"scenario-ledger","revision":"11e4108ff34f3e43a85b8ac7f9b6e0913ee60b62","... (3147 bytes truncated) ...ifies":false,"observationDigest":"8e5a9d9b43f593214c5baa8ff5222a3d461c102fe5df294643dd346fb273df85"}
++ "
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:612:29)
+(fail) [TEST-AXES-105] retired obligation cannot assign a row [256.69ms]
+
+ 0 pass
+ 57 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [1498.00ms]

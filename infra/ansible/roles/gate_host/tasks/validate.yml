@@ -1,0 +1,152 @@
+---
+# Each probe runs as the gate account through its ~/.bashrc, the environment `ssh puni1@host CMD`
+# gives a gate, and fails the play when its condition is broken; none of them changes the host.
+- name: Resolve Bun the way a remote gate does
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, '. "$HOME/.bashrc"; command -v bun; bun --version; command -v bunx']
+  register: puni_gate_bun_probe
+  changed_when: false
+
+- name: Require the pinned Bun on the gate PATH
+  ansible.builtin.assert:
+    that:
+      - puni_gate_bun_probe.stdout_lines[0] == puni_gate_home + '/.bun-' + puni_gate_bun_version + '/bin/bun'
+      - puni_gate_bun_probe.stdout_lines[1] == puni_gate_bun_version
+      - puni_gate_bun_probe.stdout_lines[2] == puni_gate_home + '/.bun-' + puni_gate_bun_version + '/bin/bunx'
+    fail_msg: 'The gate PATH resolves {{ puni_gate_bun_probe.stdout_lines }}, not the pinned Bun'
+  # Proof (Docker lab, 2026-10-21): a PATH naming ~/.bun-9.9.9 failed the probe above with
+  # `bun: command not found`; a fake bun printing 1.3.14 first on PATH failed this assertion.
+
+# Nx runs under `node`; the probe resolves it the way the gate's `bun run` scripts do.
+- name: Resolve Node the way Nx does
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, '. "$HOME/.bashrc"; command -v node; node --version']
+  register: puni_gate_node_probe
+  changed_when: false
+
+- name: Require the pinned Node on the gate PATH
+  ansible.builtin.assert:
+    that:
+      - puni_gate_node_probe.stdout_lines[0] == puni_gate_home + '/.node-' + puni_gate_node_version + '/bin/node'
+      - puni_gate_node_probe.stdout_lines[1] == 'v' + puni_gate_node_version
+    fail_msg: 'The gate PATH resolves {{ puni_gate_node_probe.stdout_lines }}, not the pinned Node'
+  # Proof (h4claw, 2026-10-21): before the Node tasks existed this probe failed with
+  # `node: command not found` (rc 127), the same failure the first live gate hit.
+
+# The activation tests hard-code /usr/bin/gh, so the probe checks that path, not PATH order.
+- name: Resolve gh the way the activation tests do
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, '. "$HOME/.bashrc"; command -v gh; /usr/bin/gh --version']
+  register: puni_gate_gh_probe
+  changed_when: false
+
+- name: Require the pinned gh at /usr/bin/gh
+  ansible.builtin.assert:
+    that:
+      - puni_gate_gh_probe.stdout_lines[0] == '/usr/bin/gh'
+      - puni_gate_gh_probe.stdout_lines[1] is match('^gh version ' + (puni_gate_gh_version | regex_escape) + ' ')
+    fail_msg: 'The gate host resolves {{ puni_gate_gh_probe.stdout_lines }}, not the pinned gh'
+  # Proof (h4claw, 2026-10-21): the probe's exact command run as puni1 with the path pointed at a
+  # missing binary exited 127 (`/usr/bin/ghx: No such file or directory`), which fails the probe
+  # task itself; the earlier `| head -n 1` form had swallowed that status (rc 0, empty output).
+  # The host state behind the third live gate's 60 failures was exactly this missing file.
+
+# The spec grants the account Docker and nothing else; a pre-existing sudo membership or a
+# sudoers drop-in would survive `append: true`, so the probes check the result, not the task.
+- name: Try to escalate as the gate account
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, 'id -nG; sudo -n true 2>&1; printf "sudo_rc=%s\n" "$?"']
+  register: puni_gate_sudo_probe
+  changed_when: false
+
+- name: Require the gate account without sudo
+  ansible.builtin.assert:
+    that:
+      - "'sudo' not in puni_gate_sudo_probe.stdout_lines[0].split(' ')"
+      - puni_gate_sudo_probe.stdout_lines[-1] != 'sudo_rc=0'
+    fail_msg: 'The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}; it must not escalate'
+  # Proof (2026-10-21): the assertion, fed recorded probe outputs through the controller image
+  # (set_fact, localhost), passed `['puni1 docker', 'sudo_rc=1']` and failed both
+  # `['puni1 docker sudo', 'sudo_rc=1']` and `['puni1 docker', 'sudo_rc=0']`. Live on h4claw the
+  # probe printed `puni1 docker`, sudo's refusal line and `sudo_rc=1`; a sudoer gate account was
+  # not created to watch the probe itself produce the failing lines.
+
+- name: Read the gate tree state
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        cd "$1" && git remote get-url origin && git rev-parse --is-shallow-repository &&
+        printf 'promisor=%s\n' "$(git config --default '' --get remote.origin.promisor)" &&
+        printf 'dirty=%s\n' "$(git status --porcelain --untracked-files=normal | wc -l)"
+      - gate-tree
+      - '{{ puni_gate_checkout }}'
+  register: puni_gate_tree_probe
+  changed_when: false
+
+# A dirty tree makes every gate exit 65, so it is refused here rather than at the first gate.
+- name: Require a full, clean clone of the canonical repository
+  ansible.builtin.assert:
+    that:
+      - puni_gate_tree_probe.stdout_lines == [puni_gate_repository_url, 'false', 'promisor=', 'dirty=0']
+    fail_msg: 'The gate tree reports {{ puni_gate_tree_probe.stdout_lines }}'
+  # Proof (Docker lab, 2026-10-21): one untracked file in the tree failed this with `dirty=1`.
+
+- name: Use Docker as the gate account
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [docker, ps, --quiet]
+  changed_when: false
+  # Proof (Docker lab, 2026-10-21): removing puni1 from the docker group failed this with
+  # `permission denied while trying to connect to the docker API`.
+
+- name: Resolve the solver Python and its pinned solver
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - '. "$HOME/.bashrc"; command -v python3; python3 -c "import ortools; print(ortools.__version__)"; shellcheck --version >/dev/null'
+  register: puni_gate_python_probe
+  changed_when: false
+
+- name: Require the solver environment on the gate PATH
+  ansible.builtin.assert:
+    that:
+      - puni_gate_python_probe.stdout_lines[0] == puni_gate_home + '/.venv-solver/bin/python3'
+      - >-
+        (puni_gate_python_probe.stdout_lines[1] in
+        (lookup('ansible.builtin.file', puni_gate_solver_requirements) | regex_findall('(?m)^ortools==(\S+)')))
+    fail_msg: 'The gate python3 reports {{ puni_gate_python_probe.stdout_lines }}'
+  # No negative observed for this assertion: a venv with another OR-Tools would need a second
+  # hash-locked requirements file. `pip -r` never removes packages dropped from the lock, so the
+  # probe proves the solver version, not that the venv equals CI's install.
+
+# The production resolver, sourced from the gate tree, names the lock this host's gates take;
+# the account must be able to create the lock file and its records beside it.
+- name: Resolve the heavy lock the gate takes
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        source "$1/bin/heavy-lock-lib.sh" && lock=$(resolve_heavy_lock_path) &&
+        printf '%s\n' "$lock" && test -w "$(dirname "$lock")" && "$1/bin/with-heavy-lock.sh" status
+      - gate-lock
+      - '{{ puni_gate_checkout }}'
+  register: puni_gate_lock_probe
+  changed_when: false
+  # Proof (Docker lab, 2026-10-21): ~/.cache owned by root failed `test -w` here (rc 1).
+
+- name: Require the lock under the gate account's cache directory
+  ansible.builtin.assert:
+    that:
+      - puni_gate_lock_probe.stdout_lines[0] == puni_gate_home + '/.cache/wbs-heavy-work.lock'
+    fail_msg: 'The gate resolves the heavy lock at {{ puni_gate_lock_probe.stdout_lines[0] }}'

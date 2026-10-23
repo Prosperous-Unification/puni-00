@@ -920,7 +920,7 @@ describe('StepRepository', () => {
       parentClaimId: null,
       accountId: ownerId,
     };
-    expect(await claims.add([held], [], wrote())).toBe('written');
+    expect(await claims.add([held], [], wrote(), [])).toBe('written');
     const usage = {
       estimates: 0,
       actuals: 0,

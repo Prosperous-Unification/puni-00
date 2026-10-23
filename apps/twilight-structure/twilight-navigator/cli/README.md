@@ -12,7 +12,7 @@ progress receipt comes back. Burokrat declares and validates both
 
 ## `twin plan-reference`
 
-From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8 or 9)
+From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9 or 10)
 and the requirements the plan answers (for example the change's delta spec):
 
 ```sh
@@ -32,10 +32,17 @@ work items with ancestry, per-step estimates and dependencies) and
 replacing a file, and prints the plan reference digest. The record's `createdAt` is the
 export's `exportedAt`, so the same inputs give the same bytes.
 
-Version 8 writes task schema 2: each `estimates` entry names its `stepCode`, native `unit`
-(`minutes` or `workdays`), and unchanged optimistic, realistic and pessimistic values. Version 7
-retains task schema 1 with `estimateDays` in workdays. The reference records the original wire
-version and hashes the original export bytes. Future versions and undeclared keys are refused.
+Version 7 keeps task schema 1 with `estimateDays` in workdays. Versions 8, 9 and 10 write task
+schema 2: each `estimates` entry names its `stepCode`, native `unit` (`minutes` or `workdays`),
+and unchanged optimistic, realistic and pessimistic values. Version 9 requires strict root
+`stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and
+safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid.
+Facts stay in the original export; Navigator emits no blockage commands or eligibility
+calculation. Version 10 adds the plan's resources, their capacities and demands
+(`wbs-resources`); Navigator reads them strictly and they change no task. Future versions
+(version 11 is refused before output) and undeclared keys are refused. The reference records the
+original wire version and hashes the raw export bytes, so a blockedAt-only change changes the
+export and reference digests while preserving tasks and their digest.
 
 The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
@@ -61,12 +68,16 @@ version pairing and unique task IDs, step IDs and step codes) before building lo
 for another plan reference or an entry naming a task or step code the plan does not hold. It
 writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt order, a
 `setProgress` for the step, then a `setMeasure` for `token_actual` and `hours_actual` when the
-entry carries them. It prints the batch digest. For schema 2 receipts, shared consistency also requires the complete producer reference digest to match the receipt binding; schema 1 retains its historical PlanRef-only consistency semantics.
+entry carries them. It prints the batch digest. Schema 1 receipts bind the six-field PlanRef and retain its
+historical PlanRef-only consistency; for schema 2 receipts shared consistency also requires the
+complete producer reference digest to match the receipt binding. Neither establishes live WBS
+freshness.
 
 Applying the batch is a person's or the WBS MCP's act (`postApiProjectsByIdCommands`):
-Navigator sends nothing. Dash `record-progress` emits the existing v1 receipt from explicit
-operator entries and supplied reference/tasks. Entries are operator assertions; evidence is
-not authenticated and current WBS application remains the existing person/MCP act.
+Navigator sends nothing. Receipts come from Dash
+[`record-progress`](../../twilight-dash/cli/README.md#record-progress), which emits the existing
+v1 receipt from explicit operator entries and supplied reference/tasks; entries are operator
+assertions and evidence is not authenticated.
 
 ## Exit codes
 
@@ -89,8 +100,6 @@ records the observed checks and fault proofs.
 
 The [receipt consistency change](../../../../openspec/changes/navigator-receipt-plan-consistency/verify.md)
 records the shared checker proofs and scoped verification.
-
-Version 9 requires strict root `stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid. Facts stay in the original export; Navigator emits schema-2 tasks with native units and no blockage commands or eligibility calculation. Version 7 keeps schema 1, versions 8 and 9 use schema 2, and future version 10 is refused before output. The reference records the original wire version and hashes the raw input bytes. A blockedAt-only change therefore changes the export and reference digests while preserving tasks and their digest. Schema 1 receipts bind the six-field PlanRef. Schema 2 receipts also bind the complete reference digest; neither establishes live WBS freshness.
 
 ## `twin admit-progress`
 

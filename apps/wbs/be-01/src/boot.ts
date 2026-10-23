@@ -1,26 +1,42 @@
-import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
+import {
+  buildOidcVerifier,
+  oidcCredentialEvidence,
+  trustedIssuerDiscovery,
+  TrustedIssuerKeySets,
+} from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import {
+  computeProvidersOver,
+  ConsentCredentialRepository,
+  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   EnterpriseConnectionRepository,
+  ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialAdministrationRepository,
+  MachineCredentialRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
+  OrganizationLimitsRepository,
   OrganizationRepository,
   ProvisioningTokenRepository,
+  readOrganizationActivation,
   ScimUserRepository,
   SessionPolicyRepository,
   SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
+  SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
+  TrustedIssuerAdministrationRepository,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
@@ -40,12 +56,13 @@ import { UserRepository } from './repository/user';
 import { AuthoritativeDnsResolver, type DnsTransport } from './runtime/authoritative-dns/resolver';
 import { SocketDnsTransport } from './runtime/authoritative-dns/transport';
 import { type BackgroundFailureSource, createBackgroundFailure } from './runtime/be-supervisor';
-import { REFUSE_DELEGATIONS } from './runtime/delegation';
+import { delegationVerifier, type MappedUserOf, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
-import { importDelegationKeys } from './runtime/delegation-keys';
+import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/delegation-keys';
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
+import { type McpDelegationAuthority, mcpDelegationAuthority } from './runtime/mcp-delegation';
 import { organizationCookieBinding } from './runtime/organization-cookie';
 import {
   nativeBrowserCredentialEvidence,
@@ -78,6 +95,13 @@ export interface BootOptions {
    * marker before any binding.
    */
   browserSessionAuthority: 'enabled' | 'disabled';
+  /**
+   * The caps every organization without its own `organization_limits` row
+   * holds (`wbs-organization-limits` L7). Operator configuration, required
+   * with no default: `loadConfig` refuses to boot without the three
+   * `ORGANIZATION_DEFAULT_*` variables.
+   */
+  organizationDefaultLimits: OrganizationLimitValues;
   /** Parsed explicit SMTP authority; absence keeps direct/test boot callers disabled. */
   emailDelivery?: EmailDeliveryConfig;
   delegationKeys?: DelegationKeys;
@@ -187,6 +211,77 @@ function browserComposition(
   };
 }
 
+/**
+ * MCP organization delegation (tasks 2.5, 6.4, 6.6): the verifier every
+ * route's identity resolver uses, and the authority mcp-01's internal routes
+ * call. Without a configured key pair every delegation is refused and nothing
+ * is issued. With one, nothing is listed or issued before the organization
+ * activation marker and every delegation is refused by organization access,
+ * so configuration alone still creates no authority.
+ *
+ * Delegated requests take their organization from the delegation, never a
+ * session binding, so this access needs no browser binding and serves both
+ * browser compositions.
+ */
+function mcpDelegationComposition(
+  db: ReturnType<typeof openSqliteSource>['db'],
+  services: BeServices,
+  keys: ImportedDelegationKeys | undefined,
+): Pick<AppOptions, 'delegation' | 'mcpDelegation'> & {
+  readonly mcpDelegation: McpDelegationAuthority;
+} {
+  const now = () => services.clock.now();
+  const users = new UserRepository(db, OPEN);
+  const mappedUserOf: MappedUserOf = async (pair) => {
+    const userId = await new ExternalIdentityRepository(db, OPEN).findUserId(pair);
+    return userId === null ? null : users.findById(userId);
+  };
+  const access = new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, now);
+  const machineCredentials = new MachineCredentialRepository(db, services.gate);
+  const consentCredentialOf = (credentialId: string) => machineCredentials.findById(credentialId);
+  return {
+    // Proof: wiring REFUSE_DELEGATIONS here with keys configured made
+    // `lists, issues and verifies an MCP delegation only after activation`
+    // in `mcp-delegation.boot.db.test.ts` answer 401 to the issued delegation; watched 2026-10-21.
+    delegation:
+      keys === undefined
+        ? REFUSE_DELEGATIONS
+        : delegationVerifier(
+            keys.verifyKey,
+            mappedUserOf,
+            (issuer, jti, expiresAt, at) =>
+              new SqliteDelegationUse(db, services.gate).consume(issuer, jti, expiresAt, at),
+            now,
+            (userId) => users.findById(userId),
+            // Proof: with this reader left out, `offers dany's agents at
+            // consent, and a consent as claire mints her credential` and the
+            // two consent tests after it in mcp-01's
+            // `organization-delegation.boot.test.ts` failed; watched 2026-10-22.
+            consentCredentialOf,
+          ),
+    mcpDelegation: mcpDelegationAuthority({
+      // mcp-01 forwards a human's configured-issuer token; one the trusted-issuer
+      // path refuses `invalid_token` is no upstream sign-in at all.
+      authenticate: async (token) => {
+        const outcome = await services.auth.authenticateOrRefuse(token);
+        return outcome === 'invalid_token' ? null : outcome;
+      },
+      choices: new SqliteOrganizationSelection(db),
+      organizations: access,
+      credentialFactsOf: (principal, organizationId) =>
+        access.credentialFactsOf(principal, organizationId),
+      mappedUserOf,
+      isMember: (userId, organizationId) =>
+        Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
+      activationState: () => readOrganizationActivation(db),
+      signingKey: keys?.signingKey ?? null,
+      consents: new ConsentCredentialRepository(db, services.gate),
+      consentCredentialOf,
+      now,
+    }),
+  };
+}
+
 export interface RunningBe {
   /** Terminal worker failure; observation immediately replays an already-latched cause. */
   readonly backgroundFailure: BackgroundFailureSource;
@@ -235,9 +330,10 @@ export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
 ): Promise<RunningBe> {
-  // Keys are parsed even while production refuses delegation, so a broken
-  // configured pair cannot hide until a later activation.
-  if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
+  // Keys are parsed before storage opens, so a broken configured pair cannot
+  // hide until a later activation.
+  const delegationKeys =
+    opts.delegationKeys === undefined ? undefined : await importDelegationKeys(opts.delegationKeys);
   // Proof: dropping scheduling in the combined SMTP/DNS boot test observed0 workers instead of1.
   const schedulesProofs =
     opts.organizationDomainProofScheduling === undefined
@@ -266,7 +362,15 @@ export async function bootBe01(
       // test report `Expected: 1`, `Received: 0` source closes (0 pass, 1 fail).
       source: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (): OwnedSource => dependencies.openSource({ dbPath: opts.dbPath }),
+          // Proof: omitting the defaults here made `enforces the agent person
+          // cap with the configured defaults once activated` (boot.db.test.ts)
+          // throw "an agent person was added under scoped access without
+          // organization limits"; watched 2026-10-22.
+          (): OwnedSource =>
+            dependencies.openSource({
+              dbPath: opts.dbPath,
+              organizationDefaultLimits: opts.organizationDefaultLimits,
+            }),
           { factoryReturnKind: 'sync-value' },
         ),
         // Proof: on 2026-09-20, swallowing this refusal produced no cleanup
@@ -288,6 +392,18 @@ export async function bootBe01(
                 : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
             passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
             localIdentity: opts.localIdentity,
+            // Proof: omitting this binding made `refuses a stranger issuer's
+            // JWT invalid_token once booted` (boot.db.test.ts) authenticate
+            // the token as null (unauthenticated); watched 2026-10-22.
+            trustedIssuers: {
+              tokens: new TrustedIssuerKeySets({
+                fetch: globalThis.fetch,
+                report: (fields, message) => {
+                  opts.logger.warn(fields, message);
+                },
+              }),
+              configuredIssuer: configuredIssuerOf(opts.oidc),
+            },
             optimizer: opts.optimizer,
           }),
         { factoryReturnKind: 'sync-value' },
@@ -307,6 +423,21 @@ export async function bootBe01(
         // test report `Expected: false`, `Received: true` for timer activity.
         disposeService: (retention) => retention.stop(),
       }),
+      // The claim lease sweep (`wbs-claim-leases` L7), registered as retention
+      // is so it stops before the source it releases through closes.
+      claimLeases: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          ({ services }: { services: BeServices }): BeServices['claimLeases'] => {
+            // Proof: with this start removed, `starts the claim lease sweep with
+            // the process` (boot.db.test.ts) read it stopped (36 pass, 1 fail);
+            // watched 2026-10-23.
+            services.claimLeases.start();
+            return services.claimLeases;
+          },
+          { factoryReturnKind: 'sync-value' },
+        ),
+        disposeService: (sweep) => sweep.stop(),
+      }),
       // The listener is the last thing acquired and the first thing released.
       // `providerWithDisposal` owns the app this returns; the pushed disposers own what
       // the factory took on the way, so a failure between `listen` and the
@@ -321,9 +452,13 @@ export async function bootBe01(
               source,
               services,
               retention: _retention,
+              claimLeases,
             }: {
               source: OwnedSource;
               services: BeServices;
+              // Read for its edge as `retention` is (its disposer runs after the
+              // listener's), and handed to the app so a revoke asks it for a tick.
+              claimLeases: BeServices['claimLeases'];
               // Read for its edge, not its value: it is what puts the timer's
               // disposer after the listener's. Drop it and the timer is never
               // started at all.
@@ -367,6 +502,13 @@ export async function bootBe01(
               // acceptance with 503 dns_unavailable instead of 200 (2026-10-16).
               domains,
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
+              // Proof: omitting this binding made `serves the organization
+              // limits with the configured defaults once activated`
+              // (boot.db.test.ts) fail on "boot composed no limits store"; watched 2026-10-22.
+              organizationLimits: new OrganizationLimitsRepository(
+                db,
+                opts.organizationDefaultLimits,
+              ),
               pendingMemberships: new ScimUserRepository(db, services.gate),
               enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
               // Proof: omitting this binding made `serves SCIM provisioning
@@ -378,6 +520,28 @@ export async function bootBe01(
                 clock: services.clock,
                 canonicalUserName: canonicalOidcEmail,
               },
+              // Proof: omitting this binding made `serves machine credential
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire machine
+              // credentials`: the fallback answers every route
+              // no_active_organization; watched 2026-10-22.
+              machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              claimLeases,
+              // Proof: omitting this binding made `serves trusted issuer
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire trusted issuers`:
+              // the fallback answers every route no_active_organization;
+              // watched 2026-10-22.
+              trustedIssuers: {
+                administration: new TrustedIssuerAdministrationRepository(db, services.gate),
+                discovery: trustedIssuerDiscovery({ fetch: globalThis.fetch }),
+                configuredIssuer: configuredIssuerOf(opts.oidc),
+              },
+              // Proof: omitting this binding made `serves compute provider
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire compute providers`;
+              // watched 2026-10-22.
+              computeProviders: computeProvidersOver(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
@@ -419,11 +583,7 @@ export async function bootBe01(
               // started on.
               deployedCommit: () => readDeployedCommit(opts.commitDir),
               internalAuthSecret: opts.internalAuthSecret,
-              // Proof: replacing this with an accepting verifier failed
-              // `validates configured delegation keys before opening storage
-              // and keeps issuance inactive` at the production composition
-              // assertion (2026-09-28).
-              delegation: REFUSE_DELEGATIONS,
+              ...mcpDelegationComposition(db, services, delegationKeys),
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something
@@ -578,4 +738,14 @@ export async function bootBe01(
       return bag.close();
     },
   };
+}
+
+/**
+ * The configured sign-in issuer's Issuer Identifier as discovery publishes
+ * it, or null for a deployment without OIDC (`wbs-machine-credentials` A13,
+ * A16).
+ */
+function configuredIssuerOf(oidc: OidcRouteOptions | undefined): () => Promise<string | null> {
+  if (oidc === undefined) return () => Promise.resolve(null);
+  return () => oidc.issuer();
 }

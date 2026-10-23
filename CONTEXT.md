@@ -32,7 +32,8 @@ _Avoid_: lock, refresh mutex
 
 **Organization**:
 The ownership and access boundary for WBS projects and shared resources. A user may belong to more than one organization.
-_Avoid_: tenant, workspace, account
+_Avoid_: tenant, workspace, account; not Twilight Structure's installation
+[Organization](docs/twilight-structure/CONTEXT.md#authority)
 
 **Membership**:
 One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
@@ -126,6 +127,22 @@ _Avoid_: API key, SCIM password
 An organization's limits on how long one sign-in may keep acting in it, and how long before the person must sign in again interactively.
 _Avoid_: token lifetime, idle timeout
 
+**Organization limits**:
+The three caps one organization holds on what its swarm may grow: agent persons, bound claims and stated capacity units per resource. Always a number; a tenant without its own row holds the default limits.
+_Avoid_: quota (the per-request body and plan-size refusal), plan, tier, allowance, resource capacity
+
+**Default limits**:
+The organization limits every organization without its own row holds, configured once per deployment by the operator.
+_Avoid_: free plan, global limits, fallback
+
+**Limit usage**:
+The current count one cap is compared against, read with the cap so a surface can say "7 of 8"; it may exceed the cap after a lowering.
+_Avoid_: consumption, utilization, remaining
+
+**Bound claim**:
+One person under one run holding at least one claim on one work item: the unit the claim cap counts, so a whole-leaf claim of four steps is one and a subtree claim is one.
+_Avoid_: claim row, active claim, slot
+
 ### Spaces
 
 **Space**:
@@ -180,14 +197,17 @@ including people, can serve several projects and are not owned by any one of the
 _Avoid_: workspace, board, plan
 
 **Work item**:
-One unit of work in a project. Holds a name, notes and a place in the tree; owns no
-estimate directly once it has children. Never `item` alone — R2 forbids the bare noun.
+One unit of work in a project, holding a name, notes and a place in the tree; once it has
+children it owns no estimate of its own
+([spec](openspec/changes/archive/2026-08-10-wbs-domain-model/specs/wbs-domain/spec.md)). Never
+`item` alone (R2).
 _Avoid_: item, task, row, node
 
 **Subtree**:
-One work item and every work item beneath it, to any depth. The unit a duplication
-addresses, because a branch is what a planner thinks in. A deletion takes the one row
-and promotes its children a level, unless it is explicitly asked to take the subtree.
+One work item and every work item beneath it, to any depth: the unit a
+[duplication](openspec/changes/archive/2026-08-10-duplicate-subtree/specs/wbs-domain/spec.md)
+addresses, because a branch is what a planner thinks in. A deletion takes the one row and
+promotes its children a level, unless it is explicitly asked to take the subtree.
 _Avoid_: branch, descendants, group
 
 **Duplicate**:
@@ -210,9 +230,10 @@ move, they are not.
 _Avoid_: number order, sort order, display order
 
 **Position**:
-An integer ordering a work item among its siblings, spaced in gaps of ten. The input a
-client sends when it creates or moves a work item; the number is the output derived from
-it. Never shown to the user.
+An integer ordering a work item among its siblings, spaced in gaps of ten, from which its
+number is derived
+([spec](openspec/changes/archive/2026-08-10-wbs-domain-model/specs/wbs-domain/spec.md)). Never
+shown to the user.
 _Avoid_: order, rank, sort key, sequence
 
 **Freeze**:
@@ -238,24 +259,25 @@ together keeping their order. Frozen work items move with the rest; nothing chan
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 
 **Step**:
-A named kind of work a project estimates separately, unique by name within it. Every
-project starts with `Dev` and `QA`, and may then be given others, renamed or emptied.
-Carries a **step code**. A definition, not an occurrence: its work within one leaf is a
-**step node**.
+A named kind of work a project estimates separately, unique by name within it and carrying a
+**step code**; every project starts with `Dev` and `QA`
+([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
+definition, not an occurrence: its work within one leaf is a **step node**.
 _Avoid_: discipline, type, category
 
 **Step code**:
-A step's short, immutable, project-unique name for references — `dev`, `qa`, `review`:
-a lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name
-when the step is created; renaming the step keeps it. Codes shaped `s<digits>` or
-`s<digits>-…` are reserved for ordinal references.
+A step's short, immutable, project-unique name for references — `dev`, `qa`, `review`: a
+lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
+step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
+reserved for ordinal references.
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
-One leaf work item's occurrence of one project step — the addressable unit that carries
-that pair's estimate, actual, measures, progress, assignment and dependencies. It exists
-for every leaf and step whether or not anything is stored for it. Not a work item: no
-tree position, title, type or number of its own. A parent has no step nodes.
+One leaf work item's occurrence of one project step — the addressable unit that carries that
+pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
+leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
+no tree position, title, type or number of its own ([ADR
+0031](docs/adr/0031-a-step-node-is-a-pair-not-a-work-item.md)).
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
 
 **Suspended unsent draft**:
@@ -277,10 +299,9 @@ A grouping across board columns, independent of the progress each column names.
 _Avoid_: status, column
 
 **Node resources**:
-
-The effective person, teams and parallel width of one leaf step. A person is explicit,
-assumed from the leaf's sole assignment, or unassigned. Teams are the nearest stated
-whole set, with each team's stated project capacity or no capacity statement.
+The effective person, teams and parallel width of one leaf step. A person is explicit, assumed
+from the leaf's sole assignment, or unassigned; teams are the nearest stated whole set, with
+each team's stated project capacity or no capacity statement.
 
 **Step maximum parallelism override**:
 An explicit integer ceiling from 1 through 1000 authored for one leaf work item's step.
@@ -294,13 +315,12 @@ reorder; a deleted and recreated step yields new step node IDs.
 _Avoid_: step reference (which is the readable, changeable spelling)
 
 **Step reference**:
-A step node's readable spelling: work item number, then its displayed step ordinal
-before its immutable code — `010.s1-dev`, or `010.s01-dev` when a project has ten
-or more steps. The ordinal is padded to the decimal width of the project's step
-count, so a work item's references sort in step order. Renumbering, reordering
-or repadding changes the spelling; the step node ID remains stable. Code-only
-`010.dev` and unpadded ordinal forms remain accepted input at the current
-address revision.
+A step node's readable spelling: work item number, then its displayed step ordinal before its
+immutable code — `010.s1-dev`, or `010.s01-dev` when a project has ten or more steps. The
+ordinal is padded to the decimal width of the project's step count, so a work item's references
+sort in step order. Renumbering, reordering or repadding changes the spelling while the step
+node ID stays stable; code-only `010.dev` and unpadded ordinal forms remain accepted input at
+the current address revision.
 _Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
@@ -332,15 +352,16 @@ the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
-The people and service teams projects in one organization draw from — one list scoped to
-that organization. Current members may read it; current member, admin and super-admin roles
-may edit it. It is not a per-project list or an account on this tool.
+The people and service teams projects in one organization draw from — one list scoped to that
+organization, not a per-project list or an account on this tool. Current members may read it;
+current member, admin and super-admin roles may edit it.
 _Avoid_: roster, address book, org chart, users
 
 **Service team**:
-A team work can be labelled with. A label on the work, never a constraint on who may be
-assigned it, and unique by name across the directory. How many of them may be at work at
-once is a separate fact, stated per project — a Capacity, not a property of the team.
+A team work can be labelled with, unique by name across the directory: a label on the work,
+never a constraint on who may be assigned it. How many may be at work at once is a per-project
+[Capacity](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md),
+not a property of the team.
 _Avoid_: department, squad, group
 
 **Service**:
@@ -352,27 +373,27 @@ _Avoid_: component, system, area, service team
 
 **Work item type**:
 A word for what a work item **is** — `epic`, `story`, `spike` — named globally and unique
-across the directory. A work item carries at most one; none is allowed. Unlike a Tag it does
-not inherit at all (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`): a row's
-type is the row's own, and an ancestor's says nothing about it.
+across the directory. A work item carries at most one, and none is allowed. Unlike a Tag it
+does not inherit at all ([ADR
+0009](docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md)): a row's type is the row's
+own, and an ancestor's says nothing about it.
+_Avoid_: kind, category, issue type, tag
 
 **Type conflict**:
 A work item still carrying several types from before a work item took at most one. Shown
 with all of them, flagged, until somebody picks one; never resolved by choosing for them.
 _Avoid_: legacy types, multi-type
-_Avoid_: kind, category, issue type, tag
 
 **Team set**:
-The teams one work item states — none, one, or several. Stated in `work_item_team` and
-read from there; the work item's own column holds the single member until it is dropped.
-Empty means _unstated_ and takes the ancestor's, never "deliberately no team".
+The teams one work item states — none, one, or several. Empty means _unstated_ and takes the
+ancestor's; storage in `work_item_team` and the retiring column are in
+[team-sets](openspec/changes/archive/2026-08-30-team-sets/specs/wbs-domain/spec.md).
 _Avoid_: teams field, labels, tags
 
 **Effective team set**:
-The team set in force for a row: its own if that is non-empty, else the nearest
-ancestor's, whole. Most-specific wins and the set is replaced rather than accumulated, so
-a row stating one team is on that team alone however many its parent states. A reading,
-computed in one place and never written down.
+The team set in force for a row: its own if that is non-empty, else the nearest ancestor's,
+whole. Replaced rather than accumulated, and computed on read, never written down
+([team-sets](openspec/changes/archive/2026-08-30-team-sets/specs/wbs-domain/spec.md)).
 _Avoid_: inherited teams, resolved teams, effective team
 
 **Tag**:
@@ -382,16 +403,16 @@ any date.
 _Avoid_: label, category, type, marker
 
 **Tag set**:
-The tags one work item states — none, one, or several. Stated in `work_item_tag` and read
-from there. Empty means the row has added no word of its own, never "deliberately
-untagged".
+The tags one work item states — none, one, or several — stored in `work_item_tag`. Empty means
+the row has added no word of its own, never "deliberately untagged"
+([tags-accumulate](openspec/changes/archive/2026-08-30-tags-accumulate/specs/wbs-domain/spec.md)).
 _Avoid_: tags field, labels
 
 **Effective tag set**:
-The tags in force for a row: its own **plus every ancestor's**, unioned, each carrying the
-row that states it. Accumulated rather than replaced — the opposite of an Effective team
-set, because a child of a `Risk` parent is still risky (ADR 0008). A tag two rows both
-state belongs to the nearer one. A reading, computed in one place and never written down.
+The tags in force for a row: its own **plus every ancestor's**, unioned, each carrying the row
+that states it. Accumulated rather than replaced — the opposite of an Effective team set ([ADR
+0008](docs/adr/0008-tags-accumulate-down-the-tree.md),
+[tags-accumulate](openspec/changes/archive/2026-08-30-tags-accumulate/specs/wbs-domain/spec.md)).
 _Avoid_: inherited tags, resolved tags, effective tag
 
 **Stating row**:
@@ -401,14 +422,15 @@ row can take it off.
 _Avoid_: source, owner, origin
 
 **Capacity**:
-How many of one team may be at work at once on **one project's plan**. A fact about the
-pair, never about the team: two plans labelled with the same team each state their own,
-and there is no global number behind either. Absent is _unstated_ and constrains nothing.
+How many of one team may be at work at once on **one project's plan**: a fact about the pair,
+never about the team. Absent is _unstated_ and constrains nothing; there is no global number
+([capacity-per-project](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md)).
 _Avoid_: team size, headcount, allocation, availability
 
 **Pool**:
-The slots one team's capacity provides on one plan, and the thing work labelled with that
-team competes for. Keyed on the work item's team, never on the assignee's memberships.
+The units one capacity provides on one plan, and the thing work competes for: a team's
+slots (keyed on the work item's team, never on the assignee's memberships) or a resource's
+units (keyed on the work item's demand).
 _Avoid_: bucket, resource pool, team capacity, queue
 
 **Slot**:
@@ -418,9 +440,9 @@ the work.
 _Avoid_: seat, lane, place, unit
 
 **Maximum parallelism**:
-How many people may be on one work item at once — 1 or more, never absent, because 1 and
-unset are one fact. What the `∥` column carries. A ceiling on the ask; what a slice
-actually gets is its Width.
+How many people may be on one work item at once — 1 or more, never absent, because 1 and unset
+are one fact; what the `∥` column carries. A ceiling on the ask; what a slice actually gets is
+its Width.
 _Avoid_: in-parallel, concurrency, people, parallelism (bare)
 
 **Width**:
@@ -430,9 +452,10 @@ duration.
 _Avoid_: parallelism, size, slots used
 
 **Block**:
-One slice as the pool sees it — its width for its whole duration, taken indivisibly. It
-starts only where every one of its slots is free for all of it; it never starts narrow and
-widens later.
+One slice as the pools see it — its width in team slots and its demanded units in each
+resource, for its whole duration, taken indivisibly at one instant. It starts only where
+every one of its slots and units is free for all of it; it never starts narrow and widens
+later, and never takes one pool while waiting for another.
 _Avoid_: reservation, chunk, allocation
 
 **Blocking set**:
@@ -448,9 +471,9 @@ five rows is a card nobody finishes.
 _Avoid_: cause, blocker, main predecessor
 
 **Remembered capacity**:
-A capacity a project still holds for a team its work is no longer labelled with. Invisible,
-because the plan lists only the teams on it, and re-applied silently if that team labels a
-row again. A third state beside stated and unstated.
+A capacity a project still holds for a team its work is no longer labelled with: invisible,
+because the plan lists only the teams on it, and re-applied silently if that team labels a row
+again. A third state beside stated and unstated.
 _Avoid_: stale capacity, orphan capacity, leftover
 
 **Person**:
@@ -469,10 +492,10 @@ one per person, always set. Everyone the directory held before kinds existed is 
 _Avoid_: type, category, is-agent, human flag
 
 **Agent**:
-A person whose kind is `agent`: software that does a work item's work. Assigned,
-scheduled and counted against capacity exactly as a human is; the kind is a label reports
-read, not a rule the engine follows. Not to be confused with **free agent**, which is
-about team membership and predates this term.
+A person whose kind is `agent`: software that does a work item's work, assigned, scheduled and
+counted exactly as a human
+([token-tracking](openspec/changes/archive/2026-08-30-token-tracking/specs/wbs-domain/spec.md)).
+Not a **free agent**, which is about team membership.
 _Avoid_: bot, AI, machine user, automation
 
 **Allotment**:
@@ -482,11 +505,18 @@ the startable read filters by it.
 _Avoid_: Scope, territory, ownership
 
 **Claim**:
-A record that one person, under one run, occupies a step so nobody else picks it up; or, on
-a non-leaf, reserves dispatch of the subtree. Separate from the assignment, which is the plan
-of who does the work. Refused where the step is blocked, held, done or already claimed.
-Giving it back is a **release**, which leaves progress as it is.
+A record that one person, under one run, occupies a step so nobody else picks it up; or, on a
+non-leaf, reserves dispatch of the subtree. Separate from the assignment, which is the plan of
+who does the work. Refused where the step is blocked, held, done or already claimed. Giving it
+back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
+
+**Claim lease**:
+The instant by which a claim an agent took for itself must be renewed, or the coordinator
+releases it: every committed write of that agent, or its heartbeat, renews it; revoking the
+agent's last live credential ends it. A human's claim has none and is never released by
+expiry.
+_Avoid_: TTL, heartbeat lock, expiry (alone), lease (alone, which a claim is not)
 
 **Delegated claim**:
 A claim that names a subtree claim as its parent and is written by the same account: how a
@@ -494,9 +524,11 @@ superagent lets its subagents claim leaves inside its subtree. Released with its
 _Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
 
 **Startable**:
-A step whose leaf is not blocked, held or done, whose progress is not done, and that no
-claim holds; startable **for a team** when that team is also in the leaf's effective team
-set. Derived from the folds the table uses, never stored.
+A step whose leaf is not blocked, held or done, whose progress is not done, and that no claim
+holds; startable **for a team** when that team is also in the leaf's effective team set.
+Derived from the folds the table uses, never stored. A startable step whose leaf's demand the
+project's free units do not cover is still startable, but listed apart as not fitting, with its
+shortfall.
 _Avoid_: Available, free, unassigned, ready (which is a readiness value)
 
 **Agent run**:
@@ -505,11 +537,83 @@ person: an OpenClaw session key, a Codex thread, a Claude session id. WBS stores
 it and never parses it.
 _Avoid_: Session, instance, worker id
 
-**Fleet credential**:
-An `(issuer, subject)` linked to a human's account so a headless fleet writes as that
-account, pinned to the one agent person it may claim as. One account, many credentials;
-revoked by unlinking.
-_Avoid_: Agent account, service account, machine identity, bot user
+**Machine credential**:
+An organization's record that lets one agent person act in WBS: pinned to that person,
+issued by a member or admin account, admitting a token of one credential source, and
+revocable. The token acts as the person's bound account with read and write only, never as
+its issuer.
+_Avoid_: Fleet credential (the 2026-10-19 name), agent account, service account, machine
+identity, bot user, API user
+
+**Credential source**:
+Where a machine credential's secret lives and how WBS verifies it: a WBS-issued API key, an
+OIDC token of a trusted issuer, or an MCP consent in which a human authorized an agent
+person. Never an application in PUNI's own identity tenant.
+_Avoid_: Credential type, auth method, grant type, machine-to-machine application
+
+**Consent credential**:
+A machine credential minted when a signed-in human chooses an agent person bound to their
+account at the MCP consent page; its secret is the MCP refresh family, which keeps the agent's
+session alive as a human's is.
+_Avoid_: Agent session, delegated login, impersonation
+
+**Trusted issuer**:
+An organization's record of an OIDC issuer whose tokens may name its OIDC-sourced machine
+credentials: the issuer URL, the key set discovered from it once, a default audience, and
+optionally the proven OIDC enterprise connection that gated its registration.
+_Avoid_: Identity provider, IdP, allowed issuer, federation
+
+**Rotation window**:
+The bounded time after an API key's rotation during which the previous secret is still
+admitted beside the new one.
+_Avoid_: Grace period, overlap, TTL
+
+**Resource**:
+A claimable thing work can state a demand on, named in the directory like a team: a host's
+RAM or tmp disk, a staging environment, worktrees, agent slots. Has a kind and a unit label,
+no global size.
+_Avoid_: Asset, pool (the scheduler-side projection), resource type
+
+**Resource kind**:
+Which scheduling problem a resource is: `exclusive` (identical units, demand always 1) or
+`divisible` (N integer units, demand k). Renewable (units per period) is not a kind yet.
+_Avoid_: Resource type, category
+
+**Resource capacity**:
+How many units of one resource one project's plan may use, a fact about the pair, with the
+same unstated and remembered states as a team's capacity.
+_Avoid_: Quota, limit, size
+
+**Demand**:
+The units of one resource one work item states it needs while any of its steps runs. Plan data:
+levelled by the engines, acquired by a claim, and not inherited down the tree.
+_Avoid_: Requirement, reservation, claim
+
+**Occupancy**:
+The units of a resource a leaf's claims hold right now: every claim on the leaf carries a copy
+of the leaf's units, the leaf holds the largest copy, a later claim may raise it and releasing
+that claim lowers it, and the last release frees it. Clockless; read by the claim path and the
+startable read, never by a schedule.
+_Avoid_: Lease, hold, lock, allocation
+
+**Compute provider**:
+A kind of thing Twilight Dash can measure a resource on and run an agent against: a tenant's
+SSH host, a Docker daemon, a Kubernetes cluster, or later a PUNI pool. WBS stores the kind and
+never dials it.
+_Avoid_: Provider (alone: an identity provider or an adapter elsewhere), backend, executor, host (that is one kind)
+
+**Provider instance**:
+One registered compute provider of one organization, with a name and a display locator, that
+a resource may name as what fulfils its units. Additive: a schedule, a claim and an occupancy
+never read it.
+_Avoid_: Host record, node, machine, pool
+
+**Capacity report**:
+The latest measurement a provider instance's Dash reporter put on one resource: capacity and
+usage in the resource's own unit, or that the provider was unreachable, with when it was
+observed and which agent person reported it. Informational beside the declared capacity until
+an admin adopts it as a typed number.
+_Avoid_: Receipt (that is progress), heartbeat, usage report, telemetry
 
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
@@ -524,18 +628,18 @@ one membership.
 _Avoid_: tag, pill, badge
 
 **Add button**:
-The `+` on a reference cell — Tags, Teams, Services, Types and Depends on. It **toggles**:
-it opens the cell's picker, and pressed again with that picker's list open it closes it
-and leaves the cell at rest. What it reads is the list, never whether the focus is in the
-cell — a box holding the focus with no list under it is where a reader stands the moment
-after taking a value, and the `+` has to open from there. It never takes the keyboard
+The `+` on a reference cell — Tags, Teams, Services, Types and Depends on. It **toggles**: it
+opens the cell's picker, and pressed again with that picker's search open it closes it and
+leaves the cell at rest. What it reads is whether the search is open, never whether the focus
+is in the cell — a box holding the focus with no search open is where a reader stands the
+moment after taking a value, and the `+` has to open from there. It never takes the keyboard
 itself.
 _Avoid_: plus, add affordance, new button, opener
 
 **Project owner**:
-The account that created a project and retains stewardship of a restricted project within
-its organization. A current creator-member may edit it; a current super-admin may make an
-audited recovery edit. An account, never a person from the directory.
+The account that created a project and retains stewardship of a restricted project within its
+organization. A current creator-member may edit it; a current super-admin may make an audited
+recovery edit. An account, never a person from the directory.
 _Avoid_: author, creator, user
 
 **Project entry**:
@@ -550,9 +654,9 @@ day it was created. Shown to tell same-named projects apart, never searched.
 _Avoid_: subtitle, caption, details
 
 **Estimate**:
-Three durations in the step's **estimate unit** — optimistic, realistic, pessimistic — held
-for one step node. Workday-unit trios may be fractions; minute-unit trios are whole minutes.
-A work item with children has no estimates of its own.
+Three durations in the step's **estimate unit** — optimistic, realistic, pessimistic — held for
+one step node. Workday-unit trios may be fractions; minute-unit trios are whole minutes. A work
+item with children has no estimates of its own.
 _Avoid_: points, effort, sizing, days (as the only unit)
 
 **Project-step allowance**:
@@ -589,8 +693,9 @@ _Avoid_: PERT formula, coefficients, lambda
 **Estimate rounding**:
 A project's answer to how one workday-unit step's combined figure, after its project-step
 allowance, becomes the days it is charged: `floor`, `round`, `ceil`, or `exact` for the
-fraction itself. `ceil` unless the project says otherwise, applied per step before any sum.
-Minute-unit steps do not consult it; they are charged to the minute.
+fraction itself. `ceil` by default and applied per step before any sum; minute-unit steps are
+charged to the minute ([ADR 0011](docs/adr/0011-final-days-are-whole-days-rounded-per-step.md),
+[ADR 0042](docs/adr/0042-an-estimate-unit-belongs-to-the-step-and-rounding-follows-it.md)).
 _Avoid_: precision, rounding mode, day granularity
 
 **Estimate unit**:
@@ -614,9 +719,10 @@ The sum of a parent's descendants' estimates, per step, computed on read and nev
 _Avoid_: aggregate, total, computed estimate
 
 **Measure**:
-One number somebody typed about one work item, one step and one **metric**, with the
-moment they typed it. Rolls up like an estimate; absent, never zero, when nobody typed it.
-Days live outside this term — they are the **estimate** and the **recorded days**.
+One number somebody typed about one work item, one step and one **metric**, with the moment
+they typed it. Rolls up like an estimate and is absent, never zero, when nobody typed it; days
+are the **estimate** and the **recorded days** instead
+([token-tracking](openspec/changes/archive/2026-08-30-token-tracking/specs/wbs-domain/spec.md)).
 _Avoid_: metric value, figure, datapoint, reading
 
 **Metric**:
@@ -636,23 +742,22 @@ work is finished — completion is the step's **progress**, recorded separately.
 _Avoid_: actual tokens, token spend, usage
 
 **Hours fact**:
-The hours a person's work on one step node actually took. Recorded, never derived: no
-conversion from tokens or from days exists. An agent's time is not typed here; it is the
-span of its **attempts**.
+The hours a person's work on one step node actually took: recorded, never converted from tokens
+or days. An agent's time is not typed here; it is the span of its **attempts**.
 _Avoid_: actual hours, time spent, effort, agent hours
 
 **Progress**:
-What one step node has said about its own work — `in_progress` or `done` — with the
-moment it was said. Unknown is the absence of a statement, never a stored value. An
-**attempt** is not a statement.
+What one step node has said about its own work — `in_progress` or `done` — with the moment it
+was said. Unknown is the absence of a statement, never a stored value, and an **attempt** is
+not a statement.
 _Avoid_: step status, completion, state, node reading (which is derived)
 
 **Attempt**:
-One run at a step node's work: a start instant, an end instant once it ended, an
-**attempt outcome**, the directory person or agent that ran it and one reference to its
-evidence. A review round is an attempt of the review node; a retried agent run is an
-attempt of its node. Attempts are history and are never pruned; one is running per node at
-most. Not to be confused with **Attempt token**, the solver slot's fence.
+One run at a step node's work: a start instant, an end instant once it ended, an **attempt
+outcome**, the person or agent that ran it and one reference to its evidence; a review round or
+a retried agent run is one. Never pruned, at most one running per node ([ADR
+0045](docs/adr/0045-an-attempt-is-the-unit-of-execution-history.md)); not the solver slot's
+**Attempt token**.
 _Avoid_: run, try, execution, round (as a stored thing), retry
 
 **Attempt outcome**:
@@ -713,8 +818,9 @@ readiness and progress, so resuming returns the leaf to what it read before.
 _Avoid_: pause, suspension, freeze, status (for the stored fact)
 
 **Held**:
-Of a leaf, carrying a hold of on hold. Of a parent, every leaf beneath it held. A held work item
-takes no part in the schedule.
+Of a leaf, carrying a hold of on hold; of a parent, every leaf beneath it held. A held work
+item takes no part in the schedule ([ADR
+0032](docs/adr/0032-a-hold-leaves-the-plan-blocked-is-a-reading.md)).
 _Avoid_: paused, frozen, excluded
 
 **Blocked by proxy**:
@@ -729,10 +835,10 @@ finished holding none. Read by no engine; absent means nobody has said.
 _Avoid_: actual start, real start, started at, start date
 
 **Fact end**:
-The day work on a work item actually finished, date-only in the project timezone. Filled
-when a work item is marked done holding none: from the last attempt's end day when one
-exists, else the day of the act. Where a done work item's bar stops, whatever the estimate
-says.
+The day work on a work item actually finished, date-only in the project timezone. Filled when a
+work item is marked done holding none: from the last attempt's end day when one exists, else
+the day of the act. Where a done work item's bar stops, whatever the estimate says ([ADR
+0024](docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md)).
 _Avoid_: actual end, finished at, completion date, done at
 
 **Status strip**:
@@ -769,10 +875,10 @@ The leaves beneath a parent endpoint, each of which participates in the dependen
 _Avoid_: parent envelope, first child
 
 **Dependency reach**:
-A project's answer to how far into a predecessor its legacy dependencies reach: `whole-item`, the
-predecessor's last slice in step order, or `anchor-slice`, its Anchor slice with the steps
-behind it running alongside the successor. Stored per project, read by the scheduler, never
-sent by a client. `whole-item` unless the project says otherwise.
+A project's answer to how far into a predecessor its legacy dependencies reach: `whole-item`,
+the predecessor's last slice in step order, or `anchor-slice`, its Anchor slice with the steps
+behind it running alongside the successor. Stored per project and `whole-item` by default ([ADR
+0010](docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md)).
 _Avoid_: dependency mode, wait rule, link type
 
 **Slice**:
@@ -782,11 +888,10 @@ _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
 A work item's first slice in project-step order that somebody estimated — the one a legacy
-dependency waits on where project Dependency reach is `anchor-slice`. An earlier unestimated
-step is stepped over; its drawing-only assumed span does not make it the anchor. Reordering
-steps or changing estimates can move the anchor and must revalidate the combined dependency
-graph. Where nothing is estimated, the anchor is the work item's zero-duration scheduled finish
-after its ordered unknown slices, so both reaches name the same zero-time boundary.
+dependency waits on where project Dependency reach is `anchor-slice`
+([spec](openspec/changes/archive/2026-08-30-dep-waits-on-first-role/specs/wbs-domain/spec.md)).
+Where nothing is estimated, it is the work item's zero-duration scheduled finish after its
+ordered unknown slices, so both reaches name the same zero-time boundary.
 _Avoid_: dev slice, first slice, handoff point
 
 **Projection**:
@@ -796,34 +901,33 @@ slices themselves never do.
 _Avoid_: aggregate, summary, rollup (which is estimates, not time)
 
 **Resource leveling**:
-Placing every slice so that nobody is doing two at once. Always on, and invisible in a
-plan with nobody assigned — which is what every plan was until it arrived. Per person;
+Placing every slice so that nobody is doing two at once, per person
+([resource-leveling](openspec/changes/archive/2026-08-10-resource-leveling/specs/wbs-domain/spec.md)).
+Always on, and invisible in a plan with nobody assigned, as every plan was until it arrived;
 the per-team bound beside it is a Capacity.
 _Avoid_: smoothing, balancing, allocation
 
 **Priority**:
 How important one work item's work is, as an integer from 1 upward, smaller being more
-important — or absent, which is a state of its own and not a large number. A created work
-item takes its project's rank 2 band's own default unless the create names one; absent is
-what a create is explicitly told to write, and what every work item written before
-2026-08-29 still holds. Decides which of two eligible slices is **placed** first; a leaf
-that carries one is not reached by a priority written on a step above it. Never overrides
-a dependency, a floor or a calendar, and placed first is not started first — a narrow
-block can take a hole a wide one of higher priority cannot use. What the number is **called** is the project's own —
-see Priority band — and the name decides nothing the number does not.
+important — or absent, a state of its own that every work item written before 2026-08-29 holds
+([default](openspec/changes/archive/2026-08-30-priority-default-medium/specs/wbs-domain/spec.md),
+[inheritance](openspec/changes/archive/2026-08-30-priority-column/specs/wbs-domain/spec.md),
+[names](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)). Decides
+which of two eligible slices is **placed** first, never overriding a dependency, a floor or a
+calendar, and placed first is not started first: a narrow block can take a hole a wide one of
+higher priority cannot use.
 _Avoid_: priority, importance, urgency, severity, weight
 
 **Priority band**:
-One rung of what a project calls its priority numbers: a start value, a label, and the
-number choosing that label writes. The band above ends the one below, and the highest ends
-nowhere, so every priority resolves to exactly one band. Five per project, renamable and
-re-cuttable; the count is not.
+One rung of what a project calls its priority numbers: a start value, a label, and the number
+choosing that label writes. The band above ends the one below and the highest ends nowhere, so
+every priority resolves to exactly one band
+([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: priority level, priority range, severity level, tier
 
 **Priority ladder**:
-A project's five bands, in rank order. It is a vocabulary and never a constraint: re-cutting
-it renames what a plan's numbers are called and moves no date. A project that has stored
-none reads the default five.
+A project's five bands, in rank order: a vocabulary and never a constraint
+([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
@@ -834,11 +938,9 @@ close over one.
 _Avoid_: project config, settings dialog, Teams dialog, Priorities dialog, Steps dialog
 
 **Rank**:
-A band's position in its ladder, 0 (most important) to 4. What every face keys a band's
-colour off, because a label can be renamed out from under one and a position cannot, and
-what a create reads its default priority from. Rank 2 is the ordinary rung: the colours
-diverge around it — neutral there, warm above, cool below — so colour reads as distance
-from ordinary.
+A band's position in its ladder, 0 (most important) to 4, which every face keys a band's colour
+off because a label can be renamed and a position cannot. Rank 2 is the ordinary rung
+([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: band index, level, tier number
 
 **Eligible slice**:
@@ -849,9 +951,10 @@ _Avoid_: ready, available, unblocked, frontier
 
 **Binding floor**:
 The one thing a slice's start is set by, out of the day the project starts, a dependency,
-its work item's earlier step, a manual date, its assignee's last finish, and its team's
-capacity. A tie is never the person and never the capacity: somebody — or some slot —
-free exactly when the dependency clears is holding nothing up.
+its work item's earlier step, a manual date, its assignee's last finish, its team's
+capacity, and a resource's capacity. A tie is never the person and never a capacity:
+somebody — or some slot or unit — free exactly when the dependency clears is holding
+nothing up.
 _Avoid_: constraint, reason, blocker, driver
 
 **Resource predecessor**:
@@ -871,33 +974,32 @@ outline, and a control: clicking one takes the plan to that row.
 _Avoid_: label column, gutter, row header, legend
 
 **Linked scroll**:
-The one row the plan renderer and the Gantt panel are both showing first. Scrolling either
-vertically brings the other to that row, whichever was scrolled; sideways they are
-independent, because the columns on screen and the part of the calendar on screen are
-different facts. Rows and not pixels: the two faces do not draw a row at the same height.
+The one row the plan renderer and the Gantt panel are both showing first; scrolling either
+vertically brings the other to that row. Rows and not pixels, because the faces draw rows at
+different heights; sideways they are independent
+([unified-scroll-docking](openspec/changes/archive/2026-08-30-unified-scroll-docking/specs/wbs-domain/spec.md)).
 _Avoid_: scroll sync, scroll lock, pinned scroll
 
 **Pointed row**:
-The one work item both faces of the plan agree the pointer is on, lit in three places at
-once: the plan renderer's row, the Gantt panel's label for it, and a band across its Gantt
-row. One at a time, from whichever face the pointer is over or a bar holds the focus —
-including the plan renderer's own row, which since 2026-09-01 carries the row light like
-any other rather than being left to the alternating band's hover. It moves nothing:
-nothing scrolls to a pointed row.
+The one work item both faces of the plan agree the pointer is on, lit in three places at once:
+the plan renderer's row, the Gantt panel's label for it, and a band across its Gantt row. One
+at a time, from whichever face the pointer is over or a bar holds the focus — including the
+plan renderer's own row, which since 2026-09-01 carries the row light like any other. It moves
+nothing: nothing scrolls to a pointed row ([spec](openspec/specs/wbs-domain/spec.md)).
 _Avoid_: hovered row, active row, current row, selection, highlight
 
 **Row line**:
-A Gantt row's whole width as a thing the pointer can be on, bar or no bar. What makes the
-empty part of a row point it, and the only surface a row nobody has estimated has. Not a
-mark — it is never painted, and it draws under every bar so a bar keeps its own hover.
+A Gantt row's whole width as a thing the pointer can be on, bar or no bar: what makes the empty
+part of a row point it, and the only surface a row nobody has estimated has
+([spec](openspec/specs/wbs-domain/spec.md)). Not a mark — it is never painted, and it draws
+under every bar so a bar keeps its own hover.
 _Avoid_: row hit area, row track, row background, lane
 
 **Row light**:
-The tint a row is painted to say it is being pointed at — one colour for every cause and
-on every stripe, because there is one pointer and so only ever one reason on screen at a
-time. What a hovered Depends on cell paints the rows it waits for, and what a pointed row
-is painted. The alternating band says which row is which **at rest**; it has no say in
-what a pointed row looks like.
+The tint a row is painted to say it is being pointed at — one colour for every cause and on
+every stripe, and what a hovered Depends on cell paints the rows it waits for
+([spec](openspec/specs/wbs-domain/spec.md)). The alternating band says which row is which **at
+rest**; it has no say in what a pointed row looks like.
 _Avoid_: highlight colour, selection colour, active background
 
 **Calendar axis**:
@@ -927,8 +1029,8 @@ _Avoid_: milestone, date tag, annotation
 
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,
-printing the offset itself. Weekends are not on it — there is no calendar to have one on
-— so a week is five cells rather than seven. A rendered state, not a fallback.
+printing the offset itself. Weekends are not on it — there is no calendar to have one on — so a
+week is five cells rather than seven. A rendered state, not a fallback.
 _Avoid_: time axis, date axis, offset axis
 
 **Horizon**:
@@ -946,10 +1048,10 @@ numbers it carries stay the engine's.
 _Avoid_: segment, block, task bar
 
 **Assumed duration**:
-The drawing-only span, currently two workdays, shown for a slice nobody has estimated.
-It contributes no scheduling duration or resource demand. It is never an estimate:
-nothing is written, the days column and the roll-up stay blank, and the readiness badge
-still counts the gap.
+The drawing-only span, currently two workdays, shown for a slice nobody has estimated. It
+contributes no scheduling duration or resource demand. It is never an estimate: nothing is
+written, the days column and the roll-up stay blank, and the readiness badge still counts the
+gap ([spec](openspec/specs/wbs-domain/spec.md)).
 _Avoid_: default duration, placeholder estimate, assumed estimate
 
 **Assumed span**:
@@ -972,9 +1074,8 @@ _Avoid_: completed bar, clipped bar, fact bar, finished slice
 
 **Slack**:
 How long a work item can be late before the plan's end moves — its latest finish less its
-earliest finish. Zero slack is Critical. One word for it, and `float` is the one to avoid:
-the scheduler's own field is `float` and its prose says `slack`, which is one concept with
-two names and the rename is owed.
+earliest finish; zero slack is Critical. Say `slack`: the scheduler's field is still named
+`float`, and that rename is owed.
 _Avoid_: float, buffer, spare time
 
 **Critical**:
@@ -988,12 +1089,12 @@ never a sum, exactly as the projection is.
 _Avoid_: parent bar, group bar, rollup bar
 
 **Arrow route**:
-The corners a dependency arrow is drawn through, from the selected predecessor boundary to the
-selected successor boundary — finish→start for FS, start→start for SS, finish→finish for FF: horizontal and vertical runs only.
-The head arrives from outside the bar at that boundary: from the left, pointing right, at a
-start (FS, SS); from the right, pointing left, at a finish (FF), through a gutter right of the
-finishes. Chosen against the bars the panel is drawing — it passes through no bar's
-interior, the two it joins included — and not merely from the two ends.
+The corners a dependency arrow is drawn through, in horizontal and vertical runs only, from the
+selected predecessor boundary to the selected successor boundary (FS finish→start, SS
+start→start, FF finish→finish), through no bar's interior
+([arrow-dodge](openspec/changes/archive/2026-08-30-arrow-dodge/specs/wbs-domain/spec.md)). The
+head arrives from the left at a start and from the right at a finish, through a gutter right of
+the finishes.
 _Avoid_: elbow, path, polyline
 
 **Person link**:
@@ -1008,10 +1109,10 @@ Where it stands is that date's place on the axis; what it says on hover is the d
 _Avoid_: constraint marker, lock, milestone
 
 **Not-before reason**:
-Why a row's manual start date is there, in the planner's own words. Words about that date
-and nothing else: it holds nothing back on its own, moves no date, reaches no other row,
-and cannot exist without the date it explains. Said where that date's effect is already
-said — the floor sentence of a bar the date binds, and the Not before cell.
+Why a row's manual start date is there, in the planner's own words: words about that date only,
+which hold nothing back and cannot exist without it
+([not-before-reason](openspec/changes/archive/2026-08-30-not-before-reason/specs/wbs-domain/spec.md)).
+Said in the floor sentence of a bar the date binds, and in the Not before cell.
 _Avoid_: blocked, blocker, status, hold reason, note
 
 **Refused dependency**:
@@ -1045,9 +1146,9 @@ told to be-01 — not the expansion, not the column widths.
 _Avoid_: preset, bookmark, layout, filter set
 
 **Expansion**:
-Which branches of one project's tree are open, in one browser. Either every branch or a
-named set of them; a branch not named is closed. Remembered per project, per browser, and
-overridden on screen for as long as a search is running.
+Which branches of one project's tree are open, in one browser: every branch or a named set of
+them, a branch not named being closed. Remembered per project, per browser, and overridden on
+screen for as long as a search is running.
 _Avoid_: collapse state, open rows, fold
 
 **Key binding**:
@@ -1064,27 +1165,31 @@ _Avoid_: help, shortcuts dialog, legend
 The one box a work item's name and its notes are written in: the first line is the name,
 everything under it is the notes. At rest the cell shows the name alone, whole, wrapped and
 read as inline markdown; writing in it gives the source back. The notes appear while it is
-edited and in its hover preview. They stay two fields in storage — the cell is where they
-are composed for reading and split again on the way out.
+edited and in its hover preview. They stay two fields in storage — the cell is where they are
+composed for reading and split again on the way out
+([name-title-body](openspec/changes/archive/2026-08-10-name-title-body/specs/wbs-domain/spec.md)).
 _Avoid_: title field, notes column, description
 
 **Inline markdown**:
 How a work item's name is read on every face that draws one — the Name cell, the hover
 preview's heading, a plan card and the chart's row label. Emphasis, strong, inline code,
-strikethrough and links parse; block syntax does not, and a heading, list, quote, fence,
-table or rule marker is shown as the characters it is rather than stripped. A name never
-changes the height of what it is drawn in, and a link is followable only from the hover
-preview. The export and the search read the source instead.
+strikethrough and links parse; block syntax does not, and a heading, list, quote, fence, table
+or rule marker is shown as the characters it is rather than stripped. A name never changes the
+height of what it is drawn in, a link is followable only from the hover preview, and the export
+and the search read the source instead.
 _Avoid_: rich text, formatted name, markdown name
 
 **Hover preview**:
-The rendered reading of one work item: the name as a level-one heading the application
-itself writes, with the name's own inline markdown inside it, and the notes as markdown
-under it. One card, shown two ways — opened over its Name cell from the notes marker on
-hover, and shown beside the box while it is being written in, the same size and content
-either way. The name is never composed into the notes' markdown source. The only place
-notes render; nowhere does raw HTML in either field become markup.
-_Avoid_: tooltip, popover, notes preview
+The one positioned surface a mark shows on hover or focus, wherever the plan is drawn; the Name
+cell's and a Gantt bar's are the same surface with different bodies. The Name cell's is the
+rendered reading of one work item: the name as a level-one heading the application itself
+writes, with the name's own inline markdown inside it, and the notes as markdown under it. One
+card, shown two ways — opened over its Name cell from the notes marker on hover, and shown
+beside the box while it is being written in, the same size and content either way. The name is
+never composed into the notes' markdown source; this is the only place notes render, and
+nowhere does raw HTML in either field become markup
+([name-title-body](openspec/changes/archive/2026-08-10-name-title-body/specs/wbs-domain/spec.md)).
+_Avoid_: tooltip, popover, hovercard, notes preview
 
 **Notes marker**:
 The small mark at the right edge of a Name cell whose work item has notes, and what opens
@@ -1094,17 +1199,17 @@ control — nothing to click, no focus, no place in the keyboard grid.
 _Avoid_: notes icon, badge, indicator, button
 
 **Hover card**:
-The instant answer a cell gives to the mouse resting on it: the whole of what its at-rest
-face folds away — a folded step's three points and assignee, a depends chip's names. Opens
-on enter with no delay while nothing is open, one at a time; an open one gives way by
-Takeover. The Name cell's hover preview is one.
+The instant answer a cell gives to the mouse resting on it: the whole of what its at-rest face
+folds away — a folded step's three points and assignee, a depends chip's names
+([instant-hovers](openspec/changes/archive/2026-08-10-instant-hovers/specs/wbs-domain/spec.md)).
+The Name cell's hover preview is one; an open one gives way by Takeover.
 _Avoid_: tooltip, title attribute, hint
 
 **Takeover**:
 How an open hover card gives way to another cell's: only once the pointer has rested on the
-other trigger for a moment (50ms), so a hand crossing that trigger on its way to the open
-card keeps what it was reaching for. Arriving on the open card, or leaving the trigger, drops
-a pending takeover; with nothing open a trigger opens at once. One rule for every card.
+other trigger for a moment (50ms), so a hand crossing that trigger on its way to the open card
+keeps what it was reaching for. Arriving on the open card, or leaving the trigger, drops a
+pending takeover; with nothing open a trigger opens at once. One rule for every card.
 _Avoid_: hover intent, switch delay, debounce, grace period
 
 **Project fact**:
@@ -1126,10 +1231,10 @@ _Avoid_: spinner, loader, progress indicator, countdown
 
 **Press quiet**:
 The silence a control keeps after the pointer has pressed it: the wait its tool hint had
-started is cancelled, and no new one begins until the cursor actually moves. A reader who
-has pressed a control has said they know what it does. Nothing remembers which control was
-pressed — the cursor moving is what ends it, so the page redrawing under a still cursor
-does not.
+started is cancelled, and no new one begins until the cursor actually moves, because a reader
+who has pressed a control has said they know what it does. Nothing remembers which control was
+pressed — the cursor moving is what ends it, so the page redrawing under a still cursor does
+not.
 _Avoid_: dismissed, suppressed hint, seen control, tooltip cooldown
 
 **Actions menu**:
@@ -1139,25 +1244,23 @@ keyboard while it is.
 _Avoid_: context menu, row menu, kebab, overflow menu
 
 **Theme choice**:
-What a reader has asked the app to be painted in: `system`, `light` or `dark`. Remembered
-per browser, under one key for every project, because it answers about this screen in this
-room. `system` is an answer of its own — follow whatever the machine is set to, and keep
-following it while the page is open — rather than the absence of one.
+What a reader has asked the app to be painted in: `system`, `light` or `dark`, remembered per
+browser under one key for every project because it answers about this screen in this room.
+`system` is an answer of its own — follow the machine, live
+([dark-mode](openspec/changes/archive/2026-08-30-dark-mode/specs/wbs-domain/spec.md)).
 _Avoid_: theme mode, dark mode setting, colour preference
 
 **Palette**:
-Which of the two token sets is actually on screen once a Theme choice has been resolved:
-`light` or `dark`. `styles.css` declares both and the `dark` class on the root selects the
-second; every `bg-card` and `color-mix` in the app reads it through a custom property and
-knows nothing about there being two. Not a Colour, which is a deploy slot.
+See [Palette](libs/shared/adapters/ui-core-01/CONTEXT.md#language): the light or dark token set a
+resolved Theme choice puts on screen. Not a Colour, which is a deploy slot.
 _Avoid_: theme (for what is painted), colour scheme, skin
 
 **Flexible column**:
 The one column whose `<col>` never declares a width — the name — which absorbs whatever the
-viewport leaves over, down to a floor it does not shrink past. Draggable like any other:
-a dragged width becomes a column width override riding on its cells, with the `<col>` still
-silent so the excess keeps landing on it alone. Asking for its width with no override in
-force is an error, because the pinned offsets are sums of declared widths.
+viewport leaves over, down to a floor it does not shrink past. Draggable like any other: a
+dragged width becomes a column width override riding on its cells, with the `<col>` still
+silent. Asking for its width with no override in force is an error, because the pinned offsets
+are sums of declared widths.
 _Avoid_: auto column, fill column, stretch
 
 **Table minimum width**:
@@ -1167,19 +1270,18 @@ it the frame scrolls and the pinned columns hold the left edge.
 _Avoid_: total width, table width, min size
 
 **Frame layout**:
-Every width one drawing of the table declares, resolved together from the columns on
-screen and the plan being drawn: each column's declared width, the table minimum, and the
-offset each pinned column is held at. One resolution, read by every consumer — a width
-that changes changes all of them, because there is only one of them. What a width may
-depend on is one object, so a new fact is a field rather than an argument somebody forgets
-to pass.
+Every width one drawing of the table declares, resolved together from the columns on screen and
+the plan being drawn: each column's declared width, the table minimum, and the offset each
+pinned column is held at. One resolution, read by every consumer, so a width that changes
+changes all of them. What a width may depend on is one object, so a new fact is a field rather
+than an argument somebody forgets to pass.
 _Avoid_: width table, column config, geometry, sizing
 
 **Display envelope**:
-The widest content a column undertakes to show whole, where there is no widest content to
-size it to. The Number column's is eleven characters at the deepest indent, beside the
-row's expander and its frozen-number lock; a number past it is clipped and kept whole in
-the cell's title. Measured by a browser, never chosen by reading the markup.
+The widest content a column undertakes to show whole, where there is no widest content to size
+it to. The Number column's is eleven characters at the deepest indent, beside the row's
+expander and its frozen-number lock; a number past it is clipped and kept whole in the cell's
+title. Measured by a browser, never chosen by reading the markup.
 _Avoid_: max width, longest value, cap
 
 **Number indent**:
@@ -1232,25 +1334,20 @@ _Avoid_: collapsed column, disabled column, removed column, folded column
 
 **Short date**:
 A calendar day as somebody reads one — `1 Jun`, and `1 Jun 2027` when the year is not the
-current one — with the whole `YYYY-MM-DD` still in the cell's title. Read out of the
-day's own components, never parsed into a moment: a moment has a zone and a calendar day
-has none. An instant printed this way is a different question and a different formatter.
+current one — with the whole `YYYY-MM-DD` still in the cell's title. Read out of the day's own
+components, never parsed into a moment: a moment has a zone and a calendar day has none. An
+instant printed this way is a different question and a different formatter.
 _Avoid_: formatted date, pretty date, display date
 
 **Edit exit**:
-How an edit in a field ends, as one of two answers: committed, or abandoned. Leaving and
-Enter commit; Escape abandons and puts back what the server agreed, so nothing is left for
-the blur it causes to send — except in the Name box, where Escape leaves the box and leaving
-is the save: a paragraph of markdown is not thrown away on a stray key, and the Done button
-in the cell's top-right, by the notes marker, is the same exit by pointer. Closing returns the focus to the cell
-that was being edited; the Name box, whose rest is itself, returns it to nobody, as a click
-away does.
+How an edit in a field ends, as one of two answers: committed, or abandoned. Leaving and Enter
+commit; Escape abandons and puts back what the server agreed, so nothing is left for the blur
+it causes to send — except in the Name box, where Escape leaves the box and leaving is the
+save, so a paragraph of markdown is not thrown away on a stray key; the Done button in the
+cell's top-right, by the notes marker, is the same exit by pointer. Closing returns the focus
+to the cell that was being edited; the Name box, whose rest is itself, returns it to nobody, as
+a click away does.
 _Avoid_: cancel, dismiss, close, blur handling
-
-**Hover preview**:
-The one positioned surface a mark shows on hover or focus, wherever the plan is drawn;
-the Name cell's and a Gantt bar's are the same surface with different bodies.
-_Avoid_: tooltip, popover, hovercard
 
 **Plan renderer**:
 Whichever of the two things is drawing the plan right now — the table or the outline cards.
@@ -1271,9 +1368,10 @@ estimate.
 _Avoid_: at-mention, tag, autocomplete
 
 **Toast**:
-One message about something that just happened, shown in a corner of the screen. A failure
-waits there until it is dismissed; a note takes itself off. Reports events only — a
-condition that stays true is a banner.
+One message about something that just happened, shown in a corner of the screen; a failure
+waits until dismissed, a note takes itself off
+([errors-you-can-see](openspec/changes/archive/2026-08-10-errors-you-can-see/specs/wbs-domain/spec.md)).
+Reports events only — a condition that stays true is a banner.
 _Avoid_: notification, snackbar, flash, alert
 
 **Stale tree**:
@@ -1301,11 +1399,11 @@ out its commands. It ends with that batch; a saved plan is a separate record of 
 _Avoid_: plan snapshot (for this), cached plan, saved plan (for this)
 
 **Saved plan**:
-One project's whole plan copied by value at one instant and kept in the database: the
-settings, the tree, the estimates, the ownership, the names behind every id it uses, and
-the dates the scheduler gave it. Read to be looked at or compared, never exported, never
-imported, never applied to a project — nothing puts one back. Not a Plan document: that one
-leaves the tool for a reader and can make a new project; this one never leaves.
+One project's whole plan copied by value at one instant and kept in the database: the settings,
+the tree, the estimates, the ownership, the names behind every id it uses, and the dates the
+scheduler gave it. Read to be looked at or compared, never exported, never imported, never
+applied to a project — nothing puts one back. Not a Plan document: that one leaves the tool for
+a reader and can make a new project; this one never leaves.
 _Avoid_: snapshot, checkpoint, backup, version
 
 **Import**:
@@ -1339,10 +1437,10 @@ token reaches with nothing but a name it already knows.
 _Avoid_: integration, link, external project
 
 **Command journal**:
-The last fifty reversible commands one account ran on one project, held on the server in
-the order they happened. One stack per account per project — undo is personal, and
-reversing somebody else's change because it happened to be the newest is not undo. Not
-the plan history: see that term for the five ways they differ.
+The last fifty reversible commands one account ran on one project, held on the server in the
+order they happened — one stack per account per project, because undo is personal
+([conditional-undo](openspec/changes/archive/2026-08-10-conditional-undo/specs/wbs-domain/spec.md)).
+Not the plan history.
 _Avoid_: history, audit log, activity, event log
 
 **Plan history**:
@@ -1403,48 +1501,48 @@ recovery edit; an unrestricted project is editable by current members, admins an
 _Avoid_: private, locked project
 
 **External ref**:
-One link out of a work item to where that work also exists — an external system, a URL and
-a **name**, in the order the refs were added. A work item may hold several into one system,
-because two pull requests are two links. Nothing about it is fetched: a ref is an address
-and a reader's words about it, never a status. Always said in full — the bare **Ref** above
-is the batch-scoped name, and they are different things.
+One link out of a work item to where that work also exists — an external system, a URL and a
+**name**, in the order added; several may point into one system
+([external-refs](openspec/changes/archive/2026-08-31-external-refs/specs/wbs-domain/spec.md)).
+Never fetched and never a status, and always said in full: the bare **Ref** above is the
+batch-scoped name.
 _Avoid_: link (alone), reference, external link, integration
 
 **Link name**:
-What a reader calls one external ref, typed by them and stored as typed. Never fetched — a
-Jira summary is somebody's to write down here, not this tool's to go and read. A ref may
-carry none, which is a stated absence and the only spelling of one; the surfaces then show
-its **derived link label** instead.
+What a reader calls one external ref, typed by them and stored as typed. Never fetched — a Jira
+summary is somebody's to write down here, not this tool's to go and read. A ref may carry none,
+which is a stated absence and the only spelling of one; the surfaces then show its **derived
+link label** instead.
 _Avoid_: title, subject, summary (alone), label
 
 **Derived link label**:
 What a ref's URL calls itself, read off the address and never stored: a Jira issue's key, a
-pull request's `#` and number, a Confluence page's title, otherwise the host and the last
-path segment. Computed wherever a ref is drawn, so a rule added to it improves every ref
-with no **link name** at once and rewrites no row. The opposite bargain from an **external
-system**, which is derived once at the write and frozen because a reader may override it.
+pull request's `#` and number, a Confluence page's title, otherwise the host and the last path
+segment. Computed wherever a ref is drawn, so a new rule improves every ref with no **link
+name** at once — unlike an **external system**, frozen at the write because a reader may
+override it.
 _Avoid_: derived name, fallback title, auto-name
 
 **External system**:
 The name an external ref's target belongs to — `jira-issue`, `github-pr`, `github-issue`,
-`confluence-page`, `slack-message`. A directory-wide vocabulary, unique by name, seeded with
-exactly the names the URL rules can derive. Derived from the URL when a ref is written and
-**stored**; nothing re-derives it on read, so a ref keeps the type it was given when the
-rules later change.
+`confluence-page`, `slack-message` — from a directory-wide vocabulary seeded with exactly the
+names the URL rules can derive. Derived from the URL once at the write and stored, never
+re-derived
+([external-refs](openspec/changes/archive/2026-08-31-external-refs/specs/wbs-domain/spec.md)).
 _Avoid_: provider, integration, source, kind
 
 **Ref mark**:
-One dot in the plan's Links column, standing for a **family** of external systems a row
-links to rather than for a link. Four GitHub pull requests are one mark; a fifth family
-collapses into an overflow mark. Told apart by fill as well as by hue, and named for a
-reader who sees neither.
+One dot in the plan's Links column, standing for a **family** of external systems a row links
+to rather than for a link: four GitHub pull requests are one mark, and families past what the
+cell holds (`MOST_MARKS`) collapse into an overflow mark. Told apart by fill as well as hue,
+and named for a reader who sees neither
+([external-refs](openspec/changes/archive/2026-08-31-external-refs/specs/wbs-domain/spec.md)).
 _Avoid_: dot, badge, icon, chip
 
 **Write stamp**:
-Who is acting and the instant they are acting, carried together into every write. Built
-once per act in the service layer, which is the only layer holding both, and passed to
-the store as one argument. One act carries one stamp however many tables it touches, so
-two rows written by one act never disagree about when it happened.
+Who is acting and the instant they are acting, carried together into every write — built once
+per act in the service layer and passed to the store as one argument ([ADR
+0012](docs/adr/0012-a-write-carries-its-actor-as-an-argument.md)).
 _Avoid_: audit context, metadata, timestamps, actor (alone)
 
 **Audit columns**:
@@ -1463,6 +1561,14 @@ The server-held mapping from a fronting MCP access token's `jti` to the upstream
 token and expiry. Ending it makes the next request carrying that MCP token fail with
 `invalid_token`; it does not end the provider's browser session.
 _Avoid_: connector session, provider session, access token
+
+**Registered MCP client**:
+A public OAuth client mcp-01 admitted by dynamic client registration: its `client_id`,
+exact redirect URIs, forwarding source and lifetimes, kept in the MCP store so it survives a
+restart. Unproven until its first code exchange. An unknown or expired `client_id` at
+authorization answers `invalid_client` to the browser, whose description asks for a new
+registration; whether a client re-registers on its own is unobserved.
+_Avoid_: connector, app registration, OIDC client
 
 **Reauthentication marker**:
 A signed, short-lived, identity-free browser cookie set after a matched MCP login fails.
@@ -1531,9 +1637,7 @@ reviewer's fixed virtual paths, with provenance tied to its exact owner.
 _Avoid_: compiler host, materialized checkout, authenticated runtime
 
 **Activation controller**:
-The authority that coordinates independent review, certification and publication of a toolkit
-activation for an exact candidate and its admission context.
-_Avoid_: self-certifier, approval bot
+See [Activation controller](docs/twilight-structure/CONTEXT.md#execution).
 
 **Check run**:
 One activation check Twilight Dash ran against a committed candidate, recorded with the instants it
@@ -1551,9 +1655,7 @@ explicit and their granularity adjustable, with quality, time and cost measured.
 _Avoid_: LLM wiki (for the whole approach), agent-scalable wiki (for the whole approach)
 
 **Twilight Burokrat**:
-The reusable toolkit for module knowledge, review evidence and trusted repository
-admission that supports Radical Modularity.
-_Avoid_: tool-wiki (as the product name), LLM wiki (as the product name)
+See [Twilight Burokrat](docs/twilight-structure/CONTEXT.md#language).
 
 **Scenario allocation journal**:
 The versioned record of imported, issued, renamed, split and retired OpenSpec scenario identities. It reserves every recorded identifier, including retired ones.
@@ -1614,19 +1716,17 @@ the consumer's own `TOOL_WIKI_ACTIVATION_VERSION`.
 _Avoid_: consumer activation, downstream activation, bootstrap activation
 
 **Port**:
-An interface core owns and an adapter satisfies: every store, the unit of work, the gate, the
-clock, the broadcaster, the identity resolver, and every runtime concern — password hashing,
-token signing, digest, timers, push transport, scheduler. Named for what the
-caller wants, never for what implements it. ADR 0014.
+An interface core owns and an adapter satisfies — every store, the unit of work, the gate, the
+clock, the broadcaster, the identity resolver and every runtime concern — named for what the
+caller wants, never for what implements it ([ADR
+0014](docs/adr/0014-ports-live-in-a-framework-free-core-lib.md)).
 _Avoid_: abstraction, contract (for this), interface (alone)
 
 **Ring**:
-A dependency direction across Nx projects, stated as a tag and enforced by the module-boundary
-rule: domain (vocabulary, contracts, validation, the logger type), application (core, the
-conformance kits), adapter (sources, runtime adapters, auth, realtime, the solver, observability,
-config, every app and every tool). Every project has exactly one. A project depends only on its
-own ring or inward; its test files are outside the rule. Not a folder: a layer is a folder
-inside one project.
+A dependency direction across Nx projects — domain, application or adapter — stated as a tag,
+enforced by the module-boundary rule, and held by every project exactly once ([ADR
+0014](docs/adr/0014-ports-live-in-a-framework-free-core-lib.md)). Not a folder: a layer is a
+folder inside one project.
 _Avoid_: layer (for this), tier (that is a deployable process), level
 
 **Adapter**:
@@ -1640,32 +1740,32 @@ A set of store adapters (the event log included), a write coordinator and a unit
 opened, health-checked and closed together: SQLite and in-memory are the two. A source may
 offer a subset of the store ports and is certified for the ones it offers by the conformance
 kits, and not otherwise.
-_Avoid_: backend, database, persistence layer, data layer
+_Avoid_: backend, database, persistence layer, data layer; not the website's
+[Source](docs/website/CONTEXT.md#language), a hashed client address
 
 **Write coordinator**:
-The source's queue of turns: every transactional writer asks for one through its gate, and
-a unit of work holds one through its batch and any repair; independent saved-plan operations
-are outside this queue.
-Keyed as the source needs — the process for one-connection SQLite, the project for a Postgres
-advisory lock. Nothing that holds a turn ever asks for another.
+The source's queue of turns: every transactional writer asks for one through its gate, and a
+unit of work holds one through its batch and any repair. Its keying, exclusions and lack of
+re-entrancy are in [ADR
+0015](docs/adr/0015-a-command-batch-is-a-unit-of-work-the-source-implements.md).
 _Avoid_: write lock (as the port's name), mutex, semaphore, re-entrant lock
 
 **Gate**:
-What a store adapter asks for a turn through. Either the source's write coordinator, or the
-open gate, which grants at once because the caller already holds an admitted turn. A store
-does not know which it has.
+What a store adapter asks for a turn through: the source's write coordinator, or the open gate,
+which grants at once because the caller already holds an admitted turn. A store does not know
+which it has.
 _Avoid_: lock handle, guard, admission
 
 **Scope**:
-The transactional stores a caller may use during one admitted turn, belonging either to a
-batch or to its post-rollback repair. Independent saved-plan operations are outside that
-scope; a repair belongs to the surviving state, not the refused batch. ADR 0015.
+The transactional stores a caller may use during one admitted turn, belonging either to a batch
+or to its post-rollback repair ([ADR
+0015](docs/adr/0015-a-command-batch-is-a-unit-of-work-the-source-implements.md)).
 _Avoid_: transaction context, batch context, ambient stores
 
 **Unit of work**:
-The port that makes a batch's writes observable together or leaves none of them after it
-settles; an explicitly declared post-rollback repair is a separate surviving act. It promises
-terminal atomicity, not isolation from concurrent readers. ADR 0015.
+The port that makes a batch's writes observable together, or leaves none of them, once it
+settles: terminal atomicity, not isolation ([ADR
+0015](docs/adr/0015-a-command-batch-is-a-unit-of-work-the-source-implements.md)).
 _Avoid_: outer transaction (as the port's name), transaction handle, session
 
 **Endpoint shape**:
@@ -1676,8 +1776,7 @@ _Avoid_: route (for this), spec, contract (alone)
 
 **Endpoint**:
 An endpoint shape bound to one pure handler that returns an `HttpReply`, which an adapter
-mounts on a framework. The handler never sees the framework. Every shape has exactly one
-endpoint.
+mounts on a framework ([http-endpoint-port](openspec/specs/http-endpoint-port/spec.md)).
 _Avoid_: controller, route handler, resolver
 
 **Refusal**:
@@ -1703,12 +1802,10 @@ implementation that lacks the behaviour it names.
 _Avoid_: contract tests (alone), shared tests, test harness
 
 **Product**:
-One application family in this repository — WBS is the first — named by its directory under
-`apps/` or under a suite's directory, a project-name prefix and a `product:` tag that keeps one
-product's code out of another's.
-Twilight Burokrat is the second: one CLI, `apps/twilight-structure/twilight-burokrat/cli`,
-released separately from the WBS tool.
-Tools belong to no product.
+One application family in this repository, named by its directory under `apps/` or under a
+suite's directory, a project-name prefix and a `product:` tag that keeps one product's code out
+of another's; tools belong to no product. WBS is the first; Twilight Burokrat, released
+separately, is the second, at `apps/twilight-structure/twilight-burokrat`.
 _Avoid_: app (that is one deployable), workspace, scope (that is an Nx tag axis already in use)
 
 **Suite**:
@@ -1756,13 +1853,14 @@ _Avoid_: presentation, UI layer, endpoint (that is a bound route)
 **Environment**:
 One complete, independently deployable copy of the three tiers on a host, identified by
 `WBS_ENV`. `prod` and `dev` are the two that exist.
-_Avoid_: stage, instance, deployment (as a noun for this)
+_Avoid_: stage, instance, deployment (as a noun for this); not Twilight Structure's general
+[Environment](docs/twilight-structure/CONTEXT.md#language)
 
 **Environment root**:
-The directory on the remote host that holds one environment's compose files, rendered
-Caddy site, tier state, secrets and data. `/home/puni1/wbs` for `prod` and
-`/home/puni1/wbs-dev` for `dev` (ADR 0002). `/srv/wbs` is a stale rollback copy: reading it
-shows an environment that has not moved since 2026-08-04.
+The directory on the remote host that holds one environment's compose files, rendered Caddy
+site, tier state, secrets and data: `/home/puni1/wbs` for `prod`, `/home/puni1/wbs-dev` for
+`dev`. `/srv/wbs` is a stale rollback copy ([ADR
+0002](docs/adr/0002-environment-roots-live-under-the-deploy-users-home.md)).
 _Avoid_: srv dir, deploy dir
 
 **Deploy trigger**:
@@ -1797,17 +1895,16 @@ than an Input hash input — both are solved, and Objective picks which stored o
 _Avoid_: strategy, goal, optimization mode
 
 **Input hash**:
-The SHA-256 of the canonical JSON of the exact argument tuple `schedule()` receives — rows
-with `position`/`frozenNumber`/as-written priority, authored dependency edges, the slice
-array grouped by work item with groups ordered by id and each group's own order preserved
-(only that intra-item order is step precedence — the order between groups is whatever SQL
-returned), `notBefore` floors in days from day zero,
-pool sizes, and the project's dependency reach. Two scheduling inputs are the same exactly
-when their hashes match. Engine, Objective, the optimization toggle, the display variant,
-the clock, the acting user and the solver budget are all excluded from the hash. Three of
-them — Objective, Contract version and the solver budget — are cache-key columns instead;
-the clock, the acting user, the toggle, Engine and the display variant are read by nothing
-that produces a schedule and appear nowhere in the cache identity.
+The SHA-256 of the canonical JSON of the exact argument tuple `schedule()` receives — rows with
+`position`/`frozenNumber`/as-written priority, authored dependency edges, the slice array
+grouped by work item with groups ordered by id and each group's own order preserved (only that
+intra-item order is step precedence — the order between groups is whatever SQL returned),
+`notBefore` floors in days from day zero, pool sizes, the project's dependency reach and the
+work-item deadlines. Two scheduling inputs are the same exactly when their hashes match.
+Engine, Objective, the optimization toggle, the display variant, the clock, the acting user and
+the solver budget are all excluded from the hash; Objective, Contract version and the solver
+budget are cache-key columns instead, and the rest are read by nothing that produces a schedule
+and appear nowhere in the cache identity.
 _Avoid_: plan hash, cache key, fingerprint
 
 **Contract version**:
@@ -1819,14 +1916,15 @@ _Avoid_: solver version, schema version, cache version
 
 **Generation**:
 A monotonic optimization counter held per `(project, Contract version)` in the
-`optimization_generation` table — not on the project row, because a canonicalizer bump
-would otherwise let two coexisting releases increment one counter against each other for
-ever. It is stored beside the Input hash it was allocated for and carried by every solver
-run. The pair is what makes allocation atomic across processes: an equal hash reuses the
-generation, a different one increments it under a compare-and-swap. Every cache write is conditional on it still being current, so a
-superseded run cannot store, evict, or broadcast — which an Input hash alone cannot
-prevent, because an undo can make an old hash current again.
-_Avoid_: run id, epoch, version
+`optimization_generation` table — not on the project row, because a canonicalizer bump would
+otherwise let two coexisting releases increment one counter against each other for ever. It is
+stored beside the Input hash it was allocated for and carried by every solver run; an equal
+hash reuses the generation and a different one increments it under a compare-and-swap, which
+makes allocation atomic across processes. Every cache write is conditional on it still being
+current, so a superseded run cannot store, evict, or broadcast — which an Input hash alone
+cannot prevent, because an undo can make an old hash current again.
+_Avoid_: run id, epoch, version; not Twilight Structure's admission
+[Generation](docs/twilight-structure/CONTEXT.md#execution)
 
 **Optimizer floor**:
 The `ScheduleFloor` member `optimizer`, reported when an optimized start is strictly later
@@ -1842,34 +1940,32 @@ resource and lifetime guarantees. A development-only alternative to the solver s
 _Avoid_: direct solver, direct optimizer, unsupervised solver, embedded solver
 
 **Solver quantum**:
-`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. Fast durations can
-be fractional, while CP-SAT intervals are integer. Positive durations round up to a unit;
-zero and unknown durations remain zero. For FS and SS, integer precedence with rounded
-durations is conservative. For FF, rounded finish order alone can admit a real finish-order
-violation, so the solver enforces `W_FF = max(D_a − D_b, ceil(48 × (d_a − d_b)))` and
-independently checks materialized real finishes. Rounding can also exclude a real-feasible
-plan, so the solver's hint and bound come from a validated Quantised baseline, never directly
-from real Fast.
+`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday: Fast durations can be
+fractional, while CP-SAT intervals are integer. Positive durations round up to a unit; zero and
+unknown durations remain zero. For FS and SS, integer precedence with rounded durations is
+conservative; for FF, rounded finish order alone can admit a real finish-order violation, so
+the solver enforces `W_FF = max(D_a − D_b, ceil(48 × (d_a − d_b)))` and independently checks
+materialized real finishes. Rounding can also exclude a real-feasible plan, so the solver's
+hint and bound come from a validated Quantised baseline, never directly from real Fast.
 _Avoid_: tick, granularity, resolution
 
 **Quantised baseline**:
-Fast's own placement re-run over the rounded durations, in integer solver units. It is what
-the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage when
-validated against all active constraints and deadlines. Distinct from the Baseline
-schedule, which is the real-domain Fast result the publication guard scores against.
+Fast's own placement re-run over the rounded durations, in integer solver units. It is what the
+solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage when
+validated against all active constraints and deadlines. Distinct from the Baseline schedule,
+which is the real-domain Fast result the publication guard scores against.
 _Avoid_: rounded Fast, hint schedule
 
 **Cancel epoch**:
-A counter carried by each `(project, Contract version)` generation row, advanced when
-optimization is switched OFF — an OFF transition advances every one of that project's rows.
-It exists because the toggle is excluded from the Input hash, so an OFF transition cannot
-advance the Generation that allocation is required to reuse. **Worker-owned outcome writes**
-are conditional on it, together with the current generation, the toggle and the writer's own
-attempt token; allocation eviction is authorised instead by the winning generation CAS, OFF
-cleanup by its own epoch increment, and deletion/retirement eviction by the cancel-and-drain
-protocol — none of those three holds a child token, so a universal predicate would make them
-unimplementable. Owners observe the epoch on their slot heartbeat, so a child owned by
-another backend process is cancelled too.
+A counter carried by each `(project, Contract version)` generation row, advanced on every one
+of a project's rows when optimization is switched OFF. It exists because the toggle is excluded
+from the Input hash, so an OFF transition cannot advance the Generation that allocation is
+required to reuse. **Worker-owned outcome writes** are conditional on it, with the current
+generation, the toggle and the writer's own attempt token; allocation eviction is authorised
+instead by the winning generation CAS, OFF cleanup by its own epoch increment, and
+deletion/retirement eviction by the cancel-and-drain protocol — none of those three holds a
+child token, so a universal predicate would make them unimplementable. Owners observe the epoch
+on their slot heartbeat, so a child owned by another backend process is cancelled too.
 _Avoid_: cancel flag, kill switch, generation bump
 
 **Attempt token**:
@@ -1884,7 +1980,7 @@ _Avoid_: lease id, lock, owner id
 **Baseline schedule**:
 The real-domain Fast schedule for the same canonical input, with fractional `days / width`
 intact. It never crosses the solver wire: that is the Quantised baseline, which also supplies
-the movement reference. Its only consumer is the real-domain publication guard in task 4.11b,
+the movement reference. Its only consumer is the real-domain publication guard (task 4.11b),
 which scores a materialised optimized result against it before storage.
 _Avoid_: current schedule, published schedule, previous plan
 
@@ -1919,25 +2015,22 @@ _Avoid_: slot TTL, heartbeat timeout, expiry window
 
 **Lifecycle launcher**:
 The distinct entrypoint the coordinator spawns for an admitted slot — never `wbs-solver`
-itself. It loads no CP-SAT and solves nothing. Its lifecycle wrapper reads the clock once to
-convert `--child-deadline-epoch-ms` into CP-SAT's `max_time_in_seconds` — the in-process half;
-the load-bearing half is the per-child scope's `RuntimeMaxSec` kill at that same instant, since a
-Python alarm cannot preempt a native solve under the GIL — installs `PR_SET_PDEATHSIG`, re-checks
-`getppid()`, and then blocks for the bind verdict before it touches the request at all. On
-`bound` it `exec`s `wbs-solver` in place, keeping the pid the bind CAS recorded; on `abort`,
-a closed stdin, `BIND_TIMEOUT_MS` expiry, or a `bound` verdict arriving when the child deadline
-has already passed it exits **without** `exec`ing. That is what
-makes the ceiling literal: a process named `wbs-solver` cannot exist before its row is
-`running`, so a delayed spawn after reclaim creates no uncounted solver.
-_Avoid_: shim, supervisor, solver wrapper — "lifecycle wrapper" is the launcher's own
-clock-reading part, not a second process, and the two are not interchangeable.
+itself. It loads no CP-SAT and solves nothing; its lifecycle wrapper reads the clock once to
+convert `--child-deadline-epoch-ms` into CP-SAT's `max_time_in_seconds`, and it blocks for the
+bind verdict before it touches the request at all. On `abort`, a closed stdin,
+`BIND_TIMEOUT_MS` expiry, or a `bound` verdict arriving when the child deadline has already
+passed, it exits **without** `exec`ing `wbs-solver`. That is what makes the ceiling literal: a
+process named `wbs-solver` cannot exist before its row is `running`, so a delayed spawn after
+reclaim creates no uncounted solver (deadline kill: [supervisor
+amendment](openspec/changes/dual-optimized-scheduler/supervisor-amendment.md)).
+_Avoid_: shim, supervisor, solver wrapper (the lifecycle wrapper is the launcher's own
+clock-reading part, not a second process)
 
 **Slot lifecycle**:
-The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting`
-with a null `pid`; a successful bind CAS moves it to `running` and records the launcher's
-pid. A `starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a
-`running` one — it _is_ the reservation — and is reclaimed by the same
-`now > admittedDeadlineAt` rule.
+The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting` with
+a null `pid`; a successful bind CAS moves it to `running` and records the launcher's pid. A
+`starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a `running`
+one — it _is_ the reservation — and is reclaimed by the same `now > admittedDeadlineAt` rule.
 _Avoid_: slot state, pending, provisional
 
 ### Host tooling

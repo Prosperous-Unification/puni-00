@@ -47,6 +47,7 @@ export function buildSolverRequestPair(
     // Proof: dropping these bookings made the production pair hint at unit 0
     // instead of 49 (0 pass / 1 fail in solver-request-pair.test.ts).
     input.elsewhere,
+    input.resourceCapacities,
   );
   const spawn = { baselineOffsets, solverVersion, budgetMs };
 

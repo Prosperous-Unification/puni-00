@@ -162,9 +162,23 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  providerId_must_be_id_or_null: type({
+    error: "'providerId_must_be_id_or_null'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   name_must_be_text: type({ error: "'name_must_be_text'", at: 'number', kind: commandKindsType }),
   notes_must_be_text: type({ error: "'notes_must_be_text'", at: 'number', kind: commandKindsType }),
   kind_must_be_text: type({ error: "'kind_must_be_text'", at: 'number', kind: commandKindsType }),
+  // `createPerson.personKind` that is not text.
+  // Proof: with this arm removed, `refuses a personKind that is not text…`
+  // (agent-person-limit.controller.db.test.ts) answered 500 "Invalid command
+  // producer" instead of 400; watched 2026-10-23.
+  personKind_must_be_text: type({
+    error: "'personKind_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   startNoEarlierThanReason_must_be_text: type({
     error: "'startNoEarlierThanReason_must_be_text'",
     at: 'number',
@@ -455,6 +469,76 @@ const parserArms = {
   }),
   steps_must_be_at_most_50: type({
     error: "'steps_must_be_at_most_50'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_be_a_list: type({
+    error: "'resources_must_be_a_list'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_name_a_resource: type({
+    error: "'resources_must_name_a_resource'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_be_at_most_50: type({
+    error: "'resources_must_be_at_most_50'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_name_each_resource_once: type({
+    error: "'resources_must_name_each_resource_once'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  kind_is_immutable: type({
+    error: "'kind_is_immutable'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_required: type({
+    error: "'units_required'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_must_be_a_whole_number_from_0: type({
+    error: "'units_must_be_a_whole_number_from_0'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_must_be_a_whole_number_from_1: type({
+    error: "'units_must_be_a_whole_number_from_1'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_must_be_at_most_1000000000: type({
+    error: "'units_must_be_at_most_1000000000'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unitLabel_must_be_at_most_40_characters: type({
+    error: "'unitLabel_must_be_at_most_40_characters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unitLabel_must_be_text: type({
+    error: "'unitLabel_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resourceId_must_be_an_id: type({
+    error: "'resourceId_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resourceRef_must_be_an_id: type({
+    error: "'resourceRef_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resourceKind_must_be_exclusive_or_divisible: type({
+    error: "'resourceKind_must_be_exclusive_or_divisible'",
     at: 'number',
     kind: commandKindsType,
   }),

@@ -1,4 +1,4 @@
-import type { PersonKind } from '@wbs/domain';
+import type { Demand, PersonKind } from '@wbs/domain';
 
 import type {
   Assignment,
@@ -7,6 +7,8 @@ import type {
   NamedCatalog,
   Person,
   PersonWithTeams,
+  Resource,
+  ResourcePatch,
   ServiceTeam,
   TeamPatch,
   TeamWithServices,
@@ -30,6 +32,9 @@ export type {
   NamedCatalog,
   Person,
   PersonWithTeams,
+  Resource,
+  ResourcePatch,
+  ResourcePatchInput,
   ServiceTeam,
   TeamPatch,
   TeamWithServices,
@@ -121,9 +126,14 @@ export interface PersonPatch {
   accountId?: string | null;
 }
 
+/**
+ * `in_use`: the patch would unbind or rebind a person that unrevoked machine
+ * credentials act through (`wbs-machine-credentials` A12), counted.
+ */
 export type PersonWritten =
   | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
-  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' };
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' }
+  | { ok: false; reason: 'in_use'; machineCredentials: number };
 
 /**
  * What a create answered.
@@ -190,6 +200,13 @@ export interface DirectoryUsageRows {
    */
   pinnedCredentials: number;
   /**
+   * How many unrevoked machine credentials are pinned to the person being
+   * removed (`machine_credential.person_id`, `wbs-machine-credentials`); 0 for
+   * a team. Like a pin it refuses an unconfirmed removal `in_use`; a confirmed
+   * removal revokes them, auditing each, and removes them with the person.
+   */
+  machineCredentials: number;
+  /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
    *
@@ -227,6 +244,69 @@ export type DirectoryRemoved =
   | { ok: true; removal: DirectoryRemoval }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
+
+/**
+ * A person removal: {@link DirectoryRemoved}, or `forbidden` when a cascade
+ * would remove machine credentials the caller's {@link MachineCredentialReach}
+ * does not reach (`wbs-machine-credentials` A24).
+ */
+export type PersonRemoved = DirectoryRemoved | { ok: false; reason: 'forbidden' };
+
+/**
+ * Whose machine credentials a person removal may revoke (`wbs-machine-credentials`
+ * A24), the reach `DELETE /api/organization/machine-credentials/:id` has: an
+ * admin every person's, a member only a person bound to their own account,
+ * a delegation or machine credential none.
+ */
+export type MachineCredentialReach =
+  | { readonly kind: 'every' }
+  | { readonly kind: 'own'; readonly accountId: string }
+  | { readonly kind: 'none' };
+
+/**
+ * What a resource create answered. **Not idempotent by name**, unlike a team:
+ * a second `h2puni ram` would answer the first one's id with whatever kind and
+ * unit it was created with, so the name is refused `taken` instead.
+ */
+export type ResourceAdded = { ok: true; resource: Resource } | { ok: false; reason: 'taken' };
+
+/**
+ * What setting a resource's provider reference answered (`compute-providers`
+ * P3): the projects whose demands or capacities name the resource, or why it
+ * was refused: `unknown_provider` for an id no instance holds,
+ * `provider_not_in_organization` for another organization's instance (or any
+ * instance under legacy access, which has no organization).
+ */
+export type ResourceProviderSet =
+  | { ok: true; projectIds: TouchedProjects }
+  | { ok: false; reason: 'not_found' | 'unknown_provider' | 'provider_not_in_organization' };
+
+/** What a resource patch answered, with the projects whose demands or capacities name it. */
+export type ResourceWritten =
+  | { ok: true; resource: Resource; projectIds: TouchedProjects }
+  | { ok: false; reason: DirectoryWriteRefusal };
+
+/**
+ * What points at one resource (`wbs-resources` R8): every demand on it with the
+ * projects they sit in, for naming, and every stated capacity of it.
+ * `occupancies` counts the leaves whose claims hold units of it
+ * (`claim_occupancy`, task 2.2): one per leaf, however many claims share it.
+ */
+export interface ResourceUsageRows {
+  /** The projects holding a demand, read as a removal's usage is, for naming the rows. */
+  rows: DirectoryUsageRows;
+  demands: readonly Demand[];
+  capacities: readonly { projectId: string; units: number }[];
+  occupancies: number;
+  /** The provider instance the resource names, or null (`compute-providers` P3). */
+  providerId: string | null;
+}
+
+/** What a resource removal's own transaction decided; `in_use` carries what it read. */
+export type ResourceRemoved =
+  | { ok: true; removal: DirectoryRemoval }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: ResourceUsageRows };
 
 /** What an organization-local rename answered; see {@link DirectoryStore.renameInOrganization}. */
 export type OrganizationRenamed =
@@ -473,7 +553,12 @@ export interface DirectoryStore {
    * written after that caller's own count must refuse the removal rather than
    * be deleted by it.
    */
-  removePerson(personId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
+  removePerson(
+    personId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+    reach: MachineCredentialReach,
+  ): Promise<PersonRemoved>;
   /**
    * The same for a team, and it **nulls the labels itself**:
    * `work_item.service_team_id` carries a foreign key with no `ON DELETE`
@@ -488,6 +573,44 @@ export interface DirectoryStore {
    * update to a row that stays does.
    */
   removeTeam(teamId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
+  /** Every resource in the global directory, by name. */
+  listResources(): Promise<Resource[]>;
+  /** Adds a resource, refusing a name another resource holds — see {@link ResourceAdded}. */
+  addResource(toAdd: Resource, stamp: WriteStamp): Promise<ResourceAdded>;
+  /**
+   * Renames a resource or changes its unit label, refusing a name another holds.
+   * The kind is not patchable here, by type: it never changes.
+   */
+  patchResource(
+    resourceId: string,
+    patch: ResourcePatch,
+    stamp: WriteStamp,
+  ): Promise<ResourceWritten>;
+  /**
+   * Sets or clears the provider instance that fulfils a resource
+   * (`compute-providers` P3), checking in the same transaction that the
+   * instance is `organizationId`'s (null under legacy access). A changed or
+   * cleared reference deletes the resource's capacity report, which was the
+   * old instance's. Nothing in planning reads the reference (P4).
+   */
+  setResourceProvider(
+    resourceId: string,
+    providerId: string | null,
+    organizationId: string | null,
+    stamp: WriteStamp,
+  ): Promise<ResourceProviderSet>;
+  /**
+   * What points at one resource right now — a fast path for the confirmation,
+   * never the authority for it. {@link DirectoryStore.removeResource} decides.
+   */
+  usageOfResource(resourceId: string): Promise<ResourceUsageRows>;
+  /**
+   * Counts what names the resource, refuses an unconfirmed removal while any
+   * demand, capacity or occupancy does, and otherwise deletes it — letting the
+   * cascades take its demands and capacities — in one transaction, moving the
+   * revision of every work item that lost a demand.
+   */
+  removeResource(resourceId: string, cascade: boolean, stamp: WriteStamp): Promise<ResourceRemoved>;
   /** Assignments and their current person names, read together within one project. */
   assignmentsInProject(projectId: string): Promise<{
     assignments: Assignment[];

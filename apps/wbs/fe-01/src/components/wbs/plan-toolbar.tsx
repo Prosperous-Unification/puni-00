@@ -1,5 +1,6 @@
 import type { Row } from '@tanstack/react-table';
 import { type ExpandedState } from '@tanstack/react-table';
+import { Button, buttonVariants, Input, MENU_ITEM } from '@ui/saas-01';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { EffectiveTeams } from '@wbs/domain/effective-team';
 import type * as React from 'react';
@@ -12,8 +13,6 @@ import {
   useState,
 } from 'react';
 
-import { Button, buttonVariants, MENU_ITEM } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { RunPlanWrite } from '@/lib/local-write';
 import { cn } from '@/lib/utils';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
@@ -1097,6 +1096,12 @@ export function PlanToolbar({
           // fake peer had deleted it in `fully recovers when a peer already
           // removed the refused step`. Watched, 2026-09-13.
           onRefused: () => refreshOrMarkStale(),
+        }}
+        resources={{
+          projectId,
+          // A declared capacity moves dates, so an adopt rereads the plan
+          // the way a team's capacity does.
+          onChanged: () => refreshOrMarkStale('tree'),
         }}
         estimating={{
           // The method is reported, not set: `Plan with` on the bar is the one

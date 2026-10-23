@@ -79,13 +79,19 @@ function oauthFixture(): {
   response: () => Promise<undefined>;
   endSession: () => void | Promise<void>;
   refreshSession: () => Promise<string>;
+  bearerFor: (sessionId: string | null, upstreamToken: string) => Promise<string>;
+  reportEndedConsents: () => Promise<number>;
 } {
   return {
+    // No consent family exists here, so there is never an end to report.
+    reportEndedConsents: () => Promise.resolve(0),
     verify: () => Promise.resolve({ iss: 'issuer', sub: 'caller' }),
     response: () => Promise.resolve(undefined),
     endSession: () => undefined,
     // No case here ends in a be-01 401, so a refresh is a fixture fault and says so.
     refreshSession: () => Promise.reject(new Error('this fixture holds no session to refresh')),
+    // No session here is bound to an organization: the caller's token goes through as it came.
+    bearerFor: (_sessionId, upstreamToken) => Promise.resolve(upstreamToken),
   };
 }
 
@@ -312,4 +318,56 @@ test.each([
   expect(failureLines).toHaveLength(1);
   expect(failureLines[0]).toContain('refresh-sentinel');
   expect(failureLines[0]).not.toContain('boundary-secret');
+});
+
+/** Starts the application with `reportEndedConsents` and a hand-driven schedule. */
+function startWithSweeps(reportEndedConsents: () => Promise<number>) {
+  const sweeps: (() => Promise<void>)[] = [];
+  const lines: string[] = [];
+  startMcpApplication({
+    loadConfig: () => CONFIG,
+    readDocument: () => ({ paths: {} }),
+    toolsFromDocument: () => [READ],
+    mcpOAuthFromEnv: () => ({ ...oauthFixture(), reportEndedConsents }),
+    startHttpServer: () => ({ port: 3313 }),
+    createLogger: (options) =>
+      createLogger({ ...options, destination: { write: (chunk) => void lines.push(chunk) } }),
+    scheduleConsentEndReports: (sweep) => {
+      sweeps.push(sweep);
+    },
+  });
+  return { sweeps, lines };
+}
+
+test('sweeps once at startup', async () => {
+  let reports = 0;
+  startWithSweeps(() => {
+    reports += 1;
+    return Promise.resolve(0);
+  });
+  await Bun.sleep(0);
+  expect(reports).toBe(1);
+});
+
+test('schedules the consent end report and reports its failure', async () => {
+  let reports = 0;
+  const { sweeps, lines } = startWithSweeps(() => {
+    reports += 1;
+    // The startup sweep and the first scheduled one succeed; the next fails.
+    return reports <= 2
+      ? Promise.resolve(2)
+      : Promise.reject(new Error('be-01 answered unmodeled mcp-user:boundary-secret'));
+  });
+  await Bun.sleep(0);
+  expect(sweeps).toHaveLength(1);
+  const sweep = sweeps.at(0);
+  if (sweep === undefined) throw new Error('no sweep was scheduled');
+  await sweep();
+  expect(reports).toBe(2);
+  expect(lines.filter((line) => line.includes('MCP consent end report failed'))).toEqual([]);
+  await sweep();
+  expect(reports).toBe(3);
+  const failed = lines.filter((line) => line.includes('MCP consent end report failed'));
+  expect(failed).toHaveLength(1);
+  expect(failed[0]).not.toContain('boundary-secret');
 });

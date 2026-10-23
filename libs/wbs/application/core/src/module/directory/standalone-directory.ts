@@ -13,10 +13,18 @@ import {
 } from '../../service/committed-fanout';
 import { DirectoryService, type DirectoryServiceOptions } from './directory.resource';
 
+/** Resources are written only inside a command batch (`wbs-resources`), never standalone. */
+const STANDALONE_RESOURCE_WRITE = 'resource writes run only inside a command batch';
+
 /**
  * A public invocation binds explicit caller access once. Each raw store
  * mutation owns its own observation and UoW; compound service calls retain
  * their existing separate commits. Borrowed command stores stay raw.
+ *
+ * It carries no organization limit gauge (`wbs-organization-limits` L10): a
+ * count read here would not share the person write's unit of work, so a
+ * scoped agent promotion or agent add through it throws. No production HTTP
+ * route reaches person writes here; they go through a command batch.
  */
 export function standaloneDirectoryService(options: {
   readonly directory: DirectoryStore;
@@ -95,6 +103,7 @@ export function standaloneDirectoryService(options: {
       reason === 'not_found' ? { ok: false as const, reason } : unexpected(reason);
     const scopedMutation: Partial<DirectoryStore> = {
       renameInOrganization: (catalog, resourceId, organizationId, name, stamp) => {
+        if (catalog === 'resources') throw new Error(STANDALONE_RESOURCE_WRITE);
         if (organizationId !== access.scope.organizationId)
           throw new Error('standalone rename changed invocation organization');
         return recordMutation(
@@ -129,11 +138,11 @@ export function standaloneDirectoryService(options: {
           (borrowed) => borrowed.addPerson(person, teamIds, stamp),
           (written) => written.ok,
         ),
-      removePerson: (personId, cascade, stamp) =>
+      removePerson: (personId, cascade, stamp, reach) =>
         recordMutation(
           { kind: 'remove', catalog: 'people', resourceId: personId, access },
           refuseAbsent,
-          (borrowed) => borrowed.removePerson(personId, cascade, stamp),
+          (borrowed) => borrowed.removePerson(personId, cascade, stamp, reach),
           (written) => written.ok,
         ),
       removeTeam: (teamId, cascade, stamp) =>
@@ -200,6 +209,7 @@ export function standaloneDirectoryService(options: {
           () => true,
         ),
       mapInOrganization: (catalog, resourceId, organizationId, name) => {
+        if (catalog === 'resources') throw new Error(STANDALONE_RESOURCE_WRITE);
         if (organizationId !== access.scope.organizationId)
           throw new Error('standalone map changed invocation organization');
         return recordMutation(

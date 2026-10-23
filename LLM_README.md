@@ -1,7 +1,5 @@
 # LLM_README — read this, then only the doc your task needs
 
-**Active handoff (TASK-568, `task-568-release-rollback`):** private PRs #54–#56 are merged green; the compatible live rollback and final re-pin succeeded, and exact fleet/release evidence is in `openspec/changes/puni-website-funnel/verify.md`.
-
 **puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Burokrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
@@ -35,14 +33,14 @@ bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is u
 
 `bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the DOM
 `bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh <sha>` and do NOT check that sha
-out first: lanes share the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`.
+out first: lanes share the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`. Second gate host, own lock: [gate hosts](docs/infra/gate-hosts.md).
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
 `.github/workflows/ci.yml` runs the gate above plus the secrets scan, migration lint and
-`openspec validate`. Scope is chosen per event and never inferred: a PR runs `nx affected`
-from its validated synthetic merge first parent, `merge_group`/`push`/`workflow_dispatch` run the full gate, an
-unmapped event is refused. Boundary contract: `openspec/changes/ci-pr-merge-base/design.md`. Job `pixels` runs `bun run e2e`, one chromium measuring the WBS
+`openspec validate`. PRs select document checks or affected runtime modules from the validated
+synthetic merge first parent; `merge_group`/`push`/`workflow_dispatch` run the full gate and unmapped events fail.
+Routing: [change-aware CI](openspec/changes/change-aware-ci/design.md); identity: [PR merge base](openspec/changes/ci-pr-merge-base/design.md). Job `pixels` runs `bun run e2e`, one chromium measuring the WBS
 table against the real stack, and its shards run only when a PR reaches fe-01, be-01 or
 gw-01. lefthook runs a subset pre-commit and `--no-verify` skips it; CI is not. Format uses
 `--all`: the base-ref default checks nothing.
@@ -66,20 +64,16 @@ git push && ./bin/dev-deploy.sh     # from h1claw, seconds
 ```
 
 One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout via
-`bun run dev`. **Pending the attended repository cutover in
-`openspec/changes/dev-deploy-from-puni-00`,** the h2puni poller will follow puni-00 `main`, record a
-commit as deployed only after `/health` proves that checkout commit, and retry incomplete sync or
-proof work on later ticks until it succeeds. **For
-application code the watchers are the deploy** — nothing is built, pushed or restarted. The
+`bun run dev`. The h2puni poller follows puni-00 `main`, records a commit as deployed only after
+`/health` proves that checkout commit, and retries incomplete sync or proof work on later ticks
+until it succeeds. **For application code the watchers are the deploy** — nothing is built, pushed or restarted. The
 lockfile, migrations, and config read once at startup trigger a restart; a changed `compose.yml`
 or `Dockerfile` fails the deploy with the command that applies it. Dev has **no edge password**
 since 2026-08-06 — be-01 and gw-01 guard themselves, and account registration is open to the
 internet.
 
-**Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.**
-
-**What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke test
-used to run on dev before prod; they no longer do. Run a prod dry-run before any prod deploy.
+**Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.** Dev no
+longer rehearses the prod swap (runbook, _What dev no longer proves_): run a prod dry-run before any prod deploy.
 
 ### prod — image-based, blue/green
 
@@ -110,11 +104,13 @@ Website and private companion workspace: [PUNI website](docs/website/README.md).
 | Doc                                                                                                                                                                                                                                                    | When                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `docs/superpowers/{plans,specs}/2026-08-02-compose-blue-green-*.md`                                                                                                                                                                                    | before touching deploy, and why the pipeline is shaped this way                                                                                                                                                                                        |
+| `docs/platform-map.md`                                                                                                                                                                                                                                 | before reconciling or re-planning platform workflows: every surface, capability and workflow with its built/partial/proposed/stale state and the numbered reconciliation list (snapshot 2026-10-21)                                                    |
+| `libs/shared/adapters/ui-core-01/DESIGN.md`                                                                                                                                                                                                            | before generating or reviewing any UI: the vocabulary, the kits and their rules                                                                                                                                                                        |
 | `docs/runbook-dev-deploy.md`                                                                                                                                                                                                                           | deploying dev; what a deploy cannot carry                                                                                                                                                                                                              |
 | `docs/runbook-prod-deploy.md`                                                                                                                                                                                                                          | deploying prod; commands and their refusals                                                                                                                                                                                                            |
 | `docs/runbook-h2-heavy-lock-owner.md`                                                                                                                                                                                                                  | identifying the live h2puni heavy-lock holder, checkout and fleet attribution limits                                                                                                                                                                   |
 | `docs/runbook-organization-dns.md`                                                                                                                                                                                                                     | configuring organization DNS discovery, destination policy and bounded cleanup; local proofs do not establish live ownership                                                                                                                           |
-| `docs/runbook-organization-activation.md`                                                                                                                                                                                                              | activating organization isolation on an existing store: backup, dry run, apply, verify; one-way                                                                                                                                                        |
+| `docs/runbook-organization-activation.md`                                                                                                                                                                                                              | activating organization isolation on an existing store: backup, dry run, apply, verify; one-way; showing, setting and resetting an organization's limits by CLI                                                                                        |
 | `docs/runbook-tool-wiki-activation.md`                                                                                                                                                                                                                 | preparing, transporting, selecting, and requiring an externally trusted Tool Wiki activation                                                                                                                                                           |
 | `openspec/changes/dual-optimized-scheduler/supervisor-amendment.md`, `docs/2026-09-08-hosted-optimization-api.md`                                                                                                                                      | before changing solver host authority, installer, image mapping, or runtime-directory mount; the second is the exploratory commercial API note                                                                                                         |
 | `docs/runbook-dagger-engine-registry-dns.md`                                                                                                                                                                                                           | engine can't resolve `registry`                                                                                                                                                                                                                        |

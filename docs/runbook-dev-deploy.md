@@ -2,9 +2,10 @@
 
 **Dev is whatever `origin/main` is, within about a minute, with no human step.** A poller
 on h2puni (`/home/puni1/wbs-dev/bin/poll.sh`, puni1's crontab, every minute) fetches
-`origin/main` and resets the checkout to it when they differ —
-`docs/adr/0005-dev-deploys-itself-from-origin-main.md`. So the deploy for a merged commit
-is the merge.
+`origin/main` and resets the checkout to it when they differ. Dev has run from source since
+2026-08-04 and deployed itself from `origin/main` since 2026-08-19
+(`docs/adr/0005-dev-deploys-itself-from-origin-main.md`); it uses none of the prod pipeline. So
+the deploy for a merged commit is the merge.
 
 **A branch cannot be deployed to dev.** The poller resets the checkout back to `main`
 within 60 seconds, and `bin/dev-deploy.sh` prints `dev healthy at <sha>` before that
@@ -14,38 +15,14 @@ lost the race to the revert **by about a second**, which is luck rather than a g
 Had it won, dev's database would hold a migrated schema while dev's code was back on the
 commit before it.
 
-`bin/dev-deploy.sh` is still the way to push a commit that is _already on main_ without
-waiting for the next poll tick, and to watch the output while it happens:
+`bin/dev-deploy.sh` pushes a commit that is _already on main_ without waiting for the next poll
+tick, and shows the output while it happens:
 
 ```sh
 git push && ./bin/dev-deploy.sh
 ```
 
-Everything below is what that command does, and what it cannot do.
-
-## Gate workspace safety
-
-Run `bin/h2puni-gate.sh <sha>` from a clean isolated h2 worktree, using the script
-inside that worktree. Never use `/home/puni1/wbs-dev/src` as the gate tree. The
-gate derives its repository root from its own script path, and its canonical
-heavy lock does not exclude the dev poller's checkout reset. Keep the worktree
-reserved for the gate; let the wrapper check out the requested SHA under its
-lock rather than checking it out beforehand.
-
-Observed 2026-10-17: a gate in the dev source checkout started on `b1ce4e74` at
-07:39:10 UTC; the poller reset that checkout at 07:40:02 UTC. Prettier then reported
-`ENOENT` while reading the changing tree. That interrupted attempt cannot prove
-the requested commit. The dev backend recovered after a container restart, and
-`/health` reported `e8894d0`; that health response proves the running dev revision,
-not the interrupted gate's result. Use an isolated worktree for the replacement
-exact-SHA gate.
-
-**Dev does not use any of the below.** Since 2026-08-04 dev runs from source, and since
-2026-08-19 it deploys itself from `origin/main` (ADR 0005):
-
-```sh
-git push && ./bin/dev-deploy.sh     # a commit on main, when you will not wait for the poller
-```
+## What a deploy does
 
 `bin/dev-deploy.sh` refuses a dirty tree or an unpushed SHA, then asks h2puni to
 `git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
@@ -70,7 +47,7 @@ Verified 2026-08-04: a pushed change appeared on dev with the container's `Start
 unchanged to the nanosecond.
 
 **Not every change can reach a running process that way.** This is the constraint the
-design trades for its speed, not a feature — know which column your change is in:
+design trades for its speed — know which row your change is in:
 
 | Change                                                          | What carries it                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -82,7 +59,19 @@ design trades for its speed, not a feature — know which column your change is 
 | `libs/wbs/adapters/solver-py`, `apps/wbs/be-01/Dockerfile`      | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
 | `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                                              |
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
-| Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
+| Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container. `tool-devsync` refuses the deploy before reset when mcp-01's or be-01's file lacks a required key (`assertMcpEnv`, `assertBeEnv`).                                           |
+
+be-01 boots only with the three organization default limits (`wbs-organization-limits` L7) in
+`/home/puni1/wbs-dev/src/apps/wbs/be-01/.env`:
+
+```
+ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50
+ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200
+ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000
+```
+
+Without them be-01 throws at boot under `bun --watch` while the container stays up, so nothing
+restarts it. `assertBeEnv` refuses the deploy first, naming the key.
 
 `tools/tool-devsync/src/sync.ts` holds both lists: `RESTART_PATHS` (a restart applies it)
 and `RECREATE_PATHS` (a restart cannot — the running container was created from the old
@@ -302,9 +291,11 @@ top level; subdirectories are refused rather than letting Git discover an ambien
 detached candidates and worktrees leave it unset and guard their own tree. Missing Git metadata is
 the only fallback condition; unreadable metadata fails closed.
 
+## Access, env and rollback
+
 Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
 app's own, and a browser that had cached a wrong credential for the realm could not be talked
-out of it — which cost a real debugging session. The gated config is backed up beside
+out of it, which cost a real debugging session. The gated config is backed up beside
 `site-dev.caddy` on h2puni if it is ever wanted again.
 
 What still guards dev: be-01 applies the configured authentication mode to every
@@ -321,9 +312,26 @@ Per-tier env lives in gitignored `apps/wbs/<tier>/.env` inside that checkout, **
 compose `env_file`: compose merges every env file into one namespace, so `be-01.env` and
 `gw-01.env` both setting `PORT` put both tiers on 3200.
 
-The old image-based dev containers (`dev-*-blue`) are **stopped, not removed** — they plus
-the `site-dev.caddy.bak-*` backups are the rollback. Delete them after a week of stability.
+The old image-based dev containers (`dev-*-blue`, `dev-*-green`) were kept, not removed, as the
+rollback, together with the `site-dev.caddy.bak-*` backups; delete them after a week of stability.
 
 **What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke
 test used to run on dev before prod. They no longer do. Run a prod dry-run deliberately
 before any prod deploy; dev will not catch a regression in that path.
+
+## Gate workspace safety
+
+Run `bin/h2puni-gate.sh <sha>` from a clean isolated h2 worktree, using the script
+inside that worktree. Never use `/home/puni1/wbs-dev/src` as the gate tree. The
+gate derives its repository root from its own script path, and its canonical
+heavy lock does not exclude the dev poller's checkout reset. Keep the worktree
+reserved for the gate; let the wrapper check out the requested SHA under its
+lock rather than checking it out beforehand.
+
+Observed 2026-10-17: a gate in the dev source checkout started on `b1ce4e74` at
+07:39:10 UTC; the poller reset that checkout at 07:40:02 UTC. Prettier then reported
+`ENOENT` while reading the changing tree. That interrupted attempt cannot prove
+the requested commit. The dev backend recovered after a container restart, and
+`/health` reported `e8894d0`; that health response proves the running dev revision,
+not the interrupted gate's result. Use an isolated worktree for the replacement
+exact-SHA gate.

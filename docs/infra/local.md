@@ -47,15 +47,15 @@ served as worktrees; `--solver-runtime <dir>` mounts a solver supervisor's runti
 | `platform` | platform: 1 server, bundled Traefik off           | the above plus locked Flux; the platform graph follows the rehearsal below | 16 GiB, 40 GiB                      |
 | `fleet`    | platform plus workers: 1 tainted server, 2 agents | as `platform`, on both clusters                                            | 24 GiB, 50 GiB                      |
 
-Memory is `MemAvailable`, disk the free space under Docker's root. A refusal names the next
-smaller profile. Measured on 2026-09-18 (24 cores, 31 GiB, shared with a VM lab):
-
 Before installing Flux, `platform` and `fleet` build the authenticated local
 object-store archive and verify its digest registration in each server and agent's
 containerd image store. This requires minisign (`MINISIGN` may name its executable)
 and the Buildx client locked in `infra/versions/object-store.json`; see
 [image inputs and tool provisioning](../../infra/versions/README.md).
 The `app` profile does not build object storage.
+
+Memory is `MemAvailable`, disk the free space under Docker's root. A refusal names the next
+smaller profile. Measured on 2026-09-18 (24 cores, 31 GiB, shared with a VM lab):
 
 | What                                                                      | Memory                                                          | Disk                                                             | Time                                                                                           |
 | ------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -324,7 +324,8 @@ bun tools/tool-devsync/src/k3s/dev-environment-check.ts --origin http://<slug>.l
 ## Fresh-clone walkthrough
 
 These are the commands of the recorded walkthrough; results are in the k3s-platform
-`verify.md`, F9.
+`verify.md`, F9. What `bun run dev:setup` seeds is in [local dev](../local-dev.md#one-time-setup),
+which owns running the WBS apps without a cluster.
 
 ```sh
 mkdir -p ~/puni-worktrees && cd ~/puni-worktrees

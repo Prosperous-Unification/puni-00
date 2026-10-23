@@ -51,7 +51,7 @@ over SSH. Blue/green: each tier runs one colour at a time.
 
 Send:
 
-> in ~/wd/puni/wbs-tool-v1 — check prod: curl the public site and /health, then
+> in ~/wd/puni/puni-00 — check prod: curl the public site and /health, then
 > ssh h2puni and run docker ps. Report raw output, change nothing.
 
 Expected when healthy: site `200`, `/health` `200`, and six containers up — one
@@ -78,8 +78,7 @@ live routing is what the deploy believes (`lib/reconcile.ts`'s `resolveLiveColor
 routing wins over the file, always), because a deploy killed between `caddy reload`
 and the state write leaves the file naming one colour while the other is serving. To
 see what is actually live: `docker exec wbs-caddy-1 wget -qO- http://127.0.0.1:2019/config/`.
-Compare the commit against `main`. As of
-writing prod is on `0afc777`, three commits behind.
+Compare the commit against `main`.
 
 Also check the deploy lock. **The file always exists — its presence means
 nothing.** The lock is a real `flock(2)` on an open descriptor, so the only
@@ -96,8 +95,6 @@ last holder.
 
 > **State files fail closed since 2026-08-05.** Only a genuinely absent file reads
 > as "never deployed"; unreadable or malformed ones now refuse and name the path.
-> The live colour comes from Caddy's admin config regardless — the state file is a
-> cache, and routing wins over it.
 
 ### Step 3 — logs
 
@@ -109,8 +106,8 @@ last holder.
 There is no undo, so the shape is always: find the commit, fix, gate, publish,
 dry-run, authorise, verify.
 
-> on h2puni in the WBS checkout — pull main, run `bin/h2puni-gate.sh`, report
-> failures only
+> on h2puni in the isolated gate worktree — run `bin/h2puni-gate.sh <sha>` on the
+> fix commit, report failures only
 
 Then publish and dry-run — still no `--execute`:
 
@@ -120,10 +117,8 @@ Then publish and dry-run — still no `--execute`:
 
 **Say "on h2puni".** Builds are blocked on h1claw by a hook, so a message that
 does not name the host will be refused mid-emergency, which is the worst possible
-time to discover it. h2puni has the pinned `dagger` CLI and a build checkout at
-`/home/puni1/wbs-build` since 2026-08-05, and images have been published from it —
-build there, never in dev's checkout at `/home/puni1/wbs-dev/src`, which
-is dev's and is bind-mounted into a running container; do not build from it.
+time to discover it. Build in `/home/puni1/wbs-build`, never in dev's checkout
+([Everyday work](#everyday-work)).
 
 **Stop and do not authorise if** the tree is dirty, `release.json` is stale, the
 gate failed, the bundle is unbuilt, or the deploy lock is held. Those refusals
@@ -173,19 +168,15 @@ Three surfaces, same repo, same rules.
 | h1claw over SSH      | editing, tests, git, long non-build jobs  | never builds; a hook blocks them          |
 | h1claw over WhatsApp | all of the above, from anywhere           | you steer an agent; see the red box       |
 
-**h2puni is the build box** — your rule, 2026-08-04. h1claw runs the gateway and
-holds the prod SSH key, registry credentials and the GitHub PAT, so builds do not
-belong on it. A hook there denies `dagger`, `docker build` and the Nx publish and
-deploy targets; anything sent over `ssh … h2puni` passes.
+**h2puni is the build box** — your rule, 2026-08-04; why h1claw never builds and
+what its hook denies: [LLM_README.md, _Deploy_](./LLM_README.md#deploy).
 
 As of 2026-08-05 h2puni can drive a prod build: `dagger` v0.21.9 (since 2026-09-06; 0.21.8 before) pinned to the
-engine image, a build checkout at `/home/puni1/wbs-build` that dev's deploy cannot
-reset under it, and the `h2puni` alias resolving to itself so the deploy can ssh
-where it already is. `docs/runbook-prod-deploy.md` has the detail and the traps.
-
-There is a checkout at `/home/puni1/wbs-dev/src`, but it belongs to dev: it is
-bind-mounted into the running dev container, so a build there would fight the
-dev servers for the same files. A prod build wants its own.
+engine image, images published from a build checkout at `/home/puni1/wbs-build` that
+dev's deploy cannot reset under it, and the `h2puni` alias resolving to itself so the
+deploy can ssh where it already is. `docs/runbook-prod-deploy.md` has the detail and the traps.
+The checkout at `/home/puni1/wbs-dev/src` belongs to dev: it is bind-mounted into the
+running dev container, so a build there would fight the dev servers for the same files.
 
 Checking tooling there needs a **login** shell: `ssh h2puni 'bash -lc "..."'`.
 Volta and Bun are not on a non-login shell's PATH, so a plain
@@ -197,34 +188,14 @@ Volta and Bun are not on a non-login shell's PATH, so a plain
 git push && ./bin/dev-deploy.sh
 ```
 
-Seconds, not minutes. Dev runs from source on h2puni, so the deploy is a `git
-reset --hard` there — the dev servers are already watching those files and pick
-the change up themselves. Nothing is built.
-
-**Three kinds of change do not travel this way.** Since 2026-08-05 the first two
-_fail the deploy_ and print the command that applies them; only the third is still
-silent, because a gitignored file cannot arrive in a push at all:
-
-- **The Dockerfile or `compose.yml`** — the deploy refuses and names the recreate
-  command. A restart cannot apply either: the running container was created from
-  the old file, so its mounts, user, limits and image are still the old ones.
-- **A per-tier `.env`** — those are gitignored, so a push cannot carry them.
-  Edit on h2puni, then `docker restart wbs-dev-src`.
-- Anything else not listed in `RESTART_PATHS` in `tools/tool-devsync/src/sync.ts`.
-
-Dependencies, migrations and Nx config **are** handled — the deploy restarts for
-those. `LLM_README.md` has the full table.
-
-<https://dev.wbs.bulletpoints.club> is password-protected. Username `dany`;
-the password is on h2puni in `/home/puni1/wbs-dev/basic-auth.env`.
-
-Two things worth knowing:
-
-- **Dev no longer rehearses a prod deploy.** The blue/green swap, health gate
-  and smoke test used to run on dev first. They don't now. Do a prod dry-run on
-  purpose before shipping.
-- **Push first.** The script refuses a dirty tree or a commit that isn't on the
-  remote, because h2puni pulls from GitHub and cannot see your local-only work.
+Seconds, not minutes: dev runs from source on h2puni and its watchers pick the
+change up; nothing is built. The script refuses a dirty tree or an unpushed commit,
+because h2puni pulls from GitHub. A Dockerfile or `compose.yml` change fails the
+deploy with the command that applies it; a per-tier `.env` is gitignored, so edit it
+on h2puni and `docker restart wbs-dev-src`. Dev (<https://dev.wbs.bulletpoints.club>)
+has no edge password since 2026-08-06 and does not
+rehearse a prod deploy — dry-run prod on purpose. Which change needs what:
+[the dev deploy runbook](./docs/runbook-dev-deploy.md).
 
 ### Mac
 
@@ -234,21 +205,16 @@ bun run dev:setup     # writes the three .env files
 bun run dev           # be :3100, gw :3200, fe :4200
 ```
 
-Gate before pushing on h2puni through the canonical heavy-work lock:
-
-```sh
-bin/h2puni-gate.sh
-```
-
-Root `bun test` runs **none** of fe-01's tests and still reports success. Use the
-gate. More in [docs/local-dev.md](./docs/local-dev.md).
+Gate before pushing with `bin/h2puni-gate.sh <sha>`
+([LLM_README.md, _Commands_](./LLM_README.md#commands)). More in
+[docs/local-dev.md](./docs/local-dev.md).
 
 ### h1claw over SSH
 
 ```sh
 ssh h1claw
 export PATH=$HOME/.bun/bin:$HOME/.local/bin:$PATH
-cd ~/wd/puni/wbs-tool-v1
+cd ~/wd/puni/puni-00
 ```
 
 That export is the one thing that bites: `bun`, `dagger` and `shellcheck` live
@@ -256,21 +222,21 @@ under `~/.bun/bin` and `~/.local/bin`, and a non-interactive
 `ssh h1claw '<cmd>'` will not find them. A login shell does. So does the agent.
 
 Present and verified: bun, dagger, shellcheck, docker, node, gh (as
-`dany-fedorov`), `codex`, `claude`. `openspec` is not global — use
-`bunx @fission-ai/openspec@1.12.0`. The full gate passes on h1claw: 20 projects.
+`dany-fedorov`), `codex`, `claude`. `openspec` is not global; it is a repo dev
+dependency, so run `bunx openspec` inside the checkout.
 
 ### h1claw over WhatsApp
 
 Message Claire. **Always open with the path** — the agent's workspace is
 `~/.openclaw/workspace`, which is Claire's own, not this repo:
 
-> in ~/wd/puni/wbs-tool-v1, ...
+> in ~/wd/puni/puni-00, ...
 
 Verified: the agent ran the entire gate from a single message and returned both
 exit codes and the NX summary. Development through WhatsApp works today.
 
 To skip the path prefix, symlink it once —
-`ln -s ~/wd/puni/wbs-tool-v1 ~/.openclaw/workspace/wbs-tool-v1`. Not done:
+`ln -s ~/wd/puni/puni-00 ~/.openclaw/workspace/puni-00`. Not done:
 `~/.openclaw/workspace` is itself a git repo and that would add a file to yours.
 
 Good things to hand it: run the gate; investigate a red CI run; open a PR for a
@@ -287,7 +253,7 @@ lane owes this repository.
 
 Rules: [AGENTS.md](./AGENTS.md). Five of them. R5 — _unknown is not OK, and every
 check must be provably breakable_ — is the one this repo learned the expensive
-way, eight times.
+way; the incidents are in [the R5 catalogue](./docs/findings/checks-that-cannot-fail.md#r5-catalogue-heading).
 
 Behaviour, contracts, migrations, deploy safety and architecture go through
 OpenSpec: `/opsx:new` → `/opsx:apply` → `/opsx:verify` → `/opsx:archive`. Docs
@@ -295,7 +261,8 @@ and mechanical refactors do not. The intent step runs an interview that argues
 with you on purpose; terms it settles land in `CONTEXT.md`, hard-to-reverse
 decisions become ADRs.
 
-Reviews: three second opinions, all working on h1claw as of 2026-08-04.
+Reviews: three second opinions, all working on h1claw as of 2026-08-04 (`agy`
+was installed there that day).
 
 ```sh
 codex exec "..."                 # sharpest of the three on this repo
@@ -303,8 +270,7 @@ agy -p "..."                     # antigravity 1.1.10
 gemini -p "..."                  # fast; verify its claims, one was wrong
 ```
 
-`agy` was **Mac only** until it was installed here on 2026-08-04; the old line
-saying it is a macOS arm64 binary is no longer true. Headless `agy` needs
+Headless `agy` needs
 `permissions.allow` in `~/.gemini/antigravity-cli/settings.json`, in the
 `name(target)` form — `command(*)`. A bare `read_file` is silently dropped as
 malformed and you get the auto-denied-tool error again, which reads as though
@@ -339,17 +305,18 @@ critical (migrations never reaching dev) and Gemini asserted a
 | Dev tier answers on the wrong port            | two `env_file`s both set `PORT`; per-tier env belongs in `apps/wbs/<tier>/.env`                   |
 | `command -v` says a tool is missing on h2puni | non-login shell — use `ssh h2puni 'bash -lc "..."'`                                               |
 
-Known-broken things are in `LLM_README.md` under **Open findings** — read it
-before concluding you broke something.
+Known-broken things are in [docs/findings/current.md](./docs/findings/current.md)
+— read it before concluding you broke something.
 
 ---
 
 ## Map
 
-| File                                     | What                          |
-| ---------------------------------------- | ----------------------------- |
-| [README.md](./README.md)                 | shortest start                |
-| **HUMAN_README.md**                      | this — operating the thing    |
-| [AGENTS.md](./AGENTS.md)                 | rules, loaded by every agent  |
-| [LLM_README.md](./LLM_README.md)         | landmines, open findings      |
-| [docs/local-dev.md](./docs/local-dev.md) | local detail, troubleshooting |
+| File                                       | What                          |
+| ------------------------------------------ | ----------------------------- |
+| [README.md](./README.md)                   | shortest start                |
+| **HUMAN_README.md**                        | this — operating the thing    |
+| [AGENTS.md](./AGENTS.md)                   | rules, loaded by every agent  |
+| [LLM_README.md](./LLM_README.md)           | agent orientation, routing    |
+| [docs/findings](./docs/findings/README.md) | landmines, open findings      |
+| [docs/local-dev.md](./docs/local-dev.md)   | local detail, troubleshooting |

@@ -94,3 +94,6 @@ Five rules govern this repo:
 - Gate also runs `openspec validate --all --json`. CI adds secrets and migration lint;
   lefthook is bypassable, CI is not. Never `--no-verify`.
 - A missing required tool blocks the task: install it or report the block.
+- h4claw is a second gate host with its own lock: `ssh puni1@h4claw`, tree `~/puni-00-gate-tbf`,
+  the same script and exit codes; its gates never queue behind h2puni's. See
+  [gate hosts](docs/infra/gate-hosts.md).

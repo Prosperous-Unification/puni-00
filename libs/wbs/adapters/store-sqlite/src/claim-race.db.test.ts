@@ -81,9 +81,14 @@ async function seeded(hold?: Hold) {
     },
     listStampedByProject: (id) => claims.listStampedByProject(id),
     findById: (id, claimId) => claims.findById(id, claimId),
-    add: (written, stated, stamp) => claims.add(written, stated, stamp),
+    occupancyOf: (id) => claims.occupancyOf(id),
+    add: (written, stated, stamp, occupancy, leases) =>
+      claims.add(written, stated, stamp, occupancy, leases),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
+    renewLeases: (personId, now) => claims.renewLeases(personId, now),
+    expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
+    projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(BOUND.get(personId) ?? null),
     pinnedPersonOf: () => Promise.resolve(null),
   });
@@ -313,6 +318,36 @@ describe('a claim on SQLite', () => {
       await as(F, [{ kind: 'releaseWorkItem', workItemId: childId, personId: 'claire' }])(),
     ).toMatchObject({ ok: true });
     expect(owners()).toEqual([]);
+  });
+
+  // Entries written before `20261020130000_add_claim_occupancy` carry no
+  // `occupancy`: their claims held nothing, and their undo and redo still apply.
+  it('undoes a release and redoes a claim journalled before claim occupancy', async () => {
+    const { runner, projectId, leafId, steps, claims, as } = await seeded();
+    const [dev] = steps;
+    await as(F, [
+      { kind: 'claimWorkItem', workItemId: leafId, personId: 'claire', steps: [dev] },
+    ])();
+    await as(F, [{ kind: 'releaseWorkItem', workItemId: leafId, personId: 'claire' }])();
+    const legacy = () => {
+      source.db.run(sql`UPDATE command_journal SET inverse = json_remove(inverse, '$.occupancy')`);
+      source.db.run(
+        sql`UPDATE command_journal SET payload = json_remove(payload, '$.forward.occupancy')`,
+      );
+    };
+    legacy();
+    expect(
+      source.db.get<{ n: number }>(
+        sql`SELECT count(*) AS n FROM command_journal WHERE inverse LIKE '%occupancy%' OR payload LIKE '%occupancy%'`,
+      ).n,
+    ).toBe(0);
+    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(claims()).toEqual([{ person_id: 'claire', step_id: dev }]);
+    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(claims()).toEqual([]);
+    legacy();
+    expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+    expect(claims()).toEqual([{ person_id: 'claire', step_id: dev }]);
   });
 
   it('refuses a redo of a claim once another holder took the step', async () => {

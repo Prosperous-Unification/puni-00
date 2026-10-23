@@ -1,0 +1,189 @@
+{
+  "baseRevision": "69a8b38f4f63ef4242ca1ed12926909fa2b5b127",
+  "candidateRevision": "7a63b3082c4b361b64ee7e7b1118bae19c2459c7",
+  "path": "openspec/changes/test-axes/specs/test-axes/spec.md",
+  "comparison": "git show <revision>:<path> for both commits; exact complete spec byte equality and each warning-named requirement section equality",
+  "baseSha256": "0ea57754ab7ca5d60a2fbd81a8669d8b86c085698d92311ecf25f213c866e2e0",
+  "candidateSha256": "0ea57754ab7ca5d60a2fbd81a8669d8b86c085698d92311ecf25f213c866e2e0",
+  "byteEqual": true,
+  "strictExitCode": 1,
+  "warnings": 35,
+  "errors": 0,
+  "requirements": [
+    {
+      "title": "Browser scenario observations join isolated publication and whole-tree specifications",
+      "unchanged": true,
+      "sectionSha256": "edf8e3db63c145ff75e8131d6eaff2ce3556ed209693920f719166e7a697878c"
+    },
+    {
+      "title": "Browser Performance explicitly reviewed-empty membership",
+      "unchanged": true,
+      "sectionSha256": "0cd43ee3dd1b26c491bb4218b797a5286e21ce0a281f30fec4d1573e1bac4023"
+    },
+    {
+      "title": "Browser level composition joins complete real observations",
+      "unchanged": true,
+      "sectionSha256": "7d0e02743dc7f6ec44c42af8b8e4010a061cf1201c3bfef35ac4fdd16837f4f4"
+    },
+    {
+      "title": "Every test resolves to exactly one level",
+      "unchanged": true,
+      "sectionSha256": "90794f76e5b15de892eebdef42f013ec99f0f0cd255cdcf59abfe5d5fa37e5aa"
+    },
+    {
+      "title": "Performance execution measures the declared real WBS fixture",
+      "unchanged": true,
+      "sectionSha256": "fbc69a63827a73224f08be11561089cb192364f1f2151ea60363d8ef3bfdd351"
+    },
+    {
+      "title": "Diagnostic test observations bind committed case sources",
+      "unchanged": true,
+      "sectionSha256": "deac810179485227115806d892878f9776796598fdd6dc6dba633163898bd96a"
+    },
+    {
+      "title": "Diagnostic test sources bind exact indexed ownership",
+      "unchanged": true,
+      "sectionSha256": "54290bde0039ed97bfea00339ff34627c00efea0bbc789cb0e7005b10dfa4ba3"
+    },
+    {
+      "title": "Diagnostic Performance sources bind exact indexed ownership",
+      "unchanged": true,
+      "sectionSha256": "bd630a3a3e6ff8337f40facfbe0268d76075bd210935a07027f2c68b4c50e13e"
+    },
+    {
+      "title": "Manual observation preserves the inspected verdict without certification",
+      "unchanged": true,
+      "sectionSha256": "e3f094468b8ce4695393f79494f33df9bc8f10c6eafaeb873ff518c273e10dae"
+    },
+    {
+      "title": "Diagnostic committed SHA is the requested commit object",
+      "unchanged": true,
+      "sectionSha256": "40a015433608ffe5024c70ea63507d1a5cbaf0edde6c9fc1576c6a7e6e664230"
+    },
+    {
+      "title": "Production scenario provenance is pinned to a reviewed base",
+      "unchanged": true,
+      "sectionSha256": "05ebb11c7a4a3c6329c8e4178604f44a1a1fd36da5295261d283e30beab74583"
+    },
+    {
+      "title": "Canonical scenarios reconcile in both directions",
+      "unchanged": true,
+      "sectionSha256": "80aa6db09639c9e0434da5deb208ab7b2345a2a9fa6147c7992d9bc4f9dfd3b7"
+    },
+    {
+      "title": "Active source inventory precedes reviewed lineage reconciliation",
+      "unchanged": true,
+      "sectionSha256": "e54e5ad8a065344256b43c824222470466c8acbb5961857245619d3cd2e84235"
+    },
+    {
+      "title": "Performance publication inspection reconciles immutable evidence",
+      "unchanged": true,
+      "sectionSha256": "0af9d59cc8382a77f8f02cc3cb58539b6c02c752a7bb2021465e57de53b25290"
+    },
+    {
+      "title": "Candidate-bound level facts have explicit authority",
+      "unchanged": true,
+      "sectionSha256": "2d4ae5a68c7037d4deab69dc8b4050d12e822bfc1943e596bdd1451532df236c"
+    },
+    {
+      "title": "Committed Conformance facts select a bounded target",
+      "unchanged": true,
+      "sectionSha256": "4bb7308ca16d99325875db2c0d0ef233d99417625bc39514d580909650765e40"
+    },
+    {
+      "title": "Committed Architecture facts bind declared rule fixtures",
+      "unchanged": true,
+      "sectionSha256": "4318b83977ccaef53e924ccbec4633856431af6605e37bfa68f264d2da5a7b90"
+    },
+    {
+      "title": "Performance level observations join complete facts and publication",
+      "unchanged": true,
+      "sectionSha256": "c3d5ece6f8b653a70e5e8b19c623de5d0ffb84cc3b2a8d292cac5d813515136a"
+    },
+    {
+      "title": "Find-based Bun level targets execute literal selected files",
+      "unchanged": true,
+      "sectionSha256": "837f113ff6d4cc2755df94a2c989695d2b9ce9268eb7b01edda6572e9bb991a2"
+    },
+    {
+      "title": "Browser membership review facts preserve unknown earlier rows",
+      "unchanged": true,
+      "sectionSha256": "1c55359072da36222f1828ab89dbc538862ddd4f2f02e91c5b61423bfa2bb8af"
+    },
+    {
+      "title": "Performance scenario observations are bounded to selected publication",
+      "unchanged": true,
+      "sectionSha256": "6665efeb92c9b22c1e180e0b7be6148b7a326e679ed6e7e71094ced7111ed5be"
+    },
+    {
+      "title": "Browser Conformance observations bind complete committed selections",
+      "unchanged": true,
+      "sectionSha256": "d710f3b95b60320599e9e1daef705e3dc744bd6c3e347cf45785f68ecd96094b"
+    },
+    {
+      "title": "Browser Conformance permits explicit reviewed-empty authority",
+      "unchanged": true,
+      "sectionSha256": "be9a821beac97d8ccaf5004f4c8f953473cc6f03143fcfb62678a2f70e4ee15d"
+    },
+    {
+      "title": "Capability scenario ledger remains a diagnostic",
+      "unchanged": true,
+      "sectionSha256": "cee8a54f18b0c0668a6792279f1d5a9f81d95fe1262ed4190d8a45b3b1ff0e52"
+    },
+    {
+      "title": "Browser Architecture membership observations",
+      "unchanged": true,
+      "sectionSha256": "890b1213294adc33f4d86cd42f7ede503afc72bd17596410e92c145f8719e4c5"
+    },
+    {
+      "title": "Browser Performance membership observations",
+      "unchanged": true,
+      "sectionSha256": "0e1779eae58f05eb16030497c3c3fa3a7f694a46c1f6da6fa854b726d6d388f5"
+    },
+    {
+      "title": "Version two scenario ledger joins Browser observations",
+      "unchanged": true,
+      "sectionSha256": "45a7658d88c49651a8716d7f49c5ddbea7a91c5b4b825abcd8401c95b5ecfcb2"
+    },
+    {
+      "title": "Browser-only capability scenario ledger",
+      "unchanged": true,
+      "sectionSha256": "c32f6274fc6ea770e8904a289c912865cfa91d34c49553479afbff824d629191"
+    },
+    {
+      "title": "Browser T2 diagnostic consumer",
+      "unchanged": true,
+      "sectionSha256": "877bccd9d0e4818c3b3ba4e88267b900c03a7b589e54ed47b56e1b9eda518a7c"
+    },
+    {
+      "title": "Browser source levels bind exact case ownership and classification",
+      "unchanged": true,
+      "sectionSha256": "40b76c1a6941f3c9f00f28077990d2b452c6cf5e4ec11dea34824f5369561eaa"
+    },
+    {
+      "title": "Shared validation isolated Unit runner",
+      "unchanged": true,
+      "sectionSha256": "a3e5a307249d579b13c03d41d8393849b98934785f7f2f4bdc2e6cd2a37e9564"
+    },
+    {
+      "title": "Bun report observations bind selected sources without claiming level authority",
+      "unchanged": true,
+      "sectionSha256": "2f834d2365aa1442c5c0fddd0ac7f7945711dd25e2f65109f32e9d8e3a15d0c2"
+    },
+    {
+      "title": "Shared failures isolated Unit runner",
+      "unchanged": true,
+      "sectionSha256": "98774d530fe3e61ed7c289fb966f2e69a4ec03be58989a9e33e44f6e48b1d27d"
+    },
+    {
+      "title": "Shared test levels isolated Unit runner",
+      "unchanged": true,
+      "sectionSha256": "0936a5d5c5663250c9593abfac92bd22a7bdbc62de5e9aec0ddbdc871ad90875"
+    },
+    {
+      "title": "Shared test evidence isolated Unit runner",
+      "unchanged": true,
+      "sectionSha256": "d36207bac30de115196cde7f1d8b1d8e6f1d1c9ba18d2a75871305a1bb68075e"
+    }
+  ]
+}

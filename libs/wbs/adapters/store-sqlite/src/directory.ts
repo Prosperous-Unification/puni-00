@@ -7,13 +7,22 @@ import type {
   DirectoryUsageRows,
   ExternalRef,
   ExternalSystem,
+  MachineCredentialReach,
   NamedCatalog,
   OrganizationRenamed,
   PersonAdded,
   PersonInsert,
   PersonPatch,
+  PersonRemoved,
   PersonWithTeams,
   PersonWritten,
+  Resource,
+  ResourceAdded,
+  ResourcePatch,
+  ResourceProviderSet,
+  ResourceRemoved,
+  ResourceUsageRows,
+  ResourceWritten,
   Service,
   ServiceTeam,
   ServiceTeamWritten,
@@ -26,25 +35,34 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
+import { appendOrganizationAudit } from './organization-audit-log';
 import { bumpWorkItems } from './revision';
 import {
   assignment,
   claim,
+  claimOccupancy,
+  computeProvider,
   externalIdentity,
   externalSystem,
   externalSystemOrganization,
+  machineCredential,
+  machineCredentialSecret,
   organizationMembership,
   person,
   personOrganization,
   personTeam,
   project,
+  projectResourceCapacity,
   projectTeamCapacity,
+  resource,
+  resourceCapacityReport,
+  resourceOrganization,
   service,
   serviceOrganization,
   serviceTeam,
@@ -56,6 +74,7 @@ import {
   users,
   workItem,
   workItemExternalRef,
+  workItemResourceDemand,
   workItemService,
   workItemTag,
   workItemTeam,
@@ -76,6 +95,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   members: [],
   claims: [],
   pinnedCredentials: 0,
+  machineCredentials: 0,
   capacityOf: new Map(),
 };
 
@@ -278,6 +298,7 @@ function usageRowsIn(
     members,
     claims: [],
     pinnedCredentials: 0,
+    machineCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
 }
@@ -293,6 +314,25 @@ function credentialsPinnedTo(reader: Reader, personId: string): string[] {
 }
 
 /**
+ * The unrevoked machine credentials pinned to one person
+ * (`machine_credential.person_id`, `wbs-machine-credentials`), with what their
+ * revocation's audit row names.
+ */
+function liveMachineCredentialsOf(reader: Reader, personId: string) {
+  return reader
+    .select({
+      id: machineCredential.id,
+      organizationId: machineCredential.organizationId,
+      source: machineCredential.source,
+      issuedBy: machineCredential.issuedBy,
+      issuer: machineCredential.issuer,
+    })
+    .from(machineCredential)
+    .where(and(eq(machineCredential.personId, personId), isNull(machineCredential.revokedAt)))
+    .all();
+}
+
+/**
  * A person's usage: what reaches their projects, every claim their removal
  * takes, and the credentials pinned to them.
  */
@@ -305,6 +345,7 @@ function personUsageIn(
     ...usageRowsIn(reader, projectIds, []),
     claims: claimsTakenWith(reader, personId),
     pinnedCredentials: credentialsPinnedTo(reader, personId).length,
+    machineCredentials: liveMachineCredentialsOf(reader, personId).length,
   };
 }
 
@@ -365,6 +406,7 @@ const CATALOG_TABLES: Readonly<
   tags: { root: 'tag', side: 'tag_organization' },
   workItemTypes: { root: 'work_item_type', side: 'work_item_type_organization' },
   externalSystems: { root: 'external_system', side: 'external_system_organization' },
+  resources: { root: 'resource', side: 'resource_organization' },
 };
 
 /** The projects holding a work item this removal would touch, with no duplicates. */
@@ -432,8 +474,27 @@ export class DirectoryRepository implements DirectoryStore {
       tags: () => this.listNamedIn('tags', organizationId),
       workItemTypes: () => this.listNamedIn('workItemTypes', organizationId),
       externalSystems: () => this.listNamedIn('externalSystems', organizationId),
+      resources: () => this.listResourcesIn(organizationId),
     };
     return readers[catalog]();
+  }
+
+  /**
+   * One organization's resources under their local names, the kind and unit
+   * read off the root; ordered by the local name, as every catalog here is.
+   */
+  private async listResourcesIn(organizationId: string): Promise<Resource[]> {
+    return this.db
+      .select({
+        id: resourceOrganization.resourceId,
+        name: resourceOrganization.name,
+        kind: resource.kind,
+        unitLabel: resource.unitLabel,
+      })
+      .from(resourceOrganization)
+      .innerJoin(resource, eq(resource.id, resourceOrganization.resourceId))
+      .where(eq(resourceOrganization.organizationId, organizationId))
+      .orderBy(asc(resourceOrganization.name));
   }
 
   // One query per side table rather than one generic over them: the six side
@@ -670,6 +731,7 @@ export class DirectoryRepository implements DirectoryStore {
           services: () => this.projectsServiced(tx, resourceId),
           tags: () => this.projectsTagged(tx, resourceId),
           workItemTypes: () => this.projectsTyped(tx, resourceId),
+          resources: () => this.projectsNamingResource(tx, resourceId),
         };
         const projectIds = touched[catalog]();
         const outside = this.projectsOutsideIn(tx, projectIds, organizationId);
@@ -747,6 +809,11 @@ export class DirectoryRepository implements DirectoryStore {
       ],
       tags: [labelled('work_item_tag', 'work_item_tag', 'tag_id')],
       workItemTypes: [labelled('work_item_type', 'work_item_work_item_type', 'type_id')],
+      resources: [
+        labelled('work_item_resource_demand', 'work_item_resource_demand', 'resource_id'),
+        sql`SELECT 'project_resource_capacity:' || c.project_id AS ref FROM project_resource_capacity AS c
+          WHERE c.resource_id = ${id} AND ${foreignProject('c.project_id')} IS NOT ${o}`,
+      ],
     };
     return this.db
       .all<{ ref: string }>(sql.join(arms[catalog], sql` UNION ALL `))
@@ -775,6 +842,280 @@ export class DirectoryRepository implements DirectoryStore {
         .map((row) => row.id),
     );
     return projectIds.filter((id) => !owned.has(id));
+  }
+
+  /** Every resource in the global directory, by name. */
+  async listResources(): Promise<Resource[]> {
+    return this.db
+      .select({
+        id: resource.id,
+        name: resource.name,
+        kind: resource.kind,
+        unitLabel: resource.unitLabel,
+      })
+      .from(resource)
+      .orderBy(asc(resource.name));
+  }
+
+  /**
+   * Adds a resource, or answers `taken` when the unique name index refuses it.
+   * Not idempotent, unlike {@link DirectoryRepository.addTeam}: the row already
+   * holding the name may carry another kind and unit.
+   *
+   * Proof: with the unique-violation branch removed, the conformance case
+   * `directory.addResource:taken` failed SQLite certification on the escaped
+   * unique violation; watched 2026-10-20.
+   */
+  async addResource(toAdd: Resource, stamp: WriteStamp): Promise<ResourceAdded> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      try {
+        this.db
+          .insert(resource)
+          .values({ ...toAdd, ...auditOnCreate(stamp) })
+          .run();
+      } catch (err) {
+        if (isUniqueViolation(err, UNIQUE_INDEXES.resourceName))
+          return { ok: false, reason: 'taken' };
+        throw err;
+      }
+      return { ok: true, resource: { ...toAdd } };
+    });
+  }
+
+  /**
+   * Renames a resource or changes its unit label, answering the projects whose
+   * demands or capacities name it. No work item is bumped: a rename changes
+   * what a resource is called, not what any row states about it.
+   */
+  async patchResource(
+    resourceId: string,
+    patch: ResourcePatch,
+    stamp: WriteStamp,
+  ): Promise<ResourceWritten> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      try {
+        return this.db.transaction((tx) => {
+          const rows = tx
+            .update(resource)
+            .set({ ...patch, ...auditOnUpdate(stamp) })
+            .where(eq(resource.id, resourceId))
+            .returning({
+              id: resource.id,
+              name: resource.name,
+              kind: resource.kind,
+              unitLabel: resource.unitLabel,
+            })
+            .all();
+          const patched = rows.at(0);
+          if (patched === undefined) return { ok: false, reason: 'not_found' };
+          return {
+            ok: true,
+            resource: patched,
+            projectIds: this.projectsNamingResource(tx, resourceId),
+          };
+        });
+      } catch (err) {
+        if (isUniqueViolation(err, UNIQUE_INDEXES.resourceName))
+          return { ok: false, reason: 'taken' };
+        throw err;
+      }
+    });
+  }
+
+  /**
+   * Sets or clears a resource's provider reference in one transaction with
+   * its checks (`compute-providers` P3); a changed reference deletes the
+   * report the old instance sent.
+   */
+  async setResourceProvider(
+    resourceId: string,
+    providerId: string | null,
+    organizationId: string | null,
+    stamp: WriteStamp,
+  ): Promise<ResourceProviderSet> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): ResourceProviderSet => {
+        const held = tx
+          .select({ providerId: resource.providerId })
+          .from(resource)
+          .where(eq(resource.id, resourceId))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        if (providerId !== null) {
+          const instance = tx
+            .select({ organizationId: computeProvider.organizationId })
+            .from(computeProvider)
+            .where(eq(computeProvider.id, providerId))
+            .get();
+          // Proof: with this check removed, `refuses an id no instance holds,
+          // unchanged` in `compute-provider.controller.db.test.ts` failed on
+          // the foreign key with 500 instead of 404; watched 2026-10-22.
+          if (instance === undefined) return { ok: false, reason: 'unknown_provider' };
+          // Proof: with this check removed, `refuses a stranger's instance,
+          // unchanged` in `compute-provider.controller.db.test.ts` stored B's
+          // instance on A's resource; watched 2026-10-22.
+          if (instance.organizationId !== organizationId)
+            return { ok: false, reason: 'provider_not_in_organization' };
+        }
+        if (held.providerId !== providerId) {
+          tx.update(resource)
+            .set({ providerId, ...auditOnUpdate(stamp) })
+            .where(eq(resource.id, resourceId))
+            .run();
+          // Proof: with this deletion removed, `drops the old instance report
+          // when the reference moves` in `compute-provider.controller.db.test.ts`
+          // kept one report; watched 2026-10-22.
+          tx.delete(resourceCapacityReport)
+            .where(eq(resourceCapacityReport.resourceId, resourceId))
+            .run();
+        }
+        return { ok: true, projectIds: this.projectsNamingResource(tx, resourceId) };
+      });
+    });
+  }
+
+  /**
+   * What names one resource right now — a fast path for the confirmation.
+   * {@link DirectoryRepository.removeResource} decides.
+   */
+  async usageOfResource(resourceId: string): Promise<ResourceUsageRows> {
+    await Promise.resolve();
+    return this.resourceUsageIn(this.db, resourceId);
+  }
+
+  /**
+   * Counts, decides and deletes in one transaction — `removeTag`'s shape. The
+   * demands and capacities are not deleted here: both cascade from the
+   * resource, so the outgoing release's plain delete could not hit a constraint
+   * it cannot see. The work items that lose a demand are bumped explicitly,
+   * because a cascade moves no revision.
+   *
+   * Occupancies go by cascade too (`claim_occupancy.resource_id`); the claims
+   * that held them stand, holding nothing of the removed resource.
+   *
+   * Proof: with the in-use refusal removed, the conformance case
+   * `directory.removeResource:in-use-cascade` failed SQLite certification; with
+   * `bumpWorkItems` removed, `moves the revision of every row a cascaded removal
+   * takes a demand from` (resource.db.test.ts) read revision 1; both watched 2026-10-20.
+   */
+  async removeResource(
+    resourceId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<ResourceRemoved> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const usage = this.resourceUsageIn(tx, resourceId);
+        const inUse =
+          usage.demands.length > 0 || usage.capacities.length > 0 || usage.occupancies > 0;
+        if (!cascade && inUse) return { ok: false, reason: 'in_use', usage };
+        const demanded = [...new Set(usage.demands.map((each) => each.workItemId))];
+        bumpWorkItems(tx, demanded, stamp);
+        // Read before the delete cascades the occupancy away: a project whose
+        // only link is a standing claim's units is told too.
+        // Proof: with this left out, `refuses deleting a resource a claim holds,
+        // counting it, and cascades on confirmation` (resource-occupancy.db.test.ts)
+        // announced no project on SQLite; watched 2026-10-20.
+        const occupying = tx
+          .selectDistinct({ projectId: workItem.projectId })
+          .from(claimOccupancy)
+          .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+          .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+          .where(eq(claimOccupancy.resourceId, resourceId))
+          .all();
+        const removed = tx
+          .delete(resource)
+          .where(eq(resource.id, resourceId))
+          .returning({ id: resource.id })
+          .all();
+        if (removed.length === 0) return { ok: false, reason: 'not_found' };
+        return {
+          ok: true,
+          removal: {
+            workItemIds: demanded,
+            projectIds: [
+              ...new Set([
+                ...usage.rows.projects.map((each) => each.id),
+                ...usage.capacities.map((each) => each.projectId),
+                ...occupying.map((each) => each.projectId),
+              ]),
+            ].sort(),
+          },
+        };
+      });
+    });
+  }
+
+  /** The demands, capacities and project rows that name one resource, read through `reader`. */
+  private resourceUsageIn(reader: Reader, resourceId: string): ResourceUsageRows {
+    const demands = reader
+      .select({
+        workItemId: workItemResourceDemand.workItemId,
+        resourceId: workItemResourceDemand.resourceId,
+        units: workItemResourceDemand.units,
+        projectId: workItem.projectId,
+      })
+      .from(workItemResourceDemand)
+      .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
+      .where(eq(workItemResourceDemand.resourceId, resourceId))
+      .orderBy(asc(workItemResourceDemand.workItemId))
+      .all();
+    const capacities = reader
+      .select({
+        projectId: projectResourceCapacity.projectId,
+        units: projectResourceCapacity.units,
+      })
+      .from(projectResourceCapacity)
+      .where(eq(projectResourceCapacity.resourceId, resourceId))
+      .orderBy(asc(projectResourceCapacity.projectId))
+      .all();
+    const referenced = reader
+      .select({ providerId: resource.providerId })
+      .from(resource)
+      .where(eq(resource.id, resourceId))
+      .get();
+    const occupying = reader
+      .select({ workItemId: claim.workItemId })
+      .from(claimOccupancy)
+      .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+      .where(eq(claimOccupancy.resourceId, resourceId))
+      .all();
+    return {
+      rows: usageRowsIn(reader, projectsOf(demands), []),
+      demands: demands.map(({ workItemId, units }) => ({ workItemId, resourceId, units })),
+      capacities,
+      // Proof: with 0 here, the SQLite certification's
+      // `directory.removeResource:in-use-cascade` case read no occupancy and
+      // `refuses deleting a resource a claim holds` (resource-occupancy.db.test.ts)
+      // deleted it; watched 2026-10-20.
+      occupancies: new Set(occupying.map(({ workItemId }) => workItemId)).size,
+      // A resource read away mid-removal names no instance; the removal's own
+      // not-found answer covers it.
+      // Proof: with null answered here, `names the resource's instance when
+      // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
+      // read `providerId: null`; watched 2026-10-22.
+      providerId: referenced?.providerId ?? null,
+    };
+  }
+
+  /** Every project whose demands or capacities name the resource. */
+  private projectsNamingResource(reader: Reader, resourceId: string): string[] {
+    const demanding = reader
+      .select({ projectId: workItem.projectId })
+      .from(workItemResourceDemand)
+      .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
+      .where(eq(workItemResourceDemand.resourceId, resourceId))
+      .all();
+    const stating = reader
+      .select({ projectId: projectResourceCapacity.projectId })
+      .from(projectResourceCapacity)
+      .where(eq(projectResourceCapacity.resourceId, resourceId))
+      .all();
+    return [...new Set(projectsOf([...demanding, ...stating]))].sort();
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */
@@ -1136,6 +1477,25 @@ export class DirectoryRepository implements DirectoryStore {
           }
           if (typeof patch.accountId === 'string' && !accountMayBind(tx, personId, patch.accountId))
             return { ok: false, reason: 'unknown_account' };
+          if (patch.accountId !== undefined || patch.kind !== undefined) {
+            const current = tx
+              .select({ accountId: person.accountId, kind: person.kind })
+              .from(person)
+              .where(eq(person.id, personId))
+              .get();
+            if (current === undefined) throw new Error(`person "${personId}" vanished mid-patch`);
+            const machines = liveMachineCredentialsOf(tx, personId).length;
+            // Proof: with the account comparison removed, `refuses unbinding or
+            // rebinding a person a live machine credential acts through` in
+            // `machine-credential-admin.controller.db.test.ts` unbound the
+            // person; with the kind comparison removed, `refuses turning an
+            // agent with a live machine credential into a person` changed its
+            // kind (200); watched 2026-10-22.
+            const rebinds = patch.accountId !== undefined && patch.accountId !== current.accountId;
+            const rekinds = patch.kind !== undefined && patch.kind !== current.kind;
+            if ((rebinds || rekinds) && machines > 0)
+              return { ok: false, reason: 'in_use', machineCredentials: machines };
+          }
           // One `set`, not one per field: two updates would be two revisions of
           // the same row for a patch the caller sent as one thing, and the second
           // would have to be skipped when only the first field was named anyway.
@@ -1597,7 +1957,8 @@ export class DirectoryRepository implements DirectoryStore {
     personId: string,
     cascade: boolean,
     stamp: WriteStamp,
-  ): Promise<DirectoryRemoved> {
+    reach: MachineCredentialReach,
+  ): Promise<PersonRemoved> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx) => {
@@ -1610,6 +1971,7 @@ export class DirectoryRepository implements DirectoryStore {
         // work items' revisions move with the rest.
         const claimed = claimsTakenWith(tx, personId);
         const pinned = credentialsPinnedTo(tx, personId);
+        const machines = liveMachineCredentialsOf(tx, personId);
         // Proof: with `claimed` left out of this test, the SQLite certification's
         // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
         // Proof: with `pinned` left out of this test, the SQLite certification's
@@ -1617,13 +1979,27 @@ export class DirectoryRepository implements DirectoryStore {
         // unconfirmed; with the revoking delete below removed, the confirmed
         // removal failed on the `external_identity.person_id` foreign key
         // (both watched 2026-10-20).
-        if (!cascade && (held.length > 0 || claimed.length > 0 || pinned.length > 0)) {
+        // Proof: with `machines` left out of this test, `refuses removing a
+        // person with a live machine credential unless cascaded` in
+        // `machine-credential-admin.controller.db.test.ts` removed the person
+        // unconfirmed; watched 2026-10-22.
+        if (
+          !cascade &&
+          (held.length > 0 || claimed.length > 0 || pinned.length > 0 || machines.length > 0)
+        ) {
           return {
             ok: false,
             reason: 'in_use',
             usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
           };
         }
+        // Proof: with this refusal removed, `refuses a member's cascade over
+        // another account's agent's credential` and `refuses a machine key's
+        // cascade over its own person` in
+        // `machine-credential-admin.controller.db.test.ts` removed the person
+        // and revoked the credentials (200); watched 2026-10-22.
+        if (machines.length > 0 && !reachesPerson(tx, personId, reach))
+          return { ok: false, reason: 'forbidden' };
         const projectIds = this.projectsReaching(tx, personId);
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
         // Delegated claims under these go with them: `parent_claim_id` cascades.
@@ -1633,6 +2009,11 @@ export class DirectoryRepository implements DirectoryStore {
         // `ON DELETE` action, so without this the person delete fails on it.
         if (pinned.length > 0)
           tx.delete(externalIdentity).where(inArray(externalIdentity.id, pinned)).run();
+        // Proof: without this, the confirmed removals in `refuses removing a
+        // person with a live machine credential unless cascaded` and `removes a
+        // person whose credentials are all revoked …` failed on the
+        // `machine_credential.person_id` foreign key (500); watched 2026-10-22.
+        removeMachineCredentialsOf(tx, personId, machines, stamp);
         tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
         const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
         // Nothing was deleted, so there was nothing here to delete: somebody
@@ -2027,4 +2408,63 @@ function accountMayBind(tx: Transaction, personId: string, accountId: string): b
       )
       .get() !== undefined
   );
+}
+
+/**
+ * Revokes `machines` with one `machine_credential_revoked` audit row each, then
+ * deletes every machine credential of `personId`, revoked ones included, and
+ * their secrets, so the person's row can go (`machine_credential.person_id`
+ * has no `ON DELETE` action). The audit rows outlive them: `subject_id`
+ * references nothing.
+ */
+function removeMachineCredentialsOf(
+  tx: Transaction,
+  personId: string,
+  machines: ReturnType<typeof liveMachineCredentialsOf>,
+  stamp: WriteStamp,
+): void {
+  for (const machine of machines)
+    appendOrganizationAudit(tx, {
+      id: crypto.randomUUID(),
+      organizationId: machine.organizationId,
+      actorId: stamp.by,
+      action: 'machine_credential_revoked',
+      subjectKind: 'machine_credential',
+      subjectId: machine.id,
+      detail: {
+        source: machine.source,
+        personId,
+        issuedBy: machine.issuedBy,
+        issuer: machine.issuer,
+        cascade: true,
+      },
+      at: stamp.at,
+    });
+  const credentialIds = tx
+    .select({ id: machineCredential.id })
+    .from(machineCredential)
+    .where(eq(machineCredential.personId, personId))
+    .all()
+    .map(({ id }) => id);
+  if (credentialIds.length === 0) return;
+  tx.delete(machineCredentialSecret)
+    .where(inArray(machineCredentialSecret.credentialId, credentialIds))
+    .run();
+  tx.delete(machineCredential).where(inArray(machineCredential.id, credentialIds)).run();
+}
+
+/**
+ * Whether `reach` covers `personId`'s machine credentials
+ * (`wbs-machine-credentials` A24): `own` only while the person is bound to
+ * that account now.
+ */
+function reachesPerson(tx: Transaction, personId: string, reach: MachineCredentialReach): boolean {
+  if (reach.kind === 'every') return true;
+  if (reach.kind === 'none') return false;
+  const bound = tx
+    .select({ accountId: person.accountId })
+    .from(person)
+    .where(eq(person.id, personId))
+    .get();
+  return bound?.accountId === reach.accountId;
 }

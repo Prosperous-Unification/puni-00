@@ -7,7 +7,7 @@ export const SUPERVISOR_PROTOCOL_VERSION = 1;
  * supervisor outlives either backend colour during a blue/green swap, so it
  * admits all three and leaves exact schema validation to the solver image.
  */
-export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2, 3];
+export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2, 3, 4];
 
 export type SupervisorObjective = 'pri' | 'time';
 
@@ -155,7 +155,9 @@ export function decodeSupervisorStartFrame(
   // solver-image smoke failed the same way on a v2 request; watched 2026-09-28.
   // Proof: the v1/v2-only list rejected the fixed-person-calendar production
   // boundary test (0 pass / 1 fail), matching CI Solver image smoke on wire 3.
-  // Proof: admitting wire 4 made the rolling-deploy refusal test fail (0 pass / 1 fail).
+  // Proof: the v1-v3 list rejected `carries resource demands and capacities on
+  // solver wire 4 unchanged` with `request wireVersion 4 is not supported`
+  // (`wbs-resources` R5); watched 2026-10-20.
   if (!SOLVER_REQUEST_WIRE_VERSIONS.includes(request['wireVersion'])) {
     throw defect(`request wireVersion ${JSON.stringify(request['wireVersion'])} is not supported`);
   }

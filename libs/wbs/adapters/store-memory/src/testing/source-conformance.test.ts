@@ -24,6 +24,7 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
   PINNED_CREDENTIAL,
@@ -34,6 +35,8 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedOrganizationLimits,
+  seedResourceCase,
   seedSavedPlanCapture,
   sourceConformanceRegistrations,
   type SourceDeclaration,
@@ -383,9 +386,9 @@ async function openMemoryCase<Family extends ExistingFamily>(
       ]);
     }
     if (caseId === 'directory.removePerson:claims-in-use')
-      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
+      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:delegated-claims')
-      await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0]);
+      await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:pinned-credential') {
       const { personId, issuer, subject } = PINNED_CREDENTIAL;
       const added = await seeded.stores.directory.addPerson(
@@ -396,6 +399,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
       if (!added.ok) throw new Error('the pinned person was refused');
       seeded.pinCredential(issuer, subject, personId);
     }
+    await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
   });
   if (family === 'subtrees') {
     return {
@@ -842,6 +846,7 @@ function transactionalJournal(source: MemorySource): CommandJournalStore {
     });
   return {
     append: (entry, event) => commit((journal) => journal.append(entry, event)),
+    appendEvent: (event) => commit((journal) => journal.appendEvent(event)),
     entriesFor: (projectId, userId) => source.stores.journal.entriesFor(projectId, userId),
     flip: (id, undone, preconditions) =>
       commit((journal) => journal.flip(id, undone, preconditions)),
@@ -871,10 +876,50 @@ function memoryLateSource(
   return conformanceMemorySource(fixture);
 }
 
+/**
+ * The limits gauge over a seeded memory source: the one the scopes its unit
+ * of work admits carry, read here over the committed state (L10).
+ */
+async function openMemoryLimitsCase(
+  caseId: CaseId,
+): Promise<CaseFixture<TransactionalStores['organizationLimits']>> {
+  const fixture = openMemorySourceFixture();
+  const source = await seedMemorySource(
+    () => conformanceMemorySource(fixture),
+    (seeded) =>
+      seedOrganizationLimits(seeded.stores, {
+        organization: () => undefined,
+        ownPerson: (personId, organizationId) => {
+          fixture.ownPersonInOrganization(personId, organizationId, []);
+        },
+        ownProject: (projectId, organizationId) => {
+          fixture.ownProjectInOrganization(projectId, organizationId);
+        },
+        ownResource: (resourceId, organizationId) => {
+          fixture.ownResourceInOrganization(resourceId, organizationId);
+        },
+        setCaps: (organizationId, caps) => {
+          fixture.setOrganizationLimits(organizationId, caps);
+        },
+      }),
+  );
+  return {
+    fixtureId: `memory:${caseId}`,
+    port: fixture.organizationLimitGauge(LIMITS_FIXTURE.defaults),
+    journalAppender: source.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: { kind: 'ordinary' },
+    close: () => source.close(),
+  };
+}
+
 const openers: ExistingStoreOpeners = {
+  organizationLimits: openMemoryLimitsCase,
   projects: (caseId) => openMemoryCase('projects', caseId),
   users: (caseId) => openMemoryCase('users', caseId),
   capacity: (caseId) => openMemoryCase('capacity', caseId),
+  resourceCapacity: (caseId) => openMemoryCase('resourceCapacity', caseId),
   priorityBands: (caseId) => openMemoryCase('priorityBands', caseId),
   calendarMarkers: (caseId) => openMemoryCase('calendarMarkers', caseId),
   workItems: (caseId) => openMemoryCase('workItems', caseId),
@@ -887,6 +932,7 @@ const openers: ExistingStoreOpeners = {
   blockages: (caseId) => openMemoryCase('blockages', caseId),
   stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
   claims: (caseId) => openMemoryCase('claims', caseId),
+  demands: (caseId) => openMemoryCase('demands', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -1007,6 +1053,7 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures do not install the SQLite organization rank writer.',
     },
+    organizationLimits: { kind: 'offered', gaps: [], open: openMemoryLimitsCase },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {
@@ -1014,6 +1061,7 @@ const declaration: SourceDeclaration = {
       gaps: [capacityMissingReferenceGap],
       open: openers.capacity,
     },
+    resourceCapacity: { kind: 'offered', gaps: [], open: openers.resourceCapacity },
     priorityBands: {
       kind: 'offered',
       gaps: [priorityMissingProjectGap],
@@ -1030,6 +1078,7 @@ const declaration: SourceDeclaration = {
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
     claims: { kind: 'offered', gaps: [], open: openers.claims },
+    demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -1123,6 +1172,9 @@ function emptyMissingCapture(): PlanInputReads {
     typedDependencies: [],
     assignments: [],
     capacity: new Map(),
+    demands: [],
+    resourceCapacities: [],
+    resources: [],
     priorityBands: [],
     people: [],
     teams: [],
@@ -4314,6 +4366,7 @@ async function proveFault(
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
+        resourceCapacity: (caseId) => takeFixture('resourceCapacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         workItems: (caseId) => takeFixture('workItems', caseId),
@@ -4326,6 +4379,7 @@ async function proveFault(
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
         claims: (caseId) => takeFixture('claims', caseId),
+        demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),

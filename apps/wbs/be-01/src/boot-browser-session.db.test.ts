@@ -38,6 +38,7 @@ function oidcOptions(): OidcRouteOptions {
     tokens: new InMemoryTokenStore(),
     groupPrefix: 'dev',
     groupsClaim: 'wbs_groups',
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: { verify: () => Promise.reject(new errors.JOSEAlgNotAllowed('not an OIDC token')) },
     client: {
       authorizationUrl: () => Promise.resolve(new URL('https://idp.test/authorize')),

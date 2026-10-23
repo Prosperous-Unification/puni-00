@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "currency": "USD",
+  "unit": "perMillionTokens",
+  "entries": [
+    {
+      "provider": "anthropic",
+      "model": "claude-fable-5-1",
+      "prices": {
+        "input": 10,
+        "cacheWrite": 12.5,
+        "cacheWriteExtended": 20,
+        "cacheRead": 0.25,
+        "output": 50
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-5-5",
+      "prices": {
+        "input": 4,
+        "cacheWrite": 5,
+        "cacheWriteExtended": 8,
+        "cacheRead": 0.2,
+        "output": 20
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-5",
+      "prices": {
+        "input": 5,
+        "cacheWrite": 6.25,
+        "cacheWriteExtended": 10,
+        "cacheRead": 0.5,
+        "output": 25
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "prices": {
+        "input": 2,
+        "cacheWrite": 2.5,
+        "cacheWriteExtended": 4,
+        "cacheRead": 0.1,
+        "output": 10
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "prices": {
+        "input": 2,
+        "cacheWrite": 2.5,
+        "cacheWriteExtended": 4,
+        "cacheRead": 0.2,
+        "output": 10
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5",
+      "prices": {
+        "input": 1,
+        "cacheWrite": 1.25,
+        "cacheWriteExtended": 2,
+        "cacheRead": 0.1,
+        "output": 5
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6-astra",
+      "prices": {
+        "input": 10,
+        "cacheWrite": 12.5,
+        "cacheRead": 1,
+        "output": 50
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "prices": {
+        "input": 2,
+        "cacheWrite": 2.5,
+        "cacheRead": 0.2,
+        "output": 10
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6.1-sol",
+      "prices": {
+        "input": 2,
+        "cacheWrite": 2.5,
+        "cacheRead": 0.1,
+        "output": 10
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-sol",
+      "prices": {
+        "input": 4,
+        "cacheWrite": 5,
+        "cacheRead": 0.4,
+        "output": 20
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "accessedAt": "2026-10-22"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.3-codex",
+      "prices": {
+        "input": 1.75,
+        "cacheWrite": 2.1875,
+        "cacheRead": 0.175,
+        "output": 14
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "accessedAt": "2026-10-22"
+    }
+  ],
+  "notes": [
+    "Anthropic cache reads: 0.025x base input on Fable 5.1, 0.05x on Opus 5.5 and Sonnet 5.5, 0.1x elsewhere (page footnotes).",
+    "OpenAI cache writes are 1.25x input for GPT-5.6 and later (docs/twilight-structure/research/unit-economics/sources/openai-pricing.md, item 8); the page lists no separate write price.",
+    "codex-auto-review is deliberately absent: the pricing page lists no such model, so its usage stays unpriced.",
+    "claude-haiku-5-5 is deliberately absent: the page prices it by prompt length (up to or over 100,000 tokens per request), which a per-model card cannot express, so its usage stays unpriced until the card carries request-size tiers."
+  ]
+}

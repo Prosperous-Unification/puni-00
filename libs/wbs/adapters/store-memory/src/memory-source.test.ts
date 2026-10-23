@@ -18,6 +18,7 @@ const STORE_BINDINGS = [
   'calendarMarkers',
   'capacity',
   'claims',
+  'demands',
   'dependencies',
   'directory',
   'estimates',
@@ -28,6 +29,7 @@ const STORE_BINDINGS = [
   'priorityBands',
   'progress',
   'projects',
+  'resourceCapacity',
   'stepParallels',
   'steps',
   'subtrees',
@@ -244,7 +246,14 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     ],
     [],
     stamp,
+    [],
   );
+  await stores.directory.addResource(
+    { id: 'resource-1', name: 'Stored resource', kind: 'divisible', unitLabel: 'GB' },
+    stamp,
+  );
+  await stores.resourceCapacity.set('p1', 'resource-1', 8, stamp);
+  await stores.demands.set('wi-1', 'resource-1', 2, stamp);
   const recorded = await stores.eventLog.recordEvent(
     'project:p1',
     { nested: { label: 'stored message' } },
@@ -399,6 +408,16 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'claims',
       returned: await stores.claims.listByProject('p1'),
       reread: () => stores.claims.listByProject('p1'),
+    },
+    {
+      name: 'resource capacities',
+      returned: await stores.resourceCapacity.listFor('p1'),
+      reread: () => stores.resourceCapacity.listFor('p1'),
+    },
+    {
+      name: 'demands',
+      returned: await stores.demands.listByProject('p1'),
+      reread: () => stores.demands.listByProject('p1'),
     },
     {
       name: 'attempts',
@@ -692,6 +711,7 @@ describe('the staged memory source', () => {
           actuals: [],
           progress: [],
           measures: [],
+          demands: [],
           assignments: [],
           dependencies: [
             { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
@@ -924,6 +944,35 @@ it('captures sparse parallel facts detached from later memory writes', async () 
     await source.stores.stepParallels.remove(fact.workItemId, fact.stepId, stamp);
     expect(captured?.stepParallels).toEqual([fact]);
     expect((await source.history.savedPlanCapture.readPlanInput('p1'))?.stepParallels).toEqual([]);
+  } finally {
+    await source.close();
+  }
+});
+
+it('captures demands and resource capacities detached from later memory writes', async () => {
+  // The shared plan read schedules from this capture (`wbs-resources` R5), so a
+  // capture without them would level nothing.
+  const source = await seededSource();
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'wi-demand', projectId: 'p1' }),
+      [],
+      stamp,
+    );
+    const added = await source.stores.directory.addResource(
+      { id: 'staging', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+      stamp,
+    );
+    expect(added.ok).toBe(true);
+    await source.stores.resourceCapacity.set('p1', 'staging', 1, stamp);
+    await source.stores.demands.set('wi-demand', 'staging', 1, stamp);
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(captured?.demands).toEqual([
+      { workItemId: 'wi-demand', resourceId: 'staging', units: 1 },
+    ]);
+    expect(captured?.resourceCapacities).toEqual([{ resourceId: 'staging', units: 1 }]);
+    await source.stores.demands.set('wi-demand', 'staging', null, stamp);
+    expect(captured?.demands).toHaveLength(1);
   } finally {
     await source.close();
   }

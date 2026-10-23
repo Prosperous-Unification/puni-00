@@ -1,10 +1,18 @@
 import { afterEach, expect, setDefaultTimeout, test } from 'bun:test';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './testing/booted-browser-process';
+import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 
 setDefaultTimeout(30_000);
 
 const cli = new URL('./organization-activation-cli.ts', import.meta.url).pathname;
+
+/** An mcp-01 store beside `databasePath` whose credential epoch has advanced. */
+function advancedMcpStore(databasePath: string): string {
+  const path = `${databasePath}-mcp.sqlite`;
+  writeMcpStoreFixture(path, 1);
+  return path;
+}
 
 let be: BootedBrowserProcess | undefined;
 afterEach(async () => {
@@ -98,7 +106,17 @@ async function activateLegacyStore(process: BootedBrowserProcess): Promise<void>
     expect(created.status).toBe(200);
   }
   const activated = Bun.spawnSync(
-    [globalThis.process.execPath, cli, '--name', 'default', '--super-admin', 'dany', '--apply'],
+    [
+      globalThis.process.execPath,
+      cli,
+      '--mcp-store',
+      advancedMcpStore(process.databasePath()),
+      '--name',
+      'default',
+      '--super-admin',
+      'dany',
+      '--apply',
+    ],
     {
       env: { ...globalThis.process.env, DB_PATH: process.databasePath() },
       stdout: 'pipe',
@@ -186,7 +204,17 @@ test('a member reads a restricted project it does not own and cannot edit it, be
   expect(before.edit.status).toBe(403);
 
   const activated = Bun.spawnSync(
-    [globalThis.process.execPath, cli, '--name', 'default', '--super-admin', 'dany', '--apply'],
+    [
+      globalThis.process.execPath,
+      cli,
+      '--mcp-store',
+      advancedMcpStore(process.databasePath()),
+      '--name',
+      'default',
+      '--super-admin',
+      'dany',
+      '--apply',
+    ],
     {
       env: { ...globalThis.process.env, DB_PATH: process.databasePath() },
       stdout: 'pipe',

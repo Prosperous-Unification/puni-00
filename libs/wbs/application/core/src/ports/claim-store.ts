@@ -1,36 +1,65 @@
-import type { CredentialPair } from '@wbs/contracts';
+import type { CredentialPin } from '@wbs/contracts';
 
-export type { CredentialPair } from '@wbs/contracts';
-import type { Claim } from '@wbs/domain';
+export type { CredentialPair, CredentialPin } from '@wbs/contracts';
+import type { Claim, LeaseReleaseReason, LeaseStanding, OccupancyRow } from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
 import type { ProgressKey } from './progress-store';
 import type { WriteStamp } from './write-stamp';
 
-export type { Claim } from '@wbs/domain';
+export type { Claim, OccupancyRow, ResourceUnits } from '@wbs/domain';
+
+/**
+ * One stored `claim_occupancy` row: the copy of its leaf's units of one
+ * resource that one claim carries (`wbs-resources` R3, {@link OccupancyRow}).
+ */
+export interface ClaimOccupancy {
+  readonly claimId: string;
+  readonly resourceId: string;
+  readonly units: number;
+}
 
 /**
  * A stored claim with the instant it was written: `created_at`, which an undo
  * of a release writes afresh, so it reads when the claim last came into force.
+ * `leaseExpiresAt` is the instant it must be renewed by, or null for a claim
+ * nobody renews (`wbs-claim-leases` L1).
  */
 export interface StampedClaim extends Claim {
   readonly claimedAt: number;
+  readonly leaseExpiresAt: number | null;
 }
 
-/** The claim without its write instant, as {@link ClaimStore.listByProject} answers it. */
+/** The claim without its write instant or lease, as {@link ClaimStore.listByProject} answers it. */
 export function unstampClaim({
   claimedAt: _claimedAt,
+  leaseExpiresAt: _leaseExpiresAt,
   ...claim
-}: Claim & { readonly claimedAt: number | null }): Claim {
+}: Claim & { readonly claimedAt: number | null; readonly leaseExpiresAt: number | null }): Claim {
   return claim;
 }
 
+/** The lease one claim is written with: the instant it must be renewed by (L1). */
+export interface ClaimLease {
+  readonly claimId: string;
+  readonly expiresAt: number;
+}
+
+/** A claim whose lease has run out, and why (`wbs-claim-leases` L5, L8). */
+export interface ExpiredLease {
+  readonly claimId: string;
+  readonly reason: LeaseReleaseReason;
+}
+
+export type { LeaseStanding } from '@wbs/domain';
+
 /**
  * What {@link ClaimStore.add} answers: written, a claim's step or subtree was
- * already held (a unique index refused it), or a step to state already holds
- * progress. Either refusal writes nothing.
+ * already held (a unique index refused it), a step to state already holds
+ * progress, or an occupancy names a resource the directory no longer holds.
+ * Every refusal writes nothing.
  */
-export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated';
+export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated' | 'unknown_resource';
 
 /**
  * The claims of one project (`wbs-team-claims` D1–D8) and the one progress
@@ -57,16 +86,56 @@ export interface ClaimStore extends ClaimIdentity {
   /** One claim of the project by id; null when absent, released or another project's. */
   findById(projectId: string, claimId: string): Promise<Claim | null>;
   /**
+   * Every occupancy row of the project's claims, each with its claim's work
+   * item, person and run, ordered by work item, resource, then claim. The
+   * occupancy a claim reads and the one every per-resource read folds
+   * (`occupancyByResource`).
+   */
+  occupancyOf(projectId: string): Promise<OccupancyRow[]>;
+  /**
    * Inserts `claims` verbatim — id, run, parent and writing account included —
-   * and states each of `stated` `in_progress` at the stamp's instant.
+   * with the `occupancy` rows they carry, and states each of `stated`
+   * `in_progress` at the stamp's instant. The free-units check is not the
+   * store's: the claim decides it inside the batch's transaction
+   * (`refuseOccupancy`), so the store writes what it was given.
+   *
+   * A claim named in `leases` is written with that expiry; every other claim
+   * is leaseless. Absent `leases` writes every claim leaseless.
+   *
+   * @throws when an occupancy row or a lease names a claim not in `claims`.
    */
   add(
     claims: readonly Claim[],
     stated: readonly ProgressKey[],
     stamp: WriteStamp,
+    occupancy: readonly ClaimOccupancy[],
+    leases?: readonly ClaimLease[],
   ): Promise<ClaimWriteOutcome>;
   /**
-   * Removes exactly `claims` by id and the progress statements on `cleared`.
+   * Moves every lease of `personId` that is in force, not revoked, and due
+   * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
+   * L5), and answers the person's standing after it. It reads `now` and the
+   * due leases first, and takes the write turn only when one is due; inside
+   * the turn it reads `now` again and decides against that instant, so a
+   * heartbeat queued behind a long write never renews a lease that ran out
+   * while it waited.
+   */
+  renewLeases(personId: string, now: () => number): Promise<LeaseStanding>;
+  /**
+   * The project's claims whose lease has run out at `at` (expiry at or before
+   * it), in claim-id order, each with its reason: `credential_revoked` when
+   * the holder's last live credential was revoked, else `lease_expired`.
+   */
+  expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]>;
+  /**
+   * The projects holding a claim whose lease has run out at `at`, at most
+   * `limit` of them, ordered by their oldest expired lease, then project id:
+   * what one sweep tick works through.
+   */
+  projectsWithExpiredLeases(at: number, limit: number): Promise<string[]>;
+  /**
+   * Removes exactly `claims` by id, with their occupancy rows, and the
+   * progress statements on `cleared`.
    *
    * @throws when a claim to remove is no longer stored: every caller read it in
    * the same unit of work, or replays it behind a revision precondition.
@@ -103,11 +172,12 @@ export interface ClaimIdentity {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person the request's credential is pinned to
-   * (`external_identity.person_id`), or null for an unpinned one. A request
-   * with no upstream pair (a password or native session) is unpinned: pass null.
+   * The person the request's credential is pinned to: a machine credential's
+   * own person, or for an upstream pair `external_identity.person_id`; null
+   * for an unpinned one. A request with neither (a password or native
+   * session) is unpinned: pass null.
    */
-  pinnedPersonOf(credential: CredentialPair | null): Promise<string | null>;
+  pinnedPersonOf(credential: CredentialPin | null): Promise<string | null>;
 }
 
 /**
@@ -125,9 +195,10 @@ export function claimIdentityOf(
 ): ClaimIdentity {
   return {
     boundAccountOf: (personId) => directory.boundAccountOf(personId),
-    pinnedPersonOf: (credential) =>
-      credential === null
-        ? Promise.resolve(null)
-        : directory.credentialPinOf(credential.issuer, credential.subject),
+    pinnedPersonOf: (credential) => {
+      if (credential === null) return Promise.resolve(null);
+      if ('personId' in credential) return Promise.resolve(credential.personId);
+      return directory.credentialPinOf(credential.issuer, credential.subject);
+    },
   };
 }

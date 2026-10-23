@@ -1,4 +1,4 @@
-import type { PersonKind } from '@wbs/domain';
+import type { LimitCrossed, PersonKind, Resource, ResourceKind } from '@wbs/domain';
 
 import type { DirectoryOutcome } from './directory-outcome';
 import type {
@@ -44,6 +44,16 @@ export interface ImportDirectory {
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<TeamWithServices>>;
 
+  /**
+   * Adds a resource within the admitted access, refusing a blank or held name
+   * (`wbs-resources`).
+   */
+  addResourceWithin(
+    actorId: string,
+    input: { name: string; kind: ResourceKind; unitLabel: string },
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<Resource>>;
+
   /** Adds a person and memberships within the admitted access. */
   addPersonWithin(
     actorId: string,
@@ -52,4 +62,11 @@ export interface ImportDirectory {
     access: ResourceAccess,
     kind?: PersonKind,
   ): Promise<DirectoryOutcome<Person>>;
+
+  /**
+   * Whether `added` more agent persons would cross the organization's cap,
+   * read in the admitted transaction: null when they fit or under legacy
+   * access (`wbs-organization-limits` L9).
+   */
+  refuseAgentPersonsWithin(access: ResourceAccess, added: number): Promise<LimitCrossed | null>;
 }

@@ -1643,12 +1643,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         // here made the fake refuse the one shape be-01 sends — the same defect
         // production carried until 732614df, which this stood in for.
         (validated) => {
-          if (validated.entity?.kind === undefined) throw new Error('fake_invalid_response');
-          return {
-            id: validated.entity.id,
-            name: validated.entity.name,
-            kind: validated.entity.kind,
-          };
+          const kind = validated.entity?.kind;
+          if (validated.entity === undefined || (kind !== 'person' && kind !== 'agent'))
+            throw new Error('fake_invalid_response');
+          return { id: validated.entity.id, name: validated.entity.name, kind };
         },
       );
   }

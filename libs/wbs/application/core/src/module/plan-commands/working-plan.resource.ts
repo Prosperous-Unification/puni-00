@@ -485,9 +485,29 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return retainedDirectory;
     },
+    // A claim, a directory command and a capacity statement in a project batch
+    // read the organization's cap in this same transaction
+    // (`wbs-organization-limits` L10); the gauge keeps no rows to retain.
+    // Proof, each watched 2026-10-22 with this getter left out: every activated
+    // claim of claim-limit.controller.db.test.ts threw "a bound claim was added
+    // under scoped access without organization limits" (1 pass, 11 fail); `promotes
+    // inside a project batch under the cap and refuses it at the cap`
+    // (agent-person-limit.controller.db.test.ts) answered 500 "an agent person
+    // was added under scoped access without organization limits" (13 pass, 1 fail);
+    // every activated statement case of capacity-limit.controller.db.test.ts
+    // answered 500 "a resource capacity was stated under scoped access without
+    // organization limits" (2 pass, 10 fail).
+    get organizationLimits() {
+      assertOpen();
+      return scope.stores.organizationLimits;
+    },
     get capacity() {
       assertOpen();
       return scope.stores.capacity;
+    },
+    get resourceCapacity() {
+      assertOpen();
+      return scope.stores.resourceCapacity;
     },
     get priorityBands() {
       assertOpen();
@@ -529,6 +549,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertProject(requestedProjectId);
         return scope.stores.claims.findById(requestedProjectId, claimId);
       },
+      occupancyOf: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.occupancyOf(requestedProjectId);
+      },
       boundAccountOf: (personId) => {
         assertOpen();
         return scope.stores.claims.boundAccountOf(personId);
@@ -537,10 +561,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertOpen();
         return scope.stores.claims.pinnedPersonOf(credential);
       },
-      add: async (claims, stated, stamp) => {
+      add: async (claims, stated, stamp, occupancy, leases) => {
         const owners = [...new Set([...claims, ...stated].map(({ workItemId }) => workItemId))];
         for (const owner of owners) await assertOwner(owner);
-        const written = await scope.stores.claims.add(claims, stated, stamp);
+        const written = await scope.stores.claims.add(claims, stated, stamp, occupancy, leases);
         // Proof: with this refresh removed, `shows the batch the progress its
         // claim stated` (claim-command.test.ts) let a later setStatus ready
         // through on stale retained progress; watched 2026-10-19.
@@ -558,6 +582,34 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         await assertOwner(toWorkItemId);
         await scope.stores.claims.moveAll(fromWorkItemId, toWorkItemId, stamp);
         await refreshRows([fromWorkItemId, toWorkItemId]);
+      },
+      // A renewal is the person's, across projects, and moves no revision or
+      // retained row: a lease is not a plan fact (`wbs-claim-leases` L4).
+      renewLeases: (personId, now) => {
+        assertOpen();
+        return scope.stores.claims.renewLeases(personId, now);
+      },
+      expiredLeasesOf: (requestedProjectId, at) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.expiredLeasesOf(requestedProjectId, at);
+      },
+      projectsWithExpiredLeases: (at, limit) => {
+        assertOpen();
+        return scope.stores.claims.projectsWithExpiredLeases(at, limit);
+      },
+    },
+    demands: {
+      listByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.demands.listByProject(requestedProjectId);
+      },
+      set: async (workItemId, resourceId, units, stamp) => {
+        await assertOwner(workItemId);
+        const written = await scope.stores.demands.set(workItemId, resourceId, units, stamp);
+        // The write moved the row's revision; a later command of the batch must
+        // read it, or its own precondition is pinned to a revision that is gone.
+        if (written === 'written') await refreshRows([workItemId]);
+        return written;
       },
     },
     stepParallels: {

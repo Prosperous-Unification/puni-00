@@ -28,6 +28,7 @@ async function seeded() {
     requirements: {
       projects: source.stores.projects,
       capacity: source.stores.capacity,
+      resourceCapacity: source.stores.resourceCapacity,
       clock: clockOf({ now: () => 2, newId: () => 'unused' }),
       broadcast,
       admission: CREATOR_ADMISSION,
@@ -44,6 +45,10 @@ const hostRequirements = () => {
     capacityStore: DiBag.createProvider(() => source.stores.capacity, {
       factoryReturnKind: 'sync-value',
     }),
+    resourceCapacityStore: DiBag.createProvider(() => source.stores.resourceCapacity, {
+      factoryReturnKind: 'sync-value',
+    }),
+    organizationLimits: DiBag.createProvider(() => null, { factoryReturnKind: 'sync-value' }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),

@@ -3,11 +3,9 @@
 How many of a team may be at work at once on one plan, and what stating that
 number does to the plan's dates.
 
-Written because nothing else in this repo says it. The capacity program shipped
-as four changes — `capacity-engine` (#48), `capacity-write-paths` (#53),
-`capacity-ui` (#57), `capacity-per-project` (#58) — and every word explaining it
-to a reader lived inside those change folders, which nobody opens to answer
-"why did my dates move".
+The capacity program shipped as four changes — `capacity-engine` (#48),
+`capacity-write-paths` (#53), `capacity-ui` (#57), `capacity-per-project` (#58).
+This page answers "why did my dates move" without opening those change folders.
 
 ## The one-sentence version
 
@@ -120,6 +118,23 @@ The export carries the same pair as columns — `People at once` is what was
 asked for, `Ran at` is what be-01 placed — and the `∥` cell's `title` hints at
 it.
 
+## Resources level the same way
+
+A **resource** (a host's RAM, a staging environment, agent slots) is a pool
+too, once the plan states a capacity for it (`wbs-resources`). A leaf's
+**demand** is charged on every one of its steps' blocks, beside the team slots,
+and a block takes all of them at one instant or waits: it never holds the team
+while waiting for the resource. An `exclusive` resource at capacity 1
+serialises its demanders; a divisible one admits as many as its units allow.
+A demand on a resource with no stated capacity constrains nothing, and a
+demand above the capacity runs as if it held the whole pool (a stated 0
+therefore constrains nothing in the schedule; claims are where "none" bites).
+A bar held back by a resource carries the resource and its units in place of a
+team (`capacityResource`, `capacityTeamId` null). Claims and occupancy never
+enter the schedule. The rule lives on `Slice.demands` in
+`libs/wbs/domain/domain/src/schedule.ts`; the optimized engine adds one
+cumulative per resource (`model.py` clause 4, solver wire 4).
+
 ## The three states, one of which has no box
 
 A (project, team) pair is in one of three states, and only two of them are
@@ -135,9 +150,8 @@ visible:
    re-applies it.
 
 The third is defensible as "the plan remembers", and it is the one to reach for
-when a capacity appears that nobody typed today. It was recorded in
-`capacity-per-project/verify.md` and named nowhere a reader would look until
-this page.
+when a capacity appears that nobody typed today. It is recorded in
+`capacity-per-project/verify.md`.
 
 ## Capacity and priority are different questions
 

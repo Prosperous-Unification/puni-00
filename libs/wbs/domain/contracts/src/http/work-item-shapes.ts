@@ -2,6 +2,11 @@ import { type } from 'arktype';
 
 import { commandKindsType, commandParserRefusal } from './command-parser-refusal';
 import { defineEndpointShape } from './endpoint-shape';
+import {
+  capacityLimitCrossed,
+  claimLimitCrossed,
+  limitCrossed,
+} from './organization-limits-shapes';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planCommandsBody } from './plan-command-shapes';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -19,6 +24,7 @@ const effect = type({ kind: "'assignment_dropped'", step: named })
   .or({ kind: "'label_nulled'" })
   .or({ kind: "'label_removed'" })
   .or({ kind: "'capacity_released'", size: 'number', fromId: 'string' })
+  .or({ kind: "'demand_removed'", units: 'number' })
   .or({
     kind: "'assumed_assignee_changed'",
     assumedNow: 'string | null',
@@ -38,6 +44,8 @@ const usage = type({
   members: named.array(),
   // Optional on the wire: an outgoing be-01 mid-swap counts no pins.
   'pinnedCredentials?': 'number',
+  // Optional on the wire for the same reason (`wbs-machine-credentials`).
+  'machineCredentials?': 'number',
 });
 /**
  * The wire omits the producer kind. Known fields are reserved across variants;
@@ -54,13 +62,19 @@ const appliedResults = type({
     'entity?': {
       id: 'string',
       name: 'string',
-      'kind?': "'person' | 'agent'",
+      // A person's kind, or a resource's (`createResource`, `patchResource`).
+      'kind?': "'person' | 'agent' | 'exclusive' | 'divisible'",
       'serviceIds?': 'string[]',
       'teamIds?': 'string[]',
+      'unitLabel?': 'string',
     },
-    // A `claimWorkItem` result: whether it wrote nothing, and the claims holding the steps.
+    // A `claimWorkItem` result: whether it wrote nothing, the claims holding the steps, and
+    // the steps `assign: true` assigned (empty for a subtree claim, alreadyHeld or no assign).
     'alreadyHeld?': 'boolean',
     'claimIds?': 'string[]',
+    'assignedStepIds?': 'string[]',
+    // The units its claim newly acquired (`wbs-resources` R3, R4): past a leaf's first claim, what its ask adds.
+    'acquired?': type({ resourceId: 'string', units: 'number' }).array(),
   }).array(),
 });
 const claimHolder = type({
@@ -69,6 +83,20 @@ const claimHolder = type({
   name: 'string',
   runId: 'string | null',
 });
+/** Who holds units of an exhausted resource: one claimant and run on one leaf. */
+const occupancyHolder = type({
+  personId: 'string',
+  name: 'string',
+  runId: 'string | null',
+  workItemId: 'string',
+});
+/** One short resource of `resources_exhausted`: asked, free and its holders. */
+const resourceShortage = {
+  resourceId: 'string',
+  asked: 'number',
+  free: 'number',
+  holders: occupancyHolder.array(),
+} as const;
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
 // Proof: removing origin or weakening write scope reached malformed JSON,400 instead of403 in the mounted policy cases.
@@ -154,6 +182,9 @@ const batchRefusals = [
         type({ ...context, error: "'unknown_service'" }),
         type({ ...context, error: "'unknown_type'" }),
         type({ ...context, error: "'unknown_system'" }),
+        type({ ...context, error: "'unknown_resource'" }),
+        // `patchResource.providerId` naming no provider instance.
+        type({ ...context, error: "'unknown_provider'" }),
         type({ ...context, error: "'unknown_attempt'" }),
         // `patchPerson.accountId` naming no member of the person's organization.
         type({ ...context, error: "'unknown_account'" }),
@@ -165,6 +196,8 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'cycle'" }),
+        // `patchResource.providerId` naming another organization's instance.
+        type({ ...context, error: "'provider_not_in_organization'" }),
         // Retired at ADR 0023 and deliberately kept: no release since refuses a
         // move for a frozen number, but an outgoing be-01 can answer a browser
         // holding the incoming fe-01 for the length of a swap, and an arm this
@@ -193,6 +226,7 @@ const batchRefusals = [
         type({ ...context, error: "'parent_claim_not_ancestor'" }),
         type({ ...context, error: "'item_done'" }),
         type({ ...context, error: "'steps_on_subtree'" }),
+        type({ ...context, error: "'resources_on_subtree'" }),
         type({ ...context, error: "'not_claimed_by'" }),
       ),
     ),
@@ -205,13 +239,66 @@ const batchRefusals = [
         type({ ...context, error: "'step_done'", stepIds: 'string[]' }),
         type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'destination_claimed'", holders: claimHolder.array() }),
+        type({ ...context, error: "'children_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'inside_subtree_claim'", holder: claimHolder }),
         type({ ...context, error: "'overlaps_subtree_claim'", holder: claimHolder }),
+        // `claimWorkItem` occupancy (`wbs-resources` R3, R4).
+        type({
+          ...context,
+          error: "'below_declared_demand'",
+          resourceId: 'string',
+          asked: 'number',
+          declared: 'number',
+        }),
+        type({
+          ...context,
+          error: "'below_held_occupancy'",
+          resourceId: 'string',
+          asked: 'number',
+          held: 'number',
+        }),
+        type({
+          ...context,
+          error: "'resources_exhausted'",
+          ...resourceShortage,
+          resources: type(resourceShortage).array(),
+        }),
+        // An organization limit (`wbs-organization-limits` L9).
+        // Proof: with this arm removed, the three directory refusals of
+        // agent-person-limit.controller.db.test.ts answered 500 "returned an
+        // undeclared refusal"; watched 2026-10-22.
+        type({ ...context, error: "'agent_person_limit'", ...limitCrossed }),
+        // Proof: with this arm removed, `refuses the forty-first bound claim`
+        // and five more cases of claim-limit.controller.db.test.ts answered 500
+        // "returned an undeclared refusal" (7 pass, 6 fail); watched 2026-10-22.
+        type({ ...context, error: "'claim_limit'", ...claimLimitCrossed }),
+        // Proof: with this arm removed, `refuses a statement past the cap,
+        // naming the four numbers and writing nothing` and the other refusals of
+        // capacity-limit.controller.db.test.ts answered 500 "returned an
+        // undeclared refusal" (6 pass, 6 fail); watched 2026-10-22.
+        type({ ...context, error: "'capacity_limit'", ...capacityLimitCrossed }),
       ),
     ),
   },
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
-  { status: 409, schema: responseSchema(type({ ...context, error: "'in_use'", usage })) },
+  {
+    status: 409,
+    schema: responseSchema(
+      type({
+        ...context,
+        error: "'in_use'",
+        usage,
+        // Present on a resource removal (`wbs-resources` R8), absent on every other.
+        'counts?': {
+          demands: 'number',
+          capacities: 'number',
+          occupancies: 'number',
+          // `compute-providers` P3; absent from an outgoing be-01 mid-swap.
+          'providerId?': 'string | null',
+        },
+      }),
+    ),
+  },
   {
     status: 409,
     schema: responseSchema(
@@ -238,6 +325,7 @@ const batchRefusals = [
         type({ ...context, error: "'unsupported_relationship_type'" }),
         type({ ...context, error: "'attempt_in_future'" }),
         type({ ...context, error: "'attempt_ends_before_start'" }),
+        type({ ...context, error: "'exclusive_demand_is_one'" }),
         type({
           ...context,
           error: "'deadline_before_project_start'",

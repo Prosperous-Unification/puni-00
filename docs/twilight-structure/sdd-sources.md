@@ -1,17 +1,18 @@
 # SDD and knowledge structure: source findings
 
-Inspected 2026-09-06 against the OpenSpec version this repo now pins, **1.12.0**,
-installed by the [CI/skill upgrade](../2026-09-06-openspec-upgrade.md) on the work
-branch. Findings that only held for the former 1.3.0 pin have been removed rather
-than qualified; what remains is what is true of the version the pilot runs.
+Inspected 2026-09-06 against the OpenSpec version then pinned, **1.12.0**, installed by
+the [CI/skill upgrade](../2026-09-06-openspec-upgrade.md). Findings that only held for the
+former 1.3.0 pin were removed rather than qualified.
 Current schema behavior is freshly exercised in
 [pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md).
 
-This is research for the documentation/workflow pilot. An inspected surface is
-not an activated schema, and artifact existence never establishes human approval
+An inspected surface is not an activated schema, and artifact existence never establishes human approval
 or verified runtime evidence.
 
 ## What 1.12.0 discovers
+
+Dated: `package.json` now pins `@fission-ai/openspec` 1.14.3 (checked 2026-10-21); this
+section was not re-verified against it.
 
 OpenSpec 1.12.0 discovers nested spec IDs and discovers changes without requiring
 a `proposal.md` file. A disposable CLI probe verified validation, archive-driven
@@ -68,12 +69,10 @@ These are proposed requirements, not existing capabilities.
 
 ## LLM Wiki interpretation
 
-Karpathy's note and Dahl's fork were read as sources here, and the reading this
-repo adopted has one home:
+The adopted reading of Karpathy's note and Dahl's fork lives in
 [the wiki reading this repo adopted](knowledge.md#the-wiki-reading-this-repo-adopted),
 with source identity, retrieval dates and confidence in
-[knowledge patterns](research/knowledge-patterns.md). The only observation this
-note adds is scoping: the exact `llm-wiki` reference intended by the user was
+[knowledge patterns](research/knowledge-patterns.md). This note adds only scoping: the exact `llm-wiki` reference intended by the user was
 never confirmed, so the reading is provisional (A37).
 
 ## Verification limits

@@ -25,13 +25,35 @@ import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJ
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
+import {
+  type ConsentOrganizations,
+  type OrganizationAuthority,
+  organizationAuthority,
+  type OrganizationChoice,
+} from './organization-authority';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
 import { matchesRefreshAuthority, type McpRefreshAuthorityReader } from './refresh-authority';
-import { type FamilyRecord, McpRefreshFamilyCorrupt, McpSessionStore } from './session-store';
-import { EdgeGate, SessionRefreshRefused } from './wbs-client';
+import {
+  type ConsentBinding,
+  type CredentialBinding,
+  type FamilyRecord,
+  McpConsentPendingGone,
+  McpRefreshFamilyCorrupt,
+  McpSessionStore,
+  type RegisteredClient,
+} from './session-store';
+import { ACTIVATED_CREDENTIAL_EPOCH, SUPPORTED_CREDENTIAL_EPOCH } from './store-migrations';
+import {
+  DelegationRefused,
+  EdgeGate,
+  type FetchLike,
+  SessionRefreshRefused,
+  UpstreamRejected,
+} from './wbs-client';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
+const SELECT_COOKIE = '__Host-wbs_mcp_select';
 const REAUTH_COOKIE = '__Host-wbs_mcp_reauth';
 const GRANT_TTL_MS = 300_000;
 const DEFAULT_ACCESS_TTL_MS = 3_600_000;
@@ -69,15 +91,6 @@ type CallbackError =
   | 'unauthorized_client'
   | 'unsupported_response_type';
 
-interface ClientRecord {
-  proven: boolean;
-  promotionReserved: boolean;
-  redirectUris: readonly string[];
-  source: string;
-  expiresAt: number;
-  unprovenExpiresAt: number;
-}
-
 export interface McpAuthorizationGrant {
   clientId: string;
   codeChallenge: string;
@@ -89,7 +102,47 @@ export interface McpAuthorizationGrant {
   upstreamAccessToken: string;
   upstreamRefreshToken?: string;
   upstreamExpiresAt: number;
+  /** The organization, local user and upstream issuer a consent after activation selected. */
+  binding?: CredentialBinding;
+  /**
+   * The agent person a consent chose to act as (A20), its minted be-01 credential and the
+   * family id that credential names, which the exchange must create.
+   */
+  consent?: ConsentBinding & { readonly familyId: string };
+  /** The durable epoch at issue; exchange refuses the code once the store's has moved on. */
+  credentialEpoch: number;
 }
+
+/** What a completed upstream login contributes to a grant, before any organization is chosen. */
+type GrantFields = Pick<
+  McpAuthorizationGrant,
+  | 'scope'
+  | 'scopes'
+  | 'subject'
+  | 'upstreamAccessToken'
+  | 'upstreamRefreshToken'
+  | 'upstreamExpiresAt'
+  | 'binding'
+  | 'consent'
+>;
+
+/**
+ * A consent waiting for its user to choose one of several organizations, or whether to act as
+ * themself or as one of their agent persons (A20).
+ */
+interface PendingSelection {
+  readonly authorization: AuthorizationContext;
+  readonly fields: GrantFields;
+  readonly userId: string;
+  readonly issuer: string;
+  readonly memberships: readonly OrganizationChoice[];
+  /** Every offered agent, in page order; the page posts an index into this list. */
+  readonly agents: readonly { readonly organizationId: string; readonly personId: string }[];
+  readonly expiresAt: number;
+}
+
+/** At most this many consent ends are reported to be-01 per sweep. */
+const CONSENT_END_REPORT_BATCH = 100;
 
 interface Options {
   groupsClaim?: string;
@@ -100,6 +153,12 @@ interface Options {
   accessTtlMs?: number;
   store?: McpSessionStore;
   readRefreshAuthority?: McpRefreshAuthorityReader;
+  /**
+   * be-01's MCP delegation routes. Present, a consent after activation binds
+   * one organization, a bound session's be-01 calls carry signed delegations,
+   * and {@link readRefreshAuthority} defaults to its family authority read.
+   */
+  organizations?: OrganizationAuthority;
   verifyUpstream?: TokenVerifier['verify'];
   clientLimit?: number;
   clientSourceLimit?: number;
@@ -133,10 +192,28 @@ export interface OAuthRouteEvidence {
   registration_grant_types?: readonly string[];
 }
 
-/** In-memory public-client registration plus the browser half of the fronting AS. */
-export class InMemoryMcpOAuth implements McpOAuthHandler {
-  private readonly clients = new Map<string, ClientRecord>();
+/**
+ * The OAuth authorization server fronting the upstream IdP: public-client registration, the
+ * browser half of consent, and code and refresh exchange. Registered clients, refresh families
+ * and sessions live in the {@link McpSessionStore}, so a client keeps its `client_id` across a
+ * restart; codes, pending logins, organization choices and reauthentication markers are short
+ * lived and stay in this process.
+ */
+export class McpOAuthServer implements McpOAuthHandler {
+  /**
+   * Clients whose promotion to proven is reserved while their code exchange signs a token; they
+   * count against the proven per-source cap. Held in memory, not stored: a reservation lives only
+   * across one exchange's awaits, and a stored one would outlive a process that died
+   * mid-exchange, refusing that client's every later exchange with 429 until it expired. A
+   * second process sharing the store (blue and green mid-swap) does not see these reservations,
+   * so the proven cap can be exceeded by the exchanges in flight in the other process.
+   */
+  private readonly promotionReservations = new Set<string>();
+  // Proof: 2026-10-21, one module-level map shared by every instance made `forgets a code
+  // issued before a store reopen at the same epoch` (credential-epoch.test.ts) exchange it (200).
   private readonly grants = new Map<string, McpAuthorizationGrant>();
+  private readonly selections = new Map<string, PendingSelection>();
+  private readonly organizations: OrganizationAuthority | undefined;
   private readonly store: McpSessionStore;
   private readonly reauthMarkers = new Map<string, number>();
   private readonly pendingAuthorizations: PendingAuthorizations;
@@ -204,7 +281,18 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
-    this.readRefreshAuthority = options.readRefreshAuthority;
+    this.organizations = options.organizations;
+    // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
+    // organization authority` (credential-epoch.test.ts) constructed the server.
+    if (
+      this.organizations === undefined &&
+      this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH
+    )
+      throw new Error(
+        'MCP credential epoch is activated; mcp-01 needs INTERNAL_AUTH_SECRET to bind consents',
+      );
+    this.readRefreshAuthority =
+      options.readRefreshAuthority ?? options.organizations?.readRefreshAuthority;
     this.pendingAuthorizations = new PendingAuthorizations({
       globalLimit: Math.max(1, options.transactionLimit ?? 1_000),
       now: this.now,
@@ -226,6 +314,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       response = await this.authorize(request, url);
     } else if (url.pathname === new URL(this.callbackUrl).pathname && request.method === 'GET') {
       response = await this.callback(request, url);
+    } else if (
+      url.pathname === new URL(`${this.issuer}/organization`).pathname &&
+      request.method === 'POST'
+    ) {
+      response = await this.selectOrganization(request);
     } else if (
       url.pathname === new URL(`${this.issuer}/token`).pathname &&
       request.method === 'POST'
@@ -312,6 +405,76 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
   }
 
+  /**
+   * The credential one be-01 call for this MCP request carries.
+   *
+   * A session whose family was bound to an organization at consent gets a
+   * fresh single-use delegation from be-01 for exactly this call, naming the
+   * family's organization, user, client and grant and the access token's
+   * `scopes`; nothing from the tool call or its headers reaches it. An
+   * unbound (pre-activation) family and a direct upstream token keep
+   * forwarding the upstream token, which be-01 refuses for organization
+   * resources after activation (task 6.6).
+   *
+   * @throws {UpstreamRejected} when the session is gone or be-01 refused the
+   *   upstream token: the caller refreshes and retries, which asks again.
+   * @throws {DelegationRefused} when be-01 refuses the organization; a removed
+   *   membership or changed identity has already revoked the family.
+   */
+  async bearerFor(
+    mcpSessionId: string | null,
+    upstreamToken: string,
+    scopes: readonly string[],
+  ): Promise<string> {
+    if (mcpSessionId === null) return upstreamToken;
+    const family = this.store.familyForSession(mcpSessionId, this.now());
+    // Proof: forwarding the upstream token for a missing session made `ends a
+    // removed member's session` in `organization-delegation.test.ts` resolve
+    // instead of rejecting with UpstreamRejected; watched 2026-10-21.
+    if (family === null)
+      throw new UpstreamRejected('MCP OAuth session is missing, expired, or revoked');
+    // Proof: forwarding the upstream token for a bound family too (dropping the
+    // organization delegation) made `a session bound at consent lists projects
+    // and runs a command batch` in `organization-delegation.boot.test.ts` answer
+    // be-01's 403 no_active_organization; watched 2026-10-21.
+    if (family.binding === undefined) return upstreamToken;
+    if (this.organizations === undefined)
+      throw new Error('an organization-bound MCP family needs INTERNAL_AUTH_SECRET to reach be-01');
+    const outcome = await this.organizations.delegationFor(upstreamToken, {
+      organizationId: family.binding.organizationId,
+      userId: family.binding.userId,
+      client: family.clientId,
+      grant: family.familyId,
+      scopes: scopes.filter(
+        (scope): scope is 'read' | 'write' | 'editor' =>
+          scope === 'read' || scope === 'write' || scope === 'editor',
+      ),
+      // Proof: 2026-10-22, dropping the credential here made `a consent session's tool call
+      // claims as its agent, never with the human's reach` (organization-delegation.boot.test.ts)
+      // accept the claim as `codex`: the delegation was the human's own, unpinned.
+      ...(family.consent === undefined ? {} : { credentialId: family.consent.credentialId }),
+    });
+    switch (outcome.kind) {
+      case 'issued':
+        return outcome.token;
+      case 'upstream_rejected':
+        throw new UpstreamRejected('be-01 refused the upstream credential behind this MCP session');
+      case 'membership_ended':
+        // Proof: keeping the family here made `ends a removed member's session`
+        // in `organization-delegation.test.ts` still resolve it; watched 2026-10-21.
+        this.store.revokeFamily(family.familyId, this.now());
+        throw new DelegationRefused(
+          'this MCP authorization is bound to an organization its account no longer belongs to, so the MCP session ended. Reauthorize and select an organization.',
+          true,
+        );
+      case 'refused':
+        throw new DelegationRefused(
+          `the organization this MCP authorization is bound to refused it: HTTP ${String(outcome.status)}\n${outcome.body}`,
+          false,
+        );
+    }
+  }
+
   async endSession(mcpSessionId: string): Promise<void> {
     const family = this.store.familyForSessionId(mcpSessionId);
     this.store.revokeSessionFamily(mcpSessionId, this.now());
@@ -349,10 +512,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     try {
       body = await request.json();
     } catch {
-      return oauthError('invalid_client_metadata');
+      return protocolError('invalid_client_metadata');
     }
     if (!isObject(body) || body['token_endpoint_auth_method'] !== 'none') {
-      return oauthError('invalid_client_metadata');
+      return protocolError('invalid_client_metadata');
     }
     const requestedRedirects: unknown = body['redirect_uris'];
     if (
@@ -363,7 +526,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       // callback carries …` cases then present, null to planted error_uri (`Received: 201`) (oauth.test.ts).
       requestedRedirects.some(isMalformedRedirect)
     ) {
-      return oauthError('invalid_redirect_uri');
+      return protocolError('invalid_redirect_uri');
     }
     // RFC 7591 §3.2.1: a well-formed but unlisted callback is dropped, and the response names
     // only what was registered; authorization still demands one of these exact strings.
@@ -373,38 +536,36 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     // Proof: on 2026-09-27, dropping this check failed `refuses a list whose every callback is
     // unlisted` and every `refuses the near-miss callback` case (`Received: 201`) (oauth.test.ts).
     if (redirectUris.length === 0) {
-      return oauthError('invalid_redirect_uri');
+      return protocolError('invalid_redirect_uri');
     }
     this.cleanup();
     const source = sourceOf(request);
-    const sourceClients = [...this.clients.values()].filter(
-      (client) => client.source === source && !client.proven && !client.promotionReserved,
-    );
-    const provenSourceClients = [...this.clients.values()].filter(
-      (client) => client.source === source && (client.proven || client.promotionReserved),
-    );
-    if (
-      this.clients.size >= this.clientLimit ||
-      sourceClients.length >= this.clientSourceLimit ||
-      provenSourceClients.length >= this.provenClientSourceLimit
-    ) {
-      return oauthError('temporarily_unavailable', undefined, 429);
-    }
     const issuedAt = this.now();
-    const expiresAt = issuedAt + this.clientTtlMs;
-    const clientId = this.random();
-    this.clients.set(clientId, {
-      proven: false,
-      promotionReserved: false,
-      redirectUris,
+    const client = this.store.admitClient(
       source,
-      expiresAt,
-      unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
-    });
+      issuedAt,
+      ({ total, fromSource }) => {
+        const provenFromSource = fromSource.filter((candidate) => this.countsAsProven(candidate));
+        return (
+          total < this.clientLimit &&
+          fromSource.length - provenFromSource.length < this.clientSourceLimit &&
+          provenFromSource.length < this.provenClientSourceLimit
+        );
+      },
+      () => ({
+        clientId: this.random(),
+        source,
+        redirectUris,
+        proven: false,
+        expiresAt: issuedAt + this.clientTtlMs,
+        unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
+      }),
+    );
+    if (client === null) return protocolError('temporarily_unavailable', undefined, 429);
     return Response.json(
       {
-        client_id: clientId,
-        client_id_expires_at: Math.floor(expiresAt / 1000),
+        client_id: client.clientId,
+        client_id_expires_at: Math.floor(client.expiresAt / 1000),
         client_id_issued_at: Math.floor(issuedAt / 1000),
         grant_types: ['authorization_code', 'refresh_token'],
         redirect_uris: redirectUris,
@@ -420,7 +581,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const redirectUri = params.get('redirect_uri') ?? '';
     const challenge = params.get('code_challenge') ?? '';
     this.cleanup();
-    const client = this.clients.get(clientId);
+    const client = this.store.client(clientId, this.now());
     const scope = params.get('scope') ?? 'wbs:read';
     const scopes = scope.split(' ').filter(Boolean);
     const state = params.get('state');
@@ -433,14 +594,38 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       params.get('code_challenge_method') !== 'S256' ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(challenge) ||
       scopes.length === 0 ||
-      scopes.some((value) => !SCOPES.has(value)) ||
-      !client?.redirectUris.includes(redirectUri)
+      scopes.some((value) => !SCOPES.has(value))
     ) {
-      return oauthError('invalid_request');
+      return protocolError('invalid_request');
     }
+    // Proof: 2026-10-21, answering `invalid_request` here made `answers invalid_client with a
+    // re-register hint for an unknown client_id` and `answers invalid_client once an unproven
+    // client expires across a restart` fail (oauth.test.ts); answering `invalid_client` for the
+    // malformed-request branch above made `keeps the request error for a malformed
+    // authorization of a registered client` fail.
+    // RFC 6749 §4.1.2.1 forbids redirecting for an unknown client, so this answers the browser
+    // directly. `invalid_client` is the token-endpoint code (RFC 6749 §5.2), reused here because
+    // no redirect is allowed; whether a client re-registers on seeing it is unobserved.
+    if (client === null) {
+      return protocolError(
+        'invalid_client',
+        undefined,
+        400,
+        'client_id is not registered or has expired; register the client again and restart authorization',
+      );
+    }
+    // Proof: 2026-10-21, answering `invalid_client` here failed `registers a public client and
+    // refuses an unregistered redirect URI` and `authorizes only a URI registered to that client,
+    // even when it is allowlisted` (oauth.test.ts): a known client's bad redirect stays a request error.
+    // A stored client outlives restarts, so its redirect is re-checked against today's allowlist:
+    // a callback removed from HOSTED_REDIRECTS stops authorizing at the next deploy.
+    // Proof: 2026-10-21, dropping `isListedRedirect` here made `refuses a stored redirect that is
+    // no longer on the allowlist` (oauth.test.ts) answer 302 instead of 400 invalid_request.
+    if (!client.redirectUris.includes(redirectUri) || !isListedRedirect(redirectUri))
+      return protocolError('invalid_request');
 
     if (!client.proven && this.now() + GRANT_TTL_MS * 2 > client.unprovenExpiresAt) {
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
     }
 
     const browserBinding = this.random();
@@ -455,12 +640,16 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       state: state ?? undefined,
     });
     if (saved === 'capacity') {
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
     }
     const activeFlowExpiry = Math.max(client.expiresAt, this.now() + GRANT_TTL_MS * 2);
-    client.expiresAt = client.proven
-      ? activeFlowExpiry
-      : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
+    // Proof: 2026-10-21, skipping this write failed `keeps an unproven client alive through its
+    // active authorization flow` and `keeps the absolute unproven lifetime an authorization
+    // extension stored before the restart` (oauth.test.ts) with 400 instead of 200/302.
+    this.store.extendClient(
+      clientId,
+      client.proven ? activeFlowExpiry : Math.min(activeFlowExpiry, client.unprovenExpiresAt),
+    );
     const reauthMarker = this.takeReauthMarker(cookieOf(request, REAUTH_COOKIE));
     let location: URL;
     try {
@@ -488,11 +677,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async callback(request: Request, url: URL): Promise<Response> {
     const binding = cookieOf(request, COOKIE);
     const state = url.searchParams.get('state');
-    if (binding === undefined) return oauthError('invalid_request', clearCookie());
+    if (binding === undefined) return protocolError('invalid_request', clearCookie());
     const pending = this.pendingAuthorizations.consume(binding, state ?? '');
-    if (pending.outcome === 'state_mismatch') return oauthError('invalid_request');
+    if (pending.outcome === 'state_mismatch') return protocolError('invalid_request');
     if (pending.outcome === 'missing' || pending.outcome === 'expired') {
-      return oauthError('invalid_request', clearCookie());
+      return protocolError('invalid_request', clearCookie());
     }
 
     const providerError = url.searchParams.get('error');
@@ -531,31 +720,251 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (!scopes.includes('wbs:read')) {
       return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
     }
-    this.cleanup();
-    if (this.grants.size >= this.grantLimit) {
-      await this.revokeRefreshToken(tokens.refreshToken);
-      return oauthError('temporarily_unavailable', clearCookie(), 429);
-    }
-    const code = this.random();
-    this.grants.set(code, {
-      clientId: pending.authorization.clientId,
-      codeChallenge: pending.authorization.codeChallenge,
-      expiresAt: this.now() + GRANT_TTL_MS,
-      redirectUri: pending.authorization.redirectUri,
+    const fields: GrantFields = {
       scope: scopes.join(' '),
       scopes,
       subject: identity.subject,
       upstreamAccessToken: tokens.accessToken,
       upstreamRefreshToken: tokens.refreshToken,
       upstreamExpiresAt,
+    };
+    if (this.organizations === undefined) {
+      // A process started at epoch 0 without organization authority whose store another writer
+      // has since advanced: an unbound credential can no longer be stored, so refuse here
+      // instead of failing the exchange on the store's CHECK.
+      // Proof: 2026-10-22, without this refusal `refuses consent without organization authority
+      // once another writer advanced the epoch` (credential-epoch.test.ts) redirected with a code.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        return await this.failLogin(
+          pending.authorization,
+          'temporarily_unavailable',
+          tokens.refreshToken,
+        );
+      return await this.issueCode(pending.authorization, fields);
+    }
+    let consent: ConsentOrganizations;
+    try {
+      consent = await this.organizations.organizationsFor(tokens.accessToken);
+    } catch (cause) {
+      // The provider grant will never be used; the failure itself stays unexpected.
+      await this.revokeRefreshToken(tokens.refreshToken);
+      throw cause;
+    }
+    // Before activation a consent binds nothing and behaves exactly as it always has. Once the
+    // epoch has advanced but be-01's marker has not (the cutover window), an unbound credential
+    // cannot be stored, so the consent waits for activation.
+    if (consent.kind === 'pre_activation') {
+      // Proof: 2026-10-21, without this refusal `refuses an unbound consent between the epoch
+      // advance and activation` (credential-epoch.test.ts) redirected with a code.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        return await this.failLogin(
+          pending.authorization,
+          'temporarily_unavailable',
+          tokens.refreshToken,
+        );
+      return await this.issueCode(pending.authorization, fields);
+    }
+    // Proof: issuing an unbound code here made `refuses consent for a user with no
+    // current membership` in `organization-delegation.test.ts` redirect with a code
+    // instead of access_denied; watched 2026-10-21.
+    if (consent.kind === 'refused' || consent.memberships.length === 0)
+      return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
+    const only = consent.memberships.length === 1 ? consent.memberships[0] : undefined;
+    // One organization and no agent to offer: bound without a page, as before A20.
+    // Proof: 2026-10-22, binding a single membership here whatever its agents made `offers the
+    // agents of a single organization` (organization-delegation.test.ts) redirect with a code
+    // instead of showing the page.
+    if (only?.agents.length === 0)
+      return await this.issueCode(pending.authorization, {
+        ...fields,
+        binding: {
+          organizationId: only.organizationId,
+          userId: consent.userId,
+          issuer: identity.issuer,
+        },
+      });
+    this.cleanup();
+    if (this.selections.size >= this.grantLimit) {
+      await this.revokeRefreshToken(tokens.refreshToken);
+      return protocolError('temporarily_unavailable', clearCookie(), 429);
+    }
+    const selectionId = this.random();
+    this.selections.set(selectionId, {
+      authorization: pending.authorization,
+      fields,
+      userId: consent.userId,
+      issuer: identity.issuer,
+      memberships: consent.memberships,
+      agents: consent.memberships.flatMap((membership) =>
+        membership.agents.map((agent) => ({
+          organizationId: membership.organizationId,
+          personId: agent.personId,
+        })),
+      ),
+      expiresAt: this.now() + GRANT_TTL_MS,
     });
-    const target = new URL(pending.authorization.redirectUri);
+    return selectionPage(`${this.issuer}/organization`, selectionId, consent.memberships);
+  }
+
+  /**
+   * Completes a consent paused on {@link selectionPage}: the browser that
+   * received the page posts back its own selection id, carried in a SameSite
+   * cookie as well as the form, and either one organization from the list be-01
+   * gave (`organizationId`: authorize as yourself) or the index of one offered
+   * agent person (`agent`, A20). The selection is consumed whatever the
+   * outcome; a forged or stale choice fails the login rather than binding
+   * anything. Choosing an agent mints its consent credential at be-01 before
+   * the code is issued; a refusal fails the login `access_denied` and no family
+   * can ever be created for it.
+   */
+  private async selectOrganization(request: Request): Promise<Response> {
+    const form = await request.formData();
+    const selectionId = stringField(form, 'selection');
+    const organizationId = stringField(form, 'organizationId');
+    const agentIndex = stringField(form, 'agent');
+    const presented = cookieOf(request, SELECT_COOKIE);
+    this.cleanup();
+    const selection = selectionId === undefined ? undefined : this.selections.get(selectionId);
+    // Proof: dropping the cookie comparison made `refuses a selection posted
+    // without its browser cookie` in `organization-delegation.test.ts` redirect
+    // with a code; watched 2026-10-21.
+    if (
+      selection === undefined ||
+      selectionId === undefined ||
+      presented === undefined ||
+      !equalSecrets(presented, selectionId)
+    )
+      return protocolError('invalid_request', clearSelectCookie());
+    this.selections.delete(selectionId);
+    if (agentIndex !== undefined || organizationId === undefined)
+      return await this.selectAgent(
+        selection,
+        organizationId === undefined ? agentIndex : undefined,
+      );
+    const chosen = selection.memberships.find(
+      (membership) => membership.organizationId === organizationId,
+    );
+    // Proof: binding the posted organization unchecked made `refuses a forged
+    // organization in the selection` in `organization-delegation.test.ts`
+    // issue a code bound to org-c; watched 2026-10-21.
+    if (chosen === undefined)
+      return await this.failLogin(
+        selection.authorization,
+        'access_denied',
+        selection.fields.upstreamRefreshToken,
+      );
+    return await this.issueCode(
+      selection.authorization,
+      {
+        ...selection.fields,
+        binding: {
+          organizationId: chosen.organizationId,
+          userId: selection.userId,
+          issuer: selection.issuer,
+        },
+      },
+      clearSelectCookie(),
+    );
+  }
+
+  /**
+   * The agent half of {@link selectOrganization}: `posted` must be the decimal index of an
+   * offered agent; anything else, or an `organizationId` beside it, fails `access_denied`.
+   * The consent is recorded pending before be-01 is asked, so a credential minted for a code
+   * that is never exchanged is still reported ended once the code expires.
+   */
+  private async selectAgent(
+    selection: PendingSelection,
+    posted: string | undefined,
+  ): Promise<Response> {
+    const organizations = this.organizations;
+    if (organizations === undefined)
+      throw new Error('an agent was offered without organization authority');
+    // `at` reads a negative index from the end, so only a plain decimal may reach it.
+    // Proof: 2026-10-22, reading any posted number here made `refuses a forged agent choice`
+    // (organization-delegation.test.ts) mint for a forged index (`-1`, `00`).
+    const chosen =
+      posted !== undefined && /^(0|[1-9][0-9]{0,3})$/.test(posted)
+        ? selection.agents.at(Number(posted))
+        : undefined;
+    if (chosen === undefined)
+      return await this.failLogin(
+        selection.authorization,
+        'access_denied',
+        selection.fields.upstreamRefreshToken,
+      );
+    const familyId = this.random();
+    const credentialId = crypto.randomUUID();
+    const expiresAt = this.now() + GRANT_TTL_MS;
+    this.store.recordPendingConsent(familyId, credentialId, expiresAt);
+    let minted: Awaited<ReturnType<OrganizationAuthority['mintConsentCredential']>>;
+    try {
+      minted = await organizations.mintConsentCredential(selection.fields.upstreamAccessToken, {
+        organizationId: chosen.organizationId,
+        userId: selection.userId,
+        personId: chosen.personId,
+        credentialId,
+        family: familyId,
+        client: new URL(selection.authorization.redirectUri).host,
+      });
+    } catch (cause) {
+      // The pending row stays: be-01 may have minted before failing, and the sweep reports it.
+      await this.revokeRefreshToken(selection.fields.upstreamRefreshToken);
+      throw cause;
+    }
+    // Proof: 2026-10-22, with this refusal skipped `refuses consent as another account's agent
+    // and creates no family` (organization-delegation.test.ts) redirected without access_denied.
+    if (minted.kind === 'refused') {
+      this.store.forgetPendingConsent(familyId);
+      return await this.failLogin(
+        selection.authorization,
+        'access_denied',
+        selection.fields.upstreamRefreshToken,
+      );
+    }
+    return await this.issueCode(
+      selection.authorization,
+      {
+        ...selection.fields,
+        binding: {
+          organizationId: chosen.organizationId,
+          userId: selection.userId,
+          issuer: selection.issuer,
+        },
+        consent: { personId: chosen.personId, credentialId, familyId },
+      },
+      clearSelectCookie(),
+      expiresAt,
+    );
+  }
+
+  private async issueCode(
+    authorization: AuthorizationContext,
+    fields: GrantFields,
+    clearing: string = clearCookie(),
+    expiresAt: number = this.now() + GRANT_TTL_MS,
+  ): Promise<Response> {
+    this.cleanup();
+    if (this.grants.size >= this.grantLimit) {
+      await this.revokeRefreshToken(fields.upstreamRefreshToken);
+      return protocolError('temporarily_unavailable', clearing, 429);
+    }
+    const code = this.random();
+    this.grants.set(code, {
+      clientId: authorization.clientId,
+      codeChallenge: authorization.codeChallenge,
+      expiresAt,
+      redirectUri: authorization.redirectUri,
+      ...fields,
+      credentialEpoch: this.store.credentialEpoch(),
+    });
+    const target = new URL(authorization.redirectUri);
     target.searchParams.set('code', code);
     target.searchParams.set('iss', this.issuer);
-    if (pending.authorization.state !== undefined) {
-      target.searchParams.set('state', pending.authorization.state);
+    if (authorization.state !== undefined) {
+      target.searchParams.set('state', authorization.state);
     }
-    return redirect(target.href, clearCookie());
+    return redirect(target.href, clearing);
   }
 
   private async failLogin(
@@ -622,12 +1031,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const code = stringField(form, 'code');
     this.cleanup();
     const grant = code === undefined ? undefined : this.grants.get(code);
-    const client = grant === undefined ? undefined : this.clients.get(grant.clientId);
+    const client = grant === undefined ? null : this.store.client(grant.clientId, this.now());
     const verifier = stringField(form, 'code_verifier');
     if (
       code === undefined ||
       grant === undefined ||
-      client === undefined ||
+      client === null ||
       grant.expiresAt <= this.now() ||
       form.get('grant_type') !== 'authorization_code' ||
       stringField(form, 'client_id') !== grant.clientId ||
@@ -636,29 +1045,36 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       stringField(form, 'redirect_uri') !== grant.redirectUri ||
       verifier === undefined ||
       !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
-      challengeOf(verifier) !== grant.codeChallenge
+      challengeOf(verifier) !== grant.codeChallenge ||
+      // Proof: 2026-10-21, without this comparison `refuses a code issued before the epoch
+      // advanced` (credential-epoch.test.ts) exchanged it for a token (200).
+      grant.credentialEpoch !== this.store.credentialEpoch()
     ) {
       if (code !== undefined) this.grants.delete(code);
-      return oauthError('invalid_grant');
+      return protocolError('invalid_grant');
     }
 
     const now = this.now();
     if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
 
     let reservedPromotion = false;
     if (!client.proven) {
-      const provenSourceClients = [...this.clients.values()].filter(
-        (candidate) =>
-          candidate.source === client.source && (candidate.proven || candidate.promotionReserved),
-      );
-      if (client.promotionReserved || provenSourceClients.length >= this.provenClientSourceLimit)
-        return oauthError('temporarily_unavailable', undefined, 429);
-      client.promotionReserved = true;
+      const provenFromSource = this.store
+        .clientsFromSource(client.source, now)
+        .filter((candidate) => this.countsAsProven(candidate));
+      if (
+        this.promotionReservations.has(client.clientId) ||
+        provenFromSource.length >= this.provenClientSourceLimit
+      )
+        return protocolError('temporarily_unavailable', undefined, 429);
+      // Proof: 2026-10-21, not adding the reservation failed `reserves proven-source capacity
+      // across concurrent token signing` (oauth.test.ts): both exchanges promoted.
+      this.promotionReservations.add(client.clientId);
       reservedPromotion = true;
     }
 
-    const familyId = this.random();
+    const familyId = grant.consent?.familyId ?? this.random();
     const jti = this.random();
     const refreshToken = this.random();
     const absoluteExpiresAt =
@@ -679,10 +1095,23 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           upstreamExpiresAt: grant.upstreamExpiresAt,
           idleExpiresAt: Math.min(now + REFRESH_IDLE_MS, absoluteExpiresAt),
           absoluteExpiresAt,
+          // Proof: dropping the binding here made `binds the consent's organization
+          // through code, family and session` in `organization-delegation.test.ts`
+          // record no delegation (the family looked pre-activation); watched 2026-10-21.
+          ...(grant.binding === undefined ? {} : { binding: grant.binding }),
+          ...(grant.consent === undefined
+            ? {}
+            : {
+                consent: {
+                  personId: grant.consent.personId,
+                  credentialId: grant.consent.credentialId,
+                },
+              }),
         },
         jti,
         expiresAt,
         refreshToken,
+        now,
       );
       const token = await this.issueAccessToken(
         grant.subject,
@@ -691,14 +1120,19 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         familyId,
         expiresAt,
       );
-      client.proven = true;
-      client.promotionReserved = false;
-      client.expiresAt = now + this.activeClientTtlMs;
+      // Proof: 2026-10-21, skipping this write failed `promotes a client only after a successful
+      // token exchange` and `keeps a promoted client proven and counted across the restart`.
+      this.store.promoteClient(client.clientId, now + this.activeClientTtlMs);
+      this.promotionReservations.delete(client.clientId);
       return tokenResponse(token, refreshToken, grant.scope, expiresAt - now);
     } catch (error) {
+      if (reservedPromotion) this.promotionReservations.delete(client.clientId);
+      // The consent's end may already be reported to be-01: the code is dead, not retryable.
+      // Proof: 2026-10-22, without this mapping `refuses a consent code whose pending consent was
+      // already reported ended` (organization-delegation.test.ts) rejected with the store error.
+      if (error instanceof McpConsentPendingGone) return protocolError('invalid_grant');
       this.store.revokeFamily(familyId, now);
       this.grants.set(code, grant);
-      if (reservedPromotion) client.promotionReserved = false;
       throw error;
     }
   }
@@ -706,12 +1140,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async refreshGrant(form: FormData): Promise<Response> {
     const refreshToken = stringField(form, 'refresh_token');
     const clientId = stringField(form, 'client_id');
-    if (refreshToken === undefined || clientId === undefined) return oauthError('invalid_grant');
+    if (refreshToken === undefined || clientId === undefined) return protocolError('invalid_grant');
     const requestedScope = form.get('scope');
     // Proof: on 2026-09-27, reading scope through stringField failed `refuses a refresh whose scope
     // is not text`: a multipart file scope was treated as omitted, not 400 (oauth.test.ts).
     if (requestedScope !== null && typeof requestedScope !== 'string')
-      return oauthError('invalid_request');
+      return protocolError('invalid_request');
     const now = this.now();
     const expiresAt = now + this.accessTtlMs;
     let prepared: ReturnType<McpSessionStore['prepareRefresh']>;
@@ -722,24 +1156,24 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       // any other store failure propagates rather than posing as a refused credential.
       // Proof: on 2026-09-27, a catch-all here failed `surfaces a store failure during refresh
       // instead of refusing the grant`: a closed store answered 400 invalid_grant (oauth.test.ts).
-      if (cause instanceof McpRefreshFamilyCorrupt) return oauthError('invalid_grant');
+      if (cause instanceof McpRefreshFamilyCorrupt) return protocolError('invalid_grant');
       throw cause;
     }
     // The token is judged before capacity, so a replay revokes its family even when full.
     // Proof: on 2026-09-27, checking capacity first failed `ends the family on replay even when
     // sessions are at capacity` with 429 (oauth.test.ts).
-    if (prepared.outcome !== 'ok') return oauthError('invalid_grant');
+    if (prepared.outcome !== 'ok') return protocolError('invalid_grant');
     const scope = narrowScope(
       prepared.family.scope,
       requestedScope === null || requestedScope === '' ? undefined : requestedScope,
     );
     // Proof: on 2026-09-27, ignoring the requested scope failed `refuses a refresh that asks for
     // more than the family holds` (200, not 400) and the subset-narrowing test (oauth.test.ts).
-    if (scope === undefined) return oauthError('invalid_scope');
+    if (scope === undefined) return protocolError('invalid_scope');
     if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
+      return protocolError('temporarily_unavailable', undefined, 429);
     const boundedExpiresAt = Math.min(expiresAt, prepared.family.absoluteExpiresAt);
-    if (boundedExpiresAt <= now) return oauthError('invalid_grant');
+    if (boundedExpiresAt <= now) return protocolError('invalid_grant');
     const successor = this.random();
     const jti = this.random();
     try {
@@ -760,13 +1194,13 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         now + REFRESH_IDLE_MS,
         now,
       );
-      if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
+      if (consumed.outcome !== 'ok') return protocolError('invalid_grant');
       return tokenResponse(token, successor, scope, boundedExpiresAt - now);
     } catch (cause) {
       if (cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt)
-        return oauthError('invalid_grant');
+        return protocolError('invalid_grant');
       if (cause instanceof UpstreamRefreshUnavailable)
-        return oauthError('temporarily_unavailable', undefined, 503);
+        return protocolError('temporarily_unavailable', undefined, 503);
       // Proof: mapping unexpected reader defects to outages failed `trusted reader defect`
       // on the token-endpoint path, 2026-10-13; unexpected trusted state must propagate.
       throw cause;
@@ -823,11 +1257,23 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       scope: family.scope,
       credentialEpoch: family.credentialEpoch,
       binding: family.binding,
+      // Proof: 2026-10-22, leaving the consent out here made `matchesRefreshAuthority` refuse
+      // every consent family, failing `offers dany's agents at consent, and a consent as claire
+      // mints her credential` (organization-delegation.boot.test.ts) on its first tool call.
+      ...(family.consent === undefined ? {} : { consent: family.consent }),
     });
     if (admission.outcome === 'unavailable')
       throw new UpstreamRefreshUnavailable('MCP organization refresh authority is unavailable');
-    if (admission.outcome === 'denied')
+    if (admission.outcome === 'denied') {
+      // A consent family's credential is revoked, unbound or its human left: that never comes
+      // back, so the family ends now and the sweep reports it, instead of lingering unrevoked.
+      // A human's own family is kept, as before.
+      // Proof: 2026-10-22, without this revocation `revoking the consent in WBS ends the
+      // session: 401, and refresh is refused` (organization-delegation.boot.test.ts) reported 0
+      // ended families instead of 2.
+      if (family.consent !== undefined) this.store.revokeFamily(family.familyId, this.now());
       throw new UpstreamRefreshRefused('MCP organization refresh authority refused');
+    }
     if (!matchesRefreshAuthority(admission.authority, family))
       throw new UpstreamRefreshRefused('MCP organization refresh authority changed');
     const refusal = credentialRuleRefusal(
@@ -1085,14 +1531,48 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     ];
   }
 
+  /**
+   * Reports to be-01 every consent credential whose family mcp-01 ended (revoked by any path,
+   * idle or absolutely expired, retired by an epoch advance) or whose code expired unexchanged,
+   * so be-01 revokes it (`wbs-machine-credentials` A20, _End_). This is the durable direction
+   * mcp-01 → be-01 of the two-way revocation: the store keeps each end until be-01 acknowledges
+   * it, so a report lost to a crash or an unreachable be-01 is sent again by the next sweep.
+   * `mcp-01`'s main runs it once a minute; the end is therefore visible in WBS within about a
+   * minute, not at once.
+   *
+   * @returns how many ends be-01 acknowledged; it stops at the first unavailable answer.
+   * @throws {OrganizationAuthorityDefect} on an answer this release does not model.
+   */
+  async reportEndedConsents(): Promise<number> {
+    const organizations = this.organizations;
+    if (organizations === undefined) return 0;
+    let acknowledged = 0;
+    for (const ended of this.store.endedConsents(this.now(), CONSENT_END_REPORT_BATCH)) {
+      // Proof: 2026-10-22, acknowledging without asking be-01 made `a family mcp-01 ends marks
+      // its credential revoked in WBS` (organization-delegation.boot.test.ts) keep it live.
+      if ((await organizations.reportConsentEnded(ended)) === 'unavailable') break;
+      this.store.acknowledgeConsentEnd(ended, this.now());
+      acknowledged += 1;
+    }
+    return acknowledged;
+  }
+
+  /** Proven, or reserved to become proven by an exchange in flight in this process. */
+  private countsAsProven(client: RegisteredClient): boolean {
+    return client.proven || this.promotionReservations.has(client.clientId);
+  }
+
   private cleanup(): void {
     const now = this.now();
     this.pendingAuthorizations.cleanupExpired();
-    for (const [clientId, client] of this.clients) {
-      if (client.expiresAt <= now) this.clients.delete(clientId);
-    }
+    // Proof: 2026-10-21, dropping this sweep failed `deletes an expired client from the store
+    // when the next request sweeps` (oauth.test.ts): the expired row stayed stored.
+    this.store.deleteExpiredClients(now);
     for (const [code, grant] of this.grants) {
       if (grant.expiresAt <= now) this.grants.delete(code);
+    }
+    for (const [selectionId, selection] of this.selections) {
+      if (selection.expiresAt <= now) this.selections.delete(selectionId);
     }
     for (const [markerId, expiresAt] of this.reauthMarkers) {
       if (expiresAt <= now) this.reauthMarkers.delete(markerId);
@@ -1101,16 +1581,18 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 }
 
 export function mcpOAuthFromEnv(
-  config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
+  config: McpConfig,
   env: Readonly<Record<string, string | undefined>>,
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
-): InMemoryMcpOAuth {
+  fetchImpl?: FetchLike,
+): McpOAuthServer {
+  const secret = config.INTERNAL_AUTH_SECRET;
   let client: BrowserOidcClient | undefined;
   const get = () => (client ??= browserOidcClientFromEnv(env, { allowMissingAccessExpiry: true }));
   let upstreamVerifier: TokenVerifier | undefined;
   const verifyUpstream = (token: string) =>
     (upstreamVerifier ??= oidcTokenVerifierFromEnv(env)).verify(token);
-  return new InMemoryMcpOAuth(
+  return new McpOAuthServer(
     config,
     {
       authorizationUrl: (input) => get().authorizationUrl(input),
@@ -1123,6 +1605,14 @@ export function mcpOAuthFromEnv(
       groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
       routeEvidence,
       verifyUpstream,
+      ...(secret === undefined
+        ? {}
+        : {
+            organizations: organizationAuthority(
+              { ...config, INTERNAL_AUTH_SECRET: secret },
+              fetchImpl,
+            ),
+          }),
       ...oauthPersistenceFromEnv(env),
     },
   );
@@ -1373,6 +1863,74 @@ function cookieOf(request: Request, name: string): string | undefined {
     .find(([key]) => key === name)?.[1];
 }
 
+/**
+ * The choice a consent after activation pauses on when its user belongs to several
+ * organizations or has agent persons to offer (A20): per organization, one button to authorize
+ * as yourself (`organizationId`) and one per agent person bound to the account (`agent`, an index
+ * into the selection's offered agents, in page order). One form; the page may not be framed,
+ * cached or load anything.
+ */
+function selectionPage(
+  action: string,
+  selectionId: string,
+  memberships: readonly OrganizationChoice[],
+): Response {
+  let agentIndex = 0;
+  const sections = memberships
+    .map((membership) => {
+      const role = escapeHtml(membership.role.replace('_', ' '));
+      const self = `<button name="organizationId" value="${escapeHtml(membership.organizationId)}">${escapeHtml(membership.name)} <small>${membership.agents.length === 0 ? role : `as yourself, ${role}`}</small></button>`;
+      const agents = membership.agents
+        .map((agent) => {
+          const button = `<button name="agent" value="${String(agentIndex)}">${escapeHtml(membership.name)} <small>as agent ${escapeHtml(agent.name)}</small></button>`;
+          agentIndex += 1;
+          return button;
+        })
+        .join('');
+      return self + agents;
+    })
+    .join('');
+  const offersAgents = agentIndex > 0;
+  const title = offersAgents ? 'Choose who this connection acts as' : 'Choose an organization';
+  const lead = offersAgents
+    ? 'This connection will act in one organization, as you or as one of your agents. An agent acts with member rights only, and you can revoke it from the people page. To use another, connect again.'
+    : 'This connection will act in one organization. To use another, connect again.';
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#111}main{max-width:28rem;margin:10vh auto}button{display:block;width:100%;margin:8px 0;padding:12px;text-align:left;font:inherit;border:1px solid #888;border-radius:6px;background:#f6f6f6;cursor:pointer}small{color:#555}@media (prefers-color-scheme:dark){body{background:#111;color:#eee}button{background:#222;color:#eee;border-color:#555}small{color:#aaa}}</style></head><body><main><h1>${title}</h1><p>${lead}</p><form method="post" action="${escapeHtml(action)}"><input type="hidden" name="selection" value="${escapeHtml(selectionId)}">${sections}</form></main></body></html>`;
+  const headers = new Headers({
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'content-security-policy':
+      "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    'referrer-policy': 'no-referrer',
+    'x-frame-options': 'DENY',
+  });
+  headers.append('set-cookie', clearCookie());
+  headers.append(
+    'set-cookie',
+    `${SELECT_COOKIE}=${selectionId}; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax`,
+  );
+  return new Response(html, { status: 200, headers });
+}
+
+function clearSelectCookie(): string {
+  return `${SELECT_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function equalSecrets(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 function cookie(value: string): string {
   return `${COOKIE}=${value}; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
@@ -1416,23 +1974,35 @@ function redirect(location: string, setCookie: string | readonly string[]): Resp
   return new Response(null, { headers, status: 302 });
 }
 
-function oauthError(error: string, setCookie?: string, status = 400): Response {
+function protocolError(
+  error: string,
+  setCookie?: string,
+  status = 400,
+  description?: string,
+): Response {
   return Response.json(
-    { error },
+    description === undefined ? { error } : { error, error_description: description },
     { headers: setCookie === undefined ? undefined : { 'set-cookie': setCookie }, status },
   );
 }
 
 /**
  * Distinguishes pre-cutover families from durable organization authority. Only an
- * unbound epoch-0 family belongs to this release's legacy path. Bound families
- * need an authoritative membership and credential-rule reader before use; this
- * release deliberately installs none. A future epoch is refused even with an injected reader.
+ * unbound epoch-0 family belongs to the legacy path. Bound families need an
+ * authoritative membership and credential-rule reader before use; production installs
+ * be-01's (`organization-authority.ts`) when `INTERNAL_AUTH_SECRET` is set, and without
+ * it a bound family is refused. An epoch newer than {@link SUPPORTED_CREDENTIAL_EPOCH},
+ * and an unbound family above epoch 0 (which the store CHECK forbids), are refused even with
+ * an injected reader. A family older than the durable epoch never gets here: the store's
+ * session and refresh reads already treat it as absent.
  */
 function readFamilyAuthority(family: FamilyRecord): 'legacy' | 'organization' | 'unsupported' {
-  // Proof: 2026-10-13, removing this test let a bound epoch-1 read disclose a fresh
-  // token with an injected admitting reader (`corrupt nonzero-epoch bound family`).
-  if (family.credentialEpoch !== 0) return 'unsupported';
+  // Proof: 2026-10-21, removing this test let a bound epoch-2 read disclose a fresh
+  // token with an injected admitting reader (`corrupt epoch-2 bound family`).
+  if (family.credentialEpoch > SUPPORTED_CREDENTIAL_EPOCH) return 'unsupported';
   if (family.binding !== undefined) return 'organization';
-  return 'legacy';
+  // Proof: 2026-10-21, answering 'legacy' here regardless of epoch let `corrupt epoch-1
+  // unbound family` return the fresh upstream token.
+  if (family.credentialEpoch === 0) return 'legacy';
+  return 'unsupported';
 }

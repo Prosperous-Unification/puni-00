@@ -1,12 +1,13 @@
 # Runbook — deploying prod
 
-Prod is image-based blue/green, unchanged by the source-run dev work. Orientation
-lives in `LLM_README.md`; this is the operating detail.
+This runbook covers the Compose-era image-based blue/green deploy on h2puni, unchanged by the
+source-run dev work. The Kubernetes release transaction is [WBS deployment on k3s](infra/deployment.md).
+Orientation lives in `LLM_README.md`.
 
 ## The build host, as provisioned on 2026-08-05
 
 Three things had to exist before any command below could run. All three are in
-place; each is worth knowing about because each failed in its own way first.
+place; each failed in its own way first.
 
 - **`dagger` v0.21.9** in `/home/puni1/.local/bin`, pinned to the engine's own
   image tag (`registry.dagger.io/engine:v0.21.9`). A CLI newer than the engine
@@ -51,8 +52,9 @@ and persistent volume `wbs-dagger-engine`. It stops the engine after success or
 failure. A stopped engine after a release is the expected state; do not add an
 automatic restart policy.
 
-Env root moved 2026-08-04 — `/home/puni1/wbs/.env`, not `/srv/wbs/.env`. Both are readable
-today because `/srv/wbs` is a stale rollback copy; read the new path.
+The env root is `/home/puni1/wbs` (moved 2026-08-04 from `/srv/wbs`). `/srv/wbs` is a stale
+rollback copy: its `.env` and `bin/swap.js` are still readable, but reading or editing them
+changes nothing.
 
 From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
 `ssh -f -N -L 8081:127.0.0.1:8081 h2puni` and `export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081`.
@@ -65,9 +67,7 @@ safety gates, not bugs. `deploy` builds the bundles itself via `dependsOn`.
 `swap.js` takes **one tier list per run**, not one tier per invocation:
 `bun bin/swap.js be,gw,fe --image-be=… --image-gw=… --image-fe=… --sha=… --execute`. That is what
 keeps the deploy lock held across the whole run. The installed `/home/puni1/wbs/bin/swap.js` must
-be reinstalled after this change or `assertBundleInstalled` will (correctly) refuse. A copy also
-still exists at `/srv/wbs/bin/swap.js` — that is the stale rollback tree, and editing it changes
-nothing.
+be reinstalled after this change or `assertBundleInstalled` will (correctly) refuse.
 
 `--version`, `--since` and `--skip-build` are **refused** — they were parsed and ignored
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
@@ -87,9 +87,9 @@ anything is migrated. Nothing deletes old backups; prune them by hand.
 
 ## First product deploy
 
-Prod has run the pre-product release `0afc7775` since 2026-08-03. Its database should hold only
-`20260426171432_talented_smiling_tiger`. These steps apply to the first deploy of the product
-over it. They cover what the swap cannot check for itself.
+These steps apply to the first deploy of the product over the pre-product release `0afc7775`,
+whose database should hold only `20260426171432_talented_smiling_tiger`. They cover what the swap
+cannot check for itself.
 
 **Environment files.** `startGreen` refuses a swap whose env files lack a key the release
 requires or hold a value its loader would reject: a non-integer `PORT`, an unknown `LOG_LEVEL`, a
@@ -99,14 +99,26 @@ because Compose would strip the quotes or the comment. Nothing is written or sta
 check (`assertTierEnvComplete` in `tools/tool-remote-scripts/src/lib/docker.ts`). Each file must
 hold:
 
-| File                                  | Keys                                                                                                                                                |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/home/puni1/wbs/be-01.env`           | `PORT`, `LOG_LEVEL`, `GW_URL`, `DB_PATH`, `AUTH_MODE=oidc`, `AUTH_METHODS` (`none` until activation), `BROWSER_SESSION_AUTHORITY=enabled\|disabled` |
-| `/home/puni1/wbs/gw-01.env`           | `PORT`, `LOG_LEVEL`, `BE_URL`, `AUTH_MODE=oidc`                                                                                                     |
-| `/home/puni1/wbs/.env`                | `INTERNAL_AUTH_SECRET`, `JWT_SIGNING_KEY_CURRENT` (at least 32 characters each)                                                                     |
-| `/home/puni1/wbs/oidc.env` (mode 600) | `AUTH_ISSUER_DISCOVERY_URL`, `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, `AUTH_REDIRECT_URI`, `AUTH_AUDIENCE`                                           |
+| File                                  | Keys                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/home/puni1/wbs/be-01.env`           | `PORT`, `LOG_LEVEL`, `GW_URL`, `DB_PATH`, `AUTH_MODE=oidc`, `AUTH_METHODS` (`none` until activation), `BROWSER_SESSION_AUTHORITY=enabled\|disabled`, `ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS`, `ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS`, `ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE` |
+| `/home/puni1/wbs/gw-01.env`           | `PORT`, `LOG_LEVEL`, `BE_URL`, `AUTH_MODE=oidc`                                                                                                                                                                                                                                                     |
+| `/home/puni1/wbs/.env`                | `INTERNAL_AUTH_SECRET`, `JWT_SIGNING_KEY_CURRENT` (at least 32 characters each)                                                                                                                                                                                                                     |
+| `/home/puni1/wbs/oidc.env` (mode 600) | `AUTH_ISSUER_DISCOVERY_URL`, `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, `AUTH_REDIRECT_URI`, `AUTH_AUDIENCE`                                                                                                                                                                                           |
 
 `BROWSER_SESSION_AUTHORITY` has no default: `enabled` commits logout, refresh and replacement through the shared durable browser lifecycle and reads the organization cookie; `disabled` keeps the legacy browser routes (see `bootBe01`). Switch deployed backends to `enabled` before fe-01's production bootstrap moves to server sign-out.
+
+The three `ORGANIZATION_DEFAULT_*` keys have no default either: they are the caps every organization without its own `organization_limits` row holds, each an integer from 0 to 1,000,000 (`wbs-organization-limits` L7). The starting values are agents 50, claims 200, capacity units 10,000; `configure.sh` writes those. A `be-01.env` written before them refuses the swap preflight, and be-01 refuses to boot naming the missing key.
+
+The order matters in both directions, because the installed swap bundle checks this file against its own lists:
+
+1. **First** install the new bundle: `bunx nx run tool-remote-scripts:install --execute`. The old bundle's allowlist (`assertTierEnvAllowed`) refuses any key it does not know, so adding the three keys before this blocks every be swap.
+2. **Then**, before the first swap to a release carrying `wbs-organization-limits`, add the three lines to `/home/puni1/wbs/be-01.env`. The new bundle's completeness check (`assertTierEnvComplete`) refuses a file without them.
+
+`20261022130000_add_organization_limits` is additive; its `down.sql` refuses while any organization holds its own row.
+`20261022130100_widen_organization_audit_organization_limits` is a compatible rebuild of
+`organization_audit` that keeps every earlier action; its `down.sql` refuses while any
+`organization_limits_changed` row exists.
 
 `AUTH_MODE=local` is refused. The be-01 and gw-01 images set `NODE_ENV=production`, and
 `authModeOf` refuses local mode in production. OIDC is the only mode prod can boot. The swap
@@ -178,6 +190,23 @@ has no pinned credential succeeds, and the `claim.person_id` cascade takes those
 every claim delegated under them) with no `in_use` refusal naming them and no revision moved
 on their work items. Rule: no person deletions during the swap window.
 
+Claim occupancy (`20261020130000_add_claim_occupancy`) is lost the same silent way, never
+overcommitted by WBS's own check: an outgoing-colour claim writes no `claim_occupancy` row, so
+its leaf holds nothing and every later claim on that leaf copies the empty vector until all of
+them are released; an outgoing-colour redo of a claim, or undo of a release, re-adds the claims
+without their rows. Rule: no claim redo, and no release undo, from the outgoing colour during
+the swap window. After a rollback to the older image the table stays but nothing reads or
+writes it: claims made or put back there hold nothing and check no capacity, and a release
+there drops its rows by cascade. `migrate-down-cli.ts` below this migration refuses while any
+row exists; release the claims that hold units first, and the occupancy is gone with them.
+
+Plan documents (`wbs-resources`, version 10) cross the window one way only. A file green
+exports is version 10; the outgoing be-01 knows versions 1 to 9 and refuses it loudly at
+`POST /api/projects/import` with 400 `unsupported_version` at `document.version`, importing
+nothing. A version 9 file the outgoing colour exports imports into green, carrying no
+resources, capacities or demands. Rule: during the swap window, import a green export only
+into green; after a rollback, re-export from the older image rather than importing a v10 file.
+
 **Rollback.** `migrate-down-cli.ts --to=<the migration before 20261019120000_add_claim>`
 runs each down in its own transaction, newest first: it reverses the two binding migrations
 (`20261019130100_add_external_identity_person`, `20261019130000_add_person_account`, each
@@ -185,148 +214,103 @@ refusing while a credential is pinned or a person is bound) and only then refuse
 `add_claim` while any claim exists. A refused run therefore leaves the bindings already
 removed; release every claim first, then rerun.
 
-## Typed dependency rollback
+## Table-guarded rollbacks
 
-**Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's
-supported types with the shared database before migration, then checks again
-after migration and health while the outgoing colour remains stopped, before shared-alias/routing admission. Candidate boot is already possible write exposure. An older image without
-`relationship-types-cli.ts` is treated as FS-only. If either check finds unsupported
-types, the error lists their counts. A pre-boot compatibility failure leaves the candidate unstarted and the older writer stopped with interruption state retained. A post-boot compatibility failure retains the possibly exposed candidate and current writes, keeps the older writer stopped, preserves interruption state, and does not commit. Redeploy a release that understands those types,
-or stop all typed-dependency writers and use a compatible container to `save` and `remove`
-the rows with the commands below. Copy the saved file off the host and keep it secure.
-Rerun the code deploy; no schema
-rollback is needed for this case. After deploying a compatible reader again,
-`restore` the saved rows with the command below. `remove` verifies that its
-saved set exactly matches the table before deleting anything.
+Five features share one rollback shape: their down migration refuses while the feature's table
+holds rows, and a container-local CLI saves, removes and later restores those rows losslessly.
+The table names each feature's migration, CLI, save file and refusal; the rules after it carry
+what differs.
 
-**Known, deliberate: a reader-only release refuses SS/FF loudly.** Releases built after
-round 25 (#181 Fast, #182 solver) but before the SS/FF writes and UI (#183, #190) report
-`["FS","SS","FF"]` from `relationship-types-cli.ts`. The swap guard therefore admits them over
-a database that holds SS/FF rows. Fast and the solver schedule those rows correctly, but two
-readers in that release still accept only FS:
+| Feature                                                            | Migration                                   | CLI (`src/…`)                            | Save file                                  | Down refusal                                           | Code-rollback guard                           |
+| ------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------- | ------------------------------------------ | ------------------------------------------------------ | --------------------------------------------- |
+| <a id="typed-dependency-rollback"></a>Typed dependency             | `20260927213000_add_typed_dependency`       | `typed-dependency-rollback-cli.ts`       | `/data/typed-dependency-<date>.json`       | `CHECK constraint failed: typed dependencies exist: …` | `relationship-types-cli.ts`                   |
+| <a id="work-item-status-facts-rollback"></a>Work item status facts | `20260928200000_add_work_item_status_facts` | `work-item-status-facts-rollback-cli.ts` | `/data/work-item-status-facts-<date>.json` | `CHECK constraint failed: work item holds exist: …`    | `readiness-kinds-cli.ts`, `hold-kinds-cli.ts` |
+| <a id="space-rollback"></a>Space                                   | `20260929100000_add_spaces`                 | `space-rollback-cli.ts`                  | `/data/spaces-<date>.json`                 | `CHECK constraint failed: spaces exist: …`             | none needed                                   |
+| <a id="project-rank-rollback"></a>Project rank                     | `20260929180000_add_project_rank`           | `project-rank-rollback-cli.ts`           | `/data/project-ranks-<date>.json`          | `CHECK constraint failed: project ranks exist: …`      | none needed                                   |
+| <a id="step-node-attempt-rollback"></a>Step node attempt           | `20261012120000_add_step_node_attempts`     | `step-node-attempt-rollback-cli.ts`      | `/data/step-node-attempts-<date>.json`     | `CHECK constraint failed: step node attempts exist: …` | `attempt-outcomes-cli.ts`                     |
 
-- the plan export (`plan-document.resource.ts`) throws `unknown typed dependency type SS`, so
-  `GET /api/projects/:id/export` returns 500 for that project;
-- the fe chart (`plan-chart-input.ts`) throws `GanttDataError: unsupported chart dependency SS`,
-  so the chart shows its fault boundary for that project.
+**Code rollback.** Where the table names a guard CLI, the `be` swap's `stored-vocabularies` step
+compares the values the incoming binary reads through that CLI with the values stored, before
+migration and again after stopping the outgoing colour. An older image without the CLI reads
+none, so any stored value refuses it and the error lists each value and its count. Redeploy a
+release that reads them, or save and remove the rows with the commands below and rerun the
+deploy. Where the guard is "none needed", the older image has no routes for the feature and its
+tables are inert to it.
 
-Projects without SS/FF rows are unaffected. This is "refuse loudly" rather than a silent FS
-reading, so it stays as it is. To fix it, roll forward to a release that includes #190. If the
-older release must serve those projects, `save` and `remove` the typed rows with the commands
-below.
-
-Rolling back past `20260927213000_add_typed_dependency` refuses while `typed_dependency` holds
-rows: the older release cannot read them, and `down.sql` will not drop them silently. The
-refusal reads `CHECK constraint failed: typed dependencies exist: …`. The procedure is lossless.
-Run it inside the incoming container after its writers have stopped, with the same `DB_PATH`.
-
-Save the rows, then copy the file off the host:
+**Schema rollback.** Rolling back past the migration refuses while its table holds rows: the
+older release cannot read them, and `down.sql` will not drop them silently. Run the procedure
+inside the incoming container after its writers have stopped, with the same `DB_PATH`, replacing
+`<cli>` and `<file>` with the table's values. Save, then copy the file off the host and keep it
+secure:
 
 ```sh
-docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts save /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/<cli> save <file>
 ```
 
-Remove them only after the save is secure. Remove refuses unless the saved rows match the table
-exactly, including every column:
+Remove only after the save is secure. Remove refuses unless the saved rows match the table
+exactly, every column included:
 
 ```sh
-docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts remove /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/<cli> remove <file>
 docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
 ```
 
-After a later forward migration, restore from the saved file. Restore refuses the whole set if
-any endpoint no longer fits its project or work-item shape:
+After a later forward migration or redeploy, restore. Restore refuses the whole set when a row
+no longer fits, for the reasons listed per feature below:
 
 ```sh
-docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts restore /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/<cli> restore <file>
 ```
 
-## Work item status facts rollback
+### Per-feature rules
 
-**Code rollback with stored readiness or holds.** The `be` swap's `stored-vocabularies`
-step compares the readinesses and hold kinds the incoming binary reads
-(`readiness-kinds-cli.ts`, `hold-kinds-cli.ts`) with the values stored in `work_item`,
-before migration and again after stopping the outgoing colour, as it does for relationship
-types. An older image without those CLIs reads none, so any stored value refuses it and the
-error lists each value and its count. Such an image would schedule held work as if nothing
-were held, or give a ready leaf a child the status read then refuses (ADR 0032). Redeploy a
-release that reads them, or save and remove the statements with the commands below and
-rerun the deploy.
-
-Rolling back past `20260928200000_add_work_item_status_facts` refuses while any hold is
-stored; the refusal reads `CHECK constraint failed: work item holds exist: …`. Readiness is
-dropped without a guard, as fact dates are. Run the commands inside the incoming container
-with the same `DB_PATH`, after writers have stopped.
-
-```sh
-docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts save /data/work-item-status-facts-<date>.json
-docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts remove /data/work-item-status-facts-<date>.json
-docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
-```
-
-`remove` refuses unless the saved statements match the table exactly. After a later forward
-migration or redeploy, restore them; restore refuses the whole set if a saved work item is
-gone or has become a parent:
-
-```sh
-docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts restore /data/work-item-status-facts-<date>.json
-```
-
-## Space rollback
-
-Code rollback needs nothing: an older image has no spaces routes, and the `space` and
-`space_project` tables are inert to it. Rolling back past `20260929100000_add_spaces` refuses
-while any space exists, reading `CHECK constraint failed: spaces exist: …`, because dropping
-the tables would lose every space and its order. Run the procedure inside the incoming
-container after its writers have stopped, with the same `DB_PATH`. Save, then copy the file
-off the host:
-
-```sh
-docker exec be-01-<colour> bun run src/space-rollback-cli.ts save /data/spaces-<date>.json
-```
-
-Remove only after the save is secure. Remove refuses unless the file equals every stored space
-and member, every column included:
-
-```sh
-docker exec be-01-<colour> bun run src/space-rollback-cli.ts remove /data/spaces-<date>.json
-docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
-```
-
-After a later forward migration, restore. Restore refuses the whole set, naming the space, when
-a saved organization is gone, a saved project is no longer owned by its space's organization,
-the organization already holds a space of that name, or an author is no longer a user:
-
-```sh
-docker exec be-01-<colour> bun run src/space-rollback-cli.ts restore /data/spaces-<date>.json
-```
-
-## Project rank rollback
-
-Code rollback needs nothing: an older image has no rank routes, and the `project_rank` table is
-inert to it. Rolling back past `20260929180000_add_project_rank` refuses while any rank exists,
-reading `CHECK constraint failed: project ranks exist: …`, because dropping the table would lose
-every organization's project order. Run the procedure inside the incoming container after its
-writers have stopped, with the same `DB_PATH`. Save, then copy the file off the host:
-
-```sh
-docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts save /data/project-ranks-<date>.json
-```
-
-Remove only after the save is secure. Remove refuses unless the file equals every stored rank,
-every column included:
-
-```sh
-docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts remove /data/project-ranks-<date>.json
-docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
-```
-
-After a later forward migration, restore. Restore refuses the whole set, naming the project,
-when a saved project is no longer owned by its organization or an author is no longer a user:
-
-```sh
-docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts restore /data/project-ranks-<date>.json
-```
+- **Typed dependency.** The table is `typed_dependency`. The guard compares the incoming binary's supported types with the shared
+  database before migration, then again after migration and health while the outgoing colour
+  remains stopped, before shared-alias/routing admission. Candidate boot is already possible
+  write exposure. An older image without `relationship-types-cli.ts` is treated as FS-only. A
+  pre-boot compatibility failure leaves the candidate unstarted and the older writer stopped with
+  interruption state retained. A post-boot failure retains the possibly exposed candidate and
+  current writes, keeps the older writer stopped, preserves interruption state, and does not
+  commit. Redeploy a release that understands those types, or stop all typed-dependency writers
+  and use a compatible container to `save` and `remove` the rows, then rerun the code deploy; no schema rollback is needed for this case. After deploying a
+  compatible reader again, `restore` them. Restore refuses if any endpoint no longer fits its
+  project or work-item shape.
+- **Typed dependency, known and deliberate: a reader-only release refuses SS/FF loudly.**
+  Releases built after round 25 (#181 Fast, #182 solver) but before the SS/FF writes and UI
+  (#183, #190) report `["FS","SS","FF"]` from `relationship-types-cli.ts`, so the swap guard admits
+  them over a database that holds SS/FF rows. Fast and the solver schedule those rows correctly,
+  but two readers in that release still accept only FS: the plan export
+  (`plan-document.resource.ts`) throws `unknown typed dependency type SS`, so
+  `GET /api/projects/:id/export` returns 500 for that project; the fe chart
+  (`plan-chart-input.ts`) throws `GanttDataError: unsupported chart dependency SS`, so the chart
+  shows its fault boundary for that project. Projects without SS/FF rows are unaffected. This is
+  "refuse loudly" rather than a silent FS reading, so it stays. To fix it, roll forward to a
+  release that includes #190. If the older release must serve those projects, `save` and `remove`
+  the typed rows.
+- **Work item status facts.** The guard compares the readinesses and hold kinds stored in
+  `work_item`. An older image would schedule held work as if nothing were held, or give a ready
+  leaf a child the status read then refuses (ADR 0032). Only holds guard the down migration;
+  readiness is dropped without a guard, as fact dates are. Restore refuses if a saved work item is
+  gone or has become a parent.
+- **Space.** Dropping the `space` and `space_project` tables would lose every space and its order.
+  Remove compares every stored space and member. Restore refuses, naming the space, when a saved
+  organization is gone, a saved project is no longer owned by its space's organization, the
+  organization already holds a space of that name, or an author is no longer a user.
+- **Project rank.** Dropping `project_rank` would lose every organization's project order. Restore
+  refuses, naming the project, when a saved project is no longer owned by its organization or an
+  author is no longer a user.
+- **Step node attempt.** The guard compares attempt outcomes stored in `step_node_attempt`; any
+  ended attempt refuses an older image, and a database with no attempts, or only running ones,
+  passes. The down refusal leaves the table and its ledger row in place; `<baseline>` is the
+  migration below it. The project timezone is dropped without a guard: it is a planner's setting,
+  lost as readiness is. `save` refuses on a database the attempts migration never reached. The
+  save file (format version 2) holds every attempt and every node's issued-number mark
+  (`step_node_attempt_issued`), which `down.sql` drops without a guard; the CLI prints both
+  counts, e.g. `step node attempts saved: 3, marks: 2`. `remove` refuses unless the saved attempts
+  and marks equal both tables column for column, then deletes both. Restore brings back numbers
+  and marks, so no node issues a removed number again; it refuses the whole set if a saved
+  attempt's work item is gone or has become a parent, a saved mark's work item is gone, or a saved
+  step is gone, and it refuses a version-1 file.
 
 ## Shared people restore approvals
 
@@ -484,40 +468,6 @@ filesystem and six unreadable mount sources, plus disagreeing blue/green databas
 these remain attended-operation blockers (see the change's verify.md). No production containers
 have been stopped or changed by this checkpoint.
 
-## Step node attempt rollback
-
-**Code rollback with ended attempts.** The `be` swap's `stored-vocabularies` step compares the
-attempt outcomes the incoming binary reads (`attempt-outcomes-cli.ts`) with the outcomes stored in
-`step_node_attempt`, before migration and again after stopping the outgoing colour. An older image
-without that CLI reads none, so any ended attempt refuses it, the error listing each outcome and
-its count; a database with no attempts, or only running ones, passes. Redeploy a release that
-reads them, or save and remove the attempts with the commands below and rerun the deploy.
-
-Rolling back past the attempts migration, `20261012120000_add_step_node_attempts`, refuses while
-any attempt row exists; the refusal reads `CHECK constraint failed: step node attempts exist: …`
-and leaves the table and its ledger row in place. `<baseline>` is the migration below it. The project timezone is dropped without a
-guard: it is a planner's setting, lost as readiness is. Run the commands inside the incoming
-container with the same `DB_PATH`, after writers have stopped. `save` refuses on a database the
-attempts migration never reached. The save file (format version 2) holds every attempt and every
-node's issued-number mark (`step_node_attempt_issued`), which `down.sql` drops without a guard;
-the CLI prints both counts, e.g. `step node attempts saved: 3, marks: 2`.
-
-```sh
-docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts save /data/step-node-attempts-<date>.json
-docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts remove /data/step-node-attempts-<date>.json
-docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
-```
-
-`remove` refuses unless the saved attempts and marks equal both tables column for column, then
-deletes both. After a later forward migration or redeploy, restore them, numbers and marks
-included, so no node issues a removed number again; restore refuses the whole set if a saved
-attempt's work item is gone or has become a parent, a saved mark's work item is gone, or a saved
-step is gone, and it refuses a version-1 file:
-
-```sh
-docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts restore /data/step-node-attempts-<date>.json
-```
-
 ## Estimate unit rollback
 
 An older image understands only workday estimates. The swap refuses it while any step
@@ -630,13 +580,13 @@ enabled; the persistence checkpoint alone is not a deployable feature.
 
 Migration `20261015100000_add_step_blockage_activation_receipt` adds receipt authority without enabling writers. Its down migration refuses an ENABLED marker, any retained receipt, or malformed marker authority, including an enabled database with no facts. A disabled database with no receipt can reverse this migration. Image-local inspection and activation also require the exact constrained receipt table, even when it is empty; a matching ledger does not admit a missing, weakened or view-substituted schema. Never disable the marker or delete a receipt to bypass rollback admission.
 
-Activation requires two separate releases/windows. First deploy a capable release in preserve-only mode and prove the routed image and a retained rollback release both understand `step_blockage_activation_v1`. Later perform attended activation with those independently observed immutable images. An empty blockage table does not remove an ENABLED database's capability obligation. Kubernetes first-start must still observe DISABLED; it does not activate on startup.
+Activation requires two separate releases/windows. First deploy a capable release in preserve-only mode and prove the routed image and a retained rollback release both understand `step_blockage_activation_v1`. Later perform attended activation with those independently observed immutable images. An empty blockage table does not remove an ENABLED database's capability obligation. Kubernetes deployment remains preserve-only: its first-start must still observe DISABLED and cannot perform activation.
 
 Ordinary Compose deployment records the outgoing container ID, its digest-pinned image reference and its immutable local image ID before writer stop. The pinned reference must resolve to that same image ID. After the outgoing container stops, deployment re-reads and compares the association before running compatibility admission with the captured rollback digest and the separate candidate digest. Missing or changed identity refuses before maintenance, migration or application exposure; after stop, all interruption evidence remains retained. The candidate cannot stand in for the outgoing rollback image. Both images must independently support every stored vocabulary before maintenance, including relationship types, holds, readiness, capacity modes, attempt outcomes, direct blockages, replay/admission capabilities and estimate units. The candidate check is required even while activation is DISABLED and no activation capability obligation is present.
 
 A genuine first install records an explicit absent predecessor. It requires no existing managed backend writer at preflight or read-only admission, a capable candidate, and coherent pre-marker or DISABLED database authority. ENABLED authority requires a rollback image. An existing backend under either colour prevents first-install classification.
 
-The image's existing `src/step-blockage-replay-kinds-cli.ts` advertises `step_blockage_activation_v1` alongside its journal capabilities. Compose and Kubernetes independently inventory activation authority with coordinator-owned read-only SQLite code. A valid ENABLED marker and exact receipt contribute `{kind:"step_blockage_activation_v1",count:1}` even when both fact and journal inventories are empty. Candidate and rollback image observations must come from each exact digest's own CLI; a coordinator constant is not image evidence. The existing read-only Compose `--check-backend-recovery` proof checks both images for this obligation and leaves writers stopped and interruption markers retained. Kubernetes carries the same obligation in its sealed deployment admission receipt; first-start still refuses ENABLED.
+The image's existing `src/step-blockage-replay-kinds-cli.ts` advertises `step_blockage_activation_v1` alongside its journal capabilities. Compose and Kubernetes independently inventory activation authority with coordinator-owned read-only SQLite code. A valid ENABLED marker and exact receipt contribute `{kind:"step_blockage_activation_v1",count:1}` even when both fact and journal inventories are empty. Candidate and rollback image observations must come from each exact digest's own CLI; a coordinator constant is not image evidence. The existing read-only Compose `--check-backend-recovery` proof checks both images for this obligation and leaves writers stopped and interruption markers retained. Kubernetes carries the same obligation in its sealed deployment admission receipt.
 
 A successful preserve-only deployment while DISABLED does not prove that either image advertises the activation capability. Before later activation, retain positive CLI observations tied independently to the routed immutable digest and the retained rollback digest. The attended host coordinator requires those observations even when the database is still DISABLED, before starting maintenance or publishing activation intent.
 
@@ -660,7 +610,7 @@ A version-1 receipt has exactly these fields: `protocol` (`step-blockage-activat
    The flag admits only `be` with `--execute`; multi-tier runs, preflight and backend-recovery modes refuse it. The executor holds the normal deployment lock for the entire transition. It captures and stops the exact outgoing/idle writers, inventories every stored vocabulary against both images, separately requires the activation capability from both images even while DISABLED, and runs the candidate's read-only receipt inspection against a private SQLite-family copy. Inspection must already report exactly `{state:"DISABLED",receipt:null}` before maintenance/migration; missing prior receipt migration refuses the activation attempt rather than installing and activating it in one first release.
 
 4. The executor uses the validated inert maintenance container for backup and migration. Before activation it rechecks the maintenance configuration/image/container, stopped outgoing writer, rollback image association, canonical database identity and complete writer inventory. It exclusively publishes and syncs `state/be-writer-activation.json`, containing the exact receipt, writer identity and maintenance ID, and reads those bytes back before invoking the image-local CLI. Each activation/readback execution repeats the identity fence. The command response must equal the attempted receipt, and a separate `inspect` must report ENABLED with that exact receipt before maintenance stops and application exposure begins.
-5. On successful application exposure and the normal deployment commit, the executor removes the activation intent together with the stop, maintenance, migration and exposure markers. Retain the deployed release and a capable rollback image. An ENABLED database requires activation compatibility even when it contains zero blockage facts or journal entries. Kubernetes deployment remains preserve-only; its first-start operation still requires DISABLED and cannot perform this transition.
+5. On successful application exposure and the normal deployment commit, the executor removes the activation intent together with the stop, maintenance, migration and exposure markers. Retain the deployed release and a capable rollback image.
 
 ### Activation interruption
 
@@ -684,7 +634,7 @@ The source view is **code-read-only**, not a filesystem-enforced read-only mount
 
 The operating boundary is trusted, nonadversarial quiescence: all tasks retain the Docker-created namespace; persistent mounts and aliases remain stable during admission, and no process retains an already-open deleted SQLite alias. The audit proves observed persistent namespace exclusion. It does not claim protection against transient topology/inode ABA, hostile receipt spoofing or private per-process namespaces. Hold registry pushes/garbage collection and filesystem topology changes during the attended audit; required metadata races refuse visibly.
 
-Missing/unreadable or ambiguous mount metadata, special/symlink aliases, malformed/incomplete receipts, unavailable init/tools, more than 100,000 entries, depth over 64, stdout above32MiB or stderr above64KiB refuse. Every stderr byte is a failure. The complete host operation has a 45-second per-container deadline, reserving its final 20 seconds for bounded exact-group cleanup; each remote supervisor independently has a 15-second deadline. Host abort hard-kills the exact CLI. Cleanup inventories the original group's members in the same exact container and refuses any remaining live or zombie process after bounded convergence. Missing session identity, an unreadable/stalled cleanup or uncertain creation reports the exact container, attempt/group/start context for manual investigation. It never declares an orphan absent without proof. These checks repeat after managed writers stop.
+Missing/unreadable or ambiguous mount metadata, special/symlink aliases, malformed/incomplete receipts, unavailable init/tools, more than 100,000 entries, depth over 64, stdout above 32 MiB or stderr above 64 KiB refuse. Every stderr byte is a failure. The complete host operation has a 45-second per-container deadline, reserving its final 20 seconds for bounded exact-group cleanup; each remote supervisor independently has a 15-second deadline. Host abort hard-kills the exact CLI. Cleanup inventories the original group's members in the same exact container and refuses any remaining live or zombie process after bounded convergence. Missing session identity, an unreadable/stalled cleanup or uncertain creation reports the exact container, attempt/group/start context for manual investigation. It never declares an orphan absent without proof. These checks repeat after managed writers stop.
 
 The exclusive private interruption files under `/home/puni1/wbs/state` are `be-writer-stop.json`, `be-writer-maintenance.json`, `be-writer-migration.json` and `be-writer-exposure.json`. Preflight freezes two mode0600, hash-pinned Compose snapshots from one validated resolved application configuration and immutable image. Both retain the exact environment, working directory, database/solver mounts and init prerequisite. Stop intent records both snapshot identities and exact outgoing/idle IDs before either writer stops. Stopped identities and the complete inventory are revalidated, then independent read-only fact/replay one-offs admit the digest against the stopped SQLite family.
 

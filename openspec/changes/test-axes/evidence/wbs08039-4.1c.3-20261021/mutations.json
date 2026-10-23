@@ -1,0 +1,818 @@
+[
+  {
+    "name": "canonical",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (!isAbsolute(path) || path !== resolve(path))",
+    "replacement": "if (false)",
+    "pattern": "noncanonical ledger",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-canonical.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses noncanonical ledger authority path [338.67ms]"]
+  },
+  {
+    "name": "symlink",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (lstatSync(cursor).isSymbolicLink())",
+    "replacement": "if (false)",
+    "pattern": "refuses symlink ledger",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-symlink.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses symlink ledger authority [311.43ms]"]
+  },
+  {
+    "name": "regular",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (!lstatSync(path).isFile())",
+    "replacement": "if (false)",
+    "pattern": "refuses directory ledger",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-regular.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses directory ledger authority [321.53ms]"]
+  },
+  {
+    "name": "utf8",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "new TextDecoder('utf-8', { fatal: true })",
+    "replacement": "new TextDecoder('utf-8', { fatal: false })",
+    "pattern": "refuses invalid UTF8 ledger",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-utf8.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses invalid UTF8 ledger authority [352.41ms]"]
+  },
+  {
+    "name": "version",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "schemaVersion: '1',",
+    "replacement": "schemaVersion: 'number',",
+    "pattern": "authority schemaVersion",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-version.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses authority schemaVersion substitution [323.29ms]"]
+  },
+  {
+    "name": "closed",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "}).onUndeclaredKey('reject');",
+    "replacement": "}).onUndeclaredKey('ignore');",
+    "pattern": "authority extra",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-closed.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses authority extra substitution [336.22ms]"]
+  },
+  {
+    "name": "pins",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (authority[field] !== scenarioReport[field])",
+    "replacement": "if (false)",
+    "pattern": "authority (revision|candidate|capability) substitution",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-pins.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-105] refuses authority revision substitution [341.46ms]",
+      "[TEST-AXES-105] refuses authority candidate substitution [256.27ms]",
+      "[TEST-AXES-105] refuses authority capability substitution [236.38ms]"
+    ]
+  },
+  {
+    "name": "performance-pin",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (authority.performanceObservationDigest !== scenarioReport.observationDigest)",
+    "replacement": "if (false)",
+    "pattern": "authority performanceObservationDigest",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-performance-pin.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-105] refuses authority performanceObservationDigest substitution [358.70ms]"
+    ]
+  },
+  {
+    "name": "foreign",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (!active.has(obligation.scenarioId))",
+    "replacement": "if (false)",
+    "pattern": "refuses foreign|retired obligation",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-foreign.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-105] refuses foreign [321.24ms]",
+      "[TEST-AXES-105] retired obligation cannot assign a row [256.69ms]"
+    ]
+  },
+  {
+    "name": "duplicate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (assigned.has(obligation.scenarioId))",
+    "replacement": "if (false)",
+    "pattern": "refuses duplicate",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-duplicate.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses duplicate [309.94ms]"]
+  },
+  {
+    "name": "blank",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "obligation.disposition.reason.trim().length === 0",
+    "replacement": "false",
+    "pattern": "refuses blank reason",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-blank.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses blank reason [329.53ms]"]
+  },
+  {
+    "name": "unassigned",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (disposition === undefined) verdict = { kind: 'unassigned' };",
+    "replacement": "if (disposition === undefined) verdict = { kind: 'inapplicable', reason: 'fault' };",
+    "pattern": "enumerates adopted",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-unassigned.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-104] ledger enumerates adopted rows and omitted obligations remain named debt [379.18ms]"
+    ]
+  },
+  {
+    "name": "level",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "disposition.lowestSufficientLevel !== 'performance'",
+    "replacement": "false",
+    "pattern": "mismatched lowest",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-level.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-104] mismatched lowest sufficient level remains unsupported debt [344.40ms]"
+    ]
+  },
+  {
+    "name": "manual-debt",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "(verdict.kind === 'manual' && verdict.observation.manual.state !== 'current')",
+    "replacement": "false",
+    "pattern": "joins real Manual",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-debt.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] joins real Manual failed failed [439.44ms]",
+      "[TEST-AXES-107] joins real Manual skipped failed [442.59ms]",
+      "[TEST-AXES-107] joins real Manual passed overdue [522.79ms]",
+      "[TEST-AXES-107] joins real Manual passed stale [581.58ms]"
+    ]
+  },
+  {
+    "name": "citation-debt",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "for (const finding of scenarioReport.citationFindings)",
+    "replacement": "for (const finding of [])",
+    "pattern": "lost citation",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-citation-debt.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] lost citation and unrelated unidentified B3 debt remain visible [334.20ms]"
+    ]
+  },
+  {
+    "name": "unidentified-debt",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "for (const finding of scenarioReport.specifications.unidentified)",
+    "replacement": "for (const finding of [])",
+    "pattern": "lost citation",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-unidentified-debt.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] lost citation and unrelated unidentified B3 debt remain visible [349.70ms]"
+    ]
+  },
+  {
+    "name": "digest-guard",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "if (observationDigest !== hashCanonical(payload))",
+    "replacement": "if (false)",
+    "pattern": "substituted (Manual|Performance) digest",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-digest-guard.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual digest despite repinned outer digest [1648.72ms]",
+      "[TEST-AXES-105] refuses substituted Performance digest [1198.71ms]"
+    ]
+  },
+  {
+    "name": "authentication",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "authentication: { kind: 'absent' as const },",
+    "replacement": "authentication: { kind: 'present' as const },",
+    "pattern": "complete report diagnostic",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-authentication.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [334.00ms]"
+    ]
+  },
+  {
+    "name": "certifies",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "certifies: false as const,",
+    "replacement": "certifies: true as const,",
+    "pattern": "complete report diagnostic",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-certifies.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [330.92ms]"
+    ]
+  },
+  {
+    "name": "payload-digest",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observationDigest: hashCanonical(observation)",
+    "replacement": "observationDigest: hashCanonical({})",
+    "pattern": "complete report diagnostic",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-payload-digest.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [352.68ms]"
+    ]
+  },
+  {
+    "name": "manual-revision",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.revision !== revision",
+    "replacement": "false",
+    "pattern": "substituted Manual revision",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-revision.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual revision despite repinned outer digest [1620.60ms]"
+    ]
+  },
+  {
+    "name": "manual-nested-revision",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.manual.revision !== revision",
+    "replacement": "false",
+    "pattern": "substituted Manual nested revision",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-nested-revision.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual nested revision despite repinned outer digest [1650.84ms]"
+    ]
+  },
+  {
+    "name": "manual-candidate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.candidate !== scenarioReport.candidate",
+    "replacement": "false",
+    "pattern": "substituted Manual candidate",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-candidate.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual candidate despite repinned outer digest [1623.17ms]"
+    ]
+  },
+  {
+    "name": "manual-instant",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.evaluatedAt !== evaluatedInstant",
+    "replacement": "false",
+    "pattern": "substituted Manual evaluation",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-instant.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual evaluation despite repinned outer digest [1714.90ms]"
+    ]
+  },
+  {
+    "name": "manual-policy",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.manual.policyDigest !== scenarioReport.policyDigest",
+    "replacement": "false",
+    "pattern": "substituted Manual policy",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-policy.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual policy despite repinned outer digest [1640.03ms]"
+    ]
+  },
+  {
+    "name": "manual-scenario",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.manual.scenarioId !== scenario.id",
+    "replacement": "false",
+    "pattern": "substituted Manual scenario",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-scenario.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual scenario despite repinned outer digest [1669.72ms]"
+    ]
+  },
+  {
+    "name": "manual-nested-scenario",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.manual.selectedScenario.id !== scenario.id",
+    "replacement": "false",
+    "pattern": "substituted Manual nested scenario",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-nested-scenario.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual nested scenario despite repinned outer digest [1577.20ms]"
+    ]
+  },
+  {
+    "name": "manual-title",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.manual.selectedScenario.title !== scenario.title",
+    "replacement": "false",
+    "pattern": "substituted Manual title",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-title.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual title despite repinned outer digest [1606.46ms]"
+    ]
+  },
+  {
+    "name": "manual-pin",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "observation.observationDigest !== disposition.observationDigest",
+    "replacement": "false",
+    "pattern": "foreign observation pin",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-pin.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] missing Manual report and foreign observation pin refuse without fallback [1128.45ms]"
+    ]
+  },
+  {
+    "name": "manual-auth",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "        !isDiagnostic(observation) ||\n        !isUncertified(observation.manual)",
+    "replacement": "        false ||\n        !isUncertified(observation.manual)",
+    "pattern": "substituted Manual authentication",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-auth.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual authentication despite repinned outer digest [1608.95ms]"
+    ]
+  },
+  {
+    "name": "manual-certifies",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "        !isDiagnostic(observation) ||\n        !isUncertified(observation.manual)",
+    "replacement": "        false ||\n        !isUncertified(observation.manual)",
+    "pattern": "substituted Manual certifies",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-certifies.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual certifies despite repinned outer digest [1625.36ms]"
+    ]
+  },
+  {
+    "name": "manual-nested-certifies",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "!isUncertified(observation.manual)",
+    "replacement": "false",
+    "pattern": "substituted Manual nested certifies",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-nested-certifies.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual nested certifies despite repinned outer digest [1616.58ms]"
+    ]
+  },
+  {
+    "name": "performance-revision",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "scenarioReport.revision !== revision",
+    "replacement": "false",
+    "pattern": "substituted Performance revision",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-performance-revision.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses substituted Performance revision [1275.77ms]"]
+  },
+  {
+    "name": "performance-capability",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "scenarioReport.capability !== capability",
+    "replacement": "false",
+    "pattern": "substituted Performance capability",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-performance-capability.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses substituted Performance capability [1297.71ms]"]
+  },
+  {
+    "name": "performance-auth",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "!isDiagnostic(scenarioReport)",
+    "replacement": "false",
+    "pattern": "substituted Performance authentication",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-performance-auth.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-105] refuses substituted Performance authentication [1323.19ms]"
+    ]
+  },
+  {
+    "name": "performance-certifies",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "!isDiagnostic(scenarioReport)",
+    "replacement": "false",
+    "pattern": "substituted Performance certifies",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-performance-certifies.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": ["[TEST-AXES-105] refuses substituted Performance certifies [1305.64ms]"]
+  },
+  {
+    "name": "arity",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "search": "// Proof: removing arity/flag refusal accepted TEST-AXES-105's extra CLI operand.\n    if (args.length !== 9 || args[7] !== '--now')",
+    "replacement": "// Proof: removing arity/flag refusal accepted TEST-AXES-105's extra CLI operand.\n    if (false)",
+    "pattern": "unsupported operands",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "log": "mutation-arity.log",
+    "restoredSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "watchedFailures": [
+      "[TEST-AXES-105] refuses unsupported operands [\"--now\",\"2026-10-15T00:00:00.000Z\",\"extra\"] [278.12ms]"
+    ]
+  },
+  {
+    "name": "debt-exit",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "search": "// Proof: disabling this exit mapping made TEST-AXES-104's named unassigned debt exit zero.\n        if (observation.debt.length !== 0) process.exitCode = 1;",
+    "replacement": "// Proof: disabling this exit mapping made TEST-AXES-104's named unassigned debt exit zero.\n        if (false) process.exitCode = 1;",
+    "pattern": "enumerates adopted",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "log": "mutation-debt-exit.log",
+    "restoredSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "watchedFailures": [
+      "[TEST-AXES-104] ledger enumerates adopted rows and omitted obligations remain named debt [341.18ms]"
+    ]
+  },
+  {
+    "name": "diagnostic-authentication",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "return observation.authentication.kind === 'absent' && isUncertified(observation);",
+    "replacement": "return isUncertified(observation);",
+    "pattern": "substituted (Manual|Performance) authentication",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-diagnostic-authentication.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual authentication despite repinned outer digest [1591.18ms]",
+      "[TEST-AXES-105] refuses substituted Performance authentication [1268.99ms]"
+    ]
+  },
+  {
+    "name": "diagnostic-certifies",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "return !observation.certifies;",
+    "replacement": "return true;",
+    "pattern": "substituted (Manual|Performance) (nested certifies|certifies)",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-diagnostic-certifies.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-107] refuses substituted Manual certifies despite repinned outer digest [1623.48ms]",
+      "[TEST-AXES-107] refuses substituted Manual nested certifies despite repinned outer digest [1548.15ms]",
+      "[TEST-AXES-105] refuses substituted Performance certifies [1236.90ms]"
+    ]
+  },
+  {
+    "name": "scenario-shape",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "const ScenarioId = type(/^[A-Z][A-Z0-9-]*-\\d{3,}$/);",
+    "replacement": "const ScenarioId = type('string');",
+    "pattern": "malformed scenario ID refuses",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-scenario-shape.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-105] malformed scenario ID refuses at closed schema boundary [332.56ms]"
+    ]
+  },
+  {
+    "name": "disposition-kind",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "type({ kind: \"'inapplicable'\", reason: 'string>=1' })",
+    "replacement": "type({ kind: 'string', reason: 'string>=1' })",
+    "pattern": "unknown disposition refuses at",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-disposition-kind.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-105] unknown disposition refuses at closed variant boundary [408.56ms]"
+    ]
+  },
+  {
+    "name": "upstream-preservation",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "performance: scenarioReport,",
+    "replacement": "performance: {},",
+    "pattern": "complete report diagnostic",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-upstream-preservation.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [342.63ms]"
+    ]
+  },
+  {
+    "name": "b3-preservation",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "performance: scenarioReport,",
+    "replacement": "performance: {...scenarioReport, specifications: {}},",
+    "pattern": "complete report diagnostic",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-b3-preservation.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [388.93ms]"
+    ]
+  },
+  {
+    "name": "obligation-order",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "compareCanonicalText(left.scenarioId, right.scenarioId),",
+    "replacement": "0,",
+    "pattern": "complete report diagnostic",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-obligation-order.log",
+    "restoredSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "watchedFailures": [
+      "[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [439.81ms]"
+    ]
+  },
+  {
+    "name": "installed-route",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "search": "if (args[0] === 'inspect-scenario-ledger')",
+    "replacement": "if (args[0] === 'removed-inspect-scenario-ledger')",
+    "pattern": "installed dispatch retains",
+    "occurrences": 1,
+    "exitCode": 1,
+    "signal": null,
+    "assertionFailed": true,
+    "restored": true,
+    "sourceSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "log": "mutation-installed-route.log",
+    "restoredSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "watchedFailures": [
+      "[TEST-AXES-106] installed dispatch retains debt exit and identical JSON [3664.70ms]"
+    ]
+  }
+]

@@ -2,7 +2,7 @@
 
 Checked 2026-09-27. Sources are OpenRouter's current official documentation or its official documentation repository. This is design research, not a tested integration.
 
-This note preserves the source-linked provider findings gathered for this change. The current product contract is in `openspec/changes/puni-website-funnel/`: anonymous manual proposal submission launches before prospect sign-in and chat; operators still sign in to review requests. The approved retention period for description, chat and one contact email is 12 months unless the prospect becomes a client; anonymous claims expire after 24 hours. Provider-as-processor wording remains a chat launch gate. OpenRouter pricing and endpoint compatibility must be checked again before enabling paid calls. None of the USD allowances below authorizes live spend.
+This note preserves the source-linked provider findings gathered for this change. The product contract at the time was `openspec/changes/puni-website-funnel/`: anonymous manual proposal submission launched before prospect sign-in and chat (prospect sign-in was later retired, [ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)); operators still sign in to review requests. The approved retention period for description, chat and one contact email is 12 months unless the prospect becomes a client; anonymous claims expire after 24 hours. Provider-as-processor wording remains a chat launch gate. OpenRouter pricing and endpoint compatibility must be checked again before enabling paid calls. None of the USD allowances below authorizes live spend.
 
 ## Recommended flow (application design)
 

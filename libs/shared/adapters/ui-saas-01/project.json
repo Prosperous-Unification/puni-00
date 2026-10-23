@@ -1,0 +1,79 @@
+{
+  "name": "shared-ui-saas-01",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/adapters/ui-saas-01/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:ui", "runtime:browser", "ring:adapter", "product:shared"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/adapters/ui-saas-01/src libs/shared/adapters/ui-saas-01/.storybook"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/adapters/ui-saas-01/src libs/shared/adapters/ui-saas-01/.storybook --cache --cache-location .nx/eslintcache-shared-ui-saas-01"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
+        "cwd": "libs/shared/adapters/ui-saas-01"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
+        "cwd": "libs/shared/adapters/ui-saas-01"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/ui-saas-01/tsconfig.json"
+      }
+    },
+    "storybook": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bunx storybook dev -p 6006 -c .storybook",
+        "cwd": "libs/shared/adapters/ui-saas-01"
+      }
+    },
+    "build-storybook": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "outputs": ["{workspaceRoot}/dist/storybook/ui-saas-01"],
+      "options": {
+        "command": "bunx storybook build -c .storybook -o ../../../../dist/storybook/ui-saas-01 --quiet",
+        "cwd": "libs/shared/adapters/ui-saas-01"
+      }
+    },
+    "registry": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "{workspaceRoot}/libs/shared/adapters/ui-core-01/src/cn.ts"],
+      "outputs": ["{workspaceRoot}/dist/registry/ui-saas-01"],
+      "options": {
+        "command": "rm -rf ../../../../dist/registry/ui-saas-01 && bunx shadcn build --output ../../../../dist/registry/ui-saas-01",
+        "cwd": "libs/shared/adapters/ui-saas-01"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["^build", "build-storybook", "registry"],
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/ui-saas-01/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/out-tsc"]
+    }
+  }
+}
