@@ -78,3 +78,15 @@ passed all 271 items (253 changes, 18 specs), exit 0.
 exited 1 on 15 existing requirement-length warnings, with no error-level
 issues; this packet edits no requirement text. Changed-file Prettier and
 `git diff --check` passed.
+
+## Later bounded evidence (2026-10-23)
+
+The missing active descendant-step intersection now has [consented HTTP and
+generated MCP acceptance](verify-task-3.2-consented-scope.md) with dotted
+cross-project references, connected identity and all-table atomic refusal.
+Separate [calendar](verify-task-3.2-calendar-transport.md) and
+[optimization](verify-task-3.2-optimization-transport.md) packets cover
+bounded transport outcomes. These later packets supersede the corresponding
+gaps identified by the source audit above; they do not establish the entire
+active authority/admission matrix or production activation. Task 3.2 stays
+open pending that matrix and the exact-head gate.

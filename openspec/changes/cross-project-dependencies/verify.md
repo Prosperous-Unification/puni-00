@@ -6566,7 +6566,9 @@ step; the swarm's assignment/claimed-step assertions follow that same step.
 Before the correction, the two-file run had 29 passes and five failures;
 afterward it had 34 passes, zero failures and 260 assertions. Changed-file
 ESLint, Prettier and diff checks passed. Production admission was unchanged;
-the existing whole-leaf refusal proof remains in `claim-limit.controller.db.test.ts`.
+the mounted omitted/explicit mixed-step whole-leaf refusal proof remains in
+`cross-project-startable.controller.db.test.ts`. Independent review reran all
+three changed backend files: 44 passes, zero failures and 298 assertions.
 The old-SHA gate's Bun coverage crash and complete backend suite remain
 unverified on this corrected head.
 
@@ -6579,3 +6581,29 @@ pins the exact six-name reverse sequence and compares the complete CLI line.
 Before correction CI failed at that assertion; afterward the entire mounted
 provider migration file passed 10 tests/38 assertions. Production rollback
 logic was unchanged. The integrated exact-SHA gate remains pending.
+
+## Task 3.2 consented-scope transport parity (2026-10-23)
+
+The [consented-scope packet](verify-task-3.2-consented-scope.md) exercises
+active OAuth HTTP and generated MCP node-to-subtree SS/FF and dotted
+descendant-step FS paths, endpoint and relationship IDs, journal identity,
+per-call bearer isolation, and atomic rejection of an invalid 13-table
+batch. The ordered OAuth suite passed 26 tests with 812 assertions. Six
+production-path faults were watched fail and are recorded with their precise
+boundaries; configured MCP lint and typecheck passed. Astra High reviewed the
+corrected evidence with no blocker, and the committed range passes
+`git diff --check`. This is a bounded test packet; task 3.2, activation and
+the integrated exact-SHA gate remain open.
+
+## Old-head h2puni gate verdict (2026-10-23)
+
+`bin/h2puni-gate.sh 3e8e98b999e87e9019acc6648f2b1ca166aa07c7`
+printed that exact running SHA and completed after 67m 36s with exit 1.
+OpenSpec validated 273 changes/specs, and 176 Nx tasks succeeded. Four
+targets failed: `wbs-contracts:test`, `wbs-store-sqlite:test`,
+`tool-devsync:test`, and `wbs-be-01:test`. The first three failures and the
+six backend assertion failures have bounded local corrections recorded above;
+the backend target also panicked in Bun 1.4.2 during coverage after roughly
+41 minutes. The six assertions were independently corrected and reviewed,
+but the coverage panic is under separate investigation. This gate is an
+old-head failure, not a pass for the integrated feature head.
