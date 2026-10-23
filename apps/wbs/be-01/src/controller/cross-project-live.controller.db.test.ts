@@ -248,10 +248,13 @@ test('shared connected person wait reaches the real Gantt consumer with a qualif
   if (!built.success) throw new AggregateError(built.logs, 'Gantt consumer build failed');
   const output = built.outputs.at(0);
   if (output === undefined) throw new Error('Gantt consumer bundle missing');
-  const code = await output.text();
-  const geometry = (await import(
-    `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`
-  )) as { layOutGantt: (plan: unknown) => { bars: { floorWords: string }[] } };
+  // Bun 1.4.2 coverage treats a data URL as a path and panics past 4096 bytes.
+  // The harness removes this bundle together with its database directory.
+  const bundlePath = `${harness.databasePath()}.gantt.mjs`;
+  await Bun.write(bundlePath, output);
+  const geometry = (await import(bundlePath)) as {
+    layOutGantt: (plan: unknown) => { bars: { floorWords: string }[] };
+  };
   const chart = geometry.layOutGantt({
     rows: [
       {

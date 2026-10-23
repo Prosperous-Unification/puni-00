@@ -6627,3 +6627,49 @@ a pre-create stall correctly remained unresolved. Dirty tracked/untracked source
 is explicitly unverified. The configured Docker target passed again at
 `5e34d3b0d`; committed log CRs were normalized and the full packet range diff
 check passed. See the packet's review-correction section for retained proofs.
+
+## Bun coverage Gantt bundle reconciliation (2026-10-23)
+
+Completed old-head CI (`/tmp/puni-pr630-ci-workspace-oldhead.log`) used
+Bun 1.4.2 (`744846f84`) and `bun test --coverage --coverage-reporter=lcov
+--timeout=10000`. After 2,112,324 ms, following the failed-test summary,
+coverage reporting aborted with `range end index 4955 out of range for slice
+of length 4096`. This runtime panic is separate from the earlier assertion
+failures; elapsed suite time does not establish a concurrency or timeout cause.
+
+At isolated base `1fda6bf87`, from `apps/wbs/be-01`, this narrower command
+reproduced exit 134 in 4.913 s after its one selected test passed:
+
+```sh
+bun test src/controller/cross-project-live.controller.db.test.ts --test-name-pattern 'shared connected person wait reaches' --coverage --coverage-reporter=lcov --timeout=10000
+```
+
+The panic was `range end index 4995 out of range for slice of length 4096`.
+A dependency-free one-test control importing a base64 data URL containing
+`"export const answer = 42;\n" + "// padding\n".repeat(400)` reproduced
+exit 134 in 27 ms with coverage; the same test without coverage passed in
+19 ms. Importing the identical bytes from a `.mjs` file with coverage passed
+in 13 ms. Each control asserted the imported value was 42. These controls
+isolate long data-URL coverage reporting without test concurrency.
+
+The Gantt test now writes its existing bundle beside the harness database,
+imports that file, and keeps the real consumer assertions. Harness cleanup
+removes the bundle with its database directory. The complete file passed
+with the original coverage settings:
+
+```sh
+bun test src/controller/cross-project-live.controller.db.test.ts --coverage --coverage-reporter=lcov --timeout=10000
+```
+
+Observed: 21 passed, zero failed, 241 assertions, 13.98 s, exit 0. Red and
+green logs are `/tmp/puni-bun-coverage-actual-{red,green}.log`; the earlier
+red command used the original data-URL import. The integrated exact-SHA
+host gate remains pending; this focused run does not prove the full suite.
+
+`NX_DAEMON=false bunx nx run wbs-be-01:lint --skip-nx-cache` passed (59.6 s);
+Nx fell back to in-process plugins after sandbox socket denial. The configured
+run completed with its project graph; the earlier direct ESLint probe had
+skipped module boundaries. Prettier and `git diff --check` passed.
+`bunx openspec validate cross-project-dependencies --json` passed one change
+with existing requirement-length warnings. Full backend tests, typecheck,
+build and the host gate were not run for this isolated fixture repair.
