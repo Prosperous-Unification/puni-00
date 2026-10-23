@@ -220,3 +220,15 @@ receipt. Port reallocation is the current hypothesis, not established by the
 failed log. All HTTP/status/body, exact-ID, deadline and cleanup checks remain
 unchanged. Scoped ESLint, uncached typecheck, formatting and independent Astra
 review passed; actual restart persistence remains pending the corrected run.
+
+## Corrected actual-Caddy host acceptance — passed
+
+At exact source `36f7871e463e18f64900b883c2fdc7ab6d49345e`, the
+reviewed corrected runner exited **0** under the canonical h2 heavy lock.
+Selected 503, exact adaptation/admin reload equality, unrelated fixture serving
+and restart persistence passed. The actual port changed from 33139 to 33140,
+confirming the fixture's stale-port diagnosis. Exact-ID/label cleanup and an
+independent empty-membership query passed; the heavy lock was free afterward.
+[Raw receipts, integrity hashes, failed-attempt record and exact scope](evidence/dependency-ingress/attempt-36f7871e4/README.md)
+close the earlier prepared-only and restart-pending limitations for this bounded
+acceptance. They do not establish complete owner authority or deployment.

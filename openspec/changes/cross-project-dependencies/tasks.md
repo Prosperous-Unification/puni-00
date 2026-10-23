@@ -839,4 +839,5 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] I2 Prove selected whole-site 503 and unrelated config preservation, captured-ID reload/no-op refusal, interruption retention and fresh owner-bound inspection. Wire a new explicit ingress-inclusive mode before managed gateway/backend effects, preserving managed-only mode.
 - [x] I3a Prepare a unique-name/path disposable actual-Caddy serving/reload/restart acceptance runner; record local tool/daemon capability and focused R5 proofs in verify-dependency-ingress.md.
 - [x] I3b Complete independent source and actual-Caddy fixture review before host execution. Astra approved corrected Linux x64 source `f4aff3e8c` and the controlled h2 fixture; actual host acceptance and integrated gate remain I4.
-- [ ] I4 Observe reviewed actual-Caddy host acceptance under the canonical heavy lock and integrated exact-SHA gate; parent complete participant exclusion/activation stays open.
+- [x] I4a Observe reviewed actual-Caddy host acceptance under the canonical heavy lock. Exact source `36f7871e4` passed selected 503, unrelated serving, restart persistence and exact fixture cleanup; [raw receipts](evidence/dependency-ingress/attempt-36f7871e4/README.md).
+- [ ] I4b Complete the integrated exact-SHA gate. Parent complete participant exclusion/activation stays open.
