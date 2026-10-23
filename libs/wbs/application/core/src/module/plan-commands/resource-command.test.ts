@@ -462,13 +462,15 @@ describe('setDemand', () => {
   });
 
   it('constrains nothing without a stated capacity: a demanding leaf is still claimed', async () => {
-    const { source, runner, projectId, declare } = await seeded();
+    const { source, runner, projectId, steps, declare } = await seeded();
     try {
       const { ram } = await declare();
+      const firstStep = steps.at(0);
+      if (firstStep === undefined) throw new Error('seeded project has no first step');
       expect(
         await runner.run(projectId, F, [
           { kind: 'setDemand', workItemId: '090', resourceId: ram, units: 4 },
-          { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
+          { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [firstStep] },
         ]),
       ).toMatchObject({ ok: true, results: [{ index: 0 }, { index: 1, alreadyHeld: false }] });
     } finally {

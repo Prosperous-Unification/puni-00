@@ -133,7 +133,12 @@ describe('assignments that run the plan past the calendar', () => {
           { kind: 'setAssignee', workItemId: idOf('B'), stepId: dev, personId: 'kat' },
         ]),
       ).toMatchObject({ ok: true });
-      const claim = { kind: 'claimWorkItem' as const, workItemId: idOf('C'), personId: 'kat' };
+      const claim = {
+        kind: 'claimWorkItem' as const,
+        workItemId: idOf('C'),
+        personId: 'kat',
+        steps: [dev],
+      };
       expect(await runner.run(projectId, F, [{ ...claim, assign: true }])).toMatchObject({
         ok: false,
         at: 0,

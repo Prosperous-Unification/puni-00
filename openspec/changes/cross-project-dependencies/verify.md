@@ -5472,6 +5472,16 @@ both and still rejects undo/redo flags. The old test failed locally
 ESLint and uncached configured `wbs-contracts:typecheck` passed
 (`/tmp/puni-contracts-order-typecheck.log`). Other old-gate failures remain.
 
+Three core resource tests also claimed all unfinished workflow steps while
+asserting unrelated capacity/calendar behavior. The current prerequisite guard
+correctly refused the later step. Each fixture now selects only its first
+ready step (the calendar fixture names `dev`), preserving the tested resource
+behavior without changing production admission. All three failed first with
+`prerequisites_unmet` (`/tmp/puni-core-claim-fixtures-red.log`), then passed
+3/3; their complete three-file suite passed 18/18 with 217 assertions
+(`/tmp/puni-core-claim-fixtures-full.log`). Changed-file ESLint and Prettier
+passed. The remaining core boundary/context fixture failures are still open.
+
 The obsolete gate was already red and one coverage test remained
 uninterruptibly blocked after 35 minutes. Its own Nx coordinator and hung test
 were terminated, yielding exit 130; the wrapper released the canonical lock

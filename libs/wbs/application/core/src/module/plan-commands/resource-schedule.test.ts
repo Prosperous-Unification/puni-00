@@ -179,8 +179,10 @@ describe('the live plan read levels resource demands', () => {
     // Design R5's falsifier: a schedule reads plan data only, never a claim or
     // an occupancy, so claiming a demanding leaf leaves the cache key and every
     // date where they were.
-    const { source, runner, projectId, staging, tree, input } = await seeded();
+    const { source, runner, projectId, steps, staging, tree, input } = await seeded();
     try {
+      const firstStep = steps.at(0);
+      if (firstStep === undefined) throw new Error('seeded project has no first step');
       await runner.run(projectId, F, [
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
@@ -189,7 +191,13 @@ describe('the live plan read levels resource demands', () => {
       const before = await tree();
       const key = canonicalScheduleInput(await input());
       const claimed = await runner.run(projectId, F, [
-        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire-worker', runId: 'run-1' },
+        {
+          kind: 'claimWorkItem',
+          workItemId: '090',
+          personId: 'claire-worker',
+          runId: 'run-1',
+          steps: [firstStep],
+        },
       ]);
       expect(claimed).toMatchObject({ ok: true, results: [{ index: 0, alreadyHeld: false }] });
       expect(await source.stores.claims.listByProject(projectId)).not.toEqual([]);
