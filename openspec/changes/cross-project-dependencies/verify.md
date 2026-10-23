@@ -6461,3 +6461,16 @@ configured Compose/remote-scripts lint, typecheck and build all passed uncached
 (eight targets including dependencies). Full repository checks,
 `openspec validate --all --json` and the exact-head isolated host gate remain
 pending.
+
+## Task 4.4 mounted neighboring-history conflict (2026-10-23)
+
+The [bounded mounted packet](evidence/mounted-history-neighbors/README.md)
+proves an intervening remote endpoint edit leaves the older B history entry
+conflicted after a newer B undo succeeds. The older undo returns exact 409,
+prunes only its selected entry, preserves all other application tables and
+publishes nothing. Removing the `WorkItemService.rebase` remote revision equality
+turned that older undo into unsafe 200 and deleted the relationship; restored
+source and two mounted cases passed 2 tests/41 assertions. Astra High approved
+the packet after four captured CR line endings were normalized; the committed
+range passed `git diff --check`. Integrated with incident replay, 6 tests/163
+assertions passed. Parent 4.4 and full host/CI gates remain open.
