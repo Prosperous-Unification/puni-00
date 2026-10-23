@@ -115,11 +115,13 @@ project owns the successor:
 }
 ```
 
-External authoring currently remains dormant: a readable scoped external request
-receives HTTP 409 `external_dependencies_inactive`, carried in MCP's tool error
-with its indexed body. This example requires the future semantic activation
-barrier before it can commit. Existing local `addDependency`/`removeDependency`
-and typed add/update/remove commands continue through the same admission path.
+MCP advertises V1 dependency semantics and forwards that exact claim to the
+backend. External authoring also requires durable ENABLED storage authority;
+a DISABLED store returns HTTP 409 `external_dependencies_inactive`, carried in
+MCP's tool error with its indexed body. Only the deployment owner's complete
+participant-exclusion and activation workflow can enable that authority; MCP
+does not activate it. Existing local `addDependency`/`removeDependency` and typed
+add/update/remove commands continue through the same admission path.
 `updateTypedDependency` and `removeTypedDependency` address the stable
 `dependencyId`; changing endpoints keeps that identity.
 

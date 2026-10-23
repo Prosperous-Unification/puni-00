@@ -7196,3 +7196,19 @@ Fresh local integration checks, using `bun test --preload
 These focused results do not replace the pending exact integrated-SHA h2 gate,
 CI, full participant exclusion or deployment acceptance. No production store
 was activated and no writable activation command is exposed.
+
+## Older h4 gate failure reconciliation — 2026-10-23
+
+The h4 full gate running `9f257ca84ccbf4195f8127d0259c05d8a872bcab`
+reported four backend import/copy tests receiving unsupported-runtime 500
+responses instead of their expected dormant 409. That older commit predates
+the integrated immutable V1 backend support and updated physical-authority
+fixtures. At `7036af7b898246854705b89e887252d1f7150355`, fresh focused
+`bun test --preload ./tools/test/scratch/preload.ts` with
+`--timeout=30000` over `import-export-organization.controller.db.test.ts`,
+`cross-project-dependency-copy.controller.db.test.ts` and
+`cross-project-import.controller.db.test.ts` passed **85 tests, zero failures,
+1,022 assertions** in 55.21 seconds. Output:
+`/tmp/puni-h4-failures-current-7036af7b8.log`. This demonstrates the changed
+current-head fixtures/runtime for those failures, not a passing broad gate;
+the older gate's complete terminal result is still pending.
