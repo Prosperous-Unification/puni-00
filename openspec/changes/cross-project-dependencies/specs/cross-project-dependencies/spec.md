@@ -1459,6 +1459,14 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 - **AND** an own undefined or malformed Init, shared PID namespace, unfinished terminal lifecycle or absent-to-present Init shape drift refuses
 - **AND** native mutable-tag substitution still refuses independently before effects; initialized managed participant requirements remain unchanged
 
+#### Scenario: Native source mount permutations preserve complete identity
+
+- **GIVEN** the exact live source member has the three supported unique mount destinations
+- **WHEN** native inspections return those mounts in different array orders during source exclusion and composed backend audits
+- **THEN** derived source identity compares fresh arrays ordered by destination, preserving every native per-mount field and the raw input
+- **AND** duplicate targets, any per-target field drift, changed membership and unrelated-member mount drift refuse
+- **AND** complete inventory comparison applies ordering only to the exact raw member independently recognized by the live source capability
+
 ### Requirement: Adopted solver requires explicit ordinary edge policy
 
 An adopted supervisor SHALL require the closed version-1 ordinary policy bound to its canonical edge directory, read under its process-lifetime runtime lock before config, sweep or listener startup. Missing, unreadable, malformed, oversized, aliased, nonregular, replaced or drifting policy state SHALL refuse. Restoring policy SHALL be admitted only by the complete solver-only verifier below; active SHALL remain unsupported. Legacy ordinary startup SHALL remain separate from adopted unit authority.
@@ -1572,3 +1580,11 @@ A restoring supervisor SHALL acquire the canonical runtime lock and independentl
 - **THEN** the actual CLI exits 78 before application config, orphan sweep or bind, with a privacy-safe diagnostic cause
 - **AND** ordinary policy startup cannot be selected by substituting ordinary phase and removing markers after the precheck
 - **AND** lock contention and failures after successful admission retain ordinary exit 1
+
+#### Scenario: Parked restoration tolerates source mount order without reviving exclusion
+
+- **GIVEN** compatibility restoration captured an independently validated terminal source before exclusion tokens expired
+- **WHEN** fresh parked inventories return the same full native source mounts in a different array order
+- **THEN** read-only parked and backend inventory comparisons derive ordering only for that exact actual source after validating it against the captured member
+- **AND** no expected fields are copied into actual identity, no exclusion token is recreated, and no namespace admission is granted
+- **AND** duplicate source targets, per-target native field drift, unrelated member changes and missing exact raw membership refuse

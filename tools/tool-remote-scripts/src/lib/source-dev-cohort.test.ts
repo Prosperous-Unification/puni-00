@@ -3,7 +3,12 @@ import { expect, test } from 'bun:test';
 import { sourceFixture } from '../fixtures/source-dev';
 import { envLayout } from './env';
 import { readFields } from './managed-cohort';
-import { decodeSourceDev, sourceDevIdentity } from './source-dev-cohort';
+import {
+  decodeSourceDev,
+  identifyParkedSourceInventory,
+  identifySourceInventory,
+  sourceDevIdentity,
+} from './source-dev-cohort';
 
 for (const init of [null, false, true])
   test(`source decoder permits typed init ${String(init)}`, () => {
@@ -146,4 +151,29 @@ test('source derived mounts preserve native fields and raw order while sorting t
   ]);
   expect(member.mounts).toContain(source.Mounts[0]);
   expect(member.mounts.some((mount) => readFields(mount)['Propagation'] === 'rprivate')).toBe(true);
+});
+
+test('parked identity derives actual source fields and exact raw membership without mutating input', () => {
+  const source = sourceFixture();
+  source.State = {
+    ...source.State,
+    Running: false,
+    Pid: 0,
+    Status: 'exited',
+    FinishedAt: '2026-10-23T01:00:00Z',
+  };
+  source.HostConfig.RestartPolicy.Name = 'no';
+  const expected = decodeSourceDev(structuredClone(source), envLayout('dev'));
+  const baseline = identifyParkedSourceInventory([source], envLayout('dev'), expected);
+  source.Mounts.reverse();
+  const before = structuredClone(source);
+  expect(identifyParkedSourceInventory([source], envLayout('dev'), expected)).toEqual(baseline);
+  expect(source).toEqual(before);
+  expect(() => identifySourceInventory([source], structuredClone(source))).toThrow(
+    'raw inventory membership',
+  );
+  Reflect.set(source.Mounts[0], 'Propagation', 'rshared');
+  expect(() => identifyParkedSourceInventory([source], envLayout('dev'), expected)).toThrow(
+    'parked source inventory member',
+  );
 });

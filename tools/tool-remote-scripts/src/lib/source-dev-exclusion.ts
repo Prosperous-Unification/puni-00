@@ -2,13 +2,13 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
 import { parseDockerInspection } from './docker-inspection-json';
-import { identifyInventory } from './docker-inventory';
 import { assertDependencyOwner, type DependencyOwner, ownerDockerHashed } from './edge-ownership';
 import { type EnvLayout, sourceDevContract } from './env';
 import { assertSame, publishRecord, readFields, readIdentity, readRecord } from './managed-cohort';
 import {
   assertSourceDevExcluded,
   decodeSourceDev,
+  identifySourceInventory,
   sourceDevIdentity,
   type SourceDevMember,
 } from './source-dev-cohort';
@@ -241,19 +241,6 @@ export async function withSourceDevExcluded<T>(
   }
 }
 
-function identifySourceInventory(
-  inventory: readonly unknown[],
-  source: unknown,
-  member: SourceDevMember,
-): unknown {
-  // Proof: source-inventory-order omission fails composed/source permutation positives;
-  // broad normalization of unrelated members fails reordered unrelated-inventory negatives.
-  // Only the validated exact raw source reference receives a derived mount ordering.
-  return identifyInventory(
-    inventory.map((raw) => (raw === source ? { ...readFields(raw), Mounts: member.mounts } : raw)),
-  );
-}
-
 /** Complete audit identity with mount ordering only for the live capability's exact raw source. */
 export async function identifySourceAuditInventory(
   owner: DependencyOwner,
@@ -264,7 +251,7 @@ export async function identifySourceAuditInventory(
   const raw = await inspectExcludedSourceMember(owner, layout, token, inventory);
   const scope = exclusions.get(token);
   if (scope === undefined) throw new Error('source dev exclusion expired during inspection');
-  return identifySourceInventory(inventory, raw, decodeSourceDev(raw, scope.layouts.dev));
+  return identifySourceInventory(inventory, raw);
 }
 
 /**
@@ -288,9 +275,10 @@ export async function inspectExcludedSourceMember(
   const raw = findSource(inventory, scope.layouts.dev);
   const observed = await observeMember(scope, inventory);
   const currentRaw = findSource(current, scope.layouts.dev);
+  decodeSourceDev(currentRaw, scope.layouts.dev);
   assertSame(
-    identifySourceInventory(current, currentRaw, decodeSourceDev(currentRaw, scope.layouts.dev)),
-    identifySourceInventory(inventory, raw, observed),
+    identifySourceInventory(current, currentRaw),
+    identifySourceInventory(inventory, raw),
     'complete audit inventory',
   );
   // Proof: retained-member equality omission admitted coherent caller finish/exit-code drift; both terminal-identity negatives failed.

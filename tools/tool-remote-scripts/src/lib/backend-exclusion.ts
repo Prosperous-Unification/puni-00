@@ -34,6 +34,7 @@ import {
 } from './managed-cohort';
 import { verifyContainerNamespace } from './mount-audit';
 import type { SolverExclusion } from './solver-exclusion';
+import type { SourceDevMember } from './source-dev-cohort';
 import type { SourceDevExclusion } from './source-dev-exclusion';
 
 const MARKER = '{"format":"dependency-backend-fence","version":1}\n';
@@ -439,6 +440,7 @@ export async function assertParkedBackendFenceUnderOwner(
   sha: string,
   runDocker: RunDocker,
   deadline: number,
+  source?: { layout: EnvLayout; member: SourceDevMember },
 ): Promise<void> {
   await assertDependencyOwner(owner, layout, sha);
   await assertRoot(layout);
@@ -449,6 +451,7 @@ export async function assertParkedBackendFenceUnderOwner(
     intent.gateway,
     ownerDockerHashed(owner, layout, runDocker),
     deadline,
+    source,
   );
   await assertDependencyOwner(owner, layout, sha);
 }

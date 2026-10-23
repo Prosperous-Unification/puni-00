@@ -1111,6 +1111,9 @@ for (const fault of [
   'socket',
   'mapping',
   'source-resumed',
+  'source-mount-duplicate',
+  'source-mount-field',
+  'unrelated-mount-field',
   'new-participant',
   'source-record',
   'database',
@@ -1152,6 +1155,9 @@ for (const fault of [
       'socket',
       'mapping',
       'source-resumed',
+      'source-mount-duplicate',
+      'source-mount-field',
+      'unrelated-mount-field',
       'new-participant',
       'source-record',
       'database',
@@ -1221,6 +1227,11 @@ for (const fault of [
           await writeFile(path, bytes, { mode: 0o600 });
         }
         if (fault === 'source-resumed') source.State.Running = true;
+        if (fault === 'source-mount-duplicate')
+          source.Mounts[0].Destination = source.Mounts[1].Destination;
+        if (fault === 'source-mount-field') Reflect.set(source.Mounts[0], 'Propagation', 'rshared');
+        if (fault === 'unrelated-mount-field')
+          Reflect.set(f.container.Mounts[0], 'Propagation', 'rshared');
         if (fault === 'new-participant') {
           const unrelated = structuredClone(f.container);
           unrelated.Id = '6'.repeat(64);

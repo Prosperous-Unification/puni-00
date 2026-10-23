@@ -1,3 +1,4 @@
+import { identifyInventory } from './docker-inventory';
 import { type EnvLayout, sourceDevContract } from './env';
 import {
   assertSame,
@@ -216,4 +217,41 @@ export function assertSourceDevExcluded(member: SourceDevMember): void {
     member.host['RestartPolicy'],
     'source dev restart inhibition',
   );
+}
+
+/**
+ * Pure identity projection after independent source validation; grants no audit recognition.
+ * Only the exact raw member receives a fresh mount ordering. Every compared field comes
+ * from this actual inventory, never from a captured expected member.
+ */
+export function identifySourceInventory(inventory: readonly unknown[], source: unknown): unknown {
+  assertSame(
+    1,
+    inventory.filter((raw) => raw === source).length,
+    'source raw inventory membership',
+  );
+  // Proof: source-only-scope fault admitted reordered unrelated mounts; complete-inventory negative failed.
+  return identifyInventory(
+    inventory.map((raw) =>
+      raw === source
+        ? { ...readFields(raw), Mounts: orderSourceMounts(readFields(raw)['Mounts']) }
+        : raw,
+    ),
+  );
+}
+
+/** Read-only identity of a still-terminal captured source; creates no token or namespace exemption. */
+export function identifyParkedSourceInventory(
+  inventory: readonly unknown[],
+  layout: EnvLayout,
+  expected: SourceDevMember,
+): unknown {
+  const matching = inventory.filter((raw) => readFields(raw)['Id'] === expected.id);
+  assertSame(1, matching.length, 'parked source inventory membership');
+  const raw = matching[0];
+  const observed = decodeSourceDev(raw, layout);
+  // Proof: parked-member-binding omission admitted native source field drift; parked identity negative failed.
+  assertSame(expected, observed, 'parked source inventory member');
+  assertSourceDevExcluded(observed);
+  return identifySourceInventory(inventory, raw);
 }

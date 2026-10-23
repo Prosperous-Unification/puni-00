@@ -27,6 +27,7 @@ import {
 } from './managed-cohort';
 import { verifyContainerNamespace } from './mount-audit';
 import { inspectExcludedSolverMembers, type SolverExclusion } from './solver-exclusion';
+import { identifyParkedSourceInventory, type SourceDevMember } from './source-dev-cohort';
 import {
   identifySourceAuditInventory,
   inspectExcludedSourceMember,
@@ -326,6 +327,7 @@ async function observeBackendCohort(
   namespaceProof: typeof verifyContainerNamespace,
   performAudit: boolean,
   source?: { owner: DependencyOwner; exclusion: SourceDevExclusion; solver?: SolverExclusion },
+  parked?: { layout: EnvLayout; member: SourceDevMember },
 ): Promise<{ cohort: BackendCohort; inventory: unknown }> {
   const gateway = await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
   // Proof: deleting byte binding accepts changed gateway-completion whitespace; read-only-inspection negative fails (exit 1).
@@ -358,9 +360,12 @@ async function observeBackendCohort(
     if (image === undefined) throw new Error('backend fence lost pinned audit image');
     // Proof: backend-inventory-order omission fails the composed source mount-permutation regression.
     const inventory =
-      source === undefined
-        ? identifyInventory(containers)
-        : await identifySourceAuditInventory(source.owner, layout, source.exclusion, containers);
+      source !== undefined
+        ? await identifySourceAuditInventory(source.owner, layout, source.exclusion, containers)
+        : // Proof: parked-backend-order omission refused native source permutations during restoration.
+          parked === undefined
+          ? identifyInventory(containers)
+          : identifyParkedSourceInventory(containers, parked.layout, parked.member);
     if (!performAudit && source !== undefined) {
       await inspectExcludedSourceMember(source.owner, layout, source.exclusion, containers);
       if (source.solver !== undefined)
@@ -566,6 +571,7 @@ export async function assertParkedBackendCohort(
   binding: GatewayBinding,
   runDocker: RunDocker,
   deadline: number,
+  source?: { layout: EnvLayout; member: SourceDevMember },
 ): Promise<void> {
   const first = await observeBackendCohort(
     layout,
@@ -574,6 +580,8 @@ export async function assertParkedBackendCohort(
     binding,
     verifyContainerNamespace,
     false,
+    undefined,
+    source,
   );
   const second = await observeBackendCohort(
     layout,
@@ -582,6 +590,8 @@ export async function assertParkedBackendCohort(
     binding,
     verifyContainerNamespace,
     false,
+    undefined,
+    source,
   );
   assertSame(first.inventory, second.inventory, 'parked backend full inventory');
   // Proof: parked-database omissions admitted a replaced SQLite inode; composed database test failed (exit 1).

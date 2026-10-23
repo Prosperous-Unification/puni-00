@@ -5,7 +5,6 @@ import { assertParkedBackendFenceUnderOwner } from './backend-exclusion';
 import { inspectDependencyIngress } from './dependency-ingress';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
 import { parseDockerInspection } from './docker-inspection-json';
-import { identifyInventory } from './docker-inventory';
 import {
   assertDependencyOwner,
   type DependencyOwner,
@@ -19,7 +18,11 @@ import {
   type SolverExclusion,
   type SolverLayouts,
 } from './solver-exclusion';
-import { decodeSourceDev } from './source-dev-cohort';
+import {
+  decodeSourceDev,
+  identifyParkedSourceInventory,
+  identifySourceInventory,
+} from './source-dev-cohort';
 import {
   assertParkedSourceDev,
   inspectExcludedSourceMember,
@@ -78,7 +81,8 @@ export async function captureParkedDependencies(
   );
   const solverIds = new Set(snapshots.map((snapshot) => snapshot.solver.id));
   const nonsolver = initial.filter((raw) => !solverIds.has(readIdentity(readFields(raw)['Id'])));
-  const baseline = identifyInventory(nonsolver);
+  // Proof: parked-order omission compared raw source arrays; full restoration permutation positive failed.
+  const baseline = identifySourceInventory(nonsolver, sourceRaw);
   const records = await Promise.all(
     [
       ...['intent', 'complete'].map((label) =>
@@ -96,11 +100,14 @@ export async function captureParkedDependencies(
     for (const id of removed)
       if (!solverIds.has(id)) throw new Error('parked solver removal set is foreign');
     const current = await inspectInventory();
+    await assertParkedSourceDev(owner, layouts, sha, sourceMember, current, runDocker, deadline);
     // Proof: parked-inventory omission lost the first complete-membership boundary; new-participant test failed (exit 1).
     assertSame(
       baseline,
-      identifyInventory(
+      identifyParkedSourceInventory(
         current.filter((raw) => !solverIds.has(readIdentity(readFields(raw)['Id']))),
+        layouts.dev,
+        sourceMember,
       ),
       'restoration exact parked participants',
     );
@@ -116,7 +123,6 @@ export async function captureParkedDependencies(
         assertSame(snapshot, parseSolverSnapshot(raw, id), 'restoration exact terminal solver');
       }
     }
-    await assertParkedSourceDev(owner, layouts, sha, sourceMember, current, runDocker, deadline);
     for (const record of records) {
       // Proof: parked-records omission admitted changed source evidence; source-record test failed (exit 1).
       assertSame(
@@ -126,7 +132,10 @@ export async function captureParkedDependencies(
       );
       await assertOwner();
     }
-    await assertParkedBackendFenceUnderOwner(owner, layouts.prod, sha, runDocker, deadline);
+    await assertParkedBackendFenceUnderOwner(owner, layouts.prod, sha, runDocker, deadline, {
+      layout: layouts.dev,
+      member: sourceMember,
+    });
     await inspectDependencyIngress(owner, [layouts.prod, layouts.dev], runDocker, deadline);
     await assertOwner();
   }
