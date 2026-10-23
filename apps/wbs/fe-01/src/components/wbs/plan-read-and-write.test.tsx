@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -1058,6 +1059,61 @@ describe('failures you can see', () => {
       expect(toastTexts()).toContain('That change could not be completed (unknown_strategy).');
     });
   });
+
+  itDom(
+    'draws the plan, not stale, with the claims notice when an older be-01 answers 404 for claims',
+    async () => {
+      // `wbs-claim-display` C12: mid-swap, an older be-01 has no claims route.
+      // The plan stands and is not called stale, no chip is drawn, the claims
+      // notice says so, and nothing reaches the Error Boundary (that assertion
+      // guards the chips of later slices; nothing here can throw yet).
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+      let claimsReads = 0;
+      let claimsServed = false;
+      const treeReads = recordCalls(api, 'tree');
+      api.readClaims = () => {
+        claimsReads += 1;
+        if (claimsServed) return Promise.resolve({ readAt: 0, claims: [] });
+        return Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'getApiProjectsByIdClaims',
+            refusal: { error: 'not_found' },
+          }),
+        );
+      };
+      render(
+        <AppFaultBoundary>
+          <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+        </AppFaultBoundary>,
+      );
+
+      await waitFor(() => {
+        expect(document.querySelector('[data-stale-claims]')).not.toBeNull();
+      });
+      expect(staleBanner()).toBeNull();
+      expect(numbersOnScreen()).toEqual(['010']);
+      expect(claimsReads).toBe(1);
+      expect(document.querySelector('[data-app-fault]')).toBeNull();
+      // Nobody asked for this read, so nothing was refused out loud.
+      expect(toastTexts()).toEqual([]);
+
+      // Its retry reads claims and nothing else, and clears by succeeding.
+      const treeReadsBefore = treeReads.length;
+      claimsServed = true;
+      click('Retry claims');
+      await waitFor(() => {
+        expect(document.querySelector('[data-stale-claims]')).toBeNull();
+      });
+      expect(claimsReads).toBe(2);
+      expect(treeReads).toHaveLength(treeReadsBefore);
+      // The live region outlives the failure, empty, so the next one is announced.
+      const region = document.querySelector('[data-claims-notice]');
+      expect(region).toHaveAttribute('aria-live', 'polite');
+      expect(region?.textContent).toBe('');
+    },
+  );
 
   itDom('raises the stale-tree banner when a socket refetch fails', async () => {
     const { api, notify } = await subscribedTable();
@@ -2150,6 +2206,7 @@ describe('refresh owner lifetimes', () => {
       'listWorkItemTypes',
       'listExternalSystems',
       'listPeople',
+      'readClaims',
       'listCalendarMarkers',
     ] as const) {
       recordCalls(replacement, method, () => replacementReads.push(method));
@@ -2162,14 +2219,14 @@ describe('refresh owner lifetimes', () => {
         'value',
         'Replacement during read',
       );
-      expect(replacementReads).toHaveLength(9);
+      expect(replacementReads).toHaveLength(10);
     });
 
     await act(async () => {
       finishRead();
       await Promise.resolve();
     });
-    expect(replacementReads).toHaveLength(9);
+    expect(replacementReads).toHaveLength(10);
     expect(toastTexts()).toEqual([]);
   });
 

@@ -26,16 +26,16 @@
 
 ## 2. Claims as a refresh resource (fe-01; deploys before slice 3)
 
-- [ ] 2.1 Red: `plan-refresh.test.ts`: `resourcesFor('claims_changed')` is `['claims']`,
+- [x] 2.1 Red: `plan-refresh.test.ts`: `resourcesFor('claims_changed')` is `['claims']`,
       `tree_replaced` is `['tree', 'claims']`, `plan_unavailable` stays `['tree']`, unknown
       events include claims. Green: the fifth resource. R5 fault: map `claims_changed` to
       nothing (it falls through to every resource); watched.
-- [ ] 2.2 Red: coordinator tests per the `plan-refresh` delta: claims install independently,
+- [x] 2.2 Red: coordinator tests per the `plan-refresh` delta: claims install independently,
       a held claims read does not block a tree install, a failed claims read keeps the last
       claims and its stale state across a later tree success; the installed claims carry
       `readAt` and the install's monotonic instant. R5 fault: share the tree's generation for
       claims; watched.
-- [ ] 2.3 Red: a 404 from the claims route (an older be-01) renders the plan with no chips and
+- [x] 2.3 Red: a 404 from the claims route (an older be-01) renders the plan with no chips and
       the stale notice, never the Error Boundary — test: the table with an injected API.
 
 ## 3. Heartbeat announcement (be-01)

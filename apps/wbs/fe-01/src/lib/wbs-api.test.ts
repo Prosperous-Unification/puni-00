@@ -1567,6 +1567,7 @@ const FULL_SCOPE_PUTS_ON_THE_WIRE = [
   'GET /api/projects/p1/work-items',
   'GET /api/projects/p1',
   'GET /api/projects/p1/calendar-markers',
+  'GET /api/projects/p1/claims',
   'GET /api/teams',
   'GET /api/tags',
   'GET /api/services',
@@ -1577,7 +1578,7 @@ const FULL_SCOPE_PUTS_ON_THE_WIRE = [
 
 describe('what a full-scope read puts on the wire', () => {
   it('spends exactly one request per read, so a second one inside a method is red', async () => {
-    // Answered by path rather than in call order: the nine run concurrently, so
+    // Answered by path rather than in call order: the ten run concurrently, so
     // a positional `mockResolvedValueOnce` chain would bind an answer to
     // whichever request happened to be third and turn an ordering change into a
     // shape failure somewhere else.
@@ -1585,6 +1586,7 @@ describe('what a full-scope read puts on the wire', () => {
       '/api/projects/p1/work-items': TREE('p1', []),
       '/api/projects/p1': JSON.stringify({ project: PROJECT, steps: [] }),
       '/api/projects/p1/calendar-markers': '{"markers":[]}',
+      '/api/projects/p1/claims': '{"readAt":0,"claims":[]}',
       '/api/teams': '{"teams":[]}',
       '/api/tags': '{"tags":[]}',
       '/api/services': '{"services":[]}',
@@ -1600,7 +1602,7 @@ describe('what a full-scope read puts on the wire', () => {
       // it cannot pass as a plausible empty answer.
       return response(body === undefined ? 404 : 200, body ?? '{}');
     });
-    // All nine on the object a socket-driven refresh is actually handed.
+    // All ten on the object a socket-driven refresh is actually handed.
     // `httpProjectApi` builds its own `httpDirectoryApi` and spreads those six
     // methods into what it returns (`wbs-api.ts:2197`, `:2237-2239`), so calling
     // them on a separately constructed directory would exercise the shared
@@ -1618,6 +1620,7 @@ describe('what a full-scope read puts on the wire', () => {
       project.tree('p1'),
       project.steps('p1'),
       project.listCalendarMarkers('p1'),
+      project.readClaims('p1'),
       project.listTeams(),
       project.listTags(),
       project.listServices(),
@@ -1650,7 +1653,7 @@ describe('what a full-scope read puts on the wire', () => {
    * `FULL_SCOPE_PUTS_ON_THE_WIRE` also keeps the claim readable as two places
    * rather than three.
    */
-  it('spends the same nine on an optimized project, and again on the same client', async () => {
+  it('spends the same ten on an optimized project, and again on the same client', async () => {
     const optimized = JSON.parse(TREE('p1', [])) as Record<string, unknown>;
     optimized['optimization'] = {
       enabled: true,
@@ -1669,6 +1672,7 @@ describe('what a full-scope read puts on the wire', () => {
       '/api/projects/p1/work-items': JSON.stringify(optimized),
       '/api/projects/p1': JSON.stringify({ project: PROJECT, steps: [] }),
       '/api/projects/p1/calendar-markers': '{"markers":[]}',
+      '/api/projects/p1/claims': '{"readAt":0,"claims":[]}',
       '/api/teams': '{"teams":[]}',
       '/api/tags': '{"tags":[]}',
       '/api/services': '{"services":[]}',
@@ -1688,6 +1692,7 @@ describe('what a full-scope read puts on the wire', () => {
         project.tree('p1'),
         project.steps('p1'),
         project.listCalendarMarkers('p1'),
+        project.readClaims('p1'),
         project.listTeams(),
         project.listTags(),
         project.listServices(),
@@ -1701,8 +1706,8 @@ describe('what a full-scope read puts on the wire', () => {
     expect([...requests].sort()).toEqual([...FULL_SCOPE_PUTS_ON_THE_WIRE].sort());
 
     // Cleared rather than summed, so the second refresh is measured on its own.
-    // Summing would still go red under a second-read-only guard — nineteen
-    // actual against eighteen expected — so this is about the failure being
+    // Summing would still go red under a second-read-only guard — twenty-one
+    // actual against twenty expected — so this is about the failure being
     // readable, not about catching it at all: an aggregate mismatch names
     // neither pass, while a cleared log points at the refresh that grew.
     requests = [];

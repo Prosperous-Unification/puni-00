@@ -71,13 +71,14 @@ Claim chip, Releasing claim, Claim history (in `CONTEXT.md`).
 | C9  | The hover card and accessible name carry the whole sentence.                                     |
 | C10 | Lease states: none, in force, releasing; a revoked lease reads releasing, card says why.         |
 | C11 | A claim whose row or step the installed tree lacks is not drawn until the reads agree.           |
-| C12 | A failed claims read draws no chips and shows the refresh failure; never the Error Boundary.     |
+| C12 | Failed claims read: own quiet notice, claims-only retry; plan not stale; no Error Boundary.      |
 | C13 | Release history: a claim history read and a Claims sheet section; no general history view.       |
 | C14 | History reason derived from the stored command; deleted persons and items read as null.          |
 | C15 | No claim or release control in fe-01.                                                            |
 | C16 | The Claims sheet opens from a toolbar button with the held count, and from the phone sheet.      |
 | C17 | The phone cards layout carries the same chips.                                                   |
 | C18 | Supersedes `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1.                                     |
+| C20 | Claims obligations never hold the stream acknowledgment.                                         |
 
 ## Impact
 

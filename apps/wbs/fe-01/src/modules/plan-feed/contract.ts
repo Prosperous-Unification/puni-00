@@ -72,6 +72,8 @@ export interface PlanFeedStreamHandlers {
   /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
   onChange: (changed?: string | null, seq?: number) => void;
   onConnectionChange: (connected: boolean) => void;
+  /** See `ProjectStreamOptions.onClaims`: a transient claims announcement, opted into here. */
+  onClaims: () => void;
 }
 
 /**

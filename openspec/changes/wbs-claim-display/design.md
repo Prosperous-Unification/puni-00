@@ -112,10 +112,13 @@ may name a row or step the installed tree lacks, or the reverse. The table draws
 where the installed tree has the row and the step; the Claims sheet lists every claim by the
 claims read's own number and name. Not an error: the next covering read agrees.
 
-**C12. A failed claims read is a rendered state.** The table keeps the last installed claims
-and shows the coordinator's stale notice (`plan-refresh`, failures stay visible); with no
-installed claims it draws no chips. An older be-01 mid-swap answers 404 for the route: same
-state. The Claims sheet renders the failure in place. Never the Error Boundary.
+**C12. A failed claims read is a rendered state.** The table keeps the last installed claims;
+with no installed claims it draws no chips. Claims are optional, so their failure is not the
+plan's: the plan's stale alert ("This plan may be out of date") and the optimization cue's
+stale state read the plan's resources only. Claims show their own quiet status line, "Claims
+could not be read.", with a `Retry claims` button that rereads claims alone and clears it by
+succeeding. An older be-01 mid-swap answers its router miss (`404 NOT_FOUND`) for the route:
+same state. The Claims sheet renders the failure in place. Never the Error Boundary.
 
 **C13. Release history is a projection, not a history view.** `GET
 /api/projects/:id/claim-history?limit=` (`getApiProjectsByIdClaim-history`) answers the
@@ -146,11 +149,26 @@ a subtree claim.
 **C18. Supersession.** This change builds `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1;
 both are marked superseded there when their branches settle.
 
+**C20. Claims never hold the stream acknowledgment.** A sequenced event's claims obligation is
+not recorded against its sequence: the event is acknowledged once its other resources are
+covered. A claims read is a complete snapshot, so any later one covers whatever an acknowledged
+event changed, and a failed one stays visible as claims' own stale state (C12). This matches
+the baseline, which anchors without claims. Rejected: holding acknowledgment as markers do, which
+pins every reconnect to the baseline for as long as an older be-01 lacks the read. (C19 is not
+used.)
+
 ## Risks / Trade-offs
 
-- **Heartbeat events reach the event log.** Each renewal that moves a lease appends one
-  `claims_changed` per project: at most one per agent per minute, inside a turn the renewal
-  takes anyway. If it shows in the event log's size, coalesce per project per tick.
+- **Heartbeats are pushed, not logged** (C21, recorded by slice 3). Each renewal that moves a
+  lease pushes one transient `claims_changed` per project, at most one per agent per minute. It
+  never reaches the durable event log and a resume never replays it, so fe-01 rereads claims on
+  every synchronisation of its stream. Only the plan feed opts into the announcement; the
+  saved-plan shelf's socket never hears it.
+- **Page load reads claims twice.** `establish` reads claims beside the anchored reads, and the
+  stream's first synchronisation reads them again. The second read is the one that covers the
+  interval between the first read and the socket's registration, in which an announcement could
+  be pushed and lost. It cannot be skipped cheaply, because the first read always starts before
+  the socket registers. The cost is one small read per page load.
 - **A consent revocation is up to one tick stale** on screen (C4).
 - **Two moments on one screen** (C11): a chip may lag its row by one read.
 - **An undone claim stays in the history list** as claimed (C14); the held list is the truth.

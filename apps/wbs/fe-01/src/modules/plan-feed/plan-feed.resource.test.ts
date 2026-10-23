@@ -33,6 +33,7 @@ function snapshotOf(over: Partial<PlanRefreshSnapshot> = {}): PlanRefreshSnapsho
     steps: NOTHING_READ,
     directory: NOTHING_READ,
     markers: NOTHING_READ,
+    claims: NOTHING_READ,
     staleResources: [],
     baseline: null,
     acknowledged: -1,
@@ -316,7 +317,36 @@ describe('one project’s reading', () => {
     handlers.onChange('tree_replaced', 8);
 
     expect(fake.asked).toEqual(['initialize', 'initialize', 'invalidate']);
-    expect(fake.invalidations).toEqual([{ resources: ['tree'], seq: 8 }]);
+    expect(fake.invalidations).toEqual([{ resources: ['tree', 'claims'], seq: 8 }]);
+  });
+
+  it('rereads claims each time the stream synchronises', () => {
+    // C21: claims announcements are transient, so a resume replays none from
+    // the gap; an accepted resume and a refused one alike reread them.
+    const fake = fakeOwner();
+    const recorded = portsOver(fake.owner);
+
+    createPlanReading(recorded.ports);
+    fake.show(ANCHORED_SNAPSHOT);
+    const handlers = handlersOf(recorded.opened);
+    handlers.onConnectionChange(true);
+    handlers.onConnectionChange(false);
+    handlers.onConnectionChange(true);
+
+    expect(fake.invalidations).toEqual([{ resources: ['claims'] }, { resources: ['claims'] }]);
+    expect(recorded.connections).toEqual([true, false, true]);
+  });
+
+  it('reads claims alone for a claims announcement', () => {
+    const fake = fakeOwner();
+    const recorded = portsOver(fake.owner);
+
+    createPlanReading(recorded.ports);
+    fake.show(ANCHORED_SNAPSHOT);
+    handlersOf(recorded.opened).onClaims();
+
+    expect(fake.asked).toEqual(['initialize', 'invalidate']);
+    expect(fake.invalidations).toEqual([{ resources: ['claims'] }]);
   });
 
   it('ignores a change and a connection that arrive after it stops being live', () => {
