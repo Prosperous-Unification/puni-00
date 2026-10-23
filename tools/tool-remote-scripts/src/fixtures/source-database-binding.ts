@@ -288,6 +288,7 @@ export async function sourceDatabaseFixture(
       deadline: number,
     ) => Promise<void>,
     budget = 10000,
+    sourceDeadlineOffset = 0,
   ) {
     await withDependencyOwner(
       { sha: pins.sourceSha, layouts: [layouts.prod, layouts.dev] },
@@ -299,7 +300,7 @@ export async function sourceDatabaseFixture(
             layouts,
             pins.sourceSha,
             docker,
-            deadline,
+            deadline + sourceDeadlineOffset,
             async (sourceToken) => {
               await fenceGatewaysUnderOwner(owner, layouts.prod, pins.sourceSha, docker, deadline);
               await fenceBackendsUnderOwner(

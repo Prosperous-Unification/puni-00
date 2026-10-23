@@ -30,6 +30,26 @@ interface SourceScope {
 }
 const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
 
+/**
+ * Requires the original live source scope to share one exact operation deadline.
+ * Optional tightening observers remain independent; a bounded view never recreates authority.
+ */
+export function assertSourceDevExclusionDeadline(
+  owner: DependencyOwner,
+  token: SourceDevExclusion,
+  deadline: number,
+): void {
+  const scope = exclusions.get(token);
+  // Proof: exact-budget omission admitted a different original budget; owner omission admitted a copied owner; expiry omission admitted elapsed original time. All operation-deadline negatives failed.
+  if (
+    scope?.owner !== owner ||
+    !Number.isFinite(deadline) ||
+    deadline <= performance.now() ||
+    deadline !== scope.deadline
+  )
+    throw new Error('source dev exclusion deadline differs');
+}
+
 /** A bounded, getter-free cleanup diagnostic; raw transport causes never enter the retained aggregate. */
 function describeJoinFailure(cause: unknown, args: readonly string[]): Error {
   let category: 'message' | 'string' | 'non-error' | 'unreadable' = 'non-error';

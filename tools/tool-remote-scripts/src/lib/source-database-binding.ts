@@ -19,6 +19,7 @@ import {
 } from './solver-exclusion';
 import { decodeSourceDev, identifySourceInventory } from './source-dev-cohort';
 import {
+  assertSourceDevExclusionDeadline,
   inspectExcludedSourceMember,
   inspectSourceDevExclusion,
   type SourceDevExclusion,
@@ -257,7 +258,8 @@ function assertDistinct(prod: Family, dev: Family): void {
     refuse();
 }
 /**
- * Constructs real source input evidence at the exact live solver operation deadline and brackets
+ * Requires source and solver original scopes to share the exact same absolute operation deadline.
+ * Constructs real source input evidence at that deadline and brackets
  * effective storage configuration, native inventory and actual production fence completion.
  * Never opens SQLite, changes a participant or turns returned observations into a grant.
  * All failures discard private configuration and transport causes.
@@ -278,6 +280,8 @@ export async function observeSourceDatabaseBindings(
     assertSourceDeadline(deadline);
     // Proof: entry deadline-guard omission allowed nested queries for mismatched budgets; exact shared-deadline test failed.
     assertSolverExclusionDeadline(owner, solver, deadline);
+    // Proof: entry source-guard omission ran nested queries with a shorter original source budget; zero-query mismatch negative failed.
+    assertSourceDevExclusionDeadline(owner, source, deadline);
     layouts = structuredClone(layouts);
     const pins = decodeSourceDevPins(suppliedPins);
     const manifest = decodeSourceStartupManifest(manifestContents, pins);
@@ -417,6 +421,7 @@ export async function observeSourceDatabaseBindings(
     configuration = undefined;
     await inspectSourceDevExclusion(owner, source, deadline);
     assertSolverExclusionDeadline(owner, solver, deadline);
+    assertSourceDevExclusionDeadline(owner, source, deadline);
     assertSourceDeadline(deadline);
     return Object.freeze({
       format: 'source-database-bindings',

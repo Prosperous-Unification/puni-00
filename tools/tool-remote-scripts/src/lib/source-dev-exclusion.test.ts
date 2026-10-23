@@ -10,6 +10,7 @@ import type { RunDocker } from './docker-deadline';
 import { assertDependencyOwner, withDependencyOwner } from './edge-ownership';
 import { envLayout, sourceDevContract } from './env';
 import {
+  assertSourceDevExclusionDeadline,
   inspectExcludedSourceMember,
   inspectSourceDevExclusion,
   type SourceDevExclusion,
@@ -970,4 +971,96 @@ test('complete source audit accepts source and unrelated mount permutations with
       ),
     f.root,
   );
+});
+
+test('source operation deadline guard requires original live owner and exact original scope budget without queries', async () => {
+  const f = await fixture(),
+    g = await fixture();
+  let previous: SourceDevExclusion | undefined;
+  await withDependencyOwner(
+    { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+    async (owner) => {
+      const deadline = performance.now() + 5000;
+      await withSourceDevExcluded(
+        owner,
+        f.layouts,
+        'a'.repeat(40),
+        f.docker,
+        deadline,
+        async (source) => {
+          previous = source;
+          const before = f.commands.length;
+          expect(() => {
+            assertSourceDevExclusionDeadline(owner, source, deadline);
+          }).not.toThrow();
+          for (const supplied of [
+            deadline - 1,
+            deadline + 1,
+            NaN,
+            Infinity,
+            performance.now() - 1,
+          ]) {
+            expect(() => {
+              assertSourceDevExclusionDeadline(owner, source, supplied);
+            }).toThrow('source dev exclusion deadline differs');
+          }
+          expect(() => {
+            assertSourceDevExclusionDeadline(owner, { ...source }, deadline);
+          }).toThrow('source dev exclusion deadline differs');
+          expect(() => {
+            assertSourceDevExclusionDeadline({ ...owner }, source, deadline);
+          }).toThrow('source dev exclusion deadline differs');
+          await withDependencyOwner(
+            { sha: 'a'.repeat(40), layouts: [g.layouts.prod, g.layouts.dev] },
+            (foreign) => {
+              expect(() => {
+                assertSourceDevExclusionDeadline(foreign, source, deadline);
+              }).toThrow('source dev exclusion deadline differs');
+              return Promise.resolve();
+            },
+            g.root,
+          );
+          expect(f.commands.length).toBe(before);
+        },
+      );
+      if (previous === undefined) throw new Error('fixture did not enter source scope');
+      const source = previous;
+      expect(() => {
+        assertSourceDevExclusionDeadline(owner, source, deadline);
+      }).toThrow('source dev exclusion deadline differs');
+    },
+    f.root,
+  );
+});
+
+test('source operation deadline guard refuses elapsed original scope time while token is still live', async () => {
+  const f = await fixture();
+  const state = { refused: false };
+  await rejects(
+    withDependencyOwner(
+      { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+      async (owner) => {
+        const deadline = performance.now() + 700;
+        await withSourceDevExcluded(
+          owner,
+          f.layouts,
+          'a'.repeat(40),
+          f.docker,
+          deadline,
+          async (source) => {
+            await Bun.sleep(Math.max(1, deadline - performance.now() + 2));
+            try {
+              assertSourceDevExclusionDeadline(owner, source, deadline);
+            } catch (cause) {
+              state.refused =
+                cause instanceof Error && cause.message === 'source dev exclusion deadline differs';
+            }
+          },
+        );
+      },
+      f.root,
+    ),
+    /source dev exclusion deadline exceeded/,
+  );
+  expect(state.refused).toBe(true);
 });

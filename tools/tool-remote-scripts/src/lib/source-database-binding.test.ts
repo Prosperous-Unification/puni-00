@@ -384,3 +384,99 @@ test('refuses canonical nested production and source database directories', asyn
     );
   });
 });
+
+for (const sourceDeadlineOffset of [-1000, 4000])
+  test(`refuses differing original source deadline ${String(sourceDeadlineOffset)} before any nested query`, async () => {
+    const f = await sourceDatabaseFixture();
+    await f.scoped(
+      async (owner, source, solver, deadline) => {
+        const before = f.commands.length;
+        await rejects(
+          observeSourceDatabaseBindings(
+            owner,
+            f.layouts,
+            source,
+            solver,
+            f.pins,
+            f.contents,
+            f.docker,
+            deadline,
+          ),
+          /source database binding refused/,
+        );
+        expect(f.commands.length).toBe(before);
+      },
+      10000,
+      sourceDeadlineOffset,
+    );
+  });
+
+test('longer original source deadline cannot extend nested backend source inspection', async () => {
+  const f = await sourceDatabaseFixture();
+  const state = {
+    injected: false,
+    aborted: false,
+    settled: false,
+    overrun: Infinity,
+    queries: -1,
+    refused: false,
+  };
+  const scopeFailure = await f
+    .scoped(
+      async (owner, source, solver, deadline) => {
+        const before = f.commands.length;
+        f.setIntercept(async (args, signal) => {
+          const stack = new Error().stack ?? '';
+          if (
+            state.injected ||
+            args[0] !== 'ps' ||
+            !stack.includes('inspectExcludedSourceMember') ||
+            !stack.includes('observeBackendCohort')
+          )
+            return;
+          state.injected = true;
+          await new Promise<void>((_resolve, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                state.aborted = true;
+                state.settled = true;
+                reject(new Error('fixture nested source inspection aborted'));
+              },
+              { once: true },
+            );
+          });
+        });
+        try {
+          await observeSourceDatabaseBindings(
+            owner,
+            f.layouts,
+            source,
+            solver,
+            f.pins,
+            f.contents,
+            f.docker,
+            deadline,
+          );
+        } catch (cause) {
+          state.refused =
+            cause instanceof Error && cause.message === 'source database binding refused';
+        }
+        state.overrun = Math.max(0, performance.now() - deadline);
+        state.queries = f.commands.length - before;
+      },
+      7000,
+      4000,
+    )
+    .then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+  expect(state.overrun).toBeLessThan(150);
+  expect(scopeFailure).toBeUndefined();
+  expect(state.refused).toBe(true);
+  expect(state.queries).toBe(0);
+  expect(state.injected).toBe(false);
+  expect(state.aborted).toBe(false);
+  expect(state.settled).toBe(false);
+});
