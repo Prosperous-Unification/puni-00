@@ -53,13 +53,19 @@ rollout readiness.
   6 passed, 0 failed, 18 assertions. Docker-copy generation took 5449.05ms;
   the whole file took 8.49 seconds. No timeout or test was modified.
 
+- Final repeat of the exact configured MCP target on committed
+  `fcf202d02919c5b6d9ec98650e93c660f05e0c13`, unchanged test/timeout settings:
+  625 passed, 0 failed, 24 files, 4136 assertions, 354.35 seconds; Nx exited 0,
+  cache bypassed. The earlier full-target timeout remains recorded above.
 - Configured `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p wbs-mcp-01,wbs-be-01 --skip-nx-cache --outputStyle=static`:
   passed both projects and the backend module-typecheck dependency, cache bypassed.
 - Restored focused selection after the watched production header omission:
   2 passed, 0 failed, 19 assertions, 7.26 seconds. Production forwarding had no diff.
 - Independent source review found no issues; its restored focused run passed
   2 tests, 0 failures, 19 assertions in 7.19 seconds.
-- Scoped Prettier check and `git diff --check`: passed.
+- Scoped Prettier check and `git diff --check`: passed. Normal repository
+  commit hooks also passed; Tool Wiki reported its existing inactive activation
+  root explicitly rather than claiming certification.
 
 Dependencies reuse the existing workspace installation through an ignored
 `node_modules` symlink; no fresh frozen install was performed. No host gate,
