@@ -815,3 +815,36 @@ Every authenticated WebSocket upgrade and reconnect SHALL ask the backend's secr
 - **WHEN** the backend transport fails, exceeds its finite deadline or returns an invalid status or malformed typed refusal
 - **THEN** the gateway refuses before opening the socket
 - **AND** origin and credential refusals precede any backend admission request
+
+### Requirement: Gateway application delivery is bounded and awaitable
+
+Gateway push, presence, replay and control frames SHALL share one awaitable per-socket FIFO with at most 64 pending frames and a five-second queued delivery deadline. Overflow, expiry, writer failure or physical drop SHALL retire the connection, cancel waiting producers, remove subscriptions and close with 1013. Cancellation SHALL prevent queued physical writes. This prerequisite SHALL NOT activate or advertise semantic support.
+
+#### Scenario: Push counts completed accepted sends
+
+- **GIVEN** a subscription with a healthy recipient and a recipient whose asynchronous delivery fails
+- **WHEN** an internal push arrives
+- **THEN** its response awaits both outcomes and reports one delivered socket
+- **AND** fanout metrics count one accepted frame, the failed connection is retired with its reason and original asynchronous error reported, and no asynchronous rejection is detached
+- **AND** Bun backpressure acceptance counts once without a retry; Bun drop does not count
+
+#### Scenario: A delayed replay precedes its acknowledgement
+
+- **GIVEN** the first replay event is waiting for its delivery writer
+- **WHEN** the gateway processes multiple replay events
+- **THEN** later replay events and `resume_ack` wait for the first event
+- **AND** a retired replay stops before later events and acknowledgement
+
+#### Scenario: Presence failure is modeled or surfaced
+
+- **GIVEN** a presence broadcast with one failing recipient and one healthy recipient
+- **WHEN** their deliveries complete
+- **THEN** the production delivery boundary returns retirement for the failed connection and preserves healthy delivery
+- **AND** any unexpected rejected delivery is observable through the broadcast promise
+
+#### Scenario: Stalled delivery cannot accumulate an unbounded queue
+
+- **GIVEN** a stalled writer on a retained connection
+- **WHEN** its application queue reaches capacity or its deadline expires
+- **THEN** the connection is retired, all waiting producers settle, and queued successors never start
+- **AND** cancellation before or during delivery prevents new physical writes even if a delayed adapter later settles

@@ -10,6 +10,7 @@ import {
 import { type } from '@wbs/validation';
 
 import type { ConnectionAccess } from '../service/connection-access';
+import type { DeliverySocket } from '../service/delivery';
 import type { SubscriptionMap } from '../service/subscription-map';
 import type { UnexpectedBackendFailureReporter } from './unexpected-backend-failure';
 
@@ -17,9 +18,7 @@ export type ResumeStatus =
   | { status: 'replaying'; events: { seq: number; message: unknown }[] }
   | { status: 'denied'; reason: 'out_of_range' | 'forbidden' };
 
-export interface WsSocket {
-  send(s: string): void;
-}
+export type WsSocket = DeliverySocket;
 
 export interface HandleWsMessageArgs {
   /** The wire adapter has already decoded the JSON value; strings are values, never JSON to parse again. */
@@ -46,9 +45,9 @@ export interface HandleWsMessageArgs {
    * scopes the roster by it), and a controller that knew about rosters would
    * have to be handed one in every test that sends a `subscribe`.
    */
-  onSubscribed?: (subscription: string) => void;
+  onSubscribed?: (subscription: string) => Promise<void> | void;
   /** The socket left `subscription`. */
-  onUnsubscribed?: (subscription: string) => void;
+  onUnsubscribed?: (subscription: string) => Promise<void> | void;
   /**
    * The roster for **this** connection — its project's, not the gateway's — for
    * a client that asks instead of waiting.
@@ -90,7 +89,7 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
   // throw TypeError; the real-socket malformed-frame test receives only pong, without the refusal.
   const inbound = WsClientFrame(args.frame);
   if (inbound instanceof type.errors) {
-    args.socket.send(wsError('invalid_payload'));
+    await args.socket.send(wsError('invalid_payload'));
     return;
   }
   if (inbound.kind === 'forward') {
@@ -108,21 +107,21 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
         clientId: args.clientId,
       });
       args.onBackendUnavailable?.();
-      args.socket.send(wsError('backend_unavailable', { retry_after: 5 }));
+      await args.socket.send(wsError('backend_unavailable', { retry_after: 5 }));
     }
     return;
   }
   const msg = inbound.frame;
 
   if (msg.type === 'ping') {
-    args.socket.send(wsPong());
+    await args.socket.send(wsPong());
     return;
   }
 
   // A client that reconnects has missed every broadcast sent while it was
   // away, so it must be able to ask rather than wait for the next join.
   if (msg.type === 'who') {
-    args.socket.send(wsPresence(args.roster?.() ?? []));
+    await args.socket.send(wsPresence(args.roster?.() ?? []));
     return;
   }
 
@@ -143,7 +142,7 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       else refused.push(subscription);
     }
     for (const subscription of refused) {
-      args.socket.send(wsResumeDenied(subscription, 'forbidden'));
+      await args.socket.send(wsResumeDenied(subscription, 'forbidden'));
     }
     let result: Record<string, ResumeStatus>;
     try {
@@ -164,9 +163,9 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       // left on an open socket with stale rows and no reason to refetch.
       // `unavailable`, not `out_of_range`: nothing is known about the range.
       for (const subscription of Object.keys(points)) {
-        args.socket.send(wsResumeDenied(subscription, 'unavailable'));
+        await args.socket.send(wsResumeDenied(subscription, 'unavailable'));
       }
-      args.socket.send(wsResumeAck({}));
+      await args.socket.send(wsResumeAck({}));
       return;
     }
     // Proof: removing this guard emitted replay data and resume_ack after close
@@ -182,11 +181,11 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
     const replayed: Record<string, number> = {};
     for (const [subscription, outcome] of Object.entries(result)) {
       if (rechecked.get(subscription) !== 'granted') {
-        args.socket.send(wsResumeDenied(subscription, 'forbidden'));
+        await args.socket.send(wsResumeDenied(subscription, 'forbidden'));
         continue;
       }
       if (outcome.status === 'denied') {
-        args.socket.send(wsResumeDenied(subscription, outcome.reason));
+        await args.socket.send(wsResumeDenied(subscription, outcome.reason));
         continue;
       }
       // To `args.socket`, never to `subs.socketsFor(subscription)`. The other
@@ -196,20 +195,23 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       // `subs.socketsFor(subscription)`, and only "replays only to the socket
       // that asked" failed.
       for (const event of outcome.events) {
-        args.socket.send(wsData(subscription, event.seq, event.message));
+        // Proof: removing await writes seq2/resume_ack before blocked seq1 in delivery.integration.test.ts.
+        const delivery = await args.socket.send(wsData(subscription, event.seq, event.message));
+        // Proof: removing this guard attempts seq2 and ack in a retired replay stops before any later event or acknowledgement.
+        if (delivery === 'retired') return;
       }
       replayed[subscription] = outcome.events.length;
     }
     // Last, and counted from the events actually written above: an
     // acknowledgement that arrives first would let a client advance its
     // sequence past frames it has not been handed yet.
-    args.socket.send(wsResumeAck(replayed));
+    await args.socket.send(wsResumeAck(replayed));
     return;
   }
 
   if (msg.type === 'subscribe') {
     if (!isKnownSubscription(msg.subscription)) {
-      args.socket.send(wsError('unknown_subscription', { subscription: msg.subscription }));
+      await args.socket.send(wsError('unknown_subscription', { subscription: msg.subscription }));
       return;
     }
     const subscription = msg.subscription;
@@ -224,7 +226,7 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
         if (admission === 'denied') {
           // The same refusal as a malformed name: a foreign project is
           // indistinguishable from one that does not exist.
-          args.socket.send(wsError('unknown_subscription', { subscription }));
+          await args.socket.send(wsError('unknown_subscription', { subscription }));
           return;
         }
         args.access.hold(subscription, projectId);
@@ -233,16 +235,16 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       // After the map accepted it, and never for a refused name: presence is
       // scoped by the subscription, so telling it about one the fan-out does not
       // hold would put a socket in a roster for a project it receives nothing on.
-      args.onSubscribed?.(subscription);
+      await args.onSubscribed?.(subscription);
     });
     return;
   }
 
   const left = msg.subscription;
-  await args.access.run(() => {
+  await args.access.run(async () => {
     args.access.release(left);
     args.subs.unsubscribe(left, args.socket);
-    args.onUnsubscribed?.(left);
+    await args.onUnsubscribed?.(left);
   });
 }
 

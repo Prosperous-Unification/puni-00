@@ -2,12 +2,11 @@ import { InternalPushRequest } from '@wbs/contracts';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
+import type { DeliverySocket } from '../service/delivery';
 import type { GatewayMetrics } from '../service/gateway-metrics';
 import type { SubscriptionMap } from '../service/subscription-map';
 
-export interface SocketLike {
-  send(data: string): void;
-}
+export type SocketLike = DeliverySocket;
 
 export interface InternalDeps {
   secret: string;
@@ -16,7 +15,7 @@ export interface InternalDeps {
 }
 
 export const internalController = (deps: InternalDeps) =>
-  new Elysia({ prefix: '/internal' }).post('/push', ({ request, body, set }) => {
+  new Elysia({ prefix: '/internal' }).post('/push', async ({ request, body, set }) => {
     if (request.headers.get('x-internal-auth') !== deps.secret) {
       set.status = 401;
       return { error: 'unauthorized' };
@@ -33,10 +32,15 @@ export const internalController = (deps: InternalDeps) =>
       });
       // Proof: removing this actual send made cross-project-delivery.controller.db.test.ts
       // receive only its admitted presence roster, then fail successor delivery (2026-10-23).
-      for (const s of sockets) s.send(payload);
-      deps.metrics.fanOut(sockets.size);
+      // Proof: omitting await answers before the blocked recipient in delivery.integration.test.ts.
+      const outcomes = await Promise.all([...sockets].map((socket) => socket.send(payload)));
+      // Proof: counting recipients reports 2 instead of 1 in the asynchronous recipient failure test.
+      const delivered = outcomes.filter(
+        (outcome) => outcome === 'sent' || outcome === 'backpressured',
+      ).length;
+      deps.metrics.fanOut(delivered);
       set.status = 202;
-      return { delivered_to_sockets: sockets.size };
+      return { delivered_to_sockets: delivered };
     } catch (err) {
       if (err instanceof ValidationError) {
         set.status = 400;

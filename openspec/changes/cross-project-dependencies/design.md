@@ -925,3 +925,37 @@ its mounted SQLite matrix independently covers list/read/create/patch/delete.
 schema observation, explicitly exempt from dependency-client admission. Its
 mounted request remains available even when the app's authority callback throws;
 this exemption exposes no persisted application resources.
+
+### Bounded task 10.1 awaitable gateway delivery prerequisite (2026-10-23)
+
+Intent: make application delivery awaitable before a later retained-session fence
+introduces asynchronous authority work. The synchronous wrapper previously discarded
+physical send outcomes, push counted recipients before completion, and replay or
+presence could detach an asynchronous writer. This packet supplies ordering,
+bounded waiting and accurate accepted-frame accounting. Authority inspection,
+activation, semantic claims, participant exclusion and authoring remain outside it.
+
+`DeliverySocket.send` returns `Promise<DeliveryOutcome>`. One `SocketDelivery` per
+connection is shared by unsolicited push, presence, replay and control replies.
+Production binds its required writer port to the existing synchronous
+`socketWriter`; there is no optional application preparation hook. Deferred writers
+belong to service/controller integration tests. Physical Bun `send > 0` maps to
+`sent`, `-1` to accepted `backpressured`, and `0` or a synchronous throw to a drop
+that retires the connection. Acceptance is not a browser receipt, and native Bun
+buffering is not retried by this queue.
+
+The application FIFO admits at most 64 pending frames and gives each five seconds
+including queue time. Overflow, expiry, writer rejection or physical drop aborts
+the queue, immediately removes subscriptions and closes the socket with 1013.
+Retirement reports its reason and original asynchronous failure to the gateway logger. Lifetime
+cancellation settles pending callers as `retired` and prevents queued writes.
+A signal-ignoring injected writer can outlive settlement; cancellation cannot undo
+its own side effects. Production's terminal physical writer is synchronous.
+
+Push awaits every recipient and counts only `sent`/`backpressured` in its response
+and fanout metric. Replay awaits each event before later events and `resume_ack`,
+and stops at retirement. Presence returns awaited outcomes; an unexpected rejected
+recipient is surfaced while other recipients have already been dispatched. Lease
+revocation awaits its presence/control deliveries. This is transport preparation,
+not an existing-socket semantic fence; task 10.1 remains open and binary semantic
+advertisement remains empty.

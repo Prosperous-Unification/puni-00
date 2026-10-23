@@ -586,3 +586,10 @@ owner-only desktop and phone details offer explicit stable-project scope lookup,
 complete-page/exact-coordinate selection and preserved relationship identity.
 See [bounded evidence](verify-9-2-predecessor-scope.md). Parent 9.2 and active
 backend acceptance remain open.
+
+### Bounded task 10.1 awaitable retained delivery prerequisite (2026-10-23)
+
+- [x] Red: reproduce premature internal-push response/count, delayed replay overtaken by later events/ack and detached presence rejection through gateway controller integrations; introduce the strict awaitable delivery contract and await every producer.
+- [x] Add the required per-connection writer boundary, bind the synchronous physical socket writer, bound pending frames/deadlines, retire on overflow/expiry/rejection/drop and preserve connection cancellation; distinguish accepted Bun backpressure from dropped frames.
+- [x] Independently remove queue order, capacity, deadline, cancellation, failure-cause reporting, physical-drop accounting, invalid-limit refusal, push counting, replay awaiting/retirement and presence awaiting guards; watch each corresponding production-path negative fail and restore the control.
+- [ ] Complete configured gateway test/lint/typecheck/build, formatting, strict OpenSpec validation, independent review and integrated isolated host gate. Parent 10.1 remains open: no retained-session authority inspection, activation, v1 advertisement, client claims or authoring enablement. Evidence: [verify-retained-delivery.md](verify-retained-delivery.md).

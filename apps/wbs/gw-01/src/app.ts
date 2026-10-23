@@ -12,6 +12,7 @@ import {
   forwardedCookieHeader,
 } from './service/browser-access-client';
 import { ConnectionAccess } from './service/connection-access';
+import { SocketDelivery } from './service/delivery';
 import { admitDependencyUpgrade } from './service/dependency-admission';
 import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
@@ -93,7 +94,7 @@ interface WsConnection {
    * subscribed, in no roster, for as long as it stayed open. It was gw-01's
    * flaky test, at 2 runs in 40: `no roster arrived for ada; ada has []`.
    *
-   * Never rejects: a token that fails here is already handled inside it.
+   * Authentication failure is modeled inside it; delivery infrastructure errors propagate.
    */
   joined: Promise<void>;
   /** This socket's project authorization, created before `open`'s first await. */
@@ -206,14 +207,14 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
   };
   const forwarder = new ForwardClient(requestOptions);
   /** Takes a connection out of a project roster after it left or lost that subscription. */
-  const leaveProject = (connectionId: string, subscription: string): void => {
+  const leaveProject = async (connectionId: string, subscription: string): Promise<void> => {
     const projectId = projectIdOf(subscription);
     if (projectId === null) return;
     const affected = presence.leaveProject(connectionId, projectId);
-    presence.broadcast(affected);
+    await presence.broadcast(affected);
     // Proof: omitting reset leaves no empty frame after real-socket unsubscribe;
     // removing the condition instead sends a frame during the stale-unsubscribe no-op.
-    if (affected.length > 0) presence.sendRoster(connectionId);
+    if (affected.length > 0) await presence.sendRoster(connectionId);
   };
   const resumer = new ResumeClient(requestOptions);
 
@@ -331,7 +332,21 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // through are this one. See {@link socketWriter} — twelve call sites
           // wrote to a socket and none of them read what Bun answered.
           const writer = socketWriter(ws, metrics);
-          conn.socket = { send: (payload) => void writer.send(payload) };
+          conn.socket = new SocketDelivery({
+            write: (payload) => writer.send(payload),
+            signal: conn.cancellation.signal,
+            timers: systemTimers,
+            capacity: 64,
+            deadlineMs: 5_000,
+            onRetired: (reason, caught) => {
+              subs.removeAll(conn.socket);
+              logger.error(
+                { reason, err: caught, connectionId: conn.connectionId },
+                'socket delivery retired',
+              );
+              ws.close(1013, 'delivery unavailable');
+            },
+          });
           const localIdentity = conn.query?.[LOCAL_IDENTITY];
           const accessToken = conn.query?.[VERIFIED_TOKEN];
           const forwarded = conn.query?.[FORWARDED_CREDENTIAL];
@@ -352,10 +367,10 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             ...(opts.lease === undefined
               ? {}
               : { leaseRenewMs: opts.lease.renewMs, checkDeadlineMs: opts.lease.checkDeadlineMs }),
-            onRevoked: (subscription) => {
+            onRevoked: async (subscription) => {
               subs.unsubscribe(subscription, conn.socket);
-              leaveProject(conn.connectionId, subscription);
-              conn.socket.send(wsError('subscription_revoked', { subscription }));
+              await leaveProject(conn.connectionId, subscription);
+              await conn.socket.send(wsError('subscription_revoked', { subscription }));
             },
             onUnauthenticated: () => {
               ws.close(1008, 'unauthenticated');
@@ -377,22 +392,21 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // point at which `message` and `close` can start. See {@link
           // WsConnection.joined} for what happened when they did not wait.
           conn.joined = (async () => {
-            try {
-              let joining = localIdentity;
-              if (joining === undefined) {
-                if (accessToken === undefined) return;
+            let joining = localIdentity;
+            if (joining === undefined) {
+              if (accessToken === undefined) return;
+              try {
                 const claims = await verifier.verify(accessToken);
                 joining = typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+              } catch {
+                // Modeled authentication failure: no presence membership is created.
+                return;
               }
-              username = joining;
-              // Only an id being replaced can affect an existing project.
-              // The newcomer has named no project and needs its own empty roster.
-              presence.broadcast(presence.join(conn.connectionId, joining, conn.socket));
-              // Proof: omitting this leaves the real-socket newcomer with no initial frame.
-              presence.sendRoster(conn.connectionId);
-            } catch {
-              // beforeHandle already rejected invalid tokens; nothing to add.
             }
+            username = joining;
+            await presence.broadcast(presence.join(conn.connectionId, joining, conn.socket));
+            // Proof: omitting this leaves the real-socket newcomer with no initial frame.
+            await presence.sendRoster(conn.connectionId);
           })();
           await conn.joined;
           // An upgrade that was accepted and then could not say who is behind
@@ -466,13 +480,13 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             // A `project:` subscription is what puts this connection in a
             // roster, and the broadcast is what tells the people already in it.
             // `presence` names no project, so it moves nobody.
-            onSubscribed: (subscription) => {
+            onSubscribed: async (subscription) => {
               const projectId = projectIdOf(subscription);
               if (projectId === null) return;
-              presence.broadcast(presence.enterProject(conn.connectionId, projectId));
+              await presence.broadcast(presence.enterProject(conn.connectionId, projectId));
             },
-            onUnsubscribed: (subscription) => {
-              leaveProject(conn.connectionId, subscription);
+            onUnsubscribed: async (subscription) => {
+              await leaveProject(conn.connectionId, subscription);
             },
             roster: () => presence.rosterFor(conn.connectionId),
           });
@@ -492,7 +506,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // browser on its next reconnect.
           subs.removeAll(conn.socket);
           // The returned project was looked up before the connection was removed.
-          presence.broadcast(presence.leave(conn.connectionId));
+          await presence.broadcast(presence.leave(conn.connectionId));
         },
       })
   );
