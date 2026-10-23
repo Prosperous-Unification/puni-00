@@ -345,7 +345,8 @@ export class AuthService {
   /**
    * One API key: its credential read by id, its secret's digest compared with
    * that credential's secrets by {@link admitMachineCredential}, the admitted
-   * actor's account read for its username, and the use recorded (coarsely).
+   * actor's account read for its username, and the use recorded (coarsely);
+   * `unknown_identity` when the credential was removed before the record.
    *
    * @throws when machine credentials are not wired, when the bound account
    * does not exist (the foreign key makes that corrupt state), and on every
@@ -379,7 +380,12 @@ export class AuthService {
     // Proof: with this rejection caught and dropped, `fails as a server error
     // when its last use cannot be recorded` in
     // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
-    await machines.credentials.touchLastUsed(admission.actor.credentialId, now);
+    // A removal committed since admission: the 401 the next request gets.
+    // Proof: with `'absent'` answered as a principal, `refuses
+    // unknown_identity when its credential is removed before the use is
+    // recorded` (machine-key.test.ts) admitted; watched 2026-10-23.
+    if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
+      return 'unknown_identity';
     return machinePrincipalOf(admission.actor, account.username);
   }
 
@@ -402,7 +408,8 @@ export class AuthService {
    *    `invalid_token`.
    * 5. Verified with no credential: `unknown_identity`; with one, the same
    *    {@link admitMachineCredential} decision and {@link machinePrincipalOf}
-   *    principal as an API key, its last use recorded.
+   *    principal as an API key, its last use recorded (`unknown_identity`
+   *    when the credential was removed before the record).
    *
    * @throws when machine credentials are not wired, when the admitted
    * credential's account does not exist, and on every store failure.
@@ -468,7 +475,9 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
-    await machines.credentials.touchLastUsed(admission.actor.credentialId, now);
+    // As on the API-key path: a removal committed since admission.
+    if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
+      return 'unknown_identity';
     return machinePrincipalOf(admission.actor, account.username);
   }
 
