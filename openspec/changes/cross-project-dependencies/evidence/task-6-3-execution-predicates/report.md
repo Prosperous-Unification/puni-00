@@ -29,3 +29,13 @@ files; `openspec validate cross-project-dependencies --no-interactive` exited 0
 with existing long-requirement warnings. The strict validator exited 1 on those
 warnings. The full h2puni gate, MCP parity and integrated release checks were not
 run for this bounded proof packet.
+
+## Integrated-head receipt
+
+Astra High found no blocking issue in the bounded packet. The fault observations
+were also placed beside their unchanged FS and SS production predicates in
+`97c310102`. On that integrated head, the complete mounted
+`cross-project-startable.controller.db.test.ts` matrix passed 37 tests and 447
+assertions in 17.04 seconds. Exact committed-range whitespace inspection and
+changed-file Prettier passed before integration. This focused result does not
+complete MCP reconciliation, the parent 6.3 checkbox or the h2puni gate.
