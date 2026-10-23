@@ -7016,3 +7016,14 @@ source read and restored successful copy. Independent structural bypass,
 exception rollback omission and erroneous COMMIT mutations fail separately;
 production source is restored. Independent Astra review approved this bounded
 packet. Parent 8.2 and the integrated exact-SHA host gate remain open.
+
+### 2026-10-23 — saved history after persisted external relationship edit
+
+The [persisted relationship edit acceptance](verify-saved-history-lifecycle.md#persisted-external-relationship-edit-acceptance-2026-10-23)
+adds the missing post-save SS→FS mutation in genuine isolated/shared connected
+SQLite saves. Reopened reads and mounted saved/saved comparisons retain original
+SS endpoint identities, body bytes and both sides' stage boundaries through later
+foreign deletion. Independent live read/compare faults each failed both post-edit
+cases and were restored; the focused three-file suite passed 23 tests and 234
+assertions. The packet records scoped checks and dependency reuse. Parent task
+8.3 and the canonical exact-SHA host gate remain open.

@@ -2,7 +2,7 @@ import { savedPlanRoutes } from '@wbs/core/http/saved-plan.routes';
 import { installSavedPlans } from '@wbs/core/module/saved-plans/check';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
-import { readSavedConnectedScheduleBody } from '@wbs/domain';
+import { readSavedConnectedScheduleBody, readSavedPlanInput } from '@wbs/domain';
 import { testProjectService } from '@wbs/store-memory/testing/service-fixtures';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
@@ -18,13 +18,14 @@ const access = {
 };
 
 // Proof: routing saved read or saved/saved comparison through capture makes the
-// isolated and shared cases fail at this injected live capability (evidence logs).
+// post-save SS→FS edit cases fail at this injected live capability in both modes
+// (read-live-after-relationship-edit.log and compare-live-after-relationship-edit.log).
 const refuseLive = (): never => {
   throw new Error('historical inspection attempted a live capability');
 };
 
 test.each(['isolated', 'shared'] as const)(
-  'real %s connected saves survive foreign edits and deletion without live capabilities',
+  'real %s connected saves retain SS history after a persisted FS edit and foreign deletion',
   async (mode) => {
     await captureMixedFixture(mode, false, async (_captured, path, read) => {
       const writerSource = openSqliteSource({ dbPath: path });
@@ -62,7 +63,33 @@ test.each(['isolated', 'shared'] as const)(
       expect(stored.input.bytes).toContain('Beta work');
       expect(stored.input.bytes).toContain('Build');
 
-      // Reopen both stores and the installed service for every historical observation.
+      const relationshipEditor = openDatabase(path);
+      try {
+        expect(
+          relationshipEditor.query("SELECT type FROM external_dependency WHERE id='ab'").get(),
+        ).toEqual({ type: 'SS' });
+        relationshipEditor.run("UPDATE external_dependency SET type='FS' WHERE id='ab'");
+        expect(
+          relationshipEditor
+            .query(
+              "SELECT id,type,predecessor_project_id,predecessor_work_item_id,predecessor_step_id,successor_project_id,successor_work_item_id,successor_step_id FROM external_dependency WHERE id='ab'",
+            )
+            .get(),
+        ).toEqual({
+          id: 'ab',
+          type: 'FS',
+          predecessor_project_id: 'a1',
+          predecessor_work_item_id: 'a',
+          predecessor_step_id: 'design',
+          successor_project_id: 'a2',
+          successor_work_item_id: 'b',
+          successor_step_id: 'build',
+        });
+      } finally {
+        relationshipEditor.close();
+      }
+
+      // Every historical observation follows the persisted SS→FS edit and reopens its stores.
       const inspect = async () => {
         const source = openSqliteSource({ dbPath: path });
         const { savedPlans: history } = installSavedPlans({
@@ -81,6 +108,19 @@ test.each(['isolated', 'shared'] as const)(
           if (opened.outcome !== 'read') throw new Error('saved history required');
           expect(opened.plan.input).toEqual(stored.input);
           expect(opened.plan.schedule).toEqual(stored.schedule);
+          const input = readSavedPlanInput(
+            JSON.parse(opened.plan.input.bytes),
+            opened.plan.input.schemaVersion,
+          );
+          if (input.dependencyHistory.kind !== 'connected')
+            throw new Error('connected dependency history required');
+          expect(input.dependencyHistory.relationships).toHaveLength(1);
+          expect(input.dependencyHistory.relationships[0]).toMatchObject({
+            id: 'ab',
+            type: 'SS',
+            predecessor: { projectId: 'a1', workItemId: 'a', scope: 'node', stepId: 'design' },
+            successor: { projectId: 'a2', workItemId: 'b', scope: 'node', stepId: 'build' },
+          });
           expect(opened.plan.input.sha256).toBe(await nodeDigest.sha256(opened.plan.input.bytes));
           const compared = await history.compare(
             'a1',
@@ -90,12 +130,14 @@ test.each(['isolated', 'shared'] as const)(
           );
           if (compared.outcome !== 'compared') throw new Error('saved comparison required');
           expect(compared.diff).toEqual({ input: [], schedule: [] });
-          if (compared.left.provenance.kind !== 'connected')
-            throw new Error('connected provenance required');
-          expect(compared.left.provenance.mode).toBe(mode);
-          expect(compared.left.provenance.stages.map((stage) => stage.boundary.canonical)).toEqual(
-            schedule.connection.stages.map((stage) => stage.stageBytes),
-          );
+          for (const side of [compared.left, compared.right]) {
+            if (side.provenance.kind !== 'connected')
+              throw new Error('connected provenance required');
+            expect(side.provenance.mode).toBe(mode);
+            expect(side.provenance.stages.map((stage) => stage.boundary.canonical)).toEqual(
+              schedule.connection.stages.map((stage) => stage.stageBytes),
+            );
+          }
           const app = mountEndpoints(
             savedPlanRoutes(
               history,
