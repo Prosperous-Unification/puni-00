@@ -103,7 +103,7 @@ claim these observations in advance.
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                               |
 | Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | [Post-close observed](evidence/task-5-postclose/verify.md); other faults not reverified here          |
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | NOT RUN                                                                                               |
-| Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | NOT RUN                                                                                               |
+| Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | [Traversal observed](evidence/task-5-fanout/verify.md); other faults NOT RUN                          |
 | Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Domain seam observed; core/calendar/runtime NOT RUN; [evidence](evidence/task-6-resolved-schedule.md) |
 | Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | NOT RUN                                                                                               |
 | Readiness 6.3                                   | Replace remote progress with empty/local progress or skip required evidence                                                  | `cross-project-startable.controller.db.test.ts` actual tree/startable cases                                                               | NOT RUN                                                                                               |
@@ -5595,3 +5595,13 @@ with `read snapshot is closed`; restoring production passed the entire five-case
 connected Saved plan controller suite. This supplies the previously unobserved
 post-close derive/cache fault in the coherent-capture register. Other register
 faults and the parent task remain independently tracked; no task is closed here.
+
+## Task 5.2 number-only label event (2026-10-23)
+
+The [bounded fanout packet](evidence/task-5-fanout/verify.md) exercises mounted
+`090`→`010` unfreeze, qualified-reference refresh, exact downstream and tail
+events, unchanged relationship rows and foreign silence. Independent Astra High
+review approved the test-only packet and reran 17/17 cases with 131 assertions.
+The author repeated a production incident-traversal fault: the new mounted test
+failed on a missing successor event, then passed when restored. Task 5.2 remains
+open for topology changes, cause sweeps, delivery and the other R5 faults.
