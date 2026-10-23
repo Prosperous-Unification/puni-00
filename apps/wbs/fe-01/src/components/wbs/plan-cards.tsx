@@ -481,8 +481,8 @@ export interface CardRowActionHandlers {
  */
 const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
-  // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
-  // Delete last in the destructive tint.
+  // same order: the status entries, Add child, Move under…, Duplicate, Measures…, Unfreeze where it
+  // applies, and Delete last in the destructive tint.
   ...statusActions(handlers.statusOffers(row), (status) => {
     handlers.chooseStatus(row.id, status);
   }),

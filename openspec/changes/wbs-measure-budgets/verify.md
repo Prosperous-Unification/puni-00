@@ -644,3 +644,32 @@ refuses the next attempt here.", no exceeded badge, and a cost fact of 4999 micr
 `$0.0050`. The table re-shot with right-aligned figures; the hold box is prefilled; the basis
 list sits one gap below the trio line. Re-shot: every file under `evidence/slice-6/` (15 files,
 about 1.7 MB).
+
+## CI pixels fixes (run 39956229555)
+
+- `layout.spec.ts` `drives the actions menu from the keyboard`: failed at `Delete` with
+  `Received: "Measures…"`. The order is the intended one (design D57: "Measures…" after
+  Duplicate; it opens a dialog and writes nothing, Delete stays last in the destructive tint), so
+  the spec walks `Duplicate → Measures… → Delete` and ArrowUp from Delete back to `Measures…`; the
+  Escape and Tab focus-return checks are unchanged. The order comments in `plan-columns/actions.tsx`
+  and `plan-cards.tsx` now name Measures….
+- `plan-table-review.spec.ts` `holds a lone chip too wide for its cell steady, counted`: the chip
+  geometry was not the cause. The failing assertion was `expect(logged).toEqual([])`, which received
+  Chromium's `Failed to load resource: the server responded with a status of 409 (Conflict)`. A
+  temporary response log named it `GET /api/measures 409`: every opened plan read the definitions,
+  and the ordinary e2e be-01 is pre-activation, where the read can only answer
+  `organization_required`. Fix in code: `useMeasureDefinitions` answers `organization_required`
+  without asking when the session read reports `onboarding: false` (the spaces page's precedent,
+  `quiet-load.spec.ts`'s rule), as one constant object; a fresh literal per render rebuilt the
+  table's memoized columns and broke the dependency search (layout spec seeding timed out at
+  `Stop 020 waiting for 010`, three of three). `measure-columns.spec.ts` now answers the session read
+  as an activated deployment's (`onboarding: true`) beside its `/api/measures` answer.
+- Proofs: removing the effect's early return failed `asks nothing of a deployment reported before
+activation` (`listMeasures` called once); removing the render-time return failed it with
+  `{ kind: 'loading' }`; answering `onboarding: false` in `measure-columns.spec.ts` failed
+  `a fresh reader sees time only` (no tokens choice).
+- Commands (`env -u CLAUDECODE`, `E2E_PORT_SHIFT=2300 bunx playwright test --config
+apps/wbs/fe-01/playwright.config.ts …`): both specs failed on 4779f9674 as in CI; after the fix
+  `layout.spec.ts:2235 plan-table-review.spec.ts:854 measure-columns.spec.ts` 6 passed; vitest
+  `measure-panel`, `plan-cards`, `plan-structure` 213 passed; `nx run-many -t typecheck lint -p
+wbs-fe-01` passed; `nx format:check --all` exit 0.

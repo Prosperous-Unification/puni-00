@@ -1,6 +1,7 @@
 import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SessionFeaturesProvider } from '@/lib/session-features';
 import {
   type MeasureDirectory,
   type WbsProblem,
@@ -324,6 +325,27 @@ describe('the measure panel renders each budget by its policy', () => {
 });
 
 describe('reading the definitions', () => {
+  itDom('asks nothing of a deployment reported before activation', async () => {
+    const commands = {
+      listMeasures: vi.fn(() =>
+        Promise.resolve<MeasureDirectory>({ kind: 'ready', measures: [...SEEDED_MEASURES] }),
+      ),
+    };
+    const { result } = renderHook(() => useMeasureDefinitions(commands, 'p1'), {
+      wrapper: ({ children }) => (
+        <SessionFeaturesProvider value={{ onboarding: false, organizations: false }}>
+          {children}
+        </SessionFeaturesProvider>
+      ),
+    });
+    expect(result.current).toEqual({ kind: 'organization_required' });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(commands.listMeasures).not.toHaveBeenCalled();
+    expect(result.current).toEqual({ kind: 'organization_required' });
+  });
+
   itDom('shows no project’s definitions against another, nor a late answer', async () => {
     let answerFirst: (directory: MeasureDirectory) => void = () => undefined;
     let answerLate: (directory: MeasureDirectory) => void = () => undefined;

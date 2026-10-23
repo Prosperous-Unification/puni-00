@@ -152,8 +152,24 @@ function measureFieldsFor(name: string, devStepId: string): Record<string, unkno
   return null;
 }
 
-/** Answers the definitions, and writes the panel's states onto the real plan read. */
+/**
+ * Answers the definitions, and writes the panel's states onto the real plan read.
+ *
+ * The session read is answered as an activated deployment's: the ordinary
+ * be-01 reports `onboarding: false`, and a table told that asks nothing of
+ * `GET /api/measures` (`useMeasureDefinitions`).
+ * Proof: answering `onboarding: false` here, `a fresh reader sees time only`
+ * found no `[data-measure-choice="tokens"]` in the chooser; watched 2026-10-23.
+ */
 async function answerMeasures(page: Page, devStepId: string): Promise<void> {
+  await page.route('**/api/auth/me', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    await route.fulfill({
+      response,
+      json: { ...body, features: { onboarding: true, organizations: false } },
+    });
+  });
   await page.route('**/api/measures', (route) =>
     route.fulfill({ status: 200, json: { measures: SEEDED_MEASURES } }),
   );
