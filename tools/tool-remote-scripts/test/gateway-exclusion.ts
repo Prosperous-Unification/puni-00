@@ -270,6 +270,7 @@ async function runAcceptance() {
     ]);
     const blueName = `${layout.containerPrefix}gw-01-blue`;
     const unprepared = await create(blueName, false, false);
+    // Proof: removing production Init admission made this no-init control reach completion and fail expected-refusal.
     await refuses(fenceGateways(layout, sha, runDockerCli), 'requires init');
     assert(
       (await readdir(layout.stateDir)).every((name) => name === 'deploy.lock'),
@@ -321,6 +322,7 @@ async function runAcceptance() {
         child: child.session.identity,
       });
     }
+    // Proof: removing production exact-ID stop failed running/PID exclusion before any completion.
     const completion = await fenceGateways(layout, sha, runDockerCli);
     assert(
       completion.cohort.blue?.id === blue.id && completion.cohort.green?.id === green.id,
@@ -373,6 +375,7 @@ async function runAcceptance() {
       bystander: bystander.id,
     });
     await docker(['start', blue.id]);
+    // Proof: reusing historical completion in production inspection accepted this external restart and failed expected-refusal.
     await refuses(inspectGatewayFence(layout, runDockerCli), 'excluded');
     await record('external-restart-refused', { id: blue.id });
     const emptyRoot = join(root, 'empty');

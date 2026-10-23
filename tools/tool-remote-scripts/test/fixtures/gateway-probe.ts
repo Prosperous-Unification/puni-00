@@ -5,6 +5,7 @@ if (role !== 'parent' && role !== 'child') throw new Error('probe requires paren
 const nonce = process.env['GATEWAY_PROBE_NONCE'];
 if (nonce === undefined || nonce.length < 32) throw new Error('probe requires nonce');
 if (role === 'parent') {
+  // Proof: suppressing this child spawn failed the real-Docker child WebSocket challenge.
   Bun.spawn([process.execPath, import.meta.path, 'child'], {
     env: process.env,
     stdout: 'inherit',
