@@ -110,3 +110,32 @@ after local test/style corrections.
 Full frontend/backend/gateway test suites, builds, all-change OpenSpec validation,
 canonical h2/h4 gates, full organization-router activation, the complete 5.2 writer
 matrix and rollout were not run or established. No push, merge or release was made.
+
+## Astra review corrections
+
+The initial packet accidentally left `cross-project-refresh.real.spec.ts` inside
+ordinary Playwright collection. Its fixed localhost stack belongs only to the
+dedicated config. The ordinary Chromium project's `testIgnore` now excludes that
+case alongside the existing dedicated organization fixture.
+
+The new `runs cross-project refresh acceptance only under its dedicated browser
+config` test was run before the exclusion existed: it failed `expected false to
+be true`. [The captured red](config-routing-missing-ignore.log) is the watched
+missing-guard proof. [The full restored config suite](config-routing-restored.log)
+passes **19/19**; its existing spawned Bun listener needs the permitted listener
+run. Ordinary `playwright test --config apps/wbs/fe-01/playwright.config.ts --list`
+[initially collected 626 tests in 63 files](ordinary-list-before-fix.log), including
+the incompatible case; [after the fix it collects 625 in 62](ordinary-list-restored.log)
+and excludes it. [The dedicated config list](dedicated-list-restored.log) still
+selects exactly the one connected case. No full ordinary browser run is claimed.
+
+The browser silence proof now also sends ping through each unrelated/foreign
+observer's own real native socket and waits for its corresponding pong before
+checking sequenced-frame and tree-request silence. B/C reads alone did not order
+those separate sockets. This reuses the existing protocol and production opener;
+the DevTools helper only sends the native ping or closes the native application
+socket. The corrected case and configured checks were rerun before the corrective
+commit: [Chromium](browser-review-restored.log) passed **1/1** (18.5 seconds in
+the case), and [configured frontend lint/typecheck](checks-review-restored.log)
+passed all **three tasks**, uncached. Changed-file ESLint, Prettier and whitespace
+checks also passed.

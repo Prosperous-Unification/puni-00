@@ -43,6 +43,26 @@ async function authenticate(context: BrowserContext, token: string) {
   ]);
 }
 
+/** Controls the real native application socket without substituting its transport callbacks. */
+async function operateSocket(page: Page, operation: 'ping' | 'close') {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const prototype = await cdp.send('Runtime.evaluate', { expression: 'WebSocket.prototype' });
+    if (prototype.result.objectId === undefined) throw new Error('missing native socket prototype');
+    const sockets = await cdp.send('Runtime.queryObjects', {
+      prototypeObjectId: prototype.result.objectId,
+    });
+    await cdp.send('Runtime.callFunctionOn', {
+      objectId: sockets.objects.objectId,
+      functionDeclaration:
+        'function(operation) { for (const socket of this) if (socket.readyState === WebSocket.OPEN && new URL(socket.url).pathname === "/ws") { if (operation === "close") socket.close(); else socket.send(JSON.stringify({ type: "ping" })); } }',
+      arguments: [{ value: operation }],
+    });
+  } finally {
+    await cdp.detach();
+  }
+}
+
 test('A completion refreshes admitted B and C through their own real trees and reconnect replay', async ({
   browser,
   request,
@@ -132,8 +152,13 @@ test('A completion refreshes admitted B and C through their own real trees and r
     );
     expect(b.reads.at(-1)?.workItems[0]?.nodeReadings[b.project.step]).toBe('waiting');
     await b.page.unroute(`**/api/projects/${b.project.id}/work-items`);
-    // Each push is awaited by the command. Both delivered successors have now installed their own reads.
+    // The command awaits push delivery; a pong orders frames on each observer's own socket.
     for (const client of [unrelated, foreign]) {
+      const pongs = client.frames.filter((frame) => frame.type === 'pong').length;
+      await operateSocket(client.page, 'ping');
+      await expect
+        .poll(() => client.frames.filter((frame) => frame.type === 'pong').length)
+        .toBe(pongs + 1);
       expect(client.frames.filter((frame) => frame.subscription !== undefined)).toEqual([]);
       expect(client.reads.length).toBe(initialReads.get(client));
     }
@@ -141,17 +166,7 @@ test('A completion refreshes admitted B and C through their own real trees and r
     await b.context.setOffline(true);
     // Chromium's offline emulation does not close established websockets. Close the real
     // native socket through DevTools; no transport or refresh callback is replaced.
-    const cdp = await b.context.newCDPSession(b.page);
-    const prototype = await cdp.send('Runtime.evaluate', { expression: 'WebSocket.prototype' });
-    if (prototype.result.objectId === undefined) throw new Error('missing native socket prototype');
-    const sockets = await cdp.send('Runtime.queryObjects', {
-      prototypeObjectId: prototype.result.objectId,
-    });
-    await cdp.send('Runtime.callFunctionOn', {
-      objectId: sockets.objects.objectId,
-      functionDeclaration:
-        'function() { for (const socket of this) if (socket.readyState === WebSocket.OPEN && new URL(socket.url).pathname === "/ws") socket.close(); }',
-    });
+    await operateSocket(b.page, 'close');
     await expect(
       b.page.getByRole('status').filter({ hasText: /connection|offline|reconnect/i }),
     ).toBeVisible();

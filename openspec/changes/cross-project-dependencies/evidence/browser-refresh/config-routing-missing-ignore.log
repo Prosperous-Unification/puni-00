@@ -1,0 +1,36 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-52-browser/apps/wbs/fe-01
+
+ ❯ playwright-config.test.ts (19 tests | 1 failed | 18 skipped) 286ms
+   × runs cross-project refresh acceptance only under its dedicated browser config 285ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  playwright-config.test.ts > runs cross-project refresh acceptance only under its dedicated browser config
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ playwright-config.test.ts:359:54
+    357|     const spec = 'e2e/cross-project-refresh.real.spec.ts';
+    358|     const [defaultProject] = projectsOf(ordinary);
+    359|     expect(matches(defaultProject.testIgnore, spec)).toBe(true);
+       |                                                      ^
+    360|     expect(connected.testMatch).toBe('cross-project-refresh.real.spec.…
+    361|   } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  03:21:50
+   Duration  507ms (tests 68%, setup 15%, transform 14%, import 2%, worker 1%)
+

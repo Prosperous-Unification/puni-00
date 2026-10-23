@@ -349,6 +349,20 @@ it('runs activated organization acceptance only under its dedicated browser conf
   }
 });
 
+it('runs cross-project refresh acceptance only under its dedicated browser config', async () => {
+  vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
+  try {
+    const ordinary = await loadConfig();
+    const { default: connected } = await import('./playwright.cross-project.config');
+    const spec = 'e2e/cross-project-refresh.real.spec.ts';
+    const [defaultProject] = projectsOf(ordinary);
+    expect(matches(defaultProject.testIgnore, spec)).toBe(true);
+    expect(connected.testMatch).toBe('cross-project-refresh.real.spec.ts');
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
 describe('the Performance browser selection', () => {
   afterEach(() => {
     vi.restoreAllMocks();
