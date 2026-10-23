@@ -7141,3 +7141,13 @@ Local isolated checkout based on `02830d4282e0fbc359e7ecb3472fa7a6cc36615f`:
 No host gate, full workspace gate, remote live check, deployment, or CI rerun
 was performed by this correction slice. These local results do not establish
 production readiness or Tool Wiki certification.
+
+### Configured tool-devsync rerun on the isolated correction commit — 2026-10-23
+
+From clean `/tmp/puni-tool-devsync-ci` at `0bfadde23`, with Git-object writes
+and local listener fixtures available, the uncached configured target
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:test --skip-nx-cache --outputStyle=static`
+exited 0: 961 passed, zero failed, 3,450 assertions across 52 files in 13m 12s.
+The retained output is `/tmp/puni-devsync-full-0bfadde-root.log`. This closes
+the sandbox-limited configured-suite uncertainty above for that isolated
+correction commit. It is not an integrated-head h2 gate or deployment result.
