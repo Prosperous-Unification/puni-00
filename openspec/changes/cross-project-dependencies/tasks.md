@@ -599,5 +599,6 @@ Bounded task 7.3/7.4 installed-image acceptance source packet (2026-10-23): the
 smoke now requires feasible and fractional connected authenticated child binds in
 both image modes. Focused tests and independent validator/bind-removal proofs are
 recorded in [installed solver image acceptance](verify-task-7-installed-solver-image.md).
-Actual image/digest and disposable Python relabel acceptance remain pending;
+Actual built-image acceptance passed on h2puni at `08b2fe31d`; the disposable
+Python relabel negative remains pending;
 parent tasks 7.3/7.4 stay open.

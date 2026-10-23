@@ -6343,3 +6343,9 @@ canonical contradiction revalidation correction. Focused scenarios passed
 70 tests / 184 assertions; fake-Docker smoke passed 42 tests / 143 assertions.
 The actual installed image/digest and disposable Python relabel negatives are
 pending. Parent 7.3/7.4 remain open.
+
+The later exact `08b2fe31d` h2puni built-image smoke passed under the canonical
+heavy lock: four authenticated child binds including connected-feasible and
+connected-fractional, then 3 real-Docker orphan subprocess tests. The
+disposable installed-Python relabel negative and whole exact-head gate remain
+pending; see the packet above for the pinned checkout and command.

@@ -67,3 +67,22 @@ pre-existing `string | undefined` test fixture; the current feature tree
 already contains its explicit guard in `791a6b305`. This integrated run
 establishes the combined tree's typecheck without changing the image packet.
 The actual image and exact-head host gate remain pending.
+
+## Exact-SHA installed image run on h2puni
+
+The isolated host worktree `/home/puni1/puni-00-image-pr630-NbbxmTG0` checked
+out pushed `08b2fe31da9f6e852d867ed677187676aa030146`, installed the frozen
+Bun lockfile and acquired the canonical heavy lock with label `image:08b2fe31`
+without a waiter. With `WBS_RUN_SOLVER_ORPHAN_PROC=1`, uncached configured
+`wbs-be-01:solver-image-smoke` exited 0 in 2m51s. Its actual built image
+authenticated and accepted the baseline, shared-person, connected-feasible and
+connected-fractional child binds; the real-Docker orphan subprocess suite then
+passed 3 tests / 15 assertions. The script removed its owned image tags and
+containers before success. This proves the installed Python child and launcher
+for that exact source revision, not merely the fake-Docker shell suite.
+
+The separate disposable image with a relabeled installed Python
+boundary-infeasible result has not yet run. The first queued exact-SHA full
+gate was canceled during OpenSpec validation so this negative could take the
+host lock next; it reported 272/272 valid changes/specs before cancellation,
+but no host-gate verdict is claimed.
