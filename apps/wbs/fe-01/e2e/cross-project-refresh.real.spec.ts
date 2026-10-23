@@ -977,3 +977,261 @@ test('phone alphabetical discovery creates a remote node dependency through HTTP
     await context.close();
   }
 });
+
+test('desktop FF edit persists identity and releases only its finish condition on remote completion', async ({
+  browser,
+  request,
+}, testInfo) => {
+  const identities = await request.get('http://localhost:7500/__fixture/identities');
+  expect(identities.status()).toBe(200);
+  const fixture = (await identities.json()) as {
+    projects: Record<string, Identity | undefined>;
+    token: string;
+  };
+  const owner = fixture.projects['AuthorFF'];
+  const remote = fixture.projects['A'];
+  if (owner === undefined || remote === undefined) throw new Error('missing authoring fixture');
+  expect((await request.post('http://localhost:7500/__fixture/reset')).status()).toBe(200);
+  const relationships = async () => {
+    const response = await request.get('http://localhost:7500/__fixture/relationships');
+    expect(response.status()).toBe(200);
+    return (await response.json()) as { id: string; successor_project_id: string }[];
+  };
+  expect((await relationships()).filter((row) => row.successor_project_id === owner.id)).toEqual(
+    [],
+  );
+  const context = await browser.newContext();
+  try {
+    await authenticate(context, fixture.token);
+    const page = await context.newPage();
+    const observed = observe(page);
+    await page.goto(
+      `http://localhost:7600/e2e/cross-project-refresh.html?project=${owner.id}&organization=org-a`,
+    );
+    await expect(page.getByLabel('Name of 010')).toHaveValue('AuthorFF row');
+    const picker = page.getByLabel('Add a dependency to 010');
+    await picker.fill('axx');
+    await expect(page.getByRole('option', { name: 'Project AXX - A', exact: true })).toBeVisible();
+    await page.getByRole('option', { name: 'Project AXX - A', exact: true }).click();
+    await expect(picker).toHaveValue('AXX.');
+    const commands = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/projects/${owner.id}/commands` &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('option', { name: 'AXX.010 - A row', exact: true }).click();
+    const response = await commands;
+    expect(response.status()).toBe(200);
+    const rows = (await relationships()).filter((row) => row.successor_project_id === owner.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(rows).toEqual([
+      {
+        id: expect.any(String),
+        organization_id: 'org-a',
+        predecessor_project_id: remote.id,
+        predecessor_work_item_id: remote.row,
+        predecessor_scope: 'whole',
+        predecessor_step_id: null,
+        successor_project_id: owner.id,
+        successor_work_item_id: owner.row,
+        successor_scope: 'whole',
+        successor_step_id: null,
+        type: 'FS',
+      },
+    ]);
+    const creationCommand: unknown = response.request().postDataJSON();
+    expect(response.url()).toBe(`http://localhost:7600/api/projects/${owner.id}/commands`);
+    const predecessor = { projectId: remote.id, workItemId: remote.row, scope: 'whole' };
+    const successor = { scope: 'whole', workItemId: owner.row };
+    expect(creationCommand).toEqual({
+      commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
+    });
+    const accepted: unknown = await response.json();
+    expect(accepted).toEqual({
+      results: [{ index: 0, id: rows[0]?.id }],
+      undoable: true,
+      redoable: false,
+    });
+    const openCaptured = async () => {
+      await picker.click();
+      await picker.press('Home');
+      await page.keyboard.press('Enter');
+      const details = page.getByRole('dialog', { name: 'Captured dependency' });
+      await expect(details).toBeVisible();
+      return details;
+    };
+    await page.reload();
+    await expect(page.getByLabel('Name of 010')).toHaveValue('AuthorFF row');
+    const details = await openCaptured();
+    const href = `/?${new URLSearchParams({ project: remote.id, workItem: remote.row })}`;
+    await expect(details.getByRole('link', { name: /^Open AXX\.010/ })).toHaveAttribute(
+      'href',
+      href,
+    );
+    await details.getByLabel('Relationship').selectOption('FF', { timeout: 5000 });
+    const update = page.waitForResponse(
+      (answer) =>
+        new URL(answer.url()).pathname === `/api/projects/${owner.id}/commands` &&
+        answer.request().method() === 'POST',
+    );
+    await details.getByRole('button', { name: 'Save', exact: true }).click({ timeout: 5000 });
+    const updated = await update;
+    expect(updated.status()).toBe(200);
+    expect(updated.url()).toBe(`http://localhost:7600/api/projects/${owner.id}/commands`);
+    const updateCommand: unknown = updated.request().postDataJSON();
+    // Proof: forwarding FS from the captured dialog failed this accepted command's FF type (FF receipt).
+    expect(updateCommand, 'FF serialization').toEqual({
+      commands: [
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: rows[0]?.id,
+          predecessor,
+          successor,
+          type: 'FF',
+        },
+      ],
+    });
+    const updateAccepted: unknown = await updated.json();
+    expect(updateAccepted).toEqual({ results: [{ index: 0 }], undoable: true, redoable: false });
+    const stable = rows.map((row) => ({ ...row, type: 'FF' }));
+    // Proof: mapping only the external update to FS failed this SQLite FF tuple after HTTP 200 (FF receipt).
+    expect(
+      (await relationships()).filter((row) => row.successor_project_id === owner.id),
+      'persisted FF tuple',
+    ).toEqual(stable);
+    const admissions = () =>
+      observed.frames.filter(
+        (frame) =>
+          frame.type === 'resume_ack' &&
+          typeof frame.replayed?.[`project:${owner.id}`] === 'number',
+      ).length;
+    const beforeReload = admissions();
+    const beforeReloadReads = observed.reads.length;
+    await page.reload();
+    await expect(page.getByLabel('Name of 010')).toHaveValue('AuthorFF row');
+    const reopened = await openCaptured();
+    await expect(reopened.getByLabel('Relationship')).toHaveValue('FF');
+    await expect(reopened.getByRole('link', { name: /^Open AXX\.010/ })).toHaveAttribute(
+      'href',
+      href,
+    );
+    await reopened.getByRole('button', { name: 'Back to dependency picker', exact: true }).click();
+    await expect.poll(() => observed.reads.length).toBeGreaterThan(beforeReloadReads);
+    await expect(page.locator('body')).toHaveAttribute(
+      'data-installed-seq',
+      String(observed.reads.at(-1)?.seq),
+    );
+    const readStartable = async () => {
+      const answer = await request.get(`http://localhost:7500/api/projects/${owner.id}/startable`, {
+        headers: { authorization: `Bearer ${fixture.token}` },
+      });
+      expect(answer.status()).toBe(200);
+      return (await answer.json()) as {
+        prerequisites: { workItemId: string; stepId: string }[];
+        leaves: { workItemId: string; stepIds: string[] }[];
+      };
+    };
+    const beforeStartable = await readStartable();
+    const beforePrerequisite = beforeStartable.prerequisites.find(
+      (step) => step.workItemId === owner.row && step.stepId === owner.step,
+    );
+    // Proof: sending unfinished FF to startBlockers returned canStart false here (FF receipt).
+    expect(beforePrerequisite, 'FF permits start before completion').toMatchObject({
+      canStart: true,
+    });
+    // Proof: removing the FF finish-blocker append returned canFinish true here (FF receipt).
+    expect(beforePrerequisite, 'FF blocks finish before completion').toEqual({
+      workItemId: owner.row,
+      stepId: owner.step,
+      started: false,
+      canStart: true,
+      canFinish: false,
+      startBlockers: [],
+      finishBlockers: [
+        {
+          workItemId: remote.row,
+          stepId: remote.step,
+          type: 'FF',
+          provenance: 'authored',
+          relationshipId: rows[0]?.id,
+        },
+      ],
+    });
+    expect(beforeStartable.leaves.find((leaf) => leaf.workItemId === owner.row)?.stepIds).toEqual([
+      owner.step,
+    ]);
+    await expect(page.locator('[data-node-reading]').first()).toHaveAttribute(
+      'data-node-reading',
+      'unknown',
+    );
+    await expect.poll(admissions).toBeGreaterThan(beforeReload);
+    const pongs = observed.frames.filter((frame) => frame.type === 'pong').length;
+    await operateSocket(page, 'ping');
+    await expect
+      .poll(() => observed.frames.filter((frame) => frame.type === 'pong').length)
+      .toBe(pongs + 1);
+    const notifications = () =>
+      observed.frames.filter((frame) => frame.message?.type === 'elsewhere_changed').length;
+    const beforeNotifications = notifications();
+    const before = observed.reads.length;
+    const priorTree = observed.reads.at(-1);
+    if (priorTree === undefined) throw new Error('missing installed owner tree before completion');
+    expect((await request.post('http://localhost:7500/__fixture/complete')).status()).toBe(200);
+    await expect(page.locator('[data-node-reading]').first()).toHaveAttribute(
+      'data-node-reading',
+      'waiting',
+    );
+    await expect.poll(() => observed.reads.length).toBeGreaterThan(before);
+    expect(observed.reads.at(-1)?.seq).toBeGreaterThan(priorTree.seq);
+    await expect(page.locator('body')).toHaveAttribute(
+      'data-installed-seq',
+      String(observed.reads.at(-1)?.seq),
+    );
+    expect(notifications()).toBe(beforeNotifications + 1);
+    const afterStartable = await readStartable();
+    expect(
+      afterStartable.prerequisites.find(
+        (step) => step.workItemId === owner.row && step.stepId === owner.step,
+      ),
+    ).toEqual({
+      workItemId: owner.row,
+      stepId: owner.step,
+      started: false,
+      canStart: true,
+      canFinish: true,
+      startBlockers: [],
+      finishBlockers: [],
+    });
+    expect(afterStartable.leaves.find((leaf) => leaf.workItemId === owner.row)?.stepIds).toEqual([
+      owner.step,
+    ]);
+    expect((await relationships()).filter((row) => row.successor_project_id === owner.id)).toEqual(
+      stable,
+    );
+    const completed = await openCaptured();
+    await expect(completed.getByLabel('Relationship')).toHaveValue('FF');
+    await expect(completed.getByRole('link', { name: /^Open AXX\.010/ })).toHaveAttribute(
+      'href',
+      href,
+    );
+    await testInfo.attach('FF-lifecycle-evidence', {
+      body: JSON.stringify({
+        creationCommand,
+        accepted,
+        updateCommand,
+        updateAccepted,
+        stable,
+        beforeStartable,
+        afterStartable,
+        reads: observed.reads,
+        frames: observed.frames,
+      }),
+      contentType: 'application/json',
+    });
+  } finally {
+    await context.close();
+  }
+});

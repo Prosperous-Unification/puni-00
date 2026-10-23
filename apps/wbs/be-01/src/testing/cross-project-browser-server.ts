@@ -99,6 +99,7 @@ for (const name of [
   'SuccessorPhone',
   'Author',
   'AuthorPhone',
+  'AuthorFF',
   'RenameSource',
   'RenameTarget',
   'DatedA',
