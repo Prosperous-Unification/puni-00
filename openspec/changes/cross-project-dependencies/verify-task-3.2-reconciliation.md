@@ -90,3 +90,8 @@ bounded transport outcomes. These later packets supersede the corresponding
 gaps identified by the source audit above; they do not establish the entire
 active authority/admission matrix or production activation. Task 3.2 stays
 open pending that matrix and the exact-head gate.
+
+The bounded [active generated MCP authority packet](verify-active-mcp-authority.md)
+now adds restricted readable node SS add/FF update and queued machine credential
+revocation/successor restriction. It reconciles prior HTTP/direct evidence and
+leaves the full matrix, delegated race intersections and parent tasks open.

@@ -167,6 +167,22 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
       call,
       command,
       inspect,
+      authority: async (
+        action:
+          | 'restricted-predecessor'
+          | 'hold'
+          | 'queued'
+          | 'revoke-credential'
+          | 'restrict-successor'
+          | 'release',
+      ) => {
+        const reply = await fetch(`${apiUrl}/_parity/authority/${action}`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${ready.controlToken}` },
+        });
+        if (reply.status !== 200)
+          throw new Error(`authority preparation failed: ${String(reply.status)}`);
+      },
       prepareOptimization: async () => {
         const reply = await fetch(`${apiUrl}/_parity/optimization`, {
           method: 'POST',
@@ -271,6 +287,7 @@ interface Endpoint {
 }
 interface Snapshot {
   pushes: string[];
+  predecessorAuthored: unknown;
   relationship: ({ id: string } & Record<string, unknown>) | null;
   journal: { preconditions: string; payload: string } | null;
   staged: { id: string; projectId: string; revision: number } | null;
@@ -1499,4 +1516,167 @@ for (const kind of ['addTypedDependency', 'updateTypedDependency'] as const) {
       }
     });
   }
+}
+
+// Proof: rejecting restricted remote evidence failed this accepted add (tool error instead of 200), watched 2026-10-23.
+test('generated MCP authors and updates a restricted readable node predecessor without edit authority', async () => {
+  const fixture = await openFixture();
+  try {
+    await fixture.authority('restricted-predecessor');
+    const before = await fixture.inspect();
+    const denied = await fixture.call('postApiProjectsByIdCommands', {
+      id: fixture.predecessor.projectId,
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.predecessor.workItemId,
+          patch: { name: 'Denied' },
+        },
+      ],
+    });
+    expect(denied.isError).toBe(true);
+    expect(denied.text).toContain('HTTP 403 forbidden');
+    expect((await fixture.inspect()).effects).toEqual(before.effects);
+    expect((await fixture.inspect()).pushes).toEqual(before.pushes);
+    const command = {
+      ...fixture.command,
+      predecessor: {
+        ...wholeEndpoint(fixture.predecessor),
+        scope: 'node',
+        stepId: fixture.predecessor.steps[0],
+      },
+      successor: {
+        ...wholeEndpoint(fixture.successor),
+        scope: 'node',
+        stepId: fixture.successor.steps[0],
+      },
+      type: 'SS',
+    };
+    const added = await submit(fixture, 'MCP', [command]);
+    expect(added.status).toBe(200);
+    const committed = await fixture.inspect();
+    if (committed.relationship === null)
+      throw new Error('restricted predecessor relationship missing');
+    const dependencyId = committed.relationship.id;
+    expect(JSON.parse(added.text)).toMatchObject({ results: [{ index: 0, id: dependencyId }] });
+    expect(committed.relationship).toMatchObject({
+      predecessor_project_id: fixture.predecessor.projectId,
+      successor_project_id: fixture.successor.projectId,
+      predecessor_scope: 'node',
+      successor_scope: 'node',
+      type: 'SS',
+    });
+    const updated = await submit(fixture, 'MCP', [
+      { ...command, kind: 'updateTypedDependency', dependencyId, type: 'FF' },
+    ]);
+    expect(updated.status).toBe(200);
+    const after = await fixture.inspect();
+    expect(after.relationship).toEqual({ ...committed.relationship, type: 'FF' });
+    expect(after.journalCount).toBe(before.journalCount + 2);
+    expect(after.predecessorAuthored).toEqual(before.predecessorAuthored);
+    if (after.journal === null) throw new Error('restricted predecessor update journal missing');
+    expect(after.journal.payload).toContain(dependencyId);
+    expect(after.journal.payload).toContain('"type":"FF"');
+    expect(JSON.parse(after.journal.preconditions)).toMatchObject({
+      externalRevisions: {
+        from: [
+          {
+            projectId: fixture.predecessor.projectId,
+            workItemId: fixture.predecessor.workItemId,
+            revision: 1,
+          },
+        ],
+        expected: [
+          {
+            projectId: fixture.predecessor.projectId,
+            workItemId: fixture.predecessor.workItemId,
+            revision: 2,
+          },
+        ],
+      },
+    });
+    expect(after.revisions).toEqual([{ revision: 2 }, { revision: 2 }]);
+    expect(after.pushes.length).toBeGreaterThan(before.pushes.length);
+    const direct = await fixture.http(
+      'GET',
+      `/api/projects/${fixture.successor.projectId}/work-items`,
+    );
+    expect(direct.status).toBe(200);
+    const reading = await fixture.call('getApiProjectsByIdWork-items', {
+      id: fixture.successor.projectId,
+    });
+    expect(reading.isError).not.toBe(true);
+    expect(JSON.parse(reading.text)).toEqual(direct.body);
+    expect(JSON.parse(reading.text)).toMatchObject({
+      connectedDependencies: [
+        {
+          id: dependencyId,
+          type: 'FF',
+          predecessor: { endpoint: command.predecessor },
+          successor: { endpoint: command.successor },
+        },
+      ],
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
+// Proof: capturing request access admitted the revoked queued update; independently
+// omitting AdmittedScope's forbidden branch admitted the restricted-successor update.
+// Both answered MCP success instead of the required 409/403 (2026-10-23).
+for (const fault of ['revoke-credential', 'restrict-successor'] as const) {
+  test(`generated MCP queued external update revalidates ${fault} atomically`, async () => {
+    const fixture = await openFixture();
+    let held = false;
+    try {
+      await fixture.authority('restricted-predecessor');
+      expect((await submit(fixture, 'MCP', [fixture.command])).status).toBe(200);
+      const initial = await fixture.inspect();
+      if (initial.relationship === null) throw new Error('queued update relationship missing');
+      const lookup = await fixture.call('getApiProjectsByIdWork-items', {
+        id: fixture.predecessor.projectId,
+      });
+      expect(lookup.isError).not.toBe(true);
+      await fixture.authority('hold');
+      held = true;
+      const pending = fixture.call('postApiProjectsByIdCommands', {
+        id: fixture.successor.projectId,
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.successor.workItemId,
+            patch: { name: 'Must roll back' },
+          },
+          {
+            ...fixture.command,
+            kind: 'updateTypedDependency',
+            dependencyId: initial.relationship.id,
+            type: 'SS',
+          },
+        ],
+      });
+      await fixture.authority('queued');
+      await fixture.authority(fault);
+      const before = await fixture.inspect();
+      await fixture.authority('release');
+      held = false;
+      const refused = await pending;
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toContain(
+        fault === 'revoke-credential'
+          ? 'HTTP 409 organization_context_changed'
+          : 'HTTP 403 forbidden',
+      );
+      const after = await fixture.inspect();
+      expect(after.effects).toEqual(before.effects);
+      expect(after.pushes).toEqual(before.pushes);
+      expect(after.relationship).toEqual(initial.relationship);
+      expect(after.journalCount).toBe(initial.journalCount);
+      expect(after.revisions).toEqual(initial.revisions);
+    } finally {
+      if (held) await fixture.authority('release');
+      await fixture.close();
+    }
+  });
 }

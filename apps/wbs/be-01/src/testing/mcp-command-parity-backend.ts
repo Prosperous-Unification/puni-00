@@ -1,5 +1,7 @@
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
+import { openDatabase } from '../repository/db';
 import { addAgentPerson, issueApiKey } from './machine-credential-fixture';
 import { OrganizationHarness } from './organization-harness';
 
@@ -94,11 +96,101 @@ requireOk(
 );
 pushes.length = 0;
 const controlToken = crypto.randomUUID();
+let releaseWriter: (() => void) | undefined;
+let heldWriter: Promise<void> | undefined;
+let queuedWriter: Promise<void> | undefined;
+const enterDescriptor = Object.getOwnPropertyDescriptor(WriteCoordinator.prototype, 'enter');
+if (enterDescriptor === undefined) throw new Error('fixture writer method missing');
+// The descriptor comes from the concrete coordinator prototype; preserve its generic signature.
+const enter = enterDescriptor.value as WriteCoordinator['enter'];
+
 const backend = Bun.serve({
   hostname: '127.0.0.1',
   port: 0,
   fetch: async (request) => {
-    if (new URL(request.url).pathname === '/_parity/optimization') {
+    const path = new URL(request.url).pathname;
+    if (path.startsWith('/_parity/authority/')) {
+      if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
+        return new Response(null, { status: 403 });
+      if (request.method !== 'POST') return new Response(null, { status: 405 });
+      switch (path.slice('/_parity/authority/'.length)) {
+        case 'restricted-predecessor': {
+          await harness.register('owner');
+          harness.member('org-a', 'owner', 'member');
+          harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
+            harness.userId('owner'),
+            predecessor.projectId,
+          ]);
+          harness.sqlite.run('UPDATE project SET owner_id=? WHERE id=?', [
+            harness.userId('owner'),
+            successor.projectId,
+          ]);
+          break;
+        }
+        case 'hold': {
+          if (heldWriter !== undefined) throw new Error('writer already held');
+          let markEntered: (() => void) | undefined;
+          const entered = new Promise<void>((resolve) => {
+            markEntered = resolve;
+          });
+          heldWriter = harness.holdWriteTurn(
+            new Promise<void>((resolve) => {
+              releaseWriter = resolve;
+            }),
+            () => {
+              if (markEntered === undefined) throw new Error('writer entry signal missing');
+              markEntered();
+            },
+          );
+          await entered;
+          queuedWriter = new Promise<void>((resolve) => {
+            WriteCoordinator.prototype.enter = function <T>(
+              this: WriteCoordinator,
+              work: () => Promise<T>,
+            ): Promise<T> {
+              // The delegated coordinator executes this same generic callback; only its enqueue is observed.
+              const pending = enter.call(this, work) as Promise<T>;
+              resolve();
+              return pending;
+            };
+          });
+          break;
+        }
+        case 'queued':
+          if (queuedWriter === undefined) throw new Error('writer was not held');
+          await queuedWriter;
+          WriteCoordinator.prototype.enter = enter;
+          break;
+        case 'revoke-credential':
+        case 'restrict-successor': {
+          const separate = openDatabase(harness.databasePath());
+          try {
+            if (path.endsWith('revoke-credential'))
+              separate.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [
+                credential.id,
+              ]);
+            else separate.run('UPDATE project SET restricted=1 WHERE id=?', [successor.projectId]);
+          } finally {
+            separate.close();
+          }
+          break;
+        }
+        case 'release':
+          if (releaseWriter === undefined || heldWriter === undefined)
+            throw new Error('writer was not held');
+          releaseWriter();
+          await heldWriter;
+          heldWriter = undefined;
+          queuedWriter = undefined;
+          releaseWriter = undefined;
+          WriteCoordinator.prototype.enter = enter;
+          break;
+        default:
+          throw new Error('unknown authority fixture action');
+      }
+      return Response.json({ prepared: true });
+    }
+    if (path === '/_parity/optimization') {
       if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
         return new Response(null, { status: 403 });
       if (request.method !== 'POST') return new Response(null, { status: 405 });
@@ -118,6 +210,9 @@ const backend = Bun.serve({
       const sqlite = harness.sqlite;
       return Response.json({
         pushes,
+        predecessorAuthored: sqlite
+          .query('SELECT name,notes,priority,readiness FROM work_item WHERE id=?')
+          .get(predecessor.workItemId),
         relationship: sqlite.query('SELECT * FROM external_dependency').get(),
         journal: sqlite
           .query(
@@ -151,6 +246,8 @@ process.on('SIGTERM', () => {
   if (closing) return;
   closing = true;
   void (async () => {
+    releaseWriter?.();
+    WriteCoordinator.prototype.enter = enter;
     await backend.stop(true);
     await harness.closeComposed();
     process.exit(0);
