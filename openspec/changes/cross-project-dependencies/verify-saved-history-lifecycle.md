@@ -72,20 +72,39 @@ Independent production-path negatives were run against the changed cases:
 
 - In `SavedPlanService.read`, after `resource.readPlan`, inject
   `await this.captureAndAttempt(opened.plan.projectId, { kind: 'legacy' })` for
-  the read arm. Both post-edit cases fail at the injected live capture capability:
+  the read arm. Both post-edit cases fail through mounted saved-read HTTP at
+  `saved-plan.routes.ts:308` → `callSavedPlan:68` → `read:277` →
+  `captureAndAttempt:651` → the injected live capability. Observed error:
+  `historical inspection attempted a live capability`;
   **0 pass, 2 fail, 12 assertions, exit 1**.
   [Read receipt](evidence/saved-history-lifecycle/read-live-after-relationship-edit.log).
 - At the entry to `SavedPlanService.compare`, independently inject
   `await this.captureAndAttempt(projectId, access)`. Both post-edit cases fail at
-  the same live capability: **0 pass, 2 fail, 22 assertions, exit 1**.
+  the same live capability through mounted comparison HTTP at
+  `saved-plan.routes.ts:234` → `callSavedPlan:68` → `compare:351` →
+  `captureAndAttempt:649`. Observed error:
+  `historical inspection attempted a live capability`;
+  **0 pass, 2 fail, 14 assertions, exit 1**.
   [Comparison receipt](evidence/saved-history-lifecycle/compare-live-after-relationship-edit.log).
+
+The first fault receipts stopped at direct service observations before mounting;
+they did not establish mounted-path failure. The corrected inspector mounts and
+executes both HTTP requests before its direct service observations. The read fault
+now aborts in the mounted saved-read route; the independent comparison fault passes
+the mounted saved-read status assertion, then aborts in the mounted comparison
+route. Both occur on the first inspector after the verified persisted SS→FS edit,
+before later metadata changes/deletion. These new logs replace the earlier direct
+service fault output. The route stack is the observed HTTP-path evidence; the
+mutation aborts before a successful HTTP response/body assertion.
 
 Each fault was restored before the next run; the production feature has no final
 diff. The adjacent `Proof:` comment names these new receipts. With production
 restored, `bun test src/http/elysia/saved-plan-connected-lifecycle.db.test.ts
 src/service/saved-plan-connected-writer.db.test.ts src/service/saved-plan-read.db.test.ts
 --timeout=10000` from `apps/wbs/be-01` passed **23 tests, 234 assertions, 0 failures**.
-The lifecycle file alone passed **2 tests, 106 assertions**.
+The lifecycle file alone passed **2 tests, 106 assertions**. These positive
+checks were rerun after the mounted-path correction with all frozen SS/identity,
+body/hash and both-side stage-boundary assertions preserved.
 
 The isolated worktree reuses `/home/df/wd/puni/puni-00/node_modules` via an ignored
 symlink; `cmp bun.lock /home/df/wd/puni/puni-00/bun.lock` exited 0. No fresh install

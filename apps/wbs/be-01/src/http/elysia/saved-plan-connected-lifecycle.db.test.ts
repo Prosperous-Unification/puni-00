@@ -18,7 +18,8 @@ const access = {
 };
 
 // Proof: routing saved read or saved/saved comparison through capture makes the
-// post-save SS→FS edit cases fail at this injected live capability in both modes
+// post-save SS→FS edit cases fail through mounted HTTP before direct service reads
+// at this injected live capability in both modes
 // (read-live-after-relationship-edit.log and compare-live-after-relationship-edit.log).
 const refuseLive = (): never => {
   throw new Error('historical inspection attempted a live capability');
@@ -104,6 +105,35 @@ test.each(['isolated', 'shared'] as const)(
           newId: refuseLive,
         });
         try {
+          const app = mountEndpoints(
+            savedPlanRoutes(
+              history,
+              testProjectService(source.stores.projects),
+              recordingBroadcaster(),
+              { resolve: () => Promise.resolve({ ok: true, access }) },
+            ),
+            {
+              appOrigin: 'http://localhost',
+              resolveIdentity: () =>
+                Promise.resolve({
+                  ok: true,
+                  principal: { id: 'ada', username: 'Ada', scopes: ['read', 'write'] },
+                }),
+              reportUnexpectedFailure: (failure) => {
+                throw failure;
+              },
+            },
+          );
+          const httpRead = await app.handle(
+            new Request(`http://localhost/api/saved-plans/${stored.id}`),
+          );
+          expect(httpRead.status).toBe(200);
+          const httpComparison = await app.handle(
+            new Request(
+              `http://localhost/api/projects/a1/saved-plans/compare?left=${stored.id}&right=${second.record.id}`,
+            ),
+          );
+          expect(httpComparison.status).toBe(200);
           const opened = await history.read(stored.id);
           if (opened.outcome !== 'read') throw new Error('saved history required');
           expect(opened.plan.input).toEqual(stored.input);
@@ -138,36 +168,7 @@ test.each(['isolated', 'shared'] as const)(
               schedule.connection.stages.map((stage) => stage.stageBytes),
             );
           }
-          const app = mountEndpoints(
-            savedPlanRoutes(
-              history,
-              testProjectService(source.stores.projects),
-              recordingBroadcaster(),
-              { resolve: () => Promise.resolve({ ok: true, access }) },
-            ),
-            {
-              appOrigin: 'http://localhost',
-              resolveIdentity: () =>
-                Promise.resolve({
-                  ok: true,
-                  principal: { id: 'ada', username: 'Ada', scopes: ['read', 'write'] },
-                }),
-              reportUnexpectedFailure: (failure) => {
-                throw failure;
-              },
-            },
-          );
-          const httpRead = await app.handle(
-            new Request(`http://localhost/api/saved-plans/${stored.id}`),
-          );
-          expect(httpRead.status).toBe(200);
           expect(await httpRead.json()).toEqual({ savedPlan: opened.plan });
-          const httpComparison = await app.handle(
-            new Request(
-              `http://localhost/api/projects/a1/saved-plans/compare?left=${stored.id}&right=${second.record.id}`,
-            ),
-          );
-          expect(httpComparison.status).toBe(200);
           expect(await httpComparison.json()).toEqual({
             left: compared.left,
             right: compared.right,
