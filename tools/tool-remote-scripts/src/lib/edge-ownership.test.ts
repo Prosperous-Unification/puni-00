@@ -392,6 +392,10 @@ test('shared pending decoder preserves the existing publication and refuses unsc
   expect(decodeDependencyOwnerPublication(publication)).toEqual(publication);
   for (const value of [
     { ...publication, extra: true },
+    {
+      ...publication,
+      plan: { ...publication.plan, layouts: [...publication.plan.layouts].reverse() },
+    },
     { ...publication, attempt: 'foreign' },
     { ...publication, plan: { ...publication.plan, extra: true } },
     { ...publication, plan: { ...publication.plan, layouts: [envLayout('prod')] } },

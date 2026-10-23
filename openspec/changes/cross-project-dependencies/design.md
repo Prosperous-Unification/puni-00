@@ -1486,3 +1486,11 @@ failure retains pending ownership, policy and barriers; a published restoring
 policy permits only that compatible supervisor to restart. P2b, P3, parent S4 and
 the full activation/exposure goal remain open. Local source evidence is recorded
 in [the P2a receipt](verify-solver-restoration.md); no host adoption is claimed.
+
+P2a review correction: the native installed-configuration observation boundary
+covers UTF-8, JSON, complete supervisor schema validation and image extraction.
+A refusal includes only fixed configuration-field context and the exact captured
+byte hash; parser/schema diagnostics and nested raw causes are not propagated.
+The producer, coordinator and all drain finalizers share that same boundary.
+The pending-publication decoder preserves the publisher's exact `[prod, dev]`
+layout order as well as its closed fields, identities and full scope checks.

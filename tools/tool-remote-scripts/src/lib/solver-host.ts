@@ -92,7 +92,9 @@ export function decodeSolverPins(value: unknown): SolverPins {
   };
 }
 
-/** Canonical nofollow bounded regular-file observation, retaining identities and hash only. */
+/** Canonical nofollow bounded regular-file observation, retaining identities and hash only.
+ * Configuration refusals expose fixed field context and the captured byte hash, never parser/schema causes.
+ */
 export async function captureSolverFile(
   path: string,
   maximum: number,
@@ -145,25 +147,31 @@ export async function captureSolverFile(
       (await realpath(path)) !== path
     )
       throw new Error('solver installed file changed while reading');
+    const sha256 = hash.digest('hex');
     const contents = Buffer.concat(configChunks);
     let solverImages: readonly string[] | undefined;
     if (config) {
-      const decoded: unknown = JSON.parse(
-        new TextDecoder('utf-8', { fatal: true }).decode(contents),
-      );
-      decodeSolverSupervisorConfig(decoded);
-      const images = readFields(decoded)['images'];
-      if (!Array.isArray(images)) throw new Error('solver config image list is malformed');
-      solverImages = [
-        ...new Set(images.map((image) => readString(readFields(image)['solverImage']))),
-      ].sort();
+      try {
+        const decoded: unknown = JSON.parse(
+          new TextDecoder('utf-8', { fatal: true }).decode(contents),
+        );
+        decodeSolverSupervisorConfig(decoded);
+        const images = readFields(decoded)['images'];
+        if (!Array.isArray(images)) throw new Error('solver config image list is malformed');
+        solverImages = [
+          ...new Set(images.map((image) => readString(readFields(image)['solverImage']))),
+        ].sort();
+      } catch {
+        // Proof: installed-config-private omission exposed JSON/schema sentinels and lost UTF-8 hash context through direct producer and coordinator/finalizer tests (exit 1).
+        throw new Error(`solver installed configuration decoding refused; sha256=${sha256}`);
+      }
     }
     return {
       path,
       device: String(initial.dev),
       inode: String(initial.ino),
       mode: Number(initial.mode & 0o777n),
-      sha256: hash.digest('hex'),
+      sha256,
       ...(solverImages === undefined ? {} : { solverImages }),
     };
   } finally {

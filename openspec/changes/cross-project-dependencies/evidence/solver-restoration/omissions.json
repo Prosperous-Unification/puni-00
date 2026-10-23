@@ -356,7 +356,57 @@
     "pattern": "fenced: policy-after-start",
     "exit": 1,
     "failed": true,
-    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: policy-after-start [10001.41ms]",
-    "assertion": "explicit test assertion failed"
+    "proofStatus": "verified-assertion-failure",
+    "budgetMs": 20000,
+    "observedTests": [
+      "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: policy-after-start [6307.27ms]"
+    ],
+    "assertions": ["error: expect(received).toBe(expected)", "Expected: true", "Received: false"],
+    "rawReceipt": "final-policy-assertion.log",
+    "supersededAttempt": "omission-history.json",
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: policy-after-start [6307.27ms]",
+    "assertion": "error: expect(received).toBe(expected)",
+    "assertionKinds": ["error: expect(received).toBe(expected)"]
+  },
+  {
+    "mutation": "installed-config-private",
+    "file": "solver-host.ts",
+    "pattern": "trusted config|fenced: config-",
+    "exit": 1,
+    "failed": true,
+    "proofStatus": "verified-assertion-failure",
+    "budgetMs": 20000,
+    "observedTests": [
+      "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: config-json-private [4166.65ms]",
+      "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: config-key-private [3867.84ms]",
+      "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: config-utf8-private [3159.98ms]",
+      "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: config-finalizer-private [3501.96ms]",
+      "(fail) direct compatibility producer keeps trusted config json errors private [15.76ms]",
+      "(fail) direct compatibility producer keeps trusted config schema errors private [15.30ms]",
+      "(fail) direct compatibility producer keeps trusted config utf8 errors private [15.55ms]"
+    ],
+    "assertionKinds": [
+      "error: expect(received).not.toContain(expected)",
+      "error: expect(received).toContain(expected)"
+    ],
+    "unsafeObservation": "private configuration payload escaped in nested diagnostics"
+  },
+  {
+    "mutation": "owner-layout-order",
+    "file": "edge-ownership.ts",
+    "pattern": "owner-order|shared pending",
+    "exit": 1,
+    "failed": true,
+    "proofStatus": "verified-assertion-failure",
+    "budgetMs": 20000,
+    "observedTests": [
+      "(fail) shared pending decoder preserves the existing publication and refuses unscoped restoration [1.16ms]",
+      "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: owner-order [97.67ms]"
+    ],
+    "assertionKinds": [
+      "error: expect(received).toBe(expected)",
+      "error: expect(received).toThrow()"
+    ],
+    "unsafeObservation": "coherently reversed publisher layouts entered the runtime callback"
   }
 ]

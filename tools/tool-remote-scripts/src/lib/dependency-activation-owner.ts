@@ -400,7 +400,7 @@ export async function restoreSolverAfterDependencyExclusion(
         'restored solver service readiness identity',
       );
       await prepared.parked.inspect(removed);
-      // Proof: omitting the final policy readback admitted post-start ordinary-policy substitution; policy-after-start test failed (exit 1).
+      // Proof: final-policy omission under the scoped 20 s budget produced Expected true / Received false in policy-after-start (exit 1); the earlier timeout is unverified history.
       assertSame(published, await captureEdgePolicy(directory), 'restored solver retained policy');
       await retainSolverRecord(owner, layouts, 'restore-complete', {
         phase: 'solver-ready-participants-fenced',

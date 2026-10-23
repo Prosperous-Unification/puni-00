@@ -46,7 +46,7 @@ application startup, ingress reopening, marker retirement, automatic repair or
 old-tuple restoration. P2b/P3, S4, parent 10.2, independent source review and
 separately authorized actual-host adoption/acceptance remain open.
 
-## Final checks
+## Initial source checks at `712eff63e`
 
 - Focused production-path suite: **535 passed, 0 failed, 45,147 assertions**, 21 files, 144.07 s. Includes ordinary callers, source/solver/backend/gateway/ingress exclusion, closed records/publication, terminal and created-attempt restoration, post-start policy drift, actual bundled CLI and actual delayed socket/cancellation.
 - `NX_DAEMON=false bunx nx run-many --projects=tool-remote-scripts -t lint typecheck build --parallel=1`: **passed**. All three project tasks ran fresh; three unchanged dependency builds used local cache. Duration 18.6 s.
@@ -59,9 +59,23 @@ The initial broad replay exposed a duplicate-ID test fixture collision; the fixt
 
 ## Watched production omissions
 
-[Forty observed omission results](evidence/solver-restoration/omissions.json)
-retain the selected test, failing assertion and exit 1. Every mutant was restored
-before fresh normal checks; syntax/load failures were excluded as proofs.
+[Forty-two verified omission results](evidence/solver-restoration/omissions.json)
+retain the selected test, failing assertion and exit 1. The original fortieth
+final-policy attempt was incorrectly classified: its raw output showed only a
+10-second timeout, without an assertion. That attempt is explicitly **unverified**,
+is excluded from the verified count and is retained with the incorrect prior
+claim in [the correction history](evidence/solver-restoration/omission-history.json)
+and [unaltered raw timeout receipt](evidence/solver-restoration/final-policy-original-timeout.log).
+A fresh omission under the current 20-second scoped budget finished in 6.45 s
+and observed the actual forbidden-success assertion `Expected: true / Received:
+false`; [raw assertion receipt](evidence/solver-restoration/final-policy-assertion.log).
+The verified record count is aggregate evidence: the other 39 original
+assertions at `712eff63e` (not claimed as reruns on the corrected source), that
+fresh corrected assertion, and the two new installed-config/privacy and
+publisher-order guard assertions. The correction packet replayed the latter
+three omissions against its own source.
+Every mutant was restored before fresh normal checks. Timeouts, syntax and load
+failures are not assertion proofs.
 
 | Boundary                  | Injected omission or fault                                                                                                                         | Observed refusal/proof                                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -107,3 +121,39 @@ OpenSpec validation are separate from those later host/CI checks. The compositio
 cases have a measured 20-second per-case budget under
 [the existing budget policy](../../../docs/test-budgets.md); their production
 operation deadlines and all refusal checks remain bounded.
+
+## Independent review corrections on `712eff63e`
+
+The review's malformed installed-config injection during capability observation
+was reproduced through the actual full coordinator. The same issue was confirmed
+in the direct compatibility producer and in a finalizer-only injection after both
+post-probe tuple observations had returned. JSON parse text and schema key names
+could expose fixture sentinels; UTF-8 failures lacked safe configuration context.
+The native installed-config boundary now covers UTF-8 decoding, JSON parsing,
+full supervisor schema validation and image extraction, exposing only fixed field
+context and the exact captured-byte SHA256. No raw cause is retained. Unknown
+failures still reject; no empty support or installed-hash fallback is introduced.
+
+A coherently rehashed pending publication with `[dev, prod]` layouts also entered
+the runtime callback before correction. The shared decoder now requires the
+existing publisher's exact `[prod, dev]` order and retains all closed-field,
+uniqueness, full-scope and digest checks. Normal publication was already sorted.
+
+The confirmed regression selection first observed **9 failing tests** against the
+reviewed source, then **9 passing tests / 11,785 assertions** after correction.
+Removing the configuration privacy boundary again made all seven direct,
+coordinator and finalizer JSON/schema/UTF-8 cases fail; removing the order guard
+made the shared decoder and coherently rehashed runtime cases fail. Those watched
+assertions are included in the 42-result record above.
+
+Final correction checks:
+
+- Focused 21-file production-path suite: **543 passed, 0 failed, 56,925 assertions**, 195.30 s. The actual built CLI retained its existing terminal exit-78 versus ordinary exit-1 assertions.
+- `NX_DAEMON=false bunx nx run-many --projects=tool-remote-scripts -t lint typecheck build --parallel=1`: **passed**, fresh project tasks, three unchanged dependency builds cached, 18.6 s. Module-boundary lint ran with the generated project graph; the earlier graph-less autofix warnings are not counted as boundary verification.
+- `bunx --no-install openspec validate --all --json`: **277/277 passed**, zero failures.
+- Three fresh omission executions produced actual assertions: final policy (1 test), installed-config privacy (7 tests), exact publisher order (2 tests). None was a timeout or load failure.
+- Changed-file formatting and normal commit hooks are checked for the correction commit; no hook bypass is used.
+
+Independent
+rereview and physical adoption/acceptance remain open. This packet changes no
+activation, participant exposure, ownership lifetime or P2b/P3 behavior.

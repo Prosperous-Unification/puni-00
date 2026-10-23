@@ -905,3 +905,12 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 
 P2a restores only the compatible supervisor. Activation, application participants,
 public exposure, marker retirement, complete P2/P3, S4 and parent 10.2 remain open.
+
+### P2a independent review corrections
+
+- [x] P2a.R1 Reproduce private installed-config JSON/schema/UTF-8 failures through the direct compatibility producer, full coordinator and finalizer-only path; sanitize the shared native decode boundary to fixed field context and captured-byte hash without raw causes.
+- [x] P2a.R2 Require the pending publication's existing exact prod-before-dev publisher order; reject coherently rehashed reversed pending/intent layouts before the runtime callback.
+- [x] P2a.R3 Correct the initially misclassified final-policy timeout receipt, observe a real assertion failure under the current scoped 20-second budget, and record new guard omissions and final focused checks.
+
+Independent rereview and separately authorized host acceptance remain open; these
+corrections add no P2b/P3 activation or exposure scope.

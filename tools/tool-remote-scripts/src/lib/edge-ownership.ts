@@ -68,6 +68,9 @@ export function decodeDependencyOwnerPublication(value: unknown): DependencyOwne
     const env = layout['env'];
     if ((env !== 'prod' && env !== 'dev') || layouts.some((prior) => prior.env === env))
       throw new Error('solver restoration owner layouts are duplicate or unknown');
+    // Proof: coherent reversed pending/intent hashes entered the runtime callback before this publisher-order guard (owner-order test, exit 1).
+    if (env !== (layouts.length === 0 ? 'prod' : 'dev'))
+      throw new Error('solver restoration owner layouts are not in publisher prod/dev order');
     const paths = ['root', 'sharedEnvPath', 'stateDir', 'siteCaddyPath'] as const;
     for (const key of paths) {
       const path = readString(layout[key]);

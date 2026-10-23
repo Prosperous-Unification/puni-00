@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { link, lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { inspect as inspectFailure } from 'node:util';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
@@ -44,16 +46,20 @@ async function inspectBackendFence(layout: EnvLayout, runner: RunDocker) {
   return await runInspectBackendFence(layout, runner, namespaceFor(layout));
 }
 
-async function refuses(promise: Promise<unknown>, message?: string): Promise<void> {
+async function refuses(promise: Promise<unknown>, message?: string): Promise<Error> {
   let refused = false;
+  let refusal: unknown;
   try {
     await promise;
   } catch (cause) {
+    refusal = cause;
     refused = true;
     expect(cause).toBeInstanceOf(Error);
     if (message !== undefined) expect(String(cause)).toContain(message);
   }
   expect(refused).toBe(true);
+  if (!(refusal instanceof Error)) throw new Error('fixture expected an Error refusal');
+  return refusal;
 }
 
 async function fixture() {
@@ -1106,6 +1112,10 @@ for (const fault of [
   'intent-resumed',
   'process-drift',
   'policy-after-start',
+  'config-json-private',
+  'config-key-private',
+  'config-utf8-private',
+  'config-finalizer-private',
 ] as const) {
   test(`restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: ${fault}`, async () => {
     const { restoreSolverAfterDependencyExclusion } = await import('./dependency-activation-owner');
@@ -1115,6 +1125,21 @@ for (const fault of [
     let started = false;
     let observedCapabilities = false;
     let connected = false;
+    let capturesAfterProbe = 0;
+    let corrupted: Uint8Array | undefined;
+    const sentinel = 'PRIVATE_REVIEW_CONFIG_SENTINEL';
+    const corruptConfig = async () => {
+      const original: unknown = JSON.parse(await readFile(`${f.root}/installed-2`, 'utf8'));
+      if (typeof original !== 'object' || original === null || Array.isArray(original))
+        throw new Error('fixture config unavailable');
+      corrupted =
+        fault === 'config-key-private'
+          ? Buffer.from(JSON.stringify({ ...original, [sentinel]: 'secret' }))
+          : fault === 'config-utf8-private'
+            ? Buffer.concat([Buffer.from([255]), Buffer.from(sentinel)])
+            : Buffer.from(`${sentinel}=secret`);
+      await writeFile(`${f.root}/installed-2`, corrupted);
+    };
     const restoredPhase = [
       'start',
       'service',
@@ -1145,6 +1170,16 @@ for (const fault of [
     const runHost = solver.ports.runHost;
     const ports = {
       ...solver.ports,
+      captureFile: async (path: string, maximum: number, config = false) => {
+        const observed = await solver.ports.captureFile(path, maximum, config);
+        if (
+          observedCapabilities &&
+          fault === 'config-finalizer-private' &&
+          ++capturesAfterProbe === 8
+        )
+          await corruptConfig();
+        return observed;
+      },
       observeCgroup: async (path: string, removedAllowed: boolean) => {
         const observed = await solver.ports.observeCgroup(path, removedAllowed);
         return started && observed !== null ? { ...observed, populated: true } : observed;
@@ -1208,6 +1243,12 @@ for (const fault of [
       runDocker: async (args: string[], signal?: AbortSignal) => {
         if (args[0] === 'run') {
           observedCapabilities = true;
+          if (
+            fault === 'config-json-private' ||
+            fault === 'config-key-private' ||
+            fault === 'config-utf8-private'
+          )
+            await corruptConfig();
           if (fault === 'source-final') source.State.Running = true;
           if (fault === 'backend-final') f.container.State.Running = true;
           if (fault === 'tuple') await writeFile(`${f.root}/installed-1`, 'changed bundle');
@@ -1275,7 +1316,7 @@ for (const fault of [
       f.root,
     );
     if (fault !== 'none' && fault !== 'created') {
-      await refuses(
+      const refusal = await refuses(
         restoring,
         fault === 'new-participant'
           ? 'restoration exact parked participants'
@@ -1283,6 +1324,17 @@ for (const fault of [
             ? 'restoration retained participant bytes'
             : '',
       );
+      if (fault.startsWith('config-')) {
+        expect(corrupted).toBeDefined();
+        expect(inspectFailure(refusal, { depth: null })).not.toContain(sentinel);
+        expect(refusal.message).toContain('solver installed configuration');
+        if (corrupted === undefined) throw new Error('fixture corruption did not occur');
+        expect(refusal.message).toContain(createHash('sha256').update(corrupted).digest('hex'));
+        for (const directory of [f.root, selectedDev.stateDir])
+          for (const name of await readdir(directory))
+            if (name.endsWith('.json'))
+              expect(await readFile(`${directory}/${name}`, 'utf8')).not.toContain(sentinel);
+      }
       expect((await (await import('./edge-policy')).captureEdgePolicy(f.root)).policy.phase).toBe(
         restoredPhase ? 'restoring' : 'ordinary',
       );

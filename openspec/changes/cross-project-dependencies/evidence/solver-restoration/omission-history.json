@@ -1,0 +1,21 @@
+[
+  {
+    "mutation": "restored-retained-policy",
+    "source": "712eff63e52e90026b16b10b6d9187d338e1c122",
+    "proofStatus": "unverified-timeout",
+    "budgetMs": 10000,
+    "exit": 1,
+    "observedOutcome": "test timed out at 10001.41 ms; no forbidden-success assertion was observed",
+    "rawReceipt": "final-policy-original-timeout.log",
+    "incorrectPriorClaim": {
+      "mutation": "restored-retained-policy",
+      "file": "dependency-activation-owner.ts",
+      "pattern": "fenced: policy-after-start",
+      "exit": 1,
+      "failed": true,
+      "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: policy-after-start [10001.41ms]",
+      "assertion": "explicit test assertion failed"
+    },
+    "countedAsVerified": false
+  }
+]

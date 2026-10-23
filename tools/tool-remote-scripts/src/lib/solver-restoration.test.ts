@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { inspect as inspectFailure } from 'node:util';
+
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
@@ -212,6 +216,7 @@ for (const fault of [
   'tuple-inode',
   'owner-scope',
   'owner-extra',
+  'owner-order',
   'omitted-mapping',
   'phase-drift',
 ] as const) {
@@ -280,9 +285,10 @@ for (const fault of [
       const hash = bytes => createHash('sha256').update(bytes).digest('hex');
       if (fault === 'policy-hash') document.restorationIntent.sha256 = '0'.repeat(64);
       if (fault === 'foreign-owner') envelope.owner = 'foreign';
-      if (fault === 'owner-scope' || fault === 'owner-extra') {
+      if (fault === 'owner-scope' || fault === 'owner-extra' || fault === 'owner-order') {
         const publication = JSON.parse(envelope.owner);
         if (fault === 'owner-scope') publication.plan.layouts[0].root = '/foreign';
+        else if (fault === 'owner-order') publication.plan.layouts.reverse();
         else publication.extra = true;
         envelope.owner = JSON.stringify(publication);
         await writeFile(pendingPath, envelope.owner);
@@ -291,7 +297,7 @@ for (const fault of [
       if (fault === 'malformed-pending') { envelope.owner = '{'; await writeFile(pendingPath, '{'); document.ownerPublicationSha256 = hash('{'); }
       if (fault === 'omitted-mapping') envelope.record.images.pop();
       if (fault === 'coverage') envelope.record.images[0].image = 'registry/wbs-be-01@sha256:' + 'f'.repeat(64);
-      if (['foreign-owner', 'malformed-pending', 'coverage', 'owner-scope', 'owner-extra', 'omitted-mapping'].includes(fault)) { const bytes = JSON.stringify(envelope); await writeFile(retained.path, bytes); document.restorationIntent.sha256 = hash(bytes); }
+      if (['foreign-owner', 'malformed-pending', 'coverage', 'owner-scope', 'owner-extra', 'owner-order', 'omitted-mapping'].includes(fault)) { const bytes = JSON.stringify(envelope); await writeFile(retained.path, bytes); document.restorationIntent.sha256 = hash(bytes); }
       await writeFile(policyPath, JSON.stringify(document));
       if (fault === 'missing-pending') await unlink(pendingPath);
       if (fault === 'committed') await writeFile(f.root + '/edge-owner.json', 'committed');
@@ -484,3 +490,62 @@ test('owner capability failure diagnostics never expose transport payloads', asy
     fixture.root,
   );
 });
+
+for (const fault of ['json', 'schema', 'utf8'] as const) {
+  test(`direct compatibility producer keeps trusted config ${fault} errors private`, async () => {
+    const { createSourceSolverFixture } = await import('../fixtures/source-solver');
+    const { withDependencyOwner } = await import('./edge-ownership');
+    const { retainCompatibleSolverIntent } = await import('./solver-restoration');
+    const fixture = await createSourceSolverFixture(
+      scratchSync('restore-private-config-'),
+      image.image,
+    );
+    const sentinel = 'PRIVATE_PRODUCER_CONFIG_SENTINEL';
+    const original: unknown = JSON.parse(await readFile(`${fixture.root}/installed-2`, 'utf8'));
+    if (typeof original !== 'object' || original === null || Array.isArray(original))
+      throw new Error('fixture config unavailable');
+    const corrupted =
+      fault === 'schema'
+        ? Buffer.from(JSON.stringify({ ...original, [sentinel]: 'secret' }))
+        : fault === 'utf8'
+          ? Buffer.concat([Buffer.from([255]), Buffer.from(sentinel)])
+          : Buffer.from(`${sentinel}=secret`);
+    await withDependencyOwner(
+      fixture.plan,
+      async (owner) => {
+        let refusal: unknown;
+        try {
+          await retainCompatibleSolverIntent(
+            owner,
+            fixture.layouts,
+            fixture.pins,
+            {
+              ...fixture.ports,
+              runDocker: async (args, signal) => {
+                if (args[0] !== 'run') return fixture.ports.runDocker(args, signal);
+                await writeFile(`${fixture.root}/installed-2`, corrupted);
+                return JSON.stringify({
+                  protocol: 'wbs-dependency-runtime',
+                  version: 1,
+                  role: 'backend',
+                  semantics: ['cross-project-dependencies-v1'],
+                });
+              },
+            },
+            performance.now() + 10000,
+          );
+        } catch (cause) {
+          refusal = cause;
+        }
+        expect(refusal).toBeInstanceOf(Error);
+        expect(inspectFailure(refusal, { depth: null })).not.toContain(sentinel);
+        expect(String(refusal)).toContain('solver installed configuration');
+        expect(String(refusal)).toContain(createHash('sha256').update(corrupted).digest('hex'));
+        for (const name of await readdir(fixture.root))
+          if (name.endsWith('.json'))
+            expect(await readFile(`${fixture.root}/${name}`, 'utf8')).not.toContain(sentinel);
+      },
+      fixture.root,
+    );
+  });
+}
