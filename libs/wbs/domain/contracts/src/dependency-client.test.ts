@@ -19,6 +19,8 @@ test('documents resource admission and exempts health and immutable capability',
 });
 
 test('pins the complete protected and exempt operation matrix', () => {
+  // Proof: exempting a compute-provider resource from dependency admission
+  // moved its real HTTP operation out of this protected matrix and failed here.
   expect({
     protected: httpShapes
       .filter(requiresDependencyClient)
@@ -30,6 +32,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       .sort(),
   }).toEqual({
     protected: [
+      'deleteApiOrganizationCompute-providersById',
       'deleteApiOrganizationDomainsById',
       'deleteApiOrganizationInvitationsById',
       'deleteApiOrganizationMachine-credentialsById',
@@ -46,6 +49,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiOnboarding',
       'getApiOrganization',
       'getApiOrganizationActive',
+      'getApiOrganizationCompute-providers',
       'getApiOrganizationDomains',
       'getApiOrganizationInvitations',
       'getApiOrganizationJoinRequests',
@@ -89,6 +93,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiWork-item-types',
       'getPlansBy-solutionBySlug',
       'patchApiOrganization',
+      'patchApiOrganizationCompute-providersById',
       'patchApiOrganizationMembersByUserId',
       'patchApiOrganizationSso-connectionsById',
       'patchApiProjectsById',
@@ -103,6 +108,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postApiOnboardingJoinRequests',
       'postApiOnboardingOrganizations',
       'postApiOrganizationActive',
+      'postApiOrganizationCompute-providers',
       'postApiOrganizationDomainsByIdRotate',
       'postApiOrganizationDomainsByIdVerify',
       'postApiOrganizationDomainsChallenges',
@@ -136,6 +142,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postInternalGatewayProjectBrowserAccess',
       'postInternalMcpOrganizations',
       'postInternalResume',
+      'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
       'putApiOrganizationSession-policy',
     ],
     exempt: [
