@@ -6485,3 +6485,13 @@ with no findings. On integrated `c1f4c3411`, four focused files passed
 120 tests/391 assertions, and configured core/backend lint and typecheck passed
 uncached with module checks. Parent tasks 7.3/7.4 and the exact-SHA host gate
 remain open.
+
+## Task 10.1 bounded gateway fence admission — 2026-10-23
+
+[The admission packet](verify-gateway-fence-admission.md) refuses ordinary
+Compose swaps under the deploy lock while gateway fence intent is retained,
+including missing or unreadable trusted state and symlink markers. Independent
+Astra High rereview approved the correction. The reviewer ran 112 focused and
+293 adjacent regression tests, all passing. Integrated as `2c57b8206` and
+`d459c8fdf`. The configured Caddy test and exact-SHA host gate remain open;
+no marker lifecycle, process exclusion or activation is claimed.

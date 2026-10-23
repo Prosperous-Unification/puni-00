@@ -101,4 +101,9 @@ correction). Changed-file formatting and diff checks passed. The configured
 project test was retried and remains blocked at Caddy image preparation by
 Docker socket permission denial. Standard OpenSpec passed with the same 18
 warnings; strict validation failed with an issue array identical to the base.
-Independent rereview and the integrated exact-SHA host gate remain outstanding.
+Independent Astra High rereview approved the corrected bounded packet at
+`89fae859e` with no blocking finding. The reviewer reran the 112-case focused
+matrix and 293 adjacent regression tests: **405 passed, zero failed**. The
+source and correction were integrated as `2c57b8206` and `d459c8fdf`.
+The exact-SHA host gate remains outstanding; this admission packet still does
+not establish physical gateway exclusion or activation.
