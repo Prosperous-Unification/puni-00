@@ -200,3 +200,20 @@ passed after correcting import order and the test callback's void expression.
 The first two configured attempts failed on those style errors; they are not
 counted as passing evidence. The next live k3s rehearsal, full exact-SHA host
 gate, semantic status-image compatibility and activation remain outstanding.
+
+[Infra-check run 39878782903](https://github.com/Prosperous-Unification/puni-00/actions/runs/39878782903)
+on pushed `98f59cc48` passed its earlier fleet checks and failed the real k3s
+rehearsal after `admit-images` at the same refusal. The bounded snapshot from
+the exact rejected Pod reports `name=task`, restart count 0 and:
+
+| Field                | Observed value                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Pinned Job/Pod image | `k3d-puni-f8-registry:5000/wbs-be-01@sha256:4cd033475b964db8ae4adfa01b89dd504adcd6557f3f9572860ce80af5f2a830` |
+| Pod `status.image`   | `sha256:3b42b9f5820dc133d965615a6195d384edde4f192cab821760fe268480bfbb33`                                     |
+| Pod `status.imageID` | Same pinned repository/manifest digest as the Job/Pod image                                                   |
+
+The CI log is retained locally at `/tmp/puni-pr630-k3s-98-failed.log`.
+`status.image` may be a runtime image/config identifier; that is an inference,
+not yet an established manifest-to-config relationship. The existing refusal
+remains authoritative. A compatibility change needs a scoped identity proof and
+new watched negative cases before another k3s rehearsal.
