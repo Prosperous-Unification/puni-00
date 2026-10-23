@@ -170,6 +170,9 @@ type SmokeFault =
 interface SmokeRun {
   exitCode: number;
   stderr: string;
+  stdout: string;
+  retainedResources: string;
+  retainedAttempts: string;
   dockerCalls: string[];
   hostCalls: string[];
   survivingTags: string[];
@@ -178,6 +181,7 @@ interface SmokeRun {
 }
 
 let root: string;
+let retainedDirectory: string | undefined;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'wbs-solver-image-smoke-'));
@@ -185,6 +189,10 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
+  if (retainedDirectory) {
+    rmSync(retainedDirectory, { recursive: true, force: true });
+    retainedDirectory = undefined;
+  }
 });
 
 function writeCommand(directory: string, name: string, body: string): void {
@@ -194,7 +202,14 @@ function writeCommand(directory: string, name: string, body: string): void {
 
 function runSmoke(
   fault?: SmokeFault,
-  options: { args?: string[]; supplied?: boolean; missing?: boolean; orphan?: boolean } = {},
+  options: {
+    args?: string[];
+    supplied?: boolean;
+    missing?: boolean;
+    orphan?: boolean;
+    retain?: boolean;
+    cleanupToken?: string;
+  } = {},
 ): SmokeRun {
   const commands = join(root, 'commands');
   const store = join(root, 'images');
@@ -235,6 +250,9 @@ function runSmoke(
     'mktemp',
     `#!/usr/bin/env bash\nmkdir -p "$WBS_FAKE_SOCKET_DIRECTORY"\nprintf '%s\\n' "$WBS_FAKE_SOCKET_DIRECTORY"\n`,
   );
+  const socketDirectory = options.retain
+    ? `/run/user/${String(process.getuid?.())}/wbs-solver-smoke.11111111-2222-4333-8444-555555555555`
+    : join(root, 'socket');
   const bashEnvironment = join(root, 'bash-env');
   writeFileSync(
     bashEnvironment,
@@ -248,6 +266,13 @@ function runSmoke(
   }
 `,
   );
+  const retained = options.retain
+    ? `/run/user/${String(process.getuid?.())}/wbs-solver-proof-test-${root.split('/').at(-1) ?? 'missing'}`
+    : join(root, 'retained');
+  if (options.retain) {
+    mkdirSync(retained, { mode: 0o700 });
+    retainedDirectory = retained;
+  }
   const invocation = Bun.spawnSync(
     ['bash', SCRIPT, ...(options.args ?? (options.supplied ? [`--image=${SUPPLIED_IMAGE}`] : []))],
     {
@@ -259,8 +284,11 @@ function runSmoke(
         WBS_HOST_LOG: hostLog,
         WBS_FAKE_IMAGE_STORE: store,
         WBS_FAKE_CONTAINER_STORE: containers,
-        WBS_FAKE_SOCKET_DIRECTORY: join(root, 'socket'),
+        WBS_FAKE_SOCKET_DIRECTORY: socketDirectory,
         WBS_REAL_BUN: process.execPath,
+        WBS_SOLVER_SMOKE_CLEANUP_TOKEN:
+          options.cleanupToken ?? '11111111-2222-4333-8444-555555555555',
+        ...(options.retain ? { WBS_SOLVER_SMOKE_INVENTORY: retained } : {}),
         WBS_RUN_SOLVER_ORPHAN_PROC: options.orphan || !options.supplied ? '1' : '0',
         ...(fault === undefined ? {} : { WBS_FAKE_FAULT: fault }),
       },
@@ -271,10 +299,13 @@ function runSmoke(
   return {
     exitCode: invocation.exitCode,
     stderr: invocation.stderr.toString(),
+    stdout: invocation.stdout.toString(),
+    retainedResources: options.retain ? readFileSync(join(retained, 'resources'), 'utf8') : '',
+    retainedAttempts: options.retain ? readFileSync(join(retained, 'attempts'), 'utf8') : '',
     dockerCalls: readFileSync(dockerLog, 'utf8').trim().split('\n').filter(Boolean),
     hostCalls: readFileSync(hostLog, 'utf8').trim().split('\n').filter(Boolean),
     survivingContainers: readdirSync(containers),
-    socketExists: existsSync(join(root, 'socket')),
+    socketExists: existsSync(socketDirectory),
     survivingTags: readdirSync(store).map((name) => readFileSync(join(store, name), 'utf8')),
   };
 }
@@ -610,4 +641,41 @@ it('preserves the client failure while reporting registry removal failure', () =
   expect(smoke.survivingTags).toEqual([]);
   expect(smoke.survivingContainers).toHaveLength(1);
   expect(smoke.survivingContainers[0]).toContain('registry');
+});
+
+for (const supplied of [false, true]) {
+  it(`issues exact cleanup receipt after failing client in ${supplied ? 'supplied' : 'built'} mode`, () => {
+    const smoke = runSmoke('connected-composed-run', { supplied });
+    expect(smoke.exitCode).toBe(90);
+    expect(smoke.stdout.trim().split('\n').at(-1)).toBe(
+      '[solver-image-smoke] cleanup-complete 11111111-2222-4333-8444-555555555555',
+    );
+  });
+  it(`withholds cleanup receipt on cleanup denial in ${supplied ? 'supplied' : 'built'} mode`, () => {
+    const smoke = runSmoke('caller-rm-fails', { supplied });
+    expect(smoke.exitCode).not.toBe(0);
+    expect(smoke.stdout).not.toContain('[solver-image-smoke] cleanup-complete');
+  });
+}
+
+it('retains exact resources and admission tokens after removable socket inventory cleanup', () => {
+  const smoke = runSmoke('connected-composed-run', { supplied: true, retain: true });
+  expect(smoke.exitCode).toBe(90);
+  expect(smoke.socketExists).toBe(false);
+  expect(smoke.retainedResources).toStartWith(
+    'invocation\t11111111-2222-4333-8444-555555555555\nattempt\t',
+  );
+  expect(smoke.retainedResources).toContain('container\twbs-solver-smoke-caller-');
+  expect(smoke.retainedResources).not.toContain('image\t');
+  expect(smoke.retainedResources).toMatch(/supervisor\t[0-9]+:[0-9]+\n/);
+  expect(smoke.retainedResources).toContain(
+    'supervisor-starting\t11111111-2222-4333-8444-555555555555',
+  );
+  expect(smoke.retainedAttempts.trim().split('\n')).toHaveLength(2);
+});
+it('refuses malformed cleanup token before Docker', () => {
+  const smoke = runSmoke(undefined, { supplied: true, cleanupToken: 'not-a-uuid' });
+  expect(smoke.exitCode).not.toBe(0);
+  expect(smoke.stderr).toContain('cleanup receipt token must be a UUID');
+  expect(smoke.dockerCalls).toEqual([]);
 });

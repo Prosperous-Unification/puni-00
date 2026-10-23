@@ -1,12 +1,28 @@
 // Bun's rejects matcher is typed void; awaiting it is required by these asynchronous negative tests.
 /* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-dynamic-delete, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
-import { Attempt, faults, finish, mutate, preflight } from './task7-solver-image-proof';
+import {
+  Attempt,
+  faults,
+  finish,
+  mutate,
+  preflight,
+  readProcess,
+} from './task7-solver-image-proof';
 
 let folder: string;
 let originalPath = '';
@@ -35,7 +51,18 @@ esac
   );
   writeFileSync(
     join(folder, 'bin/bash'),
-    '#!/bin/sh\nprintf "%s\\n" "$PROOF_TEST_LOG"\nexit "${PROOF_TEST_STATUS:-1}"\n',
+    `#!/bin/sh
+printf 'invocation\\t%s\\nattempt\\taaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" > "$WBS_SOLVER_SMOKE_INVENTORY/resources"
+: > "$WBS_SOLVER_SMOKE_INVENTORY/attempts"
+printf '%s\\n' "$PROOF_TEST_LOG"
+case "\${PROOF_TEST_RECEIPT:-exact}" in
+exact) printf '[solver-image-smoke] cleanup-complete %s\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" ;;
+wrong) printf '[solver-image-smoke] cleanup-complete wrong-token\\n' ;;
+duplicate) printf '[solver-image-smoke] cleanup-complete %s\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" ;;
+none) ;;
+esac
+exit "\${PROOF_TEST_STATUS:-1}"
+`,
     { mode: 0o700 },
   );
   process.env['PATH'] = join(folder, 'bin') + ':' + originalPath;
@@ -49,6 +76,7 @@ afterEach(() => {
     'PROOF_TEST_REMOVE',
     'PROOF_TEST_LOG',
     'PROOF_TEST_STATUS',
+    'PROOF_TEST_RECEIPT',
   ])
     delete process.env[key];
   rmSync(folder, { recursive: true, force: true });
@@ -191,4 +219,198 @@ test('full planned sequence derives independent mutants and restores exact basel
       `FROM ${baseline}\nCOPY fault.ts /app/${fault.path}\n`,
     );
   expect(attempt.tags).toHaveLength(6);
+});
+
+for (const receipt of ['none', 'wrong', 'duplicate'])
+  test(`intended assertion with ${receipt} cleanup receipt refuses mutant acceptance`, async () => {
+    const fault = faults[0];
+    if (!fault) throw new Error('required source-binding fault absent');
+    const path = 'apps/wbs/be-01/scripts/connected-composed-image-scenario.ts';
+    const line =
+      readFileSync(join(import.meta.dir, 'connected-composed-image-scenario.ts'), 'utf8')
+        .split('\n')
+        .findIndex((source) => source.includes(fault.assertion)) + 1;
+    process.env['PROOF_TEST_LOG'] =
+      `AssertionError: intended assertion\n at /app/${path}:${String(line)}:12\nregistry removal denied`;
+    process.env['PROOF_TEST_RECEIPT'] = receipt;
+    await expect(
+      new Attempt(folder).smoke('fault', 'registry.invalid/be@sha256:' + 'a'.repeat(64), fault),
+    ).rejects.toThrow('inner cleanup receipt missing or duplicated');
+  });
+test('intended assertion plus exact invocation cleanup receipt accepts mutant', async () => {
+  const fault = faults[0];
+  if (!fault) throw new Error('required source-binding fault absent');
+  const path = 'apps/wbs/be-01/scripts/connected-composed-image-scenario.ts';
+  const line =
+    readFileSync(join(import.meta.dir, 'connected-composed-image-scenario.ts'), 'utf8')
+      .split('\n')
+      .findIndex((source) => source.includes(fault.assertion)) + 1;
+  process.env['PROOF_TEST_LOG'] =
+    `AssertionError: intended assertion\n at /app/${path}:${String(line)}:12`;
+  await new Attempt(folder).smoke('fault', 'registry.invalid/be@sha256:' + 'a'.repeat(64), fault);
+});
+
+test('stalled inner cleanup retains output and recovers every later recorded resource after kill', async () => {
+  const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const child = '11111111-2222-4333-8444-555555555555';
+  const supervisor = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  const pid = supervisor.pid;
+  if (pid === undefined) throw new Error('fake supervisor PID absent');
+  const exited = new Promise<void>((resolveExit) => supervisor.once('exit', () => resolveExit()));
+  const observed = readProcess(pid);
+  if (observed === undefined) throw new Error('fake supervisor identity absent');
+
+  mkdirSync(join(folder, 'store'));
+  writeFileSync(
+    join(folder, 'bin/timeout'),
+    '#!/bin/sh\nshift 2\nexec /usr/bin/timeout --signal=TERM --kill-after=.1 "$@"\n',
+    { mode: 0o700 },
+  );
+  writeFileSync(
+    join(folder, 'bin/docker'),
+    `#!/bin/sh
+for argument do last="$argument"; done
+printf '%s\\n' "$*" >> "$PROOF_TEST_DIRECTORY/commands"
+case "$1 $2" in
+'image inspect'|'container inspect')
+  if [ -e "$PROOF_TEST_DIRECTORY/store/$last" ]; then exit 0; fi
+  if [ "$1" = image ]; then echo 'No such image' >&2; else echo 'No such container' >&2; fi
+  exit 1 ;;
+'image rm'|'rm --force') rm "$PROOF_TEST_DIRECTORY/store/$last" ;;
+*) exit 9 ;;
+esac
+`,
+    { mode: 0o700 },
+  );
+  writeFileSync(
+    join(folder, 'bin/bash'),
+    `#!/bin/sh
+printf 'invocation\\t%s\\nattempt\\t${token}\\ncontainer\\twbs-solver-smoke-caller-${token}\\nimage\\twbs-be-01:solver-smoke-${token}\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" > "$WBS_SOLVER_SMOKE_INVENTORY/resources"
+printf 'supervisor-starting\\t%s\\nsupervisor\\t${String(pid)}:${observed.start}\\n' "$WBS_SOLVER_SMOKE_CLEANUP_TOKEN" >> "$WBS_SOLVER_SMOKE_INVENTORY/resources"
+printf '${child}\\n' > "$WBS_SOLVER_SMOKE_INVENTORY/attempts"
+touch "$PROOF_TEST_DIRECTORY/store/wbs-solver-smoke-caller-${token}" "$PROOF_TEST_DIRECTORY/store/wbs-solver-${child}" "$PROOF_TEST_DIRECTORY/store/wbs-be-01:solver-smoke-${token}"
+printf 'stalled inner cleanup with later child and image still owned\\n'
+printf 'runtime-device=%s\\n' "$(/usr/bin/stat -c %d "$WBS_SOLVER_SMOKE_INVENTORY")"
+trap 'while :; do sleep 1; done' TERM
+while :; do sleep 1; done
+`,
+    { mode: 0o700 },
+  );
+  try {
+    const attempt = new Attempt(folder);
+    Object.defineProperty(attempt, 'deadline', { value: Date.now() + 1500 });
+    await expect(attempt.smoke('stalled')).rejects.toThrow(
+      'inner cleanup receipt missing or duplicated',
+    );
+    const savedLog = readFileSync(join(folder, 'stalled.log'), 'utf8');
+    expect(savedLog).toContain('stalled inner cleanup');
+    expect(savedLog).not.toContain(`runtime-device=${String(statSync(folder).dev)}\n`);
+    const saved = readdirSync(folder).find((name) => name.startsWith('stalled-inventory-'));
+    if (saved === undefined) throw new Error('copied retained inventory missing');
+    expect(readFileSync(join(folder, saved, 'resources'), 'utf8')).toContain('supervisor\t');
+    expect(readFileSync(join(folder, saved, 'attempts'), 'utf8')).toContain(child);
+    const inventory = readFileSync(join(folder, 'inventory.json'), 'utf8');
+    expect(inventory).toContain('137');
+    expect(inventory).toContain('nestedRecovery');
+    expect(readFileSync(join(folder, 'commands'), 'utf8')).toContain(
+      `image rm wbs-be-01:solver-smoke-${token}`,
+    );
+    expect(readFileSync(join(folder, 'commands'), 'utf8')).toContain(
+      `rm --force wbs-solver-${child}`,
+    );
+    expect((await import('node:fs')).readdirSync(join(folder, 'store'))).toEqual([]);
+    await exited;
+    expect(readProcess(pid)).toBeUndefined();
+  } finally {
+    if (readProcess(pid) !== undefined) supervisor.kill('SIGKILL');
+    await exited;
+  }
+});
+for (const malformed of [
+  'missing',
+  'unreadable',
+  'wrong-invocation',
+  'unowned-container',
+  'bad-child',
+  'pending-supervisor',
+])
+  test(`nested recovery refuses ${malformed} inventory`, async () => {
+    const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    if (malformed === 'unreadable') mkdirSync(join(folder, 'resources'));
+    else if (malformed !== 'missing') {
+      writeFileSync(
+        join(folder, 'resources'),
+        `invocation\t${malformed === 'wrong-invocation' ? 'wrong' : token}\nattempt\t${token}\n${malformed === 'unowned-container' ? 'container\tproduction-backend\n' : malformed === 'pending-supervisor' ? `supervisor-starting\t${token}\n` : ''}`,
+      );
+      writeFileSync(join(folder, 'attempts'), malformed === 'bad-child' ? 'not-a-uuid\n' : '');
+    }
+    const diagnosis =
+      malformed === 'missing'
+        ? 'ENOENT'
+        : malformed === 'unreadable'
+          ? 'EISDIR'
+          : malformed === 'wrong-invocation'
+            ? 'nested inventory invocation mismatch'
+            : malformed === 'unowned-container'
+              ? 'nested container ownership malformed'
+              : malformed === 'bad-child'
+                ? 'nested admission inventory malformed'
+                : 'nested supervisor identity unavailable';
+    await expect(new Attempt(folder).recoverNested(folder, token)).rejects.toThrow(diagnosis);
+  });
+
+for (const identity of ['matching', 'reused'])
+  test(`nested recovery handles ${identity} detached supervisor identity safely`, async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    const pid = child.pid;
+    if (pid === undefined) throw new Error('fake supervisor PID absent');
+    const exited = new Promise<void>((resolveExit) => child.once('exit', () => resolveExit()));
+    const observed = readProcess(pid);
+    if (observed === undefined) throw new Error('fake supervisor start identity absent');
+    const nonce = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const start = identity === 'matching' ? observed.start : String(BigInt(observed.start) + 1n);
+    writeFileSync(
+      join(folder, 'resources'),
+      `invocation\t${nonce}\nattempt\t${nonce}\nsupervisor-starting\t${nonce}\nsupervisor\t${String(pid)}:${start}\n`,
+    );
+    writeFileSync(join(folder, 'attempts'), '');
+    try {
+      const attempt = new Attempt(folder);
+      if (identity === 'matching') {
+        await attempt.recoverNested(folder, nonce);
+        await exited;
+        expect(readProcess(pid)).toBeUndefined();
+      } else {
+        await expect(attempt.recoverNested(folder, nonce)).rejects.toThrow(
+          'PID incarnation changed',
+        );
+        expect(readProcess(pid)?.start).toBe(observed.start);
+      }
+    } finally {
+      if (readProcess(pid) !== undefined) child.kill('SIGKILL');
+      await exited;
+    }
+  });
+
+test('nested recovery refuses resource overcount before any Docker work', async () => {
+  const token = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const containers = Array.from(
+    { length: 10 },
+    (_, index) =>
+      `container\twbs-solver-11111111-2222-4333-8444-${String(index).padStart(12, '0')}\n`,
+  ).join('');
+  writeFileSync(
+    join(folder, 'resources'),
+    `invocation\t${token}\nattempt\t${token}\n${containers}`,
+  );
+  writeFileSync(join(folder, 'attempts'), '');
+  await expect(new Attempt(folder).recoverNested(folder, token)).rejects.toThrow(
+    'nested ownership exceeds smoke protocol',
+  );
 });

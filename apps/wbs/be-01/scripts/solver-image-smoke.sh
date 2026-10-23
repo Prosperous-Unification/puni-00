@@ -30,6 +30,11 @@ if [ "$#" -ne 0 ]; then
 fi
 
 attempt_token="$(cat /proc/sys/kernel/random/uuid)"
+cleanup_receipt_token="${WBS_SOLVER_SMOKE_CLEANUP_TOKEN-$attempt_token}"
+if [[ ! "$cleanup_receipt_token" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+  echo '[solver-image-smoke] cleanup receipt token must be a UUID' >&2
+  exit 1
+fi
 attempt_tokens=("$attempt_token")
 # Every tag is unique to this attempt so cleanup removes only what this attempt created.
 image="wbs-be-01:solver-smoke-$attempt_token"
@@ -42,6 +47,27 @@ socket_path=''
 supervisor_pid=''
 composed_inventory=''
 created_images=()
+retained_inventory="${WBS_SOLVER_SMOKE_INVENTORY:-}"
+# The outer proof owns this fresh directory; files are never placed in the removable socket tree.
+record_owned_resource() {
+  if [ -n "$retained_inventory" ]; then
+    printf '%s\t%s\n' "$1" "$2" >> "$retained_inventory/resources"
+  fi
+}
+if [ -n "$retained_inventory" ]; then
+  if [[ "$retained_inventory" != /* ]] || [ ! -d "$retained_inventory" ] || [ -e "$retained_inventory/resources" ] || [ -e "$retained_inventory/attempts" ]; then
+    echo '[solver-image-smoke] retained inventory requires a fresh absolute directory' >&2
+    exit 1
+  fi
+  (set -o noclobber; printf 'invocation\t%s\nattempt\t%s\n' "$cleanup_receipt_token" "$attempt_token" > "$retained_inventory/resources")
+  (set -o noclobber; : > "$retained_inventory/attempts")
+  record_owned_resource container "$caller_name"
+  record_owned_resource container "wbs-solver-$attempt_token"
+  if [ -z "$supplied_image" ]; then
+    record_owned_resource container "$registry_name"
+    record_owned_resource container "$baseline_name"
+  fi
+fi
 
 # Returns 0 when image $1 exists, 1 when Docker reports it absent and 2 when Docker cannot
 # answer, so a broken daemon cannot pass for a removed image.
@@ -217,6 +243,12 @@ cleanup() {
   if [ "$status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
     status=1
   fi
+  # A failing client can still prove clean release; a cleanup error can never issue this receipt.
+  # Proof: unconditional receipt emission failed both cleanup-denial receipt negatives.
+  if [ "$cleanup_failed" -eq 0 ]; then
+    # Proof: omitting this receipt failed both failing-client receipt positives.
+    printf '[solver-image-smoke] cleanup-complete %s\n' "$cleanup_receipt_token"
+  fi
   exit "$status"
 }
 # Proof: skipping this probe let the missing-digest negative reach the clients; treating a
@@ -230,10 +262,25 @@ if [ -n "$supplied_image" ]; then
     2) exit 1 ;;
   esac
 fi
-socket_directory="$(mktemp -d "/run/user/$(id -u)/wbs-solver-smoke.XXXXXX")"
+if [ -n "$retained_inventory" ]; then
+  socket_directory="/run/user/$(id -u)/wbs-solver-smoke.$cleanup_receipt_token"
+  if [ -e "$socket_directory" ] || [ -L "$socket_directory" ]; then
+    echo '[solver-image-smoke] invocation socket directory already exists' >&2
+    exit 1
+  fi
+  record_owned_resource directory "$socket_directory"
+  mkdir --mode=700 "$socket_directory"
+else
+  socket_directory="$(mktemp -d "/run/user/$(id -u)/wbs-solver-smoke.XXXXXX")"
+fi
 socket_path="$socket_directory/supervisor.sock"
 composed_inventory="$socket_directory/composed-attempts"
-: > "$composed_inventory"
+if [ -n "$retained_inventory" ]; then
+  # Hard link preserves every pre-admission token even if inner cleanup removes its pathname.
+  ln "$retained_inventory/attempts" "$composed_inventory"
+else
+  : > "$composed_inventory"
+fi
 trap cleanup EXIT
 # Proof: independently removing INT/TERM traps made the corresponding direct-baseline
 # interrupt negative lose controlled 130/143 (INT exited 0; TERM skipped EXIT cleanup).
@@ -245,6 +292,7 @@ if [ -n "$supplied_image" ]; then
   solver_image="$supplied_image"
 else
   created_images+=("$image")
+  record_owned_resource image "$image"
   docker build --file "$repo_root/apps/wbs/be-01/Dockerfile" --tag "$image" "$repo_root"
 
   docker run --rm --interactive --name "$baseline_name" --entrypoint wbs-solver "$image" <"$request" >/dev/null
@@ -262,6 +310,7 @@ else
   curl --fail --silent --show-error --max-time 2 "http://$registry/v2/" >/dev/null
   registry_tag="$registry/wbs-be-01:solver-smoke-$attempt_token"
   created_images+=("$registry_tag")
+  record_owned_resource image "$registry_tag"
   docker tag "$image" "$registry_tag"
   docker push "$registry_tag" >/dev/null
   mapfile -t matching_digests < <(
@@ -282,9 +331,22 @@ else
   esac
 fi
 
+record_owned_resource supervisor-starting "$cleanup_receipt_token"
 bun "$repo_root/tools/tool-remote-scripts/src/fixtures/solver-supervisor-image-host.ts" \
   "$solver_image" "$socket_path" "$caller_name" &
 supervisor_pid=$!
+if [ -n "$retained_inventory" ]; then
+  supervisor_stat="$(cat "/proc/$supervisor_pid/stat")"
+  supervisor_stat_tail="${supervisor_stat##*) }"
+  read -r -a supervisor_fields <<< "$supervisor_stat_tail"
+  supervisor_start="${supervisor_fields[19]}"
+  if [[ ! "$supervisor_start" =~ ^[0-9]+$ ]]; then
+    echo '[solver-image-smoke] supervisor start identity is malformed' >&2
+    exit 1
+  fi
+  # Proof: omitting this entry failed retained inventory supervision evidence.
+  record_owned_resource supervisor "$supervisor_pid:$supervisor_start"
+fi
 for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   [ -S "$socket_path" ] && break
   kill -0 "$supervisor_pid"
@@ -307,6 +369,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 # shared-client-failure case); the real digest image published a feasible shared-person answer.
 shared_attempt_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$shared_attempt_token")
+record_owned_resource container "wbs-solver-$shared_attempt_token"
 docker run --rm "${client_pull[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
@@ -319,6 +382,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 # in both built and supplied image modes; each authenticated child owns a fresh token.
 connected_feasible_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$connected_feasible_token")
+record_owned_resource container "wbs-solver-$connected_feasible_token"
 docker run --rm "${client_pull[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
@@ -331,6 +395,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 # in both built and supplied image modes; each authenticated child owns a fresh token.
 connected_fractional_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$connected_fractional_token")
+record_owned_resource container "wbs-solver-$connected_fractional_token"
 docker run --rm "${client_pull[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
@@ -355,6 +420,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 if [ "${WBS_RUN_SOLVER_ORPHAN_PROC:-0}" = '1' ]; then
   orphan_registry_tag="$registry/wbs-be-01:solver-orphan-$attempt_token"
   created_images+=("$orphan_registry_tag")
+  record_owned_resource image "$orphan_registry_tag"
   docker build \
     --file "$repo_root/apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile" \
     --build-arg "SOLVER_BASE_IMAGE=$solver_image" \

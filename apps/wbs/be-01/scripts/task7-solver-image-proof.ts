@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
@@ -78,13 +78,15 @@ let interrupted = false;
 async function command(
   arguments_: string[],
   seconds = 120,
-): Promise<{ status: number; stdout: string; stderr: string }> {
+  environment?: NodeJS.ProcessEnv,
+): Promise<{ status: number; signal: NodeJS.Signals | null; stdout: string; stderr: string }> {
   return new Promise((resolveCommand, reject) => {
     const child = spawn(
       'timeout',
       ['--signal=TERM', '--kill-after=60', String(seconds), ...arguments_],
       {
         cwd: root,
+        env: { ...process.env, ...environment },
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
@@ -100,8 +102,12 @@ async function command(
     child.once('error', reject);
     child.once('close', (status, signal) => {
       active = undefined;
-      if (status === null) reject(new Error(`command terminated by ${String(signal)}`));
-      else resolveCommand({ status, stdout, stderr });
+      resolveCommand({
+        status: status ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 137),
+        signal,
+        stdout,
+        stderr,
+      });
     });
   });
 }
@@ -145,6 +151,66 @@ function mutate(fault: (typeof faults)[number], context: string) {
     source = source.replace(before, after);
   }
   writeFileSync(resolve(context, 'fault.ts'), source);
+}
+
+/** Linux process start tick prevents a recycled PID from being treated as the owned supervisor. */
+function readProcess(pid: number): { start: string; state: string } | undefined {
+  let stat: string;
+  try {
+    stat = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
+  } catch (failure) {
+    if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT')
+      return undefined;
+    throw failure;
+  }
+  const boundary = stat.lastIndexOf(') ');
+  requireProof(
+    stat.startsWith(`${String(pid)} (`) && boundary > 0,
+    'supervisor process stat malformed',
+  );
+  const fields = stat
+    .slice(boundary + 2)
+    .trim()
+    .split(/\s+/);
+  const start = fields[19];
+  const state = fields[0];
+  requireProof(
+    fields.length >= 20 && /^[0-9]+$/.test(start) && /^[A-Za-z]$/.test(state),
+    'supervisor process identity malformed',
+  );
+  return { start, state };
+}
+
+/** Stop only the matching PID incarnation, with bounded termination and a non-running readback. */
+async function stopSupervisor(identity: string) {
+  const [pidText, start] = identity.split(':');
+  requireProof(/^[1-9][0-9]*:[0-9]+$/.test(identity), 'supervisor ownership malformed');
+  const pid = Number(pidText);
+  requireProof(
+    Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid,
+    'supervisor PID unsafe',
+  );
+  const stillRunning = () => {
+    const observed = readProcess(pid);
+    if (observed === undefined) return false;
+    // Proof: bypassed incarnation equality signaled the reused-identity dummy and failed its refusal test.
+    requireProof(observed.start === start, 'supervisor PID incarnation changed; refusing signal');
+    return observed.state !== 'Z';
+  };
+  for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
+    if (!stillRunning()) return;
+    try {
+      process.kill(pid, signal);
+    } catch (failure) {
+      if (!(failure instanceof Error && 'code' in failure && failure.code === 'ESRCH'))
+        throw failure;
+    }
+    for (let retry = 0; retry < 20; retry++) {
+      if (!stillRunning()) return;
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+    }
+  }
+  requireProof(!stillRunning(), 'owned supervisor outlived bounded TERM/KILL');
 }
 
 class Attempt {
@@ -240,17 +306,217 @@ class Attempt {
     requireProof(failures.length === 0, 'cleanup failed: ' + failures.join('; '));
   }
 
+  /** Recover only validated invocation-owned resources after a failed/missing inner cleanup receipt. */
+  async recoverNested(inventory: string, cleanupToken: string) {
+    const manifest = readFileSync(resolve(inventory, 'resources'), 'utf8');
+    requireProof(manifest.length <= 8192, 'nested inventory exceeds byte bound');
+    requireProof(manifest.endsWith('\n'), 'nested inventory is incomplete');
+    const lines = manifest.slice(0, -1).split('\n');
+    requireProof(lines.length <= 15, 'nested inventory exceeds line bound');
+    // Proof: bypassing invocation matching failed the wrong-invocation inventory refusal test.
+    requireProof(
+      lines.shift() === `invocation\t${cleanupToken}`,
+      'nested inventory invocation mismatch',
+    );
+    const attempt = lines.shift()?.split('\t');
+    const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+    requireProof(
+      attempt?.length === 2 &&
+        attempt[0] === 'attempt' &&
+        new RegExp(`^${uuid}$`).test(attempt[1] ?? ''),
+      'nested inventory attempt malformed',
+    );
+    const token = attempt[1];
+    const containers: string[] = [];
+    const images: string[] = [];
+    const directories: string[] = [];
+    const supervisors: string[] = [];
+    let supervisorStarting = false;
+    for (const line of lines) {
+      const fields = line.split('\t');
+      requireProof(fields.length === 2, 'nested inventory entry malformed');
+      const [kind, reference] = fields;
+      if (kind === 'container') {
+        requireProof(
+          // Proof: bypassed name validation accepted production-backend in the unowned-container negative.
+          new RegExp(`^wbs-solver-${uuid}$`).test(reference) ||
+            [
+              `wbs-solver-smoke-caller-${token}`,
+              `wbs-solver-smoke-baseline-${token}`,
+              `wbs-solver-smoke-registry-${token}`,
+            ].includes(reference),
+          'nested container ownership malformed',
+        );
+        containers.push(reference);
+      } else if (kind === 'image') {
+        requireProof(
+          reference === `wbs-be-01:solver-smoke-${token}` ||
+            new RegExp(`^127\\.0\\.0\\.1:[0-9]+/wbs-be-01:solver-(smoke|orphan)-${token}$`).test(
+              reference,
+            ),
+          'nested image ownership malformed',
+        );
+        images.push(reference);
+      } else if (kind === 'supervisor-starting') {
+        requireProof(
+          reference === cleanupToken && !supervisorStarting,
+          'nested supervisor start marker malformed',
+        );
+        supervisorStarting = true;
+      } else if (kind === 'supervisor') {
+        requireProof(
+          /^[1-9][0-9]*:[0-9]+$/.test(reference),
+          'nested supervisor identity malformed',
+        );
+        supervisors.push(reference);
+      } else if (kind === 'directory') {
+        requireProof(
+          reference === `/run/user/${String(process.getuid?.())}/wbs-solver-smoke.${cleanupToken}`,
+          'nested socket directory malformed',
+        );
+        directories.push(reference);
+      } else throw new Error('nested inventory kind malformed');
+    }
+    const recordedAttempts = readFileSync(resolve(inventory, 'attempts'), 'utf8');
+    requireProof(
+      recordedAttempts === '' || recordedAttempts.endsWith('\n'),
+      'nested admission inventory incomplete',
+    );
+    const attempts = recordedAttempts === '' ? [] : recordedAttempts.slice(0, -1).split('\n');
+    requireProof(
+      attempts.length <= 2 &&
+        new Set(attempts).size === attempts.length &&
+        attempts.every((token) => new RegExp(`^${uuid}$`).test(token)),
+      'nested admission inventory malformed',
+    );
+    requireProof(
+      // Proof: bypassed cap accepted excess UUID resources in the resource-overcount negative.
+      containers.length <= 7 && images.length <= 3 && supervisors.length <= 1,
+      'nested ownership exceeds smoke protocol',
+    );
+    containers.push(...attempts.map((token) => `wbs-solver-${token}`));
+    requireProof(
+      new Set(containers).size === containers.length &&
+        new Set(images).size === images.length &&
+        directories.length <= 1,
+      'nested ownership duplicated',
+    );
+    const failures: string[] = [];
+    let supervisorStopped = false;
+    try {
+      requireProof(
+        // Proof: bypassed identity presence accepted pending-supervisor without a recorded PID.
+        supervisors.length === (supervisorStarting ? 1 : 0),
+        'nested supervisor identity unavailable; manual review required',
+      );
+      for (const identity of supervisors) await stopSupervisor(identity);
+      supervisorStopped = true;
+    } catch (failure) {
+      failures.push(String(failure));
+    }
+    const owned: ['container' | 'image', string][] = [
+      ...containers.map((reference): ['container', string] => ['container', reference]),
+      ...images.toReversed().map((reference): ['image', string] => ['image', reference]),
+    ];
+    for (const [kind, reference] of owned) {
+      let missing = false;
+      try {
+        missing = await this.absent(kind, reference);
+      } catch (failure) {
+        failures.push(String(failure));
+      }
+      if (!missing) {
+        try {
+          await checked(
+            [
+              'docker',
+              ...(kind === 'container' ? ['rm', '--force', reference] : ['image', 'rm', reference]),
+            ],
+            30,
+          );
+        } catch (failure) {
+          failures.push(String(failure));
+        }
+      }
+      try {
+        requireProof(await this.absent(kind, reference), `nested resource survived: ${reference}`);
+      } catch (failure) {
+        failures.push(String(failure));
+      }
+    }
+    for (const directory of supervisorStopped ? directories : []) {
+      try {
+        for (const filename of ['supervisor.sock', 'composed-attempts']) {
+          const path = resolve(directory, filename);
+          if (existsSync(path)) unlinkSync(path);
+        }
+        if (existsSync(directory)) rmdirSync(directory);
+      } catch (failure) {
+        failures.push(String(failure));
+      }
+    }
+    this.record({
+      nestedRecovery: inventory,
+      containers,
+      images,
+      supervisors,
+      supervisorStopped,
+      failures,
+    });
+    requireProof(failures.length === 0, 'nested cleanup failed: ' + failures.join('; '));
+  }
+
   async smoke(name: string, image?: string, fault?: (typeof faults)[number]) {
     const remaining = Math.floor((this.deadline - Date.now()) / 1000);
     requireProof(remaining > 0, 'attempt exceeded one-hour work bound');
     requireProof(!interrupted, 'attempt interrupted');
     const arguments_ = ['bash', resolve(root, 'apps/wbs/be-01/scripts/solver-image-smoke.sh')];
     if (image) arguments_.push('--image=' + image);
-    const completed = await command(arguments_, Math.min(1800, remaining));
+    const cleanupToken = randomUUID();
+    const inventory = resolve(
+      `/run/user/${String(process.getuid?.())}`,
+      `wbs-solver-proof-inventory-${cleanupToken}`,
+    );
+    const snapshot = resolve(this.receipt, `${name}-inventory-${cleanupToken}`);
+    mkdirSync(snapshot, { mode: 0o700 });
+    this.record({ nestedInventory: inventory, snapshot, cleanupToken });
+    mkdirSync(inventory, { mode: 0o700 });
+    const completed = await command(arguments_, Math.min(1800, remaining), {
+      WBS_SOLVER_SMOKE_CLEANUP_TOKEN: cleanupToken,
+      WBS_SOLVER_SMOKE_INVENTORY: inventory,
+    });
     const contents = completed.stdout + completed.stderr;
     const log = resolve(this.receipt, name + '.log');
+    // Proof: omitted log writing lost killed-inner output evidence and failed its saved-log assertion.
     writeFileSync(log, contents);
-    this.record({ smoke: name, command: arguments_, image, status: completed.status, log });
+    this.record({
+      smoke: name,
+      command: arguments_,
+      image,
+      cleanupToken,
+      status: completed.status,
+      signal: completed.signal,
+      log,
+    });
+    const cleanupMarker = `[solver-image-smoke] cleanup-complete ${cleanupToken}`;
+    let nestedFailure: Error | undefined;
+    try {
+      for (const filename of ['resources', 'attempts'])
+        writeFileSync(resolve(snapshot, filename), readFileSync(resolve(inventory, filename)));
+      // Proof: bypassed recovery left later caller/child/image state in the killed-inner test.
+      await this.recoverNested(inventory, cleanupToken);
+      for (const filename of ['resources', 'attempts']) unlinkSync(resolve(inventory, filename));
+      rmdirSync(inventory);
+    } catch (failure) {
+      nestedFailure = failure instanceof Error ? failure : new Error(String(failure));
+      this.record({ nestedRecoveryFailure: String(failure), inventory });
+    }
+    requireProof(
+      // Proof: bypassed receipt matching accepted intended assertions with absent, wrong or duplicate receipts.
+      contents.split('\n').filter((line) => line === cleanupMarker).length === 1,
+      `${name}: inner cleanup receipt missing or duplicated; see ${log}`,
+    );
+    if (nestedFailure) throw nestedFailure;
     if (!fault) {
       requireProof(
         // Proof: bypassed status let success text with nonzero exit pass green acceptance.
@@ -456,4 +722,14 @@ if (import.meta.main) {
     });
   await main();
 }
-export { Attempt, command, faults, finish, mutate, preflight, requireProof };
+export {
+  Attempt,
+  command,
+  faults,
+  finish,
+  mutate,
+  preflight,
+  readProcess,
+  requireProof,
+  stopSupervisor,
+};
