@@ -476,3 +476,23 @@ mock.module('node:fs/promises', () => ({ ...fs, open: async (...args) => {
   expect(execution.stdout).toBe('');
   expect(execution.stderr).toContain('capture root changed');
 });
+
+test('exports the same strict finite manifest decoder used by the offline observer', async () => {
+  const { manifest } = await fixture();
+  const codec = await import('./installed-writers');
+  expect('decodeWriterManifest' in codec).toBe(true);
+  if (!('decodeWriterManifest' in codec) || typeof codec.decodeWriterManifest !== 'function')
+    throw new Error('missing writer decoder');
+  expect(JSON.stringify(codec.decodeWriterManifest(manifest))).toBe(JSON.stringify(manifest));
+  expect(() => codec.decodeWriterManifest({ ...manifest, activation: 'allowed' })).toThrow(
+    'fields',
+  );
+  expect(() =>
+    codec.decodeWriterManifest({
+      ...manifest,
+      members: manifest.members.map((member, index) =>
+        index === 0 ? { ...member, member: 'invented' } : member,
+      ),
+    }),
+  ).toThrow('membership');
+});

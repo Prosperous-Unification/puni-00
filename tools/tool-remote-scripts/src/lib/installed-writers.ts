@@ -18,15 +18,16 @@ export const WRITER_MEMBERS = [
   'shared-launch-authority',
   'shared-restart-authority',
 ] as const;
-interface WriterMember {
-  member: string;
+export type WriterMemberName = (typeof WRITER_MEMBERS)[number];
+export interface WriterMember {
+  member: WriterMemberName;
   origin: 'source' | 'build';
   hostPath: string;
   reviewed: string;
   installed: string;
   sha256: string;
 }
-interface WriterManifest {
+export interface WriterManifest {
   version: 1;
   sourceSha: string;
   buildSha: string;
@@ -56,7 +57,8 @@ function textOf(value: unknown): string {
   requireEvidence(typeof value === 'string' && value.length > 0, 'required string');
   return value;
 }
-function parseManifest(value: unknown): WriterManifest {
+/** Decodes the existing closed v1 inventory; captured bytes never grant launch authority. */
+export function decodeWriterManifest(value: unknown): WriterManifest {
   const manifest = recordOf(value);
   // Proof: injected activation field fails `refuses malformed manifest and accidental activation authority`.
   requireFields(manifest, ['version', 'sourceSha', 'buildSha', 'buildId', 'members']);
@@ -84,8 +86,12 @@ function parseManifest(value: unknown): WriterManifest {
     const hostPath = textOf(member['hostPath']);
     // Proof: location guard removal admitted the CLI relative-host-path fault.
     requireEvidence(isAbsolute(hostPath), 'invalid declared host location');
+    const name = textOf(member['member']);
+    // Proof: exported decoder regression rejects an invented finite inventory member.
+    const checked = WRITER_MEMBERS.find((candidate) => candidate === name);
+    requireEvidence(checked !== undefined, 'invalid membership');
     return {
-      member: textOf(member['member']),
+      member: checked,
       origin,
       hostPath,
       reviewed: textOf(member['reviewed']),
@@ -96,8 +102,7 @@ function parseManifest(value: unknown): WriterManifest {
   // Proof: deleting exact membership admission failed the real CLI comma-packed omitted-writer fault.
   requireEvidence(
     members.length === WRITER_MEMBERS.length &&
-      new Set(members.map((member) => member.member)).size === WRITER_MEMBERS.length &&
-      members.every((member) => WRITER_MEMBERS.some((name) => name === member.member)),
+      new Set(members.map((member) => member.member)).size === WRITER_MEMBERS.length,
     'invalid membership',
   );
   // Proof: path guard removal admitted the same-byte reviewed/installed alias in the real CLI.
@@ -168,7 +173,7 @@ export async function inspectInstalledWriters(
   value: unknown,
   read: (path: string, checkedIdentity: string) => Promise<Uint8Array> = readWriterBytes,
 ) {
-  const manifest = parseManifest(value);
+  const manifest = decodeWriterManifest(value);
   const canonicalRoot = await realpath(root);
   const capture = await open(
     canonicalRoot,
