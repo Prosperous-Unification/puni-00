@@ -5959,3 +5959,84 @@ The same remote workspace job failed after 33 minutes because Bun 1.4.2 crashed
 inside `wbs-be-01:test` (`range end index 4955 out of range for slice of length
 4096`). That crash is unresolved; no test assertion failure was reported before
 it. The integrated exact-head CI and host gate remain outstanding.
+
+### Task 8.1 — downloaded-v11 stable identity and mapping slice 3 (2026-10-23)
+
+Bounded test-only extension based on `3080d3f2ed61b8dc7107c0c3f673a259819caa54`,
+implemented in isolated clone `/tmp/puni-transfer-identity`. Parent task 8.1 stays
+unchecked. Production import composition remains dormant; no production behavior,
+contract, capability or fixture seam changed.
+
+The mounted source export traverses unchanged JSON download cloning and
+`classifyPlanDocument` before the same-source synthetic transactional importer.
+The new tests prove:
+
+- An artifact downloaded before remote project/row/step renames, project abbreviation
+  change, step-code change and row renumber still binds the original external UUIDs.
+  Fresh exports of the source and imported successor carry current remote labels
+  and address `NEXT.990`.
+- Explicit whole, node and descendant-step mappings select another readable project
+  even while all original UUIDs remain valid. Distinct node-step mappings preserve
+  their exact destination step UUIDs; all five external endpoint tuples are checked.
+- Independently absent whole/node/descendant-step mapped rows and node/descendant-step
+  mapped steps return `unknown_ref`, without falling back to valid original IDs.
+  Each refusal preserves every table exactly, including event sequencers, durable
+  event log, abbreviation allocation, journal and saved/plan-event history, with
+  zero push calls.
+- After a remote leaf is removed, a new UUID with the same name and exact display
+  address cannot replace the absent UUID. The original artifact refuses atomically;
+  adding only explicit endpoint mappings admits all four leaf-owned prerequisites
+  to the replacement and retains the original parent descendant-step endpoint.
+
+Successful imports intentionally append their own project/rows/links/publications.
+The existing typed-dependency store bumps each external predecessor revision once
+per inserted link and updates its audit timestamp. The new success oracle checks
+those exact revision increments, preserves every other original row field/table
+row (apart from the separately changing event sequencer/abbreviation counter),
+keeps history tables exact, and checks push count against newly appended durable
+publication rows. These success effects are distinct from the all-table refusal
+invariance assertion.
+
+No production implementation was invented to obtain a red. The first test runs
+exposed fixture mistakes (abbreviation lives in `project_abbreviation`, dependency
+and estimate foreign keys require explicit fixture removal, and success revisions
+are intentional). Tightening invalid-step diagnostics exposed a fixture collision:
+mapping both FS node steps to one absent step correctly refused as duplicate before
+endpoint lookup. The final fault changes only the first node-step destination so
+its `unknown_ref` observes the intended current-endpoint boundary.
+
+Watched production faults, each restored byte-for-byte before its selected control:
+
+| Fault                                                                        | Observed failure                                                                                                                     |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Replace `mapping?.destination ??` with `undefined ??` in `prepare-import.ts` | The valid-original mapping case imported the original remote project and failed the explicit destination-project assertion (1 fail). |
+| Independently remove step equality from the mapping source key               | The valid distinct-step mapping case refused instead of succeeding (1 fail), detecting collapsed mapped tuples.                      |
+| Repeat the ignored-mapping fault against invalid selected destinations       | All five invalid-row/step cases returned successful imported-project summaries instead of refusal (5 fail).                          |
+
+Commands: `bun test ./apps/wbs/be-01/src/controller/cross-project-import.controller.db.test.ts --timeout=30000 -t 'wins while original'`
+and the same command with `-t 'mapping refuses'`. Logs remain in the implementation
+environment as `/tmp/identity-{precedence,step-key}-{fault,control}.log` and
+`/tmp/identity-invalid-fallback-fault.log`. The ignored-mapping fault's valid-original
+control and the independent step-key control each passed (1 pass, 118 assertions).
+The final complete focused suite below includes the restored invalid-destination
+controls. An earlier verification overlapped a transient mutation and was discarded;
+all retained final verification runs use restored production files.
+
+Fresh final verification:
+
+- `bun test ./apps/wbs/be-01/src/controller/cross-project-import.controller.db.test.ts ./apps/wbs/be-01/src/controller/cross-project-export.controller.db.test.ts ./libs/wbs/adapters/store-sqlite/src/scoped-import-dependencies.db.test.ts --timeout=30000`: **60 pass, 0 fail, 698 assertions**, 21.84 seconds. The mounted response-corruption negative logs its expected endpoint failures. Log: `/tmp/identity-focused-final.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p wbs-be-01 --parallel=1 --skipNxCache --outputStyle=static`: backend configured lint/typecheck and all three module typechecks passed uncached (1m 3s). Log: `/tmp/identity-configured-restored.log`.
+- `bunx openspec validate cross-project-dependencies --json`: valid, no errors,
+  17 existing long-requirement warnings. Log: `/tmp/identity-openspec.log`.
+- Explicit three-path Prettier check and `git diff --check` passed. Repository
+  hooks were installed through `tools/tool-git-hooks/src/install.ts` before the
+  normal commit; no hook bypass was used.
+
+Dependencies reuse the base checkout's `node_modules` through a symlink; no fresh
+frozen installation was performed. No h2/h4 host gate, full backend test target,
+CI/build, frontend/browser/E2E, active mounted import success, MCP, old-binary,
+transport failure, participant fencing, rollout or deployment check was run.
+Success-side event-sequencer/abbreviation-counter values are not newly asserted;
+refusals snapshot them exactly. Current endpoint/graph changes and injected
+post-creation all-effects rollback remain later whole-transfer slices. Synthetic
+storage proofs do not establish public activation or complete task 8.1.

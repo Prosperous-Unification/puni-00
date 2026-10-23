@@ -240,3 +240,382 @@ test('mounted outgoing-only v11 imports authored content while ignoring outgoing
     harness.sqlite.query<{ id: string }, []>('SELECT * FROM external_dependency ORDER BY id').all(),
   ).toEqual(externalBefore);
 });
+
+async function importTransfer(classified: Awaited<ReturnType<typeof exported>>['classified']) {
+  const principal = await harness.authenticatedCommandPrincipal('ada', '');
+  return harness.syntheticImports().import(classified, {
+    kind: 'human',
+    principal,
+    expectedAccess: {
+      kind: 'scoped',
+      scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+    },
+  });
+}
+
+/** External inserts intentionally bump each predecessor revision once per relationship. */
+function expectOriginalRows(before: ReturnType<typeof transferSnapshot>, projectId: string) {
+  const after = transferSnapshot(harness);
+  for (const table of before.filter(
+    ({ name }) => !['event_sequencer', 'project_abbreviation_counter'].includes(name),
+  )) {
+    const current = after.find(({ name }) => name === table.name);
+    if (current === undefined) throw new Error(`table disappeared: ${table.name}`);
+    const expected = table.rows.map((serialized) => {
+      if (table.name !== 'work_item') return serialized;
+      const row = JSON.parse(serialized) as Record<string, unknown>;
+      const count = harness.sqlite
+        .query<{ count: number }, [string, string]>(
+          'SELECT count(*) AS count FROM external_dependency WHERE successor_project_id=? AND predecessor_work_item_id=?',
+        )
+        .get(projectId, String(row['id']));
+      if (count === null) throw new Error('predecessor revision count absent');
+      if (count.count === 0) return serialized;
+      const changed = current.rows
+        .map((entry) => JSON.parse(entry) as Record<string, unknown>)
+        .find((entry) => entry['id'] === row['id']);
+      if (changed === undefined) throw new Error('original predecessor disappeared');
+      expect(changed['updated_at']).toBeGreaterThanOrEqual(Number(row['updated_at']));
+      return JSON.stringify({
+        ...row,
+        revision: Number(row['revision']) + count.count,
+        updated_at: changed['updated_at'],
+      });
+    });
+    expect(current.rows.filter((row) => expected.includes(row))).toEqual(expected);
+  }
+}
+
+function expectPublicationCount(before: ReturnType<typeof transferSnapshot>, pushes: number) {
+  const previous = before.find(({ name }) => name === 'event_log');
+  if (previous === undefined) throw new Error('event log snapshot absent');
+  const count = harness.sqlite
+    .query<{ count: number }, []>('SELECT count(*) AS count FROM event_log')
+    .get();
+  if (count === null) throw new Error('event log count absent');
+  expect(pushes).toBe(count.count - previous.rows.length);
+  expect(pushes).toBeGreaterThan(0);
+}
+
+test('rename and renumber round trip stable external UUIDs with current export labels', async () => {
+  let pushes = 0;
+  harness = OrganizationHarness.openComposedWith({
+    syntheticTransferImports: true,
+    pushFetch: () => {
+      pushes += 1;
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
+  });
+  const { remote, source } = await connectedTransferFixture(harness);
+  const downloaded = await exported(source.projectId);
+  harness.sqlite.query("UPDATE project SET name='Renamed remote' WHERE id=?").run(remote.projectId);
+  harness.sqlite
+    .query("UPDATE work_item SET name='Renamed prerequisite',frozen_number='990' WHERE id=?")
+    .run(remote.leafId);
+  const stepId = remote.stepIds.at(0);
+  if (stepId === undefined) throw new Error('fixture remote step absent');
+  harness.sqlite.query("UPDATE step SET name='Renamed step',code='next' WHERE id=?").run(stepId);
+  harness.sqlite
+    .query("UPDATE project_abbreviation SET abbreviation='NEXT' WHERE project_id=?")
+    .run(remote.projectId);
+  const current = await exported(source.projectId);
+  const link = current.classified.typedDependencies.find(({ id }) => id === 'incoming-node-a');
+  expect(link?.predecessor).toMatchObject({
+    projectId: remote.projectId,
+    workItemId: remote.leafId,
+    stepId: remote.stepIds[0],
+    display: {
+      projectName: 'Renamed remote',
+      workItemName: 'Renamed prerequisite',
+      stepName: 'Renamed step',
+      address: 'NEXT.990',
+    },
+  });
+  const before = transferSnapshot(harness);
+  const histories = snapshotHistory();
+  pushes = 0;
+  const admitted = await importTransfer(downloaded.classified);
+  expect(admitted.ok).toBe(true);
+  if (!admitted.ok) throw new Error(`renamed import refused: ${JSON.stringify(admitted)}`);
+  expect(
+    harness.sqlite
+      .query(
+        'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,type FROM external_dependency WHERE successor_project_id=? ORDER BY predecessor_scope,predecessor_step_id,type',
+      )
+      .all(admitted.projectId),
+  ).toEqual(
+    harness.sqlite
+      .query(
+        'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,type FROM external_dependency WHERE successor_project_id=? ORDER BY predecessor_scope,predecessor_step_id,type',
+      )
+      .all(source.projectId),
+  );
+  const reexported = await exported(admitted.projectId);
+  const rebound = reexported.classified.typedDependencies.find(
+    ({ predecessor }) =>
+      'kind' in predecessor &&
+      predecessor.kind === 'external' &&
+      predecessor.scope === 'node' &&
+      predecessor.stepId === stepId,
+  );
+  expect(rebound?.predecessor).toEqual(link?.predecessor);
+  expectOriginalRows(before, admitted.projectId);
+  expect(snapshotHistory()).toEqual(histories);
+  expectPublicationCount(before, pushes);
+});
+
+/**
+ * Proof: ignoring explicit mappings in prepareImport admitted the original remote
+ * endpoint and failed the valid-original precedence test (2026-10-23).
+ * Independently omitting step identity from the mapping key made that test
+ * refuse its otherwise valid distinct-step mappings (2026-10-23).
+ */
+for (const fault of [
+  'none',
+  'whole-row',
+  'node-row',
+  'descendant-step-row',
+  'node-step',
+  'descendant-step-step',
+] as const)
+  test(`explicit whole node and descendant-step mapping ${fault === 'none' ? 'wins while original UUIDs remain valid' : `refuses ${fault} without fallback`}`, async () => {
+    const invalid = fault !== 'none';
+    let pushes = 0;
+    harness = OrganizationHarness.openComposedWith({
+      syntheticTransferImports: true,
+      pushFetch: () => {
+        pushes += 1;
+        return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+      },
+    });
+    const { remote, source, unrelated } = await connectedTransferFixture(harness);
+    const { document, classified } = await exported(source.projectId);
+    const mappings = classified.typedDependencies.flatMap(({ predecessor }) => {
+      if (!('kind' in predecessor) || predecessor.kind !== 'external') return [];
+      const identity =
+        predecessor.scope === 'whole'
+          ? {
+              projectId: predecessor.projectId,
+              workItemId: predecessor.workItemId,
+              scope: predecessor.scope,
+            }
+          : {
+              projectId: predecessor.projectId,
+              workItemId: predecessor.workItemId,
+              scope: predecessor.scope,
+              stepId: predecessor.stepId,
+            };
+      return [
+        {
+          source: identity,
+          destination: {
+            ...identity,
+            projectId: unrelated.projectId,
+            workItemId:
+              fault === `${predecessor.scope}-row`
+                ? 'absent-mapped-row'
+                : predecessor.scope === 'descendant-step'
+                  ? unrelated.parentId
+                  : unrelated.leafId,
+            ...(predecessor.scope === 'whole'
+              ? {}
+              : {
+                  stepId:
+                    fault === `${predecessor.scope}-step` &&
+                    predecessor.stepId === remote.stepIds[0]
+                      ? 'absent-mapped-step'
+                      : unrelated.stepIds[predecessor.stepId === remote.stepIds[0] ? 0 : 1],
+                }),
+          },
+        },
+      ];
+    });
+    // A node endpoint participates in both FS and FF declarations; mappings name endpoints once.
+    const unique = mappings.filter(
+      (mapping, index) =>
+        mappings.findIndex(
+          (candidate) => JSON.stringify(candidate.source) === JSON.stringify(mapping.source),
+        ) === index,
+    );
+    const request = structuredClone(document);
+    if (typeof request !== 'object' || request === null) throw new Error('export document absent');
+    Reflect.set(request, 'externalMappings', unique);
+    const parsed = await classifyPlanDocument(request);
+    if (!parsed.ok) throw new Error(`mapped fixture refused: ${parsed.path}`);
+    const before = transferSnapshot(harness);
+    const histories = snapshotHistory();
+    pushes = 0;
+    const admitted = await importTransfer(parsed.value);
+    if (invalid) {
+      expect(admitted).toMatchObject({ ok: false, code: 'unknown_ref' });
+      expect(transferSnapshot(harness)).toEqual(before);
+    } else {
+      expect(admitted.ok).toBe(true);
+      if (!admitted.ok) throw new Error(`mapped import refused: ${JSON.stringify(admitted)}`);
+      const incoming = harness.sqlite
+        .query<
+          {
+            predecessor_project_id: string;
+            predecessor_work_item_id: string;
+            predecessor_scope: string;
+            predecessor_step_id: string | null;
+          },
+          [string]
+        >(
+          'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id FROM external_dependency WHERE successor_project_id=?',
+        )
+        .all(admitted.projectId);
+      expect(incoming).toHaveLength(5);
+      for (const edge of incoming) {
+        expect(edge.predecessor_project_id).toBe(unrelated.projectId);
+        expect(edge.predecessor_work_item_id).toBe(
+          edge.predecessor_scope === 'descendant-step' ? unrelated.parentId : unrelated.leafId,
+        );
+        expect(
+          edge.predecessor_step_id === null
+            ? edge.predecessor_scope === 'whole'
+            : unrelated.stepIds.includes(edge.predecessor_step_id),
+        ).toBe(true);
+      }
+      const expected = harness.sqlite
+        .query<{ predecessor_scope: string; predecessor_step_id: string | null }, [string]>(
+          'SELECT predecessor_scope,predecessor_step_id FROM external_dependency WHERE successor_project_id=?',
+        )
+        .all(source.projectId)
+        .map((edge) =>
+          JSON.stringify({
+            predecessor_project_id: unrelated.projectId,
+            predecessor_work_item_id:
+              edge.predecessor_scope === 'descendant-step' ? unrelated.parentId : unrelated.leafId,
+            predecessor_scope: edge.predecessor_scope,
+            predecessor_step_id:
+              edge.predecessor_step_id === null
+                ? null
+                : unrelated.stepIds[edge.predecessor_step_id === remote.stepIds[0] ? 0 : 1],
+          }),
+        )
+        .sort();
+      expect(incoming.map((edge) => JSON.stringify(edge)).sort()).toEqual(expected);
+      expectOriginalRows(before, admitted.projectId);
+    }
+    expect(snapshotHistory()).toEqual(histories);
+    if (invalid) expect(pushes).toBe(0);
+    else expectPublicationCount(before, pushes);
+  });
+
+for (const mapped of [false, true])
+  test(`reused display address ${mapped ? 'binds only through explicit mapping' : 'never replaces absent UUID'}`, async () => {
+    let pushes = 0;
+    harness = OrganizationHarness.openComposedWith({
+      syntheticTransferImports: true,
+      pushFetch: () => {
+        pushes += 1;
+        return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+      },
+    });
+    const { remote, source } = await connectedTransferFixture(harness);
+    harness.sqlite.query("UPDATE work_item SET frozen_number='080' WHERE id=?").run(remote.leafId);
+    const { document, classified } = await exported(source.projectId);
+    harness.sqlite
+      .query(
+        'DELETE FROM external_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=?',
+      )
+      .run(remote.leafId, remote.leafId);
+    harness.sqlite
+      .query(
+        'DELETE FROM typed_dependency WHERE predecessor_work_item_id=? OR successor_work_item_id=?',
+      )
+      .run(remote.leafId, remote.leafId);
+    harness.sqlite
+      .query('DELETE FROM dependency WHERE predecessor_id=? OR successor_id=?')
+      .run(remote.leafId, remote.leafId);
+    harness.sqlite.query('DELETE FROM estimate WHERE work_item_id=?').run(remote.leafId);
+    harness.sqlite.query('DELETE FROM work_item WHERE id=?').run(remote.leafId);
+    const replacementId = crypto.randomUUID();
+    harness.sqlite
+      .query(
+        "INSERT INTO work_item(id,project_id,parent_id,position,name,frozen_number,readiness,created_at,updated_at) VALUES (?,?,?,10,'Remote leaf','080','ready',1,1)",
+      )
+      .run(replacementId, remote.projectId, remote.parentId);
+    const original = classified.typedDependencies.find(({ id }) => id === 'incoming-node-a');
+    if (
+      original === undefined ||
+      !('kind' in original.predecessor) ||
+      original.predecessor.kind !== 'external'
+    )
+      throw new Error('fixture external declaration absent');
+    const replacement = harness.sqlite
+      .query<{ address: string; name: string }, [string]>(
+        "SELECT a.abbreviation || '.' || w.frozen_number AS address,w.name FROM work_item w JOIN project_abbreviation a ON a.project_id=w.project_id WHERE w.id=?",
+      )
+      .get(replacementId);
+    expect(replacement).toEqual({
+      address: original.predecessor.display.address,
+      name: original.predecessor.display.workItemName,
+    });
+    expect(replacementId).not.toBe(remote.leafId);
+    const current = await exported(source.projectId);
+    expect(
+      current.classified.typedDependencies.some(
+        ({ predecessor }) =>
+          'workItemId' in predecessor && predecessor.workItemId === remote.leafId,
+      ),
+    ).toBe(false);
+    const request = structuredClone(document);
+    if (typeof request !== 'object' || request === null) throw new Error('export document absent');
+    if (mapped) {
+      const mappings = classified.typedDependencies.flatMap(({ predecessor }) => {
+        if (
+          !('kind' in predecessor) ||
+          predecessor.kind !== 'external' ||
+          predecessor.workItemId !== remote.leafId
+        )
+          return [];
+        const identity =
+          predecessor.scope === 'whole'
+            ? { projectId: remote.projectId, workItemId: remote.leafId, scope: predecessor.scope }
+            : {
+                projectId: remote.projectId,
+                workItemId: remote.leafId,
+                scope: predecessor.scope,
+                stepId: predecessor.stepId,
+              };
+        return [{ source: identity, destination: { ...identity, workItemId: replacementId } }];
+      });
+      Reflect.set(
+        request,
+        'externalMappings',
+        mappings.filter(
+          (mapping, index) =>
+            mappings.findIndex(
+              (candidate) => JSON.stringify(candidate.source) === JSON.stringify(mapping.source),
+            ) === index,
+        ),
+      );
+    }
+    const parsed = await classifyPlanDocument(request);
+    if (!parsed.ok) throw new Error(`reused address fixture refused: ${parsed.path}`);
+    const before = transferSnapshot(harness);
+    const histories = snapshotHistory();
+    pushes = 0;
+    const admitted = await importTransfer(parsed.value);
+    if (!mapped) {
+      expect(admitted).toMatchObject({ ok: false, code: 'unknown_ref' });
+      expect(transferSnapshot(harness)).toEqual(before);
+      expect(pushes).toBe(0);
+    } else {
+      expect(admitted.ok).toBe(true);
+      if (!admitted.ok)
+        throw new Error(`explicit replacement refused: ${JSON.stringify(admitted)}`);
+      expect(
+        harness.sqlite
+          .query(
+            'SELECT predecessor_work_item_id FROM external_dependency WHERE successor_project_id=? AND predecessor_scope<>? ORDER BY id',
+          )
+          .all(admitted.projectId, 'descendant-step'),
+      ).toEqual(Array.from({ length: 4 }, () => ({ predecessor_work_item_id: replacementId })));
+      expectOriginalRows(before, admitted.projectId);
+      expectPublicationCount(before, pushes);
+    }
+    expect(snapshotHistory()).toEqual(histories);
+  });
