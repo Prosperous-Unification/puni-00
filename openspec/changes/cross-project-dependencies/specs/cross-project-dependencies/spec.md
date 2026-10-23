@@ -906,3 +906,36 @@ Every retained application frame SHALL await fresh backend dependency admission 
 - **WHEN** an existing incapable socket receives unsolicited push or requests replay
 - **THEN** no sentinel application frame or replay acknowledgement is sent and push reports zero accepted recipients
 - **AND** this fresh-observation behavior makes no guarantee about a delayed DISABLED response arriving after activation; deployment participant exclusion remains required
+
+### Requirement: Retained gateway fence blocks ordinary deploy admission
+
+The Compose swap runner SHALL refuse retained gateway fence markers under the
+deploy lock before observation or planning, and direct executors SHALL refuse
+before effects. Only marker absence in readable existing state permits admission.
+Malformed/unreadable markers and missing/unreadable state SHALL fail closed.
+Presence SHALL be a conservative barrier without asserting physical exclusion.
+This prerequisite SHALL NOT create/clear markers, stop participants or activate semantics.
+
+#### Scenario: Retained intent blocks a gateway-only retry
+
+- **GIVEN** `state/dependency-gateway-fence.json` contains exactly `{"format":"dependency-gateway-fence","version":1}` with no other fields
+- **WHEN** an ordinary gateway-only swap acquires the deploy lock
+- **THEN** it refuses before tier observation, Docker calls or configuration writes
+
+#### Scenario: Retained intent also blocks other selections and direct execution
+
+- **GIVEN** a valid retained gateway fence marker in deployment state
+- **WHEN** frontend-only, backend-only or mixed swaps run, or any tier executor is called directly
+- **THEN** admission refuses before effects and retains the marker bytes
+
+#### Scenario: Trusted state cannot be established
+
+- **GIVEN** deployment state is absent, unreadable or not a directory, or the marker is unreadable or malformed
+- **WHEN** ordinary swap admission runs
+- **THEN** it refuses with the relevant state or marker path before effects
+
+#### Scenario: No retained fence permits ordinary admission
+
+- **GIVEN** a readable existing deployment state directory with no gateway fence marker
+- **WHEN** ordinary swap admission runs
+- **THEN** execution reaches the existing observation and executor path

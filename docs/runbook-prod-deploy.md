@@ -740,3 +740,21 @@ verified binary extracted to `/tmp/puni-audit-busybox`. It requires Docker acces
 and that exact cached fixture image; missing dependencies fail. It checks normal
 admission, absent binary, restored Debian shell, and the 15-second supervisor
 deadline with a stalled scanner/descendant, then removes only its created IDs.
+
+## Dependency gateway fence admission prerequisite
+
+Ordinary image swaps read `state/dependency-gateway-fence.json` under the deploy
+lock before observing or planning any tier. Direct executor calls also check
+before phase, Docker or configuration effects. This applies to gateway-only,
+frontend-only, backend-only and mixed runs. Only an absent marker in a readable,
+existing state directory permits admission. Missing/unreadable state,
+unreadable/malformed markers and valid retained markers refuse with the path.
+The closed v1 marker has exactly two fields:
+`{"format":"dependency-gateway-fence","version":1}`.
+
+Presence is a conservative deployment barrier, not proof of physical gateway
+exclusion or semantic activation. This prerequisite ships no marker creation or
+clearing, process stop, container quiescence or activation. A future deploy-owned
+lifecycle must publish intent under the same deploy lock before exclusion and
+retain it through interruption; it must independently prove physical exclusion
+before any semantic activation. This reader does not establish that lifecycle.

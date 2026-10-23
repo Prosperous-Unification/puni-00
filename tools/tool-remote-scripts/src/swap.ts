@@ -89,6 +89,7 @@ import {
 } from './lib/docker';
 import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-deadline';
 import { drain } from './lib/drain';
+import { assertNoGatewayFence } from './lib/gateway-fence';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
 import {
@@ -1454,6 +1455,8 @@ export async function execute(
   io: SwapExecutionIo = PRODUCTION_SWAP_IO,
   activateStepBlockage = false,
 ): Promise<void> {
+  // Proof: bypassing this guard let direct fence-present executions write commit/config state; 32 refusal tests failed.
+  await assertNoGatewayFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
   const { tier, from, to } = plan;
   // Proof: omitted the tier guard; the non-backend activation plan reached preflight instead of its named refusal.
   if (activateStepBlockage && tier !== 'be') throw new Error('activation requires only be');
@@ -2317,6 +2320,8 @@ export function parseTierList(raw: string): Tier[] {
 
 /** Injectable seams for `runSwaps`; production passes the real IO. */
 export interface SwapRunDeps {
+  /** Disposable state directory in tests; production uses the environment state root. */
+  barrierStateDir?: string;
   withLock: <T>(lockPath: string, fn: () => Promise<T>) => Promise<T>;
   observe: (tier: Tier) => Promise<Observed>;
   execute: (plan: SwapPlan, image: string, sha: string) => Promise<void>;
@@ -2343,6 +2348,8 @@ export async function runSwaps(
   deps: SwapRunDeps,
 ): Promise<void> {
   await deps.withLock(`${ROOT}/state/deploy.lock`, async () => {
+    // Proof: bypassing this guard let fenced tier runs observe and execute under the lock; 32 refusal tests failed.
+    await assertNoGatewayFence(deps.barrierStateDir ?? CURRENT_ENV.stateDir);
     for (const tier of tiers) {
       const image = images[tier];
       if (image === undefined) {

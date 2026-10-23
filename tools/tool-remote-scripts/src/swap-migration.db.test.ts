@@ -109,6 +109,7 @@ function prepareComposeFixture(
     readCapture: (path: string) => Promise<string>;
   } = {
     captureStateDir: root,
+    barrierStateDir: root,
     readCapture: (path) => Bun.file(path).text(),
     writeAtomic,
     readPhase: () => Promise.resolve('committed'),

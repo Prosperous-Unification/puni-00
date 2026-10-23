@@ -637,3 +637,10 @@ Task 5.2 remains open for its broader writer audit, socket/browser acceptance an
 - [x] Watch rendered gateway service YAML fail without init in the production `tierComposeContext` and preview path; request `init: true` for future gateway services while retaining backend init and frontend omission. The current production tier set has no MCP tier; preview MCP init remains absent.
 - [x] Remove each gateway init branch independently and widen the production branch to all supported tiers; observe the rendered service assertions fail, restore and rerun green. Record scoped configured checks and limitations in [verify.md](verify.md#managed-compose-gateway-init-prerequisite-2026-10-23).
 - [ ] Complete independent review and isolated host gate on the integrated SHA. Parent 10.1/10.2 remain open: existing running container init, process topology, physical gateway quiescence, participant exclusion, activation and deployment are outside this packet.
+
+### Bounded task 10.1/10.2 gateway fence admission prerequisite (2026-10-23)
+
+- [x] Reproduce retained intent admitting gateway-only/frontend-only/backend-only/mixed ordinary runs and direct executors; add a separate closed/versioned read-only gateway fence marker boundary before effects.
+- [x] Refuse missing/unreadable trusted state and malformed/unreadable/present intent; check under the existing deploy lock before observation/planning and separately before direct executor effects.
+- [x] Independently bypass both entry guards, root validation, retained refusal, read-error handling and grammar; observe named negatives fail, restore and record scoped checks in [admission evidence](verify-gateway-fence-admission.md).
+- [ ] Complete independent review, strict integrated OpenSpec validation and isolated exact-SHA host gate. Parent 10.1/10.2 remain open: this packet ships no marker writer/clearing, stop, physical gateway exclusion, activation or deployment; retained presence is only a conservative admission barrier.
