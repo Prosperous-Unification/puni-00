@@ -180,6 +180,15 @@ export class CommandContext {
             asked: outcome.asked,
             free: outcome.free,
             holders: outcome.holders.map((holder) => ({ ...holder })),
+            // Proof: with this list cut to its first entry, `names both
+            // resources a claim is short of` (resource-occupancy.db.test.ts)
+            // failed on both stores (0 pass, 2 fail); watched 2026-10-23.
+            resources: outcome.resources.map((short) => ({
+              resourceId: short.resourceId,
+              asked: short.asked,
+              free: short.free,
+              holders: short.holders.map((holder) => ({ ...holder })),
+            })),
           },
         });
       case 'claim_limit':
@@ -799,6 +808,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           command.name,
           context.ids(command.teamIds, command.teamRefs),
           context.access,
+          command.personKind,
         ),
       );
       return {

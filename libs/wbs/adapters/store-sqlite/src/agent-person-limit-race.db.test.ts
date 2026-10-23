@@ -163,3 +163,47 @@ describe('two concurrent promotions at 7 of 8', () => {
     expect(agents()).toBe(8);
   });
 });
+
+describe('two concurrent agent creations at 7 of 8', () => {
+  // Proof: with the gauge answering the count it first read for every later
+  // batch (a count read outside the batch's turn), the second creation
+  // answered ok too instead of agent_person_limit; watched 2026-10-23.
+  it('creates exactly one, the other refused naming the winner in its count', async () => {
+    let reached: () => void = () => undefined;
+    const queued = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let release: () => void = () => undefined;
+    const hold: Hold = {
+      reached,
+      armed: true,
+      release: new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    };
+    const runner = runnerWith(hold);
+    const create = (name: string) =>
+      runner.runDirectoryWithin(
+        { id: 'dany', username: 'dany', scopes: ['write'] },
+        [{ kind: 'createPerson', name, personKind: 'agent' }],
+        SCOPED,
+      );
+
+    const first = create('Ann');
+    await queued;
+    const second = create('Bea');
+    await Bun.sleep(20);
+    release();
+    const [won, lost] = await Promise.all([first, second]);
+
+    expect(won).toMatchObject({ ok: true });
+    expect(lost).toEqual({
+      ok: false,
+      at: 0,
+      kind: 'createPerson',
+      reason: 'agent_person_limit',
+      detail: { cap: 8, current: 8, added: 1 },
+    });
+    expect(agents()).toBe(8);
+  });
+});

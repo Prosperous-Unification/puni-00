@@ -153,7 +153,19 @@ export type Refusal =
     }
   | {
       reason: 'resources_exhausted';
-      detail: { resourceId: string; asked: number; free: number; holders: NamedOccupancyHolder[] };
+      detail: {
+        resourceId: string;
+        asked: number;
+        free: number;
+        holders: NamedOccupancyHolder[];
+        /** Every short resource in resource-id order; the fields above repeat the first. */
+        resources: {
+          resourceId: string;
+          asked: number;
+          free: number;
+          holders: NamedOccupancyHolder[];
+        }[];
+      };
     }
   /** One more agent person than the organization's cap allows (`wbs-organization-limits` L9). */
   | { reason: 'agent_person_limit'; detail: { cap: number; current: number; added: number } }

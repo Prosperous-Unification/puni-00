@@ -375,6 +375,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'name_must_be_text':
     case 'notes_must_be_text':
     case 'kind_must_be_text':
+    case 'personKind_must_be_text':
     case 'startNoEarlierThanReason_must_be_text':
     case 'stepId_must_be_text':
     case 'metric_must_be_text':

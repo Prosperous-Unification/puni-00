@@ -122,6 +122,11 @@ describe('a claim occupies its leaf’s demand vector', () => {
     const ninth = decideClaim(
       leafClaim('leaf-8', { person: 'agent-8', demand, capacities, occupancy }),
     );
+    const holders = Array.from({ length: 8 }, (_, index) => ({
+      personId: `agent-${String(index)}`,
+      runId: `run-${String(index)}`,
+      workItemId: `leaf-${String(index)}`,
+    }));
     expect(ninth).toEqual({
       kind: 'refused',
       refusal: {
@@ -129,12 +134,48 @@ describe('a claim occupies its leaf’s demand vector', () => {
         resourceId: RAM,
         asked: 4,
         free: 0,
-        holders: Array.from({ length: 8 }, (_, index) => ({
-          personId: `agent-${String(index)}`,
-          runId: `run-${String(index)}`,
-          workItemId: `leaf-${String(index)}`,
-        })),
+        holders,
+        resources: [{ resourceId: RAM, asked: 4, free: 0, holders }],
       },
+    });
+  });
+
+  it('names every resource a claim is short of, in resource-id order, the first repeated on top', () => {
+    const occupancy: OccupancyRow[] = [
+      { claimId: 'c0', workItemId: 'held', personId: 'a0', runId: 'r0', resourceId: RAM, units: 6 },
+      {
+        claimId: 'c0',
+        workItemId: 'held',
+        personId: 'a0',
+        runId: 'r0',
+        resourceId: WORKTREE,
+        units: 1,
+      },
+    ];
+    const holder = { personId: 'a0', runId: 'r0', workItemId: 'held' };
+    expect(
+      refuseOccupancy({
+        workItemId: 'leaf',
+        asked: [
+          { resourceId: WORKTREE, units: 1 },
+          { resourceId: RAM, units: 4 },
+        ],
+        capacities: [
+          { resourceId: RAM, units: 8 },
+          { resourceId: WORKTREE, units: 1 },
+        ],
+        occupancy,
+      }),
+    ).toEqual({
+      reason: 'resources_exhausted',
+      resourceId: RAM,
+      asked: 4,
+      free: 2,
+      holders: [holder],
+      resources: [
+        { resourceId: RAM, asked: 4, free: 2, holders: [holder] },
+        { resourceId: WORKTREE, asked: 1, free: 0, holders: [holder] },
+      ],
     });
   });
 
