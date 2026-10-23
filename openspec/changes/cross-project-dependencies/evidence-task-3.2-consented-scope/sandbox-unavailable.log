@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
 58 | }
-59 | 
+59 |
 60 | beforeAll(async () => {
 61 |   upstreamKeys = await generateKeyPair('RS256', { extractable: true });
 62 |   const publicJwk = await exportJWK(upstreamKeys.publicKey);
@@ -16,7 +16,7 @@ EPERM: operation not permitted, listen
       at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:63:14)
 (fail) (unnamed) [126.64ms]
 149 | });
-150 | 
+150 |
 151 | afterAll(async () => {
 152 |   backend?.kill('SIGTERM');
 153 |   await backend?.exited;

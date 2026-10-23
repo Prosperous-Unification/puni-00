@@ -432,7 +432,6 @@ async function assertScopedRelationship(
     dependency: { id: dependencyId, projectId: ids.launch, predecessor, successor, type },
   });
   const viaMcp = await tool(access, 'getApiProjectsByIdWork-items', { id: ids.launch });
-  // Proof: corrupting generated MCP stepId or projectId serialization failed these scoped reads/writes.
   expect(viaMcp.isError).toBe(false);
   const caller = await oauth.callerSessionFor(access);
   const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, ['read']);
@@ -1257,6 +1256,8 @@ describe('MCP organization delegation against a booted be-01', () => {
           commands: [{ kind: 'removeTypedDependency', dependencyId }],
         });
       }
+      // Proof: corrupting MCP stepId or projectId request serialization changed
+      // this scoped refusal from expected 409 to 404; generated scoped writes also failed.
       // Proof: unconditional COMMIT left the valid patch durable; refuseCommands'
       // full 13-table equality failed through the real mounted command path.
       await refuseCommands(

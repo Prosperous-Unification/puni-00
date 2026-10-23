@@ -17,7 +17,7 @@ Received: true
 
       at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:481:28)
 (fail) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [18.63ms]
-493 | 
+493 |
 494 |   test("the same session is refused on another organization's project", async () => {
 495 |     const grace = await connect('auth0|grace');
 496 |     sessions['grace'] = grace.access;
@@ -167,7 +167,7 @@ error: expect(received).toEqual(expected)
 -   "error": false,
 -   "text": "",
 +   "error": true,
-+   "text": 
++   "text":
 + "postApiProjectsByIdCommands was refused: HTTP 403 no_active_organization from POST /api/projects/{id}/commands.
 + {"error":"no_active_organization"}"
 + ,
@@ -195,7 +195,7 @@ error: postApiProjects was refused: HTTP 403 no_active_organization from POST /a
 -   "isError": false,
 +   "isError": true,
 +   "status": 200,
-+   "text": 
++   "text":
 + "postApiProjects was refused: HTTP 403 no_active_organization from POST /api/projects.
 + {"error":"no_active_organization"}"
 + ,
@@ -220,7 +220,7 @@ Received: true
 
       at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1203:31)
 (fail) MCP organization delegation against a booted be-01 > HTTP consented active node SS/FF preserves scoped identity and connected read parity [4.97ms]
-1244 | 
+1244 |
 1245 |     test(`${transport} consented remote descendant-step FS resolves dotted batch refs without changing scope`, async () => {
 1246 |       const access = sessions['dany'];
 1247 |       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
@@ -248,7 +248,7 @@ Received: true
 
       at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1203:31)
 (fail) MCP organization delegation against a booted be-01 > MCP consented active node SS/FF preserves scoped identity and connected read parity [3.14ms]
-1244 | 
+1244 |
 1245 |     test(`${transport} consented remote descendant-step FS resolves dotted batch refs without changing scope`, async () => {
 1246 |       const access = sessions['dany'];
 1247 |       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');

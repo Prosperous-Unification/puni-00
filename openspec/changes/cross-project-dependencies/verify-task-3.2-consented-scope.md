@@ -52,14 +52,14 @@ checkout. Every run used the command above and exited 1; each mutation was
 restored in `finally`. JSON files beside the logs contain the exact path and
 replacement text. The new scoped cases failed under every fault:
 
-| Fault                                                 | Pass / fail | Observed detection                                                                             |
-| ----------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| Raw upstream token replaces per-call `bearerFor`      | 9 / 17      | Scoped consent setup refuses with `no_active_organization`                                     |
-| Drop explicit project binding for non-whole endpoints | 20 / 6      | Remote scoped writes fail rather than commit the expected identities                           |
-| Normalize descendant-step as node                     | 19 / 7      | Both dotted descendant batches fail; leaf-refusal expectations also fail                       |
-| Corrupt MCP nested `stepId` serialization             | 20 / 6      | Scoped generated writes fail; connected HTTP/MCP parity also detects corruption                |
-| Corrupt MCP nested `projectId` serialization          | 18 / 8      | Scoped generated writes fail; HTTP node test detects MCP read corruption                       |
-| Commit refused batches unconditionally                | 22 / 4      | Both new node cases detect durable `Must roll back scoped batch` patch in all-table comparison |
+| Fault                                                 | Pass / fail | Observed detection                                                                                 |
+| ----------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
+| Raw upstream token replaces per-call `bearerFor`      | 9 / 17      | Scoped consent setup refuses with `no_active_organization`                                         |
+| Drop explicit project binding for non-whole endpoints | 20 / 6      | Remote scoped writes fail rather than commit the expected identities                               |
+| Normalize descendant-step as node                     | 19 / 7      | Both dotted descendant batches fail; leaf-refusal expectations also fail                           |
+| Corrupt MCP nested `stepId` serialization             | 20 / 6      | Scoped generated writes fail; HTTP node case expects 409 but receives 404 in the MCP refusal check |
+| Corrupt MCP nested `projectId` serialization          | 18 / 8      | Scoped generated writes fail; HTTP node case expects 409 but receives 404 in the MCP refusal check |
+| Commit refused batches unconditionally                | 22 / 4      | Both new node cases detect durable `Must roll back scoped batch` patch in all-table comparison     |
 
 See [fault evidence](evidence-task-3.2-consented-scope/). Adjacent `Proof:` comments
 identify the injected faults and the assertions that detected them. Final journal
@@ -80,6 +80,15 @@ agent. No push or deployment was performed.
   module-boundary rule; the Nx run supplies its graph. Sandbox Nx printed socket
   restrictions before completing, so the outside-sandbox run is authoritative.
 - `bunx --no-install prettier --write` on the changed test, this packet and the
-  mutation JSON: exit 0. `git diff --check`: exit 0.
+  mutation JSON: exit 0. The initial working-tree `git diff --check` excluded
+  then-untracked logs; review found trailing whitespace in the committed range.
+  Logs now have trailing whitespace removed (including CRLF normalization), with
+  diagnostic content retained. `git diff --check 420d7726e..HEAD`: exit 0 after
+  the evidence correction commit.
 - `bunx --no-install openspec validate cross-project-dependencies --json`: exit 0;
   see `evidence-task-3.2-consented-scope/openspec-validation.json`.
+
+The request-serialization faults prove write/refusal detection; they do not
+prove detection of corrupted read responses. The HTTP descendant-step case
+passed under both serialization faults. Connected read equality passes with
+restored production code, without a separate response-corruption proof.

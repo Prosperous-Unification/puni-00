@@ -45,7 +45,7 @@ error: expect(received).toEqual(expected)
 -   "error": false,
 -   "text": "",
 +   "error": true,
-+   "text": 
++   "text":
 + "postApiProjectsByIdCommands was refused: HTTP 404 unknown_step from POST /api/projects/{id}/commands.
 + {"at":0,"kind":"addTypedDependency","error":"unknown_step"}"
 + ,
@@ -103,7 +103,7 @@ error: expect(received).toEqual(expected)
 -   "error": false,
 -   "text": "",
 +   "error": true,
-+   "text": 
++   "text":
 + "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.
 + {"at":0,"kind":"addTypedDependency","error":"not_found"}"
 + ,
@@ -128,7 +128,7 @@ error: expect(received).toEqual(expected)
 -   "error": false,
 -   "text": "",
 +   "error": true,
-+   "text": 
++   "text":
 + "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.
 + {"at":2,"kind":"addTypedDependency","error":"not_found"}"
 + ,
