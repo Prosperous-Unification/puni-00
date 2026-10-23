@@ -475,6 +475,87 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/cross-project-dependencies/evidence/fast-capacity-2026-10-23/capacity-resource-scope-fault.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-deadline-shift.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-deadline-weekend.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-round-projection.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-substitute-anchor.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/external-edge-fault.log.raw.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/hold-fault.log.raw.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/union-steps-fault.log.raw.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/browser-refresh/B-installed-waiting.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/browser-refresh/report.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts"
+        }
+      },
+      {
         "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar",
         "format": "application/x-tar",
         "consumer": "apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",

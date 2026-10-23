@@ -5932,3 +5932,30 @@ Raw local receipts are `/tmp/cap-nx-final.log`, `/tmp/cap-mcp-bounded.log`,
 host-gate receipt. Final targeted ESLint and nine-file Prettier checks exited 0;
 `git diff --check` exited 0. No migration changed, so migration/rollback checks
 were not run. No full monorepo gate, deployment or production activation ran.
+
+### Repository policy gate repair (2026-10-23)
+
+CI run 39892524231 at remote head `025c5ac94` failed the Twilight gate because
+the new evidence included undeclared binary files; the first reported refusal
+named `evidence/fast-capacity-2026-10-23/capacity-resource-scope-fault.log`.
+The same run's committed-target-facts check found the new gateway source input
+missing from `check.be-01.test`. Both shipped classification policies now declare
+the nine evidence binaries with their formats, consumers and regeneration
+authorities, and the relationship declaration matches the backend test target.
+The old CI failures are the watched negative for these declarations: an omitted
+binary is refused by the production classifier, and an omitted target input is
+refused by the relationship extractor. Existing adjacent production-path proofs
+remain in `classify-entries.ts` and `committed-target-facts.test.ts`.
+
+Local repair checks: the committed-target-facts suite passed 2/2 with 24
+assertions; the trusted production CLI pilot's selected observe-lint case passed
+1/1 with 62 assertions under `TOOL_WIKI_TRUSTED_NODE_MODULES`; its bootstrap
+policy load case passed 1/1 with 10 assertions. Prettier on the three changed
+policy files and `git diff --check` passed. The first pilot attempt without
+the trusted runtime environment failed before classification with `trusted
+TypeScript runtime modules are not configured`; it is not a valid policy result.
+
+The same remote workspace job failed after 33 minutes because Bun 1.4.2 crashed
+inside `wbs-be-01:test` (`range end index 4955 out of range for slice of length
+4096`). That crash is unresolved; no test assertion failure was reported before
+it. The integrated exact-head CI and host gate remain outstanding.

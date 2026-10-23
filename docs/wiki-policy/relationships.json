@@ -21,7 +21,8 @@
           "^production",
           "{workspaceRoot}/libs/wbs/domain/domain/src/schedule.ts",
           "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/design.md",
-          "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts"
+          "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts",
+          "{workspaceRoot}/apps/wbs/gw-01/src/**/*"
         ],
         "options": {
           "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
