@@ -43,3 +43,7 @@ Configured frontend tests, lint, typecheck and repository formatting were reques
 - `bunx nx format:check --all`: exit **0** (silent success). New packet files and the final changed sources receive explicit Prettier checking in the normal hooks.
 - `./node_modules/.bin/openspec validate --all --json`: exit **0** on the initial packet state; final validation is repeated before commit.
 - Dependency installation reused the feature checkout's locked `node_modules` via a symlink. No package or lockfile changes. Existing shared Git hooks are present and the commit uses them normally.
+
+## Later browser persistence acceptance
+
+[The bounded real browser/HTTP/SQLite packet](verify-9-2-predecessor-scope-browser.md) adds desktop node-to-whole and phone whole-to-node accepted-save/reload evidence using the explicit test-only writer seam. Its receipts supersede this implementation packet’s browser/database verification limit only for those two cases. Production authoring activation and parent task 9.2 remain open.

@@ -3,15 +3,38 @@ import '@/styles.css';
 import { createRoot } from 'react-dom/client';
 
 import { ProjectPage } from '@/components/wbs/project-page';
-import { httpProjectApi } from '@/lib/wbs-api';
+import { httpProjectAddressApi, httpProjectApi } from '@/lib/wbs-api';
+import { projectSourceOver } from '@/modules/project/composition';
+import { createProjectCatalog } from '@/modules/project/project-catalog.feature';
 import { acquireApplicationRuntime, applicationSlot } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { createProjectOwner } from '@/runtime/project-runtime';
-import { pageWiring } from '@/testing/project-page-over-owner';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 
 await applicationSlot.replace(acquireApplicationRuntime);
 const owner = createProjectOwner();
-const wiring = pageWiring(owner, httpProjectApi(''));
+const organizationId = new URLSearchParams(window.location.search).get('organization');
+const scope =
+  organizationId === null
+    ? undefined
+    : {
+        organization: { kind: 'active' as const, organizationId },
+        isCurrent: () => true,
+        refuse: () => {
+          throw new Error('Browser fixture organization refused');
+        },
+      };
+const api = httpProjectApi('', scope);
+const source = projectSourceOver(api, httpProjectAddressApi('', scope), undefined, NO_SAVED_PLANS);
+const wiring = {
+  catalog: createProjectCatalog({ routes: api, isCurrent: () => true }),
+  projects: {
+    subscribe: owner.subscribe,
+    snapshot: owner.snapshot,
+    open: (projectId: string) => owner.open(projectId, source),
+    leave: owner.leave,
+  },
+};
 let stopPlan: (() => void) | undefined;
 // Read-only fixture evidence: this is the same delivered store the production table selects.
 owner.subscribe(() => {

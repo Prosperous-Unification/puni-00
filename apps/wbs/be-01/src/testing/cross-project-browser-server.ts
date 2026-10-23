@@ -5,6 +5,8 @@ import { OrganizationHarness } from './organization-harness';
 
 const secret = 'browser-reconciliation-secret-'.repeat(2);
 const harness = OrganizationHarness.openComposedWith({
+  // Test-only writer seam: durable authority alone does not activate production authoring.
+  syntheticExternalCommands: true,
   internalAuthSecret: secret,
   appOrigin: 'http://localhost:7600',
   pushFetch: (url, init) => fetch(url.replace('http://gw.invalid', 'http://localhost:7501'), init),
@@ -25,6 +27,14 @@ const server = Bun.serve({
   fetch: async (request) => {
     const path = new URL(request.url).pathname;
     if (path === '/__fixture/ready') return Response.json({ ready }, { status: ready ? 200 : 503 });
+    if (path === '/__fixture/relationships')
+      return Response.json(
+        harness.sqlite
+          .query(
+            'SELECT id, organization_id, predecessor_project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_project_id, successor_work_item_id, successor_scope, successor_step_id, type FROM external_dependency ORDER BY id',
+          )
+          .all(),
+      );
     if (path === '/__fixture/identities')
       return Response.json({
         projects,
@@ -77,7 +87,7 @@ const startup = await reader.read();
 reader.releaseLock();
 const address = JSON.parse(new TextDecoder().decode(startup.value)) as { port: number };
 if (address.port <= 0) throw new Error('gateway did not announce a port');
-for (const name of ['A', 'B', 'C', 'Unrelated', 'Foreign']) {
+for (const name of ['A', 'B', 'C', 'Unrelated', 'Foreign', 'Desktop', 'Phone']) {
   const answer = await harness.call(name === 'Foreign' ? 'grace' : 'ada', 'POST', '/api/projects', {
     name,
   });
@@ -85,7 +95,7 @@ for (const name of ['A', 'B', 'C', 'Unrelated', 'Foreign']) {
   const body = answer.body as { project: { id: string }; steps: { id: string }[] };
   const step = body.steps.at(0);
   if (step === undefined) throw new Error('missing fixture step');
-  const project = { id: body.project.id, row: `${name}-row`, step: step.id };
+  const project = { id: body.project.id, row: crypto.randomUUID(), step: step.id };
   projects[name] = project;
   harness.sqlite.run('DELETE FROM step WHERE project_id = ? AND id <> ?', [
     project.id,
@@ -99,6 +109,8 @@ for (const name of ['A', 'B', 'C', 'Unrelated', 'Foreign']) {
 for (const [left, right] of [
   ['A', 'B'],
   ['B', 'C'],
+  ['A', 'Desktop'],
+  ['A', 'Phone'],
 ] as const) {
   const predecessor = projects[left];
   const successor = projects[right];
@@ -116,6 +128,9 @@ for (const [left, right] of [
     ],
   );
 }
+harness.sqlite.run(
+  "UPDATE external_dependency SET predecessor_scope='whole', predecessor_step_id=NULL WHERE id='A-Phone'",
+);
 ready = true;
 async function stop() {
   gateway.kill();

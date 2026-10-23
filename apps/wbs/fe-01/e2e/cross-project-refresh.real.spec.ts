@@ -207,3 +207,118 @@ test('A completion refreshes admitted B and C through their own real trees and r
     await Promise.all(contexts.map((context) => context.close()));
   }
 });
+
+for (const phone of [false, true]) {
+  test(`${phone ? 'phone whole to node' : 'desktop node to whole'} predecessor scope survives accepted HTTP save and SQLite reload`, async ({
+    browser,
+    request,
+  }, testInfo) => {
+    const identities = await request.get('http://localhost:7500/__fixture/identities');
+    expect(identities.status()).toBe(200);
+    const fixture = (await identities.json()) as {
+      projects: Record<string, Identity | undefined>;
+      token: string;
+    };
+    const name = phone ? 'Phone' : 'Desktop';
+    const owner = fixture.projects[name];
+    const remote = fixture.projects['A'];
+    if (owner === undefined || remote === undefined) throw new Error('missing scope fixture');
+    const relationshipId = `A-${name}`;
+    const context = await browser.newContext({
+      viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+      ...(phone ? { isMobile: true, hasTouch: true } : {}),
+    });
+    try {
+      await authenticate(context, fixture.token);
+      const page = await context.newPage();
+      const observed = observe(page);
+      const address = `http://localhost:7600/e2e/cross-project-refresh.html?project=${owner.id}&organization=org-a`;
+      await page.goto(address);
+      await expect(page.getByLabel('Name of 010')).toHaveValue(`${name} row`);
+      const open = async () => {
+        if (phone) {
+          await page.getByRole('button', { name: 'Depends on for 010', exact: true }).click();
+          await page.getByRole('button', { name: /^Edit AXX\./ }).click();
+        } else {
+          const picker = page.getByLabel('Add a dependency to 010');
+          await picker.click();
+          await picker.press('Home');
+          await page.keyboard.press('Enter');
+        }
+        return page.getByRole('dialog', { name: 'Captured dependency' });
+      };
+      const details = await open();
+      await details.getByRole('button', { name: 'Edit predecessor scope' }).click();
+      const selector = details.getByLabel('Predecessor scope');
+      const scope = phone ? 'node' : 'whole';
+      const chosen = JSON.stringify([remote.id, remote.row, scope, phone ? remote.step : null]);
+      await expect(selector.locator(`option[value='${chosen}']`)).toHaveCount(1);
+      await selector.selectOption(chosen);
+      const commands = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/projects/${owner.id}/commands` &&
+          response.request().method() === 'POST',
+      );
+      const beforeReads = observed.reads.length;
+      await details.getByRole('button', { name: 'Save', exact: true }).click();
+      const response = await commands;
+      expect(response.status(), await response.text()).toBe(200);
+      const accepted: unknown = await response.json();
+      expect(accepted).toEqual({ results: [{ index: 0 }], undoable: true, redoable: false });
+      await expect(page.getByRole('dialog', { name: 'Captured dependency' })).toHaveCount(0);
+      await expect.poll(() => observed.reads.length).toBeGreaterThan(beforeReads);
+      await expect(page.locator('body')).toHaveAttribute(
+        'data-installed-seq',
+        String(observed.reads.at(-1)?.seq),
+      );
+      await page.reload();
+      await expect(page.getByLabel('Name of 010')).toHaveValue(`${name} row`);
+      const reopened = await open();
+      await reopened.getByRole('button', { name: 'Edit predecessor scope' }).click();
+      // Proof: independently forcing desktop/phone serialization to the old predecessor
+      // makes this post-reload selected-coordinate assertion fail (see bounded verify receipt).
+      await expect(reopened.getByLabel('Predecessor scope')).toHaveValue(chosen);
+      const persisted = await request.get('http://localhost:7500/__fixture/relationships');
+      expect(persisted.status()).toBe(200);
+      const rows = (await persisted.json()) as { id: string }[];
+      expect(rows.filter((row) => row.id === relationshipId)).toEqual([
+        {
+          id: relationshipId,
+          organization_id: 'org-a',
+          predecessor_project_id: remote.id,
+          predecessor_work_item_id: remote.row,
+          predecessor_scope: scope,
+          predecessor_step_id: phone ? remote.step : null,
+          successor_project_id: owner.id,
+          successor_work_item_id: owner.row,
+          successor_scope: 'node',
+          successor_step_id: owner.step,
+          type: 'FS',
+        },
+      ]);
+      const command: unknown = response.request().postDataJSON();
+      expect(command).toEqual({
+        commands: [
+          {
+            kind: 'updateTypedDependency',
+            dependencyId: relationshipId,
+            predecessor: {
+              projectId: remote.id,
+              workItemId: remote.row,
+              scope,
+              ...(phone ? { stepId: remote.step } : {}),
+            },
+            successor: { scope: 'node', stepNodeId: `sn1.${owner.row}.${owner.step}` },
+            type: 'FS',
+          },
+        ],
+      });
+      await testInfo.attach('accepted-scope-persistence', {
+        body: JSON.stringify({ command, accepted, rows, reads: observed.reads }, null, 2),
+        contentType: 'application/json',
+      });
+    } finally {
+      await context.close();
+    }
+  });
+}
