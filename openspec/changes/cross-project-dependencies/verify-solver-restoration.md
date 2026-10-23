@@ -154,6 +154,30 @@ Final correction checks:
 - Three fresh omission executions produced actual assertions: final policy (1 test), installed-config privacy (7 tests), exact publisher order (2 tests). None was a timeout or load failure.
 - Changed-file formatting and normal commit hooks are checked for the correction commit; no hook bypass is used.
 
-Independent
-rereview and physical adoption/acceptance remain open. This packet changes no
-activation, participant exposure, ownership lifetime or P2b/P3 behavior.
+Independent Astra rereview approved exact
+`085c2773cd39c9a5e1f2b59610e36e642fc750df`: **236 passed, 0 failed,
+55,963 assertions** across eight files; both original independent repros passed.
+All three fresh omission logs were inspected. Physical adoption/acceptance remains
+open. This packet changes no activation, participant exposure, ownership lifetime
+or P2b/P3 behavior.
+
+## Root integration replay
+
+The reviewed restoration stack was integrated through
+`05e6dc1df1760c593703f2005d5abe5f60a615c9`. The expanded 27-file selection
+reported **611 passed, one failed, 57,139 assertions** in 191.01 seconds. The sole
+failure was the existing 20-second `source-record` test deadline while a concurrent
+Nx lint run was active. That failed run is not counted as passing.
+
+The same case then passed unchanged in 6.52 seconds with 1,841 assertions after
+Nx finished. The entire affected backend/restoration file was rerun without the
+competing Nx tasks: **93 passed, 0 failed, 55,463 assertions**, 118.01 seconds.
+No test deadline or production check was changed. This supports resource
+contention as the timeout explanation; it does not replace the required final
+integrated host gate.
+
+Fresh uncached configured lint, typecheck and build completed successfully at
+that integration SHA: six real Nx tasks, 44.2 seconds. Bun was the independently
+verified isolated pinned 1.4.2 executable. The full Caddy prerequisite and full
+host gate were not part of these local commands. Later source-mount monitoring
+changes require their own integration replay.

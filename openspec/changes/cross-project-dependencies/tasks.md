@@ -901,7 +901,7 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 - [x] P2a.4 Prove full under-lock restoring runtime verification, actual bundled execution identity and process-lifetime lock while preserving ordinary exit-78 refusal and ordinary installer/deployer closure.
 - [x] P2a.5 Share existing full exclusion/finalizers; prove token expiry before fresh parked monitoring, exact owner-bound terminal/inert attempt cleanup, eligibility publication, fixed supervisor start and actual bounded readiness/readbacks.
 - [x] P2a.6a Record production-path refusal/interruption/privacy and independently watched omission proofs, focused checks, lint/typecheck/build/OpenSpec.
-- [ ] P2a.6b Complete independent source review. Exact-SHA host acceptance is separate authorized follow-on work.
+- [x] P2a.6b Complete independent source review. Astra approved the correction stack at `085c2773c`; exact-SHA host acceptance is separate authorized follow-on work.
 
 P2a restores only the compatible supervisor. Activation, application participants,
 public exposure, marker retirement, complete P2/P3, S4 and parent 10.2 remain open.
@@ -912,8 +912,8 @@ public exposure, marker retirement, complete P2/P3, S4 and parent 10.2 remain op
 - [x] P2a.R2 Require the pending publication's existing exact prod-before-dev publisher order; reject coherently rehashed reversed pending/intent layouts before the runtime callback.
 - [x] P2a.R3 Correct the initially misclassified final-policy timeout receipt, observe a real assertion failure under the current scoped 20-second budget, and record new guard omissions and final focused checks.
 
-Independent rereview and separately authorized host acceptance remain open; these
-corrections add no P2b/P3 activation or exposure scope.
+Independent rereview approved the correction stack. Separately authorized host
+acceptance remains open; these corrections add no P2b/P3 activation or exposure scope.
 
 - [x] X7d: Bind coherent native first-running source state across the narrow OomKillDisable transition; compare full-field source mount destination sets through native owner/backend audits (verify-source-started-binding.md).
 - [ ] X7e: Apply the same exact-source mount ordering to the subsequently integrated parked restoration monitor, with no post-expiry capability.
