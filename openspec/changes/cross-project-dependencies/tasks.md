@@ -550,3 +550,9 @@ selection while preserving captured remote predecessor identity and the existing
 relationship ID. Complete coordinate keys refuse stale scopes; 409 and pending
 reopen retain drafts. See [bounded evidence](verify-9-2-successor-scope.md).
 Parent 9.2, remote predecessor scope editing and active backend acceptance remain open.
+
+### Bounded task 10.2 role-bound Docker binary observation (2026-10-23)
+
+- [x] Add the explicit-role closed decoder and config-free exact-image Docker observation primitive with backend/gateway/MCP image binding before invocation; retain backend-only wrapper and independent backend candidate/retained calls, including equal images and first installation.
+- [x] Exercise actual role executables and production-path role/tier/image/failure/deadline/import refusals; watch independently restored safety mutations. Evidence: [verify-role-bound-docker-observation.md](verify-role-bound-docker-observation.md).
+- [ ] Complete independent review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open; participant exclusion, activation, deployment callers, grants and rollback expansion are outside this packet.

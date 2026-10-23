@@ -105,14 +105,16 @@ export { writeAtomic } from './atomic';
 export {
   buildDependencyCapabilityCommand,
   decodeDependencyCapabilities,
+  decodeRoleDependencyCapabilities,
   type DependencyCapabilityObservation,
+  type DependencyCapabilityRole,
 } from './dependency-capability';
 export {
   buildDependencyInventoryCommand,
   decodeDormantDependencies,
   type DormantDependencyStore,
 } from './dependency-inventory';
-export { probeDependencyCapabilities } from './dependency-preflight';
+export { observeDependencyCapabilities, probeDependencyCapabilities } from './dependency-preflight';
 export { withLock } from './lock';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 export {

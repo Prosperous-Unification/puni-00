@@ -401,6 +401,16 @@ The backend SHALL advertise immutable binary dependency support through a DB-fre
 - **AND** any positional argument refuses with exit 1, a diagnostic and no stdout observation
 - **AND** these observations grant no activation, authoring, participant exclusion or backend-role transport admission
 
+#### Scenario: Role-bound exact-image Docker observations remain non-authoritative
+
+- **GIVEN** the coordinator requests the explicit `backend`, `gateway` or `mcp` role
+- **WHEN** the Docker binary observation primitive invokes its DB-free executable
+- **THEN** it first requires a digest-pinned image naming respectively `wbs-be-01`, `wbs-gw-01` or `wbs-mcp-01` and refuses a wrong tier before Docker
+- **AND** it accepts only the closed version 1 capability envelope with that exact role and known unique semantics, attributing the observation to the exact invoked image
+- **AND** the invocation has no network access, mounts, database configuration or application startup, shares the caller's finite deadline and refuses missing, unreadable, malformed, failed or stalled executables without substituting empty support
+- **AND** the existing backend pair transport retains its backend-only contract and independently invokes candidate and nonnull retained images even when equal, invoking only candidate on first installation
+- **AND** this primitive imports no configuration or application startup and grants no activation, authoring, participant exclusion, deployment tier expansion or recovery permission
+
 #### Scenario: Backend capability HTTP observation remains dormant
 
 - **WHEN** an unauthenticated client reads `GET /api/runtime/dependency-capability`
