@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-history-endpoint.controller.db.test.ts:
+ 96 |       expect({
+ 97 |         status: response.status,
+ 98 |         relationship: readRelationship(),
+ 99 |         local: harness.sqlite.query('SELECT name FROM work_item WHERE id=?').get(local.id),
+100 |         journal: harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(entry.id),
+101 |       }).toEqual({
+               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "journal": {
+-     "undone": 1,
++     "undone": 0,
+    },
+    "local": {
+-     "name": "Unrelated local row",
++     "name": "Replayed patch",
+    },
+-   "relationship": null,
+-   "status": 500,
++   "relationship": {
++     "id": "fe47833a-0c09-4346-9cc1-cf8bff55b569",
++     "organization_id": "org-a",
++     "predecessor_project_id": "4f04c25e-cd35-4d44-ad45-cd57b0dbb676",
++     "predecessor_scope": "whole",
++     "predecessor_step_id": null,
++     "predecessor_work_item_id": "1b41c564-9338-4f15-b2bd-b5b8e815f7d7",
++     "successor_project_id": "7905774b-39eb-49cd-9640-3ea16695fb7c",
++     "successor_scope": "whole",
++     "successor_step_id": null,
++     "successor_work_item_id": "3ecf5bc2-a6a0-47f7-8df6-fb868556dfd2",
++     "type": "FS",
++   },
++   "status": 200,
+  }
+
+- Expected  - 4
++ Received  + 16
+
+      at <anonymous> (/tmp/puni-mounted-replay-endpoint/apps/wbs/be-01/src/controller/cross-project-history-endpoint.controller.db.test.ts:101:10)
+(fail) mounted external redo revalidates wrong-identity endpoint delivery without consuming history [731.51ms]
+
+ 0 pass
+ 2 filtered out
+ 1 fail
+ 19 expect() calls
+Ran 1 test across 1 file. [3.71s]

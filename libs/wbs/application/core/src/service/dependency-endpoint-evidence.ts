@@ -86,12 +86,16 @@ export function createEndpointEvidence(
     // Proof: removing this check let `external redo revalidates wrong-identity
     // delivery` restore its subtree and external link from misdelivered facts
     // instead of throwing; watched against real SQLite, 2026-10-22.
+    // Proof: removing only this equality made mounted external redo wrong-identity
+    // return HTTP 200, replay the local patch/link and consume its journal (2026-10-23).
     if (row.id !== address.workItemId) throw new Error('endpoint row identity mismatch');
     // Proof: exact-row-project-evidence bypass failed `mounted wrong-row-project`'s selected assertion
     // (actual SQLite boundary; watched 2026-10-22).
     // Proof: removing this check let `external redo revalidates foreign-project
     // delivery` restore its subtree and external link instead of returning
     // concealed not_found; watched against real SQLite, 2026-10-22.
+    // Proof: removing only this equality made mounted external redo wrong-owner
+    // return HTTP 200, replay the local patch/link and consume its journal (2026-10-23).
     if (row.projectId !== address.projectId) return { ok: false, reason: 'not_found' } as const;
     return { ok: true, project, row } as const;
   };
