@@ -56,6 +56,7 @@ export const CASE_MANIFEST = {
     'directory.removePerson:delegated-claims',
     'directory.removePerson:pinned-credential',
     'directory.addResource:taken',
+    'directory.setResourceProvider:unknown-and-clear',
     'directory.removeResource:in-use-cascade',
   ],
   organizationLimits: [

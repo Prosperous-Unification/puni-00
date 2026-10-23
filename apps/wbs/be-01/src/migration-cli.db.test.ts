@@ -1153,6 +1153,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022120000_scope_trusted_issuer_audience' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
           name !== '20261023100000_add_claim_lease',
       ),
     );
@@ -1216,6 +1218,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022120000_scope_trusted_issuer_audience' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
           name !== '20261023100000_add_claim_lease',
       ),
     );

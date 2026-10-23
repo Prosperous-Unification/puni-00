@@ -245,6 +245,21 @@ export function inMemoryDirectory(
       ].sort();
       return Promise.resolve({ ok: true, resource: { ...patched }, projectIds });
     },
+    // The memory twin holds no provider instance (compute providers are
+    // SQLite's alone), so every id is unknown and only clearing succeeds.
+    setResourceProvider(resourceId, providerId, _organizationId, _stamp) {
+      if (!resourceTables.resources.has(resourceId))
+        return Promise.resolve({ ok: false, reason: 'not_found' });
+      if (providerId !== null) return Promise.resolve({ ok: false, reason: 'unknown_provider' });
+      const projectIds = [
+        ...new Set(
+          [...resourceTables.capacities.values()]
+            .filter((each) => each.resourceId === resourceId)
+            .map((each) => each.projectId),
+        ),
+      ].sort();
+      return Promise.resolve({ ok: true, projectIds });
+    },
     // The counts are the tables' own; the rows naming a demand's project are
     // not, for `usageOfTag`'s reason, and the bound source answers them.
     usageOfResource: (resourceId) => Promise.resolve(resourceUsageOf(resourceTables, resourceId)),
@@ -654,5 +669,7 @@ function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
       .map(({ projectId, units }) => ({ projectId, units }))
       .sort((left, right) => left.projectId.localeCompare(right.projectId)),
     occupancies: 0,
+    // The memory twin holds no provider instance (`compute-providers` P3).
+    providerId: null,
   };
 }

@@ -31,6 +31,30 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationCompute-providersById',
+    method: 'DELETE',
+    path: '/api/organization/compute-providers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'patchApiOrganizationCompute-providersById',
+    method: 'PATCH',
+    path: '/api/organization/compute-providers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationCompute-providers',
+    method: 'POST',
+    path: '/api/organization/compute-providers',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+    method: 'PUT',
+    path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationMachine-credentialsById',
     method: 'DELETE',
     path: '/api/organization/machine-credentials/:id',
@@ -147,6 +171,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationTrusted-issuers',
     method: 'GET',
     path: '/api/organization/trusted-issuers',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationCompute-providers',
+    method: 'GET',
+    path: '/api/organization/compute-providers',
     kind: 'read',
   },
   {

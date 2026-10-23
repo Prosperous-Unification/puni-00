@@ -347,6 +347,8 @@ describe('the optimizer migration', () => {
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
@@ -428,6 +430,8 @@ describe('the optimizer migration', () => {
             name !== 'machine_credential' &&
             name !== 'machine_credential_secret' &&
             name !== 'organization_limits' &&
+            name !== 'compute_provider' &&
+            name !== 'resource_capacity_report' &&
             name !== 'shared_people_restore_operation' &&
             name !== 'shared_people_restore_receipt' &&
             name !== 'shared_people_restore_consumption' &&

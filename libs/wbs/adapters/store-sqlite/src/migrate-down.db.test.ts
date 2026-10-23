@@ -691,6 +691,8 @@ describe('readMigrationFolders', () => {
       '20261022120000_scope_trusted_issuer_audience',
       '20261022130000_add_organization_limits',
       '20261022130100_widen_organization_audit_organization_limits',
+      '20261022140000_add_resource_provider',
+      '20261022140100_widen_organization_audit_compute_providers',
       '20261023100000_add_claim_lease',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -886,6 +888,8 @@ describe('rollbackTo, against a real database', () => {
         '20261022120000_scope_trusted_issuer_audience',
         '20261022130000_add_organization_limits',
         '20261022130100_widen_organization_audit_organization_limits',
+        '20261022140000_add_resource_provider',
+        '20261022140100_widen_organization_audit_compute_providers',
         '20261023100000_add_claim_lease',
       ]);
 
@@ -893,6 +897,8 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
@@ -1087,6 +1093,8 @@ describe('rollbackTo, against a real database', () => {
         '20261022120000_scope_trusted_issuer_audience',
         '20261022130000_add_organization_limits',
         '20261022130100_widen_organization_audit_organization_limits',
+        '20261022140000_add_resource_provider',
+        '20261022140100_widen_organization_audit_compute_providers',
         '20261023100000_add_claim_lease',
       ]);
     } finally {
@@ -1160,6 +1168,8 @@ describe('rollbackTo, against a real database', () => {
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
@@ -1292,6 +1302,8 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',
@@ -1409,6 +1421,8 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022140100_widen_organization_audit_compute_providers',
+        '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
         '20261022120000_scope_trusted_issuer_audience',

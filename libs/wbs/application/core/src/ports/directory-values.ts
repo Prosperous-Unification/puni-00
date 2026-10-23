@@ -110,3 +110,14 @@ export interface ResourcePatch {
   name?: string;
   unitLabel?: string;
 }
+
+/**
+ * A `patchResource` as the directory feature takes it: {@link ResourcePatch}
+ * plus the provider instance that fulfils the resource (`compute-providers`
+ * P3), set by id or cleared by null. Kept apart from the store's patch so the
+ * reference is only ever written through
+ * {@link DirectoryStore.setResourceProvider}, which checks the instance.
+ */
+export interface ResourcePatchInput extends ResourcePatch {
+  providerId?: string | null;
+}

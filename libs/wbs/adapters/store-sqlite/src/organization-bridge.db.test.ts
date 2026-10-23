@@ -366,6 +366,8 @@ describe('20260927190000_add_organization_bridge', () => {
     run([LEGACY, ...writeRootsBeforeResources('1')]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
       '20261023100000_add_claim_lease',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
       '20261022120000_scope_trusted_issuer_audience',
