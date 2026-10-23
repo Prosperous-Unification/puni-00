@@ -12,6 +12,12 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
 const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_providers';
+const CROSS_PROJECT_ROLLBACK = [
+  '20261022213000_add_optimization_boundary_certificates',
+  '20261022212000_add_cross_project_dependency_activation',
+  '20261022211000_add_external_dependencies',
+  '20261022210000_add_project_abbreviations',
+] as const;
 const roots: string[] = [];
 
 afterEach(() => {
@@ -176,7 +182,9 @@ describe(RESOURCE_PROVIDER, () => {
     const down = await rollBack(root, dbPath, LIMITS_AUDIT);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`);
+    expect(down.stdout).toBe(
+      `rolled back: ${[...CROSS_PROJECT_ROLLBACK, AUDIT_WIDENING, RESOURCE_PROVIDER].join(', ')}\n`,
+    );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);
     runMigrations(dbPath, join(root, 'drizzle'));

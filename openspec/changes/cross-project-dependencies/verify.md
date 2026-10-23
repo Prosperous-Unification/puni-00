@@ -6569,3 +6569,13 @@ ESLint, Prettier and diff checks passed. Production admission was unchanged;
 the existing whole-leaf refusal proof remains in `claim-limit.controller.db.test.ts`.
 The old-SHA gate's Bun coverage crash and complete backend suite remain
 unverified on this corrected head.
+
+## Provider rollback sequence reconciliation (2026-10-23)
+
+Completed old-head CI exposed one more stale backend assertion: the provider
+rollback test expected only its two provider migrations, but the selected
+rollback also reverses all four later cross-project migrations. The test now
+pins the exact six-name reverse sequence and compares the complete CLI line.
+Before correction CI failed at that assertion; afterward the entire mounted
+provider migration file passed 10 tests/38 assertions. Production rollback
+logic was unchanged. The integrated exact-SHA gate remains pending.
