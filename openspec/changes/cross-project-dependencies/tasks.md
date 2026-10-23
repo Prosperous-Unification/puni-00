@@ -748,4 +748,12 @@ Task 5.2 bounded successor schedule-date browser acceptance (2026-10-23):
 borrowed capture, semantic fingerprint, committed delivery and displayed date
 projection. A separate dated A→B→C fixture opens only B/C and checks literal
 old/new start/end dates, held covering GET, installed sequences and stable
-relationship UUIDs. Parent 5.2 remains unchecked pending review and host gate.
+relationship UUIDs. Independent Astra review approved the bounded packet;
+parent 5.2 remains unchecked pending the integrated host gate.
+
+### Bounded CI browser delivery scheduling — 2026-10-23
+
+- [x] Schedule the existing dedicated cross-project real-stack browser target exactly once on shard 4, preserve ordinary-suite exclusion, and pin a finite 35-minute shard budget with watched workflow faults. See [bounded CI receipt](verify-ci-browser-delivery.md).
+
+This closes scheduling only. Parent 5.2/11.x, exact-head hosted browser completion,
+the canonical host gate and production activation remain open.

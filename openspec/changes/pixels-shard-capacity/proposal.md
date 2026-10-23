@@ -1,14 +1,14 @@
 ## Why
 
-Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit while the layout gate was still running, with 160 cases passed, one skipped and none failed. Shard 2/4 needed 21m03s for layout alone. The four-way partition no longer leaves reliable setup and organization-check headroom.
+Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit while the layout gate was still running, with 160 cases passed, one skipped and none failed. Shard 2/4 needed 21m03s for layout alone. The four-way partition no longer leaves reliable setup and organization-check headroom. Later eight-shard run 39951248349 canceled shard 3 after a ten-minute Chromium install and 112 passing cases; eight partitions still need bounded setup headroom.
 
 ## What Changes
 
-Run the same browser suite across eight file shards, retaining the stable required `pixels` verdict. Record measured partition sizes and hosted timings so the capacity choice can be reviewed.
+Run the same browser suite across eight file shards, retaining the stable required `pixels` verdict. Raise the finite job timeout from 25 to 35 minutes and run the existing dedicated cross-project browser target once on lightly loaded shard 4. Record measured partition sizes and hosted timings so the capacity choice can be reviewed.
 
 ## Non-Goals
 
-Changing browser behavior, worker count, retries, test selection, required verdicts, organization coverage or job timeouts.
+Changing browser behavior, worker count, retries, ordinary-suite test selection, required verdicts, organization coverage or product activation.
 
 ## Constraints
 

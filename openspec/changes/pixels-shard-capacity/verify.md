@@ -100,3 +100,14 @@ spec sync and full hosted gates remain pending and block archive/release accepta
 The implementation is committed from `5328162f7` through this evidence commit;
 normal hooks run during commit and their actual outcome is reported to the parent.
 No push is authorized for this worktree.
+
+## Bounded CI delivery amendment — 2026-10-23
+
+The earlier 25-minute statements above describe the original eight-shard packet.
+Run [39951248349](https://github.com/Prosperous-Unification/puni-00/actions/runs/39951248349)
+later canceled shard 3 after a ten-minute Chromium install and 112 passing cases.
+The amended contract uses 35 finite minutes and adds the existing dedicated
+cross-project target once on shard 4, retaining eight partitions, one worker, zero
+retries and disabled fail-fast. The ordinary config already excludes its spec.
+See the [bounded CI receipt](../cross-project-dependencies/verify-ci-browser-delivery.md)
+for fresh local checks, watched production-workflow faults and remaining hosted gates.

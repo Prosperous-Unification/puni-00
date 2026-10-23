@@ -6995,5 +6995,14 @@ Activation stays with Tasks 10.x.
 The [closure receipt](verify-task-5.2-closure.md) records the independent dated
 A→B→C fixture, mounted estimate command, literal visible B/C dates, held covering
 GET, installed sequences and watched independent faults. It maps the writer to
-capture, fingerprint and receipt without claiming all writer breadth. Parent 5.2
-and the exact-SHA host gate remain open.
+capture, fingerprint and receipt without claiming all writer breadth. Independent
+Astra review approved this bounded packet; integrated browser 6/6 passed at
+`7d172b1f6`. Parent 5.2 and the exact-SHA host gate remain open.
+
+## Bounded CI browser delivery scheduling — 2026-10-23
+
+[The CI receipt](verify-ci-browser-delivery.md) records the dedicated real-stack
+browser target on shard 4, the finite 35-minute budget and independent watched
+production-workflow faults. It establishes scheduling and local workflow checks;
+exact-head hosted browser completion, full CI, the host gate and production
+activation remain unproved by this packet.

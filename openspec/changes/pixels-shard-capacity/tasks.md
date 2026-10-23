@@ -6,3 +6,8 @@
 ## 2. Focused verification
 
 - [x] 2.1 Run the focused workflow suites, configured tool-git-hooks lint/typecheck, changed-file formatting, OpenSpec validation and normal commit hooks; record results and unavailable full hosted evidence in `verify.md`.
+
+## 3. Bounded CI delivery amendment
+
+- [x] 3.1 Pin the 35-minute timeout and exactly one cross-project browser command on shard 4 in the production workflow oracle; watch the original workflow fail, implement, and watch independent command removal, duplicate command, condition inversion and 25-minute restoration fail.
+- [x] 3.2 Run focused workflow tests, lint/typecheck, format and OpenSpec checks; record the bounded receipt and every unavailable check. Hosted completion remains pending.

@@ -50,21 +50,29 @@ describe('the CI pixels gate', () => {
     const organizationStep = shardJob?.steps?.find(
       ({ name }) => name === 'Activated organization context',
     );
+    const crossProjectSteps = shardJob?.steps?.filter(
+      ({ run }) => run === 'bunx nx run wbs-fe-01:e2e-cross-project',
+    );
     const artifactStep = shardJob?.steps?.find(({ uses }) =>
       uses?.startsWith('actions/upload-artifact@'),
     );
 
     // Proof (2026-10-23): deleting production matrix shard 8 failed on [1..7];
     // reverting only Layout gate's denominator to /4 failed on its run command.
-    // Enabling fail-fast failed false/true; lowering the cap failed 25/20.
+    // Enabling fail-fast failed false/true.
+    // Proof (2026-10-23): restoring the production 25-minute budget failed 35/25.
     expect(shardJob?.strategy?.['fail-fast']).toBe(false);
-    expect(shardJob?.['timeout-minutes']).toBe(25);
+    expect(shardJob?.['timeout-minutes']).toBe(35);
     expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/8');
     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
+    // Proof (2026-10-23): removing the production command failed length 1/0;
+    // duplicating it failed 1/2; flipping its shard condition failed == 4 / != 4.
+    expect(crossProjectSteps).toHaveLength(1);
+    expect(crossProjectSteps?.[0]?.if).toBe('${{ matrix.shard == 4 }}');
     expect(artifactStep?.with?.name).toBe(
       'wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}',
     );
