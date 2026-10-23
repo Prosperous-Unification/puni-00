@@ -1092,8 +1092,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: pixels_mode
     if: ${{ needs.pixels_mode.outputs.stack == 'affected' }}
-    # Eight shards after run 39898917880 canceled 1/4 at 25 minutes with 161
-    # cases green and none failed; 2/4 needed 21m03s for layout alone. The real
+    # Eight shards after run 39898917880 canceled 1/4 at 25 minutes with 160
+    # cases passed, one skipped and none failed; 2/4 needed 21m03s for layout. The real
     # Playwright listing gives 164 cases on 1/4, 138 on 1/6, and 80 on 1/8.
     # Eight moves the 58-case Gantt file off shard 1, leaving more room for setup
     # and its organization check. This changes partition capacity, not retries,

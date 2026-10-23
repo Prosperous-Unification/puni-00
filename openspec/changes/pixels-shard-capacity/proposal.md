@@ -1,6 +1,6 @@
 ## Why
 
-Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit while the layout gate was still running, with 161 cases green and none failed. Shard 2/4 needed 21m03s for layout alone. The four-way partition no longer leaves reliable setup and organization-check headroom.
+Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit while the layout gate was still running, with 160 cases passed, one skipped and none failed. Shard 2/4 needed 21m03s for layout alone. The four-way partition no longer leaves reliable setup and organization-check headroom.
 
 ## What Changes
 

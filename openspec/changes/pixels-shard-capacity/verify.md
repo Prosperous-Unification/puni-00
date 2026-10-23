@@ -10,7 +10,7 @@ The delta spec is pending sync/archive. Exact-head hosted completion remains pen
 
 [Hosted run 39898917880](https://github.com/Prosperous-Unification/puni-00/actions/runs/39898917880)
 canceled shard 1/4 at the 25-minute job cap while Layout gate was running:
-161 cases green, zero failed. Chromium installation took 4m15s on shard 1,
+160 cases passed, one skipped, zero failed. Chromium installation took 4m15s on shard 1,
 versus about 19–21s on the other shards. Shard 2/4's layout step took 21m03s.
 The failed run therefore establishes insufficient setup/layout headroom, not a test failure.
 
@@ -32,9 +32,12 @@ measured eight-shard job durations.
 | 8/8   | 76                  | 6.2                          |
 
 The native lists were inspected from `/tmp/pixels-current-list.json` and
-`/tmp/pixels-current-list-{1..8}of8.json`, produced by the independent design review.
-A fresh Bun comparison of test IDs confirmed the eight lists cover all 625 cases
-exactly once, with no duplicates or omissions. These scratch paths are local evidence,
+`/tmp/pixels-current-list-{1..8}of8.json`, produced by the design review.
+Independent review regenerated exact-head lists at `/tmp/pixels-review-eight-full.json`
+and `/tmp/pixels-review-eight-{1..8}.json` after finding one renamed test in the
+earlier scratch lists. A fresh Bun comparison of the exact-head test IDs confirmed
+the eight lists cover all 625 cases exactly once, with no duplicates or omissions.
+These scratch paths are local evidence,
 not durable CI artifacts. The workflow keeps one worker, zero retries,
 `fullyParallel: false`, fail-fast disabled, the 25-minute cap and organization
 acceptance on shard 1. More jobs may increase runner setup cost and queueing;
