@@ -919,3 +919,5 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] X7e: Apply the same exact-source mount ordering to the subsequently integrated parked restoration monitor, with no post-expiry capability.
 
 - [x] X7f: Accept optional stricter deadlines on both source observers, propagate bounded local read scopes without changing original token authority, and prove invalid/longer deadlines, child abort/reaping and final expiry (verify-source-observer-deadline.md).
+
+- [x] X7g: Correct source observer cancellation to join the entire owner-wrapped operation before returning; prove gated child/owner cleanup and private primary/join error retention (verify-source-observer-join.md).

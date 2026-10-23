@@ -1,12 +1,13 @@
 import { rejects } from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { inspect as inspectFailure } from 'node:util';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { sourceFixture } from '../fixtures/source-dev';
 import type { RunDocker } from './docker-deadline';
-import { withDependencyOwner } from './edge-ownership';
+import { assertDependencyOwner, withDependencyOwner } from './edge-ownership';
 import { envLayout, sourceDevContract } from './env';
 import {
   inspectExcludedSourceMember,
@@ -773,3 +774,151 @@ for (const operation of ['inspection', 'recognition'] as const)
     expect(completedAt).toBeGreaterThan(0);
     expect(completedAt).toBeLessThan(originalDeadline + 300);
   });
+
+for (const operation of ['inspection', 'recognition'] as const)
+  for (const cleanup of ['complete', 'failure', 'accessor'] as const)
+    test(`source ${operation} deadline joins ${cleanup} child and owner cleanup before returning`, async () => {
+      const f = await fixture();
+      let announceAbort: () => void = () => {
+        throw new Error('abort gate absent');
+      };
+      const aborted = new Promise<void>((resolve) => {
+        announceAbort = resolve;
+      });
+      let releaseCleanup: () => void = () => {
+        throw new Error('cleanup gate absent');
+      };
+      const gate = new Promise<void>((resolve) => {
+        releaseCleanup = resolve;
+      });
+      let armed = false,
+        reaped = false,
+        ownerChecked = false;
+      const children: Bun.Subprocess<'ignore', 'ignore', 'ignore'>[] = [];
+      let getterReads = 0;
+      const rawFailure = new Error('PRIVATE_DOCKER_STDERR_CONFIG_ENV_SENTINEL', {
+        cause: { Config: { Env: ['PRIVATE_DOCKER_ENV_CAUSE'] } },
+      });
+      if (cleanup === 'accessor')
+        Object.defineProperty(rawFailure, 'message', {
+          get() {
+            getterReads++;
+            throw new Error('PRIVATE_DOCKER_GETTER');
+          },
+        });
+      await withDependencyOwner(
+        { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+        async (owner) => {
+          const docker: RunDocker = async (args, signal) => {
+            if (!armed || args[0] !== 'ps') return f.docker(args);
+            armed = false;
+            if (signal === undefined) throw new Error('join signal absent');
+            const child = Bun.spawn([process.execPath, '-e', 'setInterval(() => {}, 1000)'], {
+              stdin: 'ignore',
+              stdout: 'ignore',
+              stderr: 'ignore',
+              signal,
+              killSignal: 'SIGKILL',
+            });
+            children.push(child);
+            if (!signal.aborted)
+              await new Promise<void>((resolve) => {
+                signal.addEventListener(
+                  'abort',
+                  () => {
+                    resolve();
+                  },
+                  { once: true },
+                );
+              });
+            announceAbort();
+            await gate;
+            await child.exited;
+            reaped = true;
+            await assertDependencyOwner(owner, f.layouts.dev);
+            ownerChecked = true;
+            if (cleanup !== 'complete') throw rawFailure;
+            return f.docker(args);
+          };
+          try {
+            await withSourceDevExcluded(
+              owner,
+              f.layouts,
+              'a'.repeat(40),
+              docker,
+              performance.now() + 5000,
+              async (token) => {
+                const before = (await readdir(f.root)).filter((name) =>
+                  name.endsWith('-readback.json'),
+                ).length;
+                armed = true;
+                let settled = false;
+                const pending = (
+                  operation === 'inspection'
+                    ? inspectSourceDevExclusion(owner, token, performance.now() + 100)
+                    : inspectExcludedSourceMember(
+                        owner,
+                        f.layouts.prod,
+                        token,
+                        f.inventory,
+                        performance.now() + 100,
+                      )
+                ).then(
+                  () => {
+                    settled = true;
+                    return { state: 'success' as const };
+                  },
+                  (failure: unknown) => {
+                    settled = true;
+                    return { state: 'failure' as const, failure };
+                  },
+                );
+                try {
+                  await aborted;
+                  await Bun.sleep(10);
+                  expect(settled).toBe(false);
+                  expect(reaped).toBe(false);
+                  expect(ownerChecked).toBe(false);
+                  await assertDependencyOwner(owner, f.layouts.dev);
+                } finally {
+                  releaseCleanup();
+                  await pending;
+                }
+                const outcome = await pending;
+                expect(outcome.state).toBe('failure');
+                if (outcome.state !== 'failure')
+                  throw new Error('observer returned proof past deadline');
+                expect(reaped).toBe(true);
+                expect(ownerChecked).toBe(true);
+                expect(children[0]?.signalCode).toBe('SIGKILL');
+                const after = (await readdir(f.root)).filter((name) =>
+                  name.endsWith('-readback.json'),
+                ).length;
+                expect(after).toBe(before + (cleanup === 'complete' ? 1 : 0));
+                expect(inspectFailure(outcome.failure, { depth: null })).not.toContain(
+                  'PRIVATE_DOCKER',
+                );
+                expect(getterReads).toBe(0);
+                if (cleanup !== 'complete') {
+                  expect(outcome.failure).toBeInstanceOf(AggregateError);
+                  if (!(outcome.failure instanceof AggregateError))
+                    throw new Error('joined failure aggregation absent');
+                  expect(outcome.failure.errors).toHaveLength(2);
+                  expect(outcome.failure.cause).toBe(outcome.failure.errors[0]);
+                  expect(String(outcome.failure.cause)).toContain('deadline');
+                  expect(String(outcome.failure.errors[1])).toMatch(/join.*sha256:[a-f0-9]{64}/);
+                }
+                await inspectSourceDevExclusion(owner, token);
+              },
+            );
+          } finally {
+            releaseCleanup();
+            for (const child of children) {
+              if (child.exitCode === null) child.kill('SIGKILL');
+              await child.exited;
+            }
+          }
+        },
+        f.root,
+      );
+    });

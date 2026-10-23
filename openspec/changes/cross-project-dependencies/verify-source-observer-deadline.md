@@ -28,3 +28,9 @@ assertions** across 14 files (29.93 s). The complete restoration success path at
 this stack head also passed, with 2135 assertions (4.24 s). Normal Nx lint,
 typecheck and build, explicit test typecheck and focused OpenSpec validation
 passed. Normal commit hooks are required before independent combined review.
+
+Independent review later found that the shared transport race could reject before
+its aborted worker settled. The original child tests waited after rejection and
+did not prove joined observer cleanup. The correction and stronger gated proofs
+are recorded in verify-source-observer-join.md; that packet is required with this
+one before physical retry.

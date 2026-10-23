@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+874 |                   },
+875 |                 );
+876 |                 try {
+877 |                   await aborted;
+878 |                   await Bun.sleep(10);
+879 |                   expect(settled).toBe(false);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:879:35)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection deadline joins complete child and owner cleanup before returning [231.67ms]
+874 |                   },
+875 |                 );
+876 |                 try {
+877 |                   await aborted;
+878 |                   await Bun.sleep(10);
+879 |                   expect(settled).toBe(false);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:879:35)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition deadline joins complete child and owner cleanup before returning [218.20ms]
+
+ 0 pass
+ 51 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [500.00ms]

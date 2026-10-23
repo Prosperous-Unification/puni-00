@@ -23,11 +23,89 @@ interface SourceScope {
   layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout };
   sha: string;
   docker: RunDocker;
+  readDocker: typeof runDockerBefore;
   deadline: number;
   member: SourceDevMember | null;
   records: { path: string; contents: string }[];
 }
 const exclusions = new WeakMap<SourceDevExclusion, SourceScope>();
+
+/** A bounded, getter-free cleanup diagnostic; raw transport causes never enter the retained aggregate. */
+function describeJoinFailure(cause: unknown, args: readonly string[]): Error {
+  let category: 'message' | 'string' | 'non-error' | 'unreadable' = 'non-error';
+  let text: string = typeof cause;
+  try {
+    if (typeof cause === 'string') {
+      category = 'string';
+      text = cause;
+    } else if (typeof cause === 'object' && cause !== null) {
+      const descriptor = Object.getOwnPropertyDescriptor(cause, 'message');
+      // Proof: join-getter fault evaluated an accessor; both zero-invocation cleanup negatives failed.
+      const message: unknown = descriptor?.value;
+      if (
+        descriptor !== undefined &&
+        Object.hasOwn(descriptor, 'value') &&
+        typeof message === 'string'
+      ) {
+        category = 'message';
+        text = message;
+      } else category = 'unreadable';
+    }
+  } catch {
+    category = 'unreadable';
+  }
+  const command = ['ps', 'inspect', 'image'].find((known) => known === args[0]) ?? 'unclassified';
+  const digest = createHash('sha256').update(text.slice(0, 4096)).digest('hex');
+  return new Error(
+    `source observer Docker abort join failed; command=${command}; category=${category}; sha256:${digest}`,
+  );
+}
+
+/**
+ * Deadline requests cancellation; settlement awaits the entire owner-wrapped operation,
+ * including production child kill/reap, owner readback and transport cleanup. An injected
+ * runner must honor abort and settle: no detached race or second cleanup cutoff can make
+ * an uncooperative worker both finite and joined. Original exclusion scopes are unchanged.
+ */
+async function readObserverDocker(
+  args: string[],
+  runDocker: RunDocker,
+  deadline: number,
+): Promise<string> {
+  const remaining = deadline - performance.now();
+  if (remaining <= 0) throw new Error('source observer Docker deadline exceeded');
+  const controller = new AbortController();
+  let expired: Error | undefined;
+  const expire = () => {
+    expired = new Error('source observer Docker deadline exceeded');
+    controller.abort();
+  };
+  const timer = setTimeout(expire, remaining);
+  let observation: { state: 'complete'; response: string } | { state: 'failed'; cause: unknown };
+  try {
+    // Proof: observer-join omission returned with the child/owner cleanup gate still closed.
+    observation = { state: 'complete', response: await runDocker(args, controller.signal) };
+  } catch (cause) {
+    observation = { state: 'failed', cause };
+  } finally {
+    clearTimeout(timer);
+  }
+  if (expired === undefined && performance.now() >= deadline) expire();
+  if (expired !== undefined) {
+    if (observation.state === 'failed') {
+      // Proof: join-privacy omission retained the private cleanup sentinel in the nested error graph.
+      throw new AggregateError(
+        [expired, describeJoinFailure(observation.cause, args)],
+        'source observer Docker deadline exceeded; abort join failed',
+        // Proof: join-primary fault replaced the timeout cause; both primary-retention negatives failed.
+        { cause: expired },
+      );
+    }
+    throw expired;
+  }
+  if (observation.state === 'failed') throw observation.cause;
+  return observation.response;
+}
 
 function assertScopeDeadline(scope: SourceScope): void {
   if (!Number.isFinite(scope.deadline) || performance.now() >= scope.deadline)
@@ -40,9 +118,11 @@ function limitObservation(scope: SourceScope, deadline?: number): SourceScope {
     throw new Error('source dev observer deadline invalid');
   // Proof: original-limit omission let a longer supplied deadline outlive original authority; both longer-limit negatives failed.
   // Proof: tighter-scope omission failed real stalled child abort and original-scope reuse negatives.
-  return deadline === undefined
-    ? scope
-    : { ...scope, deadline: Math.min(scope.deadline, deadline) };
+  return {
+    ...scope,
+    deadline: deadline === undefined ? scope.deadline : Math.min(scope.deadline, deadline),
+    readDocker: readObserverDocker,
+  };
 }
 async function assertScope(scope: SourceScope): Promise<void> {
   // Native filesystem syscalls are checked at awaited boundaries; Docker children receive hard abort.
@@ -100,7 +180,7 @@ function findSource(inventory: readonly unknown[], layout: EnvLayout): unknown {
 async function inspectInventory(scope: SourceScope): Promise<unknown[]> {
   await assertScope(scope);
   const listed = (
-    await runDockerBefore(
+    await scope.readDocker(
       ['ps', '-a', '--no-trunc', '--format', '{{.ID}}'],
       scope.docker,
       scope.deadline,
@@ -111,7 +191,7 @@ async function inspectInventory(scope: SourceScope): Promise<unknown[]> {
     throw new Error('source dev inventory missing or duplicated');
   for (const id of ids) readIdentity(id);
   const inventory: unknown = parseDockerInspection(
-    await runDockerBefore(['inspect', ...ids], scope.docker, scope.deadline),
+    await scope.readDocker(['inspect', ...ids], scope.docker, scope.deadline),
   );
   if (!Array.isArray(inventory) || inventory.length !== ids.length)
     throw new Error('source dev inventory incomplete');
@@ -126,7 +206,7 @@ async function observeMember(
 ): Promise<SourceDevMember> {
   const member = decodeSourceDev(findSource(inventory, scope.layouts.dev), scope.layouts.dev);
   const resolved = (
-    await runDockerBefore(
+    await scope.readDocker(
       ['image', 'inspect', '--format', '{{.Id}}', sourceDevContract(scope.layouts.dev).image],
       scope.docker,
       scope.deadline,
@@ -135,7 +215,7 @@ async function observeMember(
   // Proof: omitted tag resolution admitted image substitution; source refuses omitted image failed (exit 1).
   assertSame(member.image, resolved, 'source dev mutable image tag resolution');
   const inspected: unknown = parseDockerInspection(
-    await runDockerBefore(['image', 'inspect', member.image], scope.docker, scope.deadline),
+    await scope.readDocker(['image', 'inspect', member.image], scope.docker, scope.deadline),
   );
   if (!Array.isArray(inspected) || inspected.length !== 1)
     throw new Error('source dev immutable image inspection missing');
@@ -182,6 +262,7 @@ export async function withSourceDevExcluded<T>(
     layouts,
     sha,
     docker,
+    readDocker: runDockerBefore,
     deadline,
     member: null,
     records: [],
@@ -352,6 +433,7 @@ export async function assertParkedSourceDev(
     records: [],
     deadline,
     docker: ownerDockerHashed(owner, layouts.dev, runDocker),
+    readDocker: runDockerBefore,
   };
   await assertScope(scope);
   const observed = await observeMember(scope, inventory);

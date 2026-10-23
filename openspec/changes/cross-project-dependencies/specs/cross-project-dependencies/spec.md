@@ -1467,6 +1467,14 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 - **AND** expired or nonfinite supplied deadlines refuse before reads, longer deadlines cannot extend the original, and the original scope is never mutated or replaced
 - **AND** final token expiry is checked against the original WeakMap scope, so a completed or in-flight read cannot recreate authority
 
+#### Scenario: Source observer cancellation joins child and owner cleanup
+
+- **GIVEN** a source observer's read deadline expires while its owner-wrapped Docker operation is still running
+- **WHEN** cancellation aborts the operation
+- **THEN** the observer remains pending until child kill/reaping, transport cleanup and the owner boundary have settled
+- **AND** the timeout remains the primary failure, with any join failure retained only as closed command/category context and a bounded hash without raw private causes or getter invocation
+- **AND** no detached cleanup cutoff releases the caller early, the original scope is not mutated, and its token remains reusable before original expiry
+
 #### Scenario: Native source mount permutations preserve complete identity
 
 - **GIVEN** the exact live source member has the three supported unique mount destinations

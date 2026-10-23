@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+(pass) source inspection deadline joins complete child and owner cleanup before returning [241.49ms]
+(pass) source inspection deadline joins failure child and owner cleanup before returning [226.63ms]
+(pass) source inspection deadline joins accessor child and owner cleanup before returning [231.39ms]
+(pass) source recognition deadline joins complete child and owner cleanup before returning [229.78ms]
+(pass) source recognition deadline joins failure child and owner cleanup before returning [235.78ms]
+(pass) source recognition deadline joins accessor child and owner cleanup before returning [278.64ms]
+
+ 6 pass
+ 47 filtered out
+ 0 fail
+ 80 expect() calls
+Ran 6 tests across 1 file. [1497.00ms]
