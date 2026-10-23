@@ -43,6 +43,18 @@ not durable CI artifacts. The workflow keeps one worker, zero retries,
 acceptance on shard 1. More jobs may increase runner setup cost and queueing;
 only a fresh hosted run can establish the elapsed improvement.
 
+## Hosted eight-shard verdict
+
+[Exact-head CI run 39902390852](https://github.com/Prosperous-Unification/puni-00/actions/runs/39902390852)
+at `9b3bca6bfc3b0491b93f76bb609f61910d02278c` completed all eight
+`pixels shard` jobs successfully, and the required `pixels` aggregate succeeded.
+Wall times from each job's `startedAt` and `completedAt` were 19m48s (1/8),
+11m46s (2/8), 17m07s (3/8), 5m40s (4/8), 7m14s (5/8), 10m54s (6/8),
+11m04s (7/8), and 7m29s (8/8). The slowest stayed below the unchanged
+25-minute cap. Core `gate twilight` and `gate workspace` were still running
+when this browser verdict was recorded; this paragraph claims only the browser
+jobs and their aggregate, not full CI.
+
 ## Failure proofs
 
 All mutations below changed the actual production workflow and were restored.
