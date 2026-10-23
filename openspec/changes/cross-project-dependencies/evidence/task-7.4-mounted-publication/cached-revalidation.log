@@ -1,0 +1,477 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected-publication.db.test.ts:
+(pass) mounted child publishes improved durable ready candidate and replays exact target and foreign dates [938.87ms]
+(pass) mounted current-hash Retry alone recovers failed objective without retrying healthy sibling [1238.08ms]
+418 |     f.sqlite.run("UPDATE optimized_schedule_cache SET result_json=? WHERE objective='pri'", [
+419 |       JSON.stringify(stored),
+420 |     ]);
+421 |     const settled = ledger(f.sqlite);
+422 |     for (let repeat = 0; repeat < 2; repeat++) {
+423 |       expect(await f.tree()).toMatchObject({
+                                   ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "addressRevision": "ar1:415678c8a9c68161440024c1ab5f1edfda731ee4d4be5461e90d0b72ed145368",
++   "assignedPeople": [],
++   "connectedDependencies": [
++     {
++       "id": "edge",
++       "predecessor": {
++         "endpoint": {
++           "projectId": "a2",
++           "scope": "whole",
++           "workItemId": "a2-foreign",
++         },
++         "isLeaf": true,
++         "name": "a2-foreign",
++         "projectAbbreviation": "PA2",
++         "qualifiedReference": "PA2.010",
++         "revision": 0,
++         "step": null,
++         "stepNodeId": null,
++         "stepReference": null,
++         "workItemNumber": "010",
++       },
++       "projectId": "a1",
++       "successor": {
++         "endpoint": {
++           "projectId": "a1",
++           "scope": "whole",
++           "workItemId": "a1-long",
++         },
++         "isLeaf": true,
++         "name": "a1-long",
++         "projectAbbreviation": "PA1",
++         "qualifiedReference": "PA1.010",
++         "revision": 0,
++         "step": null,
++         "stepNodeId": null,
++         "stepReference": null,
++         "workItemNumber": "010",
++       },
++       "type": "FS",
++     },
++     {
++       "id": "short-edge",
++       "predecessor": {
++         "endpoint": {
++           "projectId": "a2",
++           "scope": "whole",
++           "workItemId": "a2-foreign",
++         },
++         "isLeaf": true,
++         "name": "a2-foreign",
++         "projectAbbreviation": "PA2",
++         "qualifiedReference": "PA2.010",
++         "revision": 0,
++         "step": null,
++         "stepNodeId": null,
++         "stepReference": null,
++         "workItemNumber": "010",
++       },
++       "projectId": "a1",
++       "successor": {
++         "endpoint": {
++           "projectId": "a1",
++           "scope": "whole",
++           "workItemId": "a1-short",
++         },
++         "isLeaf": true,
++         "name": "a1-short",
++         "projectAbbreviation": "PA1",
++         "qualifiedReference": "PA1.020",
++         "revision": 0,
++         "step": null,
++         "stepNodeId": null,
++         "stepReference": null,
++         "workItemNumber": "020",
++       },
++       "type": "FS",
++     },
++   ],
++   "depReach": "whole-item",
++   "estimateMethod": "pert",
++   "estimateRounding": "exact",
+    "optimization": {
++     "budgetMs": 1000,
++     "contractVersion": "18+0.4.0",
++     "displayed": "pri",
++     "enabled": true,
++     "engine": "optimized",
++     "finishDays": {
++       "fast": 4,
++       "pri": 4,
++       "time": 4,
++     },
++     "generation": 1,
++     "inputHash": "5113419f63a0a0403494a15229a8346ecca3a4e2e8895dcfa4114ac65ce91fb0",
++     "objective": "pri",
++     "sameOrderAsFast": {
++       "pri": false,
++       "time": false,
++     },
++     "scope": {
++       "boundary": {
++         "canonical": "{"kind":"connected-stage","projectId":"a1","mode":"isolated","originOrdinal":1... (1854 bytes truncated) ...2-s",0]],"finishes":[["a1-long\u0000a1-s",3],["a1-short\u0000a1-s",4],["a2-foreign\u0000a2-s",1]]}",
++         "format": "wbs-connected-stage",
++         "version": 1,
++       },
++       "fixed": [
++         {
++           "finish": 1,
++           "projectAbbreviation": "PA2",
++           "projectId": "a2",
++           "projectName": "a2",
++           "start": 0,
++           "stepId": "a2-s",
++           "stepName": "Build",
++           "workItemId": "a2-foreign",
++           "workItemName": "a2-foreign",
++         },
++       ],
++       "kind": "connected-stage",
++       "mode": "isolated",
++       "originOrdinal": 14810,
++       "projectId": "a1",
++       "quantum": 48,
++       "wireVersion": 5,
++     },
+      "variants": {
+        "pri": {
+-         "state": "corrupt",
++         "proof": "incomplete",
++         "state": "ready",
+        },
+        "time": {
++         "proof": "incomplete",
+          "state": "ready",
+        },
+      },
+    },
++   "pertWeights": {
++     "optimistic": 1,
++     "pessimistic": 1,
++     "realistic": 4,
++   },
++   "priorityBands": [
++     {
++       "defaultValue": 10,
++       "label": "Critical",
++       "startsAt": 1,
++     },
++     {
++       "defaultValue": 30,
++       "label": "High",
++       "startsAt": 21,
++     },
++     {
++       "defaultValue": 50,
++       "label": "Medium",
++       "startsAt": 41,
++     },
++     {
++       "defaultValue": 70,
++       "label": "Low",
++       "startsAt": 61,
++     },
++     {
++       "defaultValue": 90,
++       "label": "Lowest",
++       "startsAt": 81,
++     },
++   ],
++   "projectRevision": 0,
++   "redoable": false,
++   "remoteBlockageLabels": [],
++   "scheduleError": null,
++   "seq": 1,
++   "slices": [
++     {
++       "boundBy": "capacity",
++       "capacityPredecessorIds": [
++         "a1-short\u0000a1-s",
++       ],
++       "capacityTeamId": "a1",
++       "critical": true,
++       "duration": 2,
++       "earliestFinish": 4,
++       "earliestStart": 2,
++       "effort": 2,
++       "estimated": true,
++       "float": 0,
++       "id": "a1-long\u0000a1-s",
++       "lateBy": null,
++       "latestFinish": 4,
++       "latestStart": 2,
++       "personId": null,
++       "resourcePredecessorId": "a1-short\u0000a1-s",
++       "stepId": "a1-s",
++       "width": 1,
++       "workItemId": "a1-long",
++     },
++     {
++       "boundBy": "predecessor",
++       "capacityPredecessorIds": [],
++       "capacityTeamId": null,
++       "critical": true,
++       "duration": 1,
++       "earliestFinish": 2,
++       "earliestStart": 1,
++       "effort": 1,
++       "estimated": true,
++       "float": 0,
++       "id": "a1-short\u0000a1-s",
++       "lateBy": null,
++       "latestFinish": 2,
++       "latestStart": 1,
++       "personId": null,
++       "resourcePredecessorId": null,
++       "stepId": "a1-s",
++       "width": 1,
++       "workItemId": "a1-short",
++     },
++   ],
++   "startDate": "2026-10-05",
++   "stepNodes": [
++     {
++       "id": "sn1.a1-long.a1-s",
++       "reference": null,
++       "stepId": "a1-s",
++       "workItemId": "a1-long",
++     },
++     {
++       "id": "sn1.a1-short.a1-s",
++       "reference": null,
++       "stepId": "a1-s",
++       "workItemId": "a1-short",
++     },
++   ],
++   "steps": [
++     {
++       "allowancePercent": 0,
++       "code": null,
++       "estimateUnit": "workdays",
++       "id": "a1-s",
++       "name": "Build",
++       "position": 0,
++       "projectId": "a1",
++     },
++   ],
++   "teamCapacities": [
++     {
++       "serviceTeamId": "a1",
++       "size": 1,
++     },
++   ],
++   "timezone": "UTC",
++   "typedDependencies": [],
++   "undoable": false,
++   "waitingForCapacity": 1,
++   "waitingForPerson": 0,
++   "workItems": [
++     {
++       "actuals": {},
++       "assignees": {},
++       "blockageCauses": {
++         "a1-s": [],
++       },
++       "blockages": {},
++       "charged": {
++         "a1-s": {
++           "days": 2,
++           "unit": "workdays",
++         },
++       },
++       "dates": {
++         "endsOn": "2026-10-08",
++         "startsOn": "2026-10-07",
++       },
++       "deadline": null,
++       "dependsOn": [],
++       "doesEveryStep": null,
++       "estimates": {
++         "a1-s": {
++           "optimistic": 2,
++           "pessimistic": 2,
++           "realistic": 2,
++         },
++       },
++       "externalRefs": [],
++       "factEnd": null,
++       "factStart": null,
++       "finalDays": {
++         "a1-s": 2,
++       },
++       "finalTotal": 2,
++       "frozenNumber": null,
++       "hold": null,
++       "id": "a1-long",
++       "maxParallel": 1,
++       "measures": {},
++       "name": "a1-long",
++       "nodeReadings": {
++         "a1-s": "unknown",
++       },
++       "nodeResources": {
++         "a1-s": {
++           "assignment": {
++             "kind": "unassigned",
++           },
++           "maxParallel": 1,
++           "nodeId": "sn1.a1-long.a1-s",
++           "teams": {
++             "entries": [
++               {
++                 "capacity": 1,
++                 "teamId": "a1",
++               },
++             ],
++             "fromWorkItemId": "a1-long",
++             "kind": "stated",
++           },
++           "width": 1,
++         },
++       },
++       "notes": "",
++       "number": "010",
++       "parentId": null,
++       "position": 0,
++       "priority": 1,
++       "progress": {},
++       "projectId": "a1",
++       "readiness": null,
++       "revision": 0,
++       "rolledUp": false,
++       "schedule": {
++         "critical": true,
++         "duration": 2,
++         "earliestFinish": 4,
++         "earliestStart": 2,
++         "estimated": true,
++         "float": 0,
++         "latestFinish": 4,
++         "latestStart": 2,
++       },
++       "serviceId": null,
++       "serviceIds": [],
++       "serviceTeamId": null,
++       "startNoEarlierThan": null,
++       "startNoEarlierThanReason": null,
++       "status": "unknown",
++       "tagIds": [],
++       "teamIds": [
++         "a1",
++       ],
++       "typeIds": [],
++     },
++     {
++       "actuals": {},
++       "assignees": {},
++       "blockageCauses": {
++         "a1-s": [],
++       },
++       "blockages": {},
++       "charged": {
++         "a1-s": {
++           "days": 1,
++           "unit": "workdays",
++         },
++       },
++       "dates": {
++         "endsOn": "2026-10-06",
++         "startsOn": "2026-10-06",
++       },
++       "deadline": null,
++       "dependsOn": [],
++       "doesEveryStep": null,
++       "estimates": {
++         "a1-s": {
++           "optimistic": 1,
++           "pessimistic": 1,
++           "realistic": 1,
++         },
++       },
++       "externalRefs": [],
++       "factEnd": null,
++       "factStart": null,
++       "finalDays": {
++         "a1-s": 1,
++       },
++       "finalTotal": 1,
++       "frozenNumber": null,
++       "hold": null,
++       "id": "a1-short",
++       "maxParallel": 1,
++       "measures": {},
++       "name": "a1-short",
++       "nodeReadings": {
++         "a1-s": "unknown",
++       },
++       "nodeResources": {
++         "a1-s": {
++           "assignment": {
++             "kind": "unassigned",
++           },
++           "maxParallel": 1,
++           "nodeId": "sn1.a1-short.a1-s",
++           "teams": {
++             "entries": [
++               {
++                 "capacity": 1,
++                 "teamId": "a1",
++               },
++             ],
++             "fromWorkItemId": "a1-short",
++             "kind": "stated",
++           },
++           "width": 1,
++         },
++       },
++       "notes": "",
++       "number": "020",
++       "parentId": null,
++       "position": 1,
++       "priority": 1,
++       "progress": {},
++       "projectId": "a1",
++       "readiness": null,
++       "revision": 0,
++       "rolledUp": false,
++       "schedule": {
++         "critical": true,
++         "duration": 1,
++         "earliestFinish": 2,
++         "earliestStart": 1,
++         "estimated": true,
++         "float": 0,
++         "latestFinish": 2,
++         "latestStart": 1,
++       },
++       "serviceId": null,
++       "serviceIds": [],
++       "serviceTeamId": null,
++       "startNoEarlierThan": null,
++       "startNoEarlierThanReason": null,
++       "status": "unknown",
++       "tagIds": [],
++       "teamIds": [
++         "a1",
++       ],
++       "typeIds": [],
++     },
++   ],
+  }
+
+- Expected  - 1
++ Received  + 439
+
+      at <anonymous> (/tmp/puni-publication-74/apps/wbs/be-01/src/services-connected-publication.db.test.ts:423:30)
+(fail) mounted persisted candidate tamper is corrupt and never admits on read [699.00ms]
+(pass) mounted persisted comparison tamper is corrupt and never admits on read [820.07ms]
+
+ 3 pass
+ 1 fail
+ 61 expect() calls
+Ran 4 tests across 1 file. [7.66s]

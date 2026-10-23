@@ -6092,3 +6092,18 @@ Final correction checks:
 - Explicit changed-path Prettier check, `git diff --check` and byte comparison
   against the original production preparation source passed. Normal commit hooks
   remain enabled; no hook bypass was used.
+
+## Task 7.4 bounded mounted publication, durable replay and explicit Retry — 2026-10-23
+
+[The mounted publication packet](verify-task-7.4-mounted-publication.md) exercises
+raw successful child-adapter output through installed parsing, real publication,
+durable SQLite outcomes and repeated captured tree replay. Literal improved
+target offsets retain fixed foreign timing. Invalid Pri metrics retain failed
+state without automatic GET retries; current-hash POST Retry recovers only Pri
+and preserves the healthy Time row. Structured candidate/comparison cache tamper
+becomes corrupt without read admission. Five watched faults cover connected wire
+validation, publication, cached candidate evidence, comparison equality and
+mounted Retry binding. Production code is unchanged. The attempted fully mounted
+fractional topology preserves its forcing internal edge and therefore does not
+reproduce the independently padded lower-level C pin; that mounted acceptance
+remains open. Parent 7.4 and production activation remain incomplete.
