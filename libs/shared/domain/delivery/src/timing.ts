@@ -93,6 +93,8 @@ function measureWaiting(attempt: DeliveryAttempt): DeliveryAttemptTiming['waitin
   if (attempt.startedAt === null || starts.length === 0)
     return { ...unknown(['Attempt start or performed execution start is unknown']), basis };
   const waiting = Math.min(...starts) - Date.parse(attempt.startedAt);
+  // Proof: removing waiting < 0 returned known -8000 ms in
+  // waiting stays unknown if performed work predates the observed attempt basis.
   if (waiting < 0)
     return { ...unknown(['Execution start predates the observed attempt start']), basis };
   const reasons: string[] = [];
