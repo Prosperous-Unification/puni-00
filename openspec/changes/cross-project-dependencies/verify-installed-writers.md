@@ -210,3 +210,18 @@ No broad suite, build, exact-SHA host gate, host calls, installation/adoption,
 activation, push or integration was performed. The inventory still always
 reports blocked activation. Independent Astra rereview remains pending; parent
 10.1/10.2 and all effective installed-authority obligations remain open.
+
+## Integrated branch verification (2026-10-23)
+
+Independent Astra rereview approved the bounded packet at `948ac3fda` after
+rerunning the 45 focused tests and examining the retained early/late parent-swap,
+root-replacement, missing-procfs, hardlink and real-Bun controls. On the combined
+feature branch at `7b8c0bc3d`, `bunx nx run tool-remote-scripts:test
+--skip-nx-cache` exited 0, including its real-Caddy dependency; the remote
+scripts target reported **1,485 tests across 60 files** and Nx reported both
+targets successful. Configured `tool-remote-scripts:lint` and `:typecheck`
+each exited 0 without cache. `bunx openspec validate --all --json` reported
+**274 passed, 0 failed** after the mounted-copy integration.
+
+These results do not establish installed host authority, activation, a build,
+or the canonical exact-SHA h2puni gate. Parent 10.1/10.2 remain open.
