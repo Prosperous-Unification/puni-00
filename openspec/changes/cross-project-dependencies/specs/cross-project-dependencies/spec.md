@@ -1519,16 +1519,6 @@ An ordinary solver startup SHALL classify only a successfully observed retained 
 - **AND** original-cgroup emptiness and installed-tuple identity remain independently required
 - **AND** active-service observation rejects the failed state and no reset-failed erases its evidence
 
-### Requirement: Native source mount identity preserves complete destination sets
-
-#### Scenario: Native source mount permutations preserve complete identity
-
-- **GIVEN** the exact live source member has the three supported unique mount destinations
-- **WHEN** native inspections return those mounts in different array orders during source exclusion and composed backend audits
-- **THEN** derived source identity compares fresh arrays ordered by destination, preserving every native per-mount field and the raw input
-- **AND** duplicate targets, any per-target field drift, changed membership and unrelated-member mount drift refuse
-- **AND** complete inventory comparison applies ordering only to the exact raw member independently recognized by the live source capability
-
 ### Requirement: Compatible solver-only restoration retains every application barrier
 
 The structured owner coordinator SHALL accept independently prepared solver pins, reuse every existing ingress/solver/source/managed exclusion and finalizer, and produce compatibility evidence only through actual owner-bound immutable-image capability observation. It SHALL publish no restoring eligibility until every final inspection succeeds and source/solver tokens expire. It SHALL remove only exact captured terminal/inert solver attempts under fresh complete inventory and retained-evidence checks, without force/volume flags, retaining terminal receipts and deadline timers. No new or changed attempt SHALL be admitted.
