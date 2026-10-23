@@ -6301,3 +6301,16 @@ component-equality and presence faults fail those assertions. Domain and backend
 typechecks plus domain lint passed on the isolated packet. Serialized broad
 backend lint and the later integrated exact-SHA host/CI gates remain pending;
 parent 8.1 and production external import remain open.
+
+### 2026-10-23 bounded task 4.2 queued successor edit revalidation
+
+[The mounted packet](verify-4-2-successor-edit-revalidation.md) was integrated
+as `03a117729` plus the positive-control cleanup `068d91ee2` after independent
+Astra High review. With an external add, update or remove queued behind an
+actual SQLite writer, a separate connection revokes successor edit access after
+initial lookup. Each request returns an exact whole-request 403 and leaves all
+persisted tables and gateway publications unchanged. The isolated focused suite
+passed 16 tests / 301 assertions. Removing only the production forbidden
+branch made all three cases return unsafe 200 and fail; restored runs passed.
+Configured backend lint/typecheck, integrated host gate and CI remain pending.
+Production authoring remains dormant and parent 4.2 is open.
