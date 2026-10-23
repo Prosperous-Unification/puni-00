@@ -7006,3 +7006,13 @@ browser target on shard 4, the finite 35-minute budget and independent watched
 production-workflow faults. It establishes scheduling and local workflow checks;
 exact-head hosted browser completion, full CI, the host gate and production
 activation remain unproved by this packet.
+
+## Task 8.2 bounded mounted active-copy atomicity — 2026-10-23
+
+The [mounted atomicity packet](verify-8-2-mounted-copy-atomicity.md) adds actual
+`/commands` graph-read and late journal-insert failures after an earlier local
+batch edit, complete application-table and withheld-push comparisons, a fresh
+source read and restored successful copy. Independent structural bypass,
+exception rollback omission and erroneous COMMIT mutations fail separately;
+production source is restored. Independent Astra review approved this bounded
+packet. Parent 8.2 and the integrated exact-SHA host gate remain open.
