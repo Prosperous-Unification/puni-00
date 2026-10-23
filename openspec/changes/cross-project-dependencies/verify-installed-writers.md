@@ -116,3 +116,38 @@ Correction checks: scoped Nx typecheck and lint both exited 0; changed-file
 Prettier and `git diff --check` passed; scoped OpenSpec validation exited 0.
 No broad suite or host gate was rerun for these corrections. Independent review
 of the correction remains required before integration.
+
+## Outer checked identity correction after 6a4ec392a
+
+Astra rereview widened the transient-parent counterexample: replace `installed/`
+with an outside symlink after `readMember` captures its outer `lstat`, leave it
+in place throughout the reader's separate `lstat`, descriptor checks and path
+readback, then restore the parent before the outer readback. Both outside reads
+supply reviewed bytes while the original captured file contains unreviewed bytes.
+The actual production CLI emitted success: the new `real CLI refuses a parent
+symlink spanning inner identity checks` test was watched red (**0 pass, 1 fail,
+40 filtered**, exit-code assertion received 0).
+
+`readMember` now supplies its checked identity to `readWriterBytes`; descriptor
+admission compares against both that outer identity and the reader's local path
+identity. The existing narrow open-only race test remains. Removing only the
+outer identity comparison reproduced the same assertion failure and CLI success;
+the comparison was restored with an adjacent `Proof:` comment. This binds the
+containment/alias-checked file identity to the bytes read without claiming atomic
+host quiescence or effective installed authority.
+
+Fresh correction checks:
+
+- `bun test tools/tool-remote-scripts/src/lib/installed-writers.test.ts`: **41 pass,
+  0 fail, 86 assertions** after restoration.
+- `NX_DAEMON=false bunx nx run tool-remote-scripts:typecheck --skip-nx-cache`:
+  **exit 0**, scoped target passed.
+- `NX_DAEMON=false bunx nx run tool-remote-scripts:lint --skip-nx-cache`:
+  **exit 0**, scoped target passed. Both Nx commands used the existing in-process
+  plugin fallback after sandbox worker socket refusal.
+- `bunx --no-install openspec validate cross-project-dependencies --json`:
+  **exit 0**, one valid change; pre-existing long-requirement warnings remain.
+
+No broad test suite, build, host calls, installation/adoption or exact-SHA host
+gate was run for this correction. Independent Astra rereview remains pending;
+parent tasks 10.1/10.2 remain open.

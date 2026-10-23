@@ -117,15 +117,22 @@ function identifyFile(file: BigIntStats): string {
   return [file.dev, file.ino, file.size, file.mtimeNs, file.ctimeNs, file.mode].join(':');
 }
 
-/** Reads required ordinary files; permissions, missing paths and read failures propagate. No executable is invoked. */
-export async function readWriterBytes(path: string): Promise<Uint8Array> {
+/**
+ * Reads required ordinary files; permissions, missing paths and read failures propagate.
+ * When supplied, checkedIdentity binds the descriptor to the caller's earlier containment
+ * and alias checks. Standalone manifest reads bind only the local path and descriptor.
+ * No executable is invoked.
+ */
+export async function readWriterBytes(path: string, checkedIdentity?: string): Promise<Uint8Array> {
   const expected = await lstat(path, { bigint: true });
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const before = await file.stat({ bigint: true });
-    // Proof: deleting descriptor/path admission let the real CLI open through a transient outside-parent symlink.
+    // Proof: omitting the caller identity admitted the CLI parent swap spanning inner identity checks.
+    // Proof: deleting descriptor/path admission admitted the CLI parent swap limited to open.
     requireEvidence(
-      identifyFile(expected) === identifyFile(before),
+      identifyFile(expected) === identifyFile(before) &&
+        (checkedIdentity === undefined || checkedIdentity === identifyFile(before)),
       'opened observation identity differs',
     );
     // Pinned Bun is 79,500,640 bytes; 128 MiB admits that binary with bounded read headroom.
@@ -156,7 +163,7 @@ export async function readWriterBytes(path: string): Promise<Uint8Array> {
 export async function inspectInstalledWriters(
   root: string,
   value: unknown,
-  read: (path: string) => Promise<Uint8Array> = readWriterBytes,
+  read: (path: string, checkedIdentity: string) => Promise<Uint8Array> = readWriterBytes,
 ) {
   const manifest = parseManifest(value);
   const canonicalRoot = await realpath(root);
@@ -184,7 +191,7 @@ export async function inspectInstalledWriters(
     );
     inodePaths.set(inode, resolved);
     const identity = identifyFile(before);
-    const bytes = await read(resolved);
+    const bytes = await read(resolved, identity);
     const after = await lstat(resolved, { bigint: true });
     const observed = identifyFile(after);
     // Proof: same-byte inode replacement fails the real CLI inode-drift test.

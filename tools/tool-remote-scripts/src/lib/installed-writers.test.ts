@@ -292,6 +292,42 @@ mock.module('node:fs/promises', () => ({ ...fs, open: async (path, ...options) =
   expect(execution.stderr).toContain('opened observation identity differs');
 });
 
+test('real CLI refuses a parent symlink spanning inner identity checks', async () => {
+  const { root, manifest } = await fixture();
+  const outside = await mkdtemp(join(tmpdir(), 'writer-outside-'));
+  roots.push(outside);
+  await writeFile(join(outside, 'prod-swap'), 'reviewed prod-swap');
+  await writeFile(join(root, 'installed/prod-swap'), 'unreviewed actual capture');
+  const preload = join(root, 'identity-race.ts');
+  await writeFile(
+    preload,
+    `
+import { mock } from 'bun:test';
+import * as fs from 'node:fs/promises';
+const originalLstat = fs.lstat;
+let checks = 0;
+mock.module('node:fs/promises', () => ({ ...fs, lstat: async (path, ...options) => {
+  const identity = await originalLstat(path, ...options);
+  if (path !== ${JSON.stringify(join(root, 'installed/prod-swap'))}) return identity;
+  checks++;
+  if (checks % 4 === 1) {
+    await fs.rename(${JSON.stringify(join(root, 'installed'))}, ${JSON.stringify(join(root, 'parked'))});
+    await fs.symlink(${JSON.stringify(outside)}, ${JSON.stringify(join(root, 'installed'))});
+  }
+  if (checks % 4 === 3) {
+    await fs.unlink(${JSON.stringify(join(root, 'installed'))});
+    await fs.rename(${JSON.stringify(join(root, 'parked'))}, ${JSON.stringify(join(root, 'installed'))});
+  }
+  return identity;
+} }));
+`,
+  );
+  const execution = await runCli(root, manifest, preload);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+  expect(execution.stderr).toContain('opened observation identity differs');
+});
+
 test('real CLI accepts the actual Bun interpreter binary as separately captured bytes', async () => {
   const { root, manifest } = await fixture();
   const { copyFile } = await import('node:fs/promises');
