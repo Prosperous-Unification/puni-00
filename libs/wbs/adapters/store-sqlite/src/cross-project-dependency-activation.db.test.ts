@@ -20,6 +20,7 @@ import {
   rollbackTo,
 } from './migrate-down';
 import { openSqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { TypedDependencyRepository } from './typed-dependency';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -372,7 +373,10 @@ it('refuses dormant rollback with retained external rows and preserves the full 
 
 it('rolls back earlier command writes through the real source unit of work', async () => {
   seed();
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   try {
     const before = snapshot();
     let observed: unknown;

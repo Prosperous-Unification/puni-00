@@ -1,3 +1,7 @@
+import {
+  type DependencyRuntimeCapability,
+  parseDependencyRuntimeCapability,
+} from '@wbs/contracts/dependency-runtime';
 import type { Source, TransactionalStores } from '@wbs/core';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { OrganizationLimitValues } from '@wbs/domain';
@@ -47,6 +51,8 @@ export interface SqliteSource extends Source<TransactionalStores> {
 /** Options that own every connection in one SQLite source lifetime. */
 export interface OpenSqliteSourceOptions {
   readonly dbPath: string;
+  /** Exact immutable binary descriptor; schema, activation and configuration cannot grant support. */
+  readonly dependencyCapability: DependencyRuntimeCapability;
   readonly openConnection?: (dbPath: string) => Connection;
   /** Read-only connection factory for owned live observations. */
   readonly openReadOnlyConnection?: (dbPath: string) => Connection;
@@ -68,7 +74,11 @@ export interface OpenSqliteSourceOptions {
   readonly organizationDefaultLimits?: OrganizationLimitValues;
 }
 
-/** Opens SQLite persistence without changing its schema. */
+/**
+ * Opens SQLite without changing its schema. Missing/malformed/non-backend binary
+ * descriptors throw before any connection opens. Each writer intersects captured
+ * immutable support with fresh durable authority; neither alone grants authoring.
+ */
 export function openSqliteSource(options: OpenSqliteSourceOptions): SqliteSource {
   return openSqliteSourceWithSeams(options, inertSqliteLateWriteSeam, inertSqliteCaptureReadSeam);
 }
@@ -94,6 +104,16 @@ function openSqliteSourceWithSeams(
   lateWrite: SqliteLateWriteSeam,
   captureRead: CaptureReadSeam,
 ): SqliteSource {
+  // The parser copies the descriptor; only this immutable support fact survives construction.
+  // Proof: bypassing parsing admitted malformed versions/support before opening in source-dependency-capability.db.test.ts.
+  const capability = parseDependencyRuntimeCapability(options.dependencyCapability);
+  // Proof: removing role validation reached the connection factory for the gateway-descriptor negative.
+  if (capability.role !== 'backend')
+    throw new Error('SQLite source requires backend dependency runtime capability');
+  // Proof: consulting the caller descriptor later granted support after its mutation in the source capability suite.
+  const supportsExternalDependencies = capability.semantics.includes(
+    'cross-project-dependencies-v1',
+  );
   const connect =
     options.openConnection ?? ((dbPath: string) => openDatabaseConnection(dbPath, options.logger));
   const process = connect(options.dbPath);
@@ -105,16 +125,18 @@ function openSqliteSourceWithSeams(
       : { organizationLimits: new OrganizationLimitGaugeRepository(process.db, defaults) };
   const stores = buildStores(process.db, coordinator, lateWrite);
   const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
-  /** Borrows the exact BEGIN IMMEDIATE owner; current binaries cannot serve enabled semantics. */
+  /** Intersects immutable binary support with fresh durable authority on the exact admitted writer. */
   const createWriterAuthority = (lifetime: ReadSnapshotLifetime) => () => {
     // Proof: removing expiry admitted retained authority after settlement in writer-authority-binding.db.test.ts.
     lifetime.assertOpen();
     // Proof: constant inactive hid staged deletion of authority on this writer in the same test.
-    const authoring = readDependencyAuthoring(process.db);
+    // Proof: forcing active here admitted the disabled-authority case despite immutable V1 support.
+    const state = readDependencyAuthoring(process.db).state;
     // Proof: removing this refusal admitted enabled-empty authority in writer-authority-binding.db.test.ts.
-    if (authoring.state === 'active')
+    if (state === 'active' && !supportsExternalDependencies)
       throw new Error('external dependency semantic runtime is unsupported');
-    return { state: 'inactive' } as const;
+    // Proof: returning the live getter here caused two marker reads in the one-operation authority test.
+    return { state };
   };
   let closed = false;
 

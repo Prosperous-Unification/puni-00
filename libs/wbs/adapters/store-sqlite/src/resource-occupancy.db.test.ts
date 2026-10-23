@@ -18,6 +18,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -55,7 +56,10 @@ const STORES: readonly {
       // refuses until the authority is enabled; the memory store has none.
       activateTestStepBlockages(dbPath);
       return {
-        source: openSqliteSource({ dbPath }),
+        source: openSqliteSource({
+          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath,
+        }),
         isMemory: false,
         dispose: () => {
           rmSync(folder, { recursive: true, force: true });

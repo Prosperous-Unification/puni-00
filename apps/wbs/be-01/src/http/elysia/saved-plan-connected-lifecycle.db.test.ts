@@ -9,6 +9,7 @@ import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { expect, test } from 'bun:test';
 
 import { nodeDigest } from '../../runtime/bun-runtime';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../../runtime/dependency-support';
 import { captureMixedFixture } from '../../service/saved-plan-connected.fixture';
 import { mountEndpoints } from './mount';
 
@@ -29,7 +30,10 @@ test.each(['isolated', 'shared'] as const)(
   'real %s connected saves retain SS history after a persisted FS edit and foreign deletion',
   async (mode) => {
     await captureMixedFixture(mode, false, async (_captured, path, read) => {
-      const writerSource = openSqliteSource({ dbPath: path });
+      const writerSource = openSqliteSource({
+        dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath: path,
+      });
       let sequence = 0;
       const { savedPlans: writer } = installSavedPlans({
         capture: writerSource.history.savedPlanCapture,
@@ -92,7 +96,10 @@ test.each(['isolated', 'shared'] as const)(
 
       // Every historical observation follows the persisted SS→FS edit and reopens its stores.
       const inspect = async () => {
-        const source = openSqliteSource({ dbPath: path });
+        const source = openSqliteSource({
+          dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath: path,
+        });
         const { savedPlans: history } = installSavedPlans({
           capture: {
             readPlanInput: refuseLive,

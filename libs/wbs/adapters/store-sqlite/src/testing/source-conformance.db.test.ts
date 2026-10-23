@@ -94,6 +94,7 @@ import {
   type SqliteSource,
 } from '../source';
 import { seedDependencyAuthority } from './dependency-activation';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
 import {
   openSqliteSourceWithFault,
   openSqliteSourceWithMissingSavedPlanInput,
@@ -198,7 +199,7 @@ async function seedSqliteSource(
     runMigrations(dbPath, MIGRATIONS);
     activateTestStepBlockages(dbPath);
     seedDependencyAuthority(dbPath);
-    source = openSource({ dbPath });
+    source = openSource({ dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath });
     const seed = DETERMINISTIC_SEED;
     for (const [index, ownerId] of seed.ownerIds.entries()) {
       const stamp = seed.stamps[index] ?? seed.stamps[0];

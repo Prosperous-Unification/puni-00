@@ -190,10 +190,17 @@ for (const seeded of [false, true]) {
     ];
     const before = sqliteState();
     const answer = await h.call('ada', 'POST', '/api/projects/import', document);
-    expect(answer).toMatchObject({
-      status: 409,
-      body: { error: 'external_dependencies_inactive', detail: 'typedDependencies[0]' },
-    });
+    expect(answer).toMatchObject(
+      seeded
+        ? {
+            status: 400,
+            body: { error: 'unknown_ref', path: 'typedDependencies[0].predecessor' },
+          }
+        : {
+            status: 409,
+            body: { error: 'external_dependencies_inactive', detail: 'typedDependencies[0]' },
+          },
+    );
     expect(sqliteState()).toEqual(before);
   });
 }

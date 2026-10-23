@@ -1117,8 +1117,14 @@ describe('release binary preflight through the mounted kubectl adapter', () => {
       expect(fixture.observedWhileServing).toEqual([true]);
       expect(fixture.manifests()).toBe(2);
       expect(fixture.observations.map((observation) => observation.capability)).toEqual([
-        { image: fixture.request.release.images.backend, semantics: [] },
-        { image: fixture.request.expectedCurrent.images.backend, semantics: [] },
+        {
+          image: fixture.request.release.images.backend,
+          semantics: ['cross-project-dependencies-v1'],
+        },
+        {
+          image: fixture.request.expectedCurrent.images.backend,
+          semantics: ['cross-project-dependencies-v1'],
+        },
       ]);
       for (const [index, role] of ['candidate', 'previous'].entries()) {
         const evidence = fixture.observations[index].evidence;
@@ -1342,8 +1348,8 @@ describe('dependency observations through kubectlEffects', () => {
       dependencyImage,
     );
     expect(observations.map((observation) => observation.capability)).toEqual([
-      { image: dependencyImage, semantics: [] },
-      { image: dependencyImage, semantics: [] },
+      { image: dependencyImage, semantics: ['cross-project-dependencies-v1'] },
+      { image: dependencyImage, semantics: ['cross-project-dependencies-v1'] },
     ]);
     expect(new Set(observations.map((observation) => observation.evidence.jobName)).size).toBe(2);
     expect(

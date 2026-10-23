@@ -1,10 +1,10 @@
 import type { DependencyRuntimeCapability } from '@wbs/contracts';
 
-/** Complete connected semantics are still unadvertised; configuration cannot grant support. */
+/** Immutable backend support; durable activation and participant proof remain separate authority. */
 export const BACKEND_DEPENDENCY_CAPABILITY = Object.freeze({
   protocol: 'wbs-dependency-runtime',
   version: 1,
   role: 'backend',
-  // Proof: advertising cross-project-dependencies-v1 failed mounted CLI equality's explicit empty-semantics assertion.
-  semantics: Object.freeze([]),
+  // Proof: removing V1 support made the real enabled backend refuse the exact resource claim.
+  semantics: Object.freeze(['cross-project-dependencies-v1'] as const),
 }) satisfies DependencyRuntimeCapability;

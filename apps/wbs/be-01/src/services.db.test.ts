@@ -53,6 +53,7 @@ import {
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
 import { nodeDigest } from './runtime/bun-runtime';
+import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { optimizerWiring } from './service/optimizer-wiring';
 import { buildServices, type ServicesOptions } from './services';
 import { projectRow } from './testing/project-fixture';
@@ -116,7 +117,11 @@ function bootstrap(
   dirs.push(dir);
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  const source = openSqliteSource({ dbPath: path, onFanoutCapture });
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+    onFanoutCapture,
+  });
   sources.push(source);
   const db = source.db;
   if (afterOptimizerTurn !== undefined) {
@@ -7517,7 +7522,10 @@ describe('shared-person replay closure (6l)', () => {
 
   /** A second composition over the same file, with its own source and empty replay buffer. */
   function coldComposition(path: string) {
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     sources.push(source);
     return buildServices({
       commandAccess: localCommandAccess,

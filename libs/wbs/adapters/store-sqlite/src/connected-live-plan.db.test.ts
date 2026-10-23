@@ -20,6 +20,7 @@ import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { optimizedScheduleCache } from './schema';
 import { openSqliteSource } from './source';
 import { seedDependencyAuthority } from './testing/dependency-activation';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { openSpaceDatabase } from './testing/space-database';
 
 let folder: string;
@@ -323,6 +324,7 @@ test('borrowed service claim sees staged remote completion and collects its norm
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('executor','org-a','Executor')",
   );
   const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
     organizationDefaultLimits: {
       maxAgentPersons: 50,
@@ -614,7 +616,10 @@ for (const mode of ['isolated', 'shared'] as const) {
       write(
         `INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('${id}','${id}-s',1,1,1)`,
       );
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     const observer = openDatabase(path);
     const solverState = () =>
       [

@@ -6,6 +6,7 @@ import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { expect, spyOn, test } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { captureMixedFixture, captureSavedConnectedFixture } from './saved-plan-connected.fixture';
 
 // Proof: replacing the final composite with baseline failed both real optimized chosen cases before persistence (slice-d-fault-selected-baseline.log).
@@ -18,7 +19,10 @@ test.each([
   'installed %s writer preserves selected ready and baseline=%s after cache publication',
   async (mode, floor) => {
     await captureMixedFixture(mode, floor, async (_captured, path, read) => {
-      const source = openSqliteSource({ dbPath: path });
+      const source = openSqliteSource({
+        dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath: path,
+      });
       const access = {
         kind: 'scoped' as const,
         scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
@@ -107,7 +111,10 @@ test.each([
 test('installed connected writer refuses missing required evidence without partial rows', async () => {
   await captureSavedConnectedFixture('isolated', {
     consume: async (captured, path) => {
-      const source = openSqliteSource({ dbPath: path });
+      const source = openSqliteSource({
+        dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath: path,
+      });
       const { savedPlans } = installSavedPlans({
         capture: source.history.savedPlanCapture,
         plans: source.history.savedPlans,

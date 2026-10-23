@@ -44,13 +44,13 @@ test('mounted dependency capability equals DB-free CLI and ignores readiness con
     protocol: 'wbs-dependency-runtime',
     version: 1,
     role: 'backend',
-    semantics: [],
+    semantics: ['cross-project-dependencies-v1'],
   });
   expect(Object.isFrozen(BACKEND_DEPENDENCY_CAPABILITY)).toBe(true);
   expect(Object.isFrozen(BACKEND_DEPENDENCY_CAPABILITY.semantics)).toBe(true);
 });
 
-test('registered capability generates OpenAPI and client decoding of explicit empty support', async () => {
+test('registered capability generates OpenAPI and client decoding of explicit V1 support', async () => {
   const shape = httpShapes.find((shape) => shape.path === path);
   expect(shape).toBeDefined();
   if (shape === undefined) throw new Error('capability contract registration missing');
@@ -66,7 +66,12 @@ test('registered capability generates OpenAPI and client decoding of explicit em
   expect(await client.getDependencyCapability({})).toMatchObject({
     kind: 'success',
     status: 200,
-    body: { protocol: 'wbs-dependency-runtime', version: 1, role: 'backend', semantics: [] },
+    body: {
+      protocol: 'wbs-dependency-runtime',
+      version: 1,
+      role: 'backend',
+      semantics: ['cross-project-dependencies-v1'],
+    },
   });
 });
 

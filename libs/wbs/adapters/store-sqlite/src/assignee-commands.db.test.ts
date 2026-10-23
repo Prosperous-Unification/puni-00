@@ -17,6 +17,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
@@ -46,7 +47,10 @@ const STORES: readonly {
       const dbPath = join(folder, 'plan.db');
       runMigrations(dbPath, MIGRATIONS);
       return {
-        source: openSqliteSource({ dbPath }),
+        source: openSqliteSource({
+          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath,
+        }),
         isMemory: false,
         dispose: () => {
           rmSync(folder, { recursive: true, force: true });

@@ -20,6 +20,7 @@ import { sql } from 'drizzle-orm';
 import { openReadOnlyDatabase } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const ACTOR = 'import-owner';
 const STAMP = { at: 1_757_851_200_000, by: ACTOR };
@@ -115,7 +116,10 @@ async function harness(fault: 'none' | 'relationship-throw' | 'label-refusal' = 
   const directory = mkdtempSync(join(tmpdir(), 'wbs-import-dependencies-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   opened.push({ source, directory });
   await source.stores.users.create(
     { id: ACTOR, username: ACTOR, passwordHash: 'x', createdAt: STAMP.at },

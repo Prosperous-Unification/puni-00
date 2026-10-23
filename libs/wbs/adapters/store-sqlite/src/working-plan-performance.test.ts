@@ -29,6 +29,7 @@ import type { Logger } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const OWNER = 'working-plan-performance-owner';
@@ -202,7 +203,11 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
   const dbPath = join(directory, 'source.db');
   runMigrations(dbPath, MIGRATIONS);
   const counts = emptyCounts();
-  const source = openSqliteSource({ dbPath, logger: sqlCounter(counts) });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    logger: sqlCounter(counts),
+  });
   await source.stores.users.create(
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
     STAMP,

@@ -22,6 +22,7 @@ import { ProjectRepository } from './project';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { openSqliteSource, openSqliteSourceWithCaptureReadSeam } from './source';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { openSpaceDatabase } from './testing/space-database';
 import { WorkItemRepository } from './work-item';
 
@@ -81,6 +82,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
   async (outcome) => {
     const queries: string[] = [];
     const sqlite = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
       logger: {
         logQuery: (query) => {
@@ -135,7 +137,10 @@ test.each(['success', 'refusal', 'throw'] as const)(
 );
 
 test('source borrowed shared reads include staged edits without closing their owner', async () => {
-  const sqlite = openSqliteSource({ dbPath: path });
+  const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   sqlite.db.run(sql`UPDATE organization SET shared_people = 1 WHERE id = 'org-a'`);
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   try {
@@ -159,7 +164,7 @@ test('suspended first-plan-read refuses before further reads during a later tran
   const released = hold();
   let pause = true;
   const sqlite = openSqliteSourceWithCaptureReadSeam(
-    { dbPath: path },
+    { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath: path },
     {
       afterFirstRead: async () => {
         if (!pause) return;
@@ -288,7 +293,10 @@ test('transaction snapshot and raw cache capability never revive after settlemen
 });
 
 test('source fanout capability and authority callbacks expire permanently', async () => {
-  const sqlite = openSqliteSource({ dbPath: path });
+  const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   let retained: Scope<TransactionalStores>['fanoutCapture'];
   try {
@@ -324,7 +332,10 @@ test('source fanout capability and authority callbacks expire permanently', asyn
 test.each(['discard', 'throw'] as const)(
   'refused command repair %s uses surviving journal state and expired old captures',
   async (repair) => {
-    const sqlite = openSqliteSource({ dbPath: path });
+    const sqlite = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
     sqlite.db.run(
       sql`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('stale','a1','ada',1,'rename','{}','{}','{}',0,1)`,
@@ -366,7 +377,10 @@ test.each(['discard', 'throw'] as const)(
 );
 
 test('legacy early reads expire while the reusable public owner keeps opening observations', async () => {
-  const sqlite = openSqliteSource({ dbPath: path });
+  const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   sqlite.db.run(sql`DROP TRIGGER organization_activation_no_revert`);
   sqlite.db.run(
     sql`UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL`,

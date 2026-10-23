@@ -18,6 +18,7 @@ import fc from 'fast-check';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -55,7 +56,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-limit-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: DEFAULTS,
+  });
 });
 
 afterEach(async () => {
@@ -292,7 +297,11 @@ describe('the claim cap as a model invariant', () => {
         directory = mkdtempSync(join(tmpdir(), 'claim-limit-model-'));
         const dbPath = join(directory, 'plan.db');
         runMigrations(dbPath, folder);
-        source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+        source = openSqliteSource({
+          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath,
+          organizationDefaultLimits: DEFAULTS,
+        });
         const counting = { source: 'turn' as CountSource };
         const world = await seeded(CAP, LEAVES, counting);
         const leafOf = (n: number) => {

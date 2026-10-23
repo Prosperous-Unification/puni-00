@@ -26,6 +26,7 @@ import { expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -66,7 +67,10 @@ async function sqliteEstimateRunner(name: string) {
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   await source.stores.users.create(
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
     STAMP,
@@ -217,7 +221,10 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -298,7 +305,10 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -357,7 +367,10 @@ it('advances SQLite assignment and directory cascades before the next runner com
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -536,7 +549,10 @@ it('rolls back a successful directory write when its retained reload fails', asy
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -644,7 +660,10 @@ it('places every new subtree row and value group in SQLite authoritative order',
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -809,7 +828,10 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -965,7 +987,10 @@ it('refreshes a dependency survivor before the next runner command and preserves
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -1086,7 +1111,10 @@ it('keeps every SQLite value group in source order after runner sets populate an
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(

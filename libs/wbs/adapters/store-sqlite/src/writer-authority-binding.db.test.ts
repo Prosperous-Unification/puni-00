@@ -8,6 +8,7 @@ import { afterEach, expect, test } from 'bun:test';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
 import { seedDependencyAuthority } from './testing/dependency-activation';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const opened: { source: SqliteSource; directory: string }[] = [];
 afterEach(async () => {
@@ -21,7 +22,10 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-writer-authority-'));
   const path = join(directory, 'source.db');
   runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   opened.push({ source, directory });
   return { source, path };
 }

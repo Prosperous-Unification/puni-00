@@ -8,7 +8,7 @@ import { expect, it } from 'bun:test';
 import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-capability';
 
 const CLI = new URL('./dependency-capabilities-cli.ts', import.meta.url).pathname;
-it('advertises frozen empty support without database configuration or migrations', () => {
+it('advertises frozen V1 support without database configuration or migrations', () => {
   const directory = mkdtempSync(join(tmpdir(), 'dependency-capability-'));
   try {
     const execution = Bun.spawnSync([process.execPath, CLI], {
@@ -25,7 +25,7 @@ it('advertises frozen empty support without database configuration or migrations
       protocol: 'wbs-dependency-runtime',
       version: 1,
       role: 'backend',
-      semantics: [],
+      semantics: ['cross-project-dependencies-v1'],
     });
     expect(JSON.parse(execution.stdout.toString())).toEqual(BACKEND_DEPENDENCY_CAPABILITY);
     expect(Object.isFrozen(BACKEND_DEPENDENCY_CAPABILITY)).toBe(true);

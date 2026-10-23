@@ -28,6 +28,7 @@ import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { createDequeueReservationOwner } from '../service/optimization-dequeue-reservation';
 import { createInitialReservationOwner } from '../service/optimization-initial-reservation';
 import { createOptimizationObservationOwner } from '../service/optimization-observation';
@@ -79,7 +80,10 @@ async function fixture(failedPri = false, installedReader = true) {
   sqlite.run(
     "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   let openReads = 0;
   let readCount = 0;
   let afterRead: (() => void) | undefined;

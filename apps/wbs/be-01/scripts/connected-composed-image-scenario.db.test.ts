@@ -18,13 +18,17 @@ import { openSqliteSource } from '@wbs/store-sqlite';
 import { captureConnectedQuestion } from '@wbs/store-sqlite/connected-question-identity';
 import { expect, test } from 'bun:test';
 
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../src/runtime/dependency-support';
 import { buildServices } from '../src/services';
 import { openComposedImageFixture, TARGET_PROJECT_ID } from './connected-composed-image-scenario';
 
 test('disposable composed image fixture captures a feasible priority improvement with exact foreign pins', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'connected-image-fixture-'));
   const path = await openComposedImageFixture(folder);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   const installed = { solverVersion: '0.4.0', budgetMs: 30_000 };
   const services = buildServices({
     source,

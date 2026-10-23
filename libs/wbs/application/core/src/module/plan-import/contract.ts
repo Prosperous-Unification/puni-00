@@ -12,7 +12,7 @@ import type { ImportService } from './plan-import.feature';
  * per admission because staged stores are fresh on every turn.
  * `externalDependencies` is required: production resolves the admitted catalog's
  * lifetime-bound reader inside the import transaction. DISABLED authority stays
- * inactive; ENABLED refuses until the binary implements semantic support. Only
+ * inactive; ENABLED requires immutable V1 binary support. Only
  * isolated semantic fixtures supply explicit active capability. `commandAccess` revalidates retained principal evidence on the same
  * admitted writer before resources or observations open. Current access, rather
  * than expected access, supplies the callback, private resource and dependency

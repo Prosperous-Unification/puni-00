@@ -29,6 +29,7 @@ import type {
   ReservedSpawnRequest,
 } from '../src/module/optimization/contract';
 import { solverSupervisorSpawner } from '../src/module/solver-supervisor/solver-supervisor-spawner';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../src/runtime/dependency-support';
 import { type BeServices, buildServices } from '../src/services';
 import { testApp } from '../src/testing/app-fixture';
 import { testLocalAuthService } from '../src/testing/auth-fixture';
@@ -49,7 +50,10 @@ const access = {
 export async function openComposedImageFixture(folder: string): Promise<string> {
   const path = await openSpaceDatabase(folder);
   seedDependencyAuthority(path);
-  const setup = openSqliteSource({ dbPath: path });
+  const setup = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   try {
     for (const id of [TARGET_PROJECT_ID, FOREIGN_PROJECT_ID]) {
       const created = await setup.stores.projects.createInOrganization(
@@ -148,6 +152,7 @@ export async function runComposedImageScenario(options: {
     let borrowedReaders = 0;
     let bound: ReturnType<SqliteSource['bindLivePlans']> | undefined;
     source = openSqliteSource({
+      dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
       openReadOnlyConnection: (filename) => {
         const connection = openReadOnlyConnection(filename);
@@ -347,7 +352,10 @@ export async function runComposedImageScenario(options: {
     assert.deepEqual(ledger(), settled);
     await services.optimizer.stop();
     await source.close();
-    source = openSqliteSource({ dbPath: path });
+    source = openSqliteSource({
+      dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     services = compose(source);
     assert.deepEqual(await readTree(), ready);
     assert.deepEqual(await placement(), selected);

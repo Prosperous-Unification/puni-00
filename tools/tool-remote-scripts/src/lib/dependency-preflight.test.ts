@@ -55,7 +55,7 @@ test('independently probes exact candidate and rollback without database access'
   ]);
 });
 
-test('actual backend CLI supplies explicit empty support without DB_PATH', async () => {
+test('actual backend CLI supplies explicit V1 support without DB_PATH', async () => {
   const observations = await probeDependencyCapabilities(candidate, null, async () => {
     const child = Bun.spawn(
       [
@@ -78,7 +78,9 @@ test('actual backend CLI supplies explicit empty support without DB_PATH', async
     if (code !== 0) throw new Error(stderr);
     return stdout;
   });
-  expect(observations).toEqual([{ image: candidate, semantics: [] }]);
+  expect(observations).toEqual([
+    { image: candidate, semantics: ['cross-project-dependencies-v1'] },
+  ]);
 });
 
 for (const payload of [

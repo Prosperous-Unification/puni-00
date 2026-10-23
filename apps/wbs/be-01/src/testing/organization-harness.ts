@@ -12,6 +12,7 @@ import {
   TrustedIssuerKeySets,
 } from '@wbs/auth';
 import type { AuthenticatedUser } from '@wbs/contracts';
+import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import {
   type CapacityModeSwitch,
   clockOf,
@@ -84,6 +85,7 @@ import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { type AppOptions, buildApp } from '../app';
@@ -689,6 +691,7 @@ export class OrganizationHarness {
    * extending the positional list.
    */
   static openComposedWith({
+    dependencyCapability = CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     admitDependencyClient = () => null,
     appOrigin = 'http://localhost',
     now,
@@ -719,6 +722,7 @@ export class OrganizationHarness {
     const path = join(dir, 'test.db');
     migrate(path);
     const source = openSqliteSource({
+      dependencyCapability,
       dbPath: path,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       openReadOnlyConnection,
@@ -1207,13 +1211,15 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Explicit binary identity for semantic/refusal fixtures; real boot owns its immutable descriptor. */
+  readonly dependencyCapability?: DependencyRuntimeCapability;
   /** Explicit authority boundary for mounted runtime admission tests. */
   readonly admitDependencyClient?: AppOptions['admitDependencyClient'];
   /** Explicit allowed browser origin, shared by the mounted controller and fixture clients. */
   readonly appOrigin?: string;
-  /** Builds a separate test-only importer; mounted production imports stay inactive. */
+  /** Builds a separate test-only importer; mounted imports retain source binary and durable authority. */
   readonly syntheticTransferImports?: true;
-  /** Replaces only the admitted command WorkItemService; production composition stays inactive. */
+  /** Replaces only the admitted command WorkItemService with explicit fixture authority. */
   readonly syntheticExternalCommands?: true;
   readonly sessionBinding?: boolean;
   /** One secret for the mounted backend and its outbound production push client. */

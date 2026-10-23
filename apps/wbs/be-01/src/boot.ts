@@ -408,6 +408,8 @@ export async function bootBe01(
           (): OwnedSource =>
             dependencies.openSource({
               dbPath: opts.dbPath,
+              // Proof: binding an empty source descriptor while advertising V1 made real backend external admission fail instead of persisting its identity.
+              dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
               organizationDefaultLimits: opts.organizationDefaultLimits,
             }),
           { factoryReturnKind: 'sync-value' },

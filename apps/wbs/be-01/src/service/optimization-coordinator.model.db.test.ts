@@ -28,6 +28,7 @@ import { createOptimizationRepository } from '../repository/optimization';
 import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { buildServices } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
@@ -1501,7 +1502,10 @@ async function createSharedWorld(): Promise<SharedWorld> {
   const path = join(dir, 'model.db');
   runMigrations(path, FOLDER);
   seedSharedOrganization(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   const pushes: SharedWorld['pushes'] = [];
   const held: (() => void)[] = [];
   const children: SharedChild[] = [];

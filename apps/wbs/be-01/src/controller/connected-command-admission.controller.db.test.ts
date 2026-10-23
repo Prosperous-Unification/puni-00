@@ -1,3 +1,4 @@
+import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import type { StoredTypedDependency } from '@wbs/core';
 import type { TypedDependencyStore, WritingServices } from '@wbs/core';
 import { clockOf, grantAdmission } from '@wbs/core';
@@ -18,6 +19,7 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { openDrizzle } from '@wbs/store-sqlite/db';
 import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { afterEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -32,9 +34,11 @@ async function open(
   syntheticExternalCommands?: true,
   onPush?: () => void | Promise<void>,
   dormant = false,
+  dependencyCapability?: DependencyRuntimeCapability,
 ) {
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    ...(dependencyCapability === undefined ? {} : { dependencyCapability }),
     ...(syntheticExternalCommands === undefined ? {} : { syntheticExternalCommands }),
     ...(pushUrls === undefined
       ? {}
@@ -189,7 +193,7 @@ test('mounted external authoring stays dormant and rolls back an earlier success
     protocol: 'wbs-dependency-runtime',
     version: 1,
     role: 'backend',
-    semantics: [],
+    semantics: ['cross-project-dependencies-v1'],
   });
   const before = effects();
   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
@@ -3976,7 +3980,13 @@ test('mounted production commands reread writer authority after dormant refusal'
 });
 
 test('mounted production commands refuse enabled unsupported runtime and retain prior effects', async () => {
-  const fixture = await open();
+  const fixture = await open(
+    undefined,
+    undefined,
+    undefined,
+    false,
+    INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+  );
   const before = effects();
   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
     commands: [
@@ -3989,7 +3999,13 @@ test('mounted production commands refuse enabled unsupported runtime and retain 
 });
 
 test('mounted production imports resolve fresh writer authority before external allocation', async () => {
-  const fixture = await open(undefined, undefined, undefined, true);
+  const fixture = await open(
+    undefined,
+    undefined,
+    undefined,
+    true,
+    INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+  );
   const document = planDocumentFixture();
   document.document.version = 11;
   document.typedDependencies = [

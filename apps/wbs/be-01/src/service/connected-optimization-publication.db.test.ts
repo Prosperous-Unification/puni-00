@@ -36,6 +36,7 @@ import {
   solverQueue,
 } from '../repository/schema';
 import { eventLog, optimizationBoundaryCertificate, solverSlot } from '../repository/schema';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
 import { createDequeueReservationOwner } from './optimization-dequeue-reservation';
 import { createInitialReservationOwner } from './optimization-initial-reservation';
@@ -72,7 +73,10 @@ function fixture(
     "INSERT INTO project(id,name,owner_id,created_at,optimization_enabled) VALUES('B','B','u',1,1)",
   );
   sqlite.close();
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   const bound = source.bindLivePlans({
     schedulerOf: () =>
       capturedSchedulerFixture(

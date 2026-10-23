@@ -1,3 +1,4 @@
+import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import type { PlanTransactionalStores, StoredTypedDependency } from '@wbs/core';
 import { clockOf } from '@wbs/core';
 import { grantAdmission } from '@wbs/core';
@@ -20,11 +21,15 @@ export async function closeFixture() {
 }
 export async function openFixture(options?: {
   syntheticExternalCommands?: true;
+  dependencyCapability?: DependencyRuntimeCapability;
   pushes?: string[];
 }) {
   afterRequestResolve = undefined;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    ...(options?.dependencyCapability === undefined
+      ? {}
+      : { dependencyCapability: options.dependencyCapability }),
     ...(options?.syntheticExternalCommands === undefined
       ? {}
       : { syntheticExternalCommands: options.syntheticExternalCommands }),
@@ -34,7 +39,7 @@ export async function openFixture(options?: {
     },
     afterResolve: () => afterRequestResolve?.(),
   });
-  // Synthetic stored authority permits historical external edges in this fixture; production authoring stays inactive.
+  // Synthetic durable authority for semantic fixtures; binary support remains source-bound.
   seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');

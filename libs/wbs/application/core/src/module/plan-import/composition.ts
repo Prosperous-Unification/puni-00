@@ -36,7 +36,7 @@ export interface PlanImportSource {
   /**
    * Explicit fixture authority or a production resolver invoked after writer admission.
    * Its reader remains bound to that scope; synthetic storage authority alone cannot
-   * grant support to the dormant production binary.
+   * grant support to an incapable binary.
    */
   externalDependencies:
     ExternalDependencyAuthoring | ((scope: Scope) => ExternalDependencyAuthoringSource);

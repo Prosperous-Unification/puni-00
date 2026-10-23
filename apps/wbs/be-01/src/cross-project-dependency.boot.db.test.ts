@@ -139,12 +139,36 @@ async function refuse(
   expect(failed).toBe(true);
   expect(closes).toBe(1);
 }
-it('refuses enabled empty authority before service factories and writes on every restart', async () => {
+function refuseIncapable(path: string, migrate = false, migrationsFolder = FOLDER) {
+  const before = snapshot(path);
+  const execution = Bun.spawnSync([
+    process.execPath,
+    new URL('./testing/incapable-dependency-boot.ts', import.meta.url).pathname,
+    path,
+    String(migrate),
+    migrationsFolder,
+  ]);
+  expect(execution.exitCode).toBe(0);
+  const line = execution.stdout.toString().trim().split('\n').at(-1);
+  if (line === undefined) throw new Error('incapable binary observation missing');
+  const expectedCauses: unknown = expect.arrayContaining([
+    'backend lacks cross-project dependency semantics',
+  ]);
+  expect(JSON.parse(line) as unknown).toMatchObject({
+    failed: true,
+    starts: [],
+    closes: 1,
+    causes: expectedCauses,
+  });
+  expect(snapshot(path)).toBe(before);
+}
+
+it('refuses enabled empty authority before service factories and writes on every restart', () => {
   const path = database();
   seedDependencyAuthority(path);
-  await refuse(path);
-  await refuse(path, true);
-});
+  refuseIncapable(path);
+  refuseIncapable(path, true);
+}, 30_000);
 for (const fault of [
   'DELETE FROM cross_project_dependency_activation',
   'DROP TABLE cross_project_dependency_activation_receipt',
@@ -273,10 +297,10 @@ function migrations(statement: string): string {
   writeFileSync(join(pending, 'migration.sql'), statement);
   return directory;
 }
-it('refuses enabled empty authority before a pending migration changes schema or ledger', async () => {
+it('refuses enabled empty authority before a pending migration changes schema or ledger', () => {
   const path = database();
   seedDependencyAuthority(path);
-  await refuse(path, true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
+  refuseIncapable(path, true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
 });
 for (const fault of [
   'DROP TABLE cross_project_dependency_activation_receipt',

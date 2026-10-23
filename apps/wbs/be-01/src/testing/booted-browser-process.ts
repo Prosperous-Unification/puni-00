@@ -95,8 +95,8 @@ export class BootedBrowserProcess {
               ? options
               : {
                   ...options,
-                  // Only this fixture substitutes the activation client gate: the installed
-                  // backend intentionally advertises no connected semantics yet.
+                  // Only this test callback substitutes client admission; the real binary
+                  // advertises support, which does not prove owner activation.
                   admitDependencyClient: (claim) =>
                     syntheticExternalCommands() ? null : options.admitDependencyClient(claim),
                   writes: {

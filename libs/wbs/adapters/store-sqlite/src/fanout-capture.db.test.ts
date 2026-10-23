@@ -32,6 +32,7 @@ import { optimizedScheduleCache } from './schema';
 import { openSqliteSource } from './source';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { seedDependencyAuthority } from './testing/dependency-activation';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { openSpaceDatabase } from './testing/space-database';
 
 const directories: string[] = [];
@@ -271,7 +272,10 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     connection.db.run(sql.raw('ROLLBACK'));
     connection.close();
   }
-  const source = openSqliteSource({ dbPath: path }).bindLivePlans(options);
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  }).bindLivePlans(options);
   try {
     const throughScope = await source.uow.run(async ({ fanoutCapture }) => {
       if (fanoutCapture === undefined) throw new Error('transactional fan-out capture missing');

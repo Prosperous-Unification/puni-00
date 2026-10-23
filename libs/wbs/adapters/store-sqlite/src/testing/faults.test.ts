@@ -10,6 +10,7 @@ import { describe, expect, it } from 'bun:test';
 
 import * as publicSqlite from '../index';
 import { runMigrations } from '../migrate';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
 import { openSqliteSourceWithFault, sqliteLateWriteControl } from './faults';
 
 const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -140,7 +141,10 @@ describe('SQLite conformance fault controls', () => {
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
     const control = sqliteLateWriteControl('journal-history-insert');
-    const source = openSqliteSourceWithFault({ dbPath }, control);
+    const source = openSqliteSourceWithFault(
+      { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
+      control,
+    );
     try {
       await source.stores.users.create(
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
@@ -178,7 +182,7 @@ describe('SQLite conformance fault controls', () => {
         'event-sentinel',
       ]);
       const restored = openSqliteSourceWithFault(
-        { dbPath },
+        { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
         sqliteLateWriteControl('journal-history-insert'),
       );
       await restored.stores.journal.append(entry('restored'), event('restored'));
@@ -197,7 +201,10 @@ describe('SQLite conformance fault controls', () => {
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
     const control = sqliteLateWriteControl('subtree-final-satellite');
-    const source = openSqliteSourceWithFault({ dbPath }, control);
+    const source = openSqliteSourceWithFault(
+      { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
+      control,
+    );
     try {
       await source.stores.users.create(
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
@@ -240,7 +247,7 @@ describe('SQLite conformance fault controls', () => {
         ...subtree('sentinel').estimates,
       ]);
       const restored = openSqliteSourceWithFault(
-        { dbPath },
+        { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
         sqliteLateWriteControl('subtree-final-satellite'),
       );
       await restored.stores.subtrees.insertSubtree(subtree('restored'), stamp);
@@ -264,7 +271,10 @@ describe('SQLite conformance fault controls', () => {
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
     const control = sqliteLateWriteControl('saved-plan-schedule-body');
-    const source = openSqliteSourceWithFault({ dbPath }, control);
+    const source = openSqliteSourceWithFault(
+      { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
+      control,
+    );
     try {
       await source.stores.users.create(
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
@@ -287,7 +297,7 @@ describe('SQLite conformance fault controls', () => {
         'sentinel',
       ]);
       const restored = openSqliteSourceWithFault(
-        { dbPath },
+        { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
         sqliteLateWriteControl('saved-plan-schedule-body'),
       );
       await restored.history.savedPlans.write(savedPlan('restored'), () => Promise.resolve(null));

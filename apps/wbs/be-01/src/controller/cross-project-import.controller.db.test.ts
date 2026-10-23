@@ -1,5 +1,6 @@
 import { classifyPlanDocument } from '@wbs/core/module/plan-document/plan-document.resource';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 // eslint-disable-next-line no-restricted-imports -- this test inspects the borrowed Drizzle transaction before its injected recording failure.
 import { sql } from 'drizzle-orm';
@@ -183,9 +184,10 @@ test('downloaded successor-owned v11 content round trips through same-store synt
 });
 
 for (const synthetic of [false, true])
-  test(`mounted incoming artifact stays inactive with synthetic importer ${String(synthetic)}`, async () => {
+  test(`incapable mounted importer refuses enabled authority with synthetic importer ${String(synthetic)}`, async () => {
     let pushes = 0;
     harness = OrganizationHarness.openComposedWith({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       ...(synthetic ? { syntheticTransferImports: true } : {}),
       pushFetch: () => {
         pushes += 1;
@@ -198,8 +200,8 @@ for (const synthetic of [false, true])
     pushes = 0;
     const response = await harness.call('ada', 'POST', '/api/projects/import', document);
     expect(response).toMatchObject({
-      status: 409,
-      body: { error: 'external_dependencies_inactive' },
+      status: 500,
+      body: 'Internal Server Error',
     });
     expect(transferSnapshot(harness)).toEqual(before);
     expect(pushes).toBe(0);

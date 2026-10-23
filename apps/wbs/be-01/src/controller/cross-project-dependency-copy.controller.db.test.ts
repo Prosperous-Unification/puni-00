@@ -1,4 +1,5 @@
 import { readPreconditions } from '@wbs/core/service/compensating';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { afterEach, expect, test } from 'bun:test';
 
 import {
@@ -143,14 +144,15 @@ test('semantic copy retains local and remote prerequisites with exact revisions 
   ).toEqual(links);
 });
 
-test('mounted production copy of an incoming external prerequisite stays dormant and changes nothing', async () => {
-  const fixture = await seedIncidents();
+test('incapable mounted copy refuses enabled external authority and changes nothing', async () => {
+  const fixture = await seedIncidents({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+  });
   const before = readTables();
   const copied = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
     commands: [{ kind: 'duplicateWorkItem', workItemId: fixture.owner.workItemId }],
   });
-  expect(copied.status).toBe(409);
-  expect(await copied.json()).toMatchObject({ error: 'external_dependencies_inactive' });
+  expect(copied.status).toBe(500);
   expect(readTables()).toEqual(before);
 });
 

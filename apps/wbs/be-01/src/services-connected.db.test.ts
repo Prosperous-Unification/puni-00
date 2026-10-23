@@ -36,6 +36,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, expect, test } from 'bun:test';
 
 import type { ReservedSpawnRequest } from './module/optimization/contract';
+import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { buildServices, type OptimizerRuntime } from './services';
 import { testApp } from './testing/app-fixture';
 import { testLocalAuthService } from './testing/auth-fixture';
@@ -160,6 +161,7 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
     children.clear();
   };
   const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
     openReadOnlyConnection: (filename) => {
       const connection = openReadOnlyConnection(filename);

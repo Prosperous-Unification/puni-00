@@ -30,6 +30,7 @@ import { SqliteOrganizationAccess } from './organization-access';
 import { ProjectRepository } from './project';
 import { openSqliteSource, type SqliteSource } from './source';
 import { seedDependencyAuthority } from './testing/dependency-activation';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 
@@ -153,6 +154,7 @@ async function harness(authoring: unknown = { state: 'active' }) {
   const captures: string[] = [];
   const statements: string[] = [];
   const sqlite = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
     organizationDefaultLimits: ORGANIZATION_LIMITS,
     logger: {

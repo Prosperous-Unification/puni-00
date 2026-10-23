@@ -16,6 +16,7 @@ import { sql } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -35,7 +36,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'agent-person-limit-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: DEFAULTS,
+  });
   for (const statement of [
     sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`,
     sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`,

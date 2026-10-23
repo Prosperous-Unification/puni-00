@@ -15,6 +15,7 @@ import { ProjectRankRepository } from './project-rank';
 import { openSqliteSource, type SqliteSource } from './source';
 import { StepBlockageRepository } from './step-blockage';
 import { StepNodeAttemptRepository } from './step-node-attempt';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { openSpaceDatabase } from './testing/space-database';
 import { WorkItemRepository } from './work-item';
 
@@ -30,6 +31,7 @@ beforeEach(async () => {
   const path = await openSpaceDatabase(folder);
   queries = [];
   sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
     logger: {
       logQuery: (query) => {
