@@ -395,6 +395,16 @@ The run's attributable record of planned, reserved, and measured consumption,
 waits, human effort, serving choices, and profile epochs.
 _Avoid_: Usage, bill
 
+**Accepted outcome**:
+A unit of delivered work a client would pay for: today a first-parent merge into the
+default branch that names a pull request, later a WBS step stated done.
+_Avoid_: Merged PR, ticket, deliverable count
+
+**Usage attribution**:
+The stated rule by which measured harness usage is assigned to one accepted outcome or to
+an explicit unattributed remainder with its reason.
+_Avoid_: Cost allocation, chargeback, guess
+
 **Efficiency breakdown**:
 A reconciled explanation of an outcome's cost through its requests, attempts,
 model turns, token categories, tool context, and rates. It observes cost drivers

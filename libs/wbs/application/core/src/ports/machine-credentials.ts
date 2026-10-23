@@ -5,6 +5,9 @@ import type { AuditedAct } from './organization-audit';
 /** How coarse `last_used_at` is (`wbs-machine-credentials` A13): one write per credential per minute. */
 export const LAST_USED_RESOLUTION_MS = 60_000;
 
+/** What {@link MachineCredentials.touchLastUsed} did with one use. */
+export type LastUseOutcome = 'recorded' | 'fresh' | 'absent';
+
 /**
  * The reads and the one hot-path write the machine-credential verification
  * path needs (`wbs-machine-credentials` A13, A22). Creation, rotation and
@@ -42,11 +45,15 @@ export interface MachineCredentials {
   ): Promise<OidcCredentialRecord | null>;
   /**
    * Records a use at `at` when the last recorded use is absent or at least
-   * {@link LAST_USED_RESOLUTION_MS} older; otherwise writes nothing.
+   * {@link LAST_USED_RESOLUTION_MS} older (`'recorded'`); otherwise writes
+   * nothing and takes no write turn (`'fresh'`), so a request whose use is
+   * fresh never waits behind another write (#668). `'absent'` when the
+   * credential no longer exists: a removal (A24's person cascade) committed
+   * between admission and this touch.
    *
    * @throws on every store failure: a failed write is a server fault.
    */
-  touchLastUsed(id: string, at: number): Promise<void>;
+  touchLastUsed(id: string, at: number): Promise<LastUseOutcome>;
 }
 
 /** One organization's registration of a trusted issuer, as verification selects it. */
