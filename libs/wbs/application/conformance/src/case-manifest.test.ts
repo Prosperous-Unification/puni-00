@@ -100,6 +100,7 @@ describe('the closed case manifest', () => {
       'claims.remove:delegated-cascade',
       'claims.moveAll:in-place',
       'claims.occupancy:hold-read-cascade',
+      'claims.lease:write-renew-expire',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],

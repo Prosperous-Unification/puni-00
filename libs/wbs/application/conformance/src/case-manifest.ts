@@ -143,6 +143,7 @@ export const CASE_MANIFEST = {
     'claims.remove:delegated-cascade',
     'claims.moveAll:in-place',
     'claims.occupancy:hold-read-cascade',
+    'claims.lease:write-renew-expire',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
   dependencies: [
@@ -157,6 +158,7 @@ export const CASE_MANIFEST = {
     'journal.append:history-atomic',
     'journal.append:account-redo-depth',
     'journal.flip:preconditions',
+    'journal.appendEvent:history-only',
   ],
   savedPlans: [
     'savedPlans.write:bytes-and-bodies',

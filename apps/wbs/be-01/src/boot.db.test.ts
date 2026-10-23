@@ -961,6 +961,16 @@ describe('bootBe01', () => {
     running = null;
   });
 
+  it('starts the claim lease sweep with the process', async () => {
+    const be = await boot();
+
+    expect(be.services.claimLeases.isRunning()).toBe(true);
+
+    await be.stop();
+    expect(be.services.claimLeases.isRunning()).toBe(false);
+    running = null;
+  });
+
   it('mounts the composed login throttle instead of constructing another public graph', async () => {
     const be = await boot();
     const releases = Array.from({ length: 8 }, (_, index) =>

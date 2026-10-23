@@ -561,10 +561,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertOpen();
         return scope.stores.claims.pinnedPersonOf(credential);
       },
-      add: async (claims, stated, stamp, occupancy) => {
+      add: async (claims, stated, stamp, occupancy, leases) => {
         const owners = [...new Set([...claims, ...stated].map(({ workItemId }) => workItemId))];
         for (const owner of owners) await assertOwner(owner);
-        const written = await scope.stores.claims.add(claims, stated, stamp, occupancy);
+        const written = await scope.stores.claims.add(claims, stated, stamp, occupancy, leases);
         // Proof: with this refresh removed, `shows the batch the progress its
         // claim stated` (claim-command.test.ts) let a later setStatus ready
         // through on stale retained progress; watched 2026-10-19.
@@ -582,6 +582,20 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         await assertOwner(toWorkItemId);
         await scope.stores.claims.moveAll(fromWorkItemId, toWorkItemId, stamp);
         await refreshRows([fromWorkItemId, toWorkItemId]);
+      },
+      // A renewal is the person's, across projects, and moves no revision or
+      // retained row: a lease is not a plan fact (`wbs-claim-leases` L4).
+      renewLeases: (personId, at, renewal) => {
+        assertOpen();
+        return scope.stores.claims.renewLeases(personId, at, renewal);
+      },
+      expiredLeasesOf: (requestedProjectId, at) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.expiredLeasesOf(requestedProjectId, at);
+      },
+      projectsWithExpiredLeases: (at, limit) => {
+        assertOpen();
+        return scope.stores.claims.projectsWithExpiredLeases(at, limit);
       },
     },
     demands: {

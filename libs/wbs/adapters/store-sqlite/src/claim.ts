@@ -2,24 +2,35 @@ import {
   type Claim,
   type ClaimIdentity,
   claimIdentityOf,
+  type ClaimLease,
   type ClaimOccupancy,
   type ClaimStore,
   type ClaimWriteOutcome,
   type CredentialPin,
+  type ExpiredLease,
+  type LeaseStanding,
   type OccupancyRow,
   type ProgressKey,
   type StampedClaim,
   unstampClaim,
   type WriteStamp,
 } from '@wbs/core';
-import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
+import type { ImmediateTransaction } from './immediate-write';
 import { bumpWorkItems } from './revision';
-import { claim, claimOccupancy, resource, stepProgress, workItem } from './schema';
+import {
+  claim,
+  claimOccupancy,
+  machineCredential,
+  resource,
+  stepProgress,
+  workItem,
+} from './schema';
 
 /**
  * Claims in the `claim` table (`20261019120000_add_claim`) and the
@@ -97,7 +108,9 @@ export class ClaimRepository implements ClaimStore {
   private async read(
     projectId: string,
     claimId?: string,
-  ): Promise<(Claim & { readonly claimedAt: number | null })[]> {
+  ): Promise<
+    (Claim & { readonly claimedAt: number | null; readonly leaseExpiresAt: number | null })[]
+  > {
     const rows = await this.db
       .select({
         id: claim.id,
@@ -108,6 +121,7 @@ export class ClaimRepository implements ClaimStore {
         parentClaimId: claim.parentClaimId,
         accountId: claim.createdBy,
         claimedAt: claim.createdAt,
+        leaseExpiresAt: claim.leaseExpiresAt,
       })
       .from(claim)
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
@@ -131,10 +145,15 @@ export class ClaimRepository implements ClaimStore {
     stated: readonly ProgressKey[],
     stamp: WriteStamp,
     occupancy: readonly ClaimOccupancy[],
+    leases: readonly ClaimLease[] = [],
   ): Promise<ClaimWriteOutcome> {
     const ids = new Set(claims.map(({ id }) => id));
     const stray = occupancy.find(({ claimId }) => !ids.has(claimId));
     if (stray !== undefined) throw new Error(`occupancy names claim ${stray.claimId} not added`);
+    const expiryOf = new Map(leases.map(({ claimId, expiresAt }) => [claimId, expiresAt]));
+    const strayLease = leases.find(({ claimId }) => !ids.has(claimId));
+    if (strayLease !== undefined)
+      throw new Error(`a lease names claim ${strayLease.claimId} not added`);
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx): ClaimWriteOutcome => {
@@ -181,7 +200,12 @@ export class ClaimRepository implements ClaimStore {
           // Proof: without the `createdBy` override, `writes the claim as its
           // claimant’s account, whoever applies it` read the applier; watched 2026-10-19.
           tx.insert(claim)
-            .values({ ...each, ...auditOnCreate(stamp), createdBy: each.accountId })
+            .values({
+              ...each,
+              leaseExpiresAt: expiryOf.get(each.id) ?? null,
+              ...auditOnCreate(stamp),
+              createdBy: each.accountId,
+            })
             .run();
         }
         for (const row of occupancy) {
@@ -236,6 +260,69 @@ export class ClaimRepository implements ClaimStore {
     });
   }
 
+  async renewLeases(
+    personId: string,
+    at: number,
+    renewal: { readonly expiresAt: number; readonly dueBefore: number },
+  ): Promise<LeaseStanding> {
+    const inForce = and(
+      eq(claim.personId, personId),
+      isNull(claim.leaseRevokedAt),
+      gt(claim.leaseExpiresAt, at),
+    );
+    const due = and(inForce, lt(claim.leaseExpiresAt, renewal.dueBefore));
+    const anyDue = this.db.select({ id: claim.id }).from(claim).where(due).limit(1).all();
+    // Read before the turn: a heartbeat within the resolution answers without
+    // waiting for whatever write holds it (issue #668's lesson).
+    // Proof: with this read skipped (always entering the turn), `answers a
+    // heartbeat within the minute while a batch holds the write turn`
+    // (claim-lease.db.test.ts) timed out (9 pass, 1 fail); watched 2026-10-23.
+    if (anyDue.length > 0) {
+      await this.gate.enter(async () => {
+        await Promise.resolve();
+        // Again inside the turn: a sweep may have released a claim, or another
+        // renewal moved it, since the read above.
+        this.db.transaction((tx) => {
+          tx.update(claim).set({ leaseExpiresAt: renewal.expiresAt }).where(due).run();
+        });
+      });
+    }
+    const standing = this.db
+      .select({
+        leases: sql<number>`count(*)`,
+        leaseExpiresAt: sql<number | null>`min(${claim.leaseExpiresAt})`,
+      })
+      .from(claim)
+      .where(inForce)
+      .get();
+    if (standing === undefined) throw new Error('a count of leases answered no row');
+    return { leases: standing.leases, leaseExpiresAt: standing.leaseExpiresAt };
+  }
+
+  async expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]> {
+    const rows = await this.db
+      .select({ claimId: claim.id, revokedAt: claim.leaseRevokedAt })
+      .from(claim)
+      .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+      .where(and(eq(workItem.projectId, projectId), lte(claim.leaseExpiresAt, at)))
+      .orderBy(asc(claim.id));
+    return rows.map(({ claimId, revokedAt }) => ({
+      claimId,
+      reason: revokedAt === null ? 'lease_expired' : 'credential_revoked',
+    }));
+  }
+
+  async projectsWithExpiredLeases(at: number, limit: number): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ projectId: workItem.projectId })
+      .from(claim)
+      .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+      .where(and(isNotNull(claim.leaseExpiresAt), lte(claim.leaseExpiresAt, at)))
+      .orderBy(asc(workItem.projectId))
+      .limit(limit);
+    return rows.map(({ projectId }) => projectId);
+  }
+
   async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
@@ -252,4 +339,44 @@ export class ClaimRepository implements ClaimStore {
       });
     });
   }
+}
+
+/**
+ * Ends every lease of `personId` at `at` when the person holds no unrevoked
+ * machine credential any more (`wbs-claim-leases` L8): each lease's expiry
+ * moves to `at` (never later than it was) and `lease_revoked_at` is set, so no
+ * renewal touches it again and the next sweep releases its claim as
+ * `credential_revoked`. Run inside the revoking transaction, after the
+ * revocation's own update, so a second live credential is seen or not in the
+ * same snapshot. Answers how many leases it ended.
+ */
+export function endLeasesOfUncredentialed(
+  tx: ImmediateTransaction,
+  personId: string,
+  at: number,
+): number {
+  const live = tx
+    .select({ id: machineCredential.id })
+    .from(machineCredential)
+    .where(and(eq(machineCredential.personId, personId), isNull(machineCredential.revokedAt)))
+    .limit(1)
+    .all();
+  // Proof: with this check removed, `keeps the leases when one of two keys is
+  // revoked, and ends them with the last` (claim-lease.db.test.ts) ended them
+  // at the first (9 pass, 1 fail); watched 2026-10-23.
+  if (live.length > 0) return 0;
+  return tx
+    .update(claim)
+    .set({
+      leaseExpiresAt: sql`min(${claim.leaseExpiresAt}, ${at})`,
+      leaseRevokedAt: at,
+    })
+    .where(
+      and(
+        eq(claim.personId, personId),
+        isNotNull(claim.leaseExpiresAt),
+        isNull(claim.leaseRevokedAt),
+      ),
+    )
+    .run().changes;
 }

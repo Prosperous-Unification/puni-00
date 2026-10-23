@@ -1,7 +1,7 @@
 import type { CredentialPin } from '@wbs/contracts';
 
 export type { CredentialPair, CredentialPin } from '@wbs/contracts';
-import type { Claim, OccupancyRow } from '@wbs/domain';
+import type { Claim, LeaseReleaseReason, OccupancyRow } from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
 import type { ProgressKey } from './progress-store';
@@ -22,17 +22,42 @@ export interface ClaimOccupancy {
 /**
  * A stored claim with the instant it was written: `created_at`, which an undo
  * of a release writes afresh, so it reads when the claim last came into force.
+ * `leaseExpiresAt` is the instant it must be renewed by, or null for a claim
+ * nobody renews (`wbs-claim-leases` L1).
  */
 export interface StampedClaim extends Claim {
   readonly claimedAt: number;
+  readonly leaseExpiresAt: number | null;
 }
 
-/** The claim without its write instant, as {@link ClaimStore.listByProject} answers it. */
+/** The claim without its write instant or lease, as {@link ClaimStore.listByProject} answers it. */
 export function unstampClaim({
   claimedAt: _claimedAt,
+  leaseExpiresAt: _leaseExpiresAt,
   ...claim
-}: Claim & { readonly claimedAt: number | null }): Claim {
+}: Claim & { readonly claimedAt: number | null; readonly leaseExpiresAt: number | null }): Claim {
   return claim;
+}
+
+/** The lease one claim is written with: the instant it must be renewed by (L1). */
+export interface ClaimLease {
+  readonly claimId: string;
+  readonly expiresAt: number;
+}
+
+/** A claim whose lease has run out, and why (`wbs-claim-leases` L5, L8). */
+export interface ExpiredLease {
+  readonly claimId: string;
+  readonly reason: LeaseReleaseReason;
+}
+
+/**
+ * One person's leases after a renewal: how many are in force, and the
+ * earliest instant one of them must be renewed by, null when none is (L12).
+ */
+export interface LeaseStanding {
+  readonly leases: number;
+  readonly leaseExpiresAt: number | null;
 }
 
 /**
@@ -81,14 +106,41 @@ export interface ClaimStore extends ClaimIdentity {
    * store's: the claim decides it inside the batch's transaction
    * (`refuseOccupancy`), so the store writes what it was given.
    *
-   * @throws when an occupancy row names a claim not in `claims`.
+   * A claim named in `leases` is written with that expiry; every other claim
+   * is leaseless. Absent `leases` writes every claim leaseless.
+   *
+   * @throws when an occupancy row or a lease names a claim not in `claims`.
    */
   add(
     claims: readonly Claim[],
     stated: readonly ProgressKey[],
     stamp: WriteStamp,
     occupancy: readonly ClaimOccupancy[],
+    leases?: readonly ClaimLease[],
   ): Promise<ClaimWriteOutcome>;
+  /**
+   * Moves every lease of `personId` that is in force at `at`, not revoked, and
+   * expires before `renewal.dueBefore` to `renewal.expiresAt`, in every
+   * project (`wbs-claim-leases` L4, L5), and answers the person's standing
+   * after it. It reads first and takes the write turn only when one lease is
+   * due, so a heartbeat within the resolution never waits for a write.
+   */
+  renewLeases(
+    personId: string,
+    at: number,
+    renewal: { readonly expiresAt: number; readonly dueBefore: number },
+  ): Promise<LeaseStanding>;
+  /**
+   * The project's claims whose lease has run out at `at` (expiry at or before
+   * it), in claim-id order, each with its reason: `credential_revoked` when
+   * the holder's last live credential was revoked, else `lease_expired`.
+   */
+  expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]>;
+  /**
+   * The projects holding a claim whose lease has run out at `at`, at most
+   * `limit` of them, in project-id order: what one sweep tick works through.
+   */
+  projectsWithExpiredLeases(at: number, limit: number): Promise<string[]>;
   /**
    * Removes exactly `claims` by id, with their occupancy rows, and the
    * progress statements on `cleared`.
