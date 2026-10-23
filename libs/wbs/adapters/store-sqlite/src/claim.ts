@@ -331,26 +331,26 @@ export class ClaimRepository implements ClaimStore {
         // (claim-lease.db.test.ts) renewed it (10 pass, 1 fail); watched 2026-10-23.
         at = now();
         const renewed = renewalAt(at).expiresAt;
-        // The projects are read in the transaction that moves their leases,
-        // so a rolled-back renewal names none (`wbs-claim-display` C4).
-        // Proof: with the in-force leases' projects read here in place of the
-        // due ones, the SQLite certification's `claims.lease:write-renew-expire`
-        // case named a project whose lease did not move (74 pass, 1 fail);
-        // watched 2026-10-23.
-        renewedProjectIds = this.db.transaction((tx) => {
-          const moved = tx
-            .selectDistinct({ projectId: workItem.projectId })
-            .from(claim)
-            .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-            .where(dueAt(at))
-            .orderBy(asc(workItem.projectId))
-            .all();
-          tx.update(claim)
-            .set({ leaseExpiresAt: renewed, ...auditOnUpdate({ at }) })
-            .where(dueAt(at))
-            .run();
-          return moved.map(({ projectId }) => projectId);
-        });
+        // The projects come back from the statement that moves their leases:
+        // one write statement, so a rolled-back renewal names none
+        // (`wbs-claim-display` C4) and no read snapshot taken before it can
+        // refuse its upgrade to a write (SQLITE_BUSY_SNAPSHOT mid-swap).
+        // Only the rows this statement moved can name a project here.
+        // Proof: unsorted, and again undeduplicated, the SQLite certification's
+        // `claims.lease:write-renew-expire` case failed on the project list
+        // (74 pass, 1 fail each); watched 2026-10-23.
+        const moved = this.db
+          .update(claim)
+          .set({ leaseExpiresAt: renewed, ...auditOnUpdate({ at }) })
+          .where(dueAt(at))
+          .returning({
+            projectId: sql<string>`(SELECT ${workItem.projectId} FROM ${workItem} WHERE ${workItem.id} = ${claim.workItemId})`,
+          })
+          .all();
+        // Code-unit order, as SQLite's binary collation orders the ids.
+        renewedProjectIds = [...new Set(moved.map(({ projectId }) => projectId))].sort(
+          (left, right) => (left < right ? -1 : Number(left > right)),
+        );
       });
     }
     const standing = this.db

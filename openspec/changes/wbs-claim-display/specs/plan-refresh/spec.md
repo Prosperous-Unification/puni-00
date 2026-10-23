@@ -23,3 +23,21 @@ every resource, claims included.
 - **GIVEN** a claims read failed and the previous claims remain drawn
 - **WHEN** a later tree read succeeds
 - **THEN** the claims stale state remains until a covering claims read succeeds
+
+### Requirement: An unsequenced frame is a hint, and a resume rereads claims
+
+fe-01's project stream SHALL treat a frame for its subscription with no `seq` as a change hint
+for the type it names, mapped as any event: it SHALL NOT advance, read or reset the resume
+point, and no `seen` follows its read. Because such frames are never replayed, the coordinator
+SHALL read claims whenever the stream synchronises: on every `resume_ack` (whatever its
+`replayed` count), on `resume_denied`, and on the first subscribe.
+
+#### Scenario: An unsequenced claims_changed refreshes claims
+
+- **WHEN** a frame `{ subscription, message: { type: 'claims_changed' } }` arrives with no `seq`
+- **THEN** a claims read runs and the resume point is unchanged
+
+#### Scenario: A resume rereads claims
+
+- **WHEN** the socket reconnects and the gateway answers `resume_ack` with nothing replayed
+- **THEN** a claims read runs

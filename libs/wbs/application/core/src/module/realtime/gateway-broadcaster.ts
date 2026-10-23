@@ -75,6 +75,10 @@ export class GatewayBroadcaster implements Broadcaster {
    */
   async publish(projectId: string, event: ProjectEvent): Promise<void> {
     const subscription = subscriptionFor(projectId);
+    if (isTransient(event)) {
+      await this.pushTransient(subscription, event);
+      return;
+    }
     // Proof (2026-09-27): replacing this durable record with an in-memory
     // fabricated sequence failed the gateway broadcaster suite (1 pass, 4 fail),
     // including `records the event and pushes it under the project subscription`.
@@ -83,6 +87,23 @@ export class GatewayBroadcaster implements Broadcaster {
     // durability case observe entered=false for its second writer while
     // transport was pending.
     await this.pushRecorded(subscription, recorded, event);
+  }
+
+  /**
+   * Pushes a transient announcement live, unsequenced: no log row, no buffer
+   * entry, no sequence consumed, so it never evicts a durable event from the
+   * replay window. A failed push is reported and swallowed, as a durable
+   * push's is; a client that missed it rereads on its next resume.
+   */
+  private async pushTransient(subscription: string, event: ProjectEvent): Promise<void> {
+    try {
+      await this.opts.push.push({ subscription, message: event });
+    } catch (err) {
+      // Proof: rethrowing here, `reports a refused transient push and does
+      // not throw` (gateway-broadcaster.test.ts) threw (6 pass, 1 fail);
+      // watched 2026-10-23.
+      this.opts.onPushFailed?.(err, subscription);
+    }
   }
 
   /** Buffer and push an event whose durable row already committed. */
@@ -105,4 +126,17 @@ export class GatewayBroadcaster implements Broadcaster {
       this.opts.onPushFailed?.(err, subscription);
     }
   }
+}
+
+/**
+ * Whether `event` is a transient announcement (`wbs-claim-display` C21): a
+ * hint to reread a resource whose read is a complete snapshot, worth nothing on
+ * replay. Only `claims_changed` is: N agents' heartbeats would otherwise fill
+ * the replay window with announcements a resume does not need.
+ */
+function isTransient(event: ProjectEvent): boolean {
+  // Proof: with this comparison never true, `pushes a transient event
+  // unsequenced, recording and buffering nothing` (gateway-broadcaster.test.ts)
+  // saw it sequenced and recorded (5 pass, 2 fail); watched 2026-10-23.
+  return event.type === 'claims_changed';
 }

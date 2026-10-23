@@ -58,27 +58,28 @@ Claim chip, Releasing claim, Claim history (in `CONTEXT.md`).
 
 ## Assumptions (overrule by id; detail in design.md)
 
-| Id  | Assumed                                                                                          |
-| --- | ------------------------------------------------------------------------------------------------ |
-| C1  | Read source: a new complete claims read `GET /api/projects/:id/claims`, not the tree read.       |
-| C2  | Its rows: address, step or none, holder, run, parent claim, instants, lease end, revocation.     |
-| C3  | Claims are a fifth plan-refresh resource; `tree_replaced` refreshes tree and claims.             |
-| C4  | The renew route publishes `claims_changed` per project it moved; revocations stay unannounced.   |
-| C5  | fe-01's handling of `claims_changed` ships before be-01 publishes it.                            |
-| C6  | Remaining time counts from the read's server instant on a monotonic clock, in whole minutes.     |
-| C7  | Folded cell: initials chip in a slot paid only where a column has a claim; minutes elsewhere.    |
-| C8  | A subtree claim's chip sits in its row's Name cell; leaves under it and collapsed rows add none. |
-| C9  | The hover card and accessible name carry the whole sentence.                                     |
-| C10 | Lease states: none, in force, releasing; a revoked lease reads releasing, card says why.         |
-| C11 | A claim whose row or step the installed tree lacks is not drawn until the reads agree.           |
-| C12 | A failed claims read draws no chips and shows the refresh failure; never the Error Boundary.     |
-| C13 | Release history: a claim history read and a Claims sheet section; no general history view.       |
-| C14 | History reason derived from the stored command; deleted persons and items read as null.          |
-| C15 | No claim or release control in fe-01.                                                            |
-| C16 | The Claims sheet opens from a toolbar button with the held count, and from the phone sheet.      |
-| C17 | The phone cards layout carries the same chips.                                                   |
-| C18 | Supersedes `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1.                                     |
-| C19 | A batch's renewal announces `claims_changed` to each other project it moved, after the commit.   |
+| Id  | Assumed                                                                                                                             |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Read source: a new complete claims read `GET /api/projects/:id/claims`, not the tree read.                                          |
+| C2  | Its rows: address, step or none, holder, run, parent claim, instants, lease end, revocation.                                        |
+| C3  | Claims are a fifth plan-refresh resource; `tree_replaced` refreshes tree and claims.                                                |
+| C4  | The renew route publishes `claims_changed` per project it moved; revocations stay unannounced.                                      |
+| C5  | fe-01's handling of `claims_changed` ships before be-01 publishes it.                                                               |
+| C6  | Remaining time counts from the read's server instant on a monotonic clock, in whole minutes.                                        |
+| C7  | Folded cell: initials chip in a slot paid only where a column has a claim; minutes elsewhere.                                       |
+| C8  | A subtree claim's chip sits in its row's Name cell; leaves under it and collapsed rows add none.                                    |
+| C9  | The hover card and accessible name carry the whole sentence.                                                                        |
+| C10 | Lease states: none, in force, releasing; a revoked lease reads releasing, card says why.                                            |
+| C11 | A claim whose row or step the installed tree lacks is not drawn until the reads agree.                                              |
+| C12 | A failed claims read draws no chips and shows the refresh failure; never the Error Boundary.                                        |
+| C13 | Release history: a claim history read and a Claims sheet section; no general history view.                                          |
+| C14 | History reason derived from the stored command; deleted persons and items read as null.                                             |
+| C15 | No claim or release control in fe-01.                                                                                               |
+| C16 | The Claims sheet opens from a toolbar button with the held count, and from the phone sheet.                                         |
+| C17 | The phone cards layout carries the same chips.                                                                                      |
+| C18 | Supersedes `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1.                                                                        |
+| C19 | A batch's renewal announces `claims_changed` to each project it moved, after the commit, except its own when it announces the tree. |
+| C21 | `claims_changed` is transient: pushed live unsequenced, never logged or replayed; fe-01 rereads claims on every resume.             |
 
 ## Impact
 

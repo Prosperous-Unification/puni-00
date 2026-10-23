@@ -452,6 +452,38 @@ export function existingStoreRegistrations(
           seed.projectIds[0],
         ]);
         expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
+        // One renewal moving leases in both projects names each once, in
+        // code-unit order whatever order the claims were written in.
+        const [, secondLeaf] = seed.workItemIds[0];
+        const [, otherSecondLeaf] = seed.workItemIds[1];
+        const lateElsewhere = {
+          ...elsewhere,
+          id: 'claim-late-elsewhere',
+          workItemId: otherSecondLeaf,
+        };
+        const lateHere = { ...leased, id: 'claim-late-here', workItemId: secondLeaf };
+        const lateLeases = [
+          lateElsewhere,
+          lateHere,
+          { ...lateHere, id: 'claim-late-here-2', stepId: otherStepId },
+        ];
+        for (const late of lateLeases) {
+          expect(
+            await port.add(
+              [late],
+              [],
+              seed.stamps[0],
+              [],
+              [{ claimId: late.id, expiresAt: 2_000_000 }],
+            ),
+          ).toBe('written');
+        }
+        expect(await port.renewLeases(agent, () => 1_800_000)).toEqual({
+          standing: { leases: 3, leaseExpiresAt: 2_700_000 },
+          renewedProjectIds: [seed.projectIds[0], seed.projectIds[1]].sort((left, right) =>
+            left < right ? -1 : Number(left > right),
+          ),
+        });
       },
     ),
     // `wbs-claim-display` C1: one observation answers the rows, steps, claims

@@ -252,3 +252,42 @@ announcing cases (8 pass, 2 fail).
 The refused case renews nothing, because a refusal never reaches the renewal. It reddened only
 under the every-in-force-project fault, whose setup claims also announce, so it has no fault of
 its own.
+
+**Review round (Fable, #693 at 965adfe10).** After-commit and tenant isolation held. Fixes:
+
+- S3-1 (task 3.4): the own-project exclusion assumed a `tree_replaced` that only a dirty batch
+  sends. A batch that changed no row now announces its own project too. Step commands are not
+  plan commands (steps have their own routes), so no step-only batch renews. Residual, recorded
+  in design C19: a dirty batch whose tree answers `plan_unavailable` refreshes the tree only.
+- S3-2 → C21 (task 3.5): `claims_changed` is transient. `GatewayBroadcaster` pushes it with no
+  `seq`, no `event_log` row and no buffer entry; `InternalPushRequest.seq` is optional and gw-01
+  forwards the frame without one. The route tests now read the pushes (`pushFetch`) and throw if
+  the event is ever logged or sequenced. fe-01 (slice 2) must treat an unsequenced frame as a
+  hint and reread claims on every resume (plan-refresh delta).
+- S4-1: the runner's JSDoc says what a throwing publish means; sequential, kept.
+- S4-2 (task 3.6): SQLite names the projects from `UPDATE … RETURNING` with a scalar subquery,
+  one write statement, no read snapshot before the write.
+- S4-3: the memory twin finds every due row's project before moving any row (new memory test);
+  the conformance case asserts two projects in code-unit order.
+- S4-4: the loop variable is `renewedProjectId`.
+
+| R5 fault (watched 2026-10-23)                                    | Observed                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| batch announcement loop removed                                  | three announcing batch cases record none (8/3)                                          |
+| own-project filter removed                                       | the dirty batch's own project is announced (9/2)                                        |
+| dirty test removed                                               | `announces its own project for a batch that changed no row` (10/1)                      |
+| SQLite store answers due projects before its write               | both rollback cases record one (7/4)                                                    |
+| SQLite store answers every in-force lease's project              | within-the-minute and refused cases record extra (4/7)                                  |
+| `isTransient` never true                                         | gateway-broadcaster unit cases (5/2); be-01 cases throw `claims_changed recorded` (6/5) |
+| a failed transient push rethrown                                 | `reports a refused transient push and does not throw` (6/1)                             |
+| `InternalPushRequest.seq` required again                         | gw-01 `delivers an unsequenced push without a sequence` 400 (7/1)                       |
+| SQLite project list unsorted; again undeduplicated               | SQLite certification `write-renew-expire` (74/1 each)                                   |
+| memory project list unsorted; due rows replaced by in-force rows | memory certification `write-renew-expire` (74/1 each)                                   |
+| memory rows moved before the work-item lookups                   | `renews nothing when a due claim names an absent work item` (0/1)                       |
+
+Not watchable: publishing the batch's announcement through the outer broadcaster instead of the
+collector left every case green, because nothing in a batch can fail after its renewal; the
+collector's after-commit send is the existing batch rule, proven in `plan-commands.db.test.ts`.
+The earlier "deadlock" observation no longer holds since the event is not logged.
+
+Merge order (tasks.md): after slices 1 and 2 reach `main` and deploy; gw-01 no later than be-01.

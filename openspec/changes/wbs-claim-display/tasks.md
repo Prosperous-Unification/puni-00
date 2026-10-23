@@ -53,6 +53,21 @@
       announcement; drop the own-project filter; publish through the outer broadcaster; the
       store answers before its write; the store answers every in-force project; watched.
 
+- [x] 3.4 Red: a batch that changed no row (empty, directory-only) announces its own project
+      too (C19 as amended after review). R5 fault: drop the dirty test; watched.
+- [x] 3.5 Red: `claims_changed` is transient (C21): `GatewayBroadcaster` pushes it with no
+      `seq`, records and buffers nothing, and swallows a failed push; the internal push
+      contract's `seq` is optional and gw-01 forwards the frame without one. R5 faults: treat it
+      as durable; rethrow a failed push; require `seq` again; watched.
+- [x] 3.6 Review fixes: the SQLite renewal names its projects from `UPDATE … RETURNING` in one
+      statement; the memory twin finds every due row's project before moving any; the
+      conformance case asserts two projects in code-unit order. R5 faults: unsorted,
+      undeduplicated, rows moved before the lookups, in-force rows; watched.
+
+**Merge order:** this slice merges into `plan/wbs-claim-display` only after slices 1 and 2 have
+reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no later than be-01
+(C21).
+
 ## 4. Step claim chip (fe-01; builds `wbs-team-claims` 1.7, steps)
 
 - [ ] 4.1 Red: table rendering tests with a claim-shaped read: folded chip with the holder's

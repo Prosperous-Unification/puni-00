@@ -200,9 +200,16 @@ export type ProjectEvent =
    * A heartbeat moved at least one lease of this project
    * (`openspec/changes/wbs-claim-display/design.md` C4): the claims read now
    * answers a later expiry. Sent by the renew route once per project after its
-   * renewal commits, and by an agent's committed batch to each other project
-   * its renewal moved (C19); the batch's own project hears its `tree_replaced`.
-   * A revocation is not announced (the sweep's release announces the tree).
+   * renewal commits, and by an agent's committed batch to each project its
+   * renewal moved (C19), except the batch's own when the batch changed a row
+   * and so announces the tree. A revocation is not announced (the sweep's
+   * release announces the tree).
+   *
+   * **Transient** (C21): `GatewayBroadcaster` pushes it live with no sequence
+   * and records it nowhere, so it consumes no sequence number, is never
+   * replayed, and never evicts a durable event from the replay window. A
+   * client rereads claims on every resume instead, since the claims read is a
+   * complete snapshot.
    *
    * Content-free, for `directory_changed`'s reason: a client reads the
    * project's claims as one list. Its own type rather than `tree_replaced`

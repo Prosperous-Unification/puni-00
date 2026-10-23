@@ -74,19 +74,40 @@ expiry (accepted). `OptimizerTriggerBroadcaster` SHALL NOT schedule optimization
 Rejected: polling the claims read on a timer (a minute of drift either way, and a second
 refresh path the coordinator does not own).
 
-**C19. A batch's renewal announces the other projects.** An agent's committed batch renews
-its leases in every project, not only the batch's own. After the batch commits, each other
-project whose lease moved receives one `claims_changed`, through the batch's announcement
-collector; the batch's own project receives its `tree_replaced` alone, which already refreshes
-claims. A refused or rolled-back batch announces nothing, and a batch within the renewal
-resolution moves nothing and announces nothing. Without it, a viewer of project B watches a
-live agent's lease count down to releasing while the agent works in A. Rejected: announcing
-the batch's own project too (a second refresh of claims the tree event already causes).
+**C19. A batch's renewal announces the projects it moved.** An agent's committed batch renews
+its leases in every project, not only the batch's own. After the batch commits, each project
+whose lease moved receives one `claims_changed` through the batch's announcement collector,
+except the batch's own project when the batch changed a row: that batch announces the tree
+(`tree_replaced`, or `plan_unavailable` under an unavailable optimized engine), and
+`tree_replaced` refreshes the claims. A batch that changed no row (empty, directory-only)
+announces no tree, so its own project receives `claims_changed` too. A refused or rolled-back
+batch announces nothing, and a batch within the renewal resolution moves nothing and announces
+nothing. Without it, a viewer of project B watches a live agent's lease count down to releasing
+while the agent works in A. Rejected: announcing the batch's own project always (a second
+refresh of claims the tree event already causes). Residual: a dirty batch whose tree answers
+`plan_unavailable` refreshes the tree only; its own project's claims wait for the next
+heartbeat or tree change.
+
+**C21. `claims_changed` is transient.** It is pushed live to the project's subscribers and
+nowhere recorded: no `event_log` row, no replay-buffer entry, no sequence number consumed. The
+claims read is a complete snapshot, so replaying the announcement is worth nothing, and N
+agents' heartbeats would otherwise evict durable events from the replay window
+(`ReplayOrchestrator`'s `DEFAULT_MAX_EVENTS`, 32). be-01's internal push carries no `seq` for
+it, and gw-01 forwards the frame to the sockets without one. The client contract: a frame
+with no `seq` is a hint to reread the resource its type names. It never advances, reads or
+resets the client's resume point, and no `seen` follows it. Because a missed transient frame
+is never replayed, a client rereads claims whenever its stream synchronises: on every
+`resume_ack`, on `resume_denied`, and on a first subscribe. Push failures are reported and
+swallowed, as a durable push's are. Rejected: coalescing to one durable event per project per
+30 s (still evicts at swarm scale, and still a timer the coordinator does not own).
 
 **C5. fe-01 learns `claims_changed` before be-01 says it.** An fe-01 that does not know the
 event treats it as unknown and refreshes every resource, which at swarm scale is one full plan
 read per heartbeat per viewer. The slice that narrows it lands and deploys before the slice
-that publishes it.
+that publishes it. Under C21 an fe-01 that predates slice 2 drops the unsequenced
+frame (its stream reads only sequenced frames) instead of refreshing everything; the order
+stands so that viewers get the refresh at all. gw-01 must also deploy before be-01 sends it,
+since an older gw-01 refuses a push without `seq` (400, reported and swallowed by be-01).
 
 **C6. The lease clock is the server's.** On install the coordinator records `readAt` beside
 `performance.now()`; remaining time is `leaseExpiresAt − (readAt + elapsed)`. Shown in whole

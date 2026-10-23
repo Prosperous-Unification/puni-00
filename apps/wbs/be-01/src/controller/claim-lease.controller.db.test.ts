@@ -11,6 +11,7 @@ let projectId: string;
 let leaf: string;
 let key: string;
 let credentialId: string;
+let pushed: { subscription: string; seq?: number; message: { type: string } }[];
 
 /**
  * Claim leases over HTTP (`wbs-claim-leases` L1, L4, L8, L12, L13) through
@@ -21,7 +22,16 @@ let credentialId: string;
  */
 beforeEach(async () => {
   now = T;
-  h = OrganizationHarness.openComposedWith({ now: () => now });
+  pushed = [];
+  h = OrganizationHarness.openComposedWith({
+    now: () => now,
+    pushFetch: (_url, init) => {
+      // The push client's body is the JSON string it serialized; read it back.
+      if (typeof init?.body !== 'string') throw new Error('a push carried no JSON body');
+      pushed.push(JSON.parse(init.body) as (typeof pushed)[number]);
+      return Promise.resolve(Response.json({ delivered_to_sockets: 1 }));
+    },
+  });
   await h.register('dany');
   h.organization('org-a');
   h.member('org-a', 'dany', 'super_admin');
@@ -64,15 +74,22 @@ function claims(): number {
   return h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM claim').get()?.n ?? -1;
 }
 
-/** The projects each recorded `claims_changed` was announced to, in record order. */
+/**
+ * The projects each pushed `claims_changed` was announced to, in push order.
+ * Each is transient (C21): pushed with no sequence, and never in the event log.
+ */
 function claimsChangedProjects(): string[] {
-  return h.sqlite
-    .query<{ subscription: string; message: string }, []>(
-      'SELECT subscription, message FROM event_log ORDER BY id',
-    )
+  const recorded = h.sqlite
+    .query<{ message: string }, []>('SELECT message FROM event_log')
     .all()
-    .filter(({ message }) => (JSON.parse(message) as { type: string }).type === 'claims_changed')
-    .map(({ subscription }) => subscription.slice('project:'.length));
+    .filter(({ message }) => (JSON.parse(message) as { type: string }).type === 'claims_changed');
+  if (recorded.length > 0)
+    throw new Error(`claims_changed recorded ${String(recorded.length)} times`);
+  const announced = pushed.filter(({ message }) => message.type === 'claims_changed');
+  const sequenced = announced.find(({ seq }) => seq !== undefined);
+  if (sequenced !== undefined)
+    throw new Error(`claims_changed pushed at seq ${String(sequenced.seq)}`);
+  return announced.map(({ subscription }) => subscription.slice('project:'.length));
 }
 
 async function createLeaf(name: string): Promise<{ project: string; leaf: string }> {
@@ -231,6 +248,19 @@ describe('a batch renewal announcing claims_changed elsewhere', () => {
     expect(
       h.sqlite.query<{ at: number }, []>('SELECT min(lease_expires_at) AS at FROM claim').get()?.at,
     ).toBe(now + CLAIM_LEASE_MS);
+  });
+
+  it('announces its own project for a batch that changed no row', async () => {
+    now = T + 2 * 60_000;
+    const empty = await asAgent('POST', `/api/projects/${projectId}/commands`, { commands: [] });
+    expect(empty.status).toBe(200);
+    expect(claimsChangedProjects().sort()).toEqual([projectId, other.project].sort());
+    now = T + 4 * 60_000;
+    const tagged = await asAgent('POST', `/api/projects/${projectId}/commands`, {
+      commands: [{ kind: 'createTag', name: 'swarm' }],
+    });
+    expect(tagged.status).toBe(200);
+    expect(claimsChangedProjects().filter((each) => each === projectId)).toHaveLength(2);
   });
 
   it('announces nothing within the minute', async () => {

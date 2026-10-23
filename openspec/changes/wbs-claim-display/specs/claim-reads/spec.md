@@ -53,9 +53,9 @@ step claims in the project's step order.
 When `POST /api/claims/renew` commits at least one renewed lease, be-01 SHALL publish one
 `claims_changed` project event for each project in which a lease moved, after the commit. A
 renewal that moves nothing SHALL publish nothing. The optimizer trigger SHALL NOT schedule
-optimization on `claims_changed`. When an agent's committed batch renews leases in projects
-other than its own, be-01 SHALL publish one `claims_changed` for each such other project, after
-the commit; the batch's own project SHALL receive no `claims_changed` for it.
+optimization on `claims_changed`. When an agent's committed batch renews leases, be-01 SHALL
+publish one `claims_changed` after the commit for each project in which a lease moved, except
+the batch's own project when the batch changed a row (it announces the tree instead).
 
 #### Scenario: A due heartbeat announces its project
 
@@ -73,6 +73,11 @@ the commit; the batch's own project SHALL receive no `claims_changed` for it.
 - **THEN** one `claims_changed` reaches B's subscribers after the commit
 - **AND** A's subscribers receive the batch's `tree_replaced` and no `claims_changed`
 
+#### Scenario: A batch that changed no row announces its own project
+
+- **WHEN** `codex` holds leases in A and B, both due, and commits an empty batch in A
+- **THEN** one `claims_changed` reaches A's subscribers and one reaches B's
+
 #### Scenario: A refused or rolled-back batch announces no renewal
 
 - **WHEN** `codex`'s batch in A is refused or rolls back
@@ -82,6 +87,20 @@ the commit; the batch's own project SHALL receive no `claims_changed` for it.
 
 - **WHEN** `claims_changed` is published on a project with the optimized engine
 - **THEN** no optimization is scheduled
+
+### Requirement: The claims announcement is transient
+
+be-01 SHALL push `claims_changed` to the project's subscribers live and SHALL NOT record it in
+the durable event log or the replay buffer, nor consume a sequence number for it; its push SHALL
+carry no `seq`, and gw-01 SHALL forward it to the subscribed sockets without one. A failed push
+SHALL be reported and SHALL NOT fail the request.
+
+#### Scenario: A heartbeat leaves the replay window alone
+
+- **WHEN** a heartbeat moves a lease in P
+- **THEN** P's subscribers receive `{ subscription, message: { type: 'claims_changed' } }` with no
+  `seq`
+- **AND** P's latest sequence and its event log are unchanged
 
 ### Requirement: A bounded read lists a project's claims and releases
 

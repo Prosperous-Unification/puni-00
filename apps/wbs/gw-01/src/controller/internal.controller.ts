@@ -26,6 +26,8 @@ export const internalController = (deps: InternalDeps) =>
       const sockets = deps.subs.socketsFor(req.subscription);
       const payload = JSON.stringify({
         subscription: req.subscription,
+        // Absent for a transient announcement (`wbs-claim-display` C21);
+        // JSON drops it, so the socket's frame carries no sequence.
         seq: req.seq,
         message: req.message,
       });

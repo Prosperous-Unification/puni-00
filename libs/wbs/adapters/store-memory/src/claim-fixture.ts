@@ -243,29 +243,34 @@ export function inMemoryClaims(
       // it (74 pass, 1 fail); watched 2026-10-23.
       const isDue = (row: StampedClaim): boolean =>
         isInForce(row) && row.leaseExpiresAt !== null && row.leaseExpiresAt < renewal.dueBefore;
-      // Proof: with the in-force rows' work items in place of the due ones,
-      // the memory certification's `claims.lease:write-renew-expire` case
-      // named a project whose lease did not move (74 pass, 1 fail); watched
-      // 2026-10-23.
-      const movedWorkItemIds = new Set(
-        table.rows.filter(isDue).map(({ workItemId }) => workItemId),
-      );
+      // Every due row's project is found before any row moves, so an absent
+      // work item throws with nothing renewed; the rows decided due are then
+      // moved by id.
+      // Proof: with the rows moved before the lookups, `renews nothing when a
+      // due claim names an absent work item` (memory-source.test.ts) saw the
+      // kept claim renewed (0 pass, 1 fail); with the in-force rows' work items
+      // in place of the due ones, the memory certification's
+      // `claims.lease:write-renew-expire` case named a project whose lease did
+      // not move (74 pass, 1 fail); unsorted, the same case failed on the
+      // order (74 pass, 1 fail); watched 2026-10-23.
+      const due = table.rows.filter(isDue);
+      const renewedProjectIds = new Set<string>();
+      for (const { workItemId } of due) {
+        const found = await workItems.findById(workItemId);
+        if (found === null) throw new Error(`a due claim names absent work item ${workItemId}`);
+        renewedProjectIds.add(found.projectId);
+      }
+      const dueIds = new Set(due.map(({ id }) => id));
       table.rows.splice(
         0,
         table.rows.length,
         ...table.rows.map((row) =>
-          isDue(row) ? { ...row, leaseExpiresAt: renewal.expiresAt } : row,
+          dueIds.has(row.id) ? { ...row, leaseExpiresAt: renewal.expiresAt } : row,
         ),
       );
       const expiries = table.rows
         .filter(isInForce)
         .flatMap(({ leaseExpiresAt }) => (leaseExpiresAt === null ? [] : [leaseExpiresAt]));
-      const renewedProjectIds = new Set<string>();
-      for (const workItemId of movedWorkItemIds) {
-        const found = await workItems.findById(workItemId);
-        if (found === null) throw new Error(`a renewed claim names absent work item ${workItemId}`);
-        renewedProjectIds.add(found.projectId);
-      }
       return {
         standing: {
           leases: expiries.length,
