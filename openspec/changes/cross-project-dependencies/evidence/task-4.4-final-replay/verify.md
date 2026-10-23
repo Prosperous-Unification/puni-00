@@ -56,7 +56,7 @@ Each recorded exactly one proposed-state read and one final read. A temporary
 observation before the refusing HTTP assertion recorded the restored exact
 relationship, persisted replay-direction patch, flipped selected journal and
 changed `command_journal`, `event_log`, `event_sequencer`, `external_dependency`
-and `work_item` tables. Both publication-request counts increased from 14 to 16.
+and `work_item` tables. Both publication-request counts increased from 14 to 17.
 Undo persisted empty notes/revision 6 instead of the prior patch/revision 4; redo
 persisted the patch/revision 7 instead of prior empty notes/revision 5. The output
 also records the exact IDs and timestamps.
