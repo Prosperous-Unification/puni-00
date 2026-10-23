@@ -30,7 +30,7 @@ Measurements SHALL distinguish summed performed-execution duration, elapsed span
 
 ### Requirement: Bounded read-only GitHub adapter
 
-The initial adapter SHALL observe public GitHub PR head/merge state, current check runs and associated Actions attempt/job history through fixed-origin GET requests. It SHALL bound request duration, body size and scan counts, refuse redirects and malformed identities, and expose inaccessible, rate-limited, missing and partial information explicitly. A revision race SHALL prevent publishing current checks for the wrong head. Check-run coverage SHALL NOT imply complete merge-policy or commit-status coverage.
+The initial adapter SHALL read public GitHub PR state, checks and attempt history with bounded, fixed-origin GET requests. It MUST refuse redirects and malformed identities and expose provider failures or incomplete scans. A revision race MUST prevent publishing checks for the wrong head. Check-run coverage MUST NOT imply complete merge-policy or commit-status coverage.
 
 #### Scenario: Real change request
 
