@@ -1,0 +1,19 @@
+{
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "valid": true,
+  "warnings": 18,
+  "errors": 0
+}

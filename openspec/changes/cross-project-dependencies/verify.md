@@ -98,7 +98,7 @@ claim these observations in advance.
 | Organization and bounded lookup 3.1             | Remove project/organization predicate or response bound                                                                      | `project-address-search.controller.db.test.ts` scoped/bounded/foreign cases                                                               | Observed selected lookup faults; [search evidence](evidence/task-3-search.md)                       |
 | HTTP/MCP boundary 3.2                           | Remove shared endpoint/version shape validation                                                                              | Mounted HTTP/MCP malformed scope/type/ID cases                                                                                            | NOT RUN                                                                                             |
 | Relationship integrity 4.1                      | Remove each endpoint/project/step/organization/duplicate check                                                               | Unified repository and migration DB cases                                                                                                 | Observed/restored migration, store and review faults; [evidence](evidence/task-4-storage.md)        |
-| Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN                                                                                             |
+| Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | Reconciled watched faults; [Task 4.2 closure](verify-task-4.2-closure.md); review/gate pending      |
 | Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | Closed; see Task 4.3 reconciliation below                                                           |
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                             |
 | Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | Closed; retained capture proofs and post-close packet below                                         |
@@ -6970,3 +6970,22 @@ save, authoritative tree installation, reload/reopen and exact SQLite
 persistence. Independent desktop/phone persisted-successor serializer faults
 fail the reopened selector. Independent Astra review approved the bounded
 packet. Parent 9.2 and production authoring activation remain open.
+
+## Task 4.2 integrated authority acceptance reconciliation — 2026-10-23
+
+[The closure record](verify-task-4.2-closure.md) maps each exact Task 4.2
+requirement to the existing production predicate, mounted HTTP/SQLite acceptance,
+generated MCP and ordered real OAuth coverage, and retained watched R5 faults.
+It supersedes historical missing-evidence assessments at the reconciled source
+without expanding any bounded packet's original claim. No production predicate,
+test, safety check or activation behavior changed.
+
+Fresh complete focused HTTP/endpoint authority files passed **256/256, 2,839
+assertions**; SQLite relationship/rollback files **20/20, 83 assertions**; ordered
+OAuth **29/29, 850 assertions**; generated MCP parity **81/81, 980 assertions**.
+Scoped OpenSpec validation passed with 18 existing length warnings and zero errors;
+full validation passed **274/274**. Changed-document format, evidence links and
+whitespace checks passed.
+Independent Astra review approved the corrected bounded evidence packet.
+The parent checkbox remains open for the integrated exact-SHA host gate.
+Activation stays with Tasks 10.x.
