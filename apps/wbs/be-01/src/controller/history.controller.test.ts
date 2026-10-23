@@ -111,6 +111,7 @@ describe('one plan’s history, over HTTP', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(),

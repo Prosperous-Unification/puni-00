@@ -110,6 +110,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret,
     writes: testWrites(),

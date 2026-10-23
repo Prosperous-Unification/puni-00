@@ -888,3 +888,24 @@ followed by a Lease renewal and sticky heartbeat-loss refusal before journal nor
 not a persisted authorization receipt. A subsequent invocation probes both images
 again before forward completion or rollback work. Evidence/Job artifacts remain
 available for inspection without automatic cleanup.
+
+### Bounded task 10.1 HTTP client admission (2026-10-23)
+
+Intent: refuse a retained resource client after durable dependency activation,
+including an enabled store with zero current edges. Production app composition
+requires an admission callable and refuses a missing callable at runtime. After
+existing origin and identity policies, all routes except the explicit process/authentication/immutable-catalogue exemptions, including organization control, onboarding and internal replay/forward routes
+inspect authority afresh through the same SQLite connection in one read transaction.
+The exact HTTP claim is `X-WBS-Dependency-Semantics: cross-project-dependencies-v1`;
+the reserved WebSocket protocol is `wbs.cross-project-dependencies.v1`. Enabled
+authority requires both the exact claim and immutable runtime support; refusal is
+409 `{error: "client_dependency_incompatible", required: "cross-project-dependencies-v1"}`.
+Valid disabled authority preserves legacy admission. Missing, malformed or unreadable
+trusted authority is an infrastructure failure. Health, authentication and immutable
+binary observations remain exempt because they carry no project resource state.
+The shared operation document adds a conditional claim header and 409 alternative.
+Standalone generic adapter fixtures may omit the callable; production buildApp cannot.
+
+This packet does not advertise semantic support, activate authoring, alter the
+activation writer, or send client claims. WebSocket admission and endpoint-specific
+shared client refusal decoding remain later slices. Parent task 10.1 remains open.

@@ -1,0 +1,163 @@
+import { expect, test } from 'bun:test';
+
+import { dependencyClientRefusal, requiresDependencyClient } from './dependency-client';
+import { documentFromShapes } from './http/document-from-shapes';
+import { dependencyCapability, health } from './http/infrastructure-shapes';
+import { listProjects } from './http/project-shapes';
+import { httpShapes } from './http/shapes';
+
+test('documents resource admission and exempts health and immutable capability', () => {
+  expect(requiresDependencyClient(listProjects)).toBe(true);
+  expect(requiresDependencyClient(health)).toBe(false);
+  expect(requiresDependencyClient(dependencyCapability)).toBe(false);
+  expect(
+    JSON.stringify(
+      documentFromShapes([listProjects]).paths['/api/projects']?.['get']?.responses['409'],
+    ),
+  ).toContain('client_dependency_incompatible');
+  expect(dependencyClientRefusal.status).toBe(409);
+});
+
+test('pins the complete protected and exempt operation matrix', () => {
+  expect({
+    protected: httpShapes
+      .filter(requiresDependencyClient)
+      .map((shape) => shape.operationId)
+      .sort(),
+    exempt: httpShapes
+      .filter((shape) => !requiresDependencyClient(shape))
+      .map((shape) => shape.operationId)
+      .sort(),
+  }).toEqual({
+    protected: [
+      'deleteApiOrganizationDomainsById',
+      'deleteApiOrganizationInvitationsById',
+      'deleteApiOrganizationMachine-credentialsById',
+      'deleteApiOrganizationMembersByUserId',
+      'deleteApiOrganizationProvisioningTokensById',
+      'deleteApiOrganizationSso-connectionsById',
+      'deleteApiOrganizationTrusted-issuersById',
+      'deleteApiProjectsByIdCalendar-markersByMarkerId',
+      'deleteApiProjectsByIdStepsByStepId',
+      'deleteApiSaved-plansById',
+      'deleteApiSpacesById',
+      'deleteApiSpacesByIdProjectsByProjectId',
+      'getApiExternal-systems',
+      'getApiOnboarding',
+      'getApiOrganization',
+      'getApiOrganizationActive',
+      'getApiOrganizationDomains',
+      'getApiOrganizationInvitations',
+      'getApiOrganizationJoinRequests',
+      'getApiOrganizationLimits',
+      'getApiOrganizationMachine-credentials',
+      'getApiOrganizationMembers',
+      'getApiOrganizationMemberships',
+      'getApiOrganizationProject-rank',
+      'getApiOrganizationProvisioningTokens',
+      'getApiOrganizationSession-policy',
+      'getApiOrganizationSso-connections',
+      'getApiOrganizationTrusted-issuers',
+      'getApiPeople',
+      'getApiPeopleByPersonIdLoad',
+      'getApiPeopleLoad',
+      'getApiProjectAddressesProjects',
+      'getApiProjects',
+      'getApiProjectsById',
+      'getApiProjectsByIdAddressCandidates',
+      'getApiProjectsByIdAddressReferences',
+      'getApiProjectsByIdCalendar-markers',
+      'getApiProjectsByIdExport',
+      'getApiProjectsByIdHistory',
+      'getApiProjectsByIdPeopleByPersonIdWork',
+      'getApiProjectsByIdResources',
+      'getApiProjectsByIdSaved-plans',
+      'getApiProjectsByIdSaved-plansCompare',
+      'getApiProjectsByIdStartable',
+      'getApiProjectsByIdStep-references',
+      'getApiProjectsByIdWork-item-rows',
+      'getApiProjectsByIdWork-items',
+      'getApiProjectsByIdWork-itemsByWorkItemId',
+      'getApiSaved-plansById',
+      'getApiServices',
+      'getApiSpaces',
+      'getApiSpacesById',
+      'getApiSpacesByIdIn-progress',
+      'getApiSpacesByIdRoll-ups',
+      'getApiTags',
+      'getApiTeams',
+      'getApiWork-item-types',
+      'getPlansBy-solutionBySlug',
+      'patchApiOrganization',
+      'patchApiOrganizationMembersByUserId',
+      'patchApiOrganizationSso-connectionsById',
+      'patchApiProjectsById',
+      'patchApiProjectsByIdCalendar-markersByMarkerId',
+      'patchApiProjectsByIdStepsByStepId',
+      'patchApiSaved-plansById',
+      'patchApiSpacesById',
+      'postApiDirectoryCommands',
+      'postApiOnboardingEmailChallenges',
+      'postApiOnboardingEmailChallengesConfirm',
+      'postApiOnboardingInvitationsAccept',
+      'postApiOnboardingJoinRequests',
+      'postApiOnboardingOrganizations',
+      'postApiOrganizationActive',
+      'postApiOrganizationDomainsByIdRotate',
+      'postApiOrganizationDomainsByIdVerify',
+      'postApiOrganizationDomainsChallenges',
+      'postApiOrganizationInvitations',
+      'postApiOrganizationJoinRequestsByIdApprove',
+      'postApiOrganizationJoinRequestsByIdDeny',
+      'postApiOrganizationMachine-credentials',
+      'postApiOrganizationMachine-credentialsByIdRotate',
+      'postApiOrganizationProjectsByIdRank',
+      'postApiOrganizationProvisioningTokens',
+      'postApiOrganizationProvisioningTokensByIdRotate',
+      'postApiOrganizationSharedPeopleRestoreApprovals',
+      'postApiOrganizationSso-connections',
+      'postApiOrganizationTrusted-issuers',
+      'postApiProjects',
+      'postApiProjectsByIdCalendar-markers',
+      'postApiProjectsByIdCommands',
+      'postApiProjectsByIdOpened',
+      'postApiProjectsByIdOptimizationRetry',
+      'postApiProjectsByIdRedo',
+      'postApiProjectsByIdSaved-plans',
+      'postApiProjectsByIdSteps',
+      'postApiProjectsByIdUndo',
+      'postApiProjectsImport',
+      'postApiSpaces',
+      'postApiSpacesByIdProjects',
+      'postApiSpacesByIdProjectsByProjectIdMove',
+      'postInternalForward',
+      'postInternalGatewayProjectAccess',
+      'postInternalGatewayProjectBrowserAccess',
+      'postInternalMcpOrganizations',
+      'postInternalResume',
+      'putApiOrganizationSession-policy',
+    ],
+    exempt: [
+      'getApiAuthLinkAuth0Callback',
+      'getApiAuthLogin',
+      'getApiAuthMe',
+      'getApiAuthMethods',
+      'getApiAuthOktaCallback',
+      'getApiTimezones',
+      'getDependencyCapability',
+      'getHealth',
+      'getMetrics',
+      'postApiAuthContext',
+      'postApiAuthLinkAuth0',
+      'postApiAuthLogin',
+      'postApiAuthLogout',
+      'postApiAuthRefresh',
+      'postApiAuthRegister',
+      'postApiSmokeEcho',
+      'postInternalMcpAuthority',
+      'postInternalMcpCredentials',
+      'postInternalMcpCredentialsEnded',
+      'postInternalMcpDelegation',
+    ],
+  });
+});

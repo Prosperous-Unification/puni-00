@@ -193,6 +193,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       auth,
       history: testHistoryService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),

@@ -1,11 +1,17 @@
 import type { JsonSchema } from 'arktype';
 
+import {
+  DEPENDENCY_SEMANTICS,
+  DEPENDENCY_SEMANTICS_HEADER,
+  dependencyClientRefusal,
+  requiresDependencyClient,
+} from '../dependency-client';
 import { bodyMediaFor, type EndpointShape, queryModeFor } from './endpoint-shape';
 import { assertInlineSchema } from './schema-shape';
 
 export interface DocumentParameter {
   name: string;
-  in: 'path' | 'query';
+  in: 'path' | 'query' | 'header';
   required: boolean;
   schema: JsonSchema;
   style?: 'form';
@@ -113,6 +119,13 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
         }
       }
     }
+    if (requiresDependencyClient(shape))
+      parameters.push({
+        name: DEPENDENCY_SEMANTICS_HEADER,
+        in: 'header',
+        required: false,
+        schema: { const: DEPENDENCY_SEMANTICS },
+      });
     const responses: DocumentOperation['responses'] = {};
     for (const response of shape.responses) {
       const content =
@@ -128,7 +141,10 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
         ...(content === undefined ? {} : { content }),
       });
     }
-    for (const refusal of shape.refusals) {
+    const refusals = requiresDependencyClient(shape)
+      ? [...shape.refusals, dependencyClientRefusal]
+      : shape.refusals;
+    for (const refusal of refusals) {
       // Proof: skipping the contextual import arm left its OpenAPI 400 without JSON content.
       if ('kind' in refusal && refusal.kind === 'empty') continue;
       addResponse(responses, refusal.status, {

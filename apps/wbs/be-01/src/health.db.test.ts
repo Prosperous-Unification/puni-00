@@ -74,6 +74,7 @@ describe('GET /health', () => {
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
       writes: testWrites(),
@@ -115,6 +116,7 @@ describe('GET /health', () => {
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
       writes: testWrites(),
@@ -170,6 +172,7 @@ describe('/health tells the truth about the database', () => {
         internalAuthSecret: TEST_SECRET,
         writes: testWrites(),
         migrationsApplied: true,
+        admitDependencyClient: () => null,
         probeDatabase: () => probeSchema(db),
       });
 
@@ -225,6 +228,7 @@ describe('/health tells the truth about the database', () => {
         internalAuthSecret: TEST_SECRET,
         writes: testWrites(),
         migrationsApplied: true,
+        admitDependencyClient: () => null,
         probeDatabase: () => probeSchema(db),
       });
 
@@ -270,6 +274,7 @@ describe('/health tells the truth about the database', () => {
       internalAuthSecret: TEST_SECRET,
       writes: testWrites(),
       migrationsApplied: true,
+      admitDependencyClient: () => null,
       probeDatabase: () => {
         throw new Error('database is locked');
       },

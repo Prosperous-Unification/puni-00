@@ -68,6 +68,7 @@ import {
   assertDependencyRuntime,
   BACKEND_DEPENDENCY_CAPABILITY,
 } from './runtime/dependency-capability';
+import { admitDependencyClient } from './runtime/dependency-client';
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
@@ -643,6 +644,8 @@ export async function bootBe01(
               history: services.history,
               replay: services.replay,
               probeDatabase: () => probeSchema(db),
+              admitDependencyClient: (claim) =>
+                admitDependencyClient(db, BACKEND_DEPENDENCY_CAPABILITY, claim),
               writes: {
                 commandAccess: services.commandAccess,
                 imports: services.imports,

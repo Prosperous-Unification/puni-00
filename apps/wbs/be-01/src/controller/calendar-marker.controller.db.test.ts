@@ -222,6 +222,7 @@ describe('the calendar-marker routes', () => {
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       // The same project service the routes use: a project PATCH runs through

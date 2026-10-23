@@ -184,6 +184,7 @@ beforeEach(async () => {
       passwords: bunPasswordHasher,
     }),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(undefined, writing),

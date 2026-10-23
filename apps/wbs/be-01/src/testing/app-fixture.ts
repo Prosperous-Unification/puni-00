@@ -87,6 +87,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
     stepParallels: testStepParallels(),
     calendarMarkers,
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     // The same doubles the routes were given: on the fixtures there is one set

@@ -239,6 +239,7 @@ const app = buildApp(
       revokeProvider: client.revoke,
     },
     priorityBands: testPriorityBandService(),
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     projects: testProjectService(),
     replay: testReplay().replay,

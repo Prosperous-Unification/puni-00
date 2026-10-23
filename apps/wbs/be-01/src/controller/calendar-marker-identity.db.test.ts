@@ -253,6 +253,7 @@ describe('the schedule identity guarantee', () => {
       savedPlans: testSavedPlanService(),
       history: testHistoryService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(broadcast, writing),

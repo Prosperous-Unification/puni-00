@@ -193,6 +193,7 @@ beforeEach(() => {
     }),
     ...writing,
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     // The real unit of work over this connection: every refusal here has to

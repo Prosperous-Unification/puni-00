@@ -315,6 +315,7 @@ describe('the OIDC callback after activation', () => {
             }
           : {}),
         priorityBands: testPriorityBandService(),
+        admitDependencyClient: () => null,
         probeDatabase: () => 'ok',
         projects: testProjectService(),
         replay: testReplay().replay,

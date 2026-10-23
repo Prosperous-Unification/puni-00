@@ -6161,3 +6161,47 @@ Observed on `pop-os`, in `/tmp/puni-devsync-inventory`, based on
 
 These are local regression observations. No full h2 gate or browser execution was
 performed in this repair; the integrated commit still requires the exact-SHA gate.
+
+### 2026-10-23 bounded task 10.1 HTTP client admission
+
+Isolated tree `/tmp/puni-client-http`, based on
+`9b3bca6bfc3b0491b93f76bb609f61910d02278c`. This packet implements only shared
+client protocol declarations and dormant backend HTTP admission. Actual immutable
+backend support remains empty; authoring, activation writer, gateway and client
+claim sending/endpoint-specific client refusal decoding are unchanged. Parent
+10.1 remains unchecked.
+
+Fresh receipts:
+
+- Focused six-file command: `bun test apps/wbs/be-01/src/http/elysia/dependency-client.db.test.ts apps/wbs/be-01/src/http/elysia/mount.test.ts apps/wbs/be-01/src/controller/dependency-capability.test.ts apps/wbs/be-01/src/app.routes.test.ts libs/wbs/domain/contracts/src/dependency-client.test.ts libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts` — 79 pass, 0 fail, 1708 assertions. The existing real TCP health test initially failed with sandbox EPERM; rerunning with approved local socket access passed. A subsequent strengthening of the binary-support assertion to traverse actual `/api/projects` passed the five admission tests with 33 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-contracts` — both typechecks and backend module typecheck passed. Ordinary Nx daemon/plugin sockets were unavailable in the sandbox; in-process plugin execution was used explicitly.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-be-01,wbs-contracts` — backend lint passed. Contracts lint initially failed on barrel export ordering; after correcting it, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:lint` passed.
+- `bunx openspec validate cross-project-dependencies --json` — valid, with long-requirement warnings. Strict validation was also attempted and failed on such warnings; strict validation is not claimed passed.
+
+Observed TDD and R5 production-path negatives, each restored independently:
+
+- Before admission existed, the enabled mounted request returned 200 instead of 409. Omitting the required production callback also initially composed an app rather than throwing.
+- Replacing the production AppOptions-to-mount binding with null admission returned 200 instead of 409 on `/api/projects`.
+- Removing the mount's dependency refusal returned 200 instead of 409 on `/api/projects`.
+- Removing exact claim validation admitted missing/invalid claims, returning 200 instead of 409.
+- Removing immutable binary support validation admitted the exact claim on an incapable `/api/projects` app, returning 200 instead of 409.
+- Bypassing fresh authority inspection admitted ENABLED authority as legacy, returning 200 instead of 409.
+- Removing the read transaction let a rival connection's activation leak into a partly completed inspection: the first request returned 409 instead of its coherent DISABLED snapshot's 200. The restored transaction admitted that request and refused the next request with 409.
+- Disabling shared operation coverage returned 200 instead of 409 on the actual resource route and failed the complete protected/exempt operation matrix.
+
+Mounted real SQLite coverage also distinguishes malformed marker, missing marker,
+missing authority table and closed connection; each receives infrastructure 500.
+Origin and identity refusals precede inspection. Valid disabled requests retain
+legacy admission despite missing/invalid claims. No project rows, revisions,
+command journal, event log or sequencer rows change during admission. The explicit
+matrix protects organization control/onboarding and exempts only process,
+authentication and immutable catalogue operations. Generic adapter-only fixtures
+can omit admission; production buildApp requires it statically and dynamically.
+
+Full monorepo tests/build and integrated h2/h4 gate were not run in this bounded
+local packet. Independent architecture review and integrated host gate remain open.
+
+Final local checks: all changed/new files passed `bunx prettier --check`; `git diff
+--check` passed. After the production binary-support test strengthening, both Nx
+typechecks passed again and normal OpenSpec validation remained valid (17 existing
+long-requirement warnings; none names the new HTTP requirement).

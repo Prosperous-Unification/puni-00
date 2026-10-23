@@ -1,9 +1,11 @@
 import {
   type BodyMedia,
   bodyMediaFor,
+  DEPENDENCY_SEMANTICS_HEADER,
   type EndpointShape,
   queryModeFor,
   type Refusal,
+  requiresDependencyClient,
   type SchemaShape,
   validateSchema,
 } from '@wbs/contracts';
@@ -25,6 +27,9 @@ import { decodeForm } from './form';
 import type { UnexpectedFailureReporter } from './unexpected-failure';
 
 interface MountOptions {
+  admitDependencyClient?: (
+    claim: string | null,
+  ) => Refusal<'client_dependency_incompatible'> | null;
   appOrigin: string;
   resolveIdentity: IdentityResolver;
   reportUnexpectedFailure: UnexpectedFailureReporter;
@@ -168,6 +173,20 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         }
         admission.principal = identity.principal;
       }
+    }
+    if (
+      requiresDependencyClient(matched.endpoint.shape) &&
+      options.admitDependencyClient !== undefined
+    ) {
+      const refusal = options.admitDependencyClient(
+        request.headers.get(DEPENDENCY_SEMANTICS_HEADER),
+      );
+      // Proof: removing this refusal admitted ENABLED /api/projects,200 instead of409 in dependency-client.db.test.ts.
+      if (refusal !== null)
+        return Response.json(refusal, {
+          status: 409,
+          headers: responseHeaders(matched.endpoint.shape),
+        });
     }
     return undefined;
   });

@@ -66,6 +66,7 @@ describe('migrate lifecycle', () => {
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(),

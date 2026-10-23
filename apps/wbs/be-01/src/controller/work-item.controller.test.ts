@@ -130,6 +130,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     workItems,
     savedPlans: testSavedPlanService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes,

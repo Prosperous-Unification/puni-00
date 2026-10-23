@@ -741,3 +741,38 @@ A connected tree SHALL carry captured stable identities and qualified labels for
 - **GIVEN** referenced foreign root metadata is absent or malformed
 - **WHEN** the connected tree is projected or its known HTTP metadata is decoded
 - **THEN** the read fails instead of showing an unknown or fabricated root label
+
+### Requirement: HTTP resource clients declare exact dependency semantics
+
+Production resource and control requests SHALL inspect validated durable activation
+authority afresh in one coherent read transaction after origin and identity policies.
+Valid DISABLED authority SHALL preserve legacy admission. ENABLED authority SHALL
+require exact client semantics and immutable backend support, even with zero external
+edges. Explicit process, authentication and immutable catalogue exemptions SHALL
+match the shared operation matrix.
+
+#### Scenario: Activation changes between resource requests
+
+- **GIVEN** a legacy resource client admitted against valid DISABLED authority
+- **WHEN** another connection persists valid ENABLED authority
+- **THEN** its next resource request without exact `X-WBS-Dependency-Semantics: cross-project-dependencies-v1` receives 409 `{error: "client_dependency_incompatible", required: "cross-project-dependencies-v1"}`
+- **AND** a capable runtime admits the exact claim without changing persisted revisions, events, journal entries or activation
+- **AND** an incapable runtime refuses even that exact claim
+
+#### Scenario: Authority changes during inspection
+
+- **GIVEN** an inspection has read DISABLED authority's migration ledger
+- **WHEN** another connection activates before the remaining inspection reads
+- **THEN** the current request observes the coherent DISABLED snapshot
+- **AND** the next request observes ENABLED and requires the exact claim
+
+#### Scenario: Trusted authority cannot be read
+
+- **WHEN** a protected request encounters missing, malformed or unreadable authority
+- **THEN** it fails with an infrastructure response rather than legacy admission
+- **AND** earlier origin and identity refusals retain their existing ordering
+
+#### Scenario: Production composition requires authority admission
+
+- **WHEN** an erased caller omits the production app admission callable
+- **THEN** app composition throws before serving requests

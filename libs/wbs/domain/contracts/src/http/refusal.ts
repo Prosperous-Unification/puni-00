@@ -674,6 +674,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
       version: number;
       supported: readonly number[];
     };
+    client_dependency_incompatible: { required: 'cross-project-dependencies-v1' };
     dependency_unavailable: {
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;

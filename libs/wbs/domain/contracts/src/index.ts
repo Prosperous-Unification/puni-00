@@ -1,5 +1,6 @@
 export * from './auth-methods';
 export * from './commands/definitions';
+export * from './dependency-client';
 export * from './dependency-runtime';
 export * from './errors';
 export * from './http/auth-oidc-shapes';

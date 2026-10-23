@@ -83,6 +83,7 @@ function options(): AppOptions {
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(),
@@ -729,6 +730,7 @@ it('refuses framed GET and HEAD bodies on the production health route', async ()
   let probes = 0;
   const app = buildApp({
     ...options(),
+    admitDependencyClient: () => null,
     probeDatabase: () => {
       probes++;
       return 'ok';

@@ -556,3 +556,10 @@ Parent 9.2, remote predecessor scope editing and active backend acceptance remai
 - [x] Add the explicit-role closed decoder and config-free exact-image Docker observation primitive with backend/gateway/MCP image binding before invocation; retain backend-only wrapper and independent backend candidate/retained calls, including equal images and first installation.
 - [x] Exercise actual role executables and production-path role/tier/image/failure/deadline/import refusals; watch independently restored safety mutations. Evidence: [verify-role-bound-docker-observation.md](verify-role-bound-docker-observation.md).
 - [ ] Complete independent review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open; participant exclusion, activation, deployment callers, grants and rollback expansion are outside this packet.
+
+### Bounded task 10.1 HTTP dependency-client admission (2026-10-23)
+
+- [x] Share exact HTTP claim, WebSocket protocol token and typed incompatibility refusal.
+- [x] Require production app admission and inspect current durable authority in a coherent same-connection read transaction after origin and identity policies.
+- [x] Exercise real SQLite through mounted resource routes, exact claims, binary support, corrupt/closed authority, ordered refusals and rival activation; watch independent safety faults fail.
+- [ ] Complete independent review and integrated host gate. Parent 10.1 remains open; client claim sending/decoding, gateway admission, activation and semantic advertisement remain outside this packet.

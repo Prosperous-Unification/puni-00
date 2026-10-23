@@ -32,6 +32,7 @@ test('mounted dependency capability equals DB-free CLI and ignores readiness con
   process.env['DEPENDENCY_ACTIVATION'] = 'ENABLED';
   const app = testApp({
     migrationsApplied: false,
+    admitDependencyClient: () => null,
     probeDatabase: () => {
       throw new Error('capability must not probe storage');
     },

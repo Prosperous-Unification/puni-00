@@ -148,6 +148,7 @@ function buildHarness(
     ...writing,
     savedPlans: testSavedPlanService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(undefined, writing),

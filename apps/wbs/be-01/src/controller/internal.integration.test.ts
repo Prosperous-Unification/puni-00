@@ -76,6 +76,7 @@ function buildHarness() {
     migrationsApplied: true,
     internalAuthSecret: SECRET,
     replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
   });
 

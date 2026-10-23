@@ -626,6 +626,7 @@ export class OrganizationHarness {
       history: testHistoryService(),
       auth,
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),
@@ -864,6 +865,7 @@ export class OrganizationHarness {
       priorityBands: services.priorityBands,
       history: services.history,
       replay: services.replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       writes: {
         commandAccess,

@@ -1,3 +1,4 @@
+import type { Refusal } from '@wbs/contracts';
 import type { SessionFeatures } from '@wbs/contracts';
 import type { DependencyContext } from '@wbs/core';
 import type { CommandAccess } from '@wbs/core';
@@ -153,6 +154,8 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 };
 
 export interface AppOptions {
+  /** Required production admission; reads current trusted dependency authority per protected request. */
+  admitDependencyClient: (claim: string | null) => Refusal<'client_dependency_incompatible'> | null;
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
   appOrigin: string;
@@ -686,6 +689,9 @@ export function mountedEndpoints(
 }
 
 export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
+  // Proof: omitted callback composed a serving app in dependency-client.db.test.ts before this guard.
+  if (typeof opts.admitDependencyClient !== 'function')
+    throw new Error('Dependency client admission is required');
   const secrets = [opts.internalAuthSecret];
   // Proof: on 2026-09-21, omitting `secrets` made “reports one redacted unexpected
   // production failure with its shared occurrence” receive undefined instead of the secret array.
@@ -738,6 +744,8 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
+          // Proof: replacing this binding with null admission returned200 instead of409 on the real /api/projects route in dependency-client.db.test.ts.
+          admitDependencyClient: opts.admitDependencyClient,
           resolveIdentity: identityResolver(
             opts.auth,
             opts.internalAuthSecret,

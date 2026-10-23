@@ -201,6 +201,7 @@ function fixture(
     migrationsApplied: true,
     oidc,
     priorityBands: testPriorityBandService(),
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     projects: testProjectService(),
     replay: testReplay().replay,
