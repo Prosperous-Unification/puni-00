@@ -6298,8 +6298,9 @@ the mounted downloaded import blames the external declaration at index 0 and
 preserves all rows and pushes on refusal. The isolated packet passed 78 focused
 graph tests and 66 mounted import/export/store tests, and watched filter,
 component-equality and presence faults fail those assertions. Domain and backend
-typechecks plus domain lint passed on the isolated packet. Serialized broad
-backend lint and the later integrated exact-SHA host/CI gates remain pending;
+typechecks plus domain lint passed on the isolated packet. Serialized uncached
+`wbs-be-01:lint` passed on integrated `de89f662d` in 50.8 seconds with a 4 GiB
+Node heap. The later integrated exact-SHA host/CI gates remain pending;
 parent 8.1 and production external import remain open.
 
 ### 2026-10-23 bounded task 4.2 queued successor edit revalidation
@@ -6312,5 +6313,7 @@ initial lookup. Each request returns an exact whole-request 403 and leaves all
 persisted tables and gateway publications unchanged. The isolated focused suite
 passed 16 tests / 301 assertions. Removing only the production forbidden
 branch made all three cases return unsafe 200 and fail; restored runs passed.
-Configured backend lint/typecheck, integrated host gate and CI remain pending.
+Configured uncached `wbs-be-01:lint` passed on integrated `de89f662d` in 50.8
+seconds with a 4 GiB Node heap. Integrated backend typecheck, exact-head host
+gate and CI remain pending.
 Production authoring remains dormant and parent 4.2 is open.
