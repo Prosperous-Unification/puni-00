@@ -1,0 +1,17 @@
+[
+  {
+    "fault": "step",
+    "exit": 1,
+    "assertion": "Error: expect(received).toEqual(expected); predecessor_scope; whole; node"
+  },
+  {
+    "fault": "discovery",
+    "exit": 1,
+    "assertion": "Error: expect(locator).toBeVisible() failed; name: 'Project AXX - A', exact: true; Error: element(s) not found"
+  },
+  {
+    "fault": "owner",
+    "exit": 1,
+    "assertion": "Error: expect(received).toHaveLength(expected); Expected length: 1; Received length: 0; expect(rows).toHaveLength(1)"
+  }
+]

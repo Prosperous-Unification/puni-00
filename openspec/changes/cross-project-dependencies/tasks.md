@@ -782,3 +782,7 @@ the canonical host gate and production activation remain open.
 
 - [x] Independent source/target fixtures exercise actual Project settings → General abbreviation PATCH, canonical persisted reload, changed captured label with unchanged stable anchor and exact SQLite relationship, then actual click, destination-specific tree and work-item focus. Three independent production faults fail the persistence, anchor and focus assertions. See [bounded acceptance receipt](verify-task11-abbrev-navigation.md).
 - [ ] Complete independent review and integrated exact-SHA host gate. Parent 11.1 remains open; this document-only fixture host substitution does not establish production root/login composition or activation.
+
+### Task 11.1 bounded phone remote-node authoring browser acceptance (2026-10-23)
+
+- [x] An unlinked phone successor uses the real alphabetic project picker to create remote-node → local-whole FS through accepted HTTP, exact SQLite endpoint/step/owner/identity readback, reload/reopen and completion-driven rendered refresh. Independent discovery, stored-node widening and owner-reversal faults fail the actual browser assertions. See [bounded phone acceptance](verify-task11-phone-author.md). Parent 9.2/11.1 and production activation remain open.

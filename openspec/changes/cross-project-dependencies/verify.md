@@ -7063,3 +7063,14 @@ connected v11 and malformed-content v11, with unchanged full application tables
 and withheld pushes. Bypassing only the archived version fence failed both exact
 refusal cases; restored checks are recorded in the packet. Parent 8.1, public
 activation and the integrated exact-SHA host gate remain open.
+
+## Task 11.1 bounded phone remote-node authoring acceptance — 2026-10-23
+
+The [phone browser packet](verify-task11-phone-author.md) adds an unlinked successor,
+actual alphabetic discovery and qualified node selection, accepted command HTTP,
+exact SQLite relationship identity/owner/remote-step tuple, reload/reopen and
+completion-driven phone reading/tree refresh. Independent production discovery,
+stored-node widening and endpoint ownership faults fail intended browser assertions.
+The explicit fixture-only writer seam remains enabled only in the dedicated harness;
+production auth/root composition and activation are unproved. Parent 9.2/11.1,
+release acceptance and the exact-SHA host gate remain open.

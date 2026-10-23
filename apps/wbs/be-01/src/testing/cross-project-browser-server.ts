@@ -98,6 +98,7 @@ for (const name of [
   'SuccessorDesktop',
   'SuccessorPhone',
   'Author',
+  'AuthorPhone',
   'RenameSource',
   'RenameTarget',
   'DatedA',
