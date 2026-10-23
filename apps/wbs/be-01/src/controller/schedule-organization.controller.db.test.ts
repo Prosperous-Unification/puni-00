@@ -1,6 +1,7 @@
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople, scheduleInputOfCaptured } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { SavedComparisonSide } from '@wbs/core/module/saved-plans/saved-plan-comparison';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { schedule } from '@wbs/domain';
 import { openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
@@ -240,6 +241,25 @@ describe('after activation', () => {
   });
 });
 
+function buildSharedComparison(savedPlanId: string, schedule: SavedComparisonSide['schedule']) {
+  return {
+    status: 200,
+    body: {
+      diff: { input: [], schedule: [] },
+      left: {
+        source: { kind: 'saved', savedPlanId },
+        schedule,
+        provenance: { kind: 'legacy-unknown' },
+      },
+      right: {
+        source: { kind: 'current' },
+        schedule,
+        provenance: { kind: 'legacy-unknown' },
+      },
+    },
+  };
+}
+
 describe('shared live projection', () => {
   it('installed saved capture and current comparison retain their own shared chain', async () => {
     const { higher, lower } = await seedSharedPlans();
@@ -271,7 +291,9 @@ describe('shared live projection', () => {
       'GET',
       `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
     );
-    expect(same).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    expect(same).toEqual(
+      buildSharedComparison(savedId, { present: true, algorithmId: 'slice-leveling-v4' }),
+    );
 
     h.sqlite.run(
       'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ?',
@@ -435,7 +457,7 @@ describe('shared live projection', () => {
         'GET',
         `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
       ),
-    ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    ).toEqual(buildSharedComparison(savedId, { present: false, absentReason: reason }));
     expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
   });
 
@@ -529,7 +551,12 @@ describe('shared live projection', () => {
         'GET',
         `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
       ),
-    ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    ).toEqual(
+      buildSharedComparison(savedId, {
+        present: true,
+        algorithmId: 'optimized:18+0.4.0:pri:60000',
+      }),
+    );
     expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
   });
 
@@ -595,7 +622,7 @@ describe('shared live projection', () => {
           'GET',
           `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
         ),
-      ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+      ).toEqual(buildSharedComparison(savedId, { present: false, absentReason: 'unavailable' }));
       expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
     },
   );
