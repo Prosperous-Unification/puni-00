@@ -6480,5 +6480,8 @@ assertions passed. Parent 4.4 and full host/CI gates remain open.
 [The movement-reference packet](verify-task-7-movement-reference.md) records the
 fractional Fast FS baseline discrepancy between durable evaluation, core
 revalidation and saved history, its bounded local-reference correction and the
-watched raw-reference regression. Parent tasks 7.3/7.4 and the integrated host
-gate remain open.
+watched raw-reference regression. Astra High approved the bounded source
+with no findings. On integrated `c1f4c3411`, four focused files passed
+120 tests/391 assertions, and configured core/backend lint and typecheck passed
+uncached with module checks. Parent tasks 7.3/7.4 and the exact-SHA host gate
+remain open.

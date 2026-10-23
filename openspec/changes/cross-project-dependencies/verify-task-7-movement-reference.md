@@ -68,5 +68,8 @@ This packet restores agreement with the existing durable question. It does not
 complete parent tasks 7.3/7.4, installed Python/image acceptance, the complete
 calendar/capacity matrices or a final-composite placement defect. No host gate,
 full repository test/build, secrets scan, migration lint, live deployment,
-activation, push or merge is claimed. Independent review and the integrated SHA
-host gate remain required.
+activation, push or merge is claimed. Astra High independently approved this
+bounded correction with no findings. After integration as `c1f4c3411`, the
+four-file suite passed 120 tests/391 assertions; configured core/backend lint
+and typecheck, including module checks, passed uncached. The exact-SHA host
+gate remains required.
