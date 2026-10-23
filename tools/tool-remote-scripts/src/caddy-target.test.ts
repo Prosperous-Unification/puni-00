@@ -19,6 +19,10 @@ it('requires real Caddy boundaries in the CI and host test target', () => {
     'bun run tools/tool-remote-scripts/caddy/run.ts',
   );
   expect(project.targets['test'].options.command).toContain('bun test src ');
+  // Proof: omitting either explicit local acceptance suite from this target fails this configured-command test.
+  expect(project.targets['test'].options.command).toContain('test/solver-drain-transport.test.ts');
+  expect(project.targets['test'].options.command).toContain('test/solver-drain-fixture.test.ts');
+  expect(project.targets['test'].options.command).not.toContain('test/solver-drain.ts');
 });
 
 it('refuses a native Caddy override in CI before starting the suite', () => {

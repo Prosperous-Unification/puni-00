@@ -1,0 +1,15 @@
+
+> nx run tool-remote-scripts:lint
+
+> bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test
+
+
+
+
+ NX   Successfully ran target lint for project tool-remote-scripts
+
+
+  Run duration:      9.6s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     9.6s (1 task)
+  Recoverable time:  <1ms

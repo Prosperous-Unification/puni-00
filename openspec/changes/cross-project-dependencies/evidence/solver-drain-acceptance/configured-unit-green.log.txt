@@ -1,0 +1,18 @@
+Command: timeout --signal=TERM --kill-after=10s 300s bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts --preload ../test/scratch/preload.ts --timeout=10000
+Working directory: tools/tool-remote-scripts
+Execution: require_escalated for disposable local Unix/listener fixtures. No remote operations or actual Docker/systemd acceptance.
+Observed exit: 0.
+
+ 1660 pass
+ 2 skip
+ 0 fail
+ 9175 expect() calls
+Ran 1662 tests across 75 files. [242.02s]
+
+Existing skipped cases:
+(skip) managed solver exceptional cleanup with real Docker > removes a merely created container when timer setup fails
+(skip) managed solver exceptional cleanup with real Docker > waits and removes after the real container has already stopped
+(skip) managed solver exceptional cleanup with real Docker > removes a merely created container when timer setup fails
+(skip) managed solver exceptional cleanup with real Docker > waits and removes after the real container has already stopped
+
+Full output retained locally at /tmp/solver-drain-configured-unit-escalated.log. The separate pinned-Caddy prerequisite was not run: native caddy is absent and Docker connectivity/image preparation was not attempted. This verifies the configured unit command, not the full Nx test target or host gate.

@@ -72,7 +72,7 @@
         "{workspaceRoot}/docs/runbook-dev-deploy.md"
       ],
       "options": {
-        "command": "bun test src --preload ../test/scratch/preload.ts --timeout=10000",
+        "command": "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts --preload ../test/scratch/preload.ts --timeout=10000",
         "cwd": "tools/tool-remote-scripts"
       },
       "dependsOn": ["test:caddy"]

@@ -71,6 +71,27 @@ independent production-source stop/cgroup/runtime/kill/terminal/membership fault
 packet on an actual host. Prepare/review those isolated derivatives separately;
 the source omission evidence in `verify-solver-drain.md` is not relabeled live.
 
+## Normal unit integration
+
+The standard `tool-remote-scripts:test` command explicitly includes the two local
+transport/creator safety suites under `test/`; the actual-host runner remains an
+opt-in target. The existing uncached `test:caddy` prerequisite is preserved.
+Removing either suite from the configured command was watched to fail the target
+contract test: [transport omission](evidence/solver-drain-acceptance/configured-transport-omission.log.txt),
+[fixture omission](evidence/solver-drain-acceptance/configured-fixture-omission.log.txt).
+The restored contract test passed all four cases.
+
+The exact updated unit command passed **1660 tests, 2 skips, 0 failures and 9175
+assertions across 75 files** with local Unix/listener permissions:
+[receipt and skipped case names](evidence/solver-drain-acceptance/configured-unit-green.log.txt).
+The initial sandbox attempt encountered existing Unix-socket EPERM refusals and
+was cancelled without a completed verdict; its representative packet is
+[retained separately](evidence/solver-drain-acceptance/configured-unit-sandbox.log.txt).
+Native Caddy is absent locally. Docker connectivity/image preparation and the
+separate Caddy prerequisite were not attempted; the full Nx test target and host
+gate therefore remain unverified here. The proposal contains 393 words; bounded
+acceptance details stay in this record and the existing design.
+
 ## Reviewed host invocation template
 
 After the final source SHA is installed in a clean isolated host tree with its
@@ -81,7 +102,7 @@ absolute private receipt path, then invoke under the canonical heavy lock:
 SOLVER_DRAIN_SHA=<exact-reviewed-40-character-sha> \
 SOLVER_DRAIN_IMAGE=<already-installed-repository@sha256:digest> \
 SOLVER_DRAIN_RECEIPT=/absolute/private/new-receipt.json \
-  bin/with-heavy-lock.sh env NX_DAEMON=false bunx nx run tool-remote-scripts:test:solver-drain --skip-nx-cache
+  bin/with-heavy-lock.sh -- env NX_DAEMON=false bunx nx run tool-remote-scripts:test:solver-drain --skip-nx-cache
 ```
 
 This is an execution template, not evidence of a completed host run. The runner
