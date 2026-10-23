@@ -970,7 +970,7 @@ jobs:
   # switch keyed on the frontend alone would have skipped the eyes for exactly the
   # changes they exist to catch.
   #
-  # This job pays one checkout and one install to save up to four ~10-minute shards,
+  # This job pays one checkout and one install to save all browser shards,
   # and it cannot itself skip: `pixels` below reads its result, so a scope job that
   # failed is never mistaken for a deliberate skip.
   #
@@ -1044,7 +1044,7 @@ jobs:
               # Three answers, not two, and `-s` so a stray document ahead of the array
               # cannot hide it. The plan step separately validates one complete selection object.
               # Here the stakes are higher: reading a jq ERROR, or a leading warning line, as
-              # `false` sets `stack=unaffected`, skips all four shards, and turns the
+              # `false` sets `stack=unaffected`, skips all browser shards, and turns the
               # REQUIRED `pixels` check green having booted no browser at all.
               jq -s -e 'length == 1 and (.[0] | type == "array")' <<< "$affected" > /dev/null || {
                 printf 'nx show projects did not return one JSON array: %s\n' "$affected" >&2
@@ -1088,72 +1088,25 @@ jobs:
   # output, including the two faults that turned out NOT to break the test they
   # were predicted to.
   pixels_shard:
-    name: pixels shard ${{ matrix.shard }}/4
+    name: pixels shard ${{ matrix.shard }}/8
     runs-on: ubuntu-latest
     needs: pixels_mode
     if: ${{ needs.pixels_mode.outputs.stack == 'affected' }}
-    # FOUR shards since 2026-09-08, because two were measured badly unbalanced.
-    # Playwright shards by file, not by duration, so the split is only as even
-    # as the files happen to be. Over the last 8 runs, per job:
-    #
-    #   gate               13.1m
-    #   pixels shard 1/2   21.4m   <- the critical path
-    #   pixels shard 2/2    7.1m   <- idle for fourteen minutes of it
-    #
-    # The `pixels` aggregate waits for the slowest shard, so the run cost the
-    # 21.4m and shard 2 contributed nothing for most of it. Doubling the shard
-    # count does not make the suite cheaper — it makes the imbalance finer
-    # grained, so the worst shard falls toward the mean. Five wholly post-merge
-    # runs measured the worst shard at 9.4-11.0m versus `gate` at 14.2-19.0m,
-    # making `gate` the critical path in each run; the original expected effect
-    # was roughly 21.4m to ~14m per run.
-    #
-    # Queue wait was checked before assuming runners were free: measured 0.0m
-    # across all 24 real jobs in that sample, so the shards start immediately
-    # and adding two more does not queue behind the first two. (The `pixels`
-    # aggregate shows a 19-25m "wait" in the same data; that is `needs:`
-    # fan-in, not a runner shortage, and misreading it would have sent this
-    # after a capacity problem that does not exist.)
-    #
-    # This is the answer the note below already called for — "when this is hit
-    # again the answer is sharding or a bigger runner, which is a call about CI
-    # budget" — taken under the standing instruction to optimize for elapsed
-    # development time rather than machine resource.
-    #
-    # Two shards since 2026-09-07, when one worker reached this 25-minute cap
-    # with 248 of 296 cases green and nothing red. The whole suite was 16.2m on
-    # the Mac immediately before the push, so another timeout increase would
-    # keep one slow runner on the critical path rather than add capacity.
-    #
-    # 25, and it was 15 until 2026-08-31, when this job **cancelled a gate that
-    # had 13 of its 264 cases left**: the suite started at 11:55:41 and the cap
-    # cut it at 12:10:14 with 251 green and nothing red. The same afternoon it
-    # runs in 7.9-8.8m on a Mac, so what this number is about is the runner
-    # rather than the suite — the drift `2026-08-31-svg-export-and-gutter`
-    # inherited (11.3m to 14.3m across one session) walked into a cap that was
-    # never raised with it.
-    #
-    # Measured on the run after this: **263 passed, 1 skipped, 0 failed in
-    # 15.1m** — the suite alone is now longer than the cap that was cutting it,
-    # and with the install ahead of it the job stands at ~17m of the 25.
-    #
-    # A cap that cancels does not save the minutes it was set to save: the run
-    # had already spent all 15 and produced no verdict at all. It buys headroom
-    # and adds no capacity, exactly as the per-case caps below it do; when this
-    # is hit again the answer is sharding or a bigger runner, which is a call
-    # about CI budget rather than another number here.
-    #
-    # `retries` in `playwright.config.ts` stays 0 and is not the way out of
-    # this: a check people re-run until it is green is a check that cannot
-    # fail.
+    # Eight shards after run 39898917880 canceled 1/4 at 25 minutes with 161
+    # cases green and none failed; 2/4 needed 21m03s for layout alone. The real
+    # Playwright listing gives 164 cases on 1/4, 138 on 1/6, and 80 on 1/8.
+    # Eight moves the 58-case Gantt file off shard 1, leaving more room for setup
+    # and its organization check. This changes partition capacity, not retries,
+    # worker count or the finite job budget. Hosted completion remains unproved.
+    # Evidence: openspec/changes/pixels-shard-capacity/verify.md.
     strategy:
       fail-fast: false
       matrix:
-        # All four entries and the stable aggregate below are read from this
-        # production workflow by pixels-workflow.test.ts.
-        # Proof: deleting shard 2 failed that test with expected [1, 2, 3, 4],
-        # got [1, 3, 4], before the workflow was restored.
-        shard: [1, 2, 3, 4]
+        # All entries and the stable aggregate are read from this production
+        # workflow by pixels-workflow.test.ts.
+        # Proof: removing shard 8 made the production-workflow oracle fail with
+        # expected [1..8], received [1..7] (2026-10-23).
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -1180,7 +1133,7 @@ jobs:
       # first test. `bun run e2e` seeds the three `.env` files first — a fresh
       # checkout has none, and every app refuses to boot without one.
       - name: Layout gate
-        run: bun run e2e -- --shard=${{ matrix.shard }}/4
+        run: bun run e2e -- --shard=${{ matrix.shard }}/8
 
       - name: Activated organization context
         if: ${{ matrix.shard == 1 }}

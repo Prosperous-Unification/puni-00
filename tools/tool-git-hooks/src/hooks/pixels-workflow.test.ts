@@ -20,7 +20,8 @@ interface WorkflowJob {
   needs?: string | string[];
   outputs?: Record<string, string>;
   steps?: WorkflowStep[];
-  strategy?: { matrix?: { shard?: number[] } };
+  strategy?: { 'fail-fast'?: boolean; matrix?: { shard?: number[] } };
+  'timeout-minutes'?: number;
 }
 
 interface Workflow {
@@ -53,9 +54,14 @@ describe('the CI pixels gate', () => {
       uses?.startsWith('actions/upload-artifact@'),
     );
 
-    expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4]);
-    expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/4');
-    expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/4');
+    // Proof (2026-10-23): deleting production matrix shard 8 failed on [1..7];
+    // reverting only Layout gate's denominator to /4 failed on its run command.
+    // Enabling fail-fast failed false/true; lowering the cap failed 25/20.
+    expect(shardJob?.strategy?.['fail-fast']).toBe(false);
+    expect(shardJob?.['timeout-minutes']).toBe(25);
+    expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/8');
+    expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');
     // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
     expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
     expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
@@ -214,7 +220,7 @@ describe('the CI pixels scope', () => {
   test('refuses a jq failure instead of reading it as the stack being unaffected', () => {
     // Same fault as the gate's Tool Wiki switch, with a worse blast radius: `if jq -e … then
     // affected; else unaffected; fi` treats jq's 2-or-more (parse error on polluted stdout, a
-    // type error) exactly like its `false`, so a broken read sets `stack=unaffected`, all four
+    // type error) exactly like its `false`, so a broken read sets `stack=unaffected`, all browser
     // shards skip, and the REQUIRED `pixels` check goes green having booted no browser at all.
     //
     // Proof (2026-09-16): with the production switch returned to its two-branch form, this
@@ -247,6 +253,32 @@ describe('the CI pixels scope', () => {
 
     expect(shardJob?.needs).toBe('pixels_mode');
     expect(shardJob?.if).toBe("${{ needs.pixels_mode.outputs.stack == 'affected' }}");
+  });
+
+  test('executes the required verdict for success, exemption and broken shard evidence', () => {
+    // Proof (2026-10-23): removing the production affected-arm shard-success test
+    // made success/affected/failure exit 0 and failed this execution table.
+    const script = jobStep(readWorkflow(), 'pixels', 'Require every browser shard').run;
+    if (script === undefined) throw new Error('missing Require every browser shard script');
+    const verdicts: [string, string, string, boolean][] = [
+      ['success', 'affected', 'success', true],
+      ['success', 'unaffected', 'skipped', true],
+      ['success', 'affected', 'failure', false],
+      ['success', 'affected', 'cancelled', false],
+      ['success', 'affected', 'skipped', false],
+      ['success', 'affected', '', false],
+      ['failure', 'unaffected', 'skipped', false],
+      ['cancelled', 'affected', 'success', false],
+      ['success', 'unknown', 'success', false],
+    ];
+    for (const [scope, stack, shard, succeeds] of verdicts) {
+      const execution = Bun.spawnSync(['bash', '-c', script], {
+        env: { ...process.env, STACK_RESULT: scope, STACK: stack, SHARD_RESULT: shard },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(execution.exitCode === 0, `${scope}/${stack}/${shard}`).toBe(succeeds);
+    }
   });
 
   test('the required check refuses a skip it cannot explain', () => {
