@@ -2141,3 +2141,13 @@ The identity of the running solver supervisor established by agreement between
 its captured boot material, its service invocation and the kernel identities of
 its readiness and solver connections.
 _Avoid_: installed identity, socket readiness, adopted supervisor
+
+**Solver identity broker**:
+The host authority that publishes fresh solver supervisor identity observations to
+backend clients against an independently approved admission baseline.
+_Avoid_: certificate file, supervisor identity endpoint, activation controller
+
+**Supervisor admission baseline**:
+The approved supervisor artifact and service-policy identity against which the
+solver identity broker admits a running invocation.
+_Avoid_: observed identity, auto-adopted hashes, current certificate cache

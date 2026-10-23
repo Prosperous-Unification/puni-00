@@ -1,35 +1,35 @@
 ## Why
 
-The existing supervisor installer verifies installed hashes, service activity and a socket path. Those observations do not establish which bundle/config bytes execute, whether ambient startup code ran, or whether the connected server is the service invocation just installed. Task 10.2 needs effective supervisor identity before any later adoption work.
+The installer verifies installed files and service/socket availability without proving executed bytes or connected service identity. Backend private PID namespaces cannot compare the host listener with systemd MainPID. A service-UID-owned identity file cannot protect publication against a foreign listener sharing that UID. Task 10.2 requires a fresh independently admitted identity before work.
 
 ## What Changes
 
-Define a bounded identity contract covering exact captured execution bytes, pinned Bun startup policy, kernel-authenticated private readiness and public solver connections, typed effective systemd observations and final installed readback under one shared edge admission.
+Prefer a root-owned online solver identity broker and per-invocation supervisor TLS key. The backend authenticates the root-installed broker pin, resolves a nonce-bound observation, pins the supervisor connection, exchanges a fresh invocation hello, confirms the observation remains current, then releases start on that connection. Specify approved-baseline provisioning and dedicated read-only trust/runtime mounts for Docker and k3s.
 
-This packet supplies the design, testable delta and ordered TDD slices. Its only executable work is a disposable Bun 1.4.2 ambient-startup feasibility probe. Production implementation awaits review.
+This packet supplies contracts and ordered TDD gates. Existing ambient/namespace experiments and externally supplied local TLS evidence are feasibility only; broker, generated units, actual container protocol and provisioning remain unimplemented.
 
 ## Non-Goals
 
-No activation, installed-byte adoption, retained owner publication, prior-holder drain, broad participant exclusion, automatic rollback, production service lifecycle operation, h2 gate, push or PR. This does not complete parent cross-project-dependencies Task 10.2.
+No production edits, root provisioning, installation, service operation, rollout, activation, adoption, retained-owner publication, prior-holder drain, automatic rollback, h2 gate, push or PR. Parent Task 10.2 remains open.
 
 ## Constraints
 
-Reuse the existing installer admission and captured source hashes; preserve unrelated work. Hash and consume identical bundle/config buffers. Bind both host installer probes to systemd MainPID and UID; require reviewed namespace-compatible public-client authentication and expectation refresh; never trust a payload PID. Require typed before/after systemd observations, bounded per-call and overall deadlines, and final four-artifact readback. Fail closed on missing, malformed, unreadable, changed or timed-out evidence. Preserve uncertainty evidence after publication begins. Follow repository R1–R5; every production safety check needs its own watched production-path negative.
+Preserve captured bundle/config bytes and `/proc/self/exe` identity, both host installer SO_PEERCRED MainPID/UID probes, typed stable before/after D-Bus policy and final four-artifact hashes under the same edge admission. The broker uses independently approved root state, never observed hashes as expectations; it neither acquires edge.lock nor changes services. Root/kernel/user-manager integrity and supervisor memory are trusted. No host PID sharing or backend systemd/Docker authority. Bound calls, sessions and restart retries; absent, stale, malformed or raced authority refuses before work. Every production guard requires a watched production-path negative.
 
 ## Capabilities
 
 ### Modified Capabilities
 
-- `cross-project-dependencies`: add effective supervisor identity scenarios to the existing Task 10.2 installer prerequisite; no activation authority is granted.
+- `cross-project-dependencies`: effective supervisor identity and fresh namespace-compatible admission before solver work.
 
 ## Domain Terms
 
-Effective supervisor identity.
+Effective supervisor identity; Solver identity broker; Supervisor admission baseline.
 
 ## Decisions Recorded
 
-None. This review packet records a proposed shape; no irreversible production choice is made.
+[Root authority publishes live supervisor identity](../../../../docs/adr/0058-root-authority-publishes-live-supervisor-identity.md) (preferred, proposed for review).
 
 ## Impact
 
-Future changes touch tool-remote-scripts supervisor bootstrap/config/startup and installer operation, generated supervisor unit, and public solver-client identity admission. Current tracked runtime code is unchanged.
+Future supervisor/client/protocol and installer changes, separately protected root broker packaging/provisioning, and Docker/k3s mounts and validation. Current production code is unchanged.

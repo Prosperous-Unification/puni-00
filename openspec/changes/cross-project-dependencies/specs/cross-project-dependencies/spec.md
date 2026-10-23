@@ -1285,7 +1285,7 @@ The host installer SHALL authenticate private nonce readiness and public solver 
 
 ### Requirement: Container clients authenticate across the PID namespace boundary
 
-A pre-implementation feasibility gate SHALL prove reviewed public-client authentication and trusted expectation refresh across the Docker private PID namespace. PID 0, UID alone or payload identity SHALL NOT suffice. Backend systemd authority and host PID sharing SHALL NOT be fallbacks. Unauthenticated, stale or uncertain connections SHALL refuse before work.
+A pre-implementation feasibility gate SHALL prove the root-owned online broker and pinned supervisor TLS protocol across the Docker private PID namespace. PID 0, UID alone or payload identity SHALL NOT suffice. Backend systemd authority and host PID sharing SHALL NOT be fallbacks. Unauthenticated, stale or uncertain connections SHALL refuse before work.
 
 #### Scenario: A legitimate isolated backend completes authenticated work
 
@@ -1329,3 +1329,109 @@ The installer SHALL retain canonical edge admission through publication, restart
 - **WHEN** all identity observations and final hashes agree
 - **THEN** the installer reports only verified effective supervisor identity for this invocation
 - **AND** activation, retained-owner publication, prior-holder drain/adoption and automatic rollback remain separate ungranted operations
+
+### Requirement: Root authority owns supervisor identity publication
+
+A root-owned online solver identity broker SHALL publish observations only against an independently approved root admission baseline. Runtime, baseline, key, public pin and their ancestors SHALL be protected from supervisor-UID modification. Only an authorized provisioner SHALL change the baseline or root pin; observed bytes SHALL NOT approve themselves.
+
+#### Scenario: Same UID replacement cannot replace publication authority
+
+- **WHEN** a supervisor-UID process attempts chmod, rename, symlink or ancestor replacement against broker code, runtime, baseline, key or public trust
+- **THEN** the protected boundary denies modification or the provisioner/broker refuses the invalid state
+- **AND** a 0444 pin beneath a writable ancestor is not admitted
+- **AND** independently removing the corresponding ownership or path guard fails its negative acceptance
+
+#### Scenario: Approved baseline publication is privileged and verified
+
+- **WHEN** the authorized root provisioner atomically updates a baseline or broker pin
+- **THEN** readback establishes the exact approved identity; missing, unreadable, malformed or mixed installed/candidate state refuses observations
+- **AND** broker requests cannot change expected hashes, policy, paths or service identity
+- **AND** user-owned supervisor code is never executed as root and private keys never reach backends
+
+### Requirement: Online observations remain session local and freshly confirmed
+
+The broker SHALL expose only bounded TLS resolve-current and confirm-current requests. Each SHALL require a fresh 32-byte canonical nonce. Confirm SHALL rerun host observation for the connection-local single-use observation identifier. Changed invocation, certificate, baseline or startup policy SHALL refuse. Cached live-state success SHALL NOT answer a new observation.
+
+#### Scenario: Resolve and confirm bind one admitted invocation
+
+- **WHEN** the pinned broker receives resolve-current then confirm-current on the same TLS session
+- **THEN** each response echoes its fresh nonce/version, and confirm agrees on observation, invocation and certificate digest after fresh before/after host observation
+- **AND** both host-connected peers match systemd MainPID/UID, reported/public TLS certificates agree, captured identities match approved baseline and final four-artifact hashes agree
+- **AND** the public host TLS probe releases no solver work
+
+#### Scenario: Wrong session replay and malformed authority refuse
+
+- **WHEN** a caller replays a nonce, observation or reply, reuses confirm, changes session, supplies unknown unit/path/PID/policy/hash fields, or sends duplicate, oversized or partial frames
+- **THEN** the closed protocol refuses without publishing authority or starting work
+- **AND** broker restart loses observations and unavailable broker cannot be replaced by cached expectations
+
+#### Scenario: Read-only broker observation does not deadlock installation
+
+- **WHEN** installer edge admission is held through restart and identity proof
+- **THEN** the broker observes fixed state without acquiring edge.lock, changing installed files, making Docker calls, controlling services or granting activation/adoption
+- **AND** the installer retains its own admission and final installed readback obligations
+
+### Requirement: Solver work follows broker resolve pinned hello and confirmation
+
+Each supervisor invocation SHALL use a new in-memory private TLS key. Backend admission SHALL complete broker pin/handshake, nonce-bound resolve, supervisor pin/handshake, invocation hello and fresh same-session confirm-current before start on that authenticated connection. The supervisor SHALL enforce invocation/hello state and existing caller authority before runner/create/start.
+
+#### Scenario: A legitimate connection completes the authenticated sequence
+
+- **WHEN** an eligible backend connects using protected broker trust and an admitted invocation certificate
+- **THEN** exact DER pin and successful error-free handshake precede application writes on each TLS connection
+- **AND** hello uses a fresh connection nonce and expected invocation without solver work or authority options
+- **AND** SolverSupervisorConnect resolves only after confirmation, then the existing start/bind/abort flow proceeds
+
+#### Scenario: Foreign certificate or relay cannot release work
+
+- **WHEN** a same-UID foreign broker/solver presents a foreign certificate, including a TLS-authorized but wrong leaf, or a foreign host process relays TLS upstream
+- **THEN** pin admission or existing host caller PID/cgroup authority refuses with zero start bytes and zero runner/create calls
+- **AND** TLS alone makes no claim about immediate kernel peers relayed within an already-authorized caller boundary
+- **AND** no PID 0, UID-only, payload hash, plaintext, session-cache or early-data fallback is admitted
+
+#### Scenario: Premature frames and failed authentication release no work
+
+- **WHEN** open fires before authenticated handshake, hello is replayed, invocation/nonce differs, confirm is absent/stale, or an early/unknown frame arrives
+- **THEN** the attempt refuses before start, closes both sockets and rejects pending promises
+- **AND** early frames are not buffered as implicit authenticated replies
+
+### Requirement: Identity refresh and failure remain bounded across restart
+
+Client and broker SHALL independently bound calls, frames, pending sessions, concurrency and whole observations. Client time SHALL remain within childDeadlineAt. Only modeled restart instability SHALL retry from fresh session/nonces within fixed attempt/time limits. A dead authenticated connection SHALL require full new admission; unavailable broker or trusted-state faults SHALL refuse.
+
+#### Scenario: Restart or baseline race refuses the stale attempt
+
+- **WHEN** supervisor key/invocation, broker session or approved baseline changes between resolve, TLS handshake, hello, confirm and start
+- **THEN** the stale attempt refuses before work and only a fresh complete resolution can admit the replacement
+- **AND** old invocations cannot retain listener/key-bearing children after replacement, including after bound
+
+#### Scenario: Hung peers and refresh failure stay within budget
+
+- **GIVEN** measured finite per-call, total and retry-count limits capped by remaining child deadline
+- **WHEN** broker or solver hangs, sends malformed/truncated/oversized frames, or restarts repeatedly
+- **THEN** bounded refusal closes pending resources with zero unauthenticated work
+- **AND** malformed authority, pin failure and unreadable trusted state refuse immediately without restart retries
+
+#### Scenario: Confirmation does not promise atomic future availability
+
+- **WHEN** an admitted invocation dies after confirmation
+- **THEN** its authenticated connection fails and any replacement connection requires a new complete admission
+- **AND** confirmation denotes its finite observation point, not serialized exclusion of every concurrent future restart
+
+### Requirement: Deployment exposes only dedicated read-only identity surfaces
+
+Docker and Kubernetes backends SHALL receive separate read-only directory mounts for solver runtime, broker runtime and root public trust. Private keys, root baseline, host PID/proc, systemd, Docker and writable cgroup authority SHALL remain absent. Desired/live and admission validation SHALL enforce this node-local contract; absent authority SHALL refuse rather than borrow another node's expectation.
+
+#### Scenario: Docker dev and generated production mounts survive restart
+
+- **WHEN** broker or supervisor replaces a socket after restart
+- **THEN** read-only directory mounts in both dev and generated production Compose expose the new socket without inode/subPath pinning
+- **AND** backend startup config contains only fixed trust paths, not a rotating supervisor certificate
+- **AND** missing/writable/foreign mounts and forbidden host authority refuse validation
+
+#### Scenario: Kubernetes validates node provisioning and containerd identity
+
+- **WHEN** a backend is generated, admitted, first started or rescheduled in k3s
+- **THEN** base/overlay/generated desired and live mounts explicitly enforce read-only solver, broker-runtime and public-trust Directory hostPaths without subPath
+- **AND** an unprovisioned node refuses work, and the deployed containerd/workload caller policy is proven separately from Docker identity
+- **AND** provisioning root broker runtime, startup policy, key isolation, pin rotation and actual node readbacks remain required acceptance gates

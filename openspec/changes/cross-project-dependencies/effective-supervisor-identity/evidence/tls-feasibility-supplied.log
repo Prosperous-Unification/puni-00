@@ -1,0 +1,14 @@
+{"name":"admitted","side":"client-open","fd":10}
+{"name":"admitted","side":"client-handshake","success":true,"authorized":true,"error":null,"exact":true,"rawBytes":427}
+{"name":"admitted","side":"accepted","fd":11,"status":0,"peerPid":3037056}
+{"name":"admitted","reply":"ok\n"}
+{"name":"admitted","received":5}
+{"name":"foreign","side":"client-open","fd":10}
+{"name":"foreign","side":"client-handshake","success":false,"authorized":false,"error":"self signed certificate","exact":false,"rawBytes":428}
+{"name":"foreign","side":"accepted","fd":11,"status":0,"peerPid":3037056}
+{"name":"foreign","received":0}
+{"name":"foreign-trusted","side":"client-open","fd":10}
+{"name":"foreign-trusted","side":"client-handshake","success":true,"authorized":true,"error":null,"exact":false,"rawBytes":427}
+{"name":"foreign-trusted","side":"accepted","fd":11,"status":0,"peerPid":3037056}
+{"name":"foreign-trusted","received":0}
+{"bun":"1.4.2","directory":"/tmp/namespace-tls-probe-9NTHNy","passed":true}
