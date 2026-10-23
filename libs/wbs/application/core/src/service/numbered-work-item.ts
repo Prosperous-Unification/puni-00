@@ -123,12 +123,12 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   budgets?: Record<string, BudgetReading>;
   /**
    * The money keys whose figures in this row's subtree are priced under two
-   * or more rate cards, with the first two digests (design D44). Such a key
-   * is absent from {@link measures}, {@link measureEstimates} and
-   * {@link budgets} on this row: those sums cannot be taken. Absent when no
-   * key mixes.
+   * or more bases, per kind, with the first two (design D44). Facts and trios
+   * fold apart: a key mixing facts is absent from {@link measures} (and its
+   * budget from {@link budgets}), a key mixing trios from
+   * {@link measureEstimates} (and a derived budget). Absent when no key mixes.
    */
-  mixedRateCards?: Record<string, MixedRateCards>;
+  mixedRateCards?: Record<string, RateCardMixes>;
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
   /**
@@ -219,4 +219,10 @@ export interface MeasureEstimateReading {
   singlePoint: boolean;
   expected: number;
   variance?: number;
+}
+
+/** One money key's mixes on one row, per kind; a kind that does not mix is absent. */
+export interface RateCardMixes {
+  facts?: MixedRateCards;
+  estimates?: MixedRateCards;
 }

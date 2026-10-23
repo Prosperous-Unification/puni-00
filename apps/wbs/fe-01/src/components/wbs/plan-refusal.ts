@@ -104,6 +104,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'forbidden':
     case 'bad_start_date':
     case 'bad_pert_weights':
+    case 'bad_budget_factor':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
     case 'solution_taken':

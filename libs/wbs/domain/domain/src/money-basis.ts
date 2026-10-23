@@ -62,10 +62,12 @@ export function decideRateCard(
 }
 
 /**
- * The two bases a mix is named by, sorted with the unpriced (null) first then
- * by code unit, so one mix always reads the same pair.
+ * The two bases a mix is named by, each the whole basis (currency and digest:
+ * the same digest in two currencies is two bases) or null for an unpriced
+ * figure, sorted with null first, then by currency, then by digest, so one mix
+ * always reads the same pair.
  */
-export type MixedRateCards = [string | null, string | null];
+export type MixedRateCards = [MoneyBasis | null, MoneyBasis | null];
 
 /** One money figure where a subtree's bases are gathered: its row, its key, its basis. */
 export interface PricedFigure {
@@ -76,9 +78,12 @@ export interface PricedFigure {
 
 /**
  * Every row whose subtree holds figures in one money key under two or more
- * bases, with the first two (design D44): one basis per money key per subtree.
- * A figure without a basis counts as the basis null, so a priced and an
+ * bases, with the first two (design D44). A basis is the pair currency and
+ * digest; a figure without one counts as the basis null, so a priced and an
  * unpriced figure mix too.
+ *
+ * Callers fold facts and trios **separately** (D44): a fact and a trio on two
+ * cards are never added, so one call per kind decides each kind's sums.
  *
  * Only a leaf's figures count, as the roll-up folds count only a leaf's
  * (`foldByStep`): a row with children holds no figures of its own. Keys
@@ -91,14 +96,18 @@ export function mixedRateCardsOf(
 ): Map<string, Map<string, MixedRateCards>> {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId] as const));
   const hasChildren = new Set(rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])));
-  const basesOf = new Map<string, Map<string, Set<string | null>>>();
+  const basesOf = new Map<string, Map<string, Map<string, MoneyBasis | null>>>();
   for (const figure of figures) {
     if (!moneyKeys.has(figure.key) || hasChildren.has(figure.workItemId)) continue;
-    const digest = figure.basis?.rateCardDigest ?? null;
+    const basis = figure.basis ?? null;
+    // Proof: with the identity made the digest alone, `reads one digest in two
+    // currencies as mixed` (money-basis.test.ts) read USD/x and EUR/x as one
+    // basis; watched 2026-10-23.
+    const identity = basis === null ? '' : `${basis.currency}\u0000${basis.rateCardDigest}`;
     for (let at: string | null | undefined = figure.workItemId; typeof at === 'string';) {
-      const byKey = basesOf.get(at) ?? new Map<string, Set<string | null>>();
-      const held = byKey.get(figure.key) ?? new Set<string | null>();
-      held.add(digest);
+      const byKey = basesOf.get(at) ?? new Map<string, Map<string, MoneyBasis | null>>();
+      const held = byKey.get(figure.key) ?? new Map<string, MoneyBasis | null>();
+      held.set(identity, basis);
       byKey.set(figure.key, held);
       basesOf.set(at, byKey);
       at = parentOf.get(at);
@@ -107,11 +116,11 @@ export function mixedRateCardsOf(
   const mixed = new Map<string, Map<string, MixedRateCards>>();
   for (const [rowId, byKey] of basesOf) {
     for (const [key, held] of byKey) {
-      // Proof: with `> 2` here, `names the two digests a parent mixes, and
+      // Proof: with `> 2` here, `names the two bases a parent mixes, and
       // leaves each leaf alone` (money-basis.test.ts) read the parent unmixed;
       // watched 2026-10-23.
       if (held.size < 2) continue;
-      const [first, second] = [...held].sort(compareDigests);
+      const [first, second] = [...held.values()].sort(compareBases);
       const found = mixed.get(rowId) ?? new Map<string, MixedRateCards>();
       found.set(key, [first ?? null, second ?? null]);
       mixed.set(rowId, found);
@@ -120,9 +129,10 @@ export function mixedRateCardsOf(
   return mixed;
 }
 
-function compareDigests(left: string | null, right: string | null): number {
-  if (left === right) return 0;
-  if (left === null) return -1;
+function compareBases(left: MoneyBasis | null, right: MoneyBasis | null): number {
+  if (left === null) return right === null ? 0 : -1;
   if (right === null) return 1;
-  return left < right ? -1 : 1;
+  if (left.currency !== right.currency) return left.currency < right.currency ? -1 : 1;
+  if (left.rateCardDigest === right.rateCardDigest) return 0;
+  return left.rateCardDigest < right.rateCardDigest ? -1 : 1;
 }

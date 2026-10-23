@@ -197,7 +197,7 @@ describe('budgets as plan commands', () => {
   });
 
   it('refuses an unknown, scheduling, negative or fractional budget and stores nothing', async () => {
-    const { source, graph, idOf, run, budgets } = await seeded();
+    const { source, idOf, run, budgets } = await seeded();
     try {
       const A = idOf('A');
       expect(await run([setBudget(A, 'story_points', 1)])).toMatchObject({
@@ -220,14 +220,6 @@ describe('budgets as plan commands', () => {
         ok: false,
         reason: 'scale_mismatch',
       });
-      // The service refuses what the command boundary already refused.
-      expect(
-        await graph.workItems.setBudget(A, F, 'tokens', {
-          cap: -1,
-          policy: 'strict',
-          holdPerAttempt: null,
-        }),
-      ).toEqual({ ok: false, reason: 'invalid_budget' });
       // All or none: the first command's write goes with the refusal.
       expect(await run([setBudget(A, 'tokens', 5), setBudget(A, 'time', 5)])).toMatchObject({
         ok: false,
@@ -559,7 +551,7 @@ describe('the headroom read', () => {
         { kind: 'startAttempt', workItemId: A, stepId: dev, at: start },
       ]);
       const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY);
-      if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
+      if (read === null) throw new Error('the project was not readable');
       const stepOf = (workItemId: string, stepId: string) =>
         read.steps.find((each) => each.workItemId === workItemId && each.stepId === stepId);
       // B's dev step: the parent's budget, less the hold of A's unknown attempt.
@@ -569,36 +561,75 @@ describe('the headroom read', () => {
         state: 'startable',
         budgets: {
           tokens: {
-            workItemId: P,
-            cap: 500,
-            policy: 'strict',
-            source: 'stated',
-            remaining: 200,
-            exceeded: false,
-            held: 300,
+            strict: {
+              workItemId: P,
+              cap: 500,
+              policy: 'strict',
+              source: 'stated',
+              remaining: 200,
+              exceeded: false,
+              held: 300,
+            },
           },
         },
       });
-      // A's own looser budget loses to the parent's tighter one.
-      expect(stepOf(A, qa)?.budgets['tokens']?.workItemId).toBe(P);
+      // A's own looser strict budget loses to the parent's tighter one.
+      expect(stepOf(A, qa)?.budgets['tokens']?.strict?.workItemId).toBe(P);
       expect(read.steps.every(({ state }) => state === 'startable')).toBe(true);
     } finally {
       await source.close();
     }
   });
 
-  it('refuses the headroom read while a bounding budget mixes rate cards, naming both', async () => {
-    const { source, graph, projectId, dev, idOf, run } = await seeded();
+  it('names a mix on the blocked step and key only, the read itself never refused', async () => {
+    // The reviewer's repro: sibling B mixes cost (unpriced and card x), leaf A
+    // holds a tokens budget alone.
+    const { source, graph, projectId, dev, qa, idOf, run } = await seeded();
     try {
       const [P, A, B] = ['P', 'A', 'B'].map(idOf);
       await run([
+        setBudget(A, 'tokens', 100),
         setBudget(P, 'cost', 1_000_000),
-        { ...fact(A, dev, 'cost', 10), rateCardDigest: 'card-b' },
-        { ...fact(B, dev, 'cost', 10), rateCardDigest: 'card-a' },
+        { ...fact(B, dev, 'cost', 10), rateCardDigest: 'x' },
       ]);
-      expect(await graph.workItems.budgetHeadroomWithin(projectId, LEGACY)).toEqual({
-        kind: 'mixed_rate_cards',
-        digests: ['card-a', 'card-b'],
+      // An unpriced figure written before bases existed.
+      await source.stores.measures.set(
+        { workItemId: B, stepId: qa, metric: 'cost', value: 4, recordedAt: 1 },
+        { at: 1, by: F },
+      );
+      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY);
+      if (read === null) throw new Error('the project was not readable');
+      const onA = read.steps.find((each) => each.workItemId === A && each.stepId === dev);
+      // Proof: with `findBudgetHeadroom` answering no steps whenever any budget
+      // is blocked, this case read none for A; watched 2026-10-23.
+      expect(onA?.budgets['tokens']?.strict).toMatchObject({ workItemId: A, remaining: 100 });
+      // P's cost budget cannot be read: named on A's cost key, tokens untouched.
+      expect(onA?.budgets['cost']).toEqual({
+        mixedRateCards: [null, { currency: 'USD', rateCardDigest: 'x' }],
+        mixedAt: P,
+      });
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('keeps an exhausted strict budget beside a looser advisory one', async () => {
+    // The reviewer's fixture: P strict tokens 1000 spent 1000, A derived 300 spent 500.
+    const { source, graph, projectId, dev, qa, idOf, run } = await seeded();
+    try {
+      const [P, A, B] = ['P', 'A', 'B'].map(idOf);
+      await run([
+        setBudget(P, 'tokens', 1000),
+        trio(A, dev, 'tokens', 300),
+        fact(A, dev, 'tokens', 500),
+        fact(B, dev, 'tokens', 500),
+      ]);
+      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY);
+      if (read === null) throw new Error('the project was not readable');
+      const onA = read.steps.find((each) => each.workItemId === A && each.stepId === qa);
+      expect(onA?.budgets['tokens']).toMatchObject({
+        strict: { workItemId: P, remaining: 0 },
+        advisory: { workItemId: A, source: 'derived', remaining: -200 },
       });
     } finally {
       await source.close();
@@ -703,7 +734,14 @@ describe('money carries its basis', () => {
         setBudget(P, 'cost', 100),
       ]);
       const parent = await rowOf(P);
-      expect(parent.mixedRateCards).toEqual({ cost: ['card-a', 'card-b'] });
+      expect(parent.mixedRateCards).toEqual({
+        cost: {
+          facts: [
+            { currency: 'USD', rateCardDigest: 'card-a' },
+            { currency: 'USD', rateCardDigest: 'card-b' },
+          ],
+        },
+      });
       expect(parent.measures).toEqual({ token_actual: { [dev]: 5 } });
       expect(parent.budgets).toBeUndefined();
       // Each leaf has one card and reads as before.
@@ -730,18 +768,121 @@ describe('money carries its basis', () => {
         await run([{ kind: 'createWorkItem', ref: 'G', name: 'G', parentId: D, afterId: E }]),
         'G',
       );
+      // A fact on one card beside a trio on another adds nothing: allowed.
       await run([
         { ...fact(E, dev, 'cost', 1), rateCardDigest: 'card-a' },
         { ...trio(G, dev, 'cost', 3), rateCardDigest: 'card-b' },
+        { ...fact(G, dev, 'cost', 2), rateCardDigest: 'card-b' },
       ]);
-      // D is A's only child: deleting it hands its branch up to A.
+      // D is A's only child: deleting it hands its branch up to A, adding E's
+      // and G's facts across two cards.
       expect(
         await run([{ kind: 'deleteWorkItem', workItemId: D, strategy: 'cascade' }]),
       ).toMatchObject({
         ok: false,
         reason: 'mixed_rate_cards',
-        detail: { digests: ['card-a', 'card-b'] },
+        detail: {
+          bases: [
+            { currency: 'USD', rateCardDigest: 'card-a' },
+            { currency: 'USD', rateCardDigest: 'card-b' },
+          ],
+        },
       });
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('hands up a fact on one card beside a trio on another', async () => {
+    const { source, projectId, dev, idOf, run, childOf } = await seeded();
+    try {
+      const A = idOf('A');
+      const D = childOf(
+        await run([{ kind: 'createWorkItem', ref: 'D', name: 'D', parentId: A, afterId: null }]),
+        'D',
+      );
+      await run([
+        { ...fact(D, dev, 'cost', 4), rateCardDigest: 'card-a' },
+        { ...trio(D, dev, 'cost', 6), rateCardDigest: 'card-b' },
+      ]);
+      expect(await run([{ kind: 'deleteWorkItem', workItemId: D }])).toMatchObject({ ok: true });
+      expect(
+        (await source.stores.measures.listByProject(projectId)).map((each) => each.basis),
+      ).toEqual([{ currency: 'USD', rateCardDigest: 'card-a' }]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('reads a leaf whose trio and fact sit on two cards as unmixed, and strips a mix among trios from the estimates alone', async () => {
+    const { source, dev, idOf, run, rowOf } = await seeded();
+    try {
+      const [P, A, B] = ['P', 'A', 'B'].map(idOf);
+      await run([
+        { ...trio(A, dev, 'cost', 6), rateCardDigest: 'card-a' },
+        { ...fact(A, dev, 'cost', 4), rateCardDigest: 'card-b' },
+        { ...trio(B, dev, 'cost', 6), rateCardDigest: 'card-b' },
+        trio(A, dev, 'tokens', 9),
+      ]);
+      expect((await rowOf(A)).mixedRateCards).toBeUndefined();
+      const parent = await rowOf(P);
+      // Proof: with the facts' fold handed the trios too, this read P's facts
+      // stripped as well; watched 2026-10-23.
+      expect(parent.mixedRateCards).toEqual({
+        cost: {
+          estimates: [
+            { currency: 'USD', rateCardDigest: 'card-a' },
+            { currency: 'USD', rateCardDigest: 'card-b' },
+          ],
+        },
+      });
+      expect(parent.measures['cost']).toEqual({ [dev]: 4 });
+      // The mixed cost trios go; the tokens trio stays.
+      expect(Object.keys(parent.measureEstimates ?? {})).toEqual(['tokens']);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refuses an undo that would put an unpriced cost fact back', async () => {
+    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    try {
+      const A = idOf('A');
+      await source.stores.measures.set(
+        { workItemId: A, stepId: dev, metric: 'cost', value: 3, recordedAt: 1 },
+        { at: 1, by: F },
+      );
+      await run([{ ...fact(A, dev, 'cost', 10), rateCardDigest: 'card-a' }]);
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect((await source.stores.measures.listByProject(projectId)).map((m) => m.value)).toEqual([
+        10,
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refuses an undo that would put an unpriced cost trio back', async () => {
+    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    try {
+      const A = idOf('A');
+      await source.stores.measureEstimates.set(
+        {
+          workItemId: A,
+          stepId: dev,
+          key: 'cost',
+          optimistic: 1,
+          realistic: 1,
+          pessimistic: 1,
+          singlePoint: false,
+        },
+        { at: 1, by: F },
+      );
+      await run([{ ...trio(A, dev, 'cost', 9), rateCardDigest: 'card-a' }]);
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(
+        (await source.stores.measureEstimates.listByProject(projectId)).map((m) => m.pessimistic),
+      ).toEqual([9]);
     } finally {
       await source.close();
     }

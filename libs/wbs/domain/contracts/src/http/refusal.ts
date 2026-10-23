@@ -165,13 +165,11 @@ export type CommandRefusalCode =
   | 'three_point_forbidden'
   /** `setBudget` or `clearBudget` in the scheduling measure (`wbs-measure-budgets` D35). */
   | 'scheduling_measure_budget'
-  /** A negative or non-finite budget cap or hold. */
-  | 'invalid_budget'
   /** A money fact or trio written without a rate card digest. */
   | 'rate_card_required'
   /** A rate card digest on a measure that is not money. */
   | 'rate_card_forbidden'
-  /** A sum that would add money figures priced under two rate cards; `digests` names both. */
+  /** A sum that would add money figures priced under two bases; `bases` names both. */
   | 'mixed_rate_cards'
   | 'has_children'
   | 'ancestor'

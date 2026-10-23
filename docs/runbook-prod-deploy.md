@@ -358,6 +358,12 @@ is patched back to `budgetFactor: 1`, and every priced fact or trio is cleared w
 `clearMeasure` or `clearMeasureEstimate` (or by SQL); then run
 `migrate-down-cli.ts --to=20261023120000_add_measure_estimate`.
 
+Deploy slices 2–4 of `wbs-measure-budgets` together, in one swap: the migrations
+`20261023110000_key_step_measure`, `20261023120000_add_measure_estimate` and
+`20261023130000_add_work_item_budget` then land at once, and no release ever writes facts or
+trios in money measures without a rate card, which would read as a basis of their own beside
+every priced figure and split those sums (design D44).
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at

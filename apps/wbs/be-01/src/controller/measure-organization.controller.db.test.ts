@@ -264,7 +264,14 @@ describe('budgets and money bases in an organization', () => {
     const read = await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
     const rows = (read.body as { workItems: { id: string; [field: string]: unknown }[] }).workItems;
     const parent = rows.find((each) => each.id === P);
-    expect(parent?.['mixedRateCards']).toEqual({ cost: ['card-a', 'card-b'] });
+    expect(parent?.['mixedRateCards']).toEqual({
+      cost: {
+        facts: [
+          { currency: 'USD', rateCardDigest: 'card-a' },
+          { currency: 'USD', rateCardDigest: 'card-b' },
+        ],
+      },
+    });
     expect(parent?.['budgets']).toBeUndefined();
     expect(rows.find((each) => each.id === L)?.['budgets']).toEqual({
       cost: { cap: 15, policy: 'advisory', source: 'stated', remaining: 5, exceeded: false },
@@ -294,7 +301,10 @@ describe('budgets and money bases in an organization', () => {
         error: 'mixed_rate_cards',
         at: 0,
         kind: 'deleteWorkItem',
-        digests: ['card-a', 'card-b'],
+        bases: [
+          { currency: 'USD', rateCardDigest: 'card-a' },
+          { currency: 'USD', rateCardDigest: 'card-b' },
+        ],
       },
     });
   });

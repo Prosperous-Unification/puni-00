@@ -93,6 +93,8 @@ export type CompensatingCommand =
       realistic: number;
       pessimistic: number;
       singlePoint: boolean;
+      /** A money trio's basis (design D43); absent elsewhere and from older journals. */
+      basis?: MoneyBasis;
     }
   | { do: 'clear_measure_estimate'; workItemId: string; stepId: string; key: string }
   /**

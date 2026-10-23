@@ -13,7 +13,7 @@ import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
-import { numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
+import { mixedBases, numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
 export { commandParserRefusal } from './command-parser-refusal';
 
@@ -333,7 +333,7 @@ const batchRefusals = [
       type({
         ...context,
         error: "'mixed_rate_cards'",
-        digests: type(['string | null', 'string | null']),
+        bases: mixedBases,
       }),
     ),
   },
@@ -371,7 +371,6 @@ const batchRefusals = [
         type({ ...context, error: "'minutes_not_integer'" }),
         type({ ...context, error: "'minutes_above_max'" }),
         type({ ...context, error: "'invalid_estimate'" }),
-        type({ ...context, error: "'invalid_budget'" }),
         type({ ...context, error: "'calendar_range'" }),
         type({ ...context, error: "'unsupported_relationship_type'" }),
         type({ ...context, error: "'attempt_in_future'" }),

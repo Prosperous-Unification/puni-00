@@ -26,6 +26,7 @@ const PROJECT: Project & { timezone: string } = {
   optimizationEnabled: true,
   scheduleEngine: 'optimized',
   scheduleObjective: 'time',
+  budgetFactor: 1.5,
   timezone: 'Europe/Kyiv',
 };
 
@@ -308,8 +309,10 @@ test('preserves the existing JSON export fields', async () => {
     demands,
     ...existing
   } = exported;
+  // The budget factor is left out of this version's document (`wbs-measure-budgets` D38).
+  const { budgetFactor: _factor, ...exportedProject } = PROJECT;
   expect(existing).toEqual<unknown>({
-    project: PROJECT,
+    project: exportedProject,
     ...TREE,
     workItems: TREE.workItems.map(({ blockages: _blockages, ...row }) => row),
   });

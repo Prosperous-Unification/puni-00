@@ -1,4 +1,4 @@
-import type { BudgetReading } from '@wbs/domain';
+import type { BudgetRead, BudgetReading, MixedRateCards } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { findBudgetHeadroom } from './budget-headroom';
@@ -55,61 +55,79 @@ const startable = (claimed = false): StartableWork => ({
   occupancyScope: 'project',
 });
 
+const advisory = (remaining: number): BudgetReading => ({
+  ...reading(remaining),
+  policy: 'advisory',
+  source: 'derived',
+});
+
+const readOf = (
+  readings: [string, [string, BudgetReading][]][],
+  blocked: [string, [string, MixedRateCards][]][] = [],
+): BudgetRead => ({
+  readings: new Map(readings.map(([row, keys]) => [row, new Map(keys)])),
+  blocked: new Map(blocked.map(([row, keys]) => [row, new Map(keys)])),
+});
+
 describe('findBudgetHeadroom', () => {
   it('reports the tightest budget among a step’s work item and its ancestors', () => {
     const read = findBudgetHeadroom(
       ROWS,
       startable(true),
-      new Map([
-        ['A', new Map([['tokens', reading(80)]])],
+      readOf([
+        ['A', [['tokens', reading(80)]]],
         [
           'P',
-          new Map([
+          [
             ['tokens', reading(30)],
             ['cost', reading(5)],
-          ]),
+          ],
         ],
       ]),
-      new Map(),
     );
+    const both = {
+      tokens: { strict: { ...reading(30), workItemId: 'P' } },
+      cost: { strict: { ...reading(5), workItemId: 'P' } },
+    };
     expect(read).toEqual({
       steps: [
-        {
-          workItemId: 'A',
-          stepId: 'dev',
-          state: 'startable',
-          budgets: {
-            tokens: { ...reading(30), workItemId: 'P' },
-            cost: { ...reading(5), workItemId: 'P' },
-          },
-        },
-        {
-          workItemId: 'A',
-          stepId: 'qa',
-          state: 'claimed',
-          budgets: {
-            tokens: { ...reading(30), workItemId: 'P' },
-            cost: { ...reading(5), workItemId: 'P' },
-          },
-        },
+        { workItemId: 'A', stepId: 'dev', state: 'startable', budgets: both },
+        { workItemId: 'A', stepId: 'qa', state: 'claimed', budgets: both },
       ],
     });
   });
 
+  it('keeps an exhausted strict budget beside a looser advisory one', () => {
+    const read = findBudgetHeadroom(
+      ROWS,
+      startable(),
+      readOf([
+        ['A', [['tokens', advisory(-200)]]],
+        ['P', [['tokens', reading(0)]]],
+      ]),
+    );
+    expect(read.steps[0]?.budgets['tokens']).toEqual({
+      strict: { ...reading(0), workItemId: 'P' },
+      advisory: { ...advisory(-200), workItemId: 'A' },
+    });
+  });
+
   it('answers a step under no budget with none', () => {
-    expect(findBudgetHeadroom(ROWS, startable(), new Map(), new Map())).toEqual({
+    expect(findBudgetHeadroom(ROWS, startable(), readOf([]))).toEqual({
       steps: [{ workItemId: 'A', stepId: 'dev', state: 'startable', budgets: {} }],
     });
   });
 
-  it('refuses when a row of a step’s chain mixes rate cards', () => {
-    expect(
-      findBudgetHeadroom(
-        ROWS,
-        startable(),
-        new Map(),
-        new Map([['P', new Map([['cost', ['a', 'b'] as [string, string]]])]]),
-      ),
-    ).toEqual({ kind: 'mixed_rate_cards', digests: ['a', 'b'] });
+  it('names a blocked cost budget on its step alone, tokens kept', () => {
+    const pair: MixedRateCards = [null, { currency: 'USD', rateCardDigest: 'x' }];
+    const read = findBudgetHeadroom(
+      ROWS,
+      startable(),
+      readOf([['A', [['tokens', reading(10)]]]], [['P', [['cost', pair]]]]),
+    );
+    expect(read.steps[0]?.budgets).toEqual({
+      tokens: { strict: { ...reading(10), workItemId: 'A' } },
+      cost: { mixedRateCards: pair, mixedAt: 'P' },
+    });
   });
 });

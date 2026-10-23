@@ -231,10 +231,10 @@ export class CommandContext {
       // Proof: with this guard bypassed (the plain refusal below), `refuses a
       // last-child delete whose hand-up would add two rate cards, naming both`
       // (budget-command.test.ts) named no digests; watched 2026-10-23.
-      if (!('digests' in outcome) || outcome.digests === undefined)
-        throw new Error('A rate card refusal requires both digests');
-      const [first, second] = outcome.digests;
-      return this.refuse({ reason: outcome.reason, detail: { digests: [first, second] } });
+      if (!('bases' in outcome) || outcome.bases === undefined)
+        throw new Error('A rate card refusal requires both bases');
+      const [first, second] = outcome.bases;
+      return this.refuse({ reason: outcome.reason, detail: { bases: [first, second] } });
     }
     if (outcome.reason === 'agent_person_limit') {
       return this.refuse({

@@ -53,6 +53,12 @@ export const nodeResourcesShape = type({
   maxParallel: 'number',
   width: 'number',
 });
+/** A money figure's basis on the wire: currency and rate card digest (design D43). */
+export const moneyBasis = type({ currency: 'string', rateCardDigest: 'string' });
+
+/** The two bases a mix is named by, null for an unpriced figure (design D44). */
+export const mixedBases = type([moneyBasis.or('null'), moneyBasis.or('null')]);
+
 export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -123,10 +129,13 @@ export const numberedWorkItem = type({
       'held?': 'number',
     }),
   }),
-  // Money keys whose figures in the subtree are priced under two rate cards,
-  // with the first two digests (null: unpriced); such a key is left out of
-  // `measures`, `measureEstimates` and `budgets` on the row (design D44).
-  'mixedRateCards?': type({ '[string]': type(['string | null', 'string | null']) }),
+  // Money keys whose figures in the subtree are priced under two bases, per
+  // kind, with the first two (null: unpriced). Facts and trios fold apart: a
+  // key mixing facts is left out of `measures` and `budgets`, one mixing trios
+  // out of `measureEstimates` (design D44).
+  'mixedRateCards?': type({
+    '[string]': type({ 'facts?': mixedBases, 'estimates?': mixedBases }),
+  }),
   dependsOn: 'string[]',
   finalDays: numbers,
   // Absent only from a backend that predates estimate units during swap or rollback.

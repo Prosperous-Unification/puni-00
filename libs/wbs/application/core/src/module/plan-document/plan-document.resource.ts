@@ -274,8 +274,13 @@ function buildDocument(
   // test receive a TypeError from .map instead of the named trusted-state error.
   if (tree.typedDependencies === undefined)
     throw new Error(`project "${project.id}" tree was read without typed dependencies`);
+  // The budget factor stays out until the export's version carries budgets
+  // (`wbs-measure-budgets` D22, D38): the document keeps its version's shape.
+  // Proof: with the factor left in, `v9 zero-fact export retains canonical
+  // bytes` (plan-document.resource.test.ts) read other bytes; watched 2026-10-23.
+  const { budgetFactor: _factor, ...exported } = project;
   return {
-    project,
+    project: exported,
     ...tree,
     workItems: documentWorkItems(tree, closure.people),
     // Proof: omitting this collection failed `v9 exports detached direct blockage facts` (2026-10-14).

@@ -352,8 +352,6 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
-    case 'invalid_budget':
-      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':

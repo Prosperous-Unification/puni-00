@@ -47,11 +47,13 @@ export interface BudgetKey {
  * - `unknown_measure` (404): no definition of the project's organization;
  * - `scheduling_measure_budget` (409): the scheduling measure (`time`), whose
  *   bound is a deadline the solver reads, not a budget;
- * - `invalid_budget` (422): a negative or non-finite cap or hold;
  * - `scale_mismatch` (409): a fraction on an integer measure.
+ *
+ * A negative or non-finite cap or hold is not decided here: the command
+ * boundary refuses it (`invalid_budget`, 400, `parseBudget`) and a journal
+ * replay is checked by `isBudgetRecord` (design D36).
  */
-export type BudgetRefusal =
-  'unknown_measure' | 'scheduling_measure_budget' | 'invalid_budget' | 'scale_mismatch';
+export type BudgetRefusal = 'unknown_measure' | 'scheduling_measure_budget' | 'scale_mismatch';
 
 /** {@link decideBudget}'s answer: the definition the budget is in, or why not. */
 export type BudgetDecision =
@@ -82,10 +84,6 @@ export function decideBudget(
     figures.cap,
     ...(figures.holdPerAttempt === null ? [] : [figures.holdPerAttempt]),
   ];
-  // Proof: with this test removed, `refuses a negative or non-finite cap or
-  // hold` (budget.test.ts) accepted a cap of -1; watched 2026-10-23.
-  if (!stated.every((figure) => Number.isFinite(figure) && figure >= 0))
-    return { ok: false, reason: 'invalid_budget' };
   // Proof: with the integer test made `false`, `refuses a fraction on an
   // integer measure` (budget.test.ts) accepted 1.5 tokens; watched 2026-10-23.
   if (definition.scale === 'integer' && !stated.every(Number.isInteger))
@@ -124,8 +122,20 @@ export interface BudgetReads {
   readonly attempts: readonly NodeAttempt[];
   /** The project's budget factor (design D38). */
   readonly factor: number;
-  /** Rows and keys whose money figures mix bases: read no budget there (design D44). */
-  readonly mixed: ReadonlyMap<string, ReadonlyMap<string, MixedRateCards>>;
+  /** Rows and keys whose money **facts** mix bases: no spend can be summed there (design D44). */
+  readonly mixedFacts: ReadonlyMap<string, ReadonlyMap<string, MixedRateCards>>;
+  /** Rows and keys whose money **trios** mix bases: no derived cap can be summed there. */
+  readonly mixedEstimates: ReadonlyMap<string, ReadonlyMap<string, MixedRateCards>>;
+}
+
+/**
+ * {@link readBudgets}' answer: the readings, and apart the rows and keys
+ * where a budget exists (stated, or derivable) but cannot be read because a
+ * sum it needs mixes rate cards, with the pair that blocks it (design D44).
+ */
+export interface BudgetRead {
+  readonly readings: Map<string, Map<string, BudgetReading>>;
+  readonly blocked: Map<string, Map<string, MixedRateCards>>;
 }
 
 /**
@@ -135,15 +145,25 @@ export interface BudgetReads {
  * the subtree's facts summed over every step and the holds of its running
  * attempts (design D39, D40).
  *
- * A row with neither is absent, as is a row and key in `mixed`. The
- * scheduling measure has no budget (design D35) and its trios are not here.
+ * A derived budget exists only where every leaf of the subtree holding facts
+ * in the key also holds a trio in it: a cap made of some leaves' estimates
+ * against every leaf's spend would compare unlike sums (design D38). A row
+ * with neither budget is absent. A stated budget whose facts mix bases, or a
+ * derived one whose facts or trios do, is not read and is named in `blocked`
+ * instead. The scheduling measure has no budget (design D35).
+ *
+ * Holds (design D39): a running attempt of a typed measure holds until a fact
+ * on its node is recorded at or after its start; in a derived measure
+ * (`agent_minutes`) it holds for as long as it runs, since its facts come
+ * from ended spans only.
  *
  * @throws when a budget or trio names a key `definitions` does not hold: the
  * stores refuse to write one and `deleteMeasure` refuses a referenced
  * definition, so such a row is drifted trusted state.
  */
-export function readBudgets(reads: BudgetReads): Map<string, Map<string, BudgetReading>> {
-  const { rows, definitions, budgets, facts, estimates, attempts, factor, mixed } = reads;
+export function readBudgets(reads: BudgetReads): BudgetRead {
+  const { rows, definitions, budgets, facts, estimates, attempts, factor } = reads;
+  const { mixedFacts, mixedEstimates } = reads;
   const keys = [...new Set([...budgets.map(({ key }) => key), ...estimates.map(({ key }) => key)])];
   const definitionOf = (key: string): MeasureDefinition => {
     const found = definitions.find((each) => each.key === key);
@@ -154,6 +174,14 @@ export function readBudgets(reads: BudgetReads): Map<string, Map<string, BudgetR
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId] as const));
   const running = attempts.filter((attempt) => attempt.endedAt === null);
   const readings = new Map<string, Map<string, BudgetReading>>();
+  const blocked = new Map<string, Map<string, MixedRateCards>>();
+  const hasChildren = new Set(rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])));
+  const markUp = (marked: Set<string>, from: string): void => {
+    for (let at: string | null | undefined = from; typeof at === 'string';) {
+      marked.add(at);
+      at = parentOf.get(at);
+    }
+  };
   for (const key of keys.sort()) {
     const definition = definitionOf(key);
     if (definition.schedulesWork) continue;
@@ -166,10 +194,28 @@ export function readBudgets(reads: BudgetReads): Map<string, Map<string, BudgetR
       rollUpMeasureEstimates(rows, estimates, key, DEFAULT_PERT_WEIGHTS, 'real'),
       (figure) => figure.pessimistic,
     );
+    // Rows over a leaf that spends in this key and estimates nothing in it:
+    // no derived budget there (D38).
+    const estimating = new Set(
+      estimates.filter((each) => each.key === key).map(({ workItemId }) => workItemId),
+    );
+    const uncovered = new Set<string>();
+    for (const fact of facts) {
+      if (fact.metric !== metric || hasChildren.has(fact.workItemId)) continue;
+      // Proof: with this mark skipped, `derives no budget over a leaf that
+      // spends without an estimate` (budget.test.ts) derived P's cap from A
+      // alone; watched 2026-10-23.
+      if (!estimating.has(fact.workItemId)) markUp(uncovered, fact.workItemId);
+    }
     // The running attempts whose usage in this key is unknown: no fact on
-    // their node recorded at or after their start.
+    // their node recorded at or after their start, or any running attempt
+    // at all in a derived measure.
     const unknown = running.filter(
       (attempt) =>
+        // Proof: with this test removed, `holds agent minutes for every
+        // running attempt, a fact from an earlier end beside it` (budget.test.ts)
+        // read the second attempt as known; watched 2026-10-23.
+        definition.derived ||
         !facts.some(
           (fact) =>
             fact.metric === metric &&
@@ -186,12 +232,21 @@ export function readBudgets(reads: BudgetReads): Map<string, Map<string, BudgetR
       }
     }
     for (const row of rows) {
-      // Proof: with this skip removed, `reads no budget where the bases mix`
-      // (budget.test.ts) read the parent's cost budget; watched 2026-10-23.
-      if (mixed.get(row.id)?.has(key) === true) continue;
       const stated = budgets.find((each) => each.workItemId === row.id && each.key === key);
-      const pessimistic = pessimisticOf.get(row.id);
+      const pessimistic = uncovered.has(row.id) ? undefined : pessimisticOf.get(row.id);
       if (stated === undefined && pessimistic === undefined) continue;
+      // Proof: with this skip removed, `reads no budget where the facts mix
+      // bases, and a derived one only where neither kind does` (budget.test.ts)
+      // read the parent's cost budget; watched 2026-10-23.
+      const mix =
+        mixedFacts.get(row.id)?.get(key) ??
+        (stated === undefined ? mixedEstimates.get(row.id)?.get(key) : undefined);
+      if (mix !== undefined) {
+        const byKey = blocked.get(row.id) ?? new Map<string, MixedRateCards>();
+        byKey.set(key, mix);
+        blocked.set(row.id, byKey);
+        continue;
+      }
       const spent = spentOf.get(row.id) ?? 0;
       const reading: BudgetReading =
         stated === undefined
@@ -202,7 +257,7 @@ export function readBudgets(reads: BudgetReads): Map<string, Map<string, BudgetR
       readings.set(row.id, byKey);
     }
   }
-  return readings;
+  return { readings, blocked };
 }
 
 function derivedReading(cap: number, spent: number): BudgetReading {
@@ -211,6 +266,9 @@ function derivedReading(cap: number, spent: number): BudgetReading {
     policy: 'advisory',
     source: 'derived',
     remaining: cap - spent,
+    // Proof: with `>=` here, `reports a derived budget exceeded only once the
+    // facts cross its cap` (budget.test.ts) read a derived cap spent to the
+    // cap exceeded; watched 2026-10-23.
     exceeded: spent > cap,
   };
 }

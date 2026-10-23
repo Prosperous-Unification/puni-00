@@ -8,6 +8,7 @@ import {
   type AttemptOutcome,
   type AuthoredDependencyGraph,
   type BudgetPolicy,
+  type BudgetRead,
   type BudgetReading,
   type BudgetReads,
   byTreeOrder,
@@ -219,7 +220,7 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
-import { type BudgetHeadroom, findBudgetHeadroom, type MixedHeadroom } from './budget-headroom';
+import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
 import { withBudgets } from './budget-read';
 import {
   type Claimed,
@@ -853,8 +854,6 @@ export type WorkItemRefusal =
   | 'three_point_forbidden'
   /** A budget or its clear in the scheduling measure (`time`) (409, design D35). */
   | 'scheduling_measure_budget'
-  /** A negative or non-finite budget cap or hold (422, design D36). */
-  | 'invalid_budget'
   /** A write in a money measure without a rate card digest (409, design D43). */
   | 'rate_card_required'
   /** A rate card digest on a measure that is not money (409, design D43). */
@@ -1001,8 +1000,8 @@ export type WorkItemOutcome<T> =
       projectDayZero?: IsoDate;
       /** Relationships that prevent a structural change from changing endpoint scope. */
       dependencyIds?: string[];
-      /** The two rate card digests a `mixed_rate_cards` refusal would add (null: unpriced). */
-      digests?: MixedRateCards;
+      /** The two bases a `mixed_rate_cards` refusal would add (null: unpriced). */
+      bases?: MixedRateCards;
     };
 
 /** Orders relationship removal before a structural delete and restoration after it. */
@@ -2000,14 +1999,14 @@ export class WorkItemService {
    * team's, each with the tightest budget among its work item and ancestors,
    * holds for running attempts of unknown usage taken off (design D39–D41).
    *
-   * Null for a project the caller cannot read; `mixed_rate_cards` when a
-   * reported budget would sum two rate cards (design D44). No route serves it
-   * yet (slice 5).
+   * Null for a project the caller cannot read. Never refused as a whole: a
+   * budget that a rate-card mix keeps from being read is named on its own
+   * step and key (design D44). No route serves it yet (slice 5).
    */
   async budgetHeadroomWithin(
     projectId: string,
     access: ResourceAccess,
-  ): Promise<BudgetHeadroom | MixedHeadroom | null> {
+  ): Promise<BudgetHeadroom | null> {
     const startable = await this.startableWithin(projectId, access, null);
     if (startable === null) return null;
     // Proof (type boundary): `unknown_team` answers only a team that was named.
@@ -2017,20 +2016,17 @@ export class WorkItemService {
     const budgets = await this.opts.budgets.listByProject(projectId);
     const facts = await this.opts.measures.listByProject(projectId);
     const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
-    const mixed = mixedRateCardsOf(
-      rows,
-      pricedFiguresOf(facts, estimates),
-      moneyKeysOf(definitions),
-    );
-    const readings = await this.budgetReadingsOf(projectId, {
+    const moneyKeys = moneyKeysOf(definitions);
+    const read = await this.budgetReadingsOf(projectId, {
       rows,
       definitions,
       budgets,
       facts,
       estimates,
-      mixed,
+      mixedFacts: mixedRateCardsOf(rows, pricedFactsOf(facts), moneyKeys),
+      mixedEstimates: mixedRateCardsOf(rows, estimates, moneyKeys),
     });
-    return findBudgetHeadroom(rows, startable, readings, mixed);
+    return findBudgetHeadroom(rows, startable, read);
   }
 
   /**
@@ -2412,11 +2408,10 @@ export class WorkItemService {
     if (estimates.length === 0 && budgets.length === 0 && !facts.some(({ basis }) => basis))
       return tree;
     const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
-    const mixed = mixedRateCardsOf(
-      tree.workItems,
-      pricedFiguresOf(facts, estimates),
-      moneyKeysOf(definitions),
-    );
+    const moneyKeys = moneyKeysOf(definitions);
+    // Facts and trios fold apart (design D44): a mix in one never strips the other.
+    const mixedFacts = mixedRateCardsOf(tree.workItems, pricedFactsOf(facts), moneyKeys);
+    const mixedEstimates = mixedRateCardsOf(tree.workItems, estimates, moneyKeys);
     const estimated =
       estimates.length === 0
         ? tree.workItems
@@ -2431,18 +2426,24 @@ export class WorkItemService {
           );
     const readings =
       estimates.length === 0 && budgets.length === 0
-        ? new Map()
-        : await this.budgetReadingsOf(projectId, {
-            rows: tree.workItems,
-            definitions,
-            budgets,
-            facts,
-            estimates,
-            mixed,
-          });
+        ? new Map<string, Map<string, BudgetReading>>()
+        : (
+            await this.budgetReadingsOf(projectId, {
+              rows: tree.workItems,
+              definitions,
+              budgets,
+              facts,
+              estimates,
+              mixedFacts,
+              mixedEstimates,
+            })
+          ).readings;
     // Proof: with the budgets left unattached, `sets, replaces and clears a
     // budget, undoably` (budget-command.test.ts) read no `budgets`; watched 2026-10-23.
-    return { ...tree, workItems: withBudgets(estimated, readings, mixed) };
+    return {
+      ...tree,
+      workItems: withBudgets(estimated, readings, { facts: mixedFacts, estimates: mixedEstimates }),
+    };
   }
 
   /**
@@ -2458,7 +2459,7 @@ export class WorkItemService {
     reads: Omit<BudgetReads, 'attempts' | 'factor' | 'facts'> & {
       facts: readonly StoredMeasure[];
     },
-  ): Promise<Map<string, Map<string, BudgetReading>>> {
+  ): Promise<BudgetRead> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) throw new Error(`project ${projectId} vanished during its plan read`);
     const attempts = await this.opts.attempts.listByProject(projectId);
@@ -4882,18 +4883,20 @@ export class WorkItemService {
     // which cannot be done across two rate cards (design D44): refused before
     // any write, naming both.
     if (promotes) {
-      const mixed = mixedRateCardsOf(
-        rows,
-        pricedFiguresOf(storedMeasures, storedMeasureEstimates),
-        moneyKeysOf(await this.opts.measures.definitionsFor(workItem.projectId)),
-      )
-        .get(id)
-        ?.values()
-        .next().value;
+      const moneyKeys = moneyKeysOf(await this.opts.measures.definitionsFor(workItem.projectId));
+      // Facts and trios hand up apart, so a mix counts within one kind only
+      // (design D44): a fact on one card beside a trio on another adds nothing.
+      // Proof: with the two kinds folded together, `hands up a fact on one card
+      // beside a trio on another` (budget-command.test.ts) refused the delete;
+      // watched 2026-10-23.
+      const mixed =
+        mixedRateCardsOf(rows, pricedFactsOf(storedMeasures), moneyKeys).get(id)?.values().next()
+          .value ??
+        mixedRateCardsOf(rows, storedMeasureEstimates, moneyKeys).get(id)?.values().next().value;
       // Proof: with this refusal skipped, `refuses a last-child delete whose
       // hand-up would add two rate cards, naming both` (budget-command.test.ts)
       // handed the mixed sum up; watched 2026-10-23.
-      if (mixed !== undefined) return { ok: false, reason: 'mixed_rate_cards', digests: mixed };
+      if (mixed !== undefined) return { ok: false, reason: 'mixed_rate_cards', bases: mixed };
     }
     const claimedRows = promotes
       ? [
@@ -6266,7 +6269,7 @@ export class WorkItemService {
    * replaces the derived one the row read would otherwise show (design D38).
    *
    * Decided by {@link decideBudget}: `unknown_measure` (404),
-   * `scheduling_measure_budget` (409), `invalid_budget` (422) and
+   * `scheduling_measure_budget` (409) and
    * `scale_mismatch` (409). Undoable, one journal entry; **nothing here
    * reaches the schedule** (D2).
    */
@@ -7930,6 +7933,12 @@ export class WorkItemService {
         ) {
           return { ok: false, detail: 'that measure is no longer defined.' };
         }
+        // A money figure goes back only with its rate card (design D44): an
+        // unpriced one would be a basis of its own beside every priced figure.
+        // Proof: with this refusal skipped, `refuses an undo that would put an
+        // unpriced cost fact back` (budget-command.test.ts) wrote it; watched 2026-10-23.
+        const unpriced = await this.unpricedRefusal(projectId, command.metric, command.basis);
+        if (unpriced !== null) return unpriced;
         const restored = await this.opts.measures.set(
           {
             workItemId: command.workItemId,
@@ -7969,6 +7978,10 @@ export class WorkItemService {
         // threw from the store instead of refusing; watched 2026-10-23.
         const refused = await this.measureEstimatesRefusal(projectId, [command]);
         if (refused !== null) return refused;
+        // Proof: with this refusal skipped, `refuses an undo that would put an
+        // unpriced cost trio back` (budget-command.test.ts) wrote it; watched 2026-10-23.
+        const unpriced = await this.unpricedRefusal(projectId, command.key, command.basis);
+        if (unpriced !== null) return unpriced;
         const { do: _kind, ...estimate } = command;
         const restored = await this.opts.measureEstimates.set(estimate, stamp);
         if (restored === 'unknown_step')
@@ -8651,6 +8664,30 @@ export class WorkItemService {
     const definitions = await this.opts.measures.definitionsFor(projectId);
     return measures.some(({ metric }) => !decideMeasureFact(definitions, metric, null).ok)
       ? { ok: false, detail: 'a measure it recorded is no longer defined.' }
+      : null;
+  }
+
+  /**
+   * Why a `set_measure` or `set_measure_estimate` replay in `metric` (a fact's
+   * metric or a definition key) cannot be written: it is in a money measure
+   * and carries no basis, `rate_card_required` (design D44). Null otherwise.
+   */
+  private async unpricedRefusal(
+    projectId: string,
+    metric: string,
+    basis: MoneyBasis | undefined,
+  ): Promise<ApplyOutcome | null> {
+    if (basis !== undefined) return null;
+    const key = definitionKeyOf(metric);
+    if (key === null) return null;
+    const definition = definitionsOrUnowned(
+      await this.opts.measures.definitionsFor(projectId),
+    ).find((each) => each.key === key);
+    return definition?.kind === 'money'
+      ? {
+          ok: false,
+          detail: 'rate_card_required: a money figure goes back only with its rate card.',
+        }
       : null;
   }
 
@@ -9543,22 +9580,14 @@ function budgetReplay(budgets: readonly StoredBudget[]): { budgets?: StoredBudge
   return budgets.length === 0 ? {} : { budgets: budgets.map((each) => ({ ...each })) };
 }
 
-/** Every money-capable figure as {@link mixedRateCardsOf} reads it: key and basis per row. */
-function pricedFiguresOf(
+/** Every fact as {@link mixedRateCardsOf} reads it: its definition key and basis. */
+function pricedFactsOf(
   facts: readonly StoredMeasure[],
-  estimates: readonly StoredMeasureEstimate[],
 ): { workItemId: string; key: string; basis?: MoneyBasis }[] {
-  return [
-    ...facts.flatMap(({ workItemId, metric, basis }) => {
-      const key = definitionKeyOf(metric);
-      return key === null ? [] : [{ workItemId, key, ...(basis === undefined ? {} : { basis }) }];
-    }),
-    ...estimates.map(({ workItemId, key, basis }) => ({
-      workItemId,
-      key,
-      ...(basis === undefined ? {} : { basis }),
-    })),
-  ];
+  return facts.flatMap(({ workItemId, metric, basis }) => {
+    const key = definitionKeyOf(metric);
+    return key === null ? [] : [{ workItemId, key, ...(basis === undefined ? {} : { basis }) }];
+  });
 }
 
 /** The keys of the money definitions a project's figures are in. */
