@@ -1104,6 +1104,12 @@ SHALL NOT claim pairwise atomicity, host adoption, prior-holder drain or activat
 - **THEN** the installer refuses before chmod or replacement of either installed executor
 - **AND** separate attempts cannot overwrite one another's staging names
 
+#### Scenario: Canonical state or lock path has the wrong kind
+
+- **WHEN** the canonical state root is a symlink/non-directory or the canonical lock is a directory, FIFO, symlink or unreadable file
+- **THEN** installation refuses before either installed executor is changed
+- **AND** the durable recovery recipe refuses a symlink state root even when it points at a valid lock and retained marker
+
 #### Scenario: Staged bytes differ from the captured build
 
 - **WHEN** either uploaded file differs from its captured local SHA-256 identity

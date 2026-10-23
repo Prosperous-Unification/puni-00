@@ -85,8 +85,16 @@ export async function buildInstallPlan(
   const shell = `set -eu
 publishing=0
 trap 'status=$?; if [ "$status" -ne 0 ] && [ "$publishing" -eq 1 ]; then printf "%s\\n" "partial or uncertain installed-executor replacement; inspect both installed hashes under edge.lock before retry" >&2; fi; rm -f -- ${staged.map(quoteShell).join(' ')}; exit "$status"' EXIT
-# Proof: removing the existing-lock requirement made the missing-lock CLI negative publish both files.
-test -f ${lock} && test ! -L ${lock}
+# Proof: omitting this state-root guard let symlink state hide either retained marker and publish.
+if [ ! -d ${quoteShell(state)} ] || [ -L ${quoteShell(state)} ]; then
+  printf '%s\\n' 'invalid canonical edge state: expected a real directory' >&2
+  exit 1
+fi
+# Proof: omitting the standalone regular-file requirement published with directory and FIFO locks.
+# Each required predicate must stand alone: set -e exempts a failed non-final AND-list command.
+test -f ${lock}
+# Proof: omitting this predicate published through a symlink canonical lock in the real CLI negative.
+test ! -L ${lock}
 exec 9< ${lock}
 # Proof: omitting flock made the real mv substitute acquire edge.lock during replacement.
 flock -n 9

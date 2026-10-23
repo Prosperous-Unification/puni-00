@@ -221,7 +221,7 @@ after their reviewed commit lands on `main`:
 scp bin/dev-poll.sh h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
 scp bin/dev-poll-sync.sh h2puni:/home/puni1/wbs-dev/bin/dev-poll-sync.next.sh
 scp .bun-version h2puni:/home/puni1/wbs-dev/bin/bun-version.next
-ssh h2puni 'test -f /home/puni1/wbs/state/edge.lock && test ! -L /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
+ssh h2puni 'if test ! -d /home/puni1/wbs/state || test -L /home/puni1/wbs/state; then echo invalid canonical edge state >&2; exit 1; fi; test -f /home/puni1/wbs/state/edge.lock && test ! -L /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
   "set -eu; \
    for marker in edge-owner.json edge-owner.pending; do \
      retained=\$(find /home/puni1/wbs/state -mindepth 1 -maxdepth 1 -name \"\$marker\" -print); \
@@ -242,6 +242,9 @@ ssh h2puni 'test -f /home/puni1/wbs/state/edge.lock && test ! -L /home/puni1/wbs
 
 Proof: removing the retained-marker refusal from this exact SSH recipe made both
 local durable-recovery CLI negatives reach interpreter setup instead of refusing.
+Removing the state-root guard likewise made both symlink-root marker negatives
+reach interpreter setup. The recipe refuses symlink or non-directory canonical
+state before enumerating markers.
 
 Recovery requires existing readable canonical edge state and absence of both owner
 markers. A retained marker, malformed/unreadable marker or pending publication

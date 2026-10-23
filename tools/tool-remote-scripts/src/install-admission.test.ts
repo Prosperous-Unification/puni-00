@@ -1,4 +1,15 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  open,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -192,7 +203,7 @@ for (const marker of ['edge-owner.json', 'edge-owner.pending']) {
     const runbook = await Bun.file(
       new URL('../../../docs/runbook-dev-deploy.md', import.meta.url),
     ).text();
-    const start = runbook.indexOf("ssh h2puni 'test -f /home/puni1/wbs/state/edge.lock");
+    const start = runbook.indexOf("ssh h2puni '", runbook.indexOf('### Durable poller recovery'));
     expect(start).toBeGreaterThan(-1);
     const end = runbook.indexOf("'\n```", start);
     expect(end).toBeGreaterThan(start);
@@ -212,6 +223,77 @@ for (const marker of ['edge-owner.json', 'edge-owner.pending']) {
     const stderr = await new Response(child.stderr).text();
     expect(await child.exited).not.toBe(0);
     expect(stderr).toContain('owner-admission-closed');
+    await host.expectOriginal();
+  });
+}
+
+for (const shape of ['directory', 'fifo', 'symlink', 'unreadable']) {
+  test(`${shape} canonical lock refuses before replacement`, async () => {
+    const host = await createHost();
+    const path = join(host.root, 'state/edge.lock');
+    await rm(path);
+    let fifo;
+    if (shape === 'directory') await mkdir(path);
+    else if (shape === 'fifo') {
+      expect(await Bun.spawn(['mkfifo', path]).exited).toBe(0);
+      // Keep FIFO open without blocking so the broken guard can reach actual publication.
+      fifo = await open(path, constants.O_RDWR | constants.O_NONBLOCK);
+    } else if (shape === 'symlink') {
+      await writeFile(join(host.root, 'state/real.lock'), '');
+      await symlink('real.lock', path);
+    } else {
+      await writeFile(path, '');
+      await chmod(path, 0);
+    }
+    try {
+      expect((await host.install()).code).not.toBe(0);
+      await host.expectOriginal();
+    } finally {
+      await fifo?.close();
+    }
+  });
+}
+
+for (const marker of ['edge-owner.json', 'edge-owner.pending']) {
+  test(`symlink canonical state cannot hide ${marker} from installer`, async () => {
+    const host = await createHost();
+    await writeFile(join(host.root, 'state', marker), '{malformed');
+    await rename(join(host.root, 'state'), join(host.root, 'state-real'));
+    await symlink('state-real', join(host.root, 'state'));
+    const attempt = await host.install();
+    expect(attempt.code).not.toBe(0);
+    expect(attempt.output).toContain('invalid canonical edge state');
+    await host.expectOriginal();
+  });
+
+  test(`documented durable recovery rejects symlink state hiding ${marker}`, async () => {
+    const host = await createHost();
+    await writeFile(join(host.root, 'state', marker), '{malformed');
+    await rename(join(host.root, 'state'), join(host.root, 'state-real'));
+    await symlink('state-real', join(host.root, 'state'));
+    const runbook = await Bun.file(
+      new URL('../../../docs/runbook-dev-deploy.md', import.meta.url),
+    ).text();
+    const start = runbook.indexOf("ssh h2puni '", runbook.indexOf('### Durable poller recovery'));
+    expect(start).toBeGreaterThan(-1);
+    const end = runbook.indexOf("'\n```", start);
+    expect(end).toBeGreaterThan(start);
+    const command = runbook
+      .slice(start, end + 1)
+      .replaceAll('/home/puni1/wbs-dev', host.root)
+      .replaceAll('/home/puni1/wbs', host.root);
+    const child = Bun.spawn(['bash', '-c', command], {
+      env: {
+        ...process.env,
+        TEST_HOST: host.root,
+        PATH: `${host.root}/commands:${process.env['PATH'] ?? ''}`,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stderr = await new Response(child.stderr).text();
+    expect(await child.exited).not.toBe(0);
+    expect(stderr).toContain('invalid canonical edge state');
     await host.expectOriginal();
   });
 }

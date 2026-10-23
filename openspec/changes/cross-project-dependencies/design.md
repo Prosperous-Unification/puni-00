@@ -1205,7 +1205,9 @@ marker or competing writer leaves both live configuration and staged bytes intac
 The swap/smoke installer captures local SHA-256 identities, uploads uniquely named
 sibling staging files, and runs one remote critical section against the existing
 canonical production `state/edge.lock` for both environments. It neither creates
-nor inherits a substitute lock. Required state enumeration must succeed, and any
+nor inherits a substitute lock. The canonical state root must be a real directory;
+regular-file and no-symlink lock predicates execute as separate required commands
+to avoid POSIX `set -e` AND-list exemptions. Required state enumeration must succeed, and any
 `edge-owner.json` or `edge-owner.pending` path refuses publication regardless of
 contents or readability. Both staged hashes pass before chmod or replacement;
 both installed hashes pass before the lock is released. The two renames are
