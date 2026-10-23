@@ -249,3 +249,48 @@ repository) and needs the operator to re-authenticate. Live claims, agent person
 occupancy and attempt rows on dev were therefore not re-read; the 2026-10-21 bound-claim
 proof in the private plan repository is cited as dated evidence, not refreshed.
 Everything listed under "What remains unverified" above still stands.
+
+## W02 resolution — 2026-10-23
+
+Read and changed on 2026-10-23 between 20:17Z and 22:00Z on h1claw (`claw` user), h2puni
+and the Hetzner bucket `puni-01`; the code change is claire PR #135.
+
+**Cause.** The hourly unit's `TimeoutStartSec=900` was reached once the `wbs-dev`
+generation grew to 883 MB (the live `wbs-dev/data/wbs.db` is 985 MB for 8,982 `event_log`
+rows) at the measured ~1 MiB/s upload rate from Ashburn to hel1. The 2026-10-19 16:17Z run
+completed in 14 m 31 s; every run from 17:17Z was killed by systemd at 15 minutes after
+promoting its set but before archive acceptance and local pruning. Local generations grew by
+one set per hour to 108 files and 24 GB, `/dev/sda1` reached 100 % on 2026-10-20 16:17Z,
+and every later run failed at the `scp` pull with ENOSPC. This is the "failing step" the
+rerun named; the step was the symptom.
+
+**Bucket state.** `puni01:puni-01/backups/sqlite/generations` held 3,223 objects and
+145.0 GiB, every hourly generation since 2026-08-24 (144.7 GiB of it `wbs-dev`), with
+68 incomplete multipart uploads initiated 2026-10-18 to 2026-10-20 by the killed runs.
+Versioning is enabled; the only lifecycle rule expires noncurrent versions after 30 days.
+No job pruned current objects. `puni-01/sqlite/website-dev` (puni-00's k3s runner) held
+808 objects and 141 MiB, also unpruned. `puni-bkt-02` is empty.
+
+**Newest usable generation.** `status.json` `lastSuccessful` names 2026-10-19 16:17Z
+(wbs-dev sha256 `e5a258…`, 882,352,128 bytes, sanity 8,643). Older complete sets for every
+hour from 2026-08-24 remain in the bucket; the 2026-10-19 17:17Z to 2026-10-20 00:17Z sets
+reached the bucket in full from the killed runs.
+
+**Repair.** Claire PR #135: `TimeoutStartSec=3000`; rclone `--transfers=2
+--s3-chunk-size=32M --s3-upload-concurrency=8` (200 MiB stream: 59 s against 192 s with the
+old flags); new `prune-remote` command with a tiered policy (every set for 48 h, the last
+set of each UTC day for 60 days, the last set of each UTC week for 52 weeks, newest and
+status-named sets always kept, refusal on a failed or empty listing, re-list after deletion,
+then `rclone backend cleanup` of multipart uploads older than 24 h) on a daily
+`sqlite-backup-remote-prune.timer` at 04:47Z under the hourly job's lock. Local recovery
+followed the script's own verified `prune` path after every local generation was uploaded:
+108 files re-downloaded and matched, 92 removed, four sets retained, `/dev/sda1` from
+705 MB to 21 GB free. A manual run at 21:54Z completed in 5 m 56 s and the next scheduled
+run at 22:17Z in 5 m 24 s, each with a 985 MB `wbs-dev` generation, a healthy `status.json`
+and `check` exit 0. The first `prune-remote --dry-run` planned to keep 38 sets (152 files,
+8.4 GiB) and expire 775 sets (3,097 files, 143.5 GiB); the timer applies it on 2026-10-24.
+
+**Not done here.** The bucket lifecycle rule still lacks `AbortIncompleteMultipartUpload`
+and `ExpiredObjectDeleteMarker` (the session's permission classifier refused direct bucket
+mutations); deleted generations free space only after the 30-day noncurrent rule; the
+`website-dev` prefix has no retention; the `wbs-dev` database size itself is unexplained.
