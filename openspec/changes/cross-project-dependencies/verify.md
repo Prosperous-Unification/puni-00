@@ -6921,3 +6921,17 @@ configuration commit, and prefetch admission. Independent Astra rereview
 approved this bounded prerequisite. Installed writer adoption, marker
 publication, complete participant exclusion, activation, and the integrated
 exact-SHA host gate remain open.
+
+## 2026-10-23 bounded task 8.1 mounted compatibility and destination allocation
+
+[Mounted compatibility evidence](verify-import-compatibility.md) records outgoing-only
+v11 public import with a claimed archival abbreviation allocated distinctly at the
+destination, exact v12 refusals with complete application-table snapshots, and
+legacy v1/v2/v3 reach persistence and re-export. Watched production classifier,
+reach and allocator faults failed their mounted acceptance cases. Production
+external import remains dormant; parent task 8.1 is unchecked.
+
+Validation: the compatibility/import/export three-file Bun suite passed **33 tests,
+0 failures**. Focused ESLint passed with its unavailable cached-project-graph rule
+reported explicitly in the packet; be-01 test-source TypeScript passed. Full host
+gate and the other unperformed checks are listed in the packet.
