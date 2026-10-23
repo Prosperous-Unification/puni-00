@@ -142,8 +142,8 @@ export const CASE_MANIFEST = {
     'claims.listStampedByProject:write-instant',
     'claims.remove:delegated-cascade',
     'claims.moveAll:in-place',
-    'claims.occupancy:hold-read-cascade',
     'claims.lease:write-renew-expire',
+    'claims.occupancy:hold-read-cascade',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
   dependencies: [

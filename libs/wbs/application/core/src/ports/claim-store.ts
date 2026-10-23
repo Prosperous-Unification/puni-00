@@ -1,7 +1,7 @@
 import type { CredentialPin } from '@wbs/contracts';
 
 export type { CredentialPair, CredentialPin } from '@wbs/contracts';
-import type { Claim, LeaseReleaseReason, OccupancyRow } from '@wbs/domain';
+import type { Claim, LeaseReleaseReason, LeaseStanding, OccupancyRow } from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
 import type { ProgressKey } from './progress-store';
@@ -51,14 +51,7 @@ export interface ExpiredLease {
   readonly reason: LeaseReleaseReason;
 }
 
-/**
- * One person's leases after a renewal: how many are in force, and the
- * earliest instant one of them must be renewed by, null when none is (L12).
- */
-export interface LeaseStanding {
-  readonly leases: number;
-  readonly leaseExpiresAt: number | null;
-}
+export type { LeaseStanding } from '@wbs/domain';
 
 /**
  * What {@link ClaimStore.add} answers: written, a claim's step or subtree was

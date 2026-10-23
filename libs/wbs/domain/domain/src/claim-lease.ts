@@ -20,6 +20,15 @@ export const LEASE_RENEWAL_RESOLUTION_MS = 60_000;
 export type LeaseReleaseReason = 'lease_expired' | 'credential_revoked';
 
 /**
+ * One person's leases after a renewal: how many are in force, and the
+ * earliest instant one of them must be renewed by, null when none is (L12).
+ */
+export interface LeaseStanding {
+  readonly leases: number;
+  readonly leaseExpiresAt: number | null;
+}
+
+/**
  * The expiry a claim written at `at` carries (L1): `at + CLAIM_LEASE_MS` when
  * the caller's credential is pinned to the claimant itself (an API key, a
  * trusted-issuer token or an MCP consent of that person), else null. A

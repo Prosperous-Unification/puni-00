@@ -1,9 +1,8 @@
 import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type { LeaseStanding, ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
-import type { LeaseStanding } from '../../ports/claim-store';
 import type {
   Person,
   PersonWithTeams,

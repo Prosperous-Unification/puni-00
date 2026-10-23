@@ -314,7 +314,8 @@ describe('release by the coordinator', () => {
     const ticks: (() => void)[] = [];
     const sweep = new ClaimLeaseSweep({
       runner,
-      claims: source.stores.claims,
+      projectsWithExpiredLeases: (at, limit) =>
+        source.stores.claims.projectsWithExpiredLeases(at, limit),
       now: () => now,
       intervals: {
         every: (_ms, callback) => {

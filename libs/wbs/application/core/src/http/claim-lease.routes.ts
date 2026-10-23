@@ -23,9 +23,9 @@ export function claimLeaseRoutes(
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
       const pin = credentialPinOf(principal.authentication);
-      // Proof: with this refusal removed, `refuses a session heartbeat
-      // not_pinned` (claim-lease.controller.db.test.ts) answered 200 with
-      // nothing renewed; watched 2026-10-23.
+      // Proof: with this refusal removed, `renews on an agent heartbeat and
+      // refuses a session heartbeat not_pinned` (claim-lease.controller.db.test.ts)
+      // answered the session 200 (2 pass, 1 fail); watched 2026-10-23.
       if (pin === null || !('personId' in pin)) return notPinned;
       const standing = await runner.renewLeases(pin.personId);
       return { ok: true, status: 200, body: standing };

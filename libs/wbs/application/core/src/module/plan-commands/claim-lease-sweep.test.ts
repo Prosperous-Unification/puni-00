@@ -33,11 +33,9 @@ function sweepOver(
         return Promise.resolve(1);
       },
     },
-    claims: {
-      projectsWithExpiredLeases: (at, limit) => {
-        asked.push({ at, limit });
-        return projects();
-      },
+    projectsWithExpiredLeases: (at, limit) => {
+      asked.push({ at, limit });
+      return projects();
     },
     now: () => 1_000,
     intervals,

@@ -1,4 +1,3 @@
-import type { ClaimStore } from '../../ports/claim-store';
 import type { Intervals } from '../../ports/timers';
 import type { PlanCommandRunner } from './plan-commands.feature';
 
@@ -11,8 +10,11 @@ export const CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK = 50;
 export interface ClaimLeaseSweepOptions {
   /** Releases one project's expired claims in a unit of work of its own. */
   readonly runner: Pick<PlanCommandRunner, 'releaseExpiredLeases'>;
-  /** The public claim store, read outside any turn for which projects to visit. */
-  readonly claims: Pick<ClaimStore, 'projectsWithExpiredLeases'>;
+  /**
+   * The projects holding a lease run out at `at`, at most `limit`: the public
+   * claim store's read, outside any turn.
+   */
+  readonly projectsWithExpiredLeases: (at: number, limit: number) => Promise<string[]>;
   /** The clock the projects to visit are chosen by; each release reads its own inside its turn. */
   readonly now: () => number;
   /** How this runtime repeats work; required, as `RetentionTimer`'s is. */
@@ -103,7 +105,7 @@ export class ClaimLeaseSweep {
 
   private async tick(): Promise<void> {
     try {
-      const projects = await this.opts.claims.projectsWithExpiredLeases(
+      const projects = await this.opts.projectsWithExpiredLeases(
         this.opts.now(),
         this.opts.projectsPerTick,
       );

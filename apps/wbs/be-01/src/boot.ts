@@ -427,6 +427,9 @@ export async function bootBe01(
       claimLeases: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
           ({ services }: { services: BeServices }): BeServices['claimLeases'] => {
+            // Proof: with this start removed, `starts the claim lease sweep with
+            // the process` (boot.db.test.ts) read it stopped (36 pass, 1 fail);
+            // watched 2026-10-23.
             services.claimLeases.start();
             return services.claimLeases;
           },
@@ -452,10 +455,8 @@ export async function bootBe01(
             }: {
               source: OwnedSource;
               services: BeServices;
-              // Read for its edge as `retention` is, and handed to the app so a
-              // revoke asks it for a tick.
-              // Proof: with this edge dropped, `starts the claim lease sweep with
-              // the process` (boot.db.test.ts) read it stopped; watched 2026-10-23.
+              // Read for its edge as `retention` is (its disposer runs after the
+              // listener's), and handed to the app so a revoke asks it for a tick.
               claimLeases: BeServices['claimLeases'];
               // Read for its edge, not its value: it is what puts the timer's
               // disposer after the listener's. Drop it and the timer is never

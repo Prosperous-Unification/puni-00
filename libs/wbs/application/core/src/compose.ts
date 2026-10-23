@@ -434,7 +434,8 @@ export function composeServices(
     commands,
     claimLeases: new ClaimLeaseSweep({
       runner: commands,
-      claims: source.stores.claims,
+      projectsWithExpiredLeases: (at, limit) =>
+        source.stores.claims.projectsWithExpiredLeases(at, limit),
       now: () => runtime.clock.now(),
       intervals: runtime.intervals,
       intervalMs: CLAIM_LEASE_SWEEP_INTERVAL_MS,
