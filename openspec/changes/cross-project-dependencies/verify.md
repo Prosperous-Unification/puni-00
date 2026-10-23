@@ -5494,6 +5494,46 @@ After integration, the configured `tool-devsync:check:docs` target passed
 uncached (`/tmp/puni-devsync-integrated-check-docs.log`). The agent's configured
 lint/typecheck, Prettier, diff check and OpenSpec validation also passed.
 
+The core saved-plan module boundary now takes detached `Step` and
+`StoredAttempt` values from neutral ports while the old repository-port exports
+remain available to existing callers. The unchanged production boundary audit
+reported 14 diagnostics before extraction (`/tmp/core-types-baseline.log`),
+passed after it, failed again when a real repository-port import was injected
+into connected history (`/tmp/core-types-negative.log`), and passed on restore.
+The scoped and neighboring caller suites passed 128 tests combined, and
+configured `wbs-core:lint` and `wbs-core:typecheck` passed. The integrated
+production boundary case passed 1/1 (`/tmp/puni-core-boundary-integrated.log`).
+
+Five core test consumers now supply the real memory typed-dependency incident
+store required at eager graph construction. Production admission remains
+unchanged. The isolated baseline had 15 failures; the final fixture packet
+passed 52 tests with constructor negatives and a watched unexpected-store
+tripwire. Configured core lint/typecheck, formatting and scoped OpenSpec
+validation passed; commands and limits are in
+[verify-core-context-fixtures.md](verify-core-context-fixtures.md). After
+integration, those fixtures and the three resource-claim repairs passed 70/70
+with 458 assertions (`/tmp/puni-core-gate-repairs-integrated.log`).
+
+The SQLite migration oracle packet adds the exact newest certificate migration
+to rollback lists and fixes historical baselines/ledger expectations where
+additional migrations had changed the set. It changes only test fixtures and
+preserves exact-set assertions. The isolated focused packet passed 33/33;
+the further five-file regression passed 194/194
+(`/tmp/puni-migration-regression.log`). Full SQLite testing and the separate
+claim-fixture repair remain in progress.
+
+The k3s status-image fix binds the accepted bare digest to the verified OCI
+config fetched through the pinned manifest/index and selected platform child,
+under one observation deadline; the pinned Job/Pod spec, runtime manifest
+imageID, owner/UID, zero restart and post-log checks remain. Production and
+the exact F8/F11 lab authorities have readers. Isolated tests passed 179/179,
+configured lint/typecheck and OpenSpec 271/271 passed, and 23 watched faults
+are recorded in [verify-k8s-config-identity.md](verify-k8s-config-identity.md).
+Independent Astra High review approved `e8599408d` with no actionable finding
+and reran 144 core plus 35 mounted tests. The actual 3b42… runtime digest has
+not yet been linked to the pinned 4cd0… manifest by a live registry read;
+a new k3s infra-check on the integrated commit remains required.
+
 The obsolete gate was already red and one coverage test remained
 uninterruptibly blocked after 35 minutes. Its own Nx coordinator and hung test
 were terminated, yielding exit 130; the wrapper released the canonical lock
