@@ -6107,3 +6107,11 @@ mounted Retry binding. Production code is unchanged. The attempted fully mounted
 fractional topology preserves its forcing internal edge and therefore does not
 reproduce the independently padded lower-level C pin; that mounted acceptance
 remains open. Parent 7.4 and production activation remain incomplete.
+
+## Frontend Docker context repair — 2026-10-23
+
+[The image-context packet](verify-fe-image-context.md) records the red
+exact-head infra-check and two local inner Nx failures, followed by a real
+default-network Docker image build passing with sibling project metadata and
+the frontend-only Nx target. The real k3s rehearsal remains unverified after
+this change.
