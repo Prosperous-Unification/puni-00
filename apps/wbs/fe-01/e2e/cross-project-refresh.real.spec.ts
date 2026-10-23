@@ -612,13 +612,7 @@ test('alphabetical discovery creates a qualified dependency that persists and re
     );
     await page.getByRole('option', { name: 'AXX.010 - A row', exact: true }).click();
     const response = await commands;
-    expect(response.status(), await response.text()).toBe(200);
-    const accepted: unknown = await response.json();
-    expect(accepted).toEqual({
-      results: [{ index: 0, id: expect.any(String) }],
-      undoable: true,
-      redoable: false,
-    });
+    expect(response.status()).toBe(200);
     const rows = (await relationships()).filter((row) => row.successor_project_id === owner.id);
     // Proof: reversing persisted endpoints and successor ownership left this owner's SQLite set empty.
     expect(rows).toHaveLength(1);
@@ -637,6 +631,7 @@ test('alphabetical discovery creates a qualified dependency that persists and re
         type: 'FS',
       },
     ]);
+    const accepted: unknown = await response.json();
     expect(accepted).toEqual({
       results: [{ index: 0, id: rows[0]?.id }],
       undoable: true,

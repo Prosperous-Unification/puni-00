@@ -3,9 +3,9 @@
 
 > bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "alphabetical discovery"
 
-(node:1696557) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1817934) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
-[WebServer] (node:1697561) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (node:1818872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 [WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
 [WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
 [WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
@@ -13,7 +13,7 @@
 
 Running 1 test using 1 worker
 
-(node:1697726) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1818968) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
   ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:571:1 › alphabetical discovery creates a qualified dependency that persists and refreshes on completion (8.4s)
 
@@ -32,14 +32,14 @@ Running 1 test using 1 worker
       - waiting for getByRole('option', { name: 'Project AXX - A', exact: true })
 
 
-      602 |     const picker = page.getByLabel('Add a dependency to 010');
       603 |     await picker.fill('axx');
-    > 604 |     await expect(page.getByRole('option', { name: 'Project AXX - A', exact: true })).toBeVisible();
+      604 |     // Proof: suppressing alphabetic discovery made this real picker assertion fail (Task11 receipt).
+    > 605 |     await expect(page.getByRole('option', { name: 'Project AXX - A', exact: true })).toBeVisible();
           |                                                                                      ^
-      605 |     await page.getByRole('option', { name: 'Project AXX - A', exact: true }).click();
-      606 |     await expect(picker).toHaveValue('AXX.');
-      607 |     const commands = page.waitForResponse(
-        at /tmp/puni-task11-browser/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:604:86
+      606 |     await page.getByRole('option', { name: 'Project AXX - A', exact: true }).click();
+      607 |     await expect(picker).toHaveValue('AXX.');
+      608 |     const commands = page.waitForResponse(
+        at /tmp/puni-task11-browser/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:605:86
 
     Error Context: test-results/cross-project-refresh.real-06fc9-and-refreshes-on-completion/error-context.md
 
@@ -56,7 +56,7 @@ Failed tasks:
 
 Hint: run the command with --verbose for more details.
 
-  Run duration:      17.3s
+  Run duration:      16.6s
   Cache:             Skipped (--skip-nx-cache)
-  Critical path:     17.3s (1 task)
+  Critical path:     16.6s (1 task)
   Recoverable time:  <1ms
