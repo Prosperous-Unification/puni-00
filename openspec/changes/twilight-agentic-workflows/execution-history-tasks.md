@@ -108,9 +108,17 @@ verifier once if needed; no second schema decoder or matcher.
 
 **Modify production:** records.ts, record-codecs.ts, run-store.ts, plan-admission.ts,
 plan-execution.ts, plan-signals.ts, plan-outcome.ts, plan-receipt.ts, record-execution.ts,
-record-outcome.ts, record-signals.ts, runtime-records.ts, runtime-codecs.ts, plan-runtime.ts,
-runtime-history.ts, testing/memory-stores.ts; sqlite/{run-store,read-executions,row-codecs,
-read-signals,read-outcomes,read-runtime,runtime-store,schema,format,open-stores}.ts.
+runtime-codecs.ts, plan-runtime.ts, runtime-history.ts, testing/memory-stores.ts;
+sqlite/{run-store,read-executions,row-codecs,read-signals,schema,format,open-stores}.ts.
+
+**Verified unchanged dependencies (review I4 reconciliation):** record-outcome.ts and
+record-signals.ts retain their existing snapshot/verification calls through the updated
+facade codecs and types. runtime-records.ts intentionally retains version1 contracts.
+sqlite/read-outcomes.ts consumes the updated completion-row decoder; sqlite/read-runtime.ts
+consumes the current format hash and shared runtime audit. sqlite/runtime-store.ts writes
+unchanged version1 scope rows inside the coupled provider transaction. Preserve these six
+files rather than require incidental hunks. Existing verified-operation/signal and joined
+runtime/history conformance remains required; this inventory correction changes no behavior.
 Edit exact Dash policy/effective boundary tests for new actual Burokrat/WBS consumers only.
 
 **Tests and fixtures:** create shared testing/execution-history-contract.ts and memory

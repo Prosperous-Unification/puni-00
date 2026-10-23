@@ -18,6 +18,7 @@ export function executionHistoryContract(
 ): void {
   describe(name, () => {
     claimGuardContract(create);
+    reviewGuardContract(create);
     preparationGuardContract(create);
     coupledProviderContract(create);
     coupledDecoderContract(create);
@@ -1084,9 +1085,15 @@ export type CoupledProviderCommand = ClaimStageCommand | ClaimAcceptCommand | Tu
 export async function prepareCoupledProvider(
   stores: OutcomeFixture,
   kind: CoupledProviderCommand['kind'],
+  identities = {
+    stage: executionCommandId('guard-stage'),
+    accept: executionCommandId('provider-accept'),
+    turn: executionCommandId('provider-turn'),
+    turnKey: 'provider-turn',
+  },
 ) {
   const setup = await prepareSession(stores);
-  const stage = preparedStage(setup);
+  const stage = { ...preparedStage(setup), commandId: identities.stage };
   if (kind === 'stage_claim')
     return { setup, command: stage as CoupledProviderCommand, guard: await setup.scopedGuard() };
   const staged = unwrapReply(await stores.runs.stageClaim(await setup.scopedGuard(), stage));
@@ -1094,7 +1101,7 @@ export async function prepareCoupledProvider(
   const accepted: ClaimAcceptCommand = {
     version: 2,
     kind: 'accept_claim',
-    commandId: executionCommandId('provider-accept'),
+    commandId: identities.accept,
     intent: staged.intent,
     evidence,
     projection: {
@@ -1116,10 +1123,10 @@ export async function prepareCoupledProvider(
   const turn: TurnStageCommand = {
     version: 2,
     kind: 'stage_turn',
-    commandId: executionCommandId('provider-turn'),
+    commandId: identities.turn,
     request: {
       version: 1,
-      turnKey: 'provider-turn',
+      turnKey: identities.turnKey,
       owner: setup.owner,
       cause: { kind: 'initial' },
       input: 'work',
@@ -1225,4 +1232,229 @@ interface MutableClaimWire {
       execution: { storeId: string; runId: string; attemptId: string; sessionId: string };
     };
   };
+}
+
+import { decodeClaimAcceptCommand } from '../execution-codecs';
+import { reconstructRuntimeScope } from '../plan-runtime';
+import { decodeRuntimeIntent, digestRuntimeRequest } from '../runtime-codecs';
+function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
+  for (const phase of ['fresh', 'replay'] as const)
+    test('review guard authority stage refuses coupled claim ' + phase, async () => {
+      const stores = await create();
+      try {
+        const { setup } = await prepareCoupledProvider(
+          stores,
+          phase === 'fresh' ? 'stage_claim' : 'accept_claim',
+        );
+        const history = await stores.runs.readExecutionHistory(
+          setup.run.runId,
+          setup.attempt.attemptId,
+        );
+        const scope = await stores.runs.readRuntimeScope(setup.scope);
+        if (scope.kind !== 'pinned') throw new Error('fixture scope missing');
+        expect(
+          await stores.runs.stageRuntimeRequest(
+            { ownership: setup.ownership, scope: setup.scope, expectedRevision: scope.revision },
+            setup.canonicalRequest,
+          ),
+        ).toEqual({ kind: 'refused', reason: 'state_conflict' });
+        expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
+        expect(
+          await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
+        ).toEqual(history);
+      } finally {
+        stores.close();
+      }
+    });
+  test('review guard authority acceptance refuses coupled claim replay', async () => {
+    const stores = await create();
+    try {
+      const { setup } = await prepareCoupledProvider(stores, 'stage_turn');
+      const history = await stores.runs.readExecutionHistory(
+        setup.run.runId,
+        setup.attempt.attemptId,
+      );
+      const scope = await stores.runs.readRuntimeScope(setup.scope);
+      if (scope.kind !== 'pinned') throw new Error('fixture scope missing');
+      const intent = scope.intents.find(
+        (candidate) => candidate.canonicalRequest === setup.canonicalRequest,
+      );
+      const acceptance = scope.acceptances.find(
+        (candidate) => candidate.commandId === intent?.commandId,
+      );
+      if (intent === undefined || acceptance === undefined)
+        throw new Error('fixture claim acceptance missing');
+      expect(
+        await stores.runs.recordRuntimeAcceptance(
+          { ownership: setup.ownership, scope: setup.scope, expectedRevision: scope.revision },
+          { intent, evidence: acceptance.evidence },
+        ),
+      ).toEqual({ kind: 'refused', reason: 'state_conflict' });
+      expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
+      expect(
+        await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
+      ).toEqual(history);
+    } finally {
+      stores.close();
+    }
+  });
+  test('review guard claim acceptance rejects different submitted intent', async () => {
+    const stores = await create();
+    try {
+      const { setup, command, guard } = await prepareCoupledProvider(stores, 'accept_claim');
+      if (command.kind !== 'accept_claim') throw new Error('fixture acceptance command missing');
+      const history = await stores.runs.readExecutionHistory(
+        setup.run.runId,
+        setup.attempt.attemptId,
+      );
+      const scope = await stores.runs.readRuntimeScope(setup.scope);
+      const supplied = decodeClaimAcceptCommand({
+        ...command,
+        intent: {
+          ...command.intent,
+          localOwner: {
+            ...command.intent.localOwner,
+            ownerId: ownerId('different-submitted-owner'),
+          },
+        },
+      });
+      expect(await stores.runs.recordClaimAcceptance(guard, supplied)).toEqual({
+        kind: 'refused',
+        reason: 'identity_conflict',
+      });
+      expect(
+        await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
+      ).toEqual(history);
+      expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
+    } finally {
+      stores.close();
+    }
+  });
+  test('review guard claim acceptance refuses reconciling prepared checkpoint', async () => {
+    const stores = await create();
+    try {
+      const setup = await prepareSession(stores);
+      unwrapReply(
+        await stores.runs.recordExecution(
+          await setup.currentGuard(),
+          createExecutionCommand({
+            kind: 'recovery_required',
+            reason: 'prepared observation uncertain',
+          }),
+        ),
+      );
+      const history = await stores.runs.readExecutionHistory(
+        setup.run.runId,
+        setup.attempt.attemptId,
+      );
+      const scope = await stores.runs.readRuntimeScope(setup.scope);
+      if (scope.kind !== 'pinned') throw new Error('fixture scope missing');
+      const intent = scope.intents.at(0),
+        acceptance = scope.acceptances.at(0);
+      if (intent === undefined || acceptance === undefined)
+        throw new Error('fixture authority missing');
+      const commandId = 'unretained-prepared-authority';
+      const canonicalRequest = intent.canonicalRequest.replace(
+        '"commandId":"' + intent.commandId + '"',
+        '"commandId":"' + commandId + '"',
+      );
+      if (canonicalRequest === intent.canonicalRequest)
+        throw new Error('fixture authority command anchor missing');
+      readRuntimeRequest(canonicalRequest);
+      const supplied = decodeRuntimeIntent({
+        ...intent,
+        commandId,
+        canonicalRequest,
+        requestDigest: digestRuntimeRequest(canonicalRequest),
+      });
+      const command = decodeClaimAcceptCommand({
+        version: 2,
+        kind: 'accept_claim',
+        commandId: executionCommandId('prepared-acceptance'),
+        intent: supplied,
+        evidence: acceptance.evidence,
+        projection: {
+          version: 1,
+          claimId: 'claim',
+          actorId: 'account',
+          basisAfter: 'rb1:' + 'b'.repeat(64),
+        },
+      });
+      expect(await stores.runs.recordClaimAcceptance(await setup.scopedGuard(), command)).toEqual({
+        kind: 'refused',
+        reason: 'state_conflict',
+      });
+      expect(
+        await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
+      ).toEqual(history);
+      expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
+    } finally {
+      stores.close();
+    }
+  });
+  for (const fault of [
+    'missing acquisition',
+    'different local owner',
+    'different wire authority',
+  ] as const)
+    test('review guard runtime claim reconstruction rejects ' + fault, async () => {
+      const stores = await create();
+      try {
+        const { setup, command } = await prepareCoupledProvider(stores, 'accept_claim');
+        if (command.kind !== 'accept_claim') throw new Error('fixture acceptance command missing');
+        stores.clock.advance(101);
+        const owner = unwrapReply(
+          await stores.runs.acquireOwnership(ownerId('later-owner'), setup.ownership.epoch),
+        );
+        const scope = await stores.runs.readRuntimeScope(setup.scope);
+        if (scope.kind !== 'pinned') throw new Error('fixture scope missing');
+        const ownership = {
+          storeId: owner.storeId,
+          organizationId: owner.organizationId,
+          epoch: owner.epoch,
+          owner,
+        };
+        const retained = { pin: scope.pin, revision: scope.revision };
+        expect(
+          reconstructRuntimeScope(retained, scope.intents, scope.acceptances, ownership)
+            .pendingCommandId,
+        ).toBe(command.intent.commandId);
+        let intents = [...scope.intents],
+          acceptances = [...scope.acceptances],
+          revision = scope.revision;
+        if (fault === 'missing acquisition') {
+          intents = [decodeRuntimeIntent({ ...command.intent, stagedRevision: 1 })];
+          acceptances = [];
+          revision = 1;
+        } else {
+          const canonicalRequest =
+            fault === 'different wire authority'
+              ? command.intent.canonicalRequest.replace('"generation":1', '"generation":2')
+              : command.intent.canonicalRequest;
+          if (
+            fault === 'different wire authority' &&
+            canonicalRequest === command.intent.canonicalRequest
+          )
+            throw new Error('fixture authority anchor missing');
+          readRuntimeRequest(canonicalRequest);
+          const changed = decodeRuntimeIntent({
+            ...command.intent,
+            canonicalRequest,
+            requestDigest: digestRuntimeRequest(canonicalRequest),
+            localOwner:
+              fault === 'different local owner'
+                ? { ownerId: owner.ownerId, epoch: owner.epoch }
+                : command.intent.localOwner,
+          });
+          intents = intents.map((intent) =>
+            intent.commandId === changed.commandId ? changed : intent,
+          );
+        }
+        expect(() =>
+          reconstructRuntimeScope({ ...retained, revision }, intents, acceptances, ownership),
+        ).toThrow('corrupt runtime claim authority');
+      } finally {
+        stores.close();
+      }
+    });
 }

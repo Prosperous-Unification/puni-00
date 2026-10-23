@@ -383,81 +383,25 @@ test('original turn acknowledgement survives later grant and owner takeover with
   }
 });
 
-import { acceptClaimReceipt } from '../claim-history';
-import type { ClaimAcceptCommand, ClaimStageCommand, TurnStageCommand } from '../execution-records';
-import type { RunStore, ScopedAttemptGuard } from '../run-store';
-import { retainClaimReceipt } from '../testing/fixtures';
+import {
+  type CoupledProviderCommand as CoupledCommand,
+  invokeCoupledProvider as invokeCoupled,
+  prepareCoupledProvider,
+} from '../testing/execution-history-contract';
 import { openSqliteStores } from './open-stores';
-type CoupledCommand = ClaimStageCommand | ClaimAcceptCommand | TurnStageCommand;
 async function prepareCoupled(kind: CoupledCommand['kind']) {
   const stores = await createExecutionDatabase();
   try {
-    const setup = await prepareSession(stores);
-    if (setup.prepared.state.kind !== 'prepared') throw new Error('fixture expected prepared');
-    const stage: ClaimStageCommand = {
-      version: 2,
-      kind: 'stage_claim',
-      commandId: executionCommandId('coupled-stage'),
-      canonicalRequest: setup.canonicalRequest,
-      observation: setup.prepared.state.session.preparation.target.observation,
-    };
-    if (kind === 'stage_claim')
-      return { stores, setup, command: stage as CoupledCommand, guard: await setup.scopedGuard() };
-    const staged = unwrapReply(await stores.runs.stageClaim(await setup.scopedGuard(), stage));
-    const evidence = await retainClaimReceipt(stores, staged.intent);
-    const accepted: ClaimAcceptCommand = {
-      version: 2,
-      kind: 'accept_claim',
-      commandId: executionCommandId('coupled-accept'),
-      intent: staged.intent,
-      evidence,
-      projection: {
-        version: 1,
-        claimId: 'claim',
-        actorId: 'account',
-        basisAfter: 'rb1:' + 'b'.repeat(64),
-      },
-    };
-    if (kind === 'accept_claim')
-      return {
-        stores,
-        setup,
-        command: accepted as CoupledCommand,
-        guard: await setup.scopedGuard(),
-      };
-    unwrapReply(
-      await acceptClaimReceipt(stores.runs, stores.artifacts, await setup.scopedGuard(), {
-        commandId: accepted.commandId,
-        intent: staged.intent,
-        evidence,
-      }),
-    );
-    const turn: TurnStageCommand = {
-      version: 2,
-      kind: 'stage_turn',
-      commandId: executionCommandId('coupled-turn'),
-      request: {
-        version: 1,
-        turnKey: 'turn',
-        owner: setup.owner,
-        cause: { kind: 'initial' },
-        input: 'work',
-      },
-    };
-    return { stores, setup, command: turn as CoupledCommand, guard: await setup.scopedGuard() };
+    const prepared = await prepareCoupledProvider(stores, kind, {
+      stage: executionCommandId('coupled-stage'),
+      accept: executionCommandId('coupled-accept'),
+      turn: executionCommandId('coupled-turn'),
+      turnKey: 'turn',
+    });
+    return { stores, ...prepared };
   } catch (cause) {
     stores.close();
     throw cause;
-  }
-}
-function invokeCoupled(runs: RunStore, guard: ScopedAttemptGuard, command: CoupledCommand) {
-  switch (command.kind) {
-    case 'stage_claim':
-      return runs.stageClaim(guard, command);
-    case 'accept_claim':
-      return runs.recordClaimAcceptance(guard, command);
-    case 'stage_turn':
-      return runs.stageTurn(guard, command);
   }
 }
 function captureRows(database: Database) {
@@ -1765,6 +1709,33 @@ test('storage boundary execution decoder rejects mismatched original reply famil
     expect(decoded.reply.attempt.attemptId).toBe(setup.attempt.attemptId);
     const reply = { version: 1, kind: 'execution', attempt: decoded.reply.attempt };
     expect(() => decodeExecutionRow({ ...row, reply: JSON.stringify(reply) })).toThrow();
+  } finally {
+    database.close();
+    stores.close();
+  }
+});
+
+import { prepareAttempt } from '../testing/fixtures';
+test('sqlite shared history audit rejects queued reservation loss before public read', async () => {
+  const stores = await createExecutionDatabase();
+  const database = new Database(stores.options.path);
+  try {
+    const setup = await prepareAttempt(stores);
+    expect((await stores.runs.readRun(setup.run.runId)).attempts.at(0)?.state).toEqual({
+      kind: 'queued',
+    });
+    database.query('DELETE FROM run_reservation WHERE attempt_id=?').run(setup.admission.attemptId);
+    try {
+      // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
+      await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow(
+        'corrupt attempt reservation',
+      );
+    } finally {
+      database
+        .query('INSERT INTO run_reservation(attempt_id) VALUES (?)')
+        .run(setup.admission.attemptId);
+    }
+    expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
   } finally {
     database.close();
     stores.close();

@@ -2368,3 +2368,70 @@ worker release, preserving all open Task2 boxes. The first documentation validat
 passed with13 requirement-length warnings; earlier records saying11 retain their
 historical scope. Final document checks are captured separately from source tests.
 No new source test invocation or acceptance is inferred from documentation checks.
+
+### Task2 independent review and first fix round
+
+Task review of1c6960c68..8071351ba found four Important issues: incomplete R5 coverage
+for the shared SQLite audit dependency and new runtime/claim checks, an unreachable
+retained check, duplicated coupled test construction and six unreconciled file entries.
+No Critical runtime defect was established. The original writer owns the first fix round.
+All nine Task2 boxes remain open. Inherited lint/color/requirement-length warnings remain
+a deferred Minor for the whole-phase review.
+
+Root read all six unchanged dependencies and their current owning call sites. Their
+facade codec/type, version1 row, completion decoder, format-hash and transaction ownership
+already supplies the required adaptations, so the task inventory now explicitly records
+them as unchanged dependencies. No incidental source edits or recertification of their
+unchanged checks is implied. Scoped re-review must verify this reconciliation and all
+source/proof fixes. Historical provenance gaps retain their original limits; their
+acceptance disposition is still pending. No task/phase/host/CI/integration closure.
+
+Root review-fix decisions retain one claiming-checkpoint owner after the complete
+joined audit, with exact submitted-intent correspondence and checkpoint narrowing.
+Repeated scope lookup/pending/claim-kind validation is assigned to its actual runtime
+and history owners; source implementation and scoped re-review remain pending. Six
+new trial plans distinguish the central SQLite dependency, shared port/fold checks,
+submitted identity, duplicate-refusal and the declared canonical-undefined diagnostic.
+No unexecuted plan is a passing proof, and F78 remains unproved.
+
+Root independently reread the twelve early negatives: retained original/mutant bodies,
+raw/driver hashes, original outer script prehash, sequential named failures, actual
+restored hash/mode and both full captures agree. Their original observed semantic
+strength is retained without repeating solely to add duplicate artifacts. Actual
+mutant modes and separate restored-body copies remain absent, as do the earlier
+unsealed-output and missing-driver limits. No retroactive sealing or universal
+provenance certification is claimed. Scoped and whole-phase reviewers receive this
+explicit acceptance disposition; all source/task/full gates remain open.
+
+### Task2 production refactor requires explicit approval
+
+Automatic approval review rejected the entire fix1-004 production refactor before
+process creation, describing runtime-guard removal/claim-validation changes as potential
+persistent security weakening without explicit user authorization. No production edit
+ran and no indirect retry occurred. The exact two-file patch is retained unapplied for
+review; root will request explicit user authorization after completing unaffected work.
+The earlier checkpoint-owner decision remains a proposal, not implemented behavior.
+
+The independent I3 test-only refactor shares the coupled fixture and dispatcher while
+preserving command IDs, turn key and owned cleanup. Normal004e passed57tests/249expects;
+original003 remains FAILED15pass/2fail/41expects. Its corrected checkpoint fixture passed
+004c separately with2tests/6expects. Those commands are not one aggregate green run.
+
+After formatting only the two changed test files, exact-file ESLint, uncached Dash lint
+(56.6s, color-environment notice) and typecheck(8.6s) passed. Normal011 passed all six
+coupled before/after-COMMIT SIGKILL/reopen cases with48expects in34.31s, unchanged
+15000ms setup/5000ms body/10000ms barriers and no override or retry. Original child
+evidence limits remain: stdout EOF is explicit, stderr is a completed arrayBuffer
+chunk without a separate EOF event. No power-loss or blanket lifecycle claim.
+
+Following explicit worker release, root audited all11813tracked source/mode identities,
+complete HEAD/branch/staged tree/raw index and349early artifacts. Only the two test files
+and two root documents differ from8071351ba; all production bytes remain unchanged.
+Root also checked raw output/driver/script prehashes, exact process names, sequential
+commands, the unchanged221-entry registry and the unapplied patch hash. Root released
+the hold; worker is idle pending permission. No guard fault F222–227 ran. Original
+32unproved trials, failed533 and historical provenance limits remain unchanged.
+
+No fix commit, scoped re-review, whole-phase review, host gate, applicable CI or integration
+acceptance is claimed. All nine Task2 boxes remain open. WBS connector access remains
+unavailable; no remote status update, main merge, live spend or deployment occurred.
