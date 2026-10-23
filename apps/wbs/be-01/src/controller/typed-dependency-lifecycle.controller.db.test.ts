@@ -12,6 +12,7 @@ import { readPreconditions } from '@wbs/core/service/compensating';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -126,6 +127,7 @@ beforeEach(() => {
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -183,6 +185,7 @@ beforeEach(() => {
           estimates: scope.stores.estimates,
           actuals: scope.stores.actuals,
           measures: scope.stores.measures,
+          measureEstimates: scope.stores.measureEstimates,
           progress: scope.stores.progress,
           attempts: scope.stores.attempts,
           blockages: scope.stores.blockages,

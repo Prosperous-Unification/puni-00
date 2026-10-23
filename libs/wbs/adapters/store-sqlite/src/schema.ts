@@ -1171,6 +1171,49 @@ export const stepMeasure = sqliteTable(
 export type StepMeasureRow = typeof stepMeasure.$inferSelect;
 
 /**
+ * One step node's three-point estimate in one measure other than time
+ * (`wbs-measure-budgets` D3), created by `20261023120000_add_measure_estimate`.
+ *
+ * `measureKey` is the identity and `measureId` the reference, NULL while no
+ * organization owns the project (design D19). A `tokens` row with
+ * `singlePoint` stands for the legacy `token_estimate` row of
+ * {@link stepMeasure}, which the `step_measure_mirrors_token_estimate_*`
+ * triggers keep it in step with (design D28). `work_item_id` cascades and
+ * `step_id` does not, as on {@link stepMeasure}.
+ */
+export const measureEstimate = sqliteTable(
+  'measure_estimate',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id),
+    measureKey: text('measure_key').notNull(),
+    measureId: text('measure_id').references(() => measure.id),
+    optimistic: real('optimistic').notNull(),
+    realistic: real('realistic').notNull(),
+    pessimistic: real('pessimistic').notNull(),
+    singlePoint: integer('single_point', { mode: 'boolean' }).notNull().default(false),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId, t.measureKey] }),
+    index('measure_estimate_by_step').on(t.stepId),
+    index('measure_estimate_by_measure').on(t.measureId),
+    check(
+      'measure_estimate_ordered',
+      sql`0 <= ${t.optimistic} AND ${t.optimistic} <= ${t.realistic} AND ${t.realistic} <= ${t.pessimistic}`,
+    ),
+    check(
+      'measure_estimate_single_point',
+      sql`${t.singlePoint} IN (0, 1) AND (${t.singlePoint} = 0 OR (${t.measureKey} = 'tokens' AND ${t.optimistic} = ${t.realistic} AND ${t.realistic} = ${t.pessimistic}))`,
+    ),
+  ],
+);
+
+/**
  * One **attempt** (`CONTEXT.md`): one run at a step node's work, numbered from
  * 1 per node — ADR 0045, `openspec/changes/step-node-attempts/design.md` D1,
  * created by `20261012120000_add_step_node_attempts`.

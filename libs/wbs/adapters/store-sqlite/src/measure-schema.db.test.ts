@@ -14,6 +14,8 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const MIGRATION = '20261023100000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
 const MEASURE_FACTS = '20261023110000_key_step_measure';
+/** The measure estimates, which reverse first over single-point token trios alone. */
+const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
 const BASELINE = '20261022130100_widen_organization_audit_organization_limits';
 
 let dir: string;
@@ -92,7 +94,11 @@ describe(MIGRATION, () => {
   // Proof: with the five seeding INSERTs removed from migration.sql, this case
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MEASURE_FACTS, MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      MEASURE_ESTIMATES,
+      MEASURE_FACTS,
+      MIGRATION,
+    ]);
     organization('org-a', 11);
     organization('org-b', 12);
     runMigrations(path, FOLDER);
@@ -211,13 +217,19 @@ describe(MIGRATION, () => {
     const before = ledger();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
     expect(measuresOf('org-a')).toHaveLength(6);
-    // The newer measure-keyed facts reversed first, over legacy facts alone.
-    expect(ledger()).toEqual(before.filter(({ name }) => name !== MEASURE_FACTS));
+    // The newer estimates and measure-keyed facts reversed first, over legacy rows alone.
+    expect(ledger()).toEqual(
+      before.filter(({ name }) => name !== MEASURE_FACTS && name !== MEASURE_ESTIMATES),
+    );
   });
 
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MEASURE_FACTS, MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      MEASURE_ESTIMATES,
+      MEASURE_FACTS,
+      MIGRATION,
+    ]);
     expect(
       db
         .query(

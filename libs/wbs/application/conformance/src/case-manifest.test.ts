@@ -79,6 +79,7 @@ describe('the closed case manifest', () => {
       'estimates',
       'actuals',
       'measures',
+      'measureEstimates',
       'progress',
       'attempts',
       'blockages',

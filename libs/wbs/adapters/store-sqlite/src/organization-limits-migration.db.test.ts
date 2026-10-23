@@ -17,6 +17,8 @@ const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limit
 const MEASURE = '20261023100000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
 const MEASURE_FACTS = '20261023110000_key_step_measure';
+/** The measure estimates, which reverse first over single-point token trios alone. */
+const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 
 let dir: string;
@@ -105,13 +107,18 @@ describe(MIGRATION, () => {
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
     ).toEqual(
       before.filter(
-        ({ name }) => name !== LIMITS_AUDIT && name !== MEASURE && name !== MEASURE_FACTS,
+        ({ name }) =>
+          name !== LIMITS_AUDIT &&
+          name !== MEASURE &&
+          name !== MEASURE_FACTS &&
+          name !== MEASURE_ESTIMATES,
       ),
     );
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      MEASURE_ESTIMATES,
       MEASURE_FACTS,
       MEASURE,
       LIMITS_AUDIT,

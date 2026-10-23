@@ -2,6 +2,7 @@ import type { MeasureStore, StepStore, StoredMeasure, WorkItemStore } from '@wbs
 import { definitionKeyOf, factMetricOf, isLegacyMetric, type MeasureDefinition } from '@wbs/domain';
 
 import type { MemoryMeasureDefinitionTables } from './measure-definition-fixture';
+import { type MemoryMeasureEstimateTable, retireTokensTrio } from './measure-estimate-fixture';
 import { readTargetedSatelliteRows } from './targeted-satellite-rows';
 import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
 
@@ -20,6 +21,11 @@ export function inMemoryMeasures(
   table: MemoryMeasureTable = memoryMeasureTable(),
   steps?: StepStore,
   definitionsOf: (projectId: string) => MeasureDefinition[] | null = () => null,
+  /**
+   * The source's measure estimate table, whose three-point tokens trio a
+   * legacy `token_estimate` write replaces ({@link retireTokensTrio}).
+   */
+  estimateTable?: MemoryMeasureEstimateTable,
 ): MeasureStore {
   const { rows } = table;
   /**
@@ -87,6 +93,11 @@ export function inMemoryMeasures(
           ),
       );
       rows.splice(0, rows.length, ...kept, structuredClone(toSet));
+      // Proof: with this call removed, the memory certification's
+      // `measureEstimates.set:legacy-write-replaces-trio` read the three-point
+      // trio beside the legacy figure; watched 2026-10-23.
+      if (toSet.metric === 'token_estimate')
+        retireTokensTrio(estimateTable, toSet.workItemId, toSet.stepId);
       // `'written'`, always: these fixtures enforce no references at all, so
       // they cannot tell a step that has gone from one that never existed. That
       // is the memory source lagging the SQLite one on a named method (D29),
@@ -185,6 +196,35 @@ export function countFactsKeyedBy(
     return (
       ownership.projectOrganization.get(owner.projectId) === organizationId &&
       definitionKeyOf(fact.metric) === key
+    );
+  }).length;
+}
+
+/**
+ * How many trios are in the organization's definition `measureId`: stored
+ * estimates of its projects under that definition's key, the memory twin of
+ * counting `measure_estimate.measure_id`. A single-point tokens trio is a
+ * legacy row here and is not counted, as `tokens` is never deletable (D14).
+ *
+ * @throws when a trio names a work item the source does not hold.
+ */
+export function countEstimatesKeyedBy(
+  ownership: MemoryMeasureOwnership,
+  estimates: readonly { readonly workItemId: string; readonly key: string }[],
+  projectOf: ReadonlyMap<string, { projectId: string }>,
+  organizationId: string,
+  measureId: string,
+): number {
+  const key = ownership.definitions.organizations
+    .get(organizationId)
+    ?.measures.find((each) => each.id === measureId)?.key;
+  if (key === undefined) return 0;
+  return estimates.filter((estimate) => {
+    const owner = projectOf.get(estimate.workItemId);
+    if (owner === undefined)
+      throw new Error(`measure estimate names absent work item ${estimate.workItemId}`);
+    return (
+      ownership.projectOrganization.get(owner.projectId) === organizationId && estimate.key === key
     );
   }).length;
 }

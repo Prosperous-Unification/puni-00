@@ -155,6 +155,10 @@ export type CommandRefusalCode =
   | 'scheduling_measure_fact'
   /** A fraction in a measure whose scale is `integer`. */
   | 'scale_mismatch'
+  /** `setMeasureEstimate` or `clearMeasureEstimate` in the scheduling measure; its trio is `setEstimate`'s. */
+  | 'scheduling_measure_estimate'
+  /** `setMeasureEstimate` on a definition whose `threePoint` is false (`hours`, `agent_minutes`). */
+  | 'three_point_forbidden'
   | 'has_children'
   | 'ancestor'
   /** A typed dependency resolving a step node onto itself. */

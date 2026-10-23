@@ -217,6 +217,23 @@ export const commandDefinitions = {
     description:
       'Remove one fact in one measure (metric as for setMeasure). Accepts stepNodeId in place of the work-item and step pair.',
   }),
+  setMeasureEstimate: defineCommand('setMeasureEstimate', {
+    schema: type({
+      kind: "'setMeasureEstimate'",
+      ...step,
+      measure: 'string',
+      estimate: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
+    }),
+    scope: 'project',
+    description:
+      'Set the three-point estimate in one measure other than time (tokens, cost or a defined one) on a leaf work item, in that measure’s unit, ordered optimistic <= realistic <= pessimistic. measure is the definition key. Refused unknown_measure, scheduling_measure_estimate (the time estimate is setEstimate), three_point_forbidden (hours, agent_minutes) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
+  }),
+  clearMeasureEstimate: defineCommand('clearMeasureEstimate', {
+    schema: type({ kind: "'clearMeasureEstimate'", ...step, measure: 'string' }),
+    scope: 'project',
+    description:
+      'Remove one step’s three-point estimate in one measure (measure as for setMeasureEstimate). Accepts stepNodeId in place of the work-item and step pair.',
+  }),
   setAssignee: defineCommand('setAssignee', {
     schema: type({
       kind: "'setAssignee'",

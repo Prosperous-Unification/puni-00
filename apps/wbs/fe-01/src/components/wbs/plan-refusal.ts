@@ -445,6 +445,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'derived_measure':
     case 'scheduling_measure_fact':
     case 'scale_mismatch':
+    case 'scheduling_measure_estimate':
+    case 'three_point_forbidden':
     case 'ancestor':
     case 'self_node':
     case 'not_a_parent':

@@ -6,6 +6,7 @@ import type { Demand } from '../ports/demand-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
+import type { MeasureEstimateKey, StoredMeasureEstimate } from '../ports/measure-estimate-store';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredStepBlockage } from '../ports/step-blockage-store';
@@ -63,6 +64,24 @@ export type CompensatingCommand =
    */
   | { do: 'set_measure'; workItemId: string; stepId: string; metric: string; value: number }
   | { do: 'clear_measure'; workItemId: string; stepId: string; metric: string }
+  /**
+   * A three-point estimate in a measure other than time (`wbs-measure-budgets`
+   * D3), keyed by the definition `key`. `singlePoint` is carried because it is
+   * part of the figure: putting back a legacy token estimate puts back the
+   * flag that says nobody estimated a range (design D28). Unknown to releases
+   * before slice 3, which share no journal with this one (design D23).
+   */
+  | {
+      do: 'set_measure_estimate';
+      workItemId: string;
+      stepId: string;
+      key: string;
+      optimistic: number;
+      realistic: number;
+      pessimistic: number;
+      singlePoint: boolean;
+    }
+  | { do: 'clear_measure_estimate'; workItemId: string; stepId: string; key: string }
   /**
    * Where the work has got to, as one of the two states a step may be **stored**
    * in. There is no `set_progress` carrying `unknown`: the way to say that
@@ -261,6 +280,13 @@ export interface DeleteSubtree {
    * which hand nothing up.
    */
   setAttempts?: StoredAttempt[];
+  /**
+   * Trios in measures other than time handed **up** to the surviving parent,
+   * per key as they were folded, or back onto the leaf they came from for the
+   * undo of a first-child create. Absent from journals written before measure
+   * estimates existed, which hand none up.
+   */
+  setMeasureEstimates?: StoredMeasureEstimate[];
 }
 
 /**
@@ -385,6 +411,18 @@ export interface RestoreSubtree {
    * create hands them down again. Absent from older journals.
    */
   removedAttempts?: AttemptKey[];
+  /**
+   * The trios in measures other than time on the rows being restored, put
+   * back with them after the rows: every trio a delete's cascade took, the
+   * ones a first-child create handed down, or a duplicate's copies. Absent
+   * from journals written before measure estimates existed.
+   */
+  measureEstimates?: StoredMeasureEstimate[];
+  /**
+   * Trios to take off the surviving parent, one key per measure, for
+   * {@link RestoreSubtree.removedEstimates}' reason. Absent from older journals.
+   */
+  removedMeasureEstimates?: MeasureEstimateKey[];
 }
 
 /** One attempt's identity: its node and its number. */

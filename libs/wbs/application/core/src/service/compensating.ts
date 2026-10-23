@@ -85,6 +85,8 @@ const COMMANDS = [
   'clear_actual',
   'set_measure',
   'clear_measure',
+  'set_measure_estimate',
+  'clear_measure_estimate',
   'set_progress',
   'clear_progress',
   ...STEP_BLOCKAGE_REPLAY_KINDS,
@@ -164,6 +166,31 @@ export function readCommand(value: unknown): CompensatingCommand {
       !(units === null || (typeof units === 'number' && Number.isSafeInteger(units) && units >= 1))
     )
       throw new Error('a journal demand replay is malformed');
+  }
+  if (named === 'set_measure_estimate') {
+    // Proof: with this call removed, `refuses a malformed measure estimate
+    // replay` (compensating.test.ts) did not throw; watched 2026-10-23.
+    if (!isMeasureEstimateRecord(value))
+      throw new Error('a journal measure estimate replay is malformed');
+  }
+  if (named === 'clear_measure_estimate') {
+    if (!isMeasureEstimateKey(value))
+      throw new Error('a journal measure estimate clear is malformed');
+  }
+  for (const field of ['measureEstimates', 'setMeasureEstimates'] as const) {
+    if ((named === 'restore_subtree' || named === 'delete_subtree') && field in value) {
+      const listed: unknown = Reflect.get(value, field);
+      // Proof: with this check removed, `refuses a malformed measure estimate
+      // replay` (compensating.test.ts) accepted a restore holding a string
+      // where a trio list belongs; watched 2026-10-23.
+      if (!Array.isArray(listed) || !listed.every(isMeasureEstimateRecord))
+        throw new Error(`a journal subtree replay holds malformed ${field}`);
+    }
+  }
+  if (named === 'restore_subtree' && 'removedMeasureEstimates' in value) {
+    const listed: unknown = value.removedMeasureEstimates;
+    if (!Array.isArray(listed) || !listed.every(isMeasureEstimateKey))
+      throw new Error('a journal subtree replay holds malformed removedMeasureEstimates');
   }
   if (named === 'restore_subtree' && 'demands' in value) {
     // Proof: with this call removed, `refuses a malformed restored demand` in
@@ -465,6 +492,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_actual':
     case 'set_measure':
     case 'clear_measure':
+    case 'set_measure_estimate':
+    case 'clear_measure_estimate':
     case 'set_progress':
     case 'clear_progress':
     case 'replace_blockage':
@@ -520,6 +549,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.setProgress.map((each) => each.workItemId),
         ...command.setMeasures.map((each) => each.workItemId),
         ...(command.setAttempts ?? []).map((each) => each.workItemId),
+        ...(command.setMeasureEstimates ?? []).map((each) => each.workItemId),
       ];
     case 'restore_subtree':
       return [
@@ -530,6 +560,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.removedProgress.map((each) => each.workItemId),
         ...command.removedMeasures.map((each) => each.workItemId),
         ...(command.removedAttempts ?? []).map((each) => each.workItemId),
+        ...(command.removedMeasureEstimates ?? []).map((each) => each.workItemId),
         ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
       ];
     case 'batch':
@@ -646,6 +677,8 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     case 'clear_actual':
     case 'set_measure':
     case 'clear_measure':
+    case 'set_measure_estimate':
+    case 'clear_measure_estimate':
     case 'set_progress':
     case 'clear_progress':
     case 'replace_blockage':
@@ -712,6 +745,7 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         ...command.setMeasures,
       ].forEach(onStep);
       (command.setAttempts ?? []).forEach(attempted);
+      (command.setMeasureEstimates ?? []).forEach(onStep);
       return;
     case 'restore_subtree':
       for (const row of command.rows) {
@@ -737,6 +771,8 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         ...command.removedProgress,
         ...command.removedMeasures,
         ...(command.removedAttempts ?? []),
+        ...(command.measureEstimates ?? []),
+        ...(command.removedMeasureEstimates ?? []),
       ].forEach(onStep);
       (command.attempts ?? []).forEach(attempted);
       for (const assignment of command.assignments) {
@@ -783,6 +819,8 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'clear_actual':
     case 'set_measure':
     case 'clear_measure':
+    case 'set_measure_estimate':
+    case 'clear_measure_estimate':
     case 'set_progress':
     case 'clear_progress':
     case 'replace_blockage':
@@ -874,6 +912,46 @@ export function quoteName(name: string): string {
  * one of the rows the restore writes. A demand on any other row would be
  * written onto work the entry does not put back.
  */
+/** Whether a journalled value names one measure estimate's step node and key. */
+function isMeasureEstimateKey(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'workItemId') === 'string' &&
+    typeof Reflect.get(value, 'stepId') === 'string' &&
+    typeof Reflect.get(value, 'key') === 'string'
+  );
+}
+
+/**
+ * Whether a journalled value is a whole measure estimate: its key, three
+ * finite ordered points and a flag that is set only on an equal tokens trio
+ * (design D28).
+ */
+function isMeasureEstimateRecord(value: unknown): boolean {
+  if (!isMeasureEstimateKey(value) || typeof value !== 'object' || value === null) return false;
+  const points = ['optimistic', 'realistic', 'pessimistic'].map((point): unknown =>
+    Reflect.get(value, point),
+  );
+  const singlePoint: unknown = Reflect.get(value, 'singlePoint');
+  if (typeof singlePoint !== 'boolean') return false;
+  const [optimistic, realistic, pessimistic] = points;
+  if (
+    typeof optimistic !== 'number' ||
+    typeof realistic !== 'number' ||
+    typeof pessimistic !== 'number' ||
+    ![optimistic, realistic, pessimistic].every(Number.isFinite) ||
+    !(0 <= optimistic && optimistic <= realistic && realistic <= pessimistic)
+  )
+    return false;
+  return (
+    !singlePoint ||
+    (Reflect.get(value, 'key') === 'tokens' &&
+      optimistic === realistic &&
+      realistic === pessimistic)
+  );
+}
+
 function readRestoredDemands(value: object): void {
   const demands: unknown = Reflect.get(value, 'demands');
   const rows: unknown = Reflect.get(value, 'rows');

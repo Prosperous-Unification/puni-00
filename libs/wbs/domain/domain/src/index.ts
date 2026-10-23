@@ -168,6 +168,7 @@ export * from './occupancy';
 export * from './resource';
 // Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
 export * from './measure-definition';
+export * from './measure-estimate';
 export * from './measure-fact';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';

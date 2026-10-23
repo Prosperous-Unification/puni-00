@@ -222,6 +222,21 @@ export const commandNormalizers = {
     ...normalizeStepAddress(raw),
     metric: asText(raw.metric, 'metric'),
   }),
+  setMeasureEstimate: (raw: CommandInput<'setMeasureEstimate'>) => ({
+    kind: 'setMeasureEstimate' as const,
+    ...normalizeStepAddress(raw),
+    measure: asText(raw.measure, 'measure'),
+    // The time trio's parse and its ordering rule, refused as `invalid_estimate`.
+    // Proof: with `raw.estimate` passed through unparsed, `refuses an unordered
+    // trio and stores nothing` (measure-estimate-command.test.ts) admitted
+    // 5/2/9; watched 2026-10-23.
+    estimate: parseOrThrow(EstimateTrio, raw.estimate),
+  }),
+  clearMeasureEstimate: (raw: CommandInput<'clearMeasureEstimate'>) => ({
+    kind: 'clearMeasureEstimate' as const,
+    ...normalizeStepAddress(raw),
+    measure: asText(raw.measure, 'measure'),
+  }),
   setAssignee: (raw: CommandInput<'setAssignee'>) =>
     present({
       kind: 'setAssignee' as const,

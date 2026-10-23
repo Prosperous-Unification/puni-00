@@ -14,6 +14,8 @@ import { StepMeasureRepository } from './step-measure';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261023110000_key_step_measure';
 const BASELINE = '20261023100000_add_measure';
+/** The measure estimates, which reverse first over single-point token trios alone. */
+const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
 
 let dir: string;
 let path: string;
@@ -95,7 +97,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-measure-key-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MEASURE_ESTIMATES, MIGRATION]);
   db = openDatabase(path);
   seedBaseline();
 });
@@ -239,7 +241,7 @@ describe(MIGRATION, () => {
       .get();
     comeForward();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MEASURE_ESTIMATES, MIGRATION]);
     db = openDatabase(path);
     expect(legacyRows()).toEqual(before);
     const columns = db

@@ -66,6 +66,7 @@ export * from './ports/domain-challenges';
 export * from './ports/edit-admission';
 export * from './ports/estimate-store';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
+export * from './ports/measure-estimate-store';
 export * from './ports/measure-store';
 export type { OidcVerifier } from './ports/oidc-verifier';
 export * from './ports/plan-event-store';

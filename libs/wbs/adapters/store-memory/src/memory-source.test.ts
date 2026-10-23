@@ -24,6 +24,7 @@ const STORE_BINDINGS = [
   'estimates',
   'eventLog',
   'journal',
+  'measureEstimates',
   'measures',
   'planEvents',
   'priorityBands',

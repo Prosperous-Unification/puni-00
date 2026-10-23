@@ -12,6 +12,7 @@ import { EstimateRepository } from './estimate';
 import { DrizzleEventLogStore } from './event-log';
 import type { Gate } from './gate';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { PlanEventRepository } from './plan-event';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
@@ -51,6 +52,7 @@ export function buildStores(
     estimates: new EstimateRepository(db, gate),
     actuals: new ActualRepository(db, gate),
     measures: new StepMeasureRepository(db, gate),
+    measureEstimates: new MeasureEstimateRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),

@@ -32,6 +32,7 @@ import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN, WriteCoordinator } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
@@ -145,6 +146,7 @@ beforeEach(async () => {
     estimates: new EstimateRepository(db, OPEN),
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
+    measureEstimates: new MeasureEstimateRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),
