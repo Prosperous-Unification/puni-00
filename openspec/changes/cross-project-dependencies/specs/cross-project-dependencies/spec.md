@@ -1151,8 +1151,10 @@ all required local captured writer artifacts and SHALL always block activation.
 The solver command runner SHALL offer an explicit local mode that validates
 canonical state readability, nonsymlink state/lock kinds, inherited descriptor
 identity and flock before launch. It SHALL refuse retained owner markers and
-map the verified open description to child FD3, preserving exclusion. Existing
-remote installer calls SHALL remain unchanged until a shared install operation
+map the verified open description to child FD3, preserving exclusion. The state
+path SHALL be absolute and normalized before filesystem inspection, rejecting
+trailing slashes, dot or parent segments and duplicate slashes. The child SHALL
+receive the exact validated state path. Existing remote installer calls SHALL remain unchanged until a shared install operation
 is admitted.
 
 #### Scenario: Local child inherits the held description
@@ -1166,3 +1168,9 @@ is admitted.
 - **GIVEN** a missing, malformed, foreign or independently opened descriptor, a retained marker, unreadable state or symlink canonical path
 - **WHEN** the local solver command mode is requested
 - **THEN** the runner refuses before the child starts
+
+#### Scenario: Alternate state spellings cannot hide a symlink root
+
+- **GIVEN** a genuinely held canonical FD8 and a symlink state path ending in `/` or `/.`
+- **WHEN** the local solver command mode is requested
+- **THEN** the runner refuses the noncanonical spelling before filesystem checks or child launch

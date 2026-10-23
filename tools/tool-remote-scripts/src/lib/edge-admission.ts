@@ -1,5 +1,5 @@
 import { lstat, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import { assertInheritedLock, withLock } from './lock';
 
@@ -59,11 +59,19 @@ export async function withEdgeAdmission<T>(action: () => Promise<T>): Promise<T>
 
 /**
  * Requires a local inherited open description before launching a solver child.
+ * State must use an absolute normalized spelling before filesystem inspection.
  * The caller owns its lifetime; the child receives the same description, never
  * a reopened lock file. This grants no installation or activation authority.
  */
-export async function requireInheritedEdgeLock(): Promise<number> {
+export async function requireInheritedEdgeLock(): Promise<{
+  descriptor: number;
+  stateDirectory: string;
+}> {
   const stateDirectory = edgeStateDirectory();
+  // Proof: omitting this guard let / and /. symlink-state spellings return success in separate real-runner negatives.
+  if (!isAbsolute(stateDirectory) || resolve(stateDirectory) !== stateDirectory) {
+    throw new Error('canonical edge state must be an absolute normalized path');
+  }
   const lockPath = join(stateDirectory, 'edge.lock');
   const inherited = process.env['WBS_EDGE_LOCK_FD'];
   // Proof: omitting token validation changed the required-descriptor refusal for missing and malformed tokens.
@@ -91,5 +99,5 @@ export async function requireInheritedEdgeLock(): Promise<number> {
   assertInheritedLock(lockPath, descriptor);
   // Proof: omitting this admission launched the child for retained JSON/pending markers.
   await assertNoEdgeOwner(stateDirectory);
-  return descriptor;
+  return { descriptor, stateDirectory };
 }

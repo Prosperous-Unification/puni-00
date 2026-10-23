@@ -1,0 +1,89 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [95.03ms]
+(pass) missing inherited descriptor refuses before launching solver command [64.43ms]
+(pass) invalid inherited descriptor refuses before launching solver command [57.56ms]
+(pass) foreign inherited descriptor refuses before launching solver command [64.93ms]
+(pass) independent inherited descriptor refuses before launching solver command [35.72ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [42.09ms]
+(pass) edge-owner.json malformed refuses inherited solver command [41.95ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [25.88ms]
+(pass) edge-owner.json directory refuses inherited solver command [31.58ms]
+(pass) edge-owner.json dangling refuses inherited solver command [43.42ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [23.46ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [24.88ms]
+(pass) edge-owner.pending directory refuses inherited solver command [25.30ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [24.67ms]
+(pass) symlink canonical state refuses verified solver command [30.42ms]
+(pass) symlink canonical lock refuses verified solver command [27.28ms]
+(pass) missing canonical state refuses before child launch [37.40ms]
+(pass) directory canonical state refuses before child launch [35.10ms]
+(pass) unreadable canonical state refuses before child launch [31.91ms]
+158 |   test(`noncanonical state spelling ${suffix} refuses before solver child launch`, async () => {
+159 |     const host = await fixture();
+160 |     await rename(host.state, `${host.state}-real`);
+161 |     await symlink(`${host.state}-real`, host.state);
+162 |     const attempt = await host.run('valid', `export WBS_EDGE_STATE="$WBS_EDGE_STATE${suffix}";`);
+163 |     expect(attempt.code).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:163:30)
+(fail) noncanonical state spelling / refuses before solver child launch [57.30ms]
+158 |   test(`noncanonical state spelling ${suffix} refuses before solver child launch`, async () => {
+159 |     const host = await fixture();
+160 |     await rename(host.state, `${host.state}-real`);
+161 |     await symlink(`${host.state}-real`, host.state);
+162 |     const attempt = await host.run('valid', `export WBS_EDGE_STATE="$WBS_EDGE_STATE${suffix}";`);
+163 |     expect(attempt.code).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:163:30)
+(fail) noncanonical state spelling /. refuses before solver child launch [59.36ms]
+159 |     const host = await fixture();
+160 |     await rename(host.state, `${host.state}-real`);
+161 |     await symlink(`${host.state}-real`, host.state);
+162 |     const attempt = await host.run('valid', `export WBS_EDGE_STATE="$WBS_EDGE_STATE${suffix}";`);
+163 |     expect(attempt.code).not.toBe(0);
+164 |     expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+                                                                                        ^
+error: Received value must be an array type, or both received and expected values must be strings.
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:164:83)
+(fail) noncanonical state spelling /.. refuses before solver child launch [22.75ms]
+158 |   test(`noncanonical state spelling ${suffix} refuses before solver child launch`, async () => {
+159 |     const host = await fixture();
+160 |     await rename(host.state, `${host.state}-real`);
+161 |     await symlink(`${host.state}-real`, host.state);
+162 |     const attempt = await host.run('valid', `export WBS_EDGE_STATE="$WBS_EDGE_STATE${suffix}";`);
+163 |     expect(attempt.code).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:163:30)
+(fail) noncanonical state spelling // refuses before solver child launch [47.11ms]
+169 | }
+170 | 
+171 | test('relative state spelling refuses before solver child launch', async () => {
+172 |   const host = await fixture();
+173 |   const attempt = await host.run('valid', `cd "$TEST_ROOT"; export WBS_EDGE_STATE=state;`);
+174 |   expect(attempt.code).not.toBe(0);
+                                 ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:174:28)
+(fail) relative state spelling refuses before solver child launch [47.27ms]
+
+ 19 pass
+ 5 fail
+ 76 expect() calls
+Ran 24 tests across 1 file. [1046.00ms]

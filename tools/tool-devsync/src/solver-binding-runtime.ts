@@ -71,7 +71,7 @@ export interface TargetSolverBindingRuntime {
 export async function runSolverBindingCommand(
   invocation: SolverBindingRuntimeInvocation,
 ): Promise<{ exitCode: number; stderr: string }> {
-  const descriptor =
+  const admission =
     invocation.edgeLock === 'inherit' ? await requireInheritedEdgeLock() : undefined;
   const child = Bun.spawn([...invocation.argv], {
     cwd: invocation.cwd,
@@ -79,15 +79,15 @@ export async function runSolverBindingCommand(
       ...process.env,
       ...invocation.env,
       // Proof: allowing either admission environment override fails the real child FD3 control.
-      ...(descriptor === undefined
+      ...(admission === undefined
         ? {}
-        : { WBS_EDGE_LOCK_FD: '3', WBS_EDGE_STATE: process.env['WBS_EDGE_STATE'] }),
+        : { WBS_EDGE_LOCK_FD: '3', WBS_EDGE_STATE: admission.stateDirectory }),
     },
     // Proof: omitting FD3 mapping fails the real solver child exclusion control.
     stdio:
-      descriptor === undefined
+      admission === undefined
         ? ['inherit', 'inherit', 'pipe']
-        : ['inherit', 'inherit', 'pipe', descriptor],
+        : ['inherit', 'inherit', 'pipe', admission.descriptor],
   });
   const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
   return { exitCode, stderr };

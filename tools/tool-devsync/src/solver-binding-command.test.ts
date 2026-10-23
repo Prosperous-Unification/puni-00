@@ -153,3 +153,27 @@ for (const shape of ['missing', 'directory', 'unreadable']) {
     }
   });
 }
+
+for (const suffix of ['/', '/.', '/..', '//']) {
+  test(`noncanonical state spelling ${suffix} refuses before solver child launch`, async () => {
+    const host = await fixture();
+    await rename(host.state, `${host.state}-real`);
+    await symlink(`${host.state}-real`, host.state);
+    const attempt = await host.run('valid', `export WBS_EDGE_STATE="$WBS_EDGE_STATE${suffix}";`);
+    expect(attempt.code).not.toBe(0);
+    expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+      'canonical edge state must be an absolute normalized path',
+    );
+    await host.expectUnreached();
+  });
+}
+
+test('relative state spelling refuses before solver child launch', async () => {
+  const host = await fixture();
+  const attempt = await host.run('valid', `cd "$TEST_ROOT"; export WBS_EDGE_STATE=state;`);
+  expect(attempt.code).not.toBe(0);
+  expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+    'canonical edge state must be an absolute normalized path',
+  );
+  await host.expectUnreached();
+});

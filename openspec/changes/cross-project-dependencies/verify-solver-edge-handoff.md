@@ -64,3 +64,35 @@ staging and verify staged/installed bytes, then retain one admission interval
 through all four replacements, service changes and readiness, with explicit
 partial-publication diagnostics. Those installer protections, activation,
 owner publication, automatic rollback and parent Task 10.2 remain open.
+
+## Astra P2 correction — canonical state spelling
+
+`lstat` follows a directory symlink when its path ends in `/` or `/.`. The
+local prerequisite now requires an absolute normalized spelling before any
+filesystem check, also rejecting parent segments and duplicate slashes. It
+returns the validated path together with the descriptor; the runner pins that
+exact path into the child environment. Existing callers and installer behavior
+remain unchanged; activation is still blocked.
+
+All original 19 command tests remain. Five new real-runner negatives cover
+trailing `/`, `/.`, `/..`, `//`, and a relative path under a genuine Bash-held
+canonical FD8. Initial red was 19 pass / 5 fail; `/`, `/.`, `//`, and relative
+state actually returned success. After the fix, all 24 command tests passed.
+Removing only the spelling guard independently made the `/` and `/.` cases
+fail with `Expected: not 0` (each 0 pass / 1 fail / 23 filtered out), proving
+actual child-runner admission rather than a helper-only assertion. Both faults
+were restored; all earlier guard proofs and logs remain retained.
+
+Evidence: [path red](evidence/solver-edge-handoff/path-red.log),
+[omitted slash](evidence/solver-edge-handoff/path-omitted-slash.log),
+[omitted dot](evidence/solver-edge-handoff/path-omitted-dot.log),
+[restored scope](evidence/solver-edge-handoff/path-restored.log).
+
+- The same five-file scoped Bun test command above: 82 pass, 0 fail, 261 assertions.
+- Scoped ESLint on the three changed TypeScript files: passed; module boundary
+  rule visibly skipped because the isolated worktree has no cached project graph.
+- Both tool project typechecks, using the same command above: passed.
+- OpenSpec change validation, explicit changed-file Prettier, and diff whitespace checks: passed.
+
+No host commands, fresh dependency install, full Nx gate, or integrated-SHA host
+acceptance were run. Independent Astra rereview remains pending.
