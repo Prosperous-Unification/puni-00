@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -18,7 +19,8 @@ const SCRIPT = join(import.meta.dir, 'solver-image-smoke.sh');
 
 /**
  * Fake Docker with an image store of one file per tag, so a test can see which tags outlive
- * the smoke. `WBS_FAKE_FAULT` injects one failure; see {@link SmokeFault}.
+ * the smoke. Registry and direct baseline containers remain until explicitly removed, modeling
+ * retained Docker resources after interrupted clients. `WBS_FAKE_FAULT` injects one failure; see {@link SmokeFault}.
  */
 const FAKE_DOCKER = `#!/usr/bin/env bash
 set -euo pipefail
@@ -63,6 +65,21 @@ case "$1" in
     esac
     ;;
   run)
+    if [[ "$*" == *'registry:2'* ]] || [[ "$*" == *'--entrypoint wbs-solver'* ]]; then
+      arguments=("$@")
+      for ((index=0; index < $#; index++)); do
+        if [ "\${arguments[index]}" = --name ]; then
+          printf '%s' "\${arguments[index + 1]}" > "$WBS_FAKE_CONTAINER_STORE/\${arguments[index + 1]}"
+        fi
+      done
+    fi
+    if [[ "$*" == *'--entrypoint wbs-solver'* ]]; then
+      case "\${WBS_FAKE_FAULT:-}" in
+        solver-run-partial) exit 86 ;;
+        solver-run-interrupt) kill -TERM "$PPID"; exit 0 ;;
+        solver-run-int) kill -INT "$PPID"; exit 0 ;;
+      esac
+    fi
     if [ "\${WBS_FAKE_FAULT:-}" = solver-run ] && [[ "$*" == *'--entrypoint wbs-solver'* ]]; then exit 86; fi
     if [ "\${WBS_FAKE_FAULT:-}" = connected-feasible-run ] && [[ "$*" == *'connected-feasible'* ]]; then exit 88; fi
     if [ "\${WBS_FAKE_FAULT:-}" = connected-fractional-run ] && [[ "$*" == *'connected-fractional'* ]]; then exit 89; fi
@@ -78,14 +95,29 @@ case "$1" in
         inventory-overflow) cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
       esac
     fi
-    if [ "\${WBS_FAKE_FAULT:-}" = shared-client-run ] && [[ "$*" == *'shared-person'* ]]; then exit 87; fi
+    if { [ "\${WBS_FAKE_FAULT:-}" = shared-client-run ] || [ "\${WBS_FAKE_FAULT:-}" = registry-rm-with-client-failure ]; } && [[ "$*" == *'shared-person'* ]]; then exit 87; fi
     ;;
   container)
+    if [[ "$3" == *registry* ]]; then
+      if [ "\${WBS_FAKE_FAULT:-}" = registry-inspect-permission ]; then echo 'registry permission denied' >&2; exit 1; fi
+      [ -e "$WBS_FAKE_CONTAINER_STORE/$3" ] && exit 0
+      echo 'No such container' >&2; exit 1
+    fi
+    if [[ "$3" == *baseline* ]]; then
+      [ -e "$WBS_FAKE_CONTAINER_STORE/$3" ] && exit 0
+      echo 'No such container' >&2; exit 1
+    fi
     if [ "\${WBS_FAKE_FAULT:-}" = inspect-container-broken ]; then echo 'permission denied' >&2; exit 1; fi
     if [ "\${WBS_FAKE_FAULT:-}" = caller-rm-fails ] && [[ "$3" == *caller* ]]; then exit 0; fi
     if [ "\${WBS_FAKE_FAULT:-}" != container-rm-fails ] && [ "\${WBS_FAKE_FAULT:-}" != container-rm-ignored ]; then echo 'No such container' >&2; exit 1; fi
     [[ "\${WBS_FAKE_FAULT:-}" == container-rm-* ]] ;;
   rm)
+    if [[ "$last" == *registry* ]]; then
+      if { [ "\${WBS_FAKE_FAULT:-}" = registry-rm-fails ] || [ "\${WBS_FAKE_FAULT:-}" = registry-rm-with-client-failure ]; }; then echo 'registry removal denied' >&2; exit 1; fi
+      if [ "\${WBS_FAKE_FAULT:-}" = registry-rm-ignored ]; then exit 0; fi
+      rm "$WBS_FAKE_CONTAINER_STORE/$last"; exit 0
+    fi
+    if [[ "$last" == *baseline* ]]; then rm "$WBS_FAKE_CONTAINER_STORE/$last"; exit 0; fi
     if [ "\${WBS_FAKE_FAULT:-}" = caller-rm-fails ]; then exit 1; fi
     [ "\${WBS_FAKE_FAULT:-}" != container-rm-fails ] ;;
 esac
@@ -103,6 +135,13 @@ esac
 /** One injected Docker failure, named for the step that goes wrong. */
 type SmokeFault =
   | 'solver-run'
+  | 'solver-run-partial'
+  | 'solver-run-interrupt'
+  | 'solver-run-int'
+  | 'registry-rm-with-client-failure'
+  | 'registry-rm-fails'
+  | 'registry-rm-ignored'
+  | 'registry-inspect-permission'
   | 'shared-client-run'
   | 'connected-composed-run'
   | 'inventory-rm-fails'
@@ -123,6 +162,7 @@ type SmokeFault =
   | 'caller-rm-fails'
   | 'inspect-container-broken'
   | 'container-rm-ignored'
+  | 'supervisor-kill-fails'
   | 'supervisor-stop-fails'
   | 'socket-rmdir-fails'
   | 'inspect-permission';
@@ -133,6 +173,8 @@ interface SmokeRun {
   dockerCalls: string[];
   hostCalls: string[];
   survivingTags: string[];
+  survivingContainers: string[];
+  socketExists: boolean;
 }
 
 let root: string;
@@ -156,10 +198,12 @@ function runSmoke(
 ): SmokeRun {
   const commands = join(root, 'commands');
   const store = join(root, 'images');
+  const containers = join(root, 'containers');
   const dockerLog = join(root, 'docker.log');
   const hostLog = join(root, 'host.log');
   mkdirSync(commands);
   mkdirSync(store);
+  mkdirSync(containers);
   writeFileSync(dockerLog, '');
   writeFileSync(hostLog, '');
   if (options.supplied && !options.missing) {
@@ -191,15 +235,30 @@ function runSmoke(
     'mktemp',
     `#!/usr/bin/env bash\nmkdir -p "$WBS_FAKE_SOCKET_DIRECTORY"\nprintf '%s\\n' "$WBS_FAKE_SOCKET_DIRECTORY"\n`,
   );
+  const bashEnvironment = join(root, 'bash-env');
+  writeFileSync(
+    bashEnvironment,
+    `kill() {
+    if [ "\${WBS_FAKE_FAULT:-}" = supervisor-kill-fails ] && [ "$#" -eq 1 ]; then
+      builtin kill "$@"
+      echo 'supervisor termination denied' >&2
+      return 1
+    fi
+    builtin kill "$@"
+  }
+`,
+  );
   const invocation = Bun.spawnSync(
     ['bash', SCRIPT, ...(options.args ?? (options.supplied ? [`--image=${SUPPLIED_IMAGE}`] : []))],
     {
       env: {
         ...process.env,
+        BASH_ENV: bashEnvironment,
         PATH: `${commands}:${process.env['PATH'] ?? ''}`,
         WBS_DOCKER_LOG: dockerLog,
         WBS_HOST_LOG: hostLog,
         WBS_FAKE_IMAGE_STORE: store,
+        WBS_FAKE_CONTAINER_STORE: containers,
         WBS_FAKE_SOCKET_DIRECTORY: join(root, 'socket'),
         WBS_REAL_BUN: process.execPath,
         WBS_RUN_SOLVER_ORPHAN_PROC: options.orphan || !options.supplied ? '1' : '0',
@@ -214,6 +273,8 @@ function runSmoke(
     stderr: invocation.stderr.toString(),
     dockerCalls: readFileSync(dockerLog, 'utf8').trim().split('\n').filter(Boolean),
     hostCalls: readFileSync(hostLog, 'utf8').trim().split('\n').filter(Boolean),
+    survivingContainers: readdirSync(containers),
+    socketExists: existsSync(join(root, 'socket')),
     survivingTags: readdirSync(store).map((name) => readFileSync(join(store, name), 'utf8')),
   };
 }
@@ -421,7 +482,7 @@ describe('solver-image-smoke supplied immutable image', () => {
     expect(smoke.dockerCalls).toEqual([`image inspect ${SUPPLIED_IMAGE}`]);
   });
 
-  it.each(['supervisor-stop-fails', 'socket-rmdir-fails'] as const)(
+  it.each(['supervisor-kill-fails', 'supervisor-stop-fails', 'socket-rmdir-fails'] as const)(
     'refuses temporary runtime cleanup failure %s',
     (fault) => {
       const smoke = runSmoke(fault, { supplied: true });
@@ -491,3 +552,62 @@ for (const supplied of [false, true]) {
     expect(smoke.survivingTags).toEqual(supplied ? [SUPPLIED_IMAGE] : []);
   });
 }
+
+describe('built image owned cleanup', () => {
+  it.each([
+    ['supervisor-kill-fails', 'supervisor termination denied'],
+    ['supervisor-stop-fails', 'temporary supervisor failed during cleanup'],
+    ['registry-rm-fails', 'registry removal denied'],
+    ['registry-rm-ignored', 'container outlived the smoke: wbs-solver-smoke-registry-'],
+    ['registry-inspect-permission', 'registry permission denied'],
+  ] as const)('refuses %s while finishing other cleanup', (fault, reason) => {
+    const smoke = runSmoke(fault);
+    expect(smoke.exitCode).toBe(1);
+    expect(smoke.stderr).toContain(reason);
+    expect(smoke.survivingTags).toEqual([]);
+    expect(
+      smoke.dockerCalls.some((call) =>
+        call.startsWith('container inspect wbs-solver-smoke-caller-'),
+      ),
+    ).toBe(true);
+    expect(smoke.survivingContainers.filter((name) => name.includes('baseline'))).toEqual([]);
+    expect(smoke.socketExists).toBe(false);
+  });
+
+  it.each([
+    ['solver-run-partial', 86],
+    ['solver-run-interrupt', 143],
+    ['solver-run-int', 130],
+  ] as const)('releases the named direct baseline after %s', (fault, code) => {
+    const smoke = runSmoke(fault);
+    expect(smoke.exitCode).toBe(code);
+    const baseline = smoke.dockerCalls.find((call) => call.includes('--entrypoint wbs-solver'));
+    expect(baseline).toMatch(new RegExp('--name wbs-solver-smoke-baseline-' + UUID));
+    expect(smoke.survivingContainers).toEqual([]);
+    expect(smoke.socketExists).toBe(false);
+    expect(smoke.survivingTags).toEqual([]);
+  });
+
+  it('uses UUID names and proves the registry and baseline are absent', () => {
+    const smoke = runSmoke();
+    expect(smoke.exitCode).toBe(0);
+    expect(smoke.survivingContainers).toEqual([]);
+    for (const role of ['registry', 'baseline', 'caller']) {
+      expect(
+        smoke.dockerCalls.some((call) =>
+          new RegExp('^container inspect wbs-solver-smoke-' + role + '-' + UUID + '$').test(call),
+        ),
+      ).toBe(true);
+    }
+  });
+});
+
+it('preserves the client failure while reporting registry removal failure', () => {
+  const smoke = runSmoke('registry-rm-with-client-failure');
+  expect(smoke.exitCode).toBe(87);
+  expect(smoke.stderr).toContain('registry removal denied');
+  expect(smoke.stderr).toContain('could not remove container');
+  expect(smoke.survivingTags).toEqual([]);
+  expect(smoke.survivingContainers).toHaveLength(1);
+  expect(smoke.survivingContainers[0]).toContain('registry');
+});

@@ -112,3 +112,52 @@ production-source faults still need actual composed-image observations and adjac
 exact-head host gate and configured project checks remain separate obligations.
 Independent Astra review approved this bounded source packet, with the fixture
 host-cap and recomposition limits stated above; parent Tasks 7.3/7.4 remain open.
+
+## P2 correction — built-image cleanup ownership (2026-10-23)
+
+Source base `02830d4282e0fbc359e7ecb3472fa7a6cc36615f`, isolated worktree
+`/tmp/puni-solver-cleanup`. The earlier cleanup description overstated built-mode
+coverage: that mode suppressed supervisor kill/wait and registry-stop failures,
+never proved registry absence, and left the direct baseline container unnamed.
+Both modes now share checked supervisor and caller/attempt cleanup. Built mode
+also inspects/removes/readbacks its UUID-named registry and direct baseline;
+those names are recorded before creation, so partial runs remain owned. INT/TERM
+exit through cleanup with 130/143. A refused supervisor signal fails the smoke and
+allows remaining cleanup to proceed without waiting indefinitely for that child.
+Original nonzero client status survives cleanup errors; Docker diagnostics remain
+visible, and supervisor wait reports its exit status. Supplied image preservation
+and its exact owned-container inventory are retained.
+
+The focused new test-first run against the old script failed 7/7: supervisor exit,
+registry removal refusal, ignored registry removal and registry inspect permission
+all incorrectly exited 0; the direct baseline lacked an owned UUID name; TERM
+skipped cleanup; and the registry survived success. The first sandbox invocation
+could not open Unix sockets (`EPERM`) and is not counted as behavioral evidence;
+the subsequent tests ran with socket permission and fake Docker only.
+
+Nine independently injected guard removals each failed its selected production
+entrypoint test, then were restored: supervisor wait-status propagation,
+supervisor kill-failure propagation, registry cleanup invocation, removal refusal,
+container absence readback, inspect permission classification, baseline cleanup
+invocation, TERM controlled exit and INT controlled exit. Logs are
+`/tmp/cleanup-mutation-{supervisor-wait,supervisor-kill,registry-ownership,
+registry-remove-check,registry-readback,registry-inspect,baseline-ownership,
+signal-exit,signal-int-exit}.log`. The corresponding tests prove remaining image,
+baseline and socket cleanup, plus preservation of client exit 87 alongside the
+precise injected `registry removal denied` diagnosis.
+
+Final restored `bun test apps/wbs/be-01/scripts/solver-image-smoke.test.ts
+--timeout=10000`: 69 passed / 0 failed, 255 assertions (50.67 seconds;
+`/tmp/cleanup-restored-suite.log`). Scoped Prettier and `git diff --check` passed.
+
+Scoped ESLint passed after `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show
+project wbs-be-01 --json` generated the project graph; the initial pre-graph ESLint
+warning about skipped module-boundary validation is not counted as that proof.
+`bunx tsc --project apps/wbs/be-01/tsconfig.tools.json --noEmit --pretty false`,
+ShellCheck, and OpenSpec validation each exited 0 (OpenSpec: 1 passed / 0 failed,
+existing long-requirement warnings retained). The locked root dependency tree was
+reused through a scratch `node_modules` symlink; no dependency install occurred.
+
+No real Docker build/run, installed-image acceptance, h2 gate, live mutation,
+push or merge was performed. Parent tasks 7.3/7.4 and their actual installed-image
+fault proofs remain open.

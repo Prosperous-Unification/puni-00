@@ -34,9 +34,9 @@ attempt_tokens=("$attempt_token")
 # Every tag is unique to this attempt so cleanup removes only what this attempt created.
 image="wbs-be-01:solver-smoke-$attempt_token"
 request="$repo_root/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json"
-registry_name="wbs-solver-smoke-registry-$$"
-caller_name="wbs-solver-smoke-caller-$$"
-if [ -n "$supplied_image" ]; then caller_name="wbs-solver-smoke-caller-$attempt_token"; fi
+registry_name="wbs-solver-smoke-registry-$attempt_token"
+caller_name="wbs-solver-smoke-caller-$attempt_token"
+baseline_name="wbs-solver-smoke-baseline-$attempt_token"
 socket_directory=''
 socket_path=''
 supervisor_pid=''
@@ -166,7 +166,7 @@ collect_composed_attempts() {
 cleanup() {
   local status=$?
   local cleanup_failed=0
-  local token
+  local token termination_failed=0 supervisor_status
   if ! collect_composed_attempts "$status"; then cleanup_failed=1; fi
   # Proof: ignoring removal failure lost the required diagnosis in both inventory-rm-fails cases.
   if ! rm "$composed_inventory"; then
@@ -174,45 +174,44 @@ cleanup() {
     cleanup_failed=1
   fi
   if [ -n "$supervisor_pid" ]; then
-    if [ -n "$supplied_image" ]; then
-      if kill -0 "$supervisor_pid" 2>/dev/null && ! kill "$supervisor_pid"; then
-        echo '[solver-image-smoke] could not stop temporary supervisor' >&2
+    # Proof: built and supplied supervisor-stop-fails inject a failed supervisor exit;
+    # ignoring wait made built mode exit 0; independently removing kill failure propagation
+    # made supervisor-kill-fails exit 0 while subsequent cleanup still ran.
+    if kill -0 "$supervisor_pid" 2>/dev/null && ! kill "$supervisor_pid"; then
+      echo '[solver-image-smoke] could not stop temporary supervisor' >&2
+      cleanup_failed=1
+      termination_failed=1
+    fi
+    # A refused signal can leave a live child: do not block the rest of cleanup on its wait.
+    if [ "$termination_failed" -eq 0 ]; then
+      if wait "$supervisor_pid"; then
+        supervisor_status=0
+      else
+        supervisor_status=$?
+        echo "[solver-image-smoke] temporary supervisor failed during cleanup (exit $supervisor_status)" >&2
         cleanup_failed=1
       fi
-      # Proof: ignoring wait failure made supervisor-stop-fails exit 0.
-      if ! wait "$supervisor_pid"; then
-        echo '[solver-image-smoke] temporary supervisor failed during cleanup' >&2
-        cleanup_failed=1
-      fi
-    else
-      kill "$supervisor_pid" 2>/dev/null || true
-      wait "$supervisor_pid" 2>/dev/null || true
     fi
   fi
-  if [ -n "$supplied_image" ]; then
-    # Proof: adding removal of an unrelated container failed the owned-resource inventory test.
-    if ! remove_owned_container "$caller_name"; then cleanup_failed=1; fi
-    for token in "${attempt_tokens[@]}"; do
-      if ! remove_owned_container "wbs-solver-$token"; then cleanup_failed=1; fi
-    done
-    # Proof: ignoring rmdir refusal made socket-rmdir-fails exit 0.
-    if ! rmdir "$socket_directory"; then cleanup_failed=1; fi
-    # Proof: dropping cleanup status propagation made the container refusal tests exit 0.
-    # Proof: adding supplied-image removal here failed the artifact preservation test.
-    if [ "$status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then status=1; fi
-    exit "$status"
-  fi
-  docker stop "$registry_name" >/dev/null 2>&1 || true
-  # Proof: with this removal failing under `set -e`, solver-image-smoke.test.ts observed the
-  # trap exit before any image removal and all three tags left in the fake Docker store.
+  # Proof: adding removal of an unrelated container failed the owned-resource inventory test.
   if ! remove_owned_container "$caller_name"; then cleanup_failed=1; fi
   for token in "${attempt_tokens[@]}"; do
     if ! remove_owned_container "wbs-solver-$token"; then cleanup_failed=1; fi
   done
+  if [ -z "$supplied_image" ]; then
+    # Proof: registry rm refusal, ignored removal and permission failure each exited 0
+    # before this owned inspect/remove/readback path; all other images still get cleaned.
+    if ! remove_owned_container "$registry_name"; then cleanup_failed=1; fi
+    # Proof: partial baseline failure and SIGTERM left the direct child without an owner;
+    # the invocation UUID name now survives in cleanup's inventory before docker run.
+    if ! remove_owned_container "$baseline_name"; then cleanup_failed=1; fi
+  fi
+  # Proof: ignoring rmdir refusal made socket-rmdir-fails exit 0.
   if ! rmdir "$socket_directory"; then cleanup_failed=1; fi
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
   # observed the build and registry tags left in the fake Docker store.
-  if ! remove_created_images; then
+  # Proof: adding supplied-image removal here failed the artifact preservation test.
+  if [ -z "$supplied_image" ] && ! remove_created_images; then
     cleanup_failed=1
   fi
   if [ "$status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
@@ -236,6 +235,10 @@ socket_path="$socket_directory/supervisor.sock"
 composed_inventory="$socket_directory/composed-attempts"
 : > "$composed_inventory"
 trap cleanup EXIT
+# Proof: independently removing INT/TERM traps made the corresponding direct-baseline
+# interrupt negative lose controlled 130/143 (INT exited 0; TERM skipped EXIT cleanup).
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ -n "$supplied_image" ]; then
   # Proof: substituting a different digest failed the exact-digest host/client assertions.
@@ -244,7 +247,7 @@ else
   created_images+=("$image")
   docker build --file "$repo_root/apps/wbs/be-01/Dockerfile" --tag "$image" "$repo_root"
 
-  docker run --rm --interactive --entrypoint wbs-solver "$image" <"$request" >/dev/null
+  docker run --rm --interactive --name "$baseline_name" --entrypoint wbs-solver "$image" <"$request" >/dev/null
 
   docker run --detach --rm --publish 127.0.0.1::5000 --name "$registry_name" registry:2 >/dev/null
   registry_port="$(
