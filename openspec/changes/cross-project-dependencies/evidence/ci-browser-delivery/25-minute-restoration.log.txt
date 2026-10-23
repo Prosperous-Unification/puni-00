@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts:
-59 | 
+59 |
 60 |     // Proof (2026-10-23): deleting production matrix shard 8 failed on [1..7];
 61 |     // reverting only Layout gate's denominator to /4 failed on its run command.
 62 |     // Enabling fail-fast failed false/true; lowering the cap failed 25/20.
