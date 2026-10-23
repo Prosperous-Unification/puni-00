@@ -656,3 +656,10 @@ Task 5.2 remains open for its broader writer audit, socket/browser acceptance an
 - [x] Inventory full unfiltered Docker identities and enforce exact managed cohort, image resolution, Compose labels/network, init/private PID/unprivileged/no-capability prerequisites and stable process/start identity before publication.
 - [x] Publish/readback exclusive fsynced marker, closed intent and intent-hash/attempt-bound completion; perform exact-ID restart disable/readback, bounded stop/readback, complete fresh stopped proof and final/inspection reobservation. Retain all evidence/current state after publication failures.
 - [ ] Complete real Docker/websocket evidence and isolated integrated-SHA host gate. Configured scoped verification and watched R5 faults passed; independent Astra High review found no blocker. Parent 10.1/10.2 remain open; no live execution, activation, ordinary bypass, clearance or broad participant exclusion is granted. Evidence: [verify-gateway-exclusion.md](verify-gateway-exclusion.md).
+
+### Bounded task 10.1/10.2 disposable Docker gateway exclusion acceptance (2026-10-23)
+
+- [x] Add an uncached explicit-image/source-SHA acceptance runner using UUID-owned scratch, exact created IDs/network, loopback parent/child WebSocket challenges and bounded cleanup with external retained reports.
+- [x] Prove both real gateway colors, stubborn-child process/session termination, exact receipt/intent hash, fresh stopped inspection, unchanged bystander, no-init prepublication refusal, external-restart refusal and a separate empty cohort.
+- [x] Watch production stop/init/fresh-inspection omissions and absent-child startup fail independently; restore, run the configured Docker target and record [evidence](verify-gateway-exclusion-docker.md).
+- [ ] Complete independent Astra High review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open; no production activation, admission behavior, swap, clearance or deployment changes are included.

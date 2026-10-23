@@ -6607,3 +6607,14 @@ the backend target also panicked in Bun 1.4.2 during coverage after roughly
 41 minutes. The six assertions were independently corrected and reviewed,
 but the coverage panic is under separate investigation. This gate is an
 old-head failure, not a pass for the integrated feature head.
+
+## Disposable Docker gateway exclusion acceptance (2026-10-23)
+
+[The Docker acceptance packet](verify-gateway-exclusion-docker.md) records real
+blue/green parent/child WebSocket and process termination, exact retained receipts,
+fresh inspection, unchanged bystander, no-init/external-restart/empty controls and
+four watched production-path faults. The configured uncached Docker target,
+remote-scripts lint/typecheck and 65 focused production tests passed. Strict
+OpenSpec validation still reports 18 existing requirement-length warnings;
+non-strict validation passed. Independent review and the isolated integrated-SHA
+host gate remain pending; parent 10.1/10.2 stay open.
