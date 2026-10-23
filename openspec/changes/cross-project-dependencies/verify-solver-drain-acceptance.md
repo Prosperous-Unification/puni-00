@@ -146,3 +146,45 @@ source/solver/backend/gateway/ingress/ownership/mount/privacy suite: **357 pass,
 0 fail, 3024 assertions**, 19.19 seconds. Local output is retained in
 `/tmp/puni-integrated-source-1d92f2885.log`. This does not establish physical
 source acceptance, compatible restoration, installed adoption or a full gate.
+
+## Second host attempt: controlled refusal state
+
+Exact `42020a6bfba221482096b73bd6dfe869ee517ffa` ran under the canonical
+host lock and exited 1. Native hook observation passed. The private receipt
+records real creator-stop child survival, cgroup observations, attempt inventory
+and the protected callback's manual/systemd restart refusal. Final verification
+then refused because the expected blocked fixture restart exited 78 and systemd
+retained `failed/failed`, zero main/control PIDs, no job and an empty cgroup.
+Stopping that already-failed unit does not change it to `inactive/dead`.
+
+Review also identified a real contract mismatch: the fixture suppressed restart
+for exit 78, while production still exited 1 and had no corresponding unit
+setting. A separate reviewed source correction must couple typed retained-owner
+refusal, actual CLI exit classification, production restart prevention, effective
+unit observations and shared terminal-state verification. No generic lock error
+or unrelated startup failure may be reclassified as controlled refusal.
+
+The original receipt SHA-256 is
+`859543d7be562274edb6fe213422a4d9c6584cef0ea17d3b3668b8be0b50133e`.
+Attended recovery under the canonical lock verified exact unit bytes/link,
+unchanged identity and two native terminal-78 observations, including the
+restart-prevention setting, no drop-ins/jobs/PIDs/cgroup and no owned containers.
+Only the exact fixture link was removed, the manager reloaded, and link/container
+absence independently read back. No `reset-failed` was used. The original receipt,
+failed-state evidence and scratch files remain retained. This attempt is failed;
+it is not a passing physical exclusion or production-adoption receipt.
+
+## Merged policy/observer check
+
+The first eleven-file merged check at
+`2e471717fdd55782eb463baccedd483a295d5a06` reported **192 pass, 8 fail**.
+Seven installer cases correctly refused the newly observed global Bun 1.4.4
+instead of the pinned 1.4.2; the remaining case had a newly merged observer fixture
+still using legacy unit argv. The latter is corrected in the terminal-contract
+packet, not relabeled passing here.
+
+An isolated Bun 1.4.2 was installed under `/tmp`, with archive SHA-256 verified
+against `infra/versions/toolchain.json`; the global runtime was not changed.
+Rechecking the complete installer-operation file with that runtime passed
+**47 tests, 0 failures, 355 assertions**, 8.10 seconds. The merged full check must
+be rerun after the terminal-contract packet is integrated.

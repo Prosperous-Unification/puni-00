@@ -22,7 +22,13 @@ at capture time. These observations establish an adoption prerequisite; they do
 not authorize activation or prove that all installed launchers are guarded.
 
 No controller, service, container, installed artifact or application store was
-changed. Root-owned cron/process completeness, loaded artifact provenance,
-continuous exclusion, complete installed-authority admission and compatible
-controller restoration remain unverified. A point-in-time discovery cannot
+changed. A subsequent selected root cron/process/service census and exact open-WBS-database
+inode census completed successfully, with no unreadable process observations.
+Root crontab exit 1 was explicitly classified by its no-crontab diagnostic.
+The census also identified a legacy dev backend holding the same database open
+as source dev; transitional topology must be resolved through reviewed adoption.
+Additional exact edge and managed-container image, launch, network and volume
+metadata is retained privately, with environment equality hashes instead of values.
+Loaded artifact provenance, continuous exclusion, complete installed-authority
+admission and compatible controller restoration remain unverified. A point-in-time discovery cannot
 substitute for those proofs. Parent S1/S2/O4 and 10.2 remain open.
