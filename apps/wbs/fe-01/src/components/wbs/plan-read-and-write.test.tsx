@@ -3158,7 +3158,10 @@ itDom('shows resource dependency incompatibility through the real HTTP client', 
     );
     expect(document.querySelector('[data-export]')).toBeNull();
     for (const [, init] of send.mock.calls) {
-      expect(new Headers(init?.headers).has('X-WBS-Dependency-Semantics')).toBe(false);
+      // Proof: omitting browserClient's V1 opt-in made this mounted test receive null.
+      expect(new Headers(init?.headers).get('X-WBS-Dependency-Semantics')).toBe(
+        'cross-project-dependencies-v1',
+      );
     }
   } finally {
     send.mockRestore();
