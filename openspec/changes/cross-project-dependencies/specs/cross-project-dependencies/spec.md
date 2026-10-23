@@ -830,7 +830,7 @@ Gateway push, presence, replay and control frames SHALL share one awaitable per-
 
 #### Scenario: A delayed replay precedes its acknowledgement
 
-- **GIVEN** the first replay event is waiting for its delivery writer
+- **GIVEN** the first replay event is waiting for delivery admission
 - **WHEN** the gateway processes multiple replay events
 - **THEN** later replay events and `resume_ack` wait for the first event
 - **AND** a retired replay stops before later events and acknowledgement
@@ -844,7 +844,7 @@ Gateway push, presence, replay and control frames SHALL share one awaitable per-
 
 #### Scenario: Stalled delivery cannot accumulate an unbounded queue
 
-- **GIVEN** a stalled writer on a retained connection
+- **GIVEN** stalled authority admission on a retained connection
 - **WHEN** its application queue reaches capacity or its deadline expires
 - **THEN** the connection is retired, all waiting producers settle, and queued successors never start
 - **AND** cancellation before or during delivery prevents new physical writes even if a delayed adapter later settles
@@ -869,3 +869,40 @@ send semantic claims, enable authoring or advertise capability.
 - **THEN** it retains the ordinary response-boundary failure rather than claiming dependency incompatibility
 - **AND** ordinary declared 409 conflicts retain their operation-specific refusal
 - **AND** cancellation during compatibility decoding returns controlled cancellation
+
+### Requirement: Retained gateway egress freshly admits every FIFO head
+
+Every retained application frame SHALL await fresh backend dependency admission after its FIFO predecessor within its absolute five-second enqueue budget. The gateway SHALL check cancellation and expiry before and after admission, then call its synchronous physical writer with no await gap. Admission SHALL reuse the existing endpoint and closed decoder with parent cancellation, without caching authority or advertising capability.
+
+#### Scenario: Authority changes between queued frames
+
+- **GIVEN** an incapable retained socket with two queued frames
+- **WHEN** the first is accepted and authority becomes ENABLED before the second admission
+- **THEN** the second frame is not physically written and the connection retires as incompatible
+- **AND** accepted push counts exclude that frame and replay sends no later event or acknowledgement
+
+#### Scenario: Admission completes after cancellation or expiry
+
+- **GIVEN** held authority admission and a withheld timer callback
+- **WHEN** the connection is canceled or its absolute enqueue budget reaches exactly five seconds before admission settles
+- **THEN** no physical write occurs even if admission later returns success
+- **AND** parent cancellation aborts pending authority transport
+
+#### Scenario: Authority cannot be established
+
+- **WHEN** retained admission receives an old backend's 404, malformed trusted refusal, thrown transport error or deadline
+- **THEN** the connection retires without sending the frame
+- **AND** infrastructure failure remains distinguishable from typed incompatibility
+
+#### Scenario: Retirement precedes physical close
+
+- **WHEN** a retained connection retires while physical close is delayed
+- **THEN** its pending work is already canceled and its subscriptions and presence are already removed
+- **AND** delayed identity verification or held subscription admission cannot restore membership
+
+#### Scenario: Enabled authority with no external rows
+
+- **GIVEN** a real backend store changes from DISABLED to synthetic ENABLED with zero external dependency rows
+- **WHEN** an existing incapable socket receives unsolicited push or requests replay
+- **THEN** no sentinel application frame or replay acknowledgement is sent and push reports zero accepted recipients
+- **AND** this fresh-observation behavior makes no guarantee about a delayed DISABLED response arriving after activation; deployment participant exclusion remains required

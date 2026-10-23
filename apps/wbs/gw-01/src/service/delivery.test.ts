@@ -19,18 +19,18 @@ function deferred() {
 }
 
 function create(
-  write: (
-    payload: string,
-    signal: AbortSignal,
-  ) => 'sent' | 'backpressured' | 'dropped' | Promise<'sent' | 'backpressured' | 'dropped'>,
+  write: (payload: string, signal: AbortSignal) => 'sent' | 'backpressured' | 'dropped',
   capacity = 2,
   deadlineMs = 100,
+  admit: (signal: AbortSignal) => Promise<'admitted' | 'incompatible'> = () =>
+    Promise.resolve('admitted'),
 ) {
   const cancellation = new AbortController();
   const retirements: string[] = [];
   const failures: unknown[] = [];
   const delivery = new SocketDelivery({
-    write,
+    write: (payload) => write(payload, cancellation.signal),
+    admit,
     signal: cancellation.signal,
     timers: systemTimers,
     capacity,
@@ -46,11 +46,19 @@ function create(
 test('orders producers and counts Bun backpressure as accepted without retry', async () => {
   const gate = deferred();
   const written: string[] = [];
-  const { delivery } = create(async (payload) => {
-    if (payload === 'replay') await gate.pending;
-    written.push(payload);
-    return payload === 'ack' ? 'backpressured' : 'sent';
-  });
+  let admissions = 0;
+  const { delivery } = create(
+    (payload) => {
+      written.push(payload);
+      return payload === 'ack' ? 'backpressured' : 'sent';
+    },
+    2,
+    100,
+    async () => {
+      if (admissions++ === 0) await gate.pending;
+      return 'admitted';
+    },
+  );
   const replay = delivery.send('replay');
   const ack = delivery.send('ack');
   await Bun.sleep(5);
@@ -64,12 +72,18 @@ test('orders producers and counts Bun backpressure as accepted without retry', a
 test('overflow retires once and cancels every queued write', async () => {
   const gate = deferred();
   const written: string[] = [];
-  const { delivery, retirements } = create(async (payload, signal) => {
-    await gate.pending;
-    signal.throwIfAborted();
-    written.push(payload);
-    return 'sent' as const;
-  });
+  const { delivery, retirements } = create(
+    (payload) => {
+      written.push(payload);
+      return 'sent' as const;
+    },
+    2,
+    100,
+    async () => {
+      await gate.pending;
+      return 'admitted';
+    },
+  );
   const first = delivery.send('first');
   const second = delivery.send('second');
   expect(await delivery.send('overflow')).toBe('retired');
@@ -80,33 +94,37 @@ test('overflow retires once and cancels every queued write', async () => {
   expect(written).toEqual([]);
 });
 
-test('bounds a signal-ignoring writer by deadline and never starts its queued successor', async () => {
+test('bounds a signal-ignoring admission by deadline and never starts its queued successor', async () => {
   const gate = deferred();
   const started: string[] = [];
   const { delivery, retirements } = create(
-    async (payload) => {
+    (payload) => {
       started.push(payload);
-      await gate.pending;
-      return 'sent' as const;
+      return 'sent';
     },
     2,
     15,
+    async () => {
+      await gate.pending;
+      return 'admitted';
+    },
   );
   const first = delivery.send('first');
   const second = delivery.send('second');
   expect(await Promise.all([first, second])).toEqual(['retired', 'retired']);
   expect(retirements).toEqual(['deadline']);
-  expect(started).toEqual(['first']);
+  expect(started).toEqual([]);
   gate.release();
   await Bun.sleep(5);
-  expect(started).toEqual(['first']);
+  expect(started).toEqual([]);
 });
 
 test('writer rejection and physical drop retire without false acceptance or detached rejection', async () => {
   for (const mode of ['reject', 'drop'] as const) {
-    const { delivery, retirements, failures } = create(() =>
-      mode === 'reject' ? Promise.reject(new Error('transport failed')) : 'dropped',
-    );
+    const { delivery, retirements, failures } = create(() => {
+      if (mode === 'reject') throw new Error('transport failed');
+      return 'dropped';
+    });
     expect(await delivery.send('frame')).toBe('retired');
     expect(await delivery.send('after')).toBe('retired');
     expect(retirements).toEqual([mode === 'reject' ? 'failure' : 'dropped']);
@@ -116,16 +134,21 @@ test('writer rejection and physical drop retire without false acceptance or deta
 
 test('connection cancellation settles a stalled delivery and blocks later writes', async () => {
   let writes = 0;
-  const { delivery, cancellation, retirements } = create(() => {
-    writes++;
-    return new Promise(() => undefined);
-  });
+  const { delivery, cancellation, retirements } = create(
+    () => {
+      writes++;
+      return 'sent';
+    },
+    2,
+    100,
+    () => new Promise(() => undefined),
+  );
   const sending = delivery.send('frame');
   await Bun.sleep(2);
   cancellation.abort(new Error('connection closed'));
   expect(await Promise.race([sending, Bun.sleep(25).then(() => 'still_pending')])).toBe('retired');
   expect(await delivery.send('after')).toBe('retired');
-  expect(writes).toBe(1);
+  expect(writes).toBe(0);
   expect(retirements).toEqual([]);
 });
 
@@ -134,6 +157,7 @@ test('an already closed connection starts no physical writer', async () => {
   cancellation.abort(new Error('closed before delivery creation'));
   let writes = 0;
   const delivery = new SocketDelivery({
+    admit: () => Promise.resolve('admitted'),
     write: () => {
       writes++;
       return 'sent';
@@ -165,6 +189,7 @@ test('withheld deadline callbacks never allow an expired queued frame to reach i
     let writes = 0;
     const retirements: string[] = [];
     const delivery = new SocketDelivery({
+      admit: () => Promise.resolve('admitted'),
       write: () => {
         writes++;
         return 'sent';
@@ -187,4 +212,111 @@ test('withheld deadline callbacks never allow an expired queued frame to reach i
     expect(writes).toBe(0);
     expect(retirements).toEqual(['deadline']);
   }
+});
+
+test('each FIFO head freshly admits and incompatible authority stops queued frames', async () => {
+  let enabled = false;
+  const written: string[] = [];
+  const retired: string[] = [];
+  const delivery = new SocketDelivery({
+    admit: () => Promise.resolve(enabled ? 'incompatible' : 'admitted'),
+    write: (payload) => {
+      written.push(payload);
+      enabled = true;
+      return 'sent';
+    },
+    signal: new AbortController().signal,
+    timers: systemTimers,
+    capacity: 2,
+    deadlineMs: 100,
+    onRetired: (reason) => {
+      retired.push(reason);
+    },
+  });
+  expect(await Promise.all([delivery.send('first'), delivery.send('second')])).toEqual([
+    'sent',
+    'retired',
+  ]);
+  expect(written).toEqual(['first']);
+  expect(retired).toEqual(['incompatible']);
+});
+
+test('held admission cancellation never reaches synchronous writer', async () => {
+  const gate = deferred();
+  const cancellation = new AbortController();
+  let writes = 0;
+  const delivery = new SocketDelivery({
+    admit: async () => {
+      await gate.pending;
+      return 'admitted';
+    },
+    write: () => {
+      writes++;
+      return 'sent';
+    },
+    signal: cancellation.signal,
+    timers: systemTimers,
+    capacity: 2,
+    deadlineMs: 100,
+    onRetired: () => {
+      throw new Error('normal cancellation');
+    },
+  });
+  const sending = delivery.send('held');
+  await Bun.sleep(2);
+  cancellation.abort();
+  expect(await sending).toBe('retired');
+  gate.release();
+  await Bun.sleep(2);
+  expect(writes).toBe(0);
+});
+
+test('held admission exact expiry blocks writer even with withheld deadline callback', async () => {
+  const gate = deferred();
+  let now = 0;
+  let writes = 0;
+  const retired: string[] = [];
+  const delivery = new SocketDelivery({
+    admit: async () => {
+      await gate.pending;
+      return 'admitted';
+    },
+    write: () => {
+      writes++;
+      return 'sent';
+    },
+    signal: new AbortController().signal,
+    timers: { nowMs: () => now, schedule: () => () => undefined },
+    capacity: 2,
+    deadlineMs: 5,
+    onRetired: (reason) => {
+      retired.push(reason);
+    },
+  });
+  const sending = delivery.send('held');
+  await Bun.sleep(2);
+  now = 5;
+  gate.release();
+  expect(await sending).toBe('retired');
+  expect(writes).toBe(0);
+  expect(retired).toEqual(['deadline']);
+});
+
+test('incompatible retirement callback failures remain observable to the producer', async () => {
+  const delivery = new SocketDelivery({
+    admit: () => Promise.resolve('incompatible'),
+    write: () => 'sent',
+    signal: new AbortController().signal,
+    timers: systemTimers,
+    capacity: 1,
+    deadlineMs: 100,
+    onRetired: () => {
+      throw new Error('retirement infrastructure failed');
+    },
+  });
+  const failure: unknown = await delivery.send('incompatible').then(
+    () => null,
+    (caught: unknown) => caught,
+  );
+  expect(failure).toMatchObject({ message: 'retirement infrastructure failed' });
 });

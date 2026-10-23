@@ -70,7 +70,7 @@ test('every reconnect freshly admits before presence and incapable gateway omits
       `${DEPENDENCY_WEBSOCKET_PROTOCOL}.other`,
     ])
       expect(await connect(port, protocol)).toBeNull();
-    expect(claims).toEqual([null, null, null, null, null]);
+    expect(claims).toEqual([null, null, null, null, null, null]);
     const snapshot = await fetch(`http://localhost:${String(port)}/metrics/snapshot`).then((r) =>
       r.json(),
     );

@@ -611,3 +611,11 @@ parent tasks 7.3/7.4 stay open.
 - [x] Watch separate decoding, presentation, closed-envelope, required-semantics, status, exemption and cancellation faults fail; restore each fault and run focused verification.
 - [x] Complete independent Astra review and integrated configured frontend lint/typecheck; evidence: [verify-client-compatibility.md](verify-client-compatibility.md).
 - [ ] Complete isolated host gate on the integrated SHA. Parent 10.1 remains open: no V1 HTTP/WS claim, protocol negotiation, activation, semantic advertisement or authoring enablement.
+
+### Bounded task 10.1 retained gateway egress admission (2026-10-23)
+
+- [x] Observe queued authority-change, held-admission cancellation and exact-expiry regressions before adding required asynchronous per-head admission and the synchronous physical writer contract.
+- [x] Reuse current backend admission/closed decoder with parent cancellation and empty immutable gateway capability; retire incompatible and unavailable authority without false accepted counts or replay acknowledgement.
+- [x] Remove subscriptions/presence and abort pending work synchronously before physical close; prevent delayed identity and held subscribe revival without awaiting the joined promise or own FIFO.
+- [x] Independently remove the new guards, observe named mounted assertion failures and restore them; mount real SQLite backend plus production gateway for DISABLED→synthetic ENABLED zero-row push/replay refusal.
+- [ ] Complete configured gateway checks, formatting, OpenSpec validation, independent review and integrated isolated host gate. Parent 10.1 remains open; deployment-owned delayed-204 post-read/pre-send race, participant exclusion, activation, authoring and semantic advertisement remain unresolved/outside this packet. Evidence: [verify-retained-egress.md](verify-retained-egress.md).

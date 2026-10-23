@@ -77,7 +77,7 @@ test('internal gateway admission authenticates first and freshly refuses incompa
         headers: { origin: 'http://localhost', cookie: `__Host-wbs_access=${token}` },
       });
       socket.addEventListener(
-        'open',
+        'message',
         () => {
           resolve(socket);
         },
@@ -117,7 +117,7 @@ test('internal gateway admission authenticates first and freshly refuses incompa
       });
     }
     expect((await request(DEPENDENCY_SEMANTICS)).status).toBe(204);
-    expect(inspections).toBe(8);
+    expect(inspections).toBe(9);
   } finally {
     gateway.kill();
     await gateway.exited;

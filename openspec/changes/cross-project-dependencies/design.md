@@ -1013,3 +1013,37 @@ condition shared by resource operations, rather than an operation-specific busin
 refusal. Existing operation-specific 409 alternatives continue through their own
 schemas. Cancellation retains precedence after validation. The plan read presenter
 uses the typed condition for visible compatible-client guidance.
+
+### Bounded task 10.1 retained gateway egress admission (2026-10-23)
+
+Intent: prevent an existing incapable socket from receiving newly produced frames
+once a fresh authority observation refuses it. Retained push, replay, presence and
+control replies already share one FIFO. This packet puts fresh semantic admission
+at each FIFO head while preserving synchronous physical acceptance, the 64-frame
+bound and the absolute five-second enqueue budget. Activation, authoring, ingress
+fencing, participant exclusion and semantic advertisement remain outside it.
+
+The required asynchronous admission port reuses the secret-authenticated backend
+`/internal/gateway/dependency-admission` endpoint and its closed 204/typed409 decoder.
+It receives the delivery signal; connection cancellation and the existing enqueue
+budget bound both transport and body consumption. No authority observation is cached
+between frames. The immutable gateway capability remains empty and the retained
+socket has no negotiated dependency protocol. Every routed backend must expose this
+endpoint: an older backend's 404 is authority unavailable, never compatibility.
+
+At each FIFO head the queue awaits its predecessor, checks cancellation and absolute
+expiry, awaits admission, then checks cancellation and expiry again. An admitted
+frame invokes the required synchronous physical writer immediately, without another
+await. Typed incompatibility retires with its own reason; malformed/404/transport
+errors retire with their original failure and deadline errors retain deadline status.
+Retirement synchronously aborts connection work and removes subscriptions and presence
+before physical close. Physical close broadcasts the already removed projects without
+waiting for `joined` or the retiring FIFO. Late identity verification and held
+subscription continuations check cancellation before restoring membership.
+
+This is a fresh-observation fence, not a linearizable authority/write fence. A backend
+can read DISABLED and delay its 204 while authority becomes ENABLED; the gateway can
+then write after that response. The unresolved post-read/pre-send race belongs to the
+deployment owner's participant exclusion/activation protocol. No claim here proves
+safe activation, excludes old processes, recalls bytes already accepted by Bun or
+changes backend/gateway/MCP semantic support.

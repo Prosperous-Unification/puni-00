@@ -6364,3 +6364,11 @@ seven separate safety mutations failed their named assertions. Integrated
 serial uncached frontend lint/typecheck passed. No V1 HTTP/WS claim, semantic
 advertisement or authoring activation was added; parent 10.1 and exact-head
 host/CI gates remain open.
+
+### 2026-10-23 bounded task 10.1 retained gateway egress admission
+
+Required fresh per-FIFO-head admission, synchronous physical acceptance and
+retirement/revival proofs are recorded in
+[verify-retained-egress.md](verify-retained-egress.md). Parent 10.1 remains open;
+the delayed-204 post-read/pre-send race remains deployment-owned and unresolved.
+No activation, authoring or semantic advertisement was enabled.

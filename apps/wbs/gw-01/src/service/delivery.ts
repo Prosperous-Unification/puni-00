@@ -11,11 +11,13 @@ export interface DeliverySocket {
 }
 
 /** Why a connection stopped accepting application frames. */
-export type Retirement = 'overflow' | 'deadline' | 'failure' | 'dropped';
+export type Retirement = 'overflow' | 'deadline' | 'failure' | 'dropped' | 'incompatible';
 
 export interface DeliveryDependencies {
-  /** Production binds the synchronous physical socket writer; async adapters must honor cancellation before writing. */
-  write: (payload: string, signal: AbortSignal) => FrameOutcome | Promise<FrameOutcome>;
+  /** Fresh authority read for this FIFO head, canceled by the enqueue budget or connection. */
+  admit: (signal: AbortSignal) => Promise<'admitted' | 'incompatible'>;
+  /** Physical acceptance must be synchronous: no scheduling gap after the final admission checks. */
+  write: (payload: string) => FrameOutcome;
   signal: AbortSignal;
   timers: Timers;
   capacity: number;
@@ -27,12 +29,12 @@ export interface DeliveryDependencies {
 /**
  * Bounded FIFO shared by presence, push, replay and control frames on one socket.
  * The budget includes time queued; its absolute expiry is rechecked synchronously
- * before invoking the writer even when deadline timer callbacks are delayed. A failed/expired/full queue retires the whole
- * connection, so later replay acknowledgements cannot follow a missing frame.
- * Writer rejection is a modeled retirement reported through `onRetired`; it is
- * never detached. Bun's -1 is accepted buffering, not a retry or client receipt.
- * Cancellation settles callers even for an adapter that ignores its signal; only
- * cooperative adapters can prevent their own side effects after cancellation.
+ * before and after fresh authority admission even when timer callbacks are delayed.
+ * Failure, incompatibility, expiry or overflow retires the connection, preventing
+ * later replay acknowledgements after a missing frame. Authority errors retain
+ * their cause separately from incompatible authority. Bun's -1 is accepted
+ * buffering, not a retry or client receipt. Cancellation settles producers even
+ * when authority ignores its signal; the physical writer remains synchronous.
  */
 export class SocketDelivery implements DeliverySocket {
   private tail: Promise<void> = Promise.resolve();
@@ -85,9 +87,9 @@ export class SocketDelivery implements DeliverySocket {
     payload: string,
     expiresAt: number,
   ): Promise<DeliveryOutcome> {
-    let outcome: FrameOutcome;
+    let outcome: FrameOutcome | 'incompatible';
     try {
-      // Proof: replacing this budget with 5000ms times out bounds a signal-ignoring writer under a 200ms test deadline.
+      // Proof: replacing this budget with 5000ms times out bounds a signal-ignoring admission by deadline and never starts its queued successor.
       outcome = await withinDeadline(
         this.deps.timers,
         this.deps.deadlineMs,
@@ -96,11 +98,20 @@ export class SocketDelivery implements DeliverySocket {
           await previous;
           // Proof: removing this check starts the queued successor after deadline retirement.
           signal.throwIfAborted();
-          // Proof: removing this clock check writes an expired frame in withheld
-          // deadline callbacks never allow an expired queued frame to reach its writer.
+          // Proof: removing this check asks authority after expiry in mounted
+          // expired FIFO head never asks authority even when timer callback is withheld.
           if (this.deps.timers.nowMs() >= expiresAt)
             throw new DeadlineExceeded('socket delivery deadline exceeded before write');
-          return this.deps.write(payload, signal);
+          // Proof: bypassing admission sends the sentinel/ack in mounted
+          // fresh admission stops replay when authority changes after the first accepted event.
+          const admission = await this.deps.admit(signal);
+          if (admission === 'incompatible') return 'incompatible' as const;
+          // Proof: removing this check writes after cancellation in mounted push cannot write after held admission cancellation or exact expiry with withheld timer.
+          signal.throwIfAborted();
+          // Proof: removing this check writes at exact expiry in mounted push cannot write after held admission cancellation or exact expiry with withheld timer.
+          if (this.deps.timers.nowMs() >= expiresAt)
+            throw new DeadlineExceeded('socket delivery deadline exceeded after admission');
+          return this.deps.write(payload);
         },
         // Proof: omitting the parent signal delays connection cancellation beyond its independent 25ms observation.
         this.cancellation.signal,
@@ -109,6 +120,13 @@ export class SocketDelivery implements DeliverySocket {
       // Proof: unconditionally retiring here reports duplicate failures for overflow and normal connection cancellation.
       if (!this.cancellation.signal.aborted)
         this.retire(caught instanceof DeadlineExceeded ? 'deadline' : 'failure', caught);
+      return 'retired';
+    }
+    // Proof: bypassing terminal retirement leaves mounted retained sockets open on incompatibility.
+    // Keeping callback failures outside the catch preserves the producer rejection in
+    // incompatible retirement callback failures remain observable to the producer.
+    if (outcome === 'incompatible') {
+      this.retire('incompatible');
       return 'retired';
     }
     // Proof: ignoring dropped returns a false non-retired outcome in writer rejection and physical drop.

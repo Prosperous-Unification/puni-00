@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/retirement.integration.test.ts:
+{"level":"error","time":1792738107592,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_K32JX4VSR8MZNFWK69N6YZ3ZGH","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"5fd83616-6190-4ecf-a52f-82169ee0b0ee","msg":"socket delivery retired"}
+155 |       throw new Error('delivery not initialized before open awaited');
+156 |     expect(await socket.data.socket.send('held identity')).toBe('retired');
+157 |     release();
+158 |     await joining;
+159 |     expect(joined.at(-1)?.connectionCount ?? 0).toBe(0);
+160 |     expect(closes).toEqual([1013]);
+                         ^
+error: expect(received).toEqual(expected)
+
+  [
+    1013,
++   1008,
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/retirement.integration.test.ts:160:20)
+(fail) mounted late identity verification cannot join presence after retirement [21.60ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [4.83s]

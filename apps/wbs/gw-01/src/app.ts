@@ -81,6 +81,8 @@ interface WsConnection {
   /** Aborted synchronously on close, before waiting for authentication/presence. */
   cancellation: AbortController;
   socket: SocketLike;
+  /** Projects removed synchronously by retirement, broadcast by physical close. */
+  retiredProjects?: readonly string[];
   /**
    * The rest of `open` — verify the token, join presence — as something the
    * later handlers can wait for.
@@ -333,13 +335,27 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // wrote to a socket and none of them read what Bun answered.
           const writer = socketWriter(ws, metrics);
           conn.socket = new SocketDelivery({
+            admit: async (signal) =>
+              (await admitDependencyUpgrade(
+                requestOptions,
+                null,
+                GATEWAY_DEPENDENCY_CAPABILITY,
+                signal,
+              )) === null
+                ? 'admitted'
+                : 'incompatible',
             write: (payload) => writer.send(payload),
             signal: conn.cancellation.signal,
             timers: systemTimers,
             capacity: 64,
             deadlineMs: 5_000,
             onRetired: (reason, caught) => {
+              // Proof: independently omitting abort, subscription removal or presence
+              // removal fails mounted retirement removes presence and subscriptions
+              // and aborts before physical close, with physical close withheld.
+              conn.cancellation.abort(new Error(`delivery ${reason}`));
               subs.removeAll(conn.socket);
+              conn.retiredProjects = presence.leave(conn.connectionId);
               logger.error(
                 { reason, err: caught, connectionId: conn.connectionId },
                 'socket delivery retired',
@@ -403,12 +419,18 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
                 return;
               }
             }
+            // Proof: removing this guard restores a retired identity in mounted
+            // late identity verification cannot join presence after retirement.
+            if (conn.cancellation.signal.aborted) return;
             username = joining;
             await presence.broadcast(presence.join(conn.connectionId, joining, conn.socket));
             // Proof: omitting this leaves the real-socket newcomer with no initial frame.
             await presence.sendRoster(conn.connectionId);
           })();
           await conn.joined;
+          // Proof: removing this guard adds an unauthenticated close after 1013
+          // in mounted late identity verification cannot join presence after retirement.
+          if (conn.cancellation.signal.aborted) return;
           // An upgrade that was accepted and then could not say who is behind
           // it is closed, not served. Without this the socket stayed open and
           // `message` below fell back to `'anon'`, which subscribes to any
@@ -497,16 +519,15 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // Proof: omitting close abort made four real socket tests time out waiting
           // for cancellation within250ms, before the independent1000ms attempt expiry.
           conn.cancellation.abort(new Error('connection closed'));
-          // A close that overtook the join deleted nothing and let the join
-          // that followed it re-add the connection — a socket nobody holds,
-          // left in whatever roster the `subscribe` behind it had put it in.
-          await conn.joined;
           // Subscriptions first: a socket left in the map is pushed to forever,
           // counted in `delivered_to_sockets`, and joined again by the same
           // browser on its next reconnect.
           subs.removeAll(conn.socket);
           // The returned project was looked up before the connection was removed.
-          await presence.broadcast(presence.leave(conn.connectionId));
+          await presence.broadcast([
+            ...(conn.retiredProjects ?? []),
+            ...presence.leave(conn.connectionId),
+          ]);
         },
       })
   );

@@ -43,8 +43,11 @@ test('push awaits asynchronous recipient outcome and never counts a failed send'
   subs.subscribe(
     PROJECT,
     new SocketDelivery({
-      write: async () => {
+      admit: async () => {
         await gate.pending;
+        return 'admitted';
+      },
+      write: () => {
         throw new Error('transport failed');
       },
       signal: new AbortController().signal,
@@ -188,4 +191,160 @@ test('a retired replay stops before any later event or acknowledgement', async (
       }),
   });
   expect(attempted.map((payload) => (JSON.parse(payload) as { seq?: number }).seq)).toEqual([1]);
+});
+
+test('fresh admission stops replay when authority changes after the first accepted event', async () => {
+  let enabled = false;
+  const accepted: string[] = [];
+  const socket = new SocketDelivery({
+    admit: () => Promise.resolve(enabled ? 'incompatible' : 'admitted'),
+    write: (payload) => {
+      accepted.push(payload);
+      enabled = true;
+      return 'sent';
+    },
+    signal: new AbortController().signal,
+    timers: systemTimers,
+    capacity: 64,
+    deadlineMs: 5000,
+    onRetired: () => undefined,
+  });
+  await handleWsMessage({
+    frame: { type: 'resume', resume_points: { [PROJECT]: 0 } },
+    socket,
+    subs: new SubscriptionMap(),
+    connectionId: 'retained',
+    clientId: 'ada',
+    access: grantingAccess(),
+    reportUnexpectedBackendFailure: () => {
+      throw new Error('unexpected backend failure');
+    },
+    forward: () => Promise.resolve({ ack: true }),
+    resume: () =>
+      Promise.resolve({
+        [PROJECT]: {
+          status: 'replaying',
+          events: [
+            { seq: 1, message: 'first' },
+            { seq: 2, message: 'sentinel' },
+          ],
+        },
+      }),
+  });
+  expect(accepted.map((payload) => JSON.parse(payload) as unknown)).toEqual([
+    { subscription: PROJECT, seq: 1, message: 'first' },
+  ]);
+});
+
+test('held project admission cannot restore subscription after connection cancellation', async () => {
+  const gate = deferred();
+  const cancellation = new AbortController();
+  const subs = new SubscriptionMap<WsSocket>();
+  const socket: WsSocket = { send: () => Promise.resolve('retired') };
+  const subscribing = handleWsMessage({
+    frame: { type: 'subscribe', subscription: PROJECT },
+    signal: cancellation.signal,
+    socket,
+    subs,
+    connectionId: 'retired',
+    clientId: 'ada',
+    access: {
+      ...grantingAccess(),
+      admit: async () => {
+        await gate.pending;
+        return 'granted';
+      },
+    },
+    reportUnexpectedBackendFailure: () => {
+      throw new Error('unexpected backend failure');
+    },
+    forward: () => Promise.resolve({ ack: true }),
+    resume: () => Promise.resolve({}),
+  });
+  await Bun.sleep(2);
+  cancellation.abort();
+  gate.release();
+  await subscribing;
+  expect([...subs.socketsFor(PROJECT)]).toEqual([]);
+});
+
+test('mounted push cannot write after held admission cancellation or exact expiry with withheld timer', async () => {
+  for (const fault of ['cancel', 'expire'] as const) {
+    const gate = deferred();
+    let admitted = false;
+    let now = 0;
+    let writes = 0;
+    const cancellation = new AbortController();
+    const subs = new SubscriptionMap<WsSocket>();
+    subs.subscribe(
+      PROJECT,
+      new SocketDelivery({
+        admit: async () => {
+          admitted = true;
+          await gate.pending;
+          return 'admitted';
+        },
+        write: () => {
+          writes++;
+          return 'sent';
+        },
+        signal: cancellation.signal,
+        timers: { nowMs: () => now, schedule: () => () => undefined },
+        capacity: 64,
+        deadlineMs: 5000,
+        onRetired: () => undefined,
+      }),
+    );
+    const app = new Elysia().use(
+      internalController({ secret: SECRET, subs, metrics: new GatewayMetrics() }),
+    );
+    const pushing = app.handle(
+      new Request('http://localhost/internal/push', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
+        body: JSON.stringify({ subscription: PROJECT, seq: 1, message: 'sentinel' }),
+      }),
+    );
+    await until(() => admitted);
+    if (fault === 'cancel') cancellation.abort();
+    else now = 5000;
+    gate.release();
+    const response = await pushing;
+    expect(await response.json()).toEqual({ delivered_to_sockets: 0 });
+    await Bun.sleep(2);
+    expect(writes).toBe(0);
+  }
+});
+
+test('mounted expired FIFO head never asks authority even when timer callback is withheld', async () => {
+  let inspections = 0;
+  let reads = 0;
+  const subs = new SubscriptionMap<WsSocket>();
+  subs.subscribe(
+    PROJECT,
+    new SocketDelivery({
+      admit: () => {
+        inspections++;
+        return Promise.resolve('admitted');
+      },
+      write: () => 'sent',
+      signal: new AbortController().signal,
+      timers: { nowMs: () => (reads++ === 0 ? 0 : 5000), schedule: () => () => undefined },
+      capacity: 64,
+      deadlineMs: 5000,
+      onRetired: () => undefined,
+    }),
+  );
+  const app = new Elysia().use(
+    internalController({ secret: SECRET, subs, metrics: new GatewayMetrics() }),
+  );
+  const response = await app.handle(
+    new Request('http://localhost/internal/push', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
+      body: JSON.stringify({ subscription: PROJECT, seq: 1, message: 'sentinel' }),
+    }),
+  );
+  expect(await response.json()).toEqual({ delivered_to_sockets: 0 });
+  expect(inspections).toBe(0);
 });

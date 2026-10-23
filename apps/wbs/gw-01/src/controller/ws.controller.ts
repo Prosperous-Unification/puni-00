@@ -229,8 +229,11 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
           await args.socket.send(wsError('unknown_subscription', { subscription }));
           return;
         }
-        args.access.hold(subscription, projectId);
       }
+      // Proof: removing this guard restores a subscription in held project
+      // admission cannot restore subscription after connection cancellation.
+      if (args.signal?.aborted === true) return;
+      if (projectId !== null) args.access.hold(subscription, projectId);
       args.subs.subscribe(subscription, args.socket);
       // After the map accepted it, and never for a refused name: presence is
       // scoped by the subscription, so telling it about one the fan-out does not
