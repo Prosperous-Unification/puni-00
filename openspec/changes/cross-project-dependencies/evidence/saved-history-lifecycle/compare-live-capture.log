@@ -4,7 +4,7 @@ apps/wbs/be-01/src/service/saved-plan-connected-lifecycle.db.test.ts:
 16 |   kind: 'scoped' as const,
 17 |   scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
 18 | };
-19 | 
+19 |
 20 | const refuseLive = (): never => {
 21 |   throw new Error('historical inspection attempted a live capability');
                  ^
@@ -22,7 +22,7 @@ error: historical inspection attempted a live capability
 16 |   kind: 'scoped' as const,
 17 |   scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
 18 | };
-19 | 
+19 |
 20 | const refuseLive = (): never => {
 21 |   throw new Error('historical inspection attempted a live capability');
                  ^
