@@ -6453,6 +6453,11 @@ Final scoped receipts:
 - `node_modules/.bin/openspec validate cross-project-dependencies --json` exited 0: one valid change, zero failed, with 18 existing long-requirement warnings in unchanged delta specs.
 - `git diff --check` exited 0.
 
-Astra High independently approved this bounded packet with no findings. Full
-repository checks, `openspec validate --all --json` and the integrated isolated
-host gate remain pending.
+Astra High independently approved this bounded packet with no findings.
+After integration as `07d0706a9`, the focused init cases passed 18 tests/30 assertions, the
+production context cases 21 tests/41 assertions, configured `tool-compose:test`
+22 tests/50 assertions, and
+configured Compose/remote-scripts lint, typecheck and build all passed uncached
+(eight targets including dependencies). Full repository checks,
+`openspec validate --all --json` and the exact-head isolated host gate remain
+pending.
