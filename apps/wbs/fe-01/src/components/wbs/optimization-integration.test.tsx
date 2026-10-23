@@ -451,6 +451,7 @@ describe('project optimization in the plan', () => {
     'listExternalSystems/0',
     'listPeople/0',
     'listCalendarMarkers/1',
+    'readClaims/1',
   ];
 
   /**
@@ -528,7 +529,7 @@ describe('project optimization in the plan', () => {
    *    that rendered it from the wire, which is why the deferral is the case
    *    and not a detail of it.
    * 2. **`tree` is called exactly once, with exactly one argument.** Not "one
-   *    request": one invalidation of `ALL_RESOURCES` is nine of them.
+   *    request": one invalidation of `ALL_RESOURCES` is ten of them.
    * 3. **Nothing else.** The recorded calls are exactly the full-scope reads as
    *    a multiset, by name and arity. Add `api.optimizationVariant(…)` beside
    *    the plan read, or overload the existing read as
@@ -786,7 +787,7 @@ describe('project optimization in the plan', () => {
     }
 
     it('keeps the narrow scopes the tree and step events earned', () => {
-      expect(resourcesFor('tree_replaced')).toEqual(['tree']);
+      expect(resourcesFor('tree_replaced')).toEqual(['tree', 'claims']);
       expect(resourcesFor('step_added')).toEqual(['tree', 'steps']);
       expect(resourcesFor('step_renamed')).toEqual(['tree', 'steps']);
       expect(resourcesFor('step_removed')).toEqual(['tree', 'steps']);

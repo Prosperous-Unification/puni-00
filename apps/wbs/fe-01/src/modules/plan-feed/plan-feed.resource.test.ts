@@ -33,6 +33,7 @@ function snapshotOf(over: Partial<PlanRefreshSnapshot> = {}): PlanRefreshSnapsho
     steps: NOTHING_READ,
     directory: NOTHING_READ,
     markers: NOTHING_READ,
+    claims: NOTHING_READ,
     staleResources: [],
     baseline: null,
     acknowledged: -1,
@@ -316,7 +317,7 @@ describe('one project’s reading', () => {
     handlers.onChange('tree_replaced', 8);
 
     expect(fake.asked).toEqual(['initialize', 'initialize', 'invalidate']);
-    expect(fake.invalidations).toEqual([{ resources: ['tree'], seq: 8 }]);
+    expect(fake.invalidations).toEqual([{ resources: ['tree', 'claims'], seq: 8 }]);
   });
 
   it('ignores a change and a connection that arrive after it stops being live', () => {

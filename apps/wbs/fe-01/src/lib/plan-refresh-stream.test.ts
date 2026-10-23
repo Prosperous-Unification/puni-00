@@ -70,6 +70,7 @@ function scenario(initialSeq = -1) {
         if (gate !== null) await gate.promise;
         return captured;
       }
+      if (path === '/api/projects/p1/claims') return Response.json({ readAt: 0, claims: [] });
       const collections: Record<string, string | undefined> = {
         '/api/teams': 'teams',
         '/api/tags': 'tags',
@@ -83,7 +84,11 @@ function scenario(initialSeq = -1) {
       return Response.json({ [collection]: [] });
     }),
   );
-  const owner = createPlanRefresh({ projectId: 'p1', routes: httpProjectApi('session') });
+  const owner = createPlanRefresh({
+    projectId: 'p1',
+    routes: httpProjectApi('session'),
+    monotonicNow: () => 0,
+  });
   const sockets: Socket[] = [];
   const timers: (() => void)[] = [];
   const pending: Promise<unknown>[] = [];

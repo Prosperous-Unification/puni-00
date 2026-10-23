@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -1058,6 +1059,42 @@ describe('failures you can see', () => {
       expect(toastTexts()).toContain('That change could not be completed (unknown_strategy).');
     });
   });
+
+  itDom(
+    'draws the plan with the stale notice when an older be-01 answers 404 for claims',
+    async () => {
+      // `wbs-claim-display` C12: mid-swap, an older be-01 has no claims route.
+      // The plan stands, no chip is drawn, the refresh failure is visible, and
+      // nothing reaches the Error Boundary.
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+      let claimsReads = 0;
+      api.readClaims = () => {
+        claimsReads += 1;
+        return Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'getApiProjectsByIdClaims',
+            refusal: { error: 'not_found' },
+          }),
+        );
+      };
+      render(
+        <AppFaultBoundary>
+          <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+        </AppFaultBoundary>,
+      );
+
+      await waitFor(() => {
+        expect(staleBanner()).not.toBeNull();
+      });
+      expect(numbersOnScreen()).toEqual(['010']);
+      expect(claimsReads).toBe(1);
+      expect(document.querySelector('[data-app-fault]')).toBeNull();
+      // Nobody asked for this read, so nothing was refused out loud.
+      expect(toastTexts()).toEqual([]);
+    },
+  );
 
   itDom('raises the stale-tree banner when a socket refetch fails', async () => {
     const { api, notify } = await subscribedTable();
@@ -2150,6 +2187,7 @@ describe('refresh owner lifetimes', () => {
       'listWorkItemTypes',
       'listExternalSystems',
       'listPeople',
+      'readClaims',
       'listCalendarMarkers',
     ] as const) {
       recordCalls(replacement, method, () => replacementReads.push(method));
@@ -2162,14 +2200,14 @@ describe('refresh owner lifetimes', () => {
         'value',
         'Replacement during read',
       );
-      expect(replacementReads).toHaveLength(9);
+      expect(replacementReads).toHaveLength(10);
     });
 
     await act(async () => {
       finishRead();
       await Promise.resolve();
     });
-    expect(replacementReads).toHaveLength(9);
+    expect(replacementReads).toHaveLength(10);
     expect(toastTexts()).toEqual([]);
   });
 
