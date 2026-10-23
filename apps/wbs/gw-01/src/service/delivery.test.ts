@@ -158,3 +158,33 @@ test('invalid queue limits cannot disable delivery bounds', () => {
   for (const deadline of [0, -1, Infinity, NaN])
     expect(() => create(() => 'sent', 2, deadline)).toThrow('finite positive');
 });
+
+test('withheld deadline callbacks never allow an expired queued frame to reach its writer', async () => {
+  for (const elapsed of [25, 5]) {
+    let now = 0;
+    let writes = 0;
+    const retirements: string[] = [];
+    const delivery = new SocketDelivery({
+      write: () => {
+        writes++;
+        return 'sent';
+      },
+      signal: new AbortController().signal,
+      timers: {
+        nowMs: () => now,
+        // The clock advances while the event loop has not run its timer callback.
+        schedule: () => () => undefined,
+      },
+      capacity: 2,
+      deadlineMs: 5,
+      onRetired: (reason) => {
+        retirements.push(reason);
+      },
+    });
+    const sending = delivery.send('expired while awaiting predecessor');
+    now = elapsed;
+    expect(await sending).toBe('retired');
+    expect(writes).toBe(0);
+    expect(retirements).toEqual(['deadline']);
+  }
+});

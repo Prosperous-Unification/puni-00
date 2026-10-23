@@ -26,7 +26,8 @@ export interface DeliveryDependencies {
 
 /**
  * Bounded FIFO shared by presence, push, replay and control frames on one socket.
- * The budget includes time queued. A failed/expired/full queue retires the whole
+ * The budget includes time queued; its absolute expiry is rechecked synchronously
+ * before invoking the writer even when deadline timer callbacks are delayed. A failed/expired/full queue retires the whole
  * connection, so later replay acknowledgements cannot follow a missing frame.
  * Writer rejection is a modeled retirement reported through `onRetired`; it is
  * never detached. Bun's -1 is accepted buffering, not a retry or client receipt.
@@ -66,7 +67,8 @@ export class SocketDelivery implements DeliverySocket {
     }
     this.pending++;
     const previous = this.tail;
-    const sending = this.deliver(previous, payload).finally(() => {
+    const expiresAt = this.deps.timers.nowMs() + this.deps.deadlineMs;
+    const sending = this.deliver(previous, payload, expiresAt).finally(() => {
       this.pending--;
     });
     // Queue continuity owns no error: a failing retirement callback still rejects
@@ -78,7 +80,11 @@ export class SocketDelivery implements DeliverySocket {
     return sending;
   }
 
-  private async deliver(previous: Promise<void>, payload: string): Promise<DeliveryOutcome> {
+  private async deliver(
+    previous: Promise<void>,
+    payload: string,
+    expiresAt: number,
+  ): Promise<DeliveryOutcome> {
     let outcome: FrameOutcome;
     try {
       // Proof: replacing this budget with 5000ms times out bounds a signal-ignoring writer under a 200ms test deadline.
@@ -90,6 +96,10 @@ export class SocketDelivery implements DeliverySocket {
           await previous;
           // Proof: removing this check starts the queued successor after deadline retirement.
           signal.throwIfAborted();
+          // Proof: removing this clock check writes an expired frame in withheld
+          // deadline callbacks never allow an expired queued frame to reach its writer.
+          if (this.deps.timers.nowMs() >= expiresAt)
+            throw new DeadlineExceeded('socket delivery deadline exceeded before write');
           return this.deps.write(payload, signal);
         },
         // Proof: omitting the parent signal delays connection cancellation beyond its independent 25ms observation.

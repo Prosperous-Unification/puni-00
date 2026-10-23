@@ -77,3 +77,34 @@ failure, and was restored. Fault receipts were captured under
 Configured gateway Nx test/lint/typecheck/build, independent review and the integrated isolated host gate remain pending. Broad Nx
 checks are deliberately staggered behind the coordinator's active frontend
 diagnostic. No full host gate or production/runtime semantic readiness is claimed.
+
+## Astra review correction: synchronous pre-write expiry
+
+Review of `732c7e79baa1a931ce08045a7acfc44772570c34` identified that the timer
+and the post-operation clock check bounded settlement but could still allow an
+expired queued frame to reach the physical writer when the event loop delayed
+the timer callback. The queue now captures its absolute enqueue expiry and checks
+the injected monotonic clock after awaiting its predecessor, immediately before
+invoking the writer. The existing cancellation check remains in place.
+
+The deterministic regression `withheld deadline callbacks never allow an expired
+queued frame to reach its writer` withholds timer callbacks and advances the
+clock to the exact five-millisecond expiry and beyond it to 25ms while delivery
+awaits its predecessor. Both cases require `retired`, one deadline retirement and
+zero writer calls. Before the correction, the real delivery service returned
+`retired` but had already called the writer once: 7 passed, 1 failed. After the
+correction: 8 passed, 0 failed, 40 assertions. Removing only the new pre-write
+clock guard independently reproduced that same zero-versus-one writer failure
+(exit 1); the guard was restored. Its adjacent `Proof:` records this negative.
+
+A signal-ignoring asynchronous adapter remains responsible for cancellation
+before its own later side effects. This check synchronously fences entry to the
+production writer, which remains synchronous; it introduces no authority checks,
+activation or retained-session semantic claim. Broad configured Nx acceptance
+and integrated host gate remain deferred to the coordinator's serialized lane.
+
+Correction control: the same nine-file focused gateway command recorded above
+passed **85 tests, 0 failures, 3273 assertions**, exit 0. Fresh
+`bunx tsc --build --force apps/wbs/gw-01/tsconfig.json` also exited 0. Normal
+commit hooks and changed-file formatting are required for the correction commit;
+configured Nx targets remain pending rather than inferred from these checks.

@@ -945,7 +945,10 @@ that retires the connection. Acceptance is not a browser receipt, and native Bun
 buffering is not retried by this queue.
 
 The application FIFO admits at most 64 pending frames and gives each five seconds
-including queue time. Overflow, expiry, writer rejection or physical drop aborts
+including queue time. Each enqueue captures an absolute monotonic expiry; after
+waiting for its predecessor, the delivery rechecks both cancellation and that
+expiry synchronously immediately before invoking its writer. A delayed timer
+callback cannot authorize an expired physical write. Overflow, expiry, writer rejection or physical drop aborts
 the queue, immediately removes subscriptions and closes the socket with 1013.
 Retirement reports its reason and original asynchronous failure to the gateway logger. Lifetime
 cancellation settles pending callers as `retired` and prevents queued writes.
