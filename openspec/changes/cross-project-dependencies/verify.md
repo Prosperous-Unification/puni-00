@@ -6605,7 +6605,8 @@ targets failed: `wbs-contracts:test`, `wbs-store-sqlite:test`,
 six backend assertion failures have bounded local corrections recorded above;
 the backend target also panicked in Bun 1.4.2 during coverage after roughly
 41 minutes. The six assertions were independently corrected and reviewed,
-but the coverage panic is under separate investigation. This gate is an
+and the coverage panic was later reproduced and corrected by the file-backed
+Gantt fixture described below. This gate is an
 old-head failure, not a pass for the integrated feature head.
 
 ## Disposable Docker gateway exclusion acceptance (2026-10-23)
@@ -6616,8 +6617,9 @@ fresh inspection, unchanged bystander, no-init/external-restart/empty controls a
 four watched production-path faults. The configured uncached Docker target,
 remote-scripts lint/typecheck and 65 focused production tests passed. Strict
 OpenSpec validation still reports 18 existing requirement-length warnings;
-non-strict validation passed. Independent review and the isolated integrated-SHA
-host gate remain pending; parent 10.1/10.2 stay open.
+non-strict validation passed. Astra High subsequently approved the corrected
+packet; the isolated integrated-SHA host gate remains pending. Parent 10.1/10.2
+stay open.
 
 The Docker packet's review correction records pending UUID ownership before
 create, reconciles daemon-created resources whose CLI response timed out, refuses
@@ -6674,6 +6676,12 @@ skipped module boundaries. Prettier and `git diff --check` passed.
 with existing requirement-length warnings. Full backend tests, typecheck,
 build and the host gate were not run for this isolated fixture repair.
 
+The integrated branch reran the complete controller file with coverage: 21
+passes, zero failures and 241 assertions. The first sandbox run passed the
+tests but could not write Bun's ignored `coverage/lcov.info` output directory;
+an elevated rerun of the same command exited 0. This remains a focused
+integrated check, not the full backend or host gate.
+
 ## Schema rollback Job memory diagnosis (2026-10-23)
 
 GitHub infra-check run `39920201393` failed on the old PR head in the final
@@ -6717,3 +6725,14 @@ This measures peak resident memory, not a cgroup-enforced 512 MiB run.
 After generating the Nx project graph, changed-file ESLint passed without
 skipped module-boundary rules. Changed-file Prettier and `git diff --check`
 passed.
+
+## Active generated MCP authority acceptance (2026-10-23)
+
+[The bounded packet](verify-active-mcp-authority.md) covers restricted-readable
+remote predecessor SS add/FF update with durable identity/read parity, queued
+machine-credential revocation and successor access refusal. The focused mounted
+suite passed five tests with 67 assertions; three independent production faults
+failed as intended. Configured backend/MCP lint and typecheck passed. Astra High
+independently reran the focused suite with the same result and found no blocker.
+Production predicates and capability remain unchanged. Tasks 3.2/4.2,
+activation and exact-head gate remain open.
