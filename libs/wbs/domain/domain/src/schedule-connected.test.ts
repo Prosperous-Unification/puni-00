@@ -112,6 +112,42 @@ describe('resolved connected placement', () => {
       expect(start(plan, 'b')).toBe(type === 'FS' ? 0.3 : 0);
     },
   );
+  // Proof: omitting FS/SS/FF independently from scheduleResolved's producer edges
+  // failed these final starts (1/1/2 cases); publication validation was bypassed
+  // only to expose dates, and that bypass alone passed all four. Replacing SS/FF
+  // with FS failed 1/2 cases with validation enabled; watched 2026-10-23.
+  it.each([
+    { type: 'FS', beforeDays: 0.3, afterDays: 0.7, floor: 1, expectedStart: 1.3 },
+    { type: 'SS', beforeDays: 3, afterDays: 0.5, floor: 2, expectedStart: 2 },
+    { type: 'FF', beforeDays: 0.7, afterDays: 0.3, floor: 2, expectedStart: 2.4 },
+    { type: 'FF', beforeDays: 0.3, afterDays: 0.7, floor: 2, expectedStart: 1.6 },
+  ] as const)(
+    'Fast producer retains $type boundary with predecessor $beforeDays and successor $afterDays',
+    ({ type, beforeDays, afterDays, floor, expectedStart }) => {
+      const input = connected(
+        inputOf(
+          [row('b', 0, 1), row('a', 1, 99)],
+          [
+            { ...slice('a', 'build', beforeDays), personId: null },
+            { ...slice('b', 'build', afterDays), personId: null },
+          ],
+        ),
+      );
+      input.order.projectIdByWorkItem.set('a', 'B');
+      input.order.projectIdByWorkItem.set('b', 'A');
+      const graph = { ...input.graph, edges: [edge('a', 0, 'b', 0, type)] };
+      const resolved = { ...input, graph, notBefore: new Map([['a', floor]]) };
+      const plan = scheduleResolved(resolved);
+      expect(start(plan, 'a')).toBe(floor);
+      expect(start(plan, 'b')).toBeCloseTo(expectedStart, 12);
+      const before = plan.slices.get(sliceKey('a', 'build'));
+      const after = plan.slices.get(sliceKey('b', 'build'));
+      if (before === undefined || after === undefined) throw new Error('missing placed slice');
+      if (type === 'FS') expect(after.earliestStart).toBe(before.earliestFinish);
+      if (type === 'SS') expect(after.earliestStart).toBe(before.earliestStart);
+      if (type === 'FF') expect(after.earliestFinish).toBe(before.earliestFinish);
+    },
+  );
   it('local adapter and pinned replay preserve placement', () => {
     const input = inputOf([row('a', 0), row('b', 1)], [slice('a'), slice('b')]);
     const legacy = schedule(input.rows, input.edges, input.slices);
