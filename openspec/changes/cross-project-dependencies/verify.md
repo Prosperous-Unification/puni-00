@@ -6532,3 +6532,14 @@ contracts suite to 611 passed/0 failed, 2622 assertions. Temporarily exempting
 failed the real matrix assertion; restoring the source returned the focused
 tests to 2 passed/0 failed. Changed-file ESLint, Prettier and diff checks
 passed. The failing old-SHA gate is not a full verdict for this new head.
+
+## Frontend dependency-lookup module consumer reconciliation (2026-10-23)
+
+The h2puni gate on `3e8e98b99` found one undeclared production import:
+`dependency-navigation.tsx` imports the dependency-lookup module but was absent
+from its `externalConsumers` index. The pre-fix focused module graph test
+failed at `dependency-lookup is imported only by its declared consumers`.
+Adding that exact consumer to the established index restored the full module
+graph test to 11 passed/0 failed; Prettier and `git diff --check` passed. This
+is a metadata repair for an existing fail-closed check. The old-SHA gate is
+not a verdict on this corrected head.
