@@ -179,9 +179,13 @@ both are marked superseded there when their branches settle.
 
 ## Risks / Trade-offs
 
-- **Heartbeat events reach the event log.** Each renewal that moves a lease appends one
-  `claims_changed` per project: at most one per agent per minute, inside a turn the renewal
-  takes anyway. If it shows in the event log's size, coalesce per project per tick.
+- **Heartbeat pushes reach the gateway.** Each renewal that moves a lease pushes one transient
+  `claims_changed` per project (C21): at most one per agent per minute, logged and replayed
+  nowhere, so the event log and the replay window are untouched. The cost is one gw-01 push
+  and one claims read per viewer per heartbeat; if that shows, coalesce per project per tick.
+- **A missed transient push is not replayed** (C21): a client whose socket drops between
+  heartbeats rereads claims on resume, and a client that stays connected but misses a push
+  (gw-01 unreachable) reads stale lease times until the next one.
 - **A consent revocation is up to one tick stale** on screen (C4).
 - **Two moments on one screen** (C11): a chip may lag its row by one read.
 - **An undone claim stays in the history list** as claimed (C14); the held list is the truth.

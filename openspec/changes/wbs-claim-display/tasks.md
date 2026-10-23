@@ -64,6 +64,12 @@
       conformance case asserts two projects in code-unit order. R5 faults: unsorted,
       undeduplicated, rows moved before the lookups, in-force rows; watched.
 
+- [x] 3.7 Red: the socket vocabulary names the transient frame: `WsTransientFrame` and
+      `wsTransient` in `@wbs/contracts` (no `seq`, and a `seq` makes it not transient); gw-01
+      builds it; the generic realtime client hands it to a required `onTransient` without
+      touching its resume point. R5 faults: drop the client's arm; drop the guard's arm; advance
+      the tracker; let the contract accept a `seq`; watched.
+
 **Merge order:** this slice merges into `plan/wbs-claim-display` only after slices 1 and 2 have
 reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no later than be-01
 (C21).

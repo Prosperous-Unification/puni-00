@@ -91,8 +91,10 @@ the batch's own project when the batch changed a row (it announces the tree inst
 ### Requirement: The claims announcement is transient
 
 be-01 SHALL push `claims_changed` to the project's subscribers live and SHALL NOT record it in
-the durable event log or the replay buffer, nor consume a sequence number for it; its push SHALL
-carry no `seq`, and gw-01 SHALL forward it to the subscribed sockets without one. A failed push
+the durable event log or the replay buffer. A transient announcement SHALL NOT consume a durable
+sequence. Its push SHALL carry no `seq`, and gw-01 SHALL forward it to the subscribed sockets as
+a transient frame (`WsTransientFrame`: subscription and message, no `seq`), which a realtime
+client SHALL hand on without advancing its resume point. A failed push
 SHALL be reported and SHALL NOT fail the request.
 
 #### Scenario: A heartbeat leaves the replay window alone

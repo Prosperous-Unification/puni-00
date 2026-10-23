@@ -1,4 +1,10 @@
-import { type WsControlFrame, type WsFrame, wsPing, wsResume } from '@wbs/contracts';
+import {
+  type WsControlFrame,
+  type WsFrame,
+  wsPing,
+  wsResume,
+  type WsTransientFrame,
+} from '@wbs/contracts';
 import { parseOrThrow, type } from '@wbs/validation';
 
 import type { SubscriptionTracker } from './subscription-tracker';
@@ -8,6 +14,12 @@ export type ConnectionState = 'open' | 'reconnecting' | 'denied' | 'closed';
 export interface ReconnectingWsOptions {
   url: string;
   onFrame: (frame: WsFrame) => void;
+  /**
+   * A transient announcement (`wbs-claim-display` C21). Required, so a client
+   * cannot drop one silently; it carries no sequence, so a caller reads what it
+   * names and reports no `seen`.
+   */
+  onTransient: (frame: WsTransientFrame) => void;
   onControl?: (control: WsControlFrame) => void;
   onStateChange: (state: ConnectionState) => void;
   subscriptions: SubscriptionTracker;
@@ -31,7 +43,9 @@ const EnvelopeGuard = type({
   subscription: 'string',
   seq: 'number',
   message: 'unknown',
-}).or(type({ type: 'string', '[string]': 'unknown' }));
+})
+  .or(type({ subscription: 'string', message: 'unknown', 'seq?': 'never' }))
+  .or(type({ type: 'string', '[string]': 'unknown' }));
 
 /**
  * A data frame is the arm carrying a subscription's payload. `EnvelopeGuard`'s
@@ -47,6 +61,12 @@ function isDataFrame(frame: typeof EnvelopeGuard.infer): frame is WsFrame {
     typeof fields['seq'] === 'number' &&
     'message' in frame
   );
+}
+
+/** The transient arm: a subscription's payload with no `seq` key at all. */
+function isTransientFrame(frame: typeof EnvelopeGuard.infer): frame is WsTransientFrame {
+  const fields = frame as Record<string, unknown>;
+  return typeof fields['subscription'] === 'string' && !('seq' in frame) && 'message' in frame;
 }
 
 export interface ReconnectingWsHandle {
@@ -125,6 +145,14 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): ReconnectingW
         // ReconnectingWsHandle.seen}. The frame is handed on; what the caller
         // does with it decides where the stream has got to.
         opts.onFrame(parsed);
+      } else if (isTransientFrame(parsed)) {
+        // No tracker update: a transient frame stands for no durable sequence.
+        // Proof (`hands a seq-less frame to onTransient and leaves the resume
+        // point alone`, reconnecting-ws.test.ts, watched 2026-10-23): with this
+        // arm removed, and again with the guard's transient arm removed, the
+        // case failed (6 pass, 1 fail each); with the tracker advanced here it
+        // failed on the snapshot (6/1).
+        opts.onTransient(parsed);
       } else {
         // The guard admits any `{ type: string }`, so this narrows to the union
         // of control frames this build knows; `onControl` reads `type` and the

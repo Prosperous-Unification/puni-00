@@ -291,3 +291,21 @@ collector's after-commit send is the existing batch rule, proven in `plan-comman
 The earlier "deadlock" observation no longer holds since the event is not logged.
 
 Merge order (tasks.md): after slices 1 and 2 reach `main` and deploy; gw-01 no later than be-01.
+
+**Cross-check (contract drift, task 3.7).** C21 frames had no home in the socket vocabulary:
+`WsFrame` requires `seq` and the generic client's guard refused a frame without one. Chosen: a
+named `WsTransientFrame` (subscription, message, `'seq?': 'never'`) with its builder
+`wsTransient`, rather than an optional `seq` on `WsFrame`, so every reader that advances a
+resume point still holds a `seq` it can trust. gw-01's internal push builds it when `seq` is
+absent; `createReconnectingWs` gains a required `onTransient` and never updates its tracker
+for one.
+
+| R5 fault (watched 2026-10-23)                     | Observed                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| client's transient arm removed                    | `hands a seq-less frame to onTransient and leaves …` fails (6/1)    |
+| guard's transient arm removed                     | the same case throws on parse (6/1)                                 |
+| tracker advanced on a transient frame             | the same case fails on the snapshot (6/1)                           |
+| `'seq?': 'never'` dropped from `WsTransientFrame` | `are transient frames the parser accepts, and only without …` (6/1) |
+
+design.md's Risks no longer says heartbeat events reach the event log; the claim-reads delta
+states that a transient announcement SHALL NOT consume a durable sequence.
