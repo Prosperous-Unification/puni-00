@@ -31,6 +31,8 @@ import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel'
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
 import { didLand } from './live-editing';
 import { logicalGrid } from './logical-grid';
+import { MeasurePanel, type MeasureWrites } from './measure-panel';
+import { shownDefinitions } from './measure-reading';
 import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
 import { OptimizationCue } from './optimization-cue';
 import { PlanCards } from './plan-cards';
@@ -50,7 +52,7 @@ import { indexById } from './plan-indexes';
 import { usePlanInteractionScope } from './plan-interaction-scope';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
-import { failureText } from './plan-refusal';
+import { failureText, refusalSentence } from './plan-refusal';
 import { attachRowReadings, type EstimateReadings, type PlanRenderRow } from './plan-render-rows';
 import { useRendererForViewport } from './plan-renderer';
 import { PlanToolbar } from './plan-toolbar';
@@ -86,6 +88,7 @@ import {
   useEstimateDraftState,
   useEstimateMentions,
 } from './use-estimate-drafts';
+import { useMeasureDefinitions } from './use-measure-definitions';
 import { usePlanDependencies } from './use-plan-dependencies';
 import { usePlanFields } from './use-plan-fields';
 import { usePlanFilter, usePlanFilterState } from './use-plan-filter';
@@ -803,7 +806,24 @@ export function WbsTable({
     offeredColumns,
     toggleColumn,
     toggleStep,
+    measureToggles,
+    toggleMeasure,
+    forgetMeasureToggles,
+    isTimeShown,
+    toggleTime,
   } = useColumnSet({ projectId, steps });
+  const measureDefinitions = useMeasureDefinitions(commands, projectId);
+  /**
+   * The definitions whose columns this reader has on the table: none until
+   * the definitions are read, and none before organization activation.
+   */
+  const shownMeasures = useMemo(
+    () =>
+      measureDefinitions.kind === 'ready'
+        ? shownDefinitions(measureDefinitions.measures, measureToggles)
+        : [],
+    [measureDefinitions, measureToggles],
+  );
   usePlanLayoutSwap({
     widthProject,
     projectId,
@@ -835,10 +855,13 @@ export function WbsTable({
   } | null>(null);
   /** The row the Move under… picker is open over, by id, for `completionFor`'s reason. */
   const [moveUnderFor, setMoveUnderFor] = useState<string | null>(null);
+  /** The row whose Measures panel is open, by id, for `refsEditing`'s reason. */
+  const [measuresFor, setMeasuresFor] = useState<string | null>(null);
   useEffect(() => {
     if (planActive) return;
     setCheatSheetOpen(false);
     setMoveUnderFor(null);
+    setMeasuresFor(null);
     setCompletionFor(null);
     setRefsEditing(null);
     setOpenMenuRowId(null);
@@ -1124,6 +1147,10 @@ export function WbsTable({
     () => (moveUnderFor === null ? null : (flat.find((row) => row.id === moveUnderFor) ?? null)),
     [flat, moveUnderFor],
   );
+  const measuresRow = useMemo(
+    () => (measuresFor === null ? null : (flat.find((row) => row.id === measuresFor) ?? null)),
+    [flat, measuresFor],
+  );
   const {
     namedInTheTree,
     effectiveTeams,
@@ -1225,6 +1252,10 @@ export function WbsTable({
       resetTargetHiddenColumnIds,
       hasAnyExternalRefs,
       hiddenColumnIds,
+      measureColumns: {
+        answered: Object.keys(measureToggles).length > 0,
+        forget: forgetMeasureToggles,
+      },
     });
   const {
     planForExport,
@@ -1681,6 +1712,7 @@ export function WbsTable({
     duplicateRow,
     addChild,
     openMoveUnder: setMoveUnderFor,
+    openMeasures: setMeasuresFor,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -1748,6 +1780,41 @@ export function WbsTable({
     toggleStep,
   };
 
+  /**
+   * The Measures panel's writes for one row, each one plan command through
+   * the same `run` every edit goes through — so a refusal is toasted, the
+   * plan reread and the gesture counted as any other — answering the
+   * refusal's sentence for the panel to show beside its control.
+   *
+   * Proof: with the catch below answering null, `shows a refusal beside the
+   * control that asked, in plan-refusal words` (measure-panel.test.tsx) found
+   * no alert in the panel.
+   */
+  const measureWrites = (rowId: string): MeasureWrites => {
+    const send = async (request: () => Promise<void>): Promise<string | null> => {
+      let sentence: string | null = null;
+      await run(async (write) => {
+        try {
+          await write.perform(['tree'], request);
+        } catch (thrown: unknown) {
+          sentence = refusalSentence(thrown);
+          throw thrown;
+        }
+      });
+      return sentence;
+    };
+    return {
+      setEstimate: (stepId, measure, estimate, digest) =>
+        send(() => commands.setMeasureEstimate(rowId, stepId, measure, estimate, digest)),
+      clearEstimate: (stepId, measure) =>
+        send(() => commands.clearMeasureEstimate(rowId, stepId, measure)),
+      setFact: (stepId, measure, value, digest) =>
+        send(() => commands.setMeasure(rowId, stepId, measure, value, digest)),
+      clearFact: (stepId, measure) => send(() => commands.clearMeasure(rowId, stepId, measure)),
+      setBudget: (measure, budget) => send(() => commands.setBudget(rowId, measure, budget)),
+      clearBudget: (measure) => send(() => commands.clearBudget(rowId, measure)),
+    };
+  };
   const live = useRef(liveNow);
   live.current = liveNow;
 
@@ -1764,12 +1831,12 @@ export function WbsTable({
     [estimateMethod, optimistic, realistic, pessimistic, chartRead.estimateRounding],
   );
   const columns = useMemo(
-    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule),
+    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule, shownMeasures),
     // PlanLiveValues declares the structural inputs allowed to replace cells.
     // Proof: adding workItems here failed plan-read-and-write.test.tsx’s
     // `does not take the focus or the half-typed value` at the focus assertion:
     // activeElement was body instead of the Name cell (2026-09-06).
-    [steps, unfoldedSteps, hiddenColumnIds, rule],
+    [steps, unfoldedSteps, hiddenColumnIds, rule, shownMeasures],
   );
 
   const table = useTable({
@@ -2369,6 +2436,13 @@ export function WbsTable({
       setStoredHiddenColumns={setStoredHiddenColumns}
       offeredColumns={offeredColumns}
       toggleColumn={toggleColumn}
+      measureChooser={{
+        state: measureDefinitions,
+        toggles: measureToggles,
+        onToggle: toggleMeasure,
+        timeShown: isTimeShown,
+        onToggleTime: toggleTime,
+      }}
       shownRows={shownRows}
       search={search}
       gaps={gaps}
@@ -2804,6 +2878,7 @@ export function WbsTable({
                   void addChild(row);
                 },
                 moveUnder: setMoveUnderFor,
+                measures: setMeasuresFor,
                 unfreeze: (rowId) => {
                   void run((write) =>
                     write.perform(['tree'], () => commands.unfreezeWorkItem(rowId)),
@@ -3301,6 +3376,17 @@ export function WbsTable({
           onChoose={(parentId) => {
             setMoveUnderFor(null);
             void moveUnder(moveUnderRow, parentId);
+          }}
+        />
+      )}
+      {planActive && measuresRow !== null && (
+        <MeasurePanel
+          row={measuresRow}
+          steps={steps}
+          state={measureDefinitions}
+          writes={measureWrites(measuresRow.id)}
+          onOpenChange={(open) => {
+            if (!open) setMeasuresFor(null);
           }}
         />
       )}

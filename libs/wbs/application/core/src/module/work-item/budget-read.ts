@@ -80,18 +80,20 @@ export function withBudgets<Row extends NumberedWorkItem>(
         else next.measureEstimates = estimates;
       }
     }
-    // `spent` and `holdPerAttempt` are the headroom read's: the row's
-    // `budgets` keep the bytes they had (`wbs-measure-budgets` D49).
+    // `spent` is the headroom read's: the row's `budgets` keep the bytes they
+    // had (`wbs-measure-budgets` D49). `holdPerAttempt` rides along where a
+    // hold is stated (D60), so an editor can show the hold it would replace;
+    // a budget with none answers exactly the bytes it did.
     // Proof: with `spent` kept, `sets, replaces and clears a budget, undoably`
     // (budget-command.test.ts) read a `spent` the row never carried; watched 2026-10-23.
+    // Proof: with `holdPerAttempt` stripped again, `holds the allowance of each
+    // running attempt…` (budget-command.test.ts) read no `holdPerAttempt` on
+    // the row; watched 2026-10-23.
     if (budgets !== undefined && budgets.size > 0)
       next = {
         ...next,
         budgets: Object.fromEntries(
-          [...budgets].map(([key, { spent: _spent, holdPerAttempt: _hold, ...reading }]) => [
-            key,
-            reading,
-          ]),
+          [...budgets].map(([key, { spent: _spent, ...reading }]) => [key, reading]),
         ),
       };
     return next;
