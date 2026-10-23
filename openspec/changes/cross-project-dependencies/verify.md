@@ -7157,3 +7157,14 @@ correction commit. It is not an integrated-head h2 gate or deployment result.
 The approved bounded identity architecture from `899db844` is moved intact into the separately proposed [solver-supervisor-identity-broker change](../solver-supervisor-identity-broker/proposal.md), with [provenance and feasibility limits](../solver-supervisor-identity-broker/verify.md). Its broker/unit/Docker/k3s/provisioning gates remain unchecked and do not gate cross-project-dependencies delivery. The parent supervisor installation/shared-edge requirements remain, and Task 10.2 now has explicit S1–S4 acceptance for actual stop/drain, restart/installer fencing, continuous complete participant exclusion and pinned compatible restoration. These controls are not implemented by this docs reconciliation; all four slices and parent Task 10.2 remain open.
 
 [ADR 0059](../../../docs/adr/0059-supervisor-exclusion-does-not-require-an-identity-broker.md) records the scope decision beside [ADR 0057](../../../docs/adr/0057-cross-project-dependency-activation-is-monotone.md). No narrower exclusion, automatic recovery after possible activation, or old incapable writer return is permitted. No new production safety check is added; future guards name watched production-path negatives. Fresh full OpenSpec validation and changed-doc formatting/link/diff checks are recorded in the followup verification before normal-hook commit. No production test or actual stop/drain/restart/restore, root provisioning, h2 gate, push or PR was performed.
+
+## Actual composed installed-image proof — 2026-10-23
+
+The controlled h2 run at `6effc8f653fa0c6d67f903f576b6d97cd6f2adad`
+completed with exit 0 under the canonical heavy lock. Full built/supplied image
+acceptance passed. Four independent production-source derivatives failed their
+required installed assertions; the identical baseline digest passed after each.
+All ten smoke recoveries and outer resource cleanup passed, and the lock was
+released. [Exact receipts, digests, logs and limitations](evidence/task-7-image/attempt-6effc8f65/README.md)
+supersede the earlier source-only and failed-attempt limitations for this bounded
+proof. Parent Tasks 7.3/7.4 and final integrated host gate/CI remain open.

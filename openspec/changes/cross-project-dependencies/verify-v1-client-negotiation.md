@@ -137,3 +137,12 @@ v1 advertisement, and gateway-before-browser rollout. The previous conditional
 reject-all-offers prerequisite and empty gateway/MCP scenario describe the
 superseded incapable implementation. Backend capability remains independently
 gated; a capability observation never flips DISABLED storage authority.
+
+The deploy-side actual role-executable test initially retained its old empty
+semantics expectation for gateway and MCP: two failures and one backend pass.
+Its expected role declarations now match the implemented gateway/MCP v1 and
+still-incapable backend. The complete `dependency-role-observation.test.ts`
+suite passed: 37 tests, zero failures, including cross-role refusal, independent
+invocations and DB-free startup. Scoped lint and formatting also passed. Logs:
+`/tmp/puni-role-observation-v1-{red,green}.log`. This changes test expectations;
+the production observation decoder and admission predicates are unchanged.

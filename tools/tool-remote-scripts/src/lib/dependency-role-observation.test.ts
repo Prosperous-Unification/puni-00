@@ -60,7 +60,10 @@ for (const [role, tier] of roles) {
         'src/dependency-capabilities-cli.ts',
       ],
     ]);
-    expect(observation).toEqual({ image, semantics: [] });
+    expect(observation).toEqual({
+      image,
+      semantics: role === 'backend' ? [] : ['cross-project-dependencies-v1'],
+    });
   });
   for (const [otherRole, otherTier] of roles.filter(([otherRole]) => role !== otherRole)) {
     test(`${role} refuses ${otherRole} payload`, async () => {
