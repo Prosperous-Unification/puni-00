@@ -1,4 +1,4 @@
-import type { BudgetRead, BudgetReading, MixedRateCards } from '@wbs/domain';
+import type { BudgetRead, BudgetReading, BudgetSource, MixedRateCards } from '@wbs/domain';
 
 import type { StartableWork } from './startable';
 
@@ -9,19 +9,29 @@ export interface BoundingBudget extends BudgetReading {
 }
 
 /**
- * One measure's headroom over one step (design D41, D46): the tightest
- * **strict** budget among its work item and ancestors, which the coordinator
- * refuses on, and apart the tightest advisory or derived one, which it only
- * reports. `mixedRateCards` names a budget in the chain that cannot be read
- * because a sum it needs mixes bases (design D44); the coordinator must then
- * treat the key as unknown, never as unbounded.
+ * A budget in the chain that cannot be read (design D44, D52): the work item
+ * stating it, the pair of bases that blocks it, and its source.
+ */
+export interface BlockedBound {
+  readonly workItemId: string;
+  readonly bases: MixedRateCards;
+  readonly source: BudgetSource;
+}
+
+/**
+ * One measure's headroom over one step (design D41, D46, D52): the tightest
+ * readable **strict** budget among its work item and ancestors and apart the
+ * tightest readable advisory or derived one, each with the nearest budget of
+ * that policy a rate-card mix keeps from being read in `blocked`.
+ *
+ * The coordinator's rule: refuse the next attempt when `strict.remaining <= 0`
+ * or `blocked.strict` is present (its remainder is unknown, never unbounded);
+ * advisory budgets, read or blocked, never refuse.
  */
 export interface MeasureHeadroom {
   readonly strict?: BoundingBudget;
   readonly advisory?: BoundingBudget;
-  readonly mixedRateCards?: MixedRateCards;
-  /** The work item whose budget the mix blocks, beside `mixedRateCards`. */
-  readonly mixedAt?: string;
+  readonly blocked?: { readonly strict?: BlockedBound; readonly advisory?: BlockedBound };
 }
 
 /** One claimed or startable step with its headroom per measure. */
@@ -50,8 +60,11 @@ export interface BudgetHeadroom {
  * advisory one never hides a strict one (design D46).
  *
  * Never refused as a whole: a budget in the chain that `read.blocked` names
- * is reported on that step and key only, so a mix in `cost` leaves `tokens`
- * and every other step alone (design D44).
+ * is reported on that step and key only, with its policy (design D52), so a
+ * mix in `cost` leaves `tokens` and every other step alone (design D44).
+ *
+ * Not a snapshot: `startable` and `read` come from separate reads, so a write
+ * between them can pair a step with budgets a moment newer (design D50).
  */
 export function findBudgetHeadroom(
   rows: readonly { readonly id: string; readonly parentId: string | null }[],
@@ -77,7 +90,12 @@ export function findBudgetHeadroom(
   for (const node of nodes) {
     const budgets = new Map<
       string,
-      { strict?: BoundingBudget; advisory?: BoundingBudget; mix?: [MixedRateCards, string] }
+      {
+        strict?: BoundingBudget;
+        advisory?: BoundingBudget;
+        blockedStrict?: BlockedBound;
+        blockedAdvisory?: BlockedBound;
+      }
     >();
     for (let at: string | null | undefined = node.workItemId; typeof at === 'string';) {
       for (const [key, reading] of read.readings.get(at) ?? []) {
@@ -94,23 +112,36 @@ export function findBudgetHeadroom(
           held[slot] = { ...reading, workItemId: at };
         budgets.set(key, held);
       }
-      for (const [key, pair] of read.blocked.get(at) ?? []) {
+      for (const [key, { bases, policy, source }] of read.blocked.get(at) ?? []) {
         const held = budgets.get(key) ?? {};
-        // Proof: with this mark skipped, `names a blocked cost budget on its
-        // step alone, tokens kept` (budget-headroom.test.ts) read no mix;
-        // watched 2026-10-23.
-        held.mix ??= [pair, at];
+        // The nearest blocked budget per policy: walking up, the first one
+        // found of each policy stays.
+        // Proof: with every blocked budget kept in the advisory slot, `keeps a
+        // blocked strict budget behind a nearer blocked advisory one`
+        // (budget-headroom.test.ts) read no blocked strict; watched 2026-10-23.
+        if (policy === 'strict') held.blockedStrict ??= { workItemId: at, bases, source };
+        else held.blockedAdvisory ??= { workItemId: at, bases, source };
         budgets.set(key, held);
       }
       at = parentOf.get(at);
     }
     const named: Record<string, MeasureHeadroom> = {};
-    for (const [key, { strict, advisory, mix }] of budgets)
+    for (const [key, { strict, advisory, blockedStrict, blockedAdvisory }] of budgets) {
+      const blocked =
+        blockedStrict === undefined && blockedAdvisory === undefined
+          ? {}
+          : {
+              blocked: {
+                ...(blockedStrict === undefined ? {} : { strict: blockedStrict }),
+                ...(blockedAdvisory === undefined ? {} : { advisory: blockedAdvisory }),
+              },
+            };
       named[key] = {
         ...(strict === undefined ? {} : { strict }),
         ...(advisory === undefined ? {} : { advisory }),
-        ...(mix === undefined ? {} : { mixedRateCards: mix[0], mixedAt: mix[1] }),
+        ...blocked,
       };
+    }
     steps.push({ ...node, budgets: named });
   }
   return { steps };

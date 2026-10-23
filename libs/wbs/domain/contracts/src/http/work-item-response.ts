@@ -136,6 +136,13 @@ export const numberedWorkItem = type({
   'mixedRateCards?': type({
     '[string]': type({ 'facts?': mixedBases, 'estimates?': mixedBases }),
   }),
+  // The one priced basis a money key's figures in the subtree are in, per
+  // kind (`wbs-measure-budgets` D49): what the row's sums in that key are
+  // priced with. A mixing kind is in `mixedRateCards` instead; unpriced
+  // figures name none. Absent when no key has one, and from an older be-01.
+  'moneyBases?': type({
+    '[string]': type({ 'facts?': moneyBasis, 'estimates?': moneyBasis }),
+  }),
   dependsOn: 'string[]',
   finalDays: numbers,
   // Absent only from a backend that predates estimate units during swap or rollback.

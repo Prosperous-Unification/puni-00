@@ -1,4 +1,4 @@
-import type { BudgetRead, BudgetReading, MixedRateCards } from '@wbs/domain';
+import type { BlockedBudget, BudgetRead, BudgetReading, MixedRateCards } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { findBudgetHeadroom } from './budget-headroom';
@@ -13,6 +13,7 @@ const reading = (remaining: number): BudgetReading => ({
   cap: 100,
   policy: 'strict',
   source: 'stated',
+  spent: 100 - remaining,
   remaining,
   exceeded: false,
 });
@@ -63,7 +64,7 @@ const advisory = (remaining: number): BudgetReading => ({
 
 const readOf = (
   readings: [string, [string, BudgetReading][]][],
-  blocked: [string, [string, MixedRateCards][]][] = [],
+  blocked: [string, [string, BlockedBudget][]][] = [],
 ): BudgetRead => ({
   readings: new Map(readings.map(([row, keys]) => [row, new Map(keys)])),
   blocked: new Map(blocked.map(([row, keys]) => [row, new Map(keys)])),
@@ -123,11 +124,40 @@ describe('findBudgetHeadroom', () => {
     const read = findBudgetHeadroom(
       ROWS,
       startable(),
-      readOf([['A', [['tokens', reading(10)]]]], [['P', [['cost', pair]]]]),
+      readOf(
+        [['A', [['tokens', reading(10)]]]],
+        [['P', [['cost', { bases: pair, policy: 'advisory', source: 'derived' }]]]],
+      ),
     );
+    // A derived budget blocked: only `blocked.advisory`, which never refuses.
     expect(read.steps[0]?.budgets).toEqual({
       tokens: { strict: { ...reading(10), workItemId: 'A' } },
-      cost: { mixedRateCards: pair, mixedAt: 'P' },
+      cost: { blocked: { advisory: { workItemId: 'P', bases: pair, source: 'derived' } } },
+    });
+  });
+
+  it('keeps a blocked strict budget behind a nearer blocked advisory one', () => {
+    const near: MixedRateCards = [null, { currency: 'USD', rateCardDigest: 'x' }];
+    const far: MixedRateCards = [
+      { currency: 'USD', rateCardDigest: 'a' },
+      { currency: 'USD', rateCardDigest: 'b' },
+    ];
+    const read = findBudgetHeadroom(
+      ROWS,
+      startable(),
+      readOf(
+        [],
+        [
+          ['A', [['cost', { bases: near, policy: 'advisory', source: 'derived' }]]],
+          ['P', [['cost', { bases: far, policy: 'strict', source: 'stated' }]]],
+        ],
+      ),
+    );
+    expect(read.steps[0]?.budgets['cost']).toEqual({
+      blocked: {
+        strict: { workItemId: 'P', bases: far, source: 'stated' },
+        advisory: { workItemId: 'A', bases: near, source: 'derived' },
+      },
     });
   });
 });

@@ -550,8 +550,8 @@ describe('the headroom read', () => {
         setBudget(A, 'tokens', 1000),
         { kind: 'startAttempt', workItemId: A, stepId: dev, at: start },
       ]);
-      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY);
-      if (read === null) throw new Error('the project was not readable');
+      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
+      if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
       const stepOf = (workItemId: string, stepId: string) =>
         read.steps.find((each) => each.workItemId === workItemId && each.stepId === stepId);
       // B's dev step: the parent's budget, less the hold of A's unknown attempt.
@@ -566,6 +566,8 @@ describe('the headroom read', () => {
               cap: 500,
               policy: 'strict',
               source: 'stated',
+              spent: 0,
+              holdPerAttempt: 300,
               remaining: 200,
               exceeded: false,
               held: 300,
@@ -597,16 +599,22 @@ describe('the headroom read', () => {
         { workItemId: B, stepId: qa, metric: 'cost', value: 4, recordedAt: 1 },
         { at: 1, by: F },
       );
-      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY);
-      if (read === null) throw new Error('the project was not readable');
+      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
+      if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
       const onA = read.steps.find((each) => each.workItemId === A && each.stepId === dev);
       // Proof: with `findBudgetHeadroom` answering no steps whenever any budget
       // is blocked, this case read none for A; watched 2026-10-23.
       expect(onA?.budgets['tokens']?.strict).toMatchObject({ workItemId: A, remaining: 100 });
       // P's cost budget cannot be read: named on A's cost key, tokens untouched.
+      // P's stated strict budget is blocked: the coordinator refuses on it.
       expect(onA?.budgets['cost']).toEqual({
-        mixedRateCards: [null, { currency: 'USD', rateCardDigest: 'x' }],
-        mixedAt: P,
+        blocked: {
+          strict: {
+            workItemId: P,
+            bases: [null, { currency: 'USD', rateCardDigest: 'x' }],
+            source: 'stated',
+          },
+        },
       });
     } finally {
       await source.close();
@@ -624,8 +632,8 @@ describe('the headroom read', () => {
         fact(A, dev, 'tokens', 500),
         fact(B, dev, 'tokens', 500),
       ]);
-      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY);
-      if (read === null) throw new Error('the project was not readable');
+      const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
+      if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
       const onA = read.steps.find((each) => each.workItemId === A && each.stepId === qa);
       expect(onA?.budgets['tokens']).toMatchObject({
         strict: { workItemId: P, remaining: 0 },
@@ -839,6 +847,32 @@ describe('money carries its basis', () => {
       expect(parent.measures['cost']).toEqual({ [dev]: 4 });
       // The mixed cost trios go; the tokens trio stays.
       expect(Object.keys(parent.measureEstimates ?? {})).toEqual(['tokens']);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it("names the one basis a row's cost sums are in, per kind, and none on a mixed parent", async () => {
+    const { source, dev, idOf, run, rowOf } = await seeded();
+    try {
+      const [P, A, B] = ['P', 'A', 'B'].map(idOf);
+      await run([
+        { ...trio(A, dev, 'cost', 6), rateCardDigest: 'card-a' },
+        { ...fact(A, dev, 'cost', 4), rateCardDigest: 'card-b' },
+        { ...fact(B, dev, 'cost', 4), rateCardDigest: 'card-c' },
+        fact(B, dev, 'tokens', 9),
+      ]);
+      const usd = (rateCardDigest: string) => ({ currency: 'USD', rateCardDigest });
+      expect((await rowOf(A)).moneyBases).toEqual({
+        cost: { facts: usd('card-b'), estimates: usd('card-a') },
+      });
+      expect((await rowOf(B)).moneyBases).toEqual({ cost: { facts: usd('card-c') } });
+      // P's facts mix (card-b, card-c) and are named there; its one trio is not.
+      const parent = await rowOf(P);
+      expect(parent.moneyBases).toEqual({ cost: { estimates: usd('card-a') } });
+      expect(parent.mixedRateCards).toEqual({
+        cost: { facts: [usd('card-b'), usd('card-c')] },
+      });
     } finally {
       await source.close();
     }

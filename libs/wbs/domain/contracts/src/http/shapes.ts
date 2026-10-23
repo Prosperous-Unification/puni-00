@@ -13,6 +13,7 @@ import {
   readPasswordSession,
   registerPassword,
 } from './auth-password-shapes';
+import { readBudgetHeadroom } from './budget-headroom-shapes';
 import {
   createCalendarMarker,
   listCalendarMarkers,
@@ -236,6 +237,7 @@ export const httpShapes = [
   getWorkItem,
   getStepReference,
   readStartableWork,
+  readBudgetHeadroom,
   readPersonWork,
   readProjectResources,
   listMeasures,

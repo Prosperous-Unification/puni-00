@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { type MeasureDefinition, SEEDED_MEASURE_DEFINITIONS } from './measure-definition';
-import { decideRateCard, mixedRateCardsOf } from './money-basis';
+import { decideRateCard, mixedRateCardsOf, soleMoneyBasesOf } from './money-basis';
 
 const definition = (key: string): MeasureDefinition => {
   const found = SEEDED_MEASURE_DEFINITIONS.find((each) => each.key === key);
@@ -115,5 +115,32 @@ describe('mixedRateCardsOf', () => {
         new Set(['cost']),
       ).size,
     ).toBe(0);
+  });
+});
+
+describe('soleMoneyBasesOf', () => {
+  const rows = [
+    { id: 'P', parentId: null },
+    { id: 'A', parentId: 'P' },
+    { id: 'B', parentId: 'P' },
+    { id: 'C', parentId: null },
+  ];
+  const usd = (rateCardDigest: string) => ({ currency: 'USD', rateCardDigest });
+
+  it('names the one basis a subtree is priced in, and none where it mixes or is unpriced', () => {
+    const sole = soleMoneyBasesOf(
+      rows,
+      [
+        { workItemId: 'A', key: 'cost', basis: usd('card-a') },
+        { workItemId: 'B', key: 'cost', basis: usd('card-b') },
+        { workItemId: 'C', key: 'cost' },
+        { workItemId: 'A', key: 'tokens', basis: usd('ignored') },
+      ],
+      new Set(['cost']),
+    );
+    expect([...sole]).toEqual([
+      ['A', new Map([['cost', usd('card-a')]])],
+      ['B', new Map([['cost', usd('card-b')]])],
+    ]);
   });
 });

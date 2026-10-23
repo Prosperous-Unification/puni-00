@@ -9,6 +9,7 @@ import {
   measureDefinitionRow,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readBudgetHeadroom,
   readPersonWork,
   readProjectResources,
   readStartableWork,
@@ -779,6 +780,36 @@ export function workItemRoutes(
         if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
         return { ok: true, status: 200, body: startable };
+      },
+    ),
+    bind(
+      readBudgetHeadroom,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readBudgetHeadroom>> => {
+        // Proof: with this check removed, `refuses a repeated team and an
+        // undeclared key` (budget-headroom.controller.db.test.ts) failed on
+        // the repeated team; watched 2026-10-23.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: with legacy access in place of the resolved one, `refuses a
+        // stranger exactly as the startable read does` and the team case
+        // (budget-headroom.controller.db.test.ts) failed; watched 2026-10-23.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const headroom = await workItems.budgetHeadroomWithin(
+          params.id,
+          resolved.access,
+          query.team ?? null,
+        );
+        if (headroom === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: with `not_found` answered here, `narrows to a team, and
+        // refuses one the caller's organization does not hold` failed; watched 2026-10-23.
+        if ('kind' in headroom) return { ok: false, status: 404, body: { error: headroom.kind } };
+        return { ok: true, status: 200, body: headroom };
       },
     ),
     bind(

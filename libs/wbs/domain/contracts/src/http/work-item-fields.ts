@@ -41,6 +41,7 @@ export const WORK_ITEM_FIELD_GROUPS = {
     'measureEstimates',
     'budgets',
     'mixedRateCards',
+    'moneyBases',
     'progress',
     'rolledUp',
     'attempts',

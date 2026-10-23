@@ -125,6 +125,9 @@ function crossings(): Record<string, string> {
     actual_step: `INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w2-a', '${foreignStep}', 1, 1)`,
     step_progress_step: `INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w2-a', '${foreignStep}', 'done', 1)`,
     step_measure_step: `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w2-a', '${foreignStep}', 'hours_actual', 1, 1)`,
+    // A trio on another project's step (`wbs-measure-budgets` D48): the row
+    // read shows trios, so it fails closed as for the time estimate.
+    measure_estimate_step: `INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('w2-a', '${foreignStep}', 'tokens', 1, 2, 3)`,
     step_node_attempt_step: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at) VALUES ('w2-a', '${foreignStep}', 1, 1)`,
     step_node_attempt_person: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at, executor_person_id) VALUES ('w2-a', '${ownStep}', 1, 1, 'pe-b')`,
     assignment_step: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${foreignStep}', 'pe-a')`,

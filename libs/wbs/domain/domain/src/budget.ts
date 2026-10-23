@@ -104,6 +104,18 @@ export interface BudgetReading {
   cap: number;
   policy: BudgetPolicy;
   source: BudgetSource;
+  /**
+   * The subtree's facts in the key (design D39). The headroom read answers
+   * it; the row read leaves it out, so its `budgets` keep their bytes
+   * (`wbs-measure-budgets` D49).
+   */
+  spent: number;
+  /**
+   * The stated budget's allowance per running attempt of unknown usage, only
+   * where it states one (design D40). The headroom read answers it; the row
+   * read leaves it out, as it does `spent` (D49).
+   */
+  holdPerAttempt?: number;
   remaining: number;
   exceeded: boolean;
   held?: number;
@@ -135,7 +147,19 @@ export interface BudgetReads {
  */
 export interface BudgetRead {
   readonly readings: Map<string, Map<string, BudgetReading>>;
-  readonly blocked: Map<string, Map<string, MixedRateCards>>;
+  readonly blocked: Map<string, Map<string, BlockedBudget>>;
+}
+
+/**
+ * A budget that exists but cannot be read (design D44, D52): the pair of
+ * bases that blocks it, and its policy and source, so a reader can still tell
+ * a blocked strict budget, which a coordinator refuses on, from a blocked
+ * advisory or derived one, which it never does.
+ */
+export interface BlockedBudget {
+  readonly bases: MixedRateCards;
+  readonly policy: BudgetPolicy;
+  readonly source: BudgetSource;
 }
 
 /**
@@ -174,7 +198,7 @@ export function readBudgets(reads: BudgetReads): BudgetRead {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId] as const));
   const running = attempts.filter((attempt) => attempt.endedAt === null);
   const readings = new Map<string, Map<string, BudgetReading>>();
-  const blocked = new Map<string, Map<string, MixedRateCards>>();
+  const blocked = new Map<string, Map<string, BlockedBudget>>();
   const hasChildren = new Set(rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])));
   const markUp = (marked: Set<string>, from: string): void => {
     for (let at: string | null | undefined = from; typeof at === 'string';) {
@@ -242,8 +266,16 @@ export function readBudgets(reads: BudgetReads): BudgetRead {
         mixedFacts.get(row.id)?.get(key) ??
         (stated === undefined ? mixedEstimates.get(row.id)?.get(key) : undefined);
       if (mix !== undefined) {
-        const byKey = blocked.get(row.id) ?? new Map<string, MixedRateCards>();
-        byKey.set(key, mix);
+        const byKey = blocked.get(row.id) ?? new Map<string, BlockedBudget>();
+        // Proof: with the policy taken as `advisory` whatever the budget,
+        // `names a blocked budget with its policy and source` (budget.test.ts)
+        // read the stated strict budget as advisory; watched 2026-10-23.
+        byKey.set(
+          key,
+          stated === undefined
+            ? { bases: mix, policy: 'advisory', source: 'derived' }
+            : { bases: mix, policy: stated.policy, source: 'stated' },
+        );
         blocked.set(row.id, byKey);
         continue;
       }
@@ -265,6 +297,7 @@ function derivedReading(cap: number, spent: number): BudgetReading {
     cap,
     policy: 'advisory',
     source: 'derived',
+    spent,
     remaining: cap - spent,
     // Proof: with `>=` here, `reports a derived budget exceeded only once the
     // facts cross its cap` (budget.test.ts) read a derived cap spent to the
@@ -287,11 +320,12 @@ function statedReading(
     cap,
     policy,
     source: 'stated',
+    spent,
     remaining: cap - spent - (held ?? 0),
     // Proof: with `>=` here, `reports exceeded only once the facts cross the
     // cap` (budget.test.ts) read a budget spent to the cap exceeded; watched 2026-10-23.
     exceeded: spent > cap,
-    ...(held === undefined ? {} : { held }),
+    ...(held === undefined || holdPerAttempt === null ? {} : { held, holdPerAttempt }),
   };
 }
 

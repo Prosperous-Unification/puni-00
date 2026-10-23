@@ -40,7 +40,7 @@
 
 ## 4. Surface
 
-- [ ] 4.1 Contracts, be-01 routes and MCP tools for the new commands and reads — test: registry
+- [x] 4.1 Contracts, be-01 routes and MCP tools for the new commands and reads — test: registry
       shape and route tests; negative: remove a refusal mapping and the HTTP test gets 500.
 - [ ] 4.2 fe-01 columns per definition with default visibility and per-user toggles — test:
       browser test fresh user versus toggled user; negative: drop the default filter and every

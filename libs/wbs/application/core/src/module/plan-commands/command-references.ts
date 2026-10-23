@@ -193,6 +193,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
     case 'actual_step':
     case 'step_progress_step':
     case 'step_measure_step':
+    case 'measure_estimate_step':
     case 'step_node_attempt_step':
     case 'assignment_step':
       return 'unknown_step';

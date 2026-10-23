@@ -43,6 +43,10 @@ describe('the HTTP shapes at load', () => {
     // Only the marked line: a runner may print its own lines (coverage) too.
     const loadMb = Number(/load_mb=(\d+)/.exec(out)?.[1]);
     expect({ out, finite: Number.isFinite(loadMb) }).toMatchObject({ finite: true });
+    // Printed so a report can quote the figure the bound was checked against.
+    process.stdout.write(
+      `contracts shape load: ${String(loadMb)} MB (bound ${String(MOST_SHAPE_LOAD_MB)} MB)\n`,
+    );
     expect(loadMb).toBeLessThan(MOST_SHAPE_LOAD_MB);
   }, 60_000);
 });
