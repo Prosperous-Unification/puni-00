@@ -2,6 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  WorkItemService,
+  type WorkItemServiceOptions,
+} from '@wbs/core/module/work-item/work-item.resource';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 
@@ -52,6 +56,7 @@ export class BootedBrowserProcess {
     dns?: { readonly resolvers?: readonly string[]; readonly transport?: DnsTransport },
     emailDelivery?: EmailDeliveryConfig,
     delegationKeys?: DelegationKeys,
+    syntheticExternalCommands?: () => boolean,
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
@@ -78,10 +83,43 @@ export class BootedBrowserProcess {
         openSource: openSqliteSource,
         dnsTransport: dns?.transport,
         makeApp: (options) => {
-          const app = buildApp(options);
+          const composedOptions: AppOptions =
+            syntheticExternalCommands === undefined
+              ? options
+              : {
+                  ...options,
+                  // Only this fixture substitutes the activation client gate: the installed
+                  // backend intentionally advertises no connected semantics yet.
+                  admitDependencyClient: (claim) =>
+                    syntheticExternalCommands() ? null : options.admitDependencyClient(claim),
+                  writes: {
+                    ...options.writes,
+                    batch: (...args) => {
+                      const services = options.writes.batch(...args);
+                      if (!syntheticExternalCommands()) return services;
+                      // This fixture receives the concrete WorkItemService built by boot's
+                      // batch factory. Its constructor retains these options; clone them so
+                      // only this admitted command scope gets synthetic authoring authority.
+                      const retainedOptions: unknown = Reflect.get(services.workItems, 'opts');
+                      if (typeof retainedOptions !== 'object' || retainedOptions === null)
+                        throw new Error('booted batch did not retain work-item options');
+                      // The boot batch factory constructed this exact class and stores its
+                      // constructor argument as `opts`; the shape check above guards absence.
+                      const workItemOptions = retainedOptions as WorkItemServiceOptions;
+                      return {
+                        ...services,
+                        workItems: new WorkItemService({
+                          ...workItemOptions,
+                          externalDependencyAuthoring: { state: 'active' },
+                        }),
+                      };
+                    },
+                  },
+                };
+          const app = buildApp(composedOptions);
           // No socket was opened, so there is no server for Elysia to stop.
           app.stop = () => Promise.resolve(app);
-          composed = { app, options };
+          composed = { app, options: composedOptions };
           return app;
         },
         startListener: (_app, _port, ready) => {

@@ -1,4 +1,5 @@
 import { JwksTokenVerifier } from '@wbs/auth';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './booted-browser-process';
@@ -27,6 +28,7 @@ const audience = process.env['MCP_TEST_AUDIENCE'];
 if (jwksUrl === undefined || issuer === undefined || audience === undefined)
   throw new Error('MCP_TEST_JWKS_URL, MCP_TEST_ISSUER and MCP_TEST_AUDIENCE are required');
 const trustedIssuer: string = issuer;
+let syntheticExternalCommands = false;
 
 const keys = await generateKeyPair('RS256', { extractable: true });
 const backend = await BootedBrowserProcess.open(
@@ -40,6 +42,7 @@ const backend = await BootedBrowserProcess.open(
   undefined,
   undefined,
   { signingKey: await exportPKCS8(keys.privateKey), verifyKey: await exportSPKI(keys.publicKey) },
+  () => syntheticExternalCommands,
 );
 
 /**
@@ -73,6 +76,11 @@ const server = Bun.serve({
   port: 0,
   fetch: async (request) => {
     const path = new URL(request.url).pathname;
+    if (request.method === 'POST' && path === '/__fixture/active-commands') {
+      seedDependencyAuthority(backend.databasePath());
+      syntheticExternalCommands = true;
+      return Response.json({ active: true });
+    }
     if (request.method === 'POST' && path === '/__fixture/activate') {
       const run = Bun.spawnSync(
         [

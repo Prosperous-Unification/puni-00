@@ -303,8 +303,11 @@ async function tool(
   );
   if (response.status !== 200) return { status: response.status, isError: true, text: '' };
   const body = (await response.json()) as {
-    result: { isError?: boolean; content: { text: string }[] };
+    result?: { isError?: boolean; content: { text: string }[] };
+    error?: unknown;
   };
+  if (body.result === undefined)
+    throw new Error(`MCP response has no result: ${JSON.stringify(body.error)}`);
   return {
     status: 200,
     isError: body.result.isError === true,
@@ -446,6 +449,7 @@ describe('MCP organization delegation against a booted be-01', () => {
 
   test("the same session is refused on another organization's project", async () => {
     const grace = await connect('auth0|grace');
+    sessions['grace'] = grace.access;
     const created = await tool(grace.access, 'postApiProjects', { name: 'Foreign' });
     expect(created.isError).toBe(false);
     ids.foreign = (JSON.parse(created.text) as { project: { id: string } }).project.id;
@@ -980,6 +984,165 @@ describe('MCP organization delegation against a booted be-01', () => {
     }
   });
 
+  test('consented HTTP and generated MCP commands commit active whole FS with the same authority', async () => {
+    await fixture('active-commands', {});
+    const access = sessions['dany'];
+    if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+    const created = await tool(access, 'postApiProjects', { name: 'Consented predecessor' });
+    // Proof: replacing server.ts's per-call bearerFor with the raw upstream
+    // token made this active tool call answer 403 no_active_organization.
+    expect(created, created.text).toMatchObject({ isError: false });
+    const predecessorProjectId = (JSON.parse(created.text) as { project: { id: string } }).project
+      .id;
+    const successor = await tool(access, 'postApiProjects', { name: 'Consented successor' });
+    expect(successor.isError).toBe(false);
+    const successorProjectId = (JSON.parse(successor.text) as { project: { id: string } }).project
+      .id;
+    const predecessorRow = await tool(access, 'postApiProjectsByIdCommands', {
+      id: predecessorProjectId,
+      commands: [{ kind: 'createWorkItem', name: 'Design' }],
+    });
+    const successorRow = await tool(access, 'postApiProjectsByIdCommands', {
+      id: successorProjectId,
+      commands: [{ kind: 'createWorkItem', name: 'Build' }],
+    });
+    expect(predecessorRow.isError).toBe(false);
+    expect(successorRow.isError).toBe(false);
+    const predecessorId = (
+      JSON.parse(predecessorRow.text) as { results: { id: string }[] }
+    ).results.at(0)?.id;
+    const successorId = (JSON.parse(successorRow.text) as { results: { id: string }[] }).results.at(
+      0,
+    )?.id;
+    if (predecessorId === undefined || successorId === undefined)
+      throw new Error('command fixture did not mint endpoint IDs');
+    const command = {
+      kind: 'addTypedDependency',
+      predecessor: { projectId: predecessorProjectId, scope: 'whole', workItemId: predecessorId },
+      successor: { projectId: successorProjectId, scope: 'whole', workItemId: successorId },
+      type: 'FS',
+    };
+    const viaMcp = await tool(access, 'postApiProjectsByIdCommands', {
+      id: successorProjectId,
+      commands: [command],
+    });
+    // Proof: replacing the serialized predecessor.projectId in wbs-client.ts
+    // with "missing" made this generated command return 404 (17 pass, 5 fail).
+    expect(viaMcp.isError).toBe(false);
+    const relationshipId = (JSON.parse(viaMcp.text) as { results: { id: string }[] }).results.at(
+      0,
+    )?.id;
+    if (relationshipId === undefined)
+      throw new Error('active MCP command did not mint a relationship ID');
+    const firstState = (await fixture('write-state', {})) as Record<string, unknown>[][];
+    expect(firstState[4]).toHaveLength(1);
+    expect(firstState[4].at(0)).toMatchObject({
+      id: relationshipId,
+      predecessor_project_id: predecessorProjectId,
+      predecessor_work_item_id: predecessorId,
+      successor_project_id: successorProjectId,
+      successor_work_item_id: successorId,
+      type: 'FS',
+    });
+    expect(firstState[7].some((entry) => JSON.stringify(entry).includes(relationshipId))).toBe(
+      true,
+    );
+    const caller = await oauth.callerSessionFor(access);
+    const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, [
+      'read',
+      'write',
+    ]);
+    const direct = await fetch(`${beUrl}/api/projects/${successorProjectId}/commands`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        commands: [
+          { ...command, kind: 'updateTypedDependency', dependencyId: relationshipId, type: 'SS' },
+        ],
+      }),
+    });
+    expect(direct.status).toBe(200);
+    expect((await direct.json()) as { results: { index: number }[] }).toMatchObject({
+      results: [{ index: 0 }],
+    });
+    const secondState = (await fixture('write-state', {})) as Record<string, unknown>[][];
+    expect(secondState[4]).toHaveLength(1);
+    expect(secondState[4].at(0)).toMatchObject({ id: relationshipId, type: 'SS' });
+    const reading = await tool(access, 'getApiProjectsByIdWork-items', { id: successorProjectId });
+    expect(reading.isError).toBe(false);
+    expect(JSON.parse(reading.text)).toMatchObject({
+      connectedDependencies: [
+        {
+          id: relationshipId,
+          type: 'SS',
+          predecessor: { endpoint: command.predecessor },
+          successor: { endpoint: command.successor },
+        },
+      ],
+    });
+    const graceAccess = sessions['grace'];
+    if (!Object.hasOwn(sessions, 'grace')) throw new Error('foreign organization session missing');
+    const foreignRow = await tool(graceAccess, 'postApiProjectsByIdCommands', {
+      id: ids.foreign,
+      commands: [{ kind: 'createWorkItem', name: 'Foreign design' }],
+    });
+    expect(foreignRow.isError).toBe(false);
+    const foreignId = (JSON.parse(foreignRow.text) as { results: { id: string }[] }).results.at(
+      0,
+    )?.id;
+    if (foreignId === undefined) throw new Error('foreign endpoint was not created');
+    const snapshot = await fixture('write-state', {});
+    let indexedRefusal: unknown;
+    for (const [transport, projectId] of [
+      ['MCP', ids.foreign],
+      ['HTTP', ids.foreign],
+      ['MCP', crypto.randomUUID()],
+      ['HTTP', crypto.randomUUID()],
+    ] as const) {
+      const commands = [
+        { kind: 'patchWorkItem', workItemId: successorId, patch: { name: 'Must roll back' } },
+        {
+          ...command,
+          predecessor: { ...command.predecessor, projectId, workItemId: foreignId },
+        },
+      ];
+      let refusal: unknown;
+      if (transport === 'MCP') {
+        const answer = await tool(access, 'postApiProjectsByIdCommands', {
+          id: successorProjectId,
+          commands,
+        });
+        // Proof: reading the predecessor project with legacy access instead
+        // of scoped access in dependency-endpoint-evidence.ts turned this
+        // foreign refusal into an unexpected 500, failing this test.
+        expect(answer.isError).toBe(true);
+        expect(answer.text).toContain('HTTP 404');
+        refusal = JSON.parse(answer.text.slice(answer.text.indexOf('\n') + 1));
+      } else {
+        const freshCaller = await oauth.callerSessionFor(access);
+        const freshBearer = await oauth.bearerFor(
+          freshCaller.mcpSessionId,
+          freshCaller.upstreamToken,
+          ['read', 'write'],
+        );
+        const response = await fetch(`${beUrl}/api/projects/${successorProjectId}/commands`, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${freshBearer}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ commands }),
+        });
+        expect(response.status).toBe(404);
+        refusal = await response.json();
+      }
+      if (indexedRefusal === undefined) indexedRefusal = refusal;
+      expect(refusal).toEqual({ error: 'not_found', at: 1, kind: 'addTypedDependency' });
+      expect(refusal).toEqual(indexedRefusal);
+      expect(await fixture('write-state', {})).toEqual(snapshot);
+    }
+  });
+
   test("a removed member's session is refused on its next call and cannot refresh", async () => {
     const removed = await fetch(`${beUrl}/__fixture/remove-member`, {
       method: 'POST',
@@ -987,6 +1150,8 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
     expect(removed.status).toBe(200);
     const next = await tool(sessions['dany'] ?? '', 'getApiProjects', {});
+    // Proof: neutralizing the fixture membership delete while reporting success
+    // made this next real MCP call answer 200 instead of 401.
     expect(next.status).toBe(401);
     const refreshed = await oauthCall(
       new Request(`${OAUTH}/token`, {
