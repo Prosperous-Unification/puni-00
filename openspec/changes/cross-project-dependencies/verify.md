@@ -6113,8 +6113,9 @@ remains open. Parent 7.4 and production activation remain incomplete.
 [The image-context packet](verify-fe-image-context.md) records the red
 exact-head infra-check and two local inner Nx failures, followed by a real
 default-network Docker image build passing with sibling project metadata and
-the frontend-only Nx target. The real k3s rehearsal remains unverified after
-this change.
+the frontend-only Nx target. The subsequent exact-head infra-check on
+`9b3bca6bf` passed both `fleet-check` and the real `k3s-rehearsal`; later code
+changes still need their own exact-head gate.
 
 ## 2026-10-23 — gate test inventory repair
 

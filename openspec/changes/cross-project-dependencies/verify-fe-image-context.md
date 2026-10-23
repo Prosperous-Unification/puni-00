@@ -31,6 +31,9 @@ and Vite completed. The local full log is
 `/tmp/puni-fe-docker-host-7ec.log` and
 `/tmp/puni-fe-docker-fixed-7ec.log`.
 
-This establishes local build-context repair, not a real k3s rehearsal or
-release gate. The exact-head infra-check must rerun successfully after this
-Dockerfile change before the reviewed Job-drain behavior is credited.
+The subsequent exact-head [infra-check 39902390854](https://github.com/Prosperous-Unification/puni-00/actions/runs/39902390854)
+on pushed `9b3bca6bfc3b0491b93f76bb609f61910d02278c` completed successfully:
+`fleet-check` job `120246662147` and `k3s-rehearsal` job `120248356554` both
+reported success. The rehearsal ran from 04:55:44 to 05:15:57 UTC on
+2026-10-23. This closes the image-context and real rehearsal check for that
+checkpoint; later code changes still need their own exact-head gate.
