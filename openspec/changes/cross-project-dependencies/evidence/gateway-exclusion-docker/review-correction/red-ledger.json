@@ -1,0 +1,9 @@
+{
+  "sha": "2f3efc3fa8aecf716b9e5334de55582f984f2dcf",
+  "fault": "network daemon-create succeeded before CLI timeout",
+  "observedReportedComplete": true,
+  "observedLeakedNetworkId": "e47422dfb9e3b506bbe3e8c628be91844e19b68796e8269c9e859545f19b933c",
+  "observedLeakedNetworkName": "gateway-proof-3807fb92-7cfa-4c09-94d2-443767234771-net",
+  "observedOwnerLabel": "gateway-proof=gateway-proof-3807fb92-7cfa-4c09-94d2-443767234771",
+  "manualExactIdRemovalSucceeded": true
+}

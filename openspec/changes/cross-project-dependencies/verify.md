@@ -6618,3 +6618,12 @@ remote-scripts lint/typecheck and 65 focused production tests passed. Strict
 OpenSpec validation still reports 18 existing requirement-length warnings;
 non-strict validation passed. Independent review and the isolated integrated-SHA
 host gate remain pending; parent 10.1/10.2 stay open.
+
+The Docker packet's review correction records pending UUID ownership before
+create, reconciles daemon-created resources whose CLI response timed out, refuses
+unresolved creation as incomplete cleanup and verifies an empty owned inventory.
+Real network/container stall-after-create proofs cleaned exact discovered IDs;
+a pre-create stall correctly remained unresolved. Dirty tracked/untracked source
+is explicitly unverified. The configured Docker target passed again at
+`5e34d3b0d`; committed log CRs were normalized and the full packet range diff
+check passed. See the packet's review-correction section for retained proofs.

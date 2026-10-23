@@ -89,3 +89,61 @@ GATEWAY_EXCLUSION_SHA=8abd0e98db8e3e9906d82b40598a0bed3d2da91b \
 GATEWAY_EXCLUSION_REPORT=/tmp/gateway-exclusion-report.json \
 bunx nx run tool-remote-scripts:test:gateway-exclusion
 ```
+
+## Review correction: pending resource reconciliation (2026-10-23)
+
+Astra High identified a daemon/CLI boundary gap: a create could complete at the
+daemon while the CLI timed out before returning its full ID. The original runner
+would then lack the ID and could incorrectly report cleanup complete. The
+[watched pre-fix red](evidence/gateway-exclusion-docker/review-correction/red-ledger.json)
+reproduced exactly that condition at `2f3efc3fa`: the report said complete while
+one UUID-owned network remained. That exact network was inspected for its name
+and ownership label, then removed explicitly by full ID.
+
+Source `5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd` persists pending UUID ownership
+before either create request. Every disposable container now also carries the
+unique `gateway-proof` label. Cleanup reconciles pending requests through bounded
+inventories filtered by that exact label, validates exact registered names and
+full IDs, then removes only those discovered/returned IDs. A final inventory must
+be empty. Unresolved create requests, unknown names, failed reconciliation,
+failed deletion or remaining resources make cleanup incomplete and the run fail.
+An absent inventory does not resolve a request whose outcome remains unknown.
+
+The [new stall ledger](evidence/gateway-exclusion-docker/review-correction/stall-ledger.json)
+records three actual Docker CLI boundary faults. A wrapper completes the real
+network or container create and stalls before returning stdout; the production
+CLI deadline kills the stalled process. In both cases the runner discovers the
+full ID, removes it and verifies no owned resources remain. An independent real
+Docker inventory also verified that exact ID was gone. A third control stalls
+before any create: no resource exists, but pending creation remains unresolved
+and cleanup correctly reports incomplete. All three runs preserve the exact
+State/restart policy of a separately UUID-owned unrelated container; the proof
+then removes that control explicitly by its own full ID. The
+[wrapper text](evidence/gateway-exclusion-docker/review-correction/docker-stall-wrapper.txt)
+and per-run reports/logs are retained beside the ledger.
+
+Source provenance is now explicit in every report. `sourceProvenance.verified`
+is true only when the exact HEAD matches and tracked/untracked relevant source
+paths are clean. Dirty acceptance source, production remote scripts, scratch
+support, package/lock files or the base TypeScript config are listed and reported
+as unverified; successful stdout also says `UNVERIFIED`. Fault injections that
+edit production source therefore cannot silently claim clean-SHA provenance.
+
+The original retained Nx log's carriage returns were normalized. Range-based
+`git diff --check 420d7726e..HEAD` now passes; this includes already committed
+artifacts rather than only the working-tree diff.
+
+The corrected configured uncached acceptance passed at exact source `5e34d3b0d`
+with clean verified provenance; its [green report](evidence/gateway-exclusion-docker/review-correction/green.json)
+and [target log](evidence/gateway-exclusion-docker/review-correction/green.log)
+are retained. The original stop/init/fresh-inspection/absent-child mutations were
+rerun independently and all exited 1, with exact cleanup complete, followed by a
+restored pass. Their reports explicitly mark the injected dirty source unverified.
+An additional [untracked-source control](evidence/gateway-exclusion-docker/review-correction/untracked-source.json)
+passed the physical acceptance while both report and stdout explicitly marked
+source provenance unverified; removing that file restored verified provenance.
+Configured uncached lint/typecheck, the restored 65-test/282-assertion focused
+suite, changed-file formatting and range-based diff checks passed. A focused
+suite run overlapping the intentional stop mutation observed its expected
+failure; the reported green suite ran after restoration. Independent rereview
+and integrated host gating remain pending.

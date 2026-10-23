@@ -1,0 +1,1 @@
+PASS gateway physical exclusion; source=UNVERIFIED (dirty relevant source); evidence: /tmp/puni-gateway-acceptance/openspec/changes/cross-project-dependencies/evidence/gateway-exclusion-docker/review-correction/untracked-source.json
