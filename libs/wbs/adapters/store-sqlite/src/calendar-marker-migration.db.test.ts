@@ -244,6 +244,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261022213000_add_optimization_boundary_certificates',
       '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
@@ -303,6 +304,7 @@ describe('20260905090000_add_calendar_marker', () => {
       withTable.filter(
         (n) =>
           n !== 'calendar_marker' &&
+          n !== 'optimization_boundary_certificate' &&
           n !== 'cross_project_dependency_activation' &&
           n !== 'cross_project_dependency_activation_receipt' &&
           n !== 'external_dependency' &&

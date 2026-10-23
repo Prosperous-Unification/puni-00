@@ -25,6 +25,7 @@ const newerMigrations = [
   '20261019130100_add_external_identity_person',
   '20261020120000_add_resources',
   '20261020130000_add_claim_occupancy',
+  '20261022213000_add_optimization_boundary_certificates',
   '20261022212000_add_cross_project_dependency_activation',
   '20261022211000_add_external_dependencies',
   '20261022210000_add_project_abbreviations',

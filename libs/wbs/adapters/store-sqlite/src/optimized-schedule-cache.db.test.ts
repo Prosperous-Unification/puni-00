@@ -414,6 +414,7 @@ describe('the optimizer migration', () => {
         migrated.filter(
           (name) =>
             name !== 'optimization_boundary_certificate' &&
+            name !== 'optimization_boundary_certificate' &&
             name !== 'cross_project_dependency_activation' &&
             name !== 'cross_project_dependency_activation_receipt' &&
             name !== 'external_dependency' &&

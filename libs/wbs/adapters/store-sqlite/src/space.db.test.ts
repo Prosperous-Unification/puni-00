@@ -123,6 +123,7 @@ describe('spaces', () => {
   describe('the rollback', () => {
     it('rolls back while no space exists', () => {
       expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+        '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
