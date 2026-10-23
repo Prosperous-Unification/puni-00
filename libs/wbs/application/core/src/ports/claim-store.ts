@@ -133,6 +133,10 @@ export interface ClaimStore extends ClaimIdentity {
    * the project is the organization's; names are the organization's own.
    * Under legacy access the deployment must not be activated, and names are
    * the root names.
+   *
+   * A public catalog observes committed state only: an open batch's writes
+   * are not seen. A batch's own catalog sees its own uncommitted writes, as
+   * every read inside the batch does.
    */
   observeProject(projectId: string, access: ResourceAccess): Promise<ClaimObservation>;
   /** One claim of the project by id; null when absent, released or another project's. */

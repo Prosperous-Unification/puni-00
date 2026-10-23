@@ -7,10 +7,19 @@ import { inMemoryServices } from '@wbs/core/testing/harness';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 
 import { ClaimRepository } from './claim';
-import { type Drizzle, openDrizzle } from './db';
+import {
+  type Connection,
+  type Drizzle,
+  openDatabase,
+  openDrizzle,
+  openReadOnlyConnection,
+  openReadOnlyDatabase,
+} from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
@@ -22,26 +31,31 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const STAMP = { at: 1, by: 'owner' };
 const LEGACY = { kind: 'legacy' } as const;
 let folder: string;
+let path: string;
 let db: Drizzle;
+let projects: ProjectRepository;
+let directory: DirectoryRepository;
 let service: WorkItemService;
 let workItems: WorkItemRepository;
 let claims: ClaimRepository;
 
 /**
  * The claims read's one observation (`ClaimStore.observeProject`,
- * `wbs-claim-display` C1) over real SQLite: a writer racing the read never
- * makes it answer a claim on a row it did not read, and access the deployment
- * withdrew after admission is refused inside the observation.
+ * `wbs-claim-display` C1) over real SQLite, through a read-only connection of
+ * its own as be-01 binds it: a writer racing the read, in this process or
+ * another, never makes it answer a claim on a row it did not read; an open
+ * batch's claim is not seen; and access the deployment withdrew after
+ * admission is refused inside the observation.
  */
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-claim-observation-'));
-  const path = join(folder, 'test.db');
+  path = join(folder, 'test.db');
   runMigrations(path, FOLDER);
   db = openDrizzle(path);
-  const directory = new DirectoryRepository(db, OPEN);
-  const projects = new ProjectRepository(db, OPEN);
+  directory = new DirectoryRepository(db, OPEN);
+  projects = new ProjectRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
-  claims = new ClaimRepository(db, OPEN);
+  claims = new ClaimRepository(db, OPEN, { openConnection: () => openReadOnlyConnection(path) });
   service = inMemoryServices({ projects, workItems, directory, claims }).service;
   await new UserRepository(db, OPEN).create(
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
@@ -111,6 +125,70 @@ describe('the claims observation', () => {
       kind: 'access_refused',
       refusal: 'no_active_organization',
     });
+  });
+
+  it('does not see a claim an open batch has not committed', async () => {
+    db.run(
+      "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-staged', 'project', 1, 'Staged')",
+    );
+    // The batch's own transaction on the process connection, as sqliteUnitOfWork opens it.
+    db.run('BEGIN IMMEDIATE');
+    try {
+      db.run(
+        "INSERT INTO claim (id, work_item_id, step_id, person_id, created_at, created_by) VALUES ('claim-staged', 'w-staged', 'step-dev', 'codex', 1, 'owner')",
+      );
+      const observed = await claims.observeProject('project', LEGACY);
+      if (observed.kind !== 'observed') throw new Error(`observed ${observed.kind}`);
+      expect(observed.claims).toEqual([]);
+    } finally {
+      db.run('ROLLBACK');
+    }
+  });
+
+  it('holds one snapshot while another connection commits a row and its claim', async () => {
+    const writer: Database = openDatabase(path);
+    let committed = false;
+    const hooked = (): Connection => {
+      const client = openReadOnlyDatabase(path);
+      return {
+        db: drizzle({
+          client,
+          logger: {
+            logQuery(query) {
+              // Between the observation's rows read and its claims read.
+              if (committed || !query.includes('from "step"')) return;
+              committed = true;
+              writer.run(
+                "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-other', 'project', 1, 'Other')",
+              );
+              writer.run(
+                "INSERT INTO claim (id, work_item_id, step_id, person_id, created_at, created_by) VALUES ('claim-other', 'w-other', 'step-dev', 'codex', 1, 'owner')",
+              );
+            },
+          },
+        }),
+        close: () => {
+          client.close();
+        },
+      };
+    };
+    const observing = inMemoryServices({
+      projects,
+      workItems,
+      directory,
+      claims: new ClaimRepository(db, OPEN, { openConnection: hooked }),
+    }).service;
+    try {
+      const answer = await observing.claimsWithin('project', LEGACY);
+      expect(committed).toBe(true);
+      if (answer === null || 'kind' in answer) throw new Error('the first read did not answer');
+      expect(answer.claims).toEqual([]);
+      const after = await observing.claimsWithin('project', LEGACY);
+      if (after === null || 'kind' in after) throw new Error('the second read did not answer');
+      expect(after.claims.map(({ claimId }) => claimId)).toEqual(['claim-other']);
+    } finally {
+      writer.close();
+    }
   });
 
   it('answers an absent project as not found', async () => {

@@ -28,6 +28,7 @@ import {
   type Connection,
   type Drizzle,
   drizzleReadTransaction,
+  observeCommitted,
   openReadOnlyConnection,
 } from './db';
 import { DirectoryRepository } from './directory';
@@ -292,26 +293,7 @@ export function createLivePlanStore(
       // Proof: replacing this borrowed db with a fresh snapshot fails mounted staged arrangement/preflight.
       return read(options.db);
     }
-    const connection = options.openConnection();
-    try {
-      const transaction = drizzleReadTransaction(connection.db);
-      // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
-      transaction.begin();
-      try {
-        const captured = await read(connection.db);
-        // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
-        transaction.commit();
-        return captured;
-      } catch (failure) {
-        // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
-        transaction.rollback();
-        throw failure;
-      }
-    } finally {
-      // Proof: omitting close failed all three owned lifecycle cases and the
-      // mounted admission check saw one open snapshot at both launch handoffs.
-      connection.close();
-    }
+    return observeCommitted(options.openConnection, read);
   }
   return {
     read: (projectId, access) => observe((db) => readLivePlanIn(db, projectId, access, options)),

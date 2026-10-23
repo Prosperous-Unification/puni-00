@@ -97,6 +97,36 @@ async function create(username: string, name: string): Promise<string> {
   return (answer.body as { project: { id: string } }).project.id;
 }
 
+/**
+ * Ada's claims read with `change` applied after its admission and before its
+ * observation: the admission reads the project's cross references last, so
+ * the change goes there, once.
+ */
+async function claimsAfterAdmission(
+  change: () => void,
+): Promise<{ status: number; body: unknown }> {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- the seam calls it with its own repository receiver.
+  const original = ProjectRepository.prototype.findCrossReferences;
+  let pending = true;
+  const seam = spyOn(ProjectRepository.prototype, 'findCrossReferences').mockImplementation(
+    async function (this: ProjectRepository, projectId, organizationId) {
+      const crossing = await original.call(this, projectId, organizationId);
+      if (pending) {
+        pending = false;
+        change();
+      }
+      return crossing;
+    },
+  );
+  try {
+    const answer = await h.call('ada', 'GET', `/api/projects/${own}/claims`);
+    expect(pending).toBe(false);
+    return answer;
+  } finally {
+    seam.mockRestore();
+  }
+}
+
 /** The answer with `readAt` checked to lie between `before` and now, then dropped. */
 function withoutReadAt(
   answer: { status: number; body: unknown },
@@ -211,30 +241,34 @@ describe('the claims read', () => {
   });
 
   it('refuses a member removed between admission and the observation, as the tree read does', async () => {
-    // The admission reads the project's cross references after resolving
-    // access; the membership goes there, before the claims observation.
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- the seam calls it with its own repository receiver.
-    const original = ProjectRepository.prototype.findCrossReferences;
-    let revoke = true;
-    const seam = spyOn(ProjectRepository.prototype, 'findCrossReferences').mockImplementation(
-      async function (this: ProjectRepository, projectId, organizationId) {
-        const crossing = await original.call(this, projectId, organizationId);
-        if (revoke) {
-          revoke = false;
-          h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
-        }
-        return crossing;
-      },
-    );
-    try {
-      expect(await h.call('ada', 'GET', `/api/projects/${own}/claims`)).toEqual({
-        status: 403,
-        body: { error: 'not_a_member' },
-      });
-      expect(revoke).toBe(false);
-    } finally {
-      seam.mockRestore();
-    }
+    const answer = await claimsAfterAdmission(() => {
+      h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
+    });
+    expect(answer).toEqual({ status: 403, body: { error: 'not_a_member' } });
+  });
+
+  it('refuses an activation marker reset between admission and the observation', async () => {
+    // The marker is permanent by trigger; the fault drops the trigger, as the
+    // tree read's own reset-marker case does.
+    h.sqlite.run('DROP TRIGGER organization_activation_no_revert');
+    const answer = await claimsAfterAdmission(() => {
+      h.sqlite.run(
+        "UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL",
+      );
+    });
+    expect(answer).toEqual({ status: 403, body: { error: 'no_active_organization' } });
+  });
+
+  it('answers a project moved out of the organization after admission as not found', async () => {
+    // Ownership is frozen by trigger; the fault drops it to move the project.
+    h.sqlite.run('DROP TRIGGER project_organization_frozen_update');
+    const answer = await claimsAfterAdmission(() => {
+      h.sqlite.run('UPDATE project_organization SET organization_id = ? WHERE resource_id = ?', [
+        'org-b',
+        own,
+      ]);
+    });
+    expect(answer).toEqual({ status: 404, body: { error: 'not_found' } });
   });
 
   it('answers while the tree read is refused engine_unavailable', async () => {

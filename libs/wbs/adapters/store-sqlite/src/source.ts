@@ -98,7 +98,13 @@ function openSqliteSourceWithSeams(
     defaults === undefined
       ? {}
       : { organizationLimits: new OrganizationLimitGaugeRepository(process.db, defaults) };
-  const stores = buildStores(process.db, coordinator, lateWrite);
+  // The public catalogs' claims read observes committed state on a read-only
+  // connection of its own; the admitted (batch) catalog sees its own writes.
+  const claimObservation = {
+    openConnection: () =>
+      (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
+  };
+  const stores = buildStores(process.db, coordinator, lateWrite, undefined, claimObservation);
   const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
   let closed = false;
 
@@ -116,7 +122,7 @@ function openSqliteSourceWithSeams(
       const commandPlans = createLivePlanStore({ ...scheduling, kind: 'borrowed', db: process.db });
       return {
         ...this,
-        stores: buildStores(process.db, coordinator, lateWrite, publicPlans),
+        stores: buildStores(process.db, coordinator, lateWrite, publicPlans, claimObservation),
         uow: sqliteUnitOfWork(
           process.db,
           coordinator,

@@ -2015,7 +2015,7 @@ export class WorkItemService {
     // Proof: with the four separate reads back in place of the observation,
     // `answers whatever a racing claim on a new row lands before or after`
     // (claim-observation.db.test.ts) threw `claim claim-w-8 is on no row of
-    // this read` (2 pass, 1 fail); watched 2026-10-23.
+    // this read` (3 pass, 2 fail with the snapshot case); watched 2026-10-23.
     const observed = await this.claiming().claims.observeProject(projectId, access);
     if (observed.kind === 'not_found') return null;
     if (observed.kind === 'access_refused') return observed;

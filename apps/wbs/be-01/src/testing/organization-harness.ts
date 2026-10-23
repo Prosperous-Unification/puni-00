@@ -66,7 +66,7 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
-import type { Connection } from '@wbs/store-sqlite/db';
+import { type Connection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -444,7 +444,11 @@ export class OrganizationHarness {
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
-        claims: new ClaimRepository(db, OPEN),
+        // The claims read observes committed state on a read-only connection
+        // of its own, as openSqliteSource binds it.
+        claims: new ClaimRepository(db, OPEN, {
+          openConnection: () => openReadOnlyConnection(path),
+        }),
         demands: new DemandRepository(db, OPEN),
         resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         stepParallels: new StepParallelRepository(db, OPEN),

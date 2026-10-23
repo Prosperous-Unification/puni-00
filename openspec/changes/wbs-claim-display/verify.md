@@ -122,6 +122,35 @@ inventory test. The admission's negative is the stranger case.
 A store-level fault that only split the claims read after two awaits did not hit the sweep's
 window; the service-level fault above (the code as it shipped) does, deterministically at delay 8.
 
+**Second review round (Fable, ed3d289d6, no S1 or S2).**
+
+- S3-A: the observation on the process connection saw an open batch's uncommitted claim, so a
+  batch that rolled back left a phantom claim. The public catalogs (`openSqliteSource`'s
+  `stores` and `bindLivePlans`' public stores) now pass the claims repository a read-only
+  connection, and `observeProject` runs through `observeCommitted`. `observeCommitted` is the
+  owned-connection read transaction, lifted out of `createLivePlanStore` into `db.ts` with its
+  proofs, and the live plan store now uses it. A batch's own catalog keeps the savepoint path
+  on the process connection, so it still sees its own writes; JSDoc on the port and the
+  repository says which catalog does which. be-01's organization harness binds the same
+  connection.
+- S3-B: a two-connection test commits a row and its claim from a second connection between the
+  observation's step read and its claims read; the claims read stays at the snapshot. New
+  controller cases cover an activation marker reset and a project moved out of the organization
+  after admission. Both changes are refused by triggers, so the fault drops the trigger, as the
+  tree read's reset-marker case does.
+- S4-A: a savepoint rollback that fails throws `AggregateError([cause, rollbackCause])`.
+- S4-B: ownership uses the tree read's predicate (`findInOrganization`): the project row
+  joined to its `project_organization` row.
+
+| R5 fault (watched)                                          | Observed                                                    |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| observation reads the process connection, not the owned one | open-batch case sees `claim-staged` (3 pass, 2 fail)        |
+| owned connection read with no read transaction              | snapshot case throws `claim claim-other is on no row` (4/1) |
+| scoped activation recheck skipped                           | marker-reset case answers 200 (7/1)                         |
+| ownership recheck skipped                                   | moved-project case answers 200 (7/1)                        |
+| membership recheck skipped (rewatched on the owned path)    | removed-between-admission case answers 200 (7/1)            |
+| `claimsWithin` back to four awaited reads (rewatched)       | race sweep throws `claim claim-w-8 is on no row` (3/2)      |
+
 Results after the review round (fresh, 2026-10-23): store-sqlite conformance, claim, claim-race,
 claim-occupancy-race, claim-lease, claim-lease-race, claim-observation, person-work-scope and
 startable-scope DB tests 119 pass; store-memory 193 pass; conformance 35 pass; core
