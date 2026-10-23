@@ -6808,6 +6808,7 @@ logs are `/tmp/puni-ci-memory-{red,barrel-red,sql-red}.log`.
 generated MCP local/remote FS/SS/FF runtime cases, atomic mixed-step refusal and
 corrected selected-step durable claim identity. All six passed with 236 assertions;
 erasing prerequisite disclosure in production response forwarding independently
-failed all six. Configured MCP lint and scoped typecheck passed. Production and
-skip-policy behavior are unchanged; independent review, parent 6.3 completion
-and the integrated exact-SHA gate remain open.
+failed all six. Configured MCP lint and scoped typecheck passed. Astra High
+independently reran the six cases with 236 assertions and found no blocker.
+Production and skip-policy behavior are unchanged; parent 6.3 completion and
+the integrated exact-SHA gate remain open.
