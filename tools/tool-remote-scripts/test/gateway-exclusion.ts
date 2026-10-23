@@ -320,7 +320,7 @@ async function runAcceptance() {
   try {
     await mkdir(layout.stateDir);
     await copyFile(
-      new URL('./fixtures/gateway-probe.ts', import.meta.url),
+      new URL('../src/fixtures/gateway-probe.ts', import.meta.url),
       join(root, 'gateway-probe.ts'),
     );
     await docker(['image', 'inspect', image]);
