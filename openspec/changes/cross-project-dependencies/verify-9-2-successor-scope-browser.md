@@ -32,6 +32,13 @@ Commands run from the isolated repository root, with the feature worktree's exis
 
 An initial sandbox browser run exited before assertions without diagnostics; the successful browser and mutation runs use the authorized localhost-capable execution boundary. An initial mutation script stopped before edits because it found both manual and persisted update sites; subsequent mutations target only the persisted site. Earlier mutation runs were repeated with the final spec held stable so source locations in the retained receipts match the assertions.
 
+On integrated feature head `36703313d8f2dda11b2045f09f9ec0d89b23ef27`, the
+configured `wbs-fe-01:e2e-cross-project` target reran uncached: **5/5 passed in
+50.3 seconds**, including both successor-scope cases. The affected
+`tool-remote-scripts` configured lint/typecheck targets also passed uncached;
+OpenSpec validation remained **274/274**. This local integrated run does not
+substitute for the exact-SHA h2puni gate or CI on a pushed candidate.
+
 ## Limits
 
 Only these two transitions establish browser/database acceptance. No full frontend suite/build, full lint, host gate, deployment, push, merge or activation was run. No backend access/history breadth or other endpoint scopes are claimed. The fixture uses ordinary production runtime/HTTP/organization composition but is not a signed-in router/login acceptance test. Shared disk capacity constrained checks to the configured browser and scoped static/control checks. Parent 9.2 and release acceptance remain open.
