@@ -851,3 +851,9 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 
 - [x] D5a Complete independent corrected-source review. Astra approved `94d4b3638`, with no remaining P1/P2/P3 findings.
 - [ ] D5b Complete separately reviewed disposable host runner/acceptance, live authority audit and integrated exact-SHA host gate. See [bounded source evidence and safe runner plan](verify-solver-drain.md). Parent S1/S2/O4 and 10.2 remain open.
+
+- [x] Prepare disposable solver actual-host runner with ownership-scoped transport,
+      real runtime admission, systemd serialization, cgroup and Docker lifecycle.
+- [x] Prove runner refusals, command bounds and fixture-only effects locally.
+- [ ] Independently review then execute exact-SHA runner under host heavy lock;
+      retain private receipt and distinguish positive host proof from fault packet.

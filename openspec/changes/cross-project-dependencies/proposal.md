@@ -48,3 +48,19 @@ None yet.
 WBS domain/application/store libraries, HTTP/MCP contracts, be-01/gw-01/fe-01, scheduler engines, migrations, snapshots and plan documents.
 
 Compose additionally requires migrated DISABLED/no-edge authority before maintenance and after stop. Historical bootstrap, participant fencing, activation and Kubernetes remain outside this prerequisite.
+
+### Solver drain acceptance intent
+
+The reviewed solver drain has source and omission proofs but no disposable actual-
+host runner. Prepare one that exercises the real user manager, cgroup-v2,
+Docker lifecycle and runtime flock while touching only an invocation's unique
+linked service and predeclared containers. Require committed exact source,
+already-installed digest image and external private receipt. Validate physical
+fixture identity before any logical protocol translation or exact effect; retain
+native serialization and kernel/container observations. Independently bounded
+cleanup must preserve uncertainty and exact attended recovery instructions.
+
+The result is a reviewable opt-in Nx target, focused local safety proofs and a
+private host receipt after separately authorized execution. Production supervisor
+adoption, installed production provenance, broad host census, restoration,
+activation and actual-host fault derivatives remain outside this bounded runner.

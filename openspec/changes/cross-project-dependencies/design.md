@@ -1371,3 +1371,17 @@ remain intact. Unknown authority, unreadable evidence, drift, owner loss or time
 refuse while retaining numbered durable evidence. This creates no writable CLI or
 activation grant. Old unguarded manual adoption and live authority inventory remain
 explicitly unproven; parent S1/S2/O4 and 10.2 stay open.
+
+### Disposable solver drain host acceptance
+
+The acceptance adapter runs the reviewed drain with real kernel locks, user
+systemd and Docker, using only an unpredictable invocation's linked unit and
+predeclared containers. It preserves native command serialization and container
+projections; physical fixture identities must validate before the few fixed
+logical path/service fields are translated. Independent expected tuple hashes
+precede installed fixture copies. No production service, broad Docker census,
+configuration, credential, mount or socket is accessed. Explicit source SHA,
+already-installed digest image and external private receipt are mandatory.
+Per-command bounds and a separate cleanup budget retain uncertainty instead of
+accepting orphaned resources. Actual-host mutation runs remain a separate reviewed
+packet; local source fault evidence does not become live fault evidence.

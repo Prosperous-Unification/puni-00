@@ -1,0 +1,40 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-solver-drain-acceptance')
+source=root/'tools/tool-remote-scripts/test/solver-drain-transport.ts'
+original=source.read_text()
+evidence=root/'openspec/changes/cross-project-dependencies/evidence/solver-drain-acceptance'
+faults={
+ 'discovery':("if (![managed, named].some((expected) => JSON.stringify(args) === JSON.stringify(expected)))",'if (false)'),
+ 'execution':("if (!actual.startsWith(prefix))",'if (false)'),
+ 'ownership':("if (\n    !/^[a-f0-9]{64}$/.test(id)","if (\n    false && !/^[a-f0-9]{64}$/.test(id)"),
+ 'effect':('  await verify(id);','  // injected: omit ownership recheck'),
+ 'output-bound':('if (length > 65536)', 'if (false)'),
+ 'reader-reap':("if (child.exitCode === null) child.kill('SIGKILL');",'// injected: omit exact reader-error kill'),
+ 'terminal':("if (\n      !/^(?:0|[1-9][0-9]*)\\n?$/.test(waited)","if (\n      false && !/^(?:0|[1-9][0-9]*)\\n?$/.test(waited)"),
+}
+faults['unit-authority']=('placeholder','placeholder')
+faults['serialization']=('placeholder','placeholder')
+for name,(before,after) in faults.items():
+ if name=='unit-authority':
+  start=original.index('  // Proof:',original.index('export function assertFixtureUnitAuthority'));
+  before=original[start:original.rindex('}')];after='  return;\n'
+ if name=='serialization':
+  start=original.index('  if (',original.index('// Proof: unknown-serialization'))
+  end=original.index("throw new Error('fixture execution serialization",start)
+  before=original[start:end];after='  if(false) '
+
+ if name in ['ownership','terminal']:
+  marker='export function assertFixtureContainer' if name=='ownership' else 'export async function removeFixtureContainer'
+  start=original.index('  if (',original.index(marker)) if name=='ownership' else original.index('    if (',original.index(marker))
+  end=original.index('throw new Error',start)
+  before=original[start:end];after='  if (false) '
+
+ try:
+  if original.count(before)!=1: raise RuntimeError(f'{name}: replacement count {original.count(before)}')
+  source.write_text(original.replace(before,after))
+  completed=subprocess.run(['bun','test','tools/tool-remote-scripts/test/solver-drain-transport.test.ts'],cwd=root,text=True,capture_output=True,timeout=12)
+  (evidence/f'{name}.log.txt').write_text(completed.stdout+completed.stderr)
+  print(f'{name}: exit {completed.returncode}',flush=True)
+  if completed.returncode!=1: raise RuntimeError(f'{name}: fault did not fail normally')
+ finally: source.write_text(original)
