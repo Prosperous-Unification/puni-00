@@ -299,6 +299,10 @@ async function withLifecycle<T>(
   }
 }
 
+// This test migrates a fresh database and starts three worker processes, like its siblings, so it
+// takes their 30 s budget (docs/test-budgets.md: at least 3 times its idle run, 5.8 to 7.2 s on
+// 2026-10-23). Proof: under the target's 10 s default it timed out twice in CI on PR #673's
+// gate workspace job (10079 ms and 10120 ms, "worker exited 143") while passing locally.
 test('mounted worker protocol buffers split and coalesced frames and fails promptly on child exit', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-protocol-'));
   const path = join(dir, 'shared.db');
@@ -340,7 +344,7 @@ test('mounted worker protocol buffers split and coalesced frames and fails promp
       expect(String(cause)).toContain('worker did not preserve both framed replies');
     },
   );
-});
+}, 30_000);
 
 // Proof: adding 3.5 s after each ready frame reproduced wave11 CI's 10 s total timeout;
 // this 30 s budget passed the same delayed run, while withheld readiness still failed at
