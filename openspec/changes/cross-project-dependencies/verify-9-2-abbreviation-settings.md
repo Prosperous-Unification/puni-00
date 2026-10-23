@@ -45,6 +45,12 @@ Both configured mounted suites passed: 160 tests, zero failures. The settings
 suite contributes 50 tests and the real page/table suite 110. Vite printed an
 existing future-native-config compatibility warning.
 
+After integrating this packet at `cb106299bdde7e78593021b625996e4d75861c0c`,
+the same two-suite command passed again: 160 tests, zero failures in 30.51s.
+The first integrated attempt could not start because the sandbox denied Vite's
+temporary cache write; rerunning with that filesystem access completed the
+tests. The integrated worktree remained clean afterward.
+
 From the repository root:
 
 ```sh
