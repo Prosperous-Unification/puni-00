@@ -890,3 +890,5 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 
 - [x] X7a Model native omitted source Init without manufacturing a field; prove inherited full-native owner/tag behavior, malformed present values, private PID/terminal guards and shape drift. Preserve managed init:true. Add private bounded stage/category/command-exit cause diagnostics and strict expected-refusal recovery, with configured local suites and watched faults. [Local receipt](verify-source-native-init.md).
 - [ ] X7b Independently review the exact corrected source SHA and complete the separately authorized physical rerun. The first physical failure's exact cause remains unverified; no source acceptance or parent 10.2 completion is claimed.
+
+- [x] X7c: Make fixture diagnostics descriptor-only; prove zero getter invocations, strict expected-refusal behavior and bounded prototype traversal in local production-path regressions (see verify-source-native-init.md).

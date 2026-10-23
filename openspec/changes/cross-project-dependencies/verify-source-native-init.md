@@ -35,9 +35,11 @@ raw causes are serialized. Unknown commands/categories are visibly unclassified
 and remain failures.
 
 Cause traversal is limited to eight errors, 128 name characters and 4096 message
-characters per hash input. Cycles, depth/size limits, malformed fields and throwing
-accessors have explicit markers. Mutable metadata is captured once before its
-closed-value validation. Unknown nested causes stay in memory for propagation;
+characters per hash input. Cycles, depth/size limits and malformed fields have
+explicit markers. Diagnostic properties are read only from data descriptors over
+at most eight prototype levels; accessors produce unreadable-error without any
+getter invocation. This includes inherited Error names and typed stage/command/exit
+fields. No raw error enumeration or conversion runs. Unknown nested causes stay in memory for propagation;
 only the bounded projection enters receipts or final exception text.
 
 The tag-negative catch previously discarded every unexpected cause and replaced
@@ -69,3 +71,14 @@ faults failed their intended named test. Uncached Nx lint, typecheck and build,
 explicit test typecheck and normal focused OpenSpec validation passed. No full
 unit suite or physical host runner was repeated in this packet. Normal commit
 hooks remain required before source review and the root-authorized exact-SHA retry.
+
+Descriptor review correction: the earlier single-read implementation could invoke
+a getter once, so it did not meet the getter-free boundary. The new regression
+first reproduced getter execution and an accessor impersonating the expected tag
+refusal. Descriptor-only reads now refuse both without invoking getters, including
+nested causes and typed metadata. Unknown objects and private sentinels remain
+safe. Three independent watched faults (descriptor access, expected-refusal guard,
+prototype depth) each failed the intended test. Evidence is under
+`evidence/source-native-init-descriptors/`. Fresh focused run: **324 passed, zero
+failed, 2822 assertions**; fixture confirmation: **99 passed, zero failed, 263
+assertions**. No full suite or host acceptance was repeated.

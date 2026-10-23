@@ -169,9 +169,39 @@ const fingerprint = (name: string, message: string) =>
     .update('\0')
     .update(message.slice(0, 4096))
     .digest('hex');
+/** Reads only data descriptors through a bounded prototype chain; accessors never execute. */
+function readFailureFields(cause: object) {
+  const fields = new Map<string, unknown>();
+  const seen = new Set<object>();
+  let prototype: object | null = cause;
+  let isError = false,
+    isFixture = false,
+    isCommand = false;
+  for (let depth = 0; prototype !== null && depth < 8; depth++) {
+    if (seen.has(prototype)) throw new Error('fixture error prototype cycle');
+    seen.add(prototype);
+    isError ||= prototype === Error.prototype;
+    isFixture ||= prototype === FixtureFailure.prototype;
+    isCommand ||= prototype === FixtureCommandFailure.prototype;
+    for (const field of ['name', 'message', 'cause', 'stage', 'command', 'status']) {
+      if (fields.has(field)) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, field);
+      if (descriptor === undefined) continue;
+      // Proof: descriptor-access fault invoked getters; zero-invocation and refusal negatives failed.
+      if (!Object.hasOwn(descriptor, 'value')) throw new Error('fixture error accessor refused');
+      const value: unknown = descriptor.value;
+      fields.set(field, value);
+    }
+    // Native object prototype inspection returns an object or null; no property getter is evaluated.
+    prototype = Object.getPrototypeOf(prototype) as object | null;
+  }
+  // Proof: prototype-depth fault relaxed this bound; the fixed-depth negative failed.
+  if (prototype !== null) throw new Error('fixture error prototype depth');
+  return { fields, isError, isFixture, isCommand };
+}
 /**
  * Receipt boundary: only closed stages/categories, numeric exits and bounded hashes escape.
- * Traversal never enumerates or serializes errors; cycles, oversized text, getters and depth
+ * Traversal never enumerates, serializes or invokes error accessors; cycles, oversized text and depth
  * limits are explicit diagnostic outcomes. Unknown failures remain failures at the caller.
  * Proof: private-hash, captured-metadata, cause-cycle/depth/size injected faults each failed
  * the adjacent privacy/bound tests; receipts are under evidence/source-native-init.
@@ -193,7 +223,9 @@ export function summarizeFixtureFailure(
     }
     seen.add(current);
     try {
-      if (!(current instanceof Error)) {
+      const observed =
+        current !== null && typeof current === 'object' ? readFailureFields(current) : undefined;
+      if (!observed?.isError) {
         const value = typeof current === 'string' ? current : typeof current;
         diagnostic.chain.push({
           category: value.length > 4096 ? 'size-limit' : 'non-error',
@@ -201,8 +233,8 @@ export function summarizeFixtureFailure(
         });
         return diagnostic;
       }
-      const name: unknown = current.name,
-        message: unknown = current.message;
+      const name: unknown = observed.fields.get('name'),
+        message: unknown = observed.fields.get('message');
       if (typeof name !== 'string' || typeof message !== 'string') {
         diagnostic.chain.push({ category: 'unreadable-error' });
         return diagnostic;
@@ -215,8 +247,8 @@ export function summarizeFixtureFailure(
         category: 'unclassified',
         fingerprint: fingerprint(name, message),
       };
-      if (current instanceof FixtureFailure) {
-        const observedStage: unknown = current.stage;
+      if (observed.isFixture) {
+        const observedStage = observed.fields.get('stage');
         const stage = FIXTURE_STAGES.find((candidate) => candidate === observedStage);
         if (stage !== undefined) {
           entry.category = 'fixture-stage';
@@ -226,9 +258,9 @@ export function summarizeFixtureFailure(
             foundStage = true;
           }
         }
-      } else if (current instanceof FixtureCommandFailure) {
-        const observedCommand: unknown = current.command,
-          status: unknown = current.status;
+      } else if (observed.isCommand) {
+        const observedCommand = observed.fields.get('command'),
+          status = observed.fields.get('status');
         const command = COMMANDS.find((candidate) => candidate === observedCommand);
         if (
           command !== undefined &&
@@ -243,7 +275,7 @@ export function summarizeFixtureFailure(
         } else entry.category = 'unclassified-command';
       } else entry.category = classifyAssertion(message);
       diagnostic.chain.push(entry);
-      current = current.cause;
+      current = observed.fields.get('cause');
       if (current === undefined) return diagnostic;
     } catch {
       diagnostic.chain.push({ category: 'unreadable-error' });

@@ -120,29 +120,70 @@ test('stage wrapper preserves known failures and never converts unknown failure 
   );
 });
 
-test('diagnostic metadata is captured once before closed-value validation', () => {
-  const staged = new FixtureFailure('fixture-tag-negative', new Error('known'));
-  let stageReads = 0;
-  Object.defineProperty(staged, 'stage', {
-    get: () => (++stageReads === 1 ? 'fixture-tag-negative' : 'PRIVATE_STAGE_AFTER_CHECK'),
+test('diagnostic descriptors never invoke error or typed metadata getters', () => {
+  let reads = 0;
+  for (const field of ['name', 'message', 'cause', 'stage', 'command', 'status']) {
+    const failure =
+      field === 'stage'
+        ? new FixtureFailure('fixture-tag-negative', new Error('nested'))
+        : field === 'command' || field === 'status'
+          ? new FixtureCommandFailure(['docker', 'inspect'], 17)
+          : new Error('PRIVATE_MESSAGE');
+    Object.defineProperty(failure, field, {
+      get() {
+        reads++;
+        throw new Error('PRIVATE_ACCESSOR');
+      },
+    });
+    const report = summarizeFixtureFailure(new Error('outer', { cause: failure }));
+    expect(report.chain.at(-1)?.category).toBe('unreadable-error');
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_');
+  }
+  expect(reads).toBe(0);
+  expect(summarizeFixtureFailure(new TypeError('ordinary')).chain[0]?.fingerprint).toMatch(
+    /^[a-f0-9]{64}$/,
+  );
+  const unknown: object = Object.create(null) as object;
+  Object.defineProperty(unknown, 'message', {
+    get() {
+      reads++;
+      throw new Error('PRIVATE_UNKNOWN');
+    },
   });
-  const command = new FixtureCommandFailure(['docker', 'network', 'connect'], 17);
-  let commandReads = 0,
-    statusReads = 0;
-  Object.defineProperty(command, 'command', {
-    get: () => (++commandReads === 1 ? 'docker-network-connect' : 'PRIVATE_COMMAND_AFTER_CHECK'),
+  expect(summarizeFixtureFailure(unknown).chain[0]?.category).toBe('unreadable-error');
+  expect(reads).toBe(0);
+});
+
+test('error prototype traversal has a fixed depth bound', () => {
+  const failure = new Error('PRIVATE_DEEP_PROTOTYPE');
+  let prototype: object = Error.prototype;
+  for (let depth = 0; depth < 10; depth++) prototype = Object.create(prototype) as object;
+  Object.setPrototypeOf(failure, prototype);
+  const report = summarizeFixtureFailure(failure);
+  expect(report.chain[0]?.category).toBe('unreadable-error');
+  expect(JSON.stringify(report)).not.toContain('PRIVATE_');
+});
+
+test('expected refusal cannot execute a getter that impersonates a known assertion', async () => {
+  let reads = 0;
+  const failure = new Error('hidden');
+  Object.defineProperty(failure, 'message', {
+    get() {
+      reads++;
+      return 'managed cohort source dev mutable image tag resolution changed or was not excluded';
+    },
   });
-  Object.defineProperty(command, 'status', {
-    get: () => (++statusReads === 1 ? 17 : 'PRIVATE_STATUS_AFTER_CHECK'),
-  });
-  const contents = JSON.stringify([
-    summarizeFixtureFailure(staged),
-    summarizeFixtureFailure(command),
-  ]);
-  expect(contents).not.toContain('PRIVATE_');
-  expect(stageReads).toBe(1);
-  expect(commandReads).toBe(1);
-  expect(statusReads).toBe(1);
+  await rejects(
+    requireFixtureRefusal('fixture-tag-negative', 'source-tag-resolution', () =>
+      Promise.reject(failure),
+    ),
+    (caught: unknown) => {
+      const report = summarizeFixtureFailure(caught);
+      expect(report.chain.at(-1)?.category).toBe('unreadable-error');
+      return caught instanceof FixtureFailure;
+    },
+  );
+  expect(reads).toBe(0);
 });
 
 test('actual bounded command failure keeps closed stage exit attribution and discards stderr', async () => {
