@@ -1,0 +1,397 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-52-browser/apps/wbs/fe-01
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx (3 tests | 3 failed) 3667ms
+   × installs only its covering HTTP tree after an elsewhere frame and ignores unrelated subscriptions 1379ms
+   × keeps a superseded old response out of the mounted tree until the trailing covering read installs 1152ms
+   × replays from installed coverage after a failed refresh and visibly recovers the mounted plan 1133ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/cross-project-refresh.test.tsx > installs only its covering HTTP tree after an elsewhere frame and ignores unrelated subscriptions
+AssertionError: expected 1 to be 2 // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"border-border bg-background flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1 min-[900px]:flex-nowrap"[39m
+      [36m>[39m
+        [36m<h1[39m
+          [33mclass[39m=[32m"shrink-0 text-sm font-semibold tracking-tight max-lg:sr-only"[39m
+        [36m>[39m
+          [0mWBS tool v2[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"order-last flex min-w-0 flex-1 basis-full items-center gap-1 min-[900px]:order-none min-[900px]:basis-auto"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"relative inline-block max-w-72 min-w-36 flex-1"[39m
+          [36m>[39m
+            [36m<input[39m
+              [33maria-autocomplete[39m=[32m"list"[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-label[39m=[32m"Project"[39m
+              [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 w-full text-ellipsis max-md:h-11"[39m
+              [33mdata-fact[39m=[32m"Successor C"[39m
+              [33mplaceholder[39m=[32m"Choose a project…"[39m
+              [33mreadonly[39m=[32m""[39m
+              [33mrole[39m=[32m"combobox"[39m
+              [33msize[39m=[32m"28"[39m
+              [33mvalue[39m=[32m"Successor C"[39m
+            [36m/>[39m
+          [36m</span>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Rename project"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs max-md:h-11"[39m
+            [33mdata-hint[39m=[32m"Rename this project"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"xl:hidden"[39m
+            [36m>[39m
+              [0mRename[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"max-xl:hidden"[39m
+            [36m>[39m
+              [0mRename project[0m
+            [36m</span>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Create new project"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs max-md:h-11"[39m
+            [33mdata-hint[39m=[32m"Start a new project"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"xl:hidden"[39m
+            [36m>[39m
+              [0mNew project[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"max-xl:hidden"[39m
+            [36m>[39m
+              [0mCreate new project[0m
+            [36m</span>[39m
+          [36m</button>[39m
+          [36m<details[39m
+            [33mclass[39m=[32m"relative shrink-0"[39m
+            [33mdata-dismissible[39m=[32m""[39m
+            [33mdata-saved-plans[39m=[32m"true"[39m
+          [36m>[39m
+            [36m<summary[39m
+              [33mclass[39m=[32m"border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"[39m
+              [33mdata-hint[39m=[32m"The plans saved for this project, and what changed since one of them"[39m
+            [36m>[39m
+              [0mSaved plans[0m
+            [36m</summary>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"scroll-cue bg-popover absolute right-0 z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md"[39m
+              [33mdata-saved-plans-panel[39m=[32m"true"[39m
+            [36m>[39m
+              [36m<section[39m
+                [33mclass[39m=[32m"saved-plans-panel flex flex-col gap-2"[39m
+              [36m>[39m
+                [36m<h3[39m
+                  [33mclass[39m=[32m"saved-plans-panel__heading sr-only"[39m
+                [36m>[39m
+                  [0mSaved plans[0m
+                [36m</h3>[39m
+                [36m<form[39m
+                  [33mclass[39m=[32m"flex gap-1.5"[39m
+                [36m>[39m
+                  [36m<input[39m
+                    [33maria-label[39m=[32m"Name this plan"[39m
+                    [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 flex-1 text-xs"[39m
+                    [33mplaceholder[39m=[32m"Name this plan…"[39m
+                    [33mvalue[39m=[32m""[39m
+                  [36m/>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+                    [33mdata-hint[39m=[32m"Save the plan as it stands now. With no name, it is named by its time."[39m
+                    [33mtype[39m=[32m"submit"[39m
+                  [36m>[39m
+         ...
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx:105:46
+    103|   expect(trees(fixture)).toBe(count);
+    104|   const gate = fixture.hold(); act(() => { fixture.deliver(); });
+    105|   await waitFor(() => expect(trees(fixture)).toBe(count + 1));
+       |                                              ^
+    106|   expect(corner()).toHaveAttribute('data-node-reading', 'unknown');
+    107|   const answer = fixture.captured.at(-1); if (answer === undefined) th…
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/wbs/cross-project-refresh.test.tsx > keeps a superseded old response out of the mounted tree until the trailing covering read installs
+AssertionError: expected 1 to be 2 // Object.is equality
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"border-border bg-background flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1 min-[900px]:flex-nowrap"[39m
+      [36m>[39m
+        [36m<h1[39m
+          [33mclass[39m=[32m"shrink-0 text-sm font-semibold tracking-tight max-lg:sr-only"[39m
+        [36m>[39m
+          [0mWBS tool v2[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"order-last flex min-w-0 flex-1 basis-full items-center gap-1 min-[900px]:order-none min-[900px]:basis-auto"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"relative inline-block max-w-72 min-w-36 flex-1"[39m
+          [36m>[39m
+            [36m<input[39m
+              [33maria-autocomplete[39m=[32m"list"[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-label[39m=[32m"Project"[39m
+              [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 w-full text-ellipsis max-md:h-11"[39m
+              [33mdata-fact[39m=[32m"Successor C"[39m
+              [33mplaceholder[39m=[32m"Choose a project…"[39m
+              [33mreadonly[39m=[32m""[39m
+              [33mrole[39m=[32m"combobox"[39m
+              [33msize[39m=[32m"28"[39m
+              [33mvalue[39m=[32m"Successor C"[39m
+            [36m/>[39m
+          [36m</span>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Rename project"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs max-md:h-11"[39m
+            [33mdata-hint[39m=[32m"Rename this project"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"xl:hidden"[39m
+            [36m>[39m
+              [0mRename[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"max-xl:hidden"[39m
+            [36m>[39m
+              [0mRename project[0m
+            [36m</span>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Create new project"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs max-md:h-11"[39m
+            [33mdata-hint[39m=[32m"Start a new project"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"xl:hidden"[39m
+            [36m>[39m
+              [0mNew project[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"max-xl:hidden"[39m
+            [36m>[39m
+              [0mCreate new project[0m
+            [36m</span>[39m
+          [36m</button>[39m
+          [36m<details[39m
+            [33mclass[39m=[32m"relative shrink-0"[39m
+            [33mdata-dismissible[39m=[32m""[39m
+            [33mdata-saved-plans[39m=[32m"true"[39m
+          [36m>[39m
+            [36m<summary[39m
+              [33mclass[39m=[32m"border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"[39m
+              [33mdata-hint[39m=[32m"The plans saved for this project, and what changed since one of them"[39m
+            [36m>[39m
+              [0mSaved plans[0m
+            [36m</summary>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"scroll-cue bg-popover absolute right-0 z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md"[39m
+              [33mdata-saved-plans-panel[39m=[32m"true"[39m
+            [36m>[39m
+              [36m<section[39m
+                [33mclass[39m=[32m"saved-plans-panel flex flex-col gap-2"[39m
+              [36m>[39m
+                [36m<h3[39m
+                  [33mclass[39m=[32m"saved-plans-panel__heading sr-only"[39m
+                [36m>[39m
+                  [0mSaved plans[0m
+                [36m</h3>[39m
+                [36m<form[39m
+                  [33mclass[39m=[32m"flex gap-1.5"[39m
+                [36m>[39m
+                  [36m<input[39m
+                    [33maria-label[39m=[32m"Name this plan"[39m
+                    [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 flex-1 text-xs"[39m
+                    [33mplaceholder[39m=[32m"Name this plan…"[39m
+                    [33mvalue[39m=[32m""[39m
+                  [36m/>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+                    [33mdata-hint[39m=[32m"Save the plan as it stands now. With no name, it is named by its time."[39m
+                    [33mtype[39m=[32m"submit"[39m
+                  [36m>[39m
+         ...
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx:116:46
+    114|   const fixture = scenario(); fixture.mount(); await fixture.select();
+    115|   const older = fixture.hold(); fixture.advance('waiting'); act(() => …
+    116|   await waitFor(() => expect(trees(fixture)).toBe(2));
+       |                                              ^
+    117|   const oldAnswer = fixture.captured.at(-1); if (oldAnswer === undefin…
+    118|   const covering = fixture.hold(); fixture.advance('unknown'); act(() …
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/components/wbs/cross-project-refresh.test.tsx > replays from installed coverage after a failed refresh and visibly recovers the mounted plan
+AssertionError: expected null not to be null
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"border-border bg-background flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1 min-[900px]:flex-nowrap"[39m
+      [36m>[39m
+        [36m<h1[39m
+          [33mclass[39m=[32m"shrink-0 text-sm font-semibold tracking-tight max-lg:sr-only"[39m
+        [36m>[39m
+          [0mWBS tool v2[0m
+        [36m</h1>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"order-last flex min-w-0 flex-1 basis-full items-center gap-1 min-[900px]:order-none min-[900px]:basis-auto"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"relative inline-block max-w-72 min-w-36 flex-1"[39m
+          [36m>[39m
+            [36m<input[39m
+              [33maria-autocomplete[39m=[32m"list"[39m
+              [33maria-expanded[39m=[32m"false"[39m
+              [33maria-label[39m=[32m"Project"[39m
+              [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 w-full text-ellipsis max-md:h-11"[39m
+              [33mdata-fact[39m=[32m"Successor C"[39m
+              [33mplaceholder[39m=[32m"Choose a project…"[39m
+              [33mreadonly[39m=[32m""[39m
+              [33mrole[39m=[32m"combobox"[39m
+              [33msize[39m=[32m"28"[39m
+              [33mvalue[39m=[32m"Successor C"[39m
+            [36m/>[39m
+          [36m</span>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Rename project"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-8 rounded-md px-3 text-xs max-md:h-11"[39m
+            [33mdata-hint[39m=[32m"Rename this project"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"xl:hidden"[39m
+            [36m>[39m
+              [0mRename[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"max-xl:hidden"[39m
+            [36m>[39m
+              [0mRename project[0m
+            [36m</span>[39m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Create new project"[39m
+            [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs max-md:h-11"[39m
+            [33mdata-hint[39m=[32m"Start a new project"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"xl:hidden"[39m
+            [36m>[39m
+              [0mNew project[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"max-xl:hidden"[39m
+            [36m>[39m
+              [0mCreate new project[0m
+            [36m</span>[39m
+          [36m</button>[39m
+          [36m<details[39m
+            [33mclass[39m=[32m"relative shrink-0"[39m
+            [33mdata-dismissible[39m=[32m""[39m
+            [33mdata-saved-plans[39m=[32m"true"[39m
+          [36m>[39m
+            [36m<summary[39m
+              [33mclass[39m=[32m"border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"[39m
+              [33mdata-hint[39m=[32m"The plans saved for this project, and what changed since one of them"[39m
+            [36m>[39m
+              [0mSaved plans[0m
+            [36m</summary>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"scroll-cue bg-popover absolute right-0 z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md"[39m
+              [33mdata-saved-plans-panel[39m=[32m"true"[39m
+            [36m>[39m
+              [36m<section[39m
+                [33mclass[39m=[32m"saved-plans-panel flex flex-col gap-2"[39m
+              [36m>[39m
+                [36m<h3[39m
+                  [33mclass[39m=[32m"saved-plans-panel__heading sr-only"[39m
+                [36m>[39m
+                  [0mSaved plans[0m
+                [36m</h3>[39m
+                [36m<form[39m
+                  [33mclass[39m=[32m"flex gap-1.5"[39m
+                [36m>[39m
+                  [36m<input[39m
+                    [33maria-label[39m=[32m"Name this plan"[39m
+                    [33mclass[39m=[32m"border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-1 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 h-8 flex-1 text-xs"[39m
+                    [33mplaceholder[39m=[32m"Name this plan…"[39m
+                    [33mvalue[39m=[32m""[39m
+                  [36m/>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"inline-flex shrink-0 items-center justify-center gap-2 border-0 font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 h-8 rounded-md px-3 text-xs"[39m
+                    [33mdata-hint[39m=[32m"Save the plan as it stands now. With no name, it is named by its time."[39m
+                    [33mtype[39m=[32m"submit"[39m
+                  [36m>[39m
+         ...
+ ❯ src/components/wbs/cross-project-refresh.test.tsx:131:120
+    129|   const fixture = scenario(); fixture.mount(); await fixture.select();
+    130|   fixture.advance('waiting'); fixture.fail(true); await act(async () =…
+    131|   const warning = await waitFor(() => { const banner = document.queryS…
+       |                                                                                                                        ^
+    132|   expect(warning).toHaveTextContent('The server could not complete tha…
+    133|   expect(corner()).toHaveAttribute('data-node-reading', 'unknown');
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  03:05:50
+   Duration  12.63s (import 38%, tests 29%, transform 27%, environment 4%, setup 1%)
+
+  Transform  transforming modules took 3.43s · 27% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+

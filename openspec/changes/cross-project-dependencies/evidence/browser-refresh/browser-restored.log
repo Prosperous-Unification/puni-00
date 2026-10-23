@@ -1,0 +1,35 @@
+
+> nx run wbs-fe-01:e2e-cross-project
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts
+
+(node:3297902) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:3298103) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:3298188) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:46:1 › A completion refreshes admitted B and C through their own real trees and reconnect replay (22.2s)
+
+  1 passed (31.5s)
+
+
+
+ NX   Successfully ran target e2e-cross-project for project wbs-fe-01
+
+
+  Run duration:      32.0s
+  Cache:             0/1 hit (0%)
+  Critical path:     32.0s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-fe-01:e2e-cross-project    32.0s

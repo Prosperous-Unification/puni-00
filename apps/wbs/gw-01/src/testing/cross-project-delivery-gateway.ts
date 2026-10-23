@@ -13,9 +13,9 @@ const gateway = buildGateway({
   INTERNAL_AUTH_SECRET: secret,
   JWT_SIGNING_KEY_CURRENT: jwtKey,
   AUTH_MODE: 'oidc',
-  wsAuth: { appOrigin: 'http://localhost' },
+  wsAuth: { appOrigin: process.argv.at(5) ?? 'http://localhost' },
 });
-gateway.listen(0);
+gateway.listen(Number(process.argv.at(6) ?? 0));
 const port = gateway.server?.port;
 if (port === undefined) throw new Error('gateway fixture failed to listen');
 process.stdout.write(`${JSON.stringify({ port })}\n`);

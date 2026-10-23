@@ -5854,3 +5854,16 @@ commands, raw logs, restoration and limits are in
 Independent Astra High review found no actionable finding. Parent 6.3 remains
 unchecked pending MCP/skip-policy reconciliation and integrated gates. No
 production behavior or activation changed.
+
+### Task 5.2 bounded mounted and real Chromium reconciliation (2026-10-23)
+
+[The browser-refresh packet](evidence/browser-refresh/report.md) proves the
+production page's stream→refresh→installation chain with three mounted race and
+failure cases and one Chromium case crossing composed SQLite, real PushClient,
+gateway subprocess and authenticated sockets. It establishes B unknown→waiting
+only after its covering response, C's newly installed yet still unknown reading,
+unrelated/foreign silence, disconnected replay and visible failure/Retry recovery.
+Five separately restored production-path faults fail the mounted tests. Runtime
+inputs and affected-routing negatives cover the subprocess fixture dependency.
+This is page reconciliation; full organization-router/session activation and the
+complete parent writer/rollout matrix remain outside the packet. Parent 5.2 stays open.

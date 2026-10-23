@@ -49,6 +49,8 @@
     "playwright.config.ts",
     "playwright.packaged.config.ts",
     "playwright.performance.config.ts",
-    "e2e-performance/**/*.ts"
+    "e2e-performance/**/*.ts",
+    "playwright.cross-project.config.ts",
+    "e2e/**/*.tsx"
   ]
 }

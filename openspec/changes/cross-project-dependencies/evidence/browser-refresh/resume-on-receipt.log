@@ -1,0 +1,60 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-52-browser/apps/wbs/fe-01
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx (3 tests | 2 failed) 749ms
+   × keeps a superseded old response out of the mounted tree until the trailing covering read installs 158ms
+   × replays from installed coverage after a failed refresh and visibly recovers the mounted plan 168ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/cross-project-refresh.test.tsx > keeps a superseded old response out of the mounted tree until the trailing covering read installs
+AssertionError: expected 13 to be 11 // Object.is equality
+
+- Expected
++ Received
+
+- 11
++ 13
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx:122:31
+    120|   await waitFor(() => expect(trees(fixture)).toBe(3));
+    121|   expect(corner()).toHaveAttribute('data-node-reading', 'unknown');
+    122|   expect(fixture.reconnect()).toBe(11);
+       |                               ^
+    123|   const answer = fixture.captured.at(-1); if (answer === undefined) th…
+    124|   await act(async () => { covering.release(answer); });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/cross-project-refresh.test.tsx > replays from installed coverage after a failed refresh and visibly recovers the mounted plan
+AssertionError: expected 12 to be 11 // Object.is equality
+
+- Expected
++ Received
+
+- 11
++ 12
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx:134:31
+    132|   expect(warning).toHaveTextContent('The server could not complete tha…
+    133|   expect(corner()).toHaveAttribute('data-node-reading', 'unknown');
+    134|   expect(fixture.reconnect()).toBe(11);
+       |                               ^
+    135|   fixture.fail(false); await fixture.replay();
+    136|   await waitFor(() => expect(corner()).toHaveAttribute('data-node-read…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  03:06:37
+   Duration  8.61s (import 54%, transform 32%, tests 9%, environment 5%, setup 1%)
+
+  Transform  transforming modules took 2.71s · 32% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+

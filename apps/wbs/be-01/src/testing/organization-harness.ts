@@ -189,6 +189,7 @@ interface TestMail {
  * binding when enabled (`boot-browser-session.db.test.ts`).
  */
 export class OrganizationHarness {
+  private appOrigin = 'http://localhost';
   private readonly tokens = new Map<string, string>();
   private readonly ids = new Map<string, string>();
   /**
@@ -670,6 +671,7 @@ export class OrganizationHarness {
    * extending the positional list.
    */
   static openComposedWith({
+    appOrigin = 'http://localhost',
     now,
     withOptimizer = false,
     syntheticTransferImports,
@@ -796,7 +798,7 @@ export class OrganizationHarness {
         }),
         nodeDigest,
       ),
-      appOrigin: 'http://localhost',
+      appOrigin,
       clock: services.clock,
       migrationsApplied: true,
       ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
@@ -992,6 +994,7 @@ export class OrganizationHarness {
           })
         : undefined,
     );
+    harness.appOrigin = appOrigin;
     harness.federated = provider !== undefined;
     return harness;
   }
@@ -1065,7 +1068,7 @@ export class OrganizationHarness {
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
         headers: {
-          origin: 'http://localhost',
+          origin: this.appOrigin,
           'content-type': 'application/json',
           // One address per account, so the registration throttle never joins them.
           ...(this.federated
@@ -1156,7 +1159,7 @@ export class OrganizationHarness {
       new Request(`http://localhost${path}`, {
         method,
         headers: {
-          ...(method === 'GET' ? {} : { origin: 'http://localhost' }),
+          ...(method === 'GET' ? {} : { origin: this.appOrigin }),
           ...extraHeaders,
           authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -1172,6 +1175,8 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Explicit allowed browser origin, shared by the mounted controller and fixture clients. */
+  readonly appOrigin?: string;
   /** Builds a separate test-only importer; mounted production imports stay inactive. */
   readonly syntheticTransferImports?: true;
   /** Replaces only the admitted command WorkItemService; production composition stays inactive. */
