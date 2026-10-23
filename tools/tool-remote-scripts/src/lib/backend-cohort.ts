@@ -34,7 +34,8 @@ import {
   type SourceDevExclusion,
 } from './source-dev-exclusion';
 
-interface DatabaseIdentity {
+/** Canonical container path and host main/directory device:inode identity of one SQLite family. */
+export interface DatabaseIdentity {
   path: string;
   host: string;
   directoryIdentity: string;

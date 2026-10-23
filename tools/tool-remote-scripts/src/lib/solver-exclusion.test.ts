@@ -9,7 +9,11 @@ import { withDependencyOwner } from './edge-ownership';
 import { envLayout } from './env';
 import { withLock } from './lock';
 import { readFields } from './managed-cohort';
-import { type SolverExclusion, withSolverDrainUnderOwner } from './solver-exclusion';
+import {
+  assertSolverExclusionDeadline,
+  type SolverExclusion,
+  withSolverDrainUnderOwner,
+} from './solver-exclusion';
 import { captureSolverFile, type SolverHostCommand, type SolverPorts } from './solver-host';
 import {
   SOLVER_SUPERVISOR_BUN,
@@ -1085,4 +1089,70 @@ test('final drain accepts the controlled restart refusal while retaining native 
   );
   expect(restartRefused).toBe(true);
   expect(await ports.runHost({ kind: 'show' })).toContain('ActiveState=failed\n');
+});
+
+test('solver deadline guard requires exact live operation budget and original owner/token', async () => {
+  const f = await fixture();
+  let expired: SolverExclusion | undefined;
+  await withDependencyOwner(
+    f.plan,
+    async (owner) => {
+      const deadline = performance.now() + 5000;
+      await withSolverDrainUnderOwner(owner, f.layouts, f.pins, f.ports, deadline, (token) => {
+        expired = token;
+        expect(() => {
+          assertSolverExclusionDeadline(owner, token, deadline);
+        }).not.toThrow();
+        for (const budget of [deadline - 1, deadline + 1, NaN, Infinity, performance.now() - 1]) {
+          expect(() => {
+            assertSolverExclusionDeadline(owner, token, budget);
+          }).toThrow('solver exclusion deadline differs');
+        }
+        expect(() => {
+          assertSolverExclusionDeadline(owner, { ...token }, deadline);
+        }).toThrow();
+        expect(() => {
+          assertSolverExclusionDeadline({ ...owner }, token, deadline);
+        }).toThrow();
+        return Promise.resolve();
+      });
+      if (expired === undefined) throw new Error('fixture did not enter solver scope');
+      const previous = expired;
+      expect(() => {
+        assertSolverExclusionDeadline(owner, previous, deadline);
+      }).toThrow();
+    },
+    f.root,
+  );
+});
+
+test('solver deadline guard refuses its original budget after actual time expires', async () => {
+  const f = await fixture();
+  let expiredRefused = false;
+  await refuses(
+    withDependencyOwner(
+      f.plan,
+      async (owner) => {
+        const deadline = performance.now() + 700;
+        await withSolverDrainUnderOwner(
+          owner,
+          f.layouts,
+          f.pins,
+          f.ports,
+          deadline,
+          async (token) => {
+            await Bun.sleep(Math.max(1, deadline - performance.now() + 2));
+            try {
+              assertSolverExclusionDeadline(owner, token, deadline);
+            } catch {
+              expiredRefused = true;
+            }
+          },
+        );
+      },
+      f.root,
+    ),
+    'solver drain deadline exceeded',
+  );
+  expect(expiredRefused).toBe(true);
 });

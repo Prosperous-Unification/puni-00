@@ -42,12 +42,30 @@ export interface SolverExclusion {
   readonly [exclusionIdentity]: true;
 }
 interface SolverScope {
+  readonly deadline: number;
   owner: DependencyOwner;
   layout: EnvLayout;
   snapshots: readonly SolverSnapshot[];
   inspect: () => Promise<void>;
 }
 const exclusions = new WeakMap<SolverExclusion, SolverScope>();
+
+/** Requires the exact still-live operation deadline; this check grants no admission. */
+export function assertSolverExclusionDeadline(
+  owner: DependencyOwner,
+  token: SolverExclusion,
+  deadline: number,
+): void {
+  const scope = exclusions.get(token);
+  // Proof: equality omission admitted a shorter live budget; expiry omission admitted its elapsed original budget. Both deadline-guard negatives failed.
+  if (
+    scope?.owner !== owner ||
+    !Number.isFinite(deadline) ||
+    deadline <= performance.now() ||
+    deadline !== scope.deadline
+  )
+    throw new Error('solver exclusion deadline differs');
+}
 
 /**
  * Host-wide bounded solver exclusion only. Keeps the canonical runtime lock through
@@ -254,7 +272,7 @@ export async function withSolverDrainUnderOwner<T>(
     }
     await inspect();
     const token: SolverExclusion = Object.freeze({ [exclusionIdentity]: true as const });
-    exclusions.set(token, { owner, layout: layouts.prod, snapshots, inspect });
+    exclusions.set(token, { deadline, owner, layout: layouts.prod, snapshots, inspect });
     try {
       return await action(token);
     } finally {
