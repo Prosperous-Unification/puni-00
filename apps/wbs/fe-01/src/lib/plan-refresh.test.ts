@@ -379,6 +379,28 @@ describe('claims as a refresh resource', () => {
     owner.dispose();
   });
 
+  it('ends a claims invalidation made during an initialize whose anchor fails', async () => {
+    const api = fakeProjectApi();
+    const anchor = held<PlanRead>();
+    api.tree = () => anchor.promise;
+    let claimsReads = 0;
+    api.readClaims = () => {
+      claimsReads += 1;
+      return Promise.resolve({ readAt: 0, claims: [] });
+    };
+    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+    const ready = owner.initialize();
+    const claims = owner.invalidate({ resources: ['claims'] });
+    anchor.reject(new Error('offline'));
+    expect((await ready).status).toBe('failed');
+    // Raced so a claims obligation the anchor failure never ends reads `pending`.
+    const settled = await Promise.race([claims, Promise.resolve({ status: 'pending' as const })]);
+    expect(settled.status).toBe('failed');
+    expect(claimsReads).toBe(0);
+    expect(owner.getSnapshot().staleResources).toContain('claims');
+    owner.dispose();
+  });
+
   it('anchors the baseline without claims when the claims read is refused', async () => {
     const api = fakeProjectApi();
     let claimsReads = 0;

@@ -695,6 +695,7 @@ export function WbsTable({
     chartRead,
     steps,
     treeMayBeStale,
+    claimsMayBeStale,
     treeFailureText,
     markers,
     busy,
@@ -2536,6 +2537,36 @@ export function WbsTable({
             }}
           >
             Retry
+          </Button>
+        </p>
+      )}
+
+      {/*
+        Secondary and quiet: the plan is current, only who holds what may not
+        be (`wbs-claim-display` C12). Its retry reads claims alone.
+        Proof: this notice suppressed failed `keeps the plan current and the
+        optimizer's suggestion when only claims fail` on the absent
+        `[data-stale-claims]`. Retry wired to `refreshOrMarkStale()` (every
+        resource) made the 404 case in `plan-read-and-write.test.tsx` read the
+        tree twice, expected once; watched 2026-10-23.
+      */}
+      {claimsMayBeStale && (
+        <p
+          role="status"
+          data-stale-claims
+          className="text-muted-foreground mb-2 flex items-center gap-2 text-xs"
+        >
+          Claims could not be read.
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            className="h-6 px-2 text-xs"
+            onClick={() => {
+              void project.reread(['claims']);
+            }}
+          >
+            Retry claims
           </Button>
         </p>
       )}

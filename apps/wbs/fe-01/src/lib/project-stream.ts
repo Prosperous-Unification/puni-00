@@ -137,8 +137,8 @@ const browserDeps: ProjectStreamDeps = {
  *
  * **It is not one request, and calling it that is what made the cost invisible.**
  * The caller decides how much to read, and `resourcesFor` in `plan-refresh.ts`
- * answers with every resource for an event this side does not recognise — nine requests,
- * the plan and the steps and six vocabularies and the markers. That is the
+ * answers with every resource for an event this side does not recognise — ten requests,
+ * the plan and the steps and six vocabularies and the markers and the claims. That is the
  * honest price of ignoring the payload, and an optimizer outcome pays it
  * (TASK-324). The resource set narrows where be-01 guarantees it can; the
  * default stays the full read because an unknown event has no such guarantee.

@@ -25,6 +25,9 @@ export const ALL_RESOURCES: readonly RefreshResource[] = [
 export function resourcesFor(changed?: string | null): readonly RefreshResource[] {
   // Every claim, release, reap and cascade announces the tree, and a removed
   // work item takes its claims (`wbs-claim-display` C3).
+  // Proof: answering `['tree']` here failed `refreshes the tree and claims after
+  // a claim, release or reap` and four more cases across `plan-refresh`,
+  // `plan-feed.resource` and `optimization-integration`; watched 2026-10-23.
   if (changed === 'tree_replaced') return ['tree', 'claims'];
   // Stays the tree's: the claims read does not need the engine.
   // Proof: removing `plan_unavailable` made its peer-refetch test ask for
@@ -369,7 +372,19 @@ export function createPlanRefresh({
       resource,
       generation: resources[resource].invalidate(),
     }));
-    if (seq !== undefined && seq > acknowledged) events.set(seq, obligations);
+    // Claims never hold the stream acknowledgment (`wbs-claim-display` C20): a
+    // claims read is a complete snapshot, so a later one covers whatever an
+    // acknowledged event changed, and its failure stays visible as claims'
+    // own stale state. An older be-01 without the claims read would otherwise
+    // pin every reconnect to the baseline.
+    // Proof: recording claims obligations here held `resumes past tree events
+    // while claims fail` (`plan-refresh-stream.test.ts`) at acknowledged 0,
+    // expected 2; watched 2026-10-23.
+    if (seq !== undefined && seq > acknowledged)
+      events.set(
+        seq,
+        obligations.filter((obligation) => obligation.resource !== 'claims'),
+      );
     const pending = new Promise<RefreshOutcome>((resolve) => {
       waiters.add({ obligations, resolve });
     });
@@ -385,6 +400,9 @@ export function createPlanRefresh({
     const anchored = await request(['tree']);
     if (anchored.status !== 'installed') {
       if (anchored.status === 'failed') {
+        // Proof: `claims` dropped from this list left `ends a claims
+        // invalidation made during an initialize whose anchor fails` reading
+        // `pending`, expected `failed`; watched 2026-10-23.
         for (const name of ['steps', 'directory', 'markers', 'claims'] as const)
           resources[name].fail(anchored.failures);
         publish();

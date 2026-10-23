@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { planRead } from '../testing/views';
 import { createPlanRefresh, resourcesFor } from './plan-refresh';
 import { type ProjectStream, type SocketHandlers, subscribeToProject } from './project-stream';
-import { type CalendarMarkerView, httpProjectApi } from './wbs-api';
+import { type CalendarMarkerView, httpProjectApi, WbsRequestError } from './wbs-api';
 
 /** The real stream reads location; this boundary runs under the browser test environment. */
 interface Socket {
@@ -24,6 +24,8 @@ function scenario(initialSeq = -1) {
   let markers: (CalendarMarkerView & { projectId: string; createdAt: number })[] = [];
   let markerGate: ReturnType<typeof held<undefined>> | null = null;
   let markerStarted = held<undefined>();
+  /** `missing` answers as an older be-01 does: Elysia's router miss, a bare `404 NOT_FOUND`. */
+  let claimsRoute: 'served' | 'missing' = 'served';
   let treeGate: ReturnType<typeof held<undefined>> | null = null;
   let treeStarted = held<undefined>();
   const journal: { seq: number; message: { type: string } }[] = [];
@@ -70,7 +72,10 @@ function scenario(initialSeq = -1) {
         if (gate !== null) await gate.promise;
         return captured;
       }
-      if (path === '/api/projects/p1/claims') return Response.json({ readAt: 0, claims: [] });
+      if (path === '/api/projects/p1/claims')
+        return claimsRoute === 'served'
+          ? Response.json({ readAt: 0, claims: [] })
+          : new Response('NOT_FOUND', { status: 404 });
       const collections: Record<string, string | undefined> = {
         '/api/teams': 'teams',
         '/api/tags': 'tags',
@@ -153,6 +158,12 @@ function scenario(initialSeq = -1) {
   return {
     owner,
     requests,
+    missClaimsRoute() {
+      claimsRoute = 'missing';
+    },
+    serveClaims() {
+      claimsRoute = 'served';
+    },
     holdTree() {
       treeStarted = held<undefined>();
       treeGate = held<undefined>();
@@ -364,4 +375,43 @@ it('covers a second registration gap while a refused replay recovery is held', a
   } finally {
     fixture.close();
   }
+});
+
+describe('claims over the real API and stream', () => {
+  it('anchors the plan when an older be-01 answers its router miss for claims', async () => {
+    const fixture = scenario(0);
+    try {
+      fixture.missClaimsRoute();
+      expect((await fixture.owner.initialize()).status).toBe('installed');
+      await vi.waitFor(() => {
+        expect(fixture.owner.getSnapshot().staleResources).toEqual(['claims']);
+      });
+      expect(fixture.owner.getSnapshot().baseline?.seq).toBe(0);
+      expect(fixture.owner.getSnapshot().claims.failure?.cause).toBeInstanceOf(WbsRequestError);
+      expect(fixture.requests.filter((path) => path === '/api/projects/p1/claims')).toHaveLength(1);
+    } finally {
+      fixture.close();
+    }
+  });
+
+  it('resumes past tree events while claims fail, and installs claims once they answer', async () => {
+    const fixture = scenario(0);
+    try {
+      fixture.missClaimsRoute();
+      await fixture.owner.initialize();
+      fixture.open();
+      await fixture.overtakeMarkerWithTree();
+      await fixture.overtakeMarkerWithTree();
+      expect(fixture.owner.getSnapshot().tree.installed?.value.seq).toBe(2);
+      expect(fixture.owner.getSnapshot().acknowledged).toBe(2);
+      fixture.reconnect();
+      expect(fixture.resumePoint()).toBe(2);
+      fixture.serveClaims();
+      expect((await fixture.owner.invalidate({ resources: ['claims'] })).status).toBe('installed');
+      expect(fixture.owner.getSnapshot().claims.installed?.value.claims).toEqual([]);
+      expect(fixture.owner.getSnapshot().staleResources).toEqual([]);
+    } finally {
+      fixture.close();
+    }
+  });
 });

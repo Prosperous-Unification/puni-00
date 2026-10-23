@@ -1061,16 +1061,20 @@ describe('failures you can see', () => {
   });
 
   itDom(
-    'draws the plan with the stale notice when an older be-01 answers 404 for claims',
+    'draws the plan, not stale, with the claims notice when an older be-01 answers 404 for claims',
     async () => {
       // `wbs-claim-display` C12: mid-swap, an older be-01 has no claims route.
-      // The plan stands, no chip is drawn, the refresh failure is visible, and
-      // nothing reaches the Error Boundary.
+      // The plan stands and is not called stale, no chip is drawn, the claims
+      // notice says so, and nothing reaches the Error Boundary (that assertion
+      // guards the chips of later slices; nothing here can throw yet).
       const api = fakeApi();
       await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
       let claimsReads = 0;
+      let claimsServed = false;
+      const treeReads = recordCalls(api, 'tree');
       api.readClaims = () => {
         claimsReads += 1;
+        if (claimsServed) return Promise.resolve({ readAt: 0, claims: [] });
         return Promise.reject(
           new WbsRequestError({
             kind: 'refusal',
@@ -1086,13 +1090,24 @@ describe('failures you can see', () => {
       );
 
       await waitFor(() => {
-        expect(staleBanner()).not.toBeNull();
+        expect(document.querySelector('[data-stale-claims]')).not.toBeNull();
       });
+      expect(staleBanner()).toBeNull();
       expect(numbersOnScreen()).toEqual(['010']);
       expect(claimsReads).toBe(1);
       expect(document.querySelector('[data-app-fault]')).toBeNull();
       // Nobody asked for this read, so nothing was refused out loud.
       expect(toastTexts()).toEqual([]);
+
+      // Its retry reads claims and nothing else, and clears by succeeding.
+      const treeReadsBefore = treeReads.length;
+      claimsServed = true;
+      click('Retry claims');
+      await waitFor(() => {
+        expect(document.querySelector('[data-stale-claims]')).toBeNull();
+      });
+      expect(claimsReads).toBe(2);
+      expect(treeReads).toHaveLength(treeReadsBefore);
     },
   );
 

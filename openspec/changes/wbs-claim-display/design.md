@@ -112,10 +112,13 @@ may name a row or step the installed tree lacks, or the reverse. The table draws
 where the installed tree has the row and the step; the Claims sheet lists every claim by the
 claims read's own number and name. Not an error: the next covering read agrees.
 
-**C12. A failed claims read is a rendered state.** The table keeps the last installed claims
-and shows the coordinator's stale notice (`plan-refresh`, failures stay visible); with no
-installed claims it draws no chips. An older be-01 mid-swap answers 404 for the route: same
-state. The Claims sheet renders the failure in place. Never the Error Boundary.
+**C12. A failed claims read is a rendered state.** The table keeps the last installed claims;
+with no installed claims it draws no chips. Claims are optional, so their failure is not the
+plan's: the plan's stale alert ("This plan may be out of date") and the optimization cue's
+stale state read the plan's resources only. Claims show their own quiet status line, "Claims
+could not be read.", with a `Retry claims` button that rereads claims alone and clears it by
+succeeding. An older be-01 mid-swap answers its router miss (`404 NOT_FOUND`) for the route:
+same state. The Claims sheet renders the failure in place. Never the Error Boundary.
 
 **C13. Release history is a projection, not a history view.** `GET
 /api/projects/:id/claim-history?limit=` (`getApiProjectsByIdClaim-history`) answers the
@@ -145,6 +148,14 @@ a subtree claim.
 
 **C18. Supersession.** This change builds `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1;
 both are marked superseded there when their branches settle.
+
+**C20. Claims never hold the stream acknowledgment.** A sequenced event's claims obligation is
+not recorded against its sequence: the event is acknowledged once its other resources are
+covered. A claims read is a complete snapshot, so any later one covers whatever an acknowledged
+event changed, and a failed one stays visible as claims' own stale state (C12). This matches
+the baseline, which anchors without claims. Rejected: holding acknowledgment as markers do, which
+pins every reconnect to the baseline for as long as an older be-01 lacks the read. (C19 is not
+used.)
 
 ## Risks / Trade-offs
 

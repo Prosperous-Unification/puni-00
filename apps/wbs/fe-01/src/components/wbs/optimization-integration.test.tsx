@@ -133,6 +133,39 @@ describe('project optimization in the plan', () => {
     });
   });
 
+  itDom("keeps the plan current and the optimizer's suggestion when only claims fail", async () => {
+    // `wbs-claim-display` C12: claims are optional. Their failure is their
+    // own quiet notice, never the plan's stale alert, so the comparison stays.
+    const api = fakeProjectApi();
+    const readTree = api.tree.bind(api);
+    // Fast on screen and Pri three days earlier: a suggestion, which a stale
+    // plan would suppress.
+    api.tree = async (projectId) => ({
+      ...(await readTree(projectId)),
+      optimization: {
+        ...OPTIMIZATION_BASE,
+        engine: 'fast',
+        displayed: 'fast',
+        finishDays: { fast: 10, pri: 7 },
+        sameOrderAsFast: { pri: true },
+      },
+    });
+    api.readClaims = () => Promise.reject(new Error('http_404'));
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-stale-claims]')).not.toBeNull();
+    });
+    expect(document.querySelector('[data-stale-claims]')).toHaveTextContent(
+      'Claims could not be read.',
+    );
+    expect(document.querySelector('[data-cue-suggestion]')?.textContent).toBe(
+      '· Pri 3 days earlier',
+    );
+    expect(document.querySelector('[data-stale-tree]')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   itDom('removes a ready comparison when a later plan read fails', async () => {
     const api = fakeProjectApi();
     const readTree = api.tree.bind(api);

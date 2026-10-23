@@ -221,7 +221,7 @@ succeeds; the baseline anchors while the claims read is refused.
 **2.3** `plan-read-and-write.test.tsx` `draws the plan with the stale notice when an older be-01
 answers 404 for claims`: the table, under `AppFaultBoundary`, with a fake whose `readClaims`
 rejects a `not_found` refusal, draws row `010`, raises the stale notice, raises no toast and no
-`[data-app-fault]`.
+`[data-app-fault]`. (The review round below replaced the plan stale notice with the claims notice.)
 
 | R5 fault (watched)                                | Observed                                                                      |
 | ------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -259,3 +259,60 @@ doubles (67 files) first run 1385 pass, 8 fail (the counts and doubles above); a
 the 12 files holding those failures 421 pass, and `plan-read-and-write` with `wbs-api` 156 pass.
 Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275. Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels (CI carries
 them; laptop RAM shared with another heavy agent).
+
+**Review round (Fable, PR #694 at `bd4e55cfe`, one S2).**
+
+- S2-1: a failed claims read made the whole plan stale. That raised the red "This plan may be
+  out of date" alert, nulled the optimization cue's comparisons, and its Retry could not clear a
+  claims failure that would not go away. Now `treeMayBeStale` counts the plan's resources only
+  (`use-plan-read.ts`), and claims have their own quiet status line, "Claims could not be
+  read.", with a `Retry claims` button that rereads `['claims']` alone (`wbs-table.tsx`,
+  `[data-stale-claims]`). C12 and the `claim-display` delta now name that notice and add two
+  scenarios.
+- S3-1, decision C20 (proposal, design, `plan-refresh` delta): claims obligations are not
+  recorded against an event's sequence, so a failing claims read never holds the stream
+  acknowledgment.
+- S3-2: the anchor-failure path that marks claims stale now has a negative.
+- S4-1: `plan-refresh-stream.test.ts` gives the real `httpProjectApi` an older be-01's router
+  miss for `/claims`: Elysia's bare `404` with body `NOT_FOUND` and no content type. That body
+  was measured with `new Elysia()` (`^1.4.30`) on an unmounted path. The plan anchors, only
+  claims are stale, and the cause is a `WbsRequestError`.
+- S4-2: in the 2.3 test, the `[data-app-fault]` assertion is not an R5 proof. Nothing can throw
+  into the Error Boundary yet; the assertion guards the chips of later slices. The test's own
+  comment says so.
+- S4-3: the `project-stream.ts` JSDoc now says ten requests. S4-4: the `tree_replaced` line now
+  has a `Proof:` comment.
+
+| R5 fault (watched)                                                  | Observed                                                                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `treeMayBeStale` back to `staleResources.length > 0`                | `keeps the plan current and the optimizer's suggestion when only claims fail`: `expected undefined to be '· Pri 3 days earlier'` |
+| claims notice suppressed                                            | same case: `[data-stale-claims]` absent                                                                                          |
+| `Retry claims` wired to `refreshOrMarkStale()` (every resource)     | 404 table case: the tree read twice, expected once                                                                               |
+| claims obligations recorded against the event sequence (C20 undone) | `resumes past tree events while claims fail …`: acknowledged 0, expected 2 (31/1)                                                |
+| `claims` dropped from the anchor-failure list                       | `ends a claims invalidation made during an initialize whose anchor fails`: `expected 'pending' to be 'failed'` (24/1)            |
+| `tree_replaced` answering `['tree']`                                | 5 cases across `plan-refresh`, `plan-feed.resource`, `optimization-integration`                                                  |
+
+The 2.3 table case now asserts the claims notice and no plan alert. Its Retry clears the notice
+by succeeding, with one more claims read and no tree read.
+
+By eye (2026-10-23): be-01, gw-01 and fe-01 ran from this branch (`bun run dev:setup`, local auth
+`local-dev`). fe-01's Vite proxy pointed at a small Bun proxy (port 3150) that answered
+`GET /api/projects/:id/claims` with `404 NOT_FOUND` and forwarded everything else to be-01. A
+headless Chromium (Playwright) loaded the plan page.
+
+- Desktop 1440×900: the plan drew its rows with no red alert. One muted line, "Claims could not
+  be read.", sat between the toolbar and the table, with a small ghost `Retry claims`. Once the
+  proxy served claims, `Retry claims` cleared the line.
+- Phone 390×844: the same line appeared under the Plan/Board/Plan actions row, above the first
+  card, with no alert.
+
+Results after the round (fresh, 2026-10-23):
+
+- `nx run wbs-fe-01:typecheck` succeeded.
+- eslint on the 19 changed TypeScript files: exit 0.
+- vitest over `src/lib`, `src/modules`, `src/runtime`, `src/testing`, `src/components/board`,
+  `app-router`, `delivery-boundaries` and the plan component suites with API doubles,
+  `optimization-cue` included: 70 files, 1456 pass.
+
+Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275.
+Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels.
