@@ -1,4 +1,5 @@
 import { POINTS } from './estimate-draft';
+import { facetOfColumn, type MeasureFacet } from './measure-reading';
 
 /**
  * What every column's heading says about itself when a reader rests on it.
@@ -279,6 +280,19 @@ export const STEP_FINAL_HINT =
   'in order, so this one waits for the step before it. The mark in a cell’s corner is ' +
   'that step’s reading — hover the cell for it in words, or press ? for every mark.';
 
+/**
+ * What each facet of a measure column says on its heading, whatever the
+ * measure (`wbs-measure-budgets` D7): the heading itself names the measure and
+ * its unit. Facts, trios and budgets are edited in the row's Measures panel.
+ */
+const MEASURE_FACET_HINTS: Readonly<Record<MeasureFacet, string>> = {
+  estimate:
+    'The expected figure: this measure’s three points weighed by the project’s PERT weights, summed over the row’s steps. A dot marks a single legacy figure. Edit it in the row’s Measures panel.',
+  fact: 'What was recorded in this measure, summed over the row’s steps. A dash means nothing was recorded — not zero. Agent minutes come from ended attempts and are never typed.',
+  variance:
+    'Recorded less expected, summed over the steps that hold both. Positive means it took more than expected.',
+};
+
 /** An id no sentence was written for — a typo, or a new column nobody explained. */
 export class UnexplainedColumnError extends Error {
   constructor(columnId: string) {
@@ -304,6 +318,11 @@ export class UnexplainedColumnError extends Error {
 export function hintFor(columnId: string, state: ColumnHintState): string {
   const declared = COLUMN_HINTS.get(columnId);
   if (declared !== undefined) return declared;
+  // Proof: with this arm removed, `explains each facet of any measure`
+  // (column-hints.test.ts) threw UnexplainedColumnError for
+  // `measure-tokens-estimate`; watched 2026-10-23.
+  const facet = facetOfColumn(columnId);
+  if (facet !== null) return MEASURE_FACET_HINTS[facet];
   if (columnId === 'start') return scheduleHint('earliest start', state);
   if (columnId === 'finish') return scheduleHint('earliest finish', state);
   if (columnId.includes('-')) {

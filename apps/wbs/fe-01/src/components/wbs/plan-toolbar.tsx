@@ -15,7 +15,13 @@ import {
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import { cn } from '@/lib/utils';
-import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
+import type {
+  MeasureDefinitionView,
+  PersonView,
+  PriorityBandView,
+  TeamCapacityView,
+  TeamView,
+} from '@/lib/wbs-api';
 import { isEstimateMethod, type StepView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 
@@ -23,6 +29,7 @@ import { MenuControl } from './actions-menu';
 import { useClosedOnDismiss } from './close-on-dismiss';
 import { DateField } from './date-field';
 import { ImportWithAiHelp } from './import-with-ai-help';
+import { isMeasureShown, type MeasureToggles, unitLabelOf } from './measure-reading';
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
@@ -51,6 +58,7 @@ import {
   isFiltering,
   NO_FACETS,
 } from './tree-search';
+import type { MeasureDefinitionsState } from './use-measure-definitions';
 import type { FacetOption } from './use-plan-filter';
 import { facetsChosen, toggledIn } from './use-plan-filter';
 import type { GapLanding } from './use-plan-keyboard';
@@ -367,10 +375,13 @@ export function ColumnsControl({
   offered,
   hiddenColumnIds,
   onToggle,
+  measures,
 }: {
   offered: readonly { id: string; label: string }[];
   hiddenColumnIds: readonly string[];
   onToggle: (columnId: string) => void;
+  /** The Measures group below the columns; absent where no table offers one. */
+  measures?: MeasureChooser;
 }) {
   const prefix = useId();
   return (
@@ -392,7 +403,7 @@ export function ColumnsControl({
           // is written on exactly that shape, and the row is the tap target.
           // `htmlFor` as well, so the name can be read off `label[for]`.
           return (
-            <label key={id} htmlFor={boxId} className="flex min-h-6 items-center gap-1.5">
+            <label key={id} htmlFor={boxId} className={CHOOSER_ROW}>
               <input
                 id={boxId}
                 type="checkbox"
@@ -405,8 +416,95 @@ export function ColumnsControl({
             </label>
           );
         })}
+        {measures !== undefined && <MeasureChoices prefix={prefix} chooser={measures} />}
       </div>
     </details>
+  );
+}
+
+/**
+ * One row of the Columns control: the tap target, with a hover tint, a focus
+ * ring around the box it wraps and a pressed tint, eased unless the reader asks
+ * for reduced motion. The same height in every state, so nothing moves.
+ */
+const CHOOSER_ROW =
+  'flex min-h-6 cursor-pointer items-center gap-1.5 rounded-sm px-1 -mx-1 transition-colors duration-150 ease-out motion-reduce:transition-none hover:bg-accent active:bg-accent/70 focus-within:ring-2 focus-within:ring-ring/60';
+
+/**
+ * What the Columns control offers for measures (`wbs-measure-budgets` D7):
+ * the definitions as the table read them, the reader's answers, and the two
+ * writers. Time is the scheduling measure; its toggle drives the step columns
+ * and Days rather than columns of its own.
+ */
+export interface MeasureChooser {
+  state: MeasureDefinitionsState;
+  toggles: MeasureToggles;
+  onToggle: (definition: MeasureDefinitionView) => void;
+  timeShown: boolean;
+  onToggleTime: () => void;
+}
+
+/**
+ * The Measures group: one box per definition in the organization's order, or
+ * the sentence for why there are none. Before organization activation the
+ * read answers `organization_required` (review S3-6), which is said here as a
+ * state, never as an error.
+ */
+function MeasureChoices({ prefix, chooser }: { prefix: string; chooser: MeasureChooser }) {
+  const { state } = chooser;
+  return (
+    <section data-measure-choices aria-label="Measures" className="mt-2 border-t pt-2">
+      <h3 className="text-muted-foreground mb-1 text-xs font-medium">Measures</h3>
+      {state.kind === 'loading' && (
+        // No live region: the group sits in a closed menu, and the page's own
+        // status line is the one a reader is told about.
+        <p data-measures-loading className="text-muted-foreground text-xs">
+          Reading this organization’s measures…
+        </p>
+      )}
+      {state.kind === 'organization_required' && (
+        <p data-measures-unavailable className="text-muted-foreground text-xs">
+          Measure columns need an organization. Once this workspace belongs to one, tokens, cost and
+          agent minutes can be shown here.
+        </p>
+      )}
+      {state.kind === 'failed' && (
+        // A sentence and not an alert: the group sits in a closed menu, and an
+        // alert nobody opened is noise in front of whatever the page is saying.
+        <p data-measures-failed className="text-destructive text-xs">
+          {state.sentence}
+        </p>
+      )}
+      {state.kind === 'ready' &&
+        state.measures.map((definition) => {
+          const boxId = `${prefix}-measure-${definition.key}`;
+          const shown = definition.schedulesWork
+            ? chooser.timeShown
+            : isMeasureShown(definition, chooser.toggles);
+          return (
+            <label
+              key={definition.key}
+              htmlFor={boxId}
+              className={CHOOSER_ROW}
+              data-measure-choice={definition.key}
+            >
+              <input
+                id={boxId}
+                type="checkbox"
+                checked={shown}
+                onChange={() => {
+                  if (definition.schedulesWork) chooser.onToggleTime();
+                  else chooser.onToggle(definition);
+                }}
+              />
+              <span className="truncate">{definition.name}</span>
+              <span className="text-quiet-ink ml-auto shrink-0 text-xs">
+                {definition.schedulesWork ? 'steps · Days' : unitLabelOf(definition)}
+              </span>
+            </label>
+          );
+        })}
+    </section>
   );
 }
 
@@ -644,6 +742,7 @@ export function PlanToolbar({
   setStoredHiddenColumns,
   offeredColumns,
   toggleColumn,
+  measureChooser,
   shownRows,
   search,
   gaps,
@@ -714,6 +813,8 @@ export function PlanToolbar({
   setStoredHiddenColumns: React.Dispatch<React.SetStateAction<readonly string[]>>;
   offeredColumns: { id: string; label: string }[];
   toggleColumn: (columnId: string) => void;
+  /** The Columns control's Measures group, or absent where the table offers none. */
+  measureChooser?: MeasureChooser;
   shownRows: Row<PlanTableFeatures, PlanRenderRow>[];
   search: TreeNarrowing;
   gaps: EstimateGaps;
@@ -1286,6 +1387,7 @@ export function PlanToolbar({
         offered={offeredColumns}
         hiddenColumnIds={hiddenColumnIds}
         onToggle={toggleColumn}
+        {...(measureChooser === undefined ? {} : { measures: measureChooser })}
       />
     </>
   );

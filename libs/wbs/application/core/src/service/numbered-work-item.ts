@@ -119,8 +119,9 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * remains after the subtree's facts and holds and whether the facts crossed
    * the cap. **Absent rather than `{}`** when the row has none, so a plan
    * without trios or budgets answers the bytes it did before budgets existed.
+   * `holdPerAttempt` is present exactly where the budget states a hold (D60).
    */
-  budgets?: Record<string, Omit<BudgetReading, 'spent' | 'holdPerAttempt'>>;
+  budgets?: Record<string, Omit<BudgetReading, 'spent'>>;
   /**
    * The money keys whose figures in this row's subtree are priced under two
    * or more bases, per kind, with the first two (design D44). Facts and trios

@@ -18,6 +18,7 @@ import {
   importProject,
   listCalendarMarkers,
   listExternalSystems,
+  listMeasures,
   listPeople,
   listProjects,
   listServices,
@@ -228,6 +229,13 @@ const PROJECT_API_OPERATIONS = {
   removeWorkItem: 'postApiProjectsByIdCommands',
   setEstimate: 'postApiProjectsByIdCommands',
   clearEstimate: 'postApiProjectsByIdCommands',
+  listMeasures: 'getApiMeasures',
+  setMeasureEstimate: 'postApiProjectsByIdCommands',
+  clearMeasureEstimate: 'postApiProjectsByIdCommands',
+  setMeasure: 'postApiProjectsByIdCommands',
+  clearMeasure: 'postApiProjectsByIdCommands',
+  setBudget: 'postApiProjectsByIdCommands',
+  clearBudget: 'postApiProjectsByIdCommands',
   arrangeBySchedule: 'postApiProjectsByIdCommands',
   freezeProject: 'postApiProjectsByIdCommands',
   unfreezeProject: 'postApiProjectsByIdCommands',
@@ -1441,6 +1449,135 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         { kind: 'setEstimate', workItemId, stepId, days },
         (_normalizedProjectId, normalized) =>
           setEstimateAnswer(normalized.workItemId, normalized.stepId, normalized.days),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const listMeasuresAnswer = answers.listMeasures;
+  if (listMeasuresAnswer !== undefined) {
+    // Through the real shape, so a definition be-01 could not send is refused
+    // here, and `organization_required` travels as the 409 it is on the wire.
+    checked.listMeasures = async () => {
+      const client = clientFromShapes([listMeasures], async () => {
+        const directory = await listMeasuresAnswer();
+        return directory.kind === 'ready'
+          ? { kind: 'json' as const, status: 200, body: { measures: directory.measures } }
+          : { kind: 'json' as const, status: 409, body: { error: 'organization_required' } };
+      });
+      const reply = await client.getApiMeasures({});
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'success') return { kind: 'ready', measures: reply.body.measures };
+      if (reply.body.error === 'organization_required') return { kind: 'organization_required' };
+      throw new Error(reply.body.error);
+    };
+  }
+
+  const setMeasureEstimateAnswer = answers.setMeasureEstimate;
+  if (setMeasureEstimateAnswer !== undefined) {
+    checked.setMeasureEstimate = (workItemId, stepId, measure, estimate, rateCardDigest) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'setMeasureEstimate',
+          workItemId,
+          stepId,
+          measure,
+          estimate: { ...estimate },
+          ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+        },
+        (_normalizedProjectId, normalized) =>
+          setMeasureEstimateAnswer(
+            workItemId,
+            stepId,
+            normalized.measure,
+            normalized.estimate,
+            normalized.rateCardDigest,
+          ),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const clearMeasureEstimateAnswer = answers.clearMeasureEstimate;
+  if (clearMeasureEstimateAnswer !== undefined) {
+    checked.clearMeasureEstimate = (workItemId, stepId, measure) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'clearMeasureEstimate', workItemId, stepId, measure },
+        (_normalizedProjectId, normalized) =>
+          clearMeasureEstimateAnswer(workItemId, stepId, normalized.measure),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const setMeasureAnswer = answers.setMeasure;
+  if (setMeasureAnswer !== undefined) {
+    checked.setMeasure = (workItemId, stepId, metric, value, rateCardDigest) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'setMeasure',
+          workItemId,
+          stepId,
+          metric,
+          value,
+          ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+        },
+        (_normalizedProjectId, normalized) =>
+          setMeasureAnswer(
+            workItemId,
+            stepId,
+            normalized.metric,
+            normalized.value,
+            normalized.rateCardDigest,
+          ),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const clearMeasureAnswer = answers.clearMeasure;
+  if (clearMeasureAnswer !== undefined) {
+    checked.clearMeasure = (workItemId, stepId, metric) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'clearMeasure', workItemId, stepId, metric },
+        (_normalizedProjectId, normalized) =>
+          clearMeasureAnswer(workItemId, stepId, normalized.metric),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const setBudgetAnswer = answers.setBudget;
+  if (setBudgetAnswer !== undefined) {
+    checked.setBudget = (workItemId, measure, budget) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'setBudget',
+          workItemId,
+          measure,
+          cap: budget.cap,
+          policy: budget.policy,
+          ...(budget.holdPerAttempt === undefined ? {} : { holdPerAttempt: budget.holdPerAttempt }),
+        },
+        (_normalizedProjectId, normalized) =>
+          setBudgetAnswer(workItemId, normalized.measure, {
+            cap: normalized.cap,
+            policy: normalized.policy,
+            ...(normalized.holdPerAttempt === undefined
+              ? {}
+              : { holdPerAttempt: normalized.holdPerAttempt }),
+          }),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const clearBudgetAnswer = answers.clearBudget;
+  if (clearBudgetAnswer !== undefined) {
+    checked.clearBudget = (workItemId, measure) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'clearBudget', workItemId, measure },
+        (_normalizedProjectId, normalized) => clearBudgetAnswer(workItemId, normalized.measure),
         () => VOID_COMMAND_RESULT,
       );
   }

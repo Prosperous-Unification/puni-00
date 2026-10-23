@@ -2108,6 +2108,14 @@ describe('the columns a reader has hidden', () => {
       { label: 'Start', checked: true },
       { label: 'End', checked: true },
       { label: 'Slack', checked: true },
+      // The Measures group (`wbs-measure-budgets` D7): the fake answers the
+      // five seeded definitions; only time, whose columns are Dev, QA and
+      // Days above, is shown by default.
+      { label: 'Timesteps · Days', checked: true },
+      { label: 'Tokenstokens', checked: false },
+      { label: 'Hourshours', checked: false },
+      { label: 'CostUSD', checked: false },
+      { label: 'Agent minutesminutes', checked: false },
     ]);
   });
 

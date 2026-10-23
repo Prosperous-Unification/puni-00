@@ -508,6 +508,185 @@ were not rerun (a slice-6 worker shares the laptop).
 | S3-5 stale "twenty-one queries"              | twenty-four, with the dates of each addition                                                                                         | documentation                                                                                                                                                                                                                         |
 | boot memory not quotable                     | `contracts-boot-memory.test.ts` prints `contracts shape load: <n> MB (bound 500 MB)`                                                 | printed 328 MB                                                                                                                                                                                                                        |
 
+## Slice 6 — tasks 4.2 and 4.3 (2026-10-23)
+
+Worktree `feat/wbs-measure-columns`, rebased onto slice 5's review head 376e7d1c2. Laptop run,
+every test under `env -u CLAUDECODE`; the h2puni gate was not run (slice PR into the plan
+branch). Assumptions D53–D59 in design.md. fe-01 only: no backend, contract or migration change.
+The row read (`budgets`, `mixedRateCards`, `moneyBases`) is the panel's only source; the headroom
+read is not used.
+
+### Commands and results
+
+| Command                                                                                                 | Result                                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`             | exit 0 (review debt only `store-memory/src/README.md`, 51 of 40, over before this slice)                     |
+| `bunx nx run-many -t typecheck,lint -p wbs-fe-01 wbs-contracts`                                         | succeeded (typecheck includes `typecheck:module`)                                                            |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (full)                                                  | 920 tests, exit 0                                                                                            |
+| `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`                                                       | 81 files, 1002 pass (`test-tiers.test.ts` among them)                                                        |
+| fe-01 DOM tier `TZ=UTC bunx vitest run --maxWorkers=2` (whole tier)                                     | 221 files, 4336 pass                                                                                         |
+| fe-01 zoned tier `TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts`                  | 4 files, 5 pass                                                                                              |
+| `E2E_PORT_SHIFT=1900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts measure-columns` | 4 pass (real be-01, gw-01, fe-01; definitions and three rows' budgets answered at the browser, see the spec) |
+| `bunx nx format:check --all`                                                                            | exit 0                                                                                                       |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                | 270 of 270                                                                                                   |
+
+The first whole-tier DOM run before the fixes failed 12 cases: menu lists and the Columns list now
+carry `Measures…` and the Measures group (expectations updated), the chooser's loading line was a
+`role="status"` that `findByRole('status')` in the optimization suite picked up and its failed line
+a `role="alert"` (both made plain sentences inside the closed menu), and a hand-spread fake without
+`listMeasures` threw synchronously out of the effect (the read now runs inside a promise, so that is
+the rendered `failed` state). Four file-level ENOENT errors in the vitest transform cache did not
+recur.
+
+### Failure proofs
+
+Each fault was injected into production code, the named test watched failing, and the code
+restored; the adjacent `Proof:` comments carry the same.
+
+| Guard                                             | Fault injected                            | Test that observed it                                                                                                                          |
+| ------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isMeasureShown` default filter                   | `?? definition.showByDefault` → `?? true` | node `a fresh reader sees no measure column but time` (3 of 18 failed); DOM and browser `a fresh reader sees time only…` (10 measure headings) |
+| `listMeasures` models `409 organization_required` | arm removed                               | `answers organization_required as a modeled state` (rejected with WbsRequestError)                                                             |
+| measure column width arm                          | arm removed                               | `lays every measure column at its declared width` (UnknownColumnError)                                                                         |
+| measure column hint arm                           | arm removed                               | `explains each facet of any measure…` (UnexplainedColumnError)                                                                                 |
+| panel write keeps the refusal sentence            | sentence assignment removed               | `shows a refusal beside the control that asked, in plan-refusal words` (no alert)                                                              |
+| `useMeasureDefinitions` project check             | answered `state.reading` unconditionally  | `shows no project’s definitions against another, nor a late answer` (read p1's `ready`)                                                        |
+| `useMeasureDefinitions` stale answer              | `if (!current) return` removed            | `drops the answer of commands it no longer reads through` (read the old `ready`)                                                               |
+| strict bar versus advisory marker                 | policy test negated (renderings swapped)  | `draws a strict budget as a bar and an advisory one as a marker…` (no meter in Tokens)                                                         |
+| measure refusal words                             | `unknown_measure` entry renamed away      | `words every measure refusal the panel can reach` (fallback carried the code)                                                                  |
+
+Not proven at runtime: the exhaustive `measuresReadCode` switch (an arm removed does not compile).
+
+### Visual review (Dany's UI rule)
+
+Evidence under `evidence/slice-6/`, written by `e2e/measure-columns.spec.ts` with
+`MEASURE_EVIDENCE_DIR` set (CI writes only to its test output): `desktop-table-tokens-cost.png`,
+`desktop-column-chooser.png`, `desktop-panel-strict-advisory.png`, `desktop-panel-mixed.png`,
+`desktop-panel-empty.png`, `mobile-cards.png`, `mobile-column-chooser.png`,
+`mobile-panel-strict-advisory.png`, `mobile-panel-mixed.png`, `mobile-panel-empty.png` and the
+recording `interaction-toggle-estimate-variance.webm` (enable Tokens, type a trio and a fact in
+the panel, variance `+50` appears in the cell). About 1.4 MB in all.
+
+Judged and changed:
+
+- Columns control rows gained a hover tint, a focus ring around the wrapped box and a pressed
+  tint, eased over 150 ms and still under `prefers-reduced-motion`; same height in every state.
+  The Measures group sits under a rule with units right-aligned; Time reads `steps · Days`.
+- Measure headings are two lines (name over facet and unit) at 96 px; enabling measures makes the
+  frame scroll sideways, as unfolding steps does, and the pinned number and name hold. Absent
+  figures are dashes, a legacy single figure carries a dot, mixed money is a dashed amber
+  `mixed cards` marker, positive variance red, negative green (status tokens, both palettes).
+- Panel: first review showed bullet points and a doubled `….` on the basis lines and the mixed
+  sentence twice in the Cost card; the list lost its bullets, the basis lost the period, and the
+  blocked budget now says "Budget unknown: its facts mix rate cards (A and B)". Strict budgets are
+  a bar with the spent/cap/over line and an "Exceeded" sentence in the blocked colour; advisory
+  and derived budgets are a pill and a line. Form messages reserve their line so a refusal does
+  not push controls down; the bar width eases and stands still under reduced motion.
+- Phone: the panel fits 390 px with three figures per row; the cards draw no measure figures
+  (D53) and the chooser lives in the Plan actions sheet with 44 px rows.
+- No pixel baseline exists to update: the `pixels` job measures geometry, and the default column
+  set (time only) is unchanged, which `table-frame.test.ts` pins.
+
+### Skipped or unverified
+
+- The h2puni gate and the CI `pixels` shards were not run here; the new spec joins that suite.
+- `GET /api/measures` was answered at the browser in the spec: the ordinary e2e be-01 has no
+  organization, so a live definitions read before activation answers 409 (rendered as a state,
+  covered in jsdom), and an activated organization's read was not exercised in a browser.
+- A viewer's refusal is worded as `forbidden` for every edit (D58); no browser session with a
+  viewer role was driven.
+
+### Review of PR #680 — fixes (2026-10-23)
+
+Fixed on `feat/wbs-measure-columns` as new commits on 21866eb90. Assumptions D60–D62 in
+design.md; D54 amended. The row read gains one additive field (`holdPerAttempt`, only where a
+hold is stated); no migration.
+
+| Finding                               | Fix                                                                                                                                                                                                           | Proof (fault injected → test observed)                                                                                                                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S2-1 Saving a budget dropped its hold | row read keeps `holdPerAttempt` (core strip, contract `holdPerAttempt?`, D60); panel prefills the hold box and sends it, an emptied box sends `null`                                                          | strip restored → core `holds the allowance of each running attempt…` failed (30 pass 1 fail); contract field removed → `carries a stated hold on a row budget, and only a number` accepted `'300'`; prefill emptied → DOM `keeps a stated hold when a budget is saved…` found an empty box |
+| S2-2 Sub-unit money read as `$0.00`   | `fractionDigitsFor`: two significant digits, up to 6, where the usual digits round to zero (D62)                                                                                                              | answering the usual digits → `never shows a non-zero figure as zero` read `$0.00` for 1500 micro-USD                                                                                                                                                                                       |
+| S2-3 Warning keyed on `exceeded`      | `refusing = strict && remaining <= 0` drives bar colour and the sentence; "nothing left · N held" for holds; badge stays on `exceeded` (D61)                                                                  | keyed on `exceeded` → node `refuses at the cap and on holds…` failed; panel sentence keyed on `over` → DOM `warns at the cap and on holds…` found no sentence                                                                                                                              |
+| S3 commas                             | only thousands grouping accepted, field message otherwise; currency to micros on the digits                                                                                                                   | "drop every comma" regex → `refuses a comma that does not group thousands` read `1,5` as 15                                                                                                                                                                                                |
+| S3 stale forms                        | trio, fact and budget forms keyed on their stored value                                                                                                                                                       | keyed on the step alone → DOM `clears through the panel, and the boxes follow what is stored` read `100`                                                                                                                                                                                   |
+| S3 D54                                | Reset layout forgets `wbs.measureColumns.<project>`; a project switch reads its own answers; spec scenario says "per browser and project, beside the remembered layout"                                       | forget call removed → DOM `Reset layout forgets the measure columns` kept the tokens columns; project check removed → DOM `reads another project’s measure columns afresh` showed p1's columns on p2                                                                                       |
+| S3 empty state                        | "in any measure but time"                                                                                                                                                                                     | text asserted in DOM and browser                                                                                                                                                                                                                                                           |
+| S3 a11y                               | `aria-controls` dropped (forms unmounted while closed); single-point dot `aria-hidden` with sr-only text                                                                                                      | asserted by the DOM queries; not fault-injected                                                                                                                                                                                                                                            |
+| S3 basis list gap                     | list `m-0`                                                                                                                                                                                                    | judged in `desktop-panel-forms.png`                                                                                                                                                                                                                                                        |
+| S3 numeric cells                      | measure cells and headings right-aligned, tabular numerals                                                                                                                                                    | judged in `desktop-table-tokens-cost.png`                                                                                                                                                                                                                                                  |
+| S3 preferences README                 | fifteen keys, JSON for twelve                                                                                                                                                                                 | doc                                                                                                                                                                                                                                                                                        |
+| S3 tests                              | money payload (`0.29` → 290000, digest), `setBudget` payload (policy, hold), Clear flows, forms by rolled-up and derived rows, refusal through `WbsRequestError`, e2e sleeps replaced by web-first assertions | the cases themselves                                                                                                                                                                                                                                                                       |
+
+Commands after the fixes (fresh):
+
+| Command                                                                                                           | Result                                                    |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `bunx nx run-many -t typecheck,lint -p wbs-fe-01 wbs-contracts wbs-core`                                          | succeeded                                                 |
+| `bunx nx run-many -t test -p wbs-contracts wbs-core --skip-nx-cache`                                              | contracts 500 pass, core 1235 pass                        |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                                     | 515 pass (the generated document grew one optional field) |
+| be-01 `bun test src/openapi src/controller/work-item` and the five measure, budget and row-read controller suites | 126 pass; 141 pass                                        |
+| `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`                                                                 | 81 files, 1008 pass                                       |
+| fe-01 whole DOM tier `TZ=UTC bunx vitest run --maxWorkers=2`                                                      | 221 files, 4351 pass                                      |
+| `E2E_PORT_SHIFT=1900 … playwright test … measure-columns`                                                         | 4 pass                                                    |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                   | 920 pass, 0 fail (689 s), run by the coordinating session |
+
+Also run by the coordinating session on 5d8beaa51: `check-indexes committed . HEAD` exit 0, `nx format:check --all`
+exit 0, `openspec validate --all --json` 270 of 270. It reviewed `desktop-panel-at-cap-tiny-cost.png` and
+`mobile-panel-forms.png` by eye and accepted them.
+
+Visual review of the fixes, from the re-shot evidence: `desktop-panel-forms.png` and
+`mobile-panel-forms.png` show the open estimate, fact and budget forms; at 390 px the trio's labels
+("Cost pessimistic") wrap above their boxes and the three boxes stay on one row inside the panel,
+which the spec asserts (one top, right edge ≤ 390). `desktop-panel-at-cap-tiny-cost.png` and
+`mobile-panel-at-cap-tiny-cost.png` show a strict tokens budget spent exactly to its cap in the
+refusing colour with "1,000 of 1,000 · nothing left" and "Spent to the cap — the coordinator
+refuses the next attempt here.", no exceeded badge, and a cost fact of 4999 micro-USD reading
+`$0.0050`. The table re-shot with right-aligned figures; the hold box is prefilled; the basis
+list sits one gap below the trio line. Re-shot: every file under `evidence/slice-6/` (15 files,
+about 1.7 MB).
+
+## CI pixels fixes (run 39956229555)
+
+- `layout.spec.ts` `drives the actions menu from the keyboard`: failed at `Delete` with
+  `Received: "Measures…"`. The order is the intended one (design D57: "Measures…" after
+  Duplicate; it opens a dialog and writes nothing, Delete stays last in the destructive tint), so
+  the spec walks `Duplicate → Measures… → Delete` and ArrowUp from Delete back to `Measures…`; the
+  Escape and Tab focus-return checks are unchanged. The order comments in `plan-columns/actions.tsx`
+  and `plan-cards.tsx` now name Measures….
+- `plan-table-review.spec.ts` `holds a lone chip too wide for its cell steady, counted`: the chip
+  geometry was not the cause. The failing assertion was `expect(logged).toEqual([])`, which received
+  Chromium's `Failed to load resource: the server responded with a status of 409 (Conflict)`. A
+  temporary response log named it `GET /api/measures 409`: every opened plan read the definitions,
+  and the ordinary e2e be-01 is pre-activation, where the read can only answer
+  `organization_required`. Fix in code: `useMeasureDefinitions` answers `organization_required`
+  without asking when the session read reports `onboarding: false` (the spaces page's precedent,
+  `quiet-load.spec.ts`'s rule), as one constant object; a fresh literal per render rebuilt the
+  table's memoized columns and broke the dependency search (layout spec seeding timed out at
+  `Stop 020 waiting for 010`, three of three). `measure-columns.spec.ts` now answers the session read
+  as an activated deployment's (`onboarding: true`) beside its `/api/measures` answer.
+- Proofs: removing the effect's early return failed `asks nothing of a deployment reported before
+activation` (`listMeasures` called once); removing the render-time return failed it with
+  `{ kind: 'loading' }`; answering `onboarding: false` in `measure-columns.spec.ts` failed
+  `a fresh reader sees time only` (no tokens choice).
+- Commands (`env -u CLAUDECODE`, `E2E_PORT_SHIFT=2300 bunx playwright test --config
+apps/wbs/fe-01/playwright.config.ts …`): both specs failed on 4779f9674 as in CI; after the fix
+  `layout.spec.ts:2235 plan-table-review.spec.ts:854 measure-columns.spec.ts` 6 passed; vitest
+  `measure-panel`, `plan-cards`, `plan-structure` 213 passed; `nx run-many -t typecheck lint -p
+wbs-fe-01` passed; `nx format:check --all` exit 0.
+
+### CI gate twilight fix (run 39963265943, 2026-10-23)
+
+`gate twilight` failed six `pilot-policy.test.ts` cases. Causes, both real: the slice-6 evidence
+binaries (15 files under `evidence/slice-6/`) were undeclared in `docs/wiki-policy/policy.json`
+and `bootstrap-policy.json` (`undeclared binary content`), and the pinned pilot mapping
+`docs/wiki-policy/modules.json` did not list the plan-commands module's new external consumer
+`use-measure-definitions.ts` that the module index declares. Fix: one binary declaration per file
+in both policies (consumer `verify.md`, regenerated by `measure-columns.spec.ts`) and the consumer
+added to the mapping. `pilot-policy.test.ts` 24 pass / 0 fail; `nx run twilight-burokrat:test
+--skip-nx-cache` exit 0; `check-indexes` exit 0; `format:check --all` exit 0. The same run's
+`pixels shard 4/4` failure (`toolbar-panels.spec.ts:472`) passed 2/2 locally on the same head and
+is recorded as a timing flake.
+
 ## Slice 7 — tasks 4.4 and 4.5 (2026-10-23)
 
 Plan document version 11 (D63), row readings out of the document (D64), import matching

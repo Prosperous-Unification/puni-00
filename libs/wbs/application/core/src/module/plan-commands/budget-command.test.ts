@@ -383,6 +383,7 @@ describe('budgets on the row read', () => {
         remaining: 200,
         exceeded: false,
         held: 300,
+        holdPerAttempt: 300,
       });
       // A second unknown attempt under the parent holds again: nothing remains.
       await run([{ kind: 'startAttempt', workItemId: B, stepId: dev, at: start }]);

@@ -99,8 +99,8 @@ SHALL be refused `409 mixed_rate_cards` naming both; WBS converts nothing.
 ### Requirement: Columns and export follow the definitions
 
 The plan table SHALL offer estimate, fact and variance columns for every measure definition,
-visible by default only where `showByDefault` is set, with per-user, per-project toggles
-persisted through the remembered layout; headers SHALL carry the unit and money the currency;
+visible by default only where `showByDefault` is set, with toggles persisted per browser and
+project beside the remembered layout and forgotten by its reset; headers SHALL carry the unit and money the currency;
 absence SHALL render as absence. A measure panel per work item SHALL list every definition
 with expected, fact, variance and budget. The export SHALL gain a version carrying definitions,
 estimates, facts and budgets; importing an older version SHALL seed the defaults and map
@@ -110,8 +110,8 @@ legacy metrics; saved plan compare SHALL show changes in any measure.
 
 - **WHEN** a user with no remembered layout opens a project whose organization defines five
   measures
-- **THEN** only the time columns are visible, and enabling tokens persists for that user and
-  not for another
+- **THEN** only the time columns are visible, and enabling tokens persists per browser and
+  project, beside the remembered layout, and not in another browser
 
 #### Scenario: Older export imports
 

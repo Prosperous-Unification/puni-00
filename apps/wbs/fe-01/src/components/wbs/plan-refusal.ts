@@ -625,6 +625,24 @@ function timezonesReadCode(refusal: RefusalOf<'getApiTimezones'>): string {
   }
 }
 
+function measuresReadCode(refusal: RefusalOf<'getApiMeasures'>): string {
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_body':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'organization_required':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string {
   switch (problem.operation) {
     case 'getApiPeople':
@@ -667,6 +685,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return optimizationRetryCode(problem.refusal);
     case 'getApiTimezones':
       return timezonesReadCode(problem.refusal);
+    case 'getApiMeasures':
+      return measuresReadCode(problem.refusal);
     default:
       return unreachable(problem);
   }
@@ -849,6 +869,41 @@ export const PLAN_REFUSALS: RefusalWords = {
     attempt_ends_before_start: 'An attempt cannot end before it started. Nothing was changed.',
     unknown_attempt:
       'That attempt is no longer here — someone may have removed it. Nothing was changed.',
+    // The measure refusals (`wbs-measure-budgets` slices 1–5), as the Measures
+    // panel reaches them. The panel keeps no copy of be-01's rules — it sends
+    // what was typed — so each of these is reachable from one form there.
+    // Proof: with these entries struck, `words every measure refusal the panel
+    // can reach` (plan-refusal-measures.test.ts) read the fallback carrying the
+    // code for each; watched 2026-10-23.
+    unknown_measure:
+      'That measure is no longer defined in your organization — reopen the plan to see the current ones. Nothing was changed.',
+    derived_measure:
+      'Agent minutes are read from ended attempts and cannot be typed. Nothing was changed.',
+    scheduling_measure_fact:
+      'Time’s fact is the actual days, recorded when work is marked done. Nothing was changed.',
+    scheduling_measure_estimate:
+      'Time is estimated in the step columns, not here. Nothing was changed.',
+    scheduling_measure_budget:
+      'Time takes no budget: its figures are the step estimates and the actual days. Nothing was changed.',
+    three_point_forbidden:
+      'This measure takes a single fact, not three points. Nothing was changed.',
+    scale_mismatch:
+      'This measure counts in whole units — type a whole number. Nothing was changed.',
+    rate_card_required:
+      'A cost is priced on a rate card: type the card’s digest before saving. Nothing was changed.',
+    rate_card_forbidden:
+      'Only money is priced on a rate card; leave the digest empty here. Nothing was changed.',
+    mixed_rate_cards:
+      'That would add figures priced on different rate cards, which WBS never does. Nothing was changed.',
+    invalid_measure: 'A fact is a figure of 0 or more. Nothing was changed.',
+    invalid_estimate:
+      'Three points are figures of 0 or more, with optimistic ≤ realistic ≤ pessimistic. Nothing was changed.',
+    invalid_budget:
+      'A budget’s cap and hold are figures of 0 or more, and its policy strict or advisory. Nothing was changed.',
+    rolled_up:
+      'This row’s figures are the sums of the rows beneath it; estimate on those. Nothing was changed.',
+    organization_required:
+      'Measures belong to an organization, and this workspace does not belong to one yet. Nothing was changed.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),

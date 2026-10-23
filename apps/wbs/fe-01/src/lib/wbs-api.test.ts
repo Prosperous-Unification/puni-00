@@ -222,6 +222,57 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('the measure list (wbs-measure-budgets D17, review S3-6)', () => {
+  const definition = {
+    id: 'm1',
+    key: 'tokens',
+    name: 'Tokens',
+    unit: 'tokens',
+    kind: 'count',
+    scale: 'integer',
+    threePoint: true,
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+    order: 2,
+    currency: null,
+  };
+
+  it('reads the definitions through the generated client', async () => {
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(response(200, JSON.stringify({ measures: [definition] }))),
+    );
+    vi.stubGlobal('fetch', fetched);
+    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+      kind: 'ready',
+      measures: [definition],
+    });
+    expect(fetched.mock.calls.at(0)?.[0]).toBe('/api/measures');
+  });
+
+  it('answers organization_required as a modeled state', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(response(409, JSON.stringify({ error: 'organization_required' }))),
+    );
+    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+      kind: 'organization_required',
+    });
+  });
+
+  it('throws any other refusal, and a definition be-01 could not send', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(response(401, JSON.stringify({ error: 'unauthenticated' }))),
+    );
+    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('unauthenticated');
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        response(200, JSON.stringify({ measures: [{ ...definition, kind: 'volume' }] })),
+      ),
+    );
+    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('invalid_response');
+  });
+});
+
 describe('plan JSON transfer', () => {
   it('downloads the validated JSON representation through the generated project client', async () => {
     const document = PLAN_DOCUMENT(['kept-row']);
@@ -1097,6 +1148,12 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.removeWorkItem('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
       [() => api.setEstimate('w1', 'r1', days), 'setEstimate'],
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
+      [() => api.setMeasureEstimate('w1', 'r1', 'cost', days, 'card-a'), 'setMeasureEstimate'],
+      [() => api.clearMeasureEstimate('w1', 'r1', 'tokens'), 'clearMeasureEstimate'],
+      [() => api.setMeasure('w1', 'r1', 'tokens', 300), 'setMeasure'],
+      [() => api.clearMeasure('w1', 'r1', 'tokens'), 'clearMeasure'],
+      [() => api.setBudget('w1', 'tokens', { cap: 1000, policy: 'strict' }), 'setBudget'],
+      [() => api.clearBudget('w1', 'tokens'), 'clearBudget'],
       [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
       [
