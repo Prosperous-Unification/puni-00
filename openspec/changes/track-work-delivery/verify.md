@@ -372,3 +372,15 @@ Ruling: use required PR gate/pixels as canonical final verification, with focuse
 ```text
 Ruling: separate implementation verification (Task5/OpenSpec) from publication/CI acceptance (goal finishing) to avoid a self-referential evidence commit that reruns unchanged application tests — commit local/live proofs once, reference the PR's head-bound CI receipt from verify.md, record actual final CI links/timings in that receipt without changing code — costs following the linked CI evidence rather than duplicating its mutable verdict into the tested source tree. Goal still requires actual successful final gate/pixels; no check is waived.
 ```
+
+## Publication follow-up: browser setup budget
+
+The published delivery head obtained a passing required gate but exhausted the existing browser job deadline three times after slow Ubuntu package downloads. The directly blocking correction is recorded separately in [browser validation budgets](../separate-browser-setup-budget/proposal.md), with its [proof record](../separate-browser-setup-budget/verify.md). Delivery model, API and UI behavior are unchanged by that correction. Final required verdicts remain in the PR receipt described above.
+
+```text
+Ruling: correct the directly blocking browser CI budget in a separate narrow OpenSpec packet within this PR — three observed setup-starved attempts prevent final validation, while the user authorized autonomous completion and avoidance of bottlenecks — costs one new-head CI cycle and a longer worst-case job allowance; test scope, retries, reducer, runner and main enforcement stay unchanged. Chosen budgets50mjob/15msetup/25mlayout/5morganization, retaining existing25mmaximum forlayout rather than narrowing slow shardsto20m. No new domain terms or irreversible ADR. Optionaldesignartifactomittedbecausefourdeclarationsandtheproofsequencearefullyspecifiedintasks.
+```
+
+```text
+Ruling: review the browser budget declarations and their Actions deadline evidence together as one bounded CI correction — neither is acceptable without the other, and the user asked to avoid unnecessary repeated reviews — costs one combined review instead of separate overlapping reviews of the same four declarations.
+```
