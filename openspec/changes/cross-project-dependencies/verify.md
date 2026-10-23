@@ -5266,3 +5266,15 @@ consumer paths and records selected configured frontend checks plus independent
 watched navigation-by-abbreviation, address-only-label and foreign-chart-input
 regressions. Production sources and tests remain unchanged. Parent 9.2, semantic
 activation and full integration/release gates remain open.
+
+## Task 4.4 mounted incident replay evidence — 2026-10-23
+
+[The mounted controller packet](evidence/task-4.4-mounted-incident-replay/verify.md)
+proves a compound first-child hand-down and exact undo/redo receipts through
+HTTP under restricted remote successor ownership. A timestamp-only receipt
+corruption returns `409 stale_undo` after rolling back the earlier inverse
+patch, with no additional push; removing the production creation-audit check
+made the mounted undo succeed unsafely, then restoration passed. The focused
+packet passed 32 combined history tests and configured backend lint/typecheck.
+This closes only the mounted evidence gap; parent 4.4, activation and the
+exact-SHA release gate remain open.
