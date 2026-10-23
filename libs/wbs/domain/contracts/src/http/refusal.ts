@@ -59,8 +59,8 @@ export type ParserRefusalCode =
   | 'first_band_must_start_at_1'
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
-  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
+  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId' | 'providerId'}_must_be_id_or_null`
+  | `${'name' | 'notes' | 'kind' | 'personKind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
   | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef' | 'measureId' | 'measureRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
@@ -197,6 +197,14 @@ export type CommandRefusalCode =
   | 'unknown_system'
   /** A resource the directory does not hold, or one another organization owns (`wbs-resources`). */
   | 'unknown_resource'
+  /** `patchResource.providerId` naming no provider instance (`compute-providers` P3). */
+  | 'unknown_provider'
+  /**
+   * `patchResource.providerId` naming another organization's provider
+   * instance: the caller already holds the id, so confirming it exists leaks
+   * nothing (`compute-providers` P3).
+   */
+  | 'provider_not_in_organization'
   /** `setDemand` of other than 1 unit on an `exclusive` resource. */
   | 'exclusive_demand_is_one'
   /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
@@ -324,6 +332,18 @@ export interface OccupancyRefusalHolder {
 }
 
 /**
+ * One resource `resources_exhausted` names: the units asked, the units free
+ * and who holds the rest. The refusal's own fields are its first short
+ * resource; `resources` lists every one in resource-id order.
+ */
+export interface ResourceShortageDetail {
+  resourceId: string;
+  asked: number;
+  free: number;
+  holders: OccupancyRefusalHolder[];
+}
+
+/**
  * Proof (type boundary only): making kind optional produces TS2578 for both the
  * runtime and global incomplete-command fixtures. Production binding is pending.
  */
@@ -350,6 +370,12 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  /**
+   * The provider instance the resource names, whose reference and report a
+   * confirmed removal takes with it (`compute-providers` P3), or null.
+   * Optional on the wire: an outgoing be-01 mid-swap names none.
+   */
+  providerId?: string | null;
 }
 
 /** Both affected-project and directory-member lists are present, including when empty. */
@@ -454,12 +480,7 @@ export type CommandRefusalDetail = {
                         : C extends 'below_held_occupancy'
                           ? { resourceId: string; asked: number; held: number }
                           : C extends 'resources_exhausted'
-                            ? {
-                                resourceId: string;
-                                asked: number;
-                                free: number;
-                                holders: OccupancyRefusalHolder[];
-                              }
+                            ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
                             : C extends 'agent_person_limit'
                               ? LimitRefusalDetail
                               : C extends 'claim_limit'
@@ -491,6 +512,11 @@ type BareRefusalCode =
    * person is no longer bound to the account (`wbs-machine-credentials` A20).
    */
   | 'credential_revoked'
+  /**
+   * `POST /api/claims/renew` from a caller whose credential is pinned to no
+   * person (a session, an upstream pair): it holds no lease (`wbs-claim-leases` L13).
+   */
+  | 'not_pinned'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'
@@ -631,7 +657,8 @@ type SharedCommandCode =
   | 'agent_person_limit'
   | 'capacity_limit'
   | 'person_not_bound'
-  | 'organization_required';
+  | 'organization_required'
+  | 'unknown_provider';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -673,8 +700,30 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     organization_required: undefined | CommandContext;
     /** Naming the person from a machine credential create; with its command context from a batch. */
     person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
-    /** Also a trusted issuer that unrevoked machine credentials name (`wbs-machine-credentials` A16). */
-    in_use: { inUse: StepInUse } | { machineCredentials: number } | CommandRefusalDetail['in_use'];
+    /**
+     * Also a trusted issuer that unrevoked machine credentials name
+     * (`wbs-machine-credentials` A16), and a provider instance resources name
+     * (`compute-providers` P2).
+     */
+    in_use:
+      | { inUse: StepInUse }
+      | { machineCredentials: number }
+      | { resources: { id: string; name: string }[] }
+      | CommandRefusalDetail['in_use'];
+    /** Bare from the compute provider routes; with its command context from a `patchResource` batch. */
+    unknown_provider: undefined | CommandRefusalDetail['unknown_provider'];
+    /**
+     * A capacity report from a principal that is no machine credential of an
+     * agent person (`compute-providers` P6): which carrier it was, or the
+     * pinned person's kind.
+     */
+    not_an_agent_principal: { authentication: 'session' | 'delegation' } | { personKind: 'person' };
+    /** A capacity report observed further ahead of WBS's clock than the tolerance, by this much. */
+    observedAt_in_future: { skewMs: number };
+    /** A capacity report for a resource that names another instance, or none. */
+    provider_mismatch: { providerId: string | null };
+    /** A capacity report not newer than the stored one, naming the stored instant. */
+    report_superseded: { storedObservedAt: number };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

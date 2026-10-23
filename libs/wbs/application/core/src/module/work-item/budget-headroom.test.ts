@@ -48,6 +48,7 @@ const startable = (claimed = false): StartableWork => ({
           runId: null,
           parentClaimId: null,
           claimedAt: 1,
+          leaseExpiresAt: null,
         },
       ]
     : [],

@@ -14,6 +14,11 @@ import { installDirectory } from './module/directory/check';
 import { standaloneDirectoryService } from './module/directory/standalone-directory';
 import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
+import {
+  CLAIM_LEASE_SWEEP_INTERVAL_MS,
+  CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK,
+  ClaimLeaseSweep,
+} from './module/plan-commands/claim-lease-sweep';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
 import { installPlanEvent } from './module/plan-event/check';
 import { installPlanHistory } from './module/plan-history/check';
@@ -246,6 +251,12 @@ interface CommonServices extends WritingServices {
    * second, stateless `PlanCommandRunner` over the same values (task 7.4).
    */
   readonly commands: PlanCommandRunner;
+  /**
+   * The coordinator that releases claims nobody renewed (`wbs-claim-leases`
+   * L7), over {@link commands}: started and stopped by the process root, as
+   * {@link retention} is.
+   */
+  readonly claimLeases: ClaimLeaseSweep;
 }
 
 export type AccountlessServices = CommonServices;
@@ -391,6 +402,13 @@ export function composeServices(
     newId: () => runtime.clock.newId(),
     now: () => Math.floor(runtime.clock.now() / 1_000),
   });
+  const commands = installPlanCommands({
+    batchServices: batch,
+    publicServices,
+    uow: source.uow,
+    announcements,
+    committedFanout,
+  }).commands;
   const common: CommonServices = {
     ...publicServices,
     clock: runtime.clock,
@@ -415,13 +433,22 @@ export function composeServices(
       // wrapper made the mounted import hit its bounded nested-owner refusal.
       batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
-    commands: installPlanCommands({
-      batchServices: batch,
-      publicServices,
-      uow: source.uow,
-      announcements,
-      committedFanout,
-    }).commands,
+    commands,
+    claimLeases: new ClaimLeaseSweep({
+      runner: commands,
+      projectsWithExpiredLeases: (at, limit) =>
+        source.stores.claims.projectsWithExpiredLeases(at, limit),
+      now: () => runtime.clock.now(),
+      intervals: runtime.intervals,
+      intervalMs: CLAIM_LEASE_SWEEP_INTERVAL_MS,
+      projectsPerTick: CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK,
+      onSweep: (released) => {
+        shared.logger.info({ released }, 'expired claim leases released');
+      },
+      onError: (error, projectId) => {
+        shared.logger.error({ err: error, projectId }, 'claim lease sweep failed');
+      },
+    }),
     history: installPlanHistory({
       projects: publicServices.projects,
       planEvents,

@@ -107,7 +107,8 @@ for (const scheme of ['light', 'dark'] as const) {
         .evaluateAll((tabs) => tabs.map((tab) => getComputedStyle(tab).borderTopWidth));
       // Proof: on 3e06eb5a4 this failed with six `"2px"` — the platform's own
       // `<button>` border, which the base layer leaves in place on purpose.
-      expect(borders).toEqual(['0px', '0px', '0px', '0px', '0px', '0px']);
+      // Seven sections since compute providers slice 5 added Resources (2026-10-23).
+      expect(borders).toEqual(['0px', '0px', '0px', '0px', '0px', '0px', '0px']);
     });
 
     test('a locked unit says why and still shows which (F-118)', async ({ page }, info) => {

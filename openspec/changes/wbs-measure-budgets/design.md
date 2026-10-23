@@ -144,7 +144,7 @@ Assumptions added while implementing slice 2 (tasks 1.3, 1.4), each the reading 
 Assumptions added while implementing slice 3 (tasks 2.1–2.4), each the reading closest to D1–D8:
 
 - **D28 The single-point tokens trio is the legacy token estimate.** Migration
-  `20261023120000_add_measure_estimate` copies every `token_estimate` row into
+  `20261023160000_add_measure_estimate` copies every `token_estimate` row into
   `measure_estimate` as a `tokens` trio with o = r = p and `single_point = 1`, and keeps the
   legacy row for the outgoing release. The two are one figure: triggers on `step_measure`
   write, rewrite, move and delete the single-point trio with every legacy row any release

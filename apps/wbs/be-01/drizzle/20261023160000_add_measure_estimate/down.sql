@@ -1,4 +1,4 @@
--- Reverses `20261023120000_add_measure_estimate`, refusing while any trio is
+-- Reverses `20261023160000_add_measure_estimate`, refusing while any trio is
 -- one the legacy `token_estimate` row cannot express: a trio in any measure
 -- but tokens, a three-point tokens trio, or a single-point one whose legacy
 -- row is missing or disagrees (drifted state the triggers should have

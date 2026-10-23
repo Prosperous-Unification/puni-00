@@ -21,6 +21,7 @@ import {
 } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
@@ -32,6 +33,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
+  computeProvidersOver,
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
@@ -209,10 +211,21 @@ export class OrganizationHarness {
     private readonly optimizerCoordinator?: OptimizationCoordinator,
     private readonly savedPlanCapture?: SavedPlanCaptureStore,
     private readonly composedSource?: SqliteSource,
+    private readonly composedClaimLeases?: ClaimLeaseSweep,
   ) {}
+
+  /**
+   * The composed claim lease sweep (`wbs-claim-leases` L7), unstarted: boot
+   * starts it in production; a test starts it to watch a revoke's tick.
+   */
+  claimLeaseSweep(): ClaimLeaseSweep {
+    if (this.composedClaimLeases === undefined) throw new Error('composed claim leases are absent');
+    return this.composedClaimLeases;
+  }
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
   async closeComposed(): Promise<void> {
+    await this.composedClaimLeases?.stop();
     await this.optimizerCoordinator?.stop();
     await this.composedSource?.close();
     this.close();
@@ -484,6 +497,7 @@ export class OrganizationHarness {
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
+      computeProviders: computeProvidersOver(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -712,6 +726,15 @@ export class OrganizationHarness {
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      claimLeases: services.claimLeases,
+      computeProviders: computeProvidersOver(source.db, services.gate),
+      // As `boot.ts` wires it, so the composed boundary serves the limits read too.
+      // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
+      // no_active_organization on an activated organization; watched 2026-10-23.
+      organizationLimits: new OrganizationLimitsRepository(
+        source.db,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+      ),
       ...(trustedIssuers === undefined
         ? {}
         : {
@@ -792,6 +815,7 @@ export class OrganizationHarness {
       services.optimizer,
       source.history.savedPlanCapture,
       source,
+      services.claimLeases,
     );
     harness.federated = provider !== undefined;
     return harness;

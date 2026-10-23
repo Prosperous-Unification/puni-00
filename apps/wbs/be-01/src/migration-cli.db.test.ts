@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261023130000_add_work_item_budget');
+    expect(baselineLedger.at(-1)?.name).toBe('20261023170000_add_work_item_budget');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1153,10 +1153,13 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022120000_scope_trusted_issuer_audience' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
-          name !== '20261023100000_add_measure' &&
-          name !== '20261023110000_key_step_measure' &&
-          name !== '20261023120000_add_measure_estimate' &&
-          name !== '20261023130000_add_work_item_budget',
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
+          name !== '20261023100000_add_claim_lease' &&
+          name !== '20261023140000_add_measure' &&
+          name !== '20261023150000_key_step_measure' &&
+          name !== '20261023160000_add_measure_estimate' &&
+          name !== '20261023170000_add_work_item_budget',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1219,10 +1222,13 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022120000_scope_trusted_issuer_audience' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
-          name !== '20261023100000_add_measure' &&
-          name !== '20261023110000_key_step_measure' &&
-          name !== '20261023120000_add_measure_estimate' &&
-          name !== '20261023130000_add_work_item_budget',
+          name !== '20261022140000_add_resource_provider' &&
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
+          name !== '20261023100000_add_claim_lease' &&
+          name !== '20261023140000_add_measure' &&
+          name !== '20261023150000_key_step_measure' &&
+          name !== '20261023160000_add_measure_estimate' &&
+          name !== '20261023170000_add_work_item_budget',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1258,7 +1264,7 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261023130000_add_work_item_budget');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261023170000_add_work_item_budget');
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

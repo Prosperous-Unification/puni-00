@@ -30,6 +30,8 @@ import type {
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
+import type { Clock } from '../ports/clock';
+import type { CapacityReports } from '../ports/compute-providers';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
@@ -37,6 +39,7 @@ import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
 import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
+import { withProviderReadings } from './compute-provider.routes';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 import { BadLadder } from './priority-ladder-body';
@@ -305,6 +308,12 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_resource':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_provider':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The instance exists but is another organization's; naming it leaks
+    // nothing the caller did not send (`compute-providers` P3).
+    case 'provider_not_in_organization':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     // The organization's own measure definitions stand in the way, or legacy
     // access has no legacy organization to own one (`wbs-measure-budgets`).
     // Proof (compile-time only): with these cases absent, wbs-core's typecheck
@@ -563,6 +572,10 @@ export function workItemRoutes(
   commands: PlanCommandRunner,
   digest: Digest,
   organizations: OrganizationAccess,
+  providers: {
+    readonly reports: Pick<CapacityReports, 'readingsOf'>;
+    readonly clock: Pick<Clock, 'now'>;
+  },
 ) {
   return [
     bind(
@@ -833,7 +846,17 @@ export function workItemRoutes(
         if (!resolved.ok) return organizationRefusal(resolved);
         const read = await workItems.resourcesWithin(params.id, resolved.access);
         if (read === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        return { ok: true, status: 200, body: read };
+        // The provider columns are added after the planned read and never
+        // reach it (`compute-providers` P4).
+        // Proof: with this call replaced by the planned read alone, `sets,
+        // reads and clears the reference` in
+        // `compute-provider.controller.db.test.ts` read no providerId; watched
+        // 2026-10-22.
+        return {
+          ok: true,
+          status: 200,
+          body: await withProviderReadings(read, providers.reports, providers.clock.now()),
+        };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {

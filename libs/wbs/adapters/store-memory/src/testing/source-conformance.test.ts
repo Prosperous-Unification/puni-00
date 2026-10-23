@@ -871,6 +871,7 @@ function transactionalJournal(source: MemorySource): CommandJournalStore {
     });
   return {
     append: (entry, event) => commit((journal) => journal.append(entry, event)),
+    appendEvent: (event) => commit((journal) => journal.appendEvent(event)),
     entriesFor: (projectId, userId) => source.stores.journal.entriesFor(projectId, userId),
     flip: (id, undone, preconditions) =>
       commit((journal) => journal.flip(id, undone, preconditions)),

@@ -314,7 +314,7 @@ docker exec be-01-<colour> bun run src/<cli> restore <file>
 
 ## Measure fact rollback
 
-`20261023110000_key_step_measure` (`wbs-measure-budgets` slice 2) keys `step_measure` rows by
+`20261023150000_key_step_measure` (`wbs-measure-budgets` slice 2) keys `step_measure` rows by
 measure definition. A fact in a defined measure (`cost`, or one an organization defined) has no
 legacy `metric` and no save/remove CLI. Backend swaps stop the old writer before migrating, so
 blue and green never serve the new schema together; the exposure is recovery only. While such a
@@ -322,17 +322,17 @@ fact exists, an attended restart of the older image answers 500 on every work it
 (its targeted read refuses a row with no metric), and `down.sql` refuses with `facts on defined
 measures exist`. Both exits stay closed until those rows are cleared by hand: record every
 `step_measure` row whose `metric` is NULL, remove each with `clearMeasure` (or by SQL), then run
-`migrate-down-cli.ts --to=20261023100000_add_measure`. Tokens and hours facts keep their legacy
+`migrate-down-cli.ts --to=20261023140000_add_measure`. Tokens and hours facts keep their legacy
 names and need nothing.
 
 ### Measure estimate rollback
 
-`20261023120000_add_measure_estimate` (slice 3) adds `measure_estimate`. Single-point `tokens`
+`20261023160000_add_measure_estimate` (slice 3) adds `measure_estimate`. Single-point `tokens`
 trios mirror the legacy `token_estimate` rows through triggers, so the older image keeps reading
 and writing its token estimates. Three-point trios and trios in other measures have no legacy
 row: `down.sql` refuses with `measure estimates the legacy token estimate cannot hold exist`
 until each is cleared with `clearMeasureEstimate` (allowed even on a definition patched to
-`threePoint: false`) or by SQL, then `migrate-down-cli.ts --to=20261023110000_key_step_measure`.
+`threePoint: false`) or by SQL, then `migrate-down-cli.ts --to=20261023150000_key_step_measure`.
 
 An attended restart of the older image without `down.sql` keeps the table and its triggers but
 loses three-point trios in these ways, with no error:
@@ -348,7 +348,7 @@ Clear or record three-point trios before such a restart.
 
 ### Budget rollback
 
-`20261023130000_add_work_item_budget` (slice 4) adds `work_item_budget`, `project.budget_factor`
+`20261023170000_add_work_item_budget` (slice 4) adds `work_item_budget`, `project.budget_factor`
 and the money basis columns `currency` and `rate_card_digest` on `step_measure` and
 `measure_estimate`. The older image reads none of them: an attended restart of it ignores
 budgets and bases (its writes leave a fact or trio unpriced, which reads as a basis of its own
@@ -356,11 +356,11 @@ afterwards); no older-image restart over this schema was exercised. `down.sql` r
 figures exist` until every stated budget is cleared with `clearBudget`, every project's factor
 is patched back to `budgetFactor: 1`, and every priced fact or trio is cleared with
 `clearMeasure` or `clearMeasureEstimate` (or by SQL); then run
-`migrate-down-cli.ts --to=20261023120000_add_measure_estimate`.
+`migrate-down-cli.ts --to=20261023160000_add_measure_estimate`.
 
 Deploy slices 2–4 of `wbs-measure-budgets` together, in one swap: the migrations
-`20261023110000_key_step_measure`, `20261023120000_add_measure_estimate` and
-`20261023130000_add_work_item_budget` then land at once, and no release ever writes facts or
+`20261023150000_key_step_measure`, `20261023160000_add_measure_estimate` and
+`20261023170000_add_work_item_budget` then land at once, and no release ever writes facts or
 trios in money measures without a rate card, which would read as a basis of their own beside
 every priced figure and split those sums (design D44).
 

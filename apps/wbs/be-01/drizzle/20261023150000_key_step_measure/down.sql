@@ -1,5 +1,5 @@
 -- foreign-keys-off-rebuild
--- Reverses `20261023110000_key_step_measure`, refusing while any fact is on a
+-- Reverses `20261023150000_key_step_measure`, refusing while any fact is on a
 -- measure the legacy `metric` cannot express (a row whose `metric` is NULL):
 -- dropping `measure_id` would discard it. Otherwise the table is rebuilt in
 -- the shape it had, primary key and constraint names included, keeping every

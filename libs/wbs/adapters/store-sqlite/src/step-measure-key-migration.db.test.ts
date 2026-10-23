@@ -12,11 +12,11 @@ import { rollbackTo } from './migrate-down';
 import { StepMeasureRepository } from './step-measure';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const MIGRATION = '20261023110000_key_step_measure';
-const BASELINE = '20261023100000_add_measure';
+const MIGRATION = '20261023150000_key_step_measure';
+const BASELINE = '20261023140000_add_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
-const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
-const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
+const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 
 let dir: string;
 let path: string;

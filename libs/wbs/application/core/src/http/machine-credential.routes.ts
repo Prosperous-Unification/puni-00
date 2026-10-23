@@ -59,6 +59,7 @@ export function machineCredentialRoutes(
   organizations: OrganizationAccess,
   credentials: MachineCredentialAdministration,
   clock: Pick<Clock, 'now'>,
+  afterRevoke: () => void,
 ) {
   const sessionOrganization = (principal: Parameters<OrganizationAccess['resolve']>[0]) =>
     sessionOrganizationOf(organizations, principal);
@@ -224,6 +225,13 @@ export function machineCredentialRoutes(
           case 'not_found':
             return notFound;
           case 'revoked':
+            // The revoke ended the person's leases if it was the last live
+            // credential; the claims go on the tick this asks for, not the
+            // next scheduled one (`wbs-claim-leases` L8).
+            // Proof: with this call removed, `releases a revoked agent’s claims
+            // on the tick the revoke asks for` (claim-lease.controller.db.test.ts)
+            // still held them (2 pass, 1 fail); watched 2026-10-23.
+            afterRevoke();
             return { ok: true, status: 204, body: EMPTY };
         }
       },

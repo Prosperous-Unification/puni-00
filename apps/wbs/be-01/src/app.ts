@@ -26,6 +26,8 @@ import type {
   SpaceStore,
 } from '@wbs/core';
 import type {
+  CapacityReports,
+  ComputeProviderAdministration,
   MachineCredentialAdministration,
   Scope,
   TrustedIssuerAdministration,
@@ -36,8 +38,11 @@ import {
   clockOf,
   INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
   INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
+  NO_COMPUTE_PROVIDERS,
 } from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
+import { claimLeaseRoutes } from '@wbs/core/http/claim-lease.routes';
+import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
@@ -58,6 +63,7 @@ import type { LoginThrottle } from '@wbs/core/module/authentication/login-thrott
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
 import type { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
@@ -226,6 +232,13 @@ export interface AppOptions {
    */
   machineCredentials?: MachineCredentialAdministration;
   /**
+   * The claim lease sweep (`wbs-claim-leases` L8): a revoke asks it for a tick
+   * at once. Absent (an app built without boot), a revoked agent's claims go
+   * on the next scheduled tick of whatever sweep runs, or not at all where
+   * none does, as before leases existed.
+   */
+  claimLeases?: Pick<ClaimLeaseSweep, 'requestSweep'>;
+  /**
    * Trusted issuer administration (`wbs-machine-credentials` A16): the store,
    * the one discovery fetch at registration, and the configured sign-in
    * issuer it refuses. Absent, every route answers as before activation.
@@ -234,6 +247,17 @@ export interface AppOptions {
     readonly administration: TrustedIssuerAdministration;
     readonly discovery: TrustedIssuerDiscovery;
     readonly configuredIssuer: () => Promise<string | null>;
+  };
+  /**
+   * Compute provider instances and capacity reports (`compute-providers`).
+   * Absent (the memory twin), no instance exists: administration answers as
+   * before activation, every resource reads `providerId: null`, and a report
+   * names no instance. Production and the organization harnesses wire the
+   * SQLite store (`boot.db.test.ts`).
+   */
+  computeProviders?: {
+    readonly administration: ComputeProviderAdministration;
+    readonly reports: CapacityReports;
   };
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
@@ -555,12 +579,20 @@ export function mountedEndpoints(
       opts.organizations,
       opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
       opts.clock,
+      () => opts.claimLeases?.requestSweep(),
     ),
+    ...claimLeaseRoutes(opts.organizations, commands),
     ...trustedIssuerRoutes(
       opts.organizations,
       opts.trustedIssuers?.administration ?? INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
       opts.trustedIssuers?.discovery ?? UNUSED_DISCOVERY,
       opts.trustedIssuers?.configuredIssuer ?? (() => Promise.resolve(null)),
+      opts.clock,
+    ),
+    ...computeProviderRoutes(
+      opts.organizations,
+      (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).administration,
+      (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
       opts.clock,
     ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
@@ -643,7 +675,10 @@ export function mountedEndpoints(
       opts.stepParallels,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations, {
+      reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
+      clock: opts.clock,
+    }),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
       new SpaceResource({

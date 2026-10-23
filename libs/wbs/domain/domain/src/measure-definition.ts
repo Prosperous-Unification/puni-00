@@ -57,7 +57,7 @@ export interface MeasureDefinitionPatch {
 /**
  * The five definitions every organization holds from its first moment
  * (`wbs-measure-budgets` D1), in their list order. The SQLite migration
- * `20261023100000_add_measure` seeds the same rows for existing organizations
+ * `20261023140000_add_measure` seeds the same rows for existing organizations
  * and its organization trigger for new ones; `measure-schema.db.test.ts` holds
  * the two to this list.
  */

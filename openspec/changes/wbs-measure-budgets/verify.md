@@ -160,7 +160,7 @@ restored; the adjacent `Proof:` comments carry the same.
 | S3-1 D23 described a shared window that swaps do not have          | D23 rewritten (writer stopped before migration; recovery exits closed while defined facts exist); runbook section _Measure fact rollback_ added                                                                     | docs                                                                                                                                                                                                           |
 | S3-3, S3-4                                                         | D22 notes exports silently omit defined facts until slice 7; D20 notes saved-plan comparisons churn on `agent_minutes`                                                                                              | docs                                                                                                                                                                                                           |
 
-Migration lint: `bun tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261023110000_key_step_measure/migration.sql apps/wbs/be-01/drizzle/20261023110000_key_step_measure/down.sql` exit 0.
+Migration lint: `bun tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261023150000_key_step_measure/migration.sql apps/wbs/be-01/drizzle/20261023150000_key_step_measure/down.sql` exit 0.
 
 Reruns after the review fixes: domain 1239, contracts 495, store-memory 193, conformance 35,
 core 1175, mcp-01 515, store-sqlite 1847 (full, 1848 tests), be-01 `work-item.controller`,
@@ -190,7 +190,7 @@ columns), not a copy of the dev store.
 | store-sqlite `bun test` (full)                                                                                                                                                                                                              | 1856 pass, 0 fail (1857 tests)                                                                                                                |
 | `bunx nx run wbs-be-01:test --skip-nx-cache` (full)                                                                                                                                                                                         | 3305 pass, 3 skip, 0 fail                                                                                                                     |
 | fe-01 `vitest run` over the four suites importing `plan-refusal.ts`                                                                                                                                                                         | 15 pass                                                                                                                                       |
-| `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on `20261023120000_add_measure_estimate`                                                                                                                                             | exit 0                                                                                                                                        |
+| `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on `20261023160000_add_measure_estimate`                                                                                                                                             | exit 0                                                                                                                                        |
 | `bunx nx format:check --all`                                                                                                                                                                                                                | exit 0                                                                                                                                        |
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                                    | 270 of 270                                                                                                                                    |
 
@@ -285,7 +285,7 @@ before bases existed), not a copy of the dev store.
 | store-sqlite `bun test` (full)                                                                                                                                                                                              | 1863 pass, 0 fail (1864 tests)                                                                                                                          |
 | `bunx nx run wbs-be-01:test --skip-nx-cache` (full)                                                                                                                                                                         | 3308 pass, 3 skip, 0 fail                                                                                                                               |
 | fe-01 `vitest run` over the four suites importing `plan-refusal.ts`                                                                                                                                                         | 15 pass                                                                                                                                                 |
-| `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on `20261023130000_add_work_item_budget`                                                                                                                             | exit 0                                                                                                                                                  |
+| `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on `20261023170000_add_work_item_budget`                                                                                                                             | exit 0                                                                                                                                                  |
 | `bunx nx format:check --all`                                                                                                                                                                                                | exit 0                                                                                                                                                  |
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                    | 270 of 270                                                                                                                                              |
 
@@ -799,3 +799,54 @@ be-01 `import.controller` 5, `import-export-organization.controller` 34,
 wbs-store-sqlite and wbs-store-memory succeeded; `bunx nx format:check --all` exit 0; Burokrat
 `check-indexes working . HEAD` exit 0; `openspec validate --all --json` exit 0 (252 and 18
 passed, 0 failed). The h2puni gate was not run (shared laptop).
+
+## Main sync 2026-10-23
+
+`origin/main` at `1de2778500f7c62f48f32fc568ec2a6c949334bb` merged into the plan branch.
+Mechanical only: no behavior or decision changed.
+
+Re-stamp. Main's newest migration is `20261023100000_add_claim_lease`, the same stamp as the
+plan's first measure migration, so the four measure migrations moved past it before the merge
+(`git mv`, each `migration.sql` beside its `down.sql`). Dev has applied none of the four, so no
+ledger names the old stamps. Every reference to the old names moved with them, the earlier
+sections of this file included.
+
+| Old                                   | New                                   |
+| ------------------------------------- | ------------------------------------- |
+| `20261023100000_add_measure`          | `20261023140000_add_measure`          |
+| `20261023110000_key_step_measure`     | `20261023150000_key_step_measure`     |
+| `20261023120000_add_measure_estimate` | `20261023160000_add_measure_estimate` |
+| `20261023130000_add_work_item_budget` | `20261023170000_add_work_item_budget` |
+
+Resolution. Ledger lists are main's complete list with the four measure migrations after
+`add_claim_lease`, in each list's own order. `measure-schema.db.test.ts` rolls back to
+`add_claim_lease`, its new predecessor, and main's `resource-provider-migration.db.test.ts`
+now drops and reverses the four measure migrations too. The contracts keep D47's single
+parser-refusal object and gain main's `providerId_must_be_id_or_null` and
+`personKind_must_be_text` codes, the `unknown_provider` (404) and `provider_not_in_organization`
+(409) batch refusals. `work-item.routes.ts` keeps `provider_not_in_organization` on its own
+409 return: folded into the measure codes' case group, the 11-code union no longer assigned to
+the refusal union (TS2322). `budget-headroom.test.ts` gains main's `leaseExpiresAt: null`.
+mcp-01's README counts 88 tools (85 at the merge base, one added by main, two by the plan).
+
+Checks (`env -u CLAUDECODE` throughout; local Bun 1.4.4):
+
+| Command                                                                                                  | Result                                      |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `bun test libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts`                              | 2 pass, 0 fail; 336 MB (bound 500 MB)       |
+| be-01 `migration-cli`, `migrate`, and the six `*-migration.db.test.ts` files                             | 86 pass, 0 fail across 8 files              |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                                      | 1883 pass, 0 fail across 143 files          |
+| be-01 `budget-headroom`, `claim-lease`, `measure-export`, `measure-organization`, `measure-refusal` (db) | 32 pass, 0 fail                             |
+| be-01 `swarm-end-to-end`, `compute-provider`, `agent-person-limit`, `work-item.controller`               | 164 pass, 0 fail                            |
+| `bunx nx run-many -t typecheck,typecheck:module` over the 13 wbs projects                                | succeeded                                   |
+| `bunx nx run tool-devsync:test --skip-nx-cache`, `tool-devsync:typecheck`                                | 921 pass, 0 fail across 49 files; succeeded |
+| fe-01 `vitest run src/test-tiers.test.ts`; `nx run wbs-fe-01:test:unit`                                  | 6 passed; 1019 passed across 83 files       |
+| mcp-01 `openapi-tools.test.ts`                                                                           | 32 pass, 0 fail                             |
+| Burokrat `check-indexes working . HEAD`; `pilot-policy.test.ts`                                          | exit 0; 24 pass, 0 fail                     |
+| store-sqlite `audit.test.ts`                                                                             | 6 pass, 0 fail                              |
+| `migration-lint.ts` on the four renamed migrations                                                       | exit 0                                      |
+| `bunx nx format:check --all`; `bunx openspec validate --all --json`                                      | exit 0; exit 0 (275 passed, 0 failed)       |
+
+The merge commit's lint hook ran out of the default 4 GB Node heap on the merge's 208 staged
+scripts; it passed with `NODE_OPTIONS=--max-old-space-size=10240`. The full be-01 suite and the
+h2puni/h4claw gate were not run (CI carries them).

@@ -1,4 +1,4 @@
--- Reverses `20261023100000_add_measure`, refusing while any organization holds
+-- Reverses `20261023140000_add_measure`, refusing while any organization holds
 -- a definition beyond the five seeded keys, or a seeded definition that differs
 -- from its seed: dropping either would discard what an organization defined or
 -- edited, and coming forward again would recreate the seed's defaults. The

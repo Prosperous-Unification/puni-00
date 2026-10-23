@@ -71,6 +71,13 @@ export interface CommandJournalStore {
    */
   append(entry: NewJournalEntry, event: PlanEvent): Promise<void>;
   /**
+   * Appends `event` to the project's history and nothing to any account's
+   * stack: no redo branch is cleared and nothing is pruned. For an act no
+   * account pressed — the coordinator releasing a claim whose lease ran out
+   * (`wbs-claim-leases` L10) — so nobody's undo reaches it.
+   */
+  appendEvent(event: PlanEvent): Promise<void>;
+  /**
    * The whole of one account's stack for one project, **oldest first**.
    *
    * All of it rather than just the end being asked for, because applying one

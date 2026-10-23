@@ -876,6 +876,44 @@ describe('bootBe01', () => {
     expect(await trusted.configuredIssuer()).toBeNull();
   });
 
+  it('serves compute provider administration from the shared database once activated', async () => {
+    const dir = tempDir('wbs-compute-provider-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let providers: Parameters<typeof buildApp>[0]['computeProviders'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        providers = options.computeProviders;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (providers === undefined) throw new Error('boot did not wire compute providers');
+    expect(await providers.administration.list('org-a', 'ada')).toEqual([]);
+    expect(await providers.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
+  });
+
   it("refuses a stranger issuer's JWT invalid_token once booted", async () => {
     const dir = tempDir('wbs-trusted-issuer-token-boot-');
     const dbPath = join(dir, 'test.db');
@@ -958,6 +996,16 @@ describe('bootBe01', () => {
 
     await be.stop();
     expect(be.services.retention.isRunning()).toBe(false);
+    running = null;
+  });
+
+  it('starts the claim lease sweep with the process', async () => {
+    const be = await boot();
+
+    expect(be.services.claimLeases.isRunning()).toBe(true);
+
+    await be.stop();
+    expect(be.services.claimLeases.isRunning()).toBe(false);
     running = null;
   });
 
