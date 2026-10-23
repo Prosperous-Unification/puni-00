@@ -1,6 +1,7 @@
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import * as connectedTree from '@wbs/core/service/connected-tree';
 import { formatStepNodeId, sliceKey } from '@wbs/domain';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
@@ -12,6 +13,8 @@ afterEach(async () => {
 
 async function open(options: ComposedHarnessOptions = {}) {
   harness = OrganizationHarness.openComposedWith(options);
+  // Proof: omitting this fixture authority made all 23 mounted cases fail with external_dependencies_inactive before observation.
+  seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'member');
@@ -236,9 +239,11 @@ test('shared connected person wait reaches the real Gantt consumer with a qualif
   // Bundle the actual browser consumer using its configured aliases, without
   // importing frontend-only path aliases into the backend's TypeScript graph.
   const built = await Bun.build({
-    entrypoints: ['apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts'],
+    entrypoints: [
+      new URL('../../../fe-01/src/components/wbs/gantt-geometry.ts', import.meta.url).pathname,
+    ],
     target: 'bun',
-    tsconfig: 'apps/wbs/fe-01/tsconfig.app.json',
+    tsconfig: new URL('../../../fe-01/tsconfig.app.json', import.meta.url).pathname,
   });
   if (!built.success) throw new AggregateError(built.logs, 'Gantt consumer build failed');
   const output = built.outputs.at(0);
@@ -643,33 +648,67 @@ test('mounted unavailable calendar tree retains incident links readiness and nul
   }
 });
 
-test.each([false, true])(
-  'mounted connected optimized refusal is an inspectable tree without Fast dates (adapter %s)',
-  async (withOptimizer) => {
-    const { target } = await open({ withOptimizer });
-    harness.sqlite
-      .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
-      .run(target.projectId);
-    const tree = await harness.call(
-      'ada',
-      'GET',
-      `/api/projects/${target.projectId}/work-items?full=true`,
-    );
-    expect(tree.status).toBe(200);
-    expect(tree.body).toMatchObject({
-      scheduleError: {
-        kind: 'engine_unavailable',
-        engine: 'optimized',
-        projects: [target.projectId],
-        reason: withOptimizer ? 'connected_optimization_not_supported' : 'adapter_missing',
+test('mounted connected missing optimizer is an inspectable tree without Fast dates', async () => {
+  const { target } = await open();
+  harness.sqlite
+    .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
+    .run(target.projectId);
+  const tree = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-items?full=true`,
+  );
+  expect(tree.status).toBe(200);
+  expect(tree.body).toMatchObject({
+    scheduleError: {
+      kind: 'engine_unavailable',
+      engine: 'optimized',
+      projects: [target.projectId],
+      reason: 'adapter_missing',
+    },
+    slices: [],
+    workItems: [{ id: target.workItemId, schedule: null, dates: null }],
+    connectedDependencies: [{ id: 'remote-fs' }],
+  });
+  expect(tree.body).not.toHaveProperty('optimization');
+});
+
+test('mounted connected optimizer retains captured baseline while both objectives are idle', async () => {
+  const { remote, target } = await open({
+    withOptimizer: true,
+    solverVersion: '0.4.0',
+    spawn: () => Promise.reject(new Error('fixture launcher unavailable')),
+  });
+  harness.sqlite
+    .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
+    .run(target.projectId);
+  const tree = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-items?full=true`,
+  );
+  expect(tree.status).toBe(200);
+  expect(tree.body).toMatchObject({
+    scheduleError: null,
+    optimization: {
+      engine: 'optimized',
+      enabled: true,
+      displayed: 'fast',
+      generation: null,
+      variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+      scope: {
+        kind: 'connected-stage',
+        projectId: target.projectId,
+        fixed: [
+          { projectId: remote.projectId, start: 0, finish: 2.5 },
+          { projectId: remote.projectId, start: 2.5, finish: 2.5 },
+        ],
       },
-      slices: [],
-      workItems: [{ id: target.workItemId, schedule: null, dates: null }],
-      connectedDependencies: [{ id: 'remote-fs' }],
-    });
-    expect(tree.body).not.toHaveProperty('optimization');
-  },
-);
+    },
+    workItems: [{ id: target.workItemId, schedule: { earliestStart: 1.5, earliestFinish: 4 } }],
+    connectedDependencies: [{ id: 'remote-fs' }],
+  });
+});
 
 test('mounted calendar unavailable edit and eligible claim commit and publish current rows', async () => {
   const { remote, target } = await open();
@@ -766,21 +805,14 @@ test('mounted shared connected calendar range leaves no partial forecast display
 
 test.each(
   (['isolated', 'shared'] as const).flatMap((mode) =>
-    (
-      [
-        'calendar',
-        'calendar_range',
-        'adapter_missing',
-        'connected_optimization_not_supported',
-      ] as const
-    ).map((reason) => [mode, reason] as const),
+    (['calendar', 'calendar_range', 'adapter_missing'] as const).map(
+      (reason) => [mode, reason] as const,
+    ),
   ),
 )(
   'mounted %s-capacity load and space preserve connected unavailability (%s)',
   async (mode, reason) => {
-    const { remote, target } = await open({
-      withOptimizer: reason === 'connected_optimization_not_supported',
-    });
+    const { remote, target } = await open();
     shareAna(remote, target);
     harness.sqlite
       .query("UPDATE organization SET shared_people=? WHERE id='org-a'")
