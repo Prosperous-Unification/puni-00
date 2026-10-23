@@ -1081,3 +1081,39 @@ administrators/controllers, so the bounded proof assumes their cooperation;
 continuous participant exclusion and activation remain parent 10.1/10.2 work.
 Operational procedure and limits live in the managed Compose gateway exclusion
 section of `docs/runbook-prod-deploy.md`.
+
+### Bounded managed Compose backend exclusion prerequisite (2026-10-23)
+
+Intent: retain the backend half of the physical managed-cohort exclusion interval
+before a future activation owner can establish continuous participant exclusion.
+Outcome: a dedicated attended backend fence and read-only inspection under the
+same deploy lock as gateway exclusion and ordinary deployment. Non-goals:
+migration, semantic activation, restart, evidence clearance, ordinary swap bypass,
+MCP/ingress/browser/background/host-process exclusion or external supervisor control.
+An empty backend cohort refuses because it cannot identify a database family.
+
+The operation requires freshly verified gateway exclusion and binds the exact
+marker/intent/completion byte hashes into its closed backend intent and completion.
+The public gateway inspector continues to own its lock; its narrow under-lock
+variant shares the backend owner's deadline without nested flock. Shared managed
+inventory primitives preserve the gateway contract. Every backend observation
+uses a complete unfiltered full-ID Docker inventory, validates both cohorts from
+that same inventory, resolves installed image IDs, and compares current gateway
+evidence. Both backend colours bind exact IDs, image references/IDs, process/start
+and restart identity, fixed security/network/Compose prerequisites, and explicit
+absences. Exactly one DB_PATH per member must resolve through an ordinary writable
+directory bind to the same canonical main/WAL/SHM/journal family. The directory
+and main-file dev/inode identities are retained; sidecar presence may change as
+SQLite writers stop. Unmanaged writable mounts overlapping that directory refuse,
+including stopped foreign containers. This conservative mount check does not scan
+host processes or alternative namespaces controlled by external administrators.
+
+Exclusive fsynced/readback marker and intent publication precede effects. Disable
+restart for every exact backend ID with independent complete readbacks before any
+stop; stop each exact ID under the shared deadline and freshly verify identities,
+PID zero and no restart. Completion binds the exact intent bytes and gateway
+hashes. A final joint inventory after publication is mandatory; inspection repeats
+it. Failure retains all evidence and current Docker state without recovery effects.
+Ordinary execution also refuses backend marker and orphan companions. This receipt
+is bounded historical evidence, never an activation authority or an exclusive-store
+claim. Operator procedure: `docs/runbook-prod-deploy.md#managed-compose-backend-exclusion`.

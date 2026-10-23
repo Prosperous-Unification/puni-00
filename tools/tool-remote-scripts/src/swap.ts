@@ -29,6 +29,8 @@ import {
   inspectBackendConfig,
   resolveDatabaseHost,
 } from './lib/backend-config';
+import { fenceBackends, inspectBackendFence } from './lib/backend-exclusion';
+import { assertNoBackendFence } from './lib/backend-fence';
 import {
   assertMaintenanceContainer,
   type BackendSnapshot,
@@ -1458,6 +1460,7 @@ export async function execute(
 ): Promise<void> {
   // Proof: bypassing this guard let direct fence-present executions write commit/config state; 32 refusal tests failed.
   await assertNoGatewayFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
+  await assertNoBackendFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
   const { tier, from, to } = plan;
   // Proof: omitted the tier guard; the non-backend activation plan reached preflight instead of its named refusal.
   if (activateStepBlockage && tier !== 'be') throw new Error('activation requires only be');
@@ -2351,6 +2354,7 @@ export async function runSwaps(
   await deps.withLock(`${ROOT}/state/deploy.lock`, async () => {
     // Proof: bypassing this guard let fenced tier runs observe and execute under the lock; 32 refusal tests failed.
     await assertNoGatewayFence(deps.barrierStateDir ?? CURRENT_ENV.stateDir);
+    await assertNoBackendFence(deps.barrierStateDir ?? CURRENT_ENV.stateDir);
     for (const tier of tiers) {
       const image = images[tier];
       if (image === undefined) {
@@ -2417,7 +2421,48 @@ export function parseGatewayFenceInvocation(
   return { mode: 'fence', sha: sha.slice(6) };
 }
 
+/** Dedicated lock-owned prerequisite commands cannot mix with ordinary swap modes or flags. */
+export function parseBackendFenceInvocation(
+  args: string[],
+): { mode: 'fence'; sha: string } | { mode: 'inspect' } | null {
+  const flags = args.slice(1);
+  if (
+    !flags.some(
+      (flag) =>
+        flag.startsWith('--fence-dependency-backends') ||
+        flag.startsWith('--inspect-dependency-backend-fence'),
+    )
+  )
+    return null;
+  const failure =
+    'backend fence requires only be and exactly --fence-dependency-backends --execute --sha=<40 hex> or --inspect-dependency-backend-fence';
+  // Proof: removing this admission let be enter the dedicated backend command; mounted subprocess refusal failed.
+  if (args[0] !== 'be' || new Set(flags).size !== flags.length) throw new Error(failure);
+  if (flags.length === 1 && flags[0] === '--inspect-dependency-backend-fence')
+    return { mode: 'inspect' };
+  const sha = flags.find((flag) => /^--sha=[a-f0-9]{40}$/.test(flag));
+  if (
+    flags.length !== 3 ||
+    !flags.includes('--fence-dependency-backends') ||
+    !flags.includes('--execute') ||
+    sha === undefined
+  )
+    throw new Error(failure);
+  return { mode: 'fence', sha: sha.slice(6) };
+}
+
 async function main(): Promise<void> {
+  const backendFence = parseBackendFenceInvocation(process.argv.slice(2));
+  if (backendFence !== null) {
+    const completion =
+      backendFence.mode === 'fence'
+        ? await fenceBackends(CURRENT_ENV, backendFence.sha, sh)
+        : await inspectBackendFence(CURRENT_ENV, sh);
+    console.log(
+      `[swap-be] managed Compose backend cohort physically excluded; attempt=${completion.attempt}; retained fence; no activation`,
+    );
+    return;
+  }
   const gatewayFence = parseGatewayFenceInvocation(process.argv.slice(2));
   if (gatewayFence !== null) {
     const completion =

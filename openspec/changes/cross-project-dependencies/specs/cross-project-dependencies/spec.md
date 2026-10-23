@@ -965,3 +965,35 @@ The Compose executor SHALL own the deploy lock for explicit managed-gateway fenc
 - **WHEN** `gw --inspect-dependency-gateway-fence` runs under the deploy lock
 - **THEN** it validates closed records and freshly inventories/proves the same complete managed cohort
 - **AND** a resumed/replaced/missing/extra member or changed image, name, label, network, process/start identity or restart policy refuses
+
+### Requirement: Managed Compose backend exclusion follows verified gateway exclusion
+
+A dedicated managed Compose backend fence SHALL own the environment deploy lock,
+require fresh retained gateway exclusion, and refuse ordinary swap, activation,
+preflight, mixed-tier and unknown flag combinations. It SHALL NOT migrate,
+activate, restart, restore policy or clear retained evidence. Empty backend
+membership SHALL refuse without implying that a store is excluded.
+
+#### Scenario: Exact backend cohort stops only after durable intent and restart readback
+
+- **GIVEN** a freshly verified managed gateway fence and a nonempty supported managed backend cohort sharing one canonical SQLite family
+- **WHEN** `be --fence-dependency-backends --execute --sha=<40 hex>` executes
+- **THEN** exclusive fsynced/readback backend marker and closed intent precede all backend effects
+- **AND** intent binds layout, attempt, source SHA, exact gateway marker/intent/completion byte hashes, both backend identities or absences, original restart/process identity and canonical database family/main-file identity
+- **AND** every exact backend ID has restart disabled with independent readback before either backend is stopped
+- **AND** bounded exact-ID stops and complete fresh joint gateway/backend inventories prove stopped PID-zero/no-restart state
+- **AND** completion binds the exact intent bytes and gateway hashes and is followed by another fresh joint inventory
+
+#### Scenario: Unsupported or foreign writers refuse before backend effects
+
+- **GIVEN** missing or resumed gateway exclusion, an empty backend cohort, conflicting DB_PATH/family identity, unsupported backend process/security/image/network/Compose identity, or an unmanaged overlapping writable database mount
+- **WHEN** a backend fence is requested
+- **THEN** backend effects and backend evidence publication are refused
+
+#### Scenario: Interruption and current-state drift retain evidence and refuse
+
+- **GIVEN** a retained backend attempt with interrupted publication, malformed or orphan records, changed intent/gateway bytes, replaced containers/database main file, restarted processes, failed policy/stop readback or deadline expiry
+- **WHEN** fencing or `be --inspect-dependency-backend-fence` runs
+- **THEN** it refuses and retains evidence and current Docker state without automatic recovery
+- **AND** ordinary gateway/frontend/backend/mixed runs and direct executors refuse a retained backend marker or orphan companion
+- **AND** a historical completion alone never establishes current exclusion or semantic authority

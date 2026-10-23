@@ -682,3 +682,12 @@ Task 5.2 bounded bare-step add/name-only rename fanout (2026-10-23):
 capture, isolated/shared no-person acceptance, durable rollback and after-commit
 delivery, with independent add/rename/eager-placement production negatives.
 Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.
+
+### Bounded task 10.2 managed Compose backend exclusion (2026-10-23)
+
+- [x] Red/green strict backend-only dedicated fence/inspection CLI modes, ordinary retained-backend/orphan admission, and real deploy-lock ownership.
+- [x] Share existing gateway inventory/publication primitives and expose a narrow under-lock gateway inspector; bind exact gateway evidence byte hashes and verify both cohorts from each complete joint inventory.
+- [x] Require a nonempty backend cohort, exact process/image/network/Compose/security identity, one DB_PATH and canonical directory-bind SQLite family/main-file identity; refuse unmanaged overlapping writable mounts.
+- [x] Publish durable intent before effects; disable restart/readback all exact IDs before stopping/readback; retain hash-bound completion and require final fresh joint inventory with no activation/restart/clearance.
+- [x] Watch skipped intent/update/stop/readbacks, foreign DB, duplicate DB_PATH, unmanaged writers, gateway byte drift and database replacement mutations fail; restore each mutant.
+- [ ] Complete clean-source real installed-backend health/SQLite Docker acceptance, configured scoped verification, independent Astra review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open. Evidence: [verify-backend-exclusion.md](verify-backend-exclusion.md).

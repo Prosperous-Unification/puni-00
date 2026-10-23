@@ -826,3 +826,48 @@ The lock coordinates this deploy executor only. Docker administrators and other
 controllers must respect the exclusion interval; a fresh observation is not a
 continuous daemon-side lease. Representative Docker timing and a disposable real
 Docker/websocket lifecycle proof remain necessary before operational acceptance.
+
+## Managed Compose backend exclusion
+
+This attended disruptive prerequisite stops only the selected environment's
+managed blue/green backend containers. First establish and inspect the managed
+Compose gateway fence above. Use the installed environment bundle and layout:
+
+```sh
+bun /home/puni1/wbs/bin/swap.js be --fence-dependency-backends --execute --sha=<full-40-hex-git-sha>
+bun /home/puni1/wbs/bin/swap.js be --inspect-dependency-backend-fence
+```
+
+Both commands own the same `state/deploy.lock`; the backend owner invokes the
+narrow gateway inspector under its held lock. Mixed ordinary/image/activation/
+preflight/dry-run flags and duplicate flags refuse. This operation neither
+migrates nor activates semantics. Requested SHA records provenance only.
+
+A fresh attempt requires all `dependency-backend-{fence,intent,complete}.json`
+records absent and a nonempty backend cohort satisfying the existing managed
+gateway process/image/security/network/Compose prerequisites for backend images.
+Every member needs exactly one absolute DB_PATH through a writable directory bind.
+Both colours must resolve the same canonical main/WAL/SHM/journal family, main-file
+inode and parent-directory inode. File binds, sidecar shadows/aliases and missing
+or unreadable trusted paths refuse. Unmanaged writable mounts overlapping that
+family's directory refuse, including stopped/restartable foreign containers.
+This can require attended preparation of existing containers.
+
+The backend intent retains both colour identities/absences and original restart/
+process identity, canonical database identity and exact SHA256 hashes of gateway
+marker/intent/completion bytes. Exclusive fsynced/readback publication precedes
+restart disable on every exact full backend ID; every update has a complete fresh
+readback before any stop. Bounded stops then require unchanged identity/start,
+PID zero, stopped state and policy `no`. All Docker calls share one 60-second
+budget. Every observation validates gateway and backend cohorts jointly from one
+full inventory. Completion binds persisted intent bytes; final fresh joint
+inventory and later read-only inspection establish only the observed interval.
+
+Any interrupted publication, orphan/corrupt records, timeout or current-state drift
+refuses. Retain all backend and gateway records and current Docker state for
+explicit attended recovery. No automatic restart, policy restoration, retry,
+cleanup, marker clearance or ordinary deployment bypass exists. A historical
+receipt grants no semantic authority. This slice excludes neither MCP, ingress,
+browsers, background/host processes nor external Docker supervisors; cooperating
+administrators remain an assumption. Continuous participant exclusion and safe
+activation remain separate parent tasks.

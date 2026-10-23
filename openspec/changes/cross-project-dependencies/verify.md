@@ -6881,3 +6881,9 @@ matrix remains Task 4.2 and capability negotiation/activation remain Tasks
 10.x. No production/test behavior changed or new safety check was introduced.
 The 3.2 checkbox remains open pending the configured-suite rerun, root review
 and the integrated exact-SHA host gate. No push, merge or deployment occurred.
+
+## Bounded managed Compose backend exclusion (2026-10-23)
+
+Dedicated lock-owned managed backend physical exclusion and exact gateway-byte/
+SQLite-family binding: [verification packet](verify-backend-exclusion.md).
+Parent 10.1/10.2, complete participant exclusion and semantic activation remain open.
