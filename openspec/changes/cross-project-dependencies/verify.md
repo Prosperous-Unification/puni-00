@@ -6372,3 +6372,10 @@ retirement/revival proofs are recorded in
 [verify-retained-egress.md](verify-retained-egress.md). Parent 10.1 remains open;
 the delayed-204 post-read/pre-send race remains deployment-owned and unresolved.
 No activation, authoring or semantic advertisement was enabled.
+
+### 2026-10-23 bounded saved-history lifecycle
+
+The [saved-history lifecycle packet](verify-saved-history-lifecycle.md) proves
+genuine two-save connected history and mounted HTTP read/comparison through
+foreign edits and deletion with poisoned live capabilities in isolated/shared
+modes. Parent 8.3 and the canonical host gate remain open.
