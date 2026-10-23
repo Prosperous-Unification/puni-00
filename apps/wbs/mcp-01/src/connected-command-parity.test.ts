@@ -1256,7 +1256,11 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         const reply = await submit(fixture, transport, commands);
         const status = fault === 'wrong-project-step' || fault === 'later-command' ? 404 : 409;
         if (transport === 'HTTP') expect(reply.status).toBe(status);
-        else expect(reply.text).toContain(`HTTP ${String(status)}`);
+        else {
+          // Proof: forcing submit's MCP error-status projection to success left its HTTP 404 text intact; this assertion failed (received 200).
+          expect(reply.status).toBe(0);
+          expect(reply.text).toContain(`HTTP ${String(status)}`);
+        }
         expect(reply.text).toContain(`"at":${String(fault === 'later-command' ? 4 : 3)}`);
         expect(reply.text).toContain(
           fault === 'leaf-selector'

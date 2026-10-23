@@ -5410,3 +5410,32 @@ Final repair rerun: **94 pass, 0 fail, 292 assertions** across seven files
 typechecks, all changed-file Prettier checks, `git diff --check` and
 `openspec validate --all --json` exit 0. This bounded repair has not run a canonical
 host gate or fresh CI and requires independent rereview.
+
+## Integrated Arrange and descendant command review (2026-10-23)
+
+Astra High independently rereviewed the held-slot repair after the original
+Arrange review failure and found no remaining blocker. Its read-only probes
+checked 20,000 accepted allocations for finite placements, fixed held rows and
+reader order, plus 5,000 refusal-feasibility cases with no false refusal among
+127 refusals. The integrated seven-file mounted/domain suite passed 94/94 with
+292 assertions (`/tmp/puni-integrated-arrange-test.log`); the neighboring
+seven-file remote/connected suite passed 230/230 with 848 assertions
+(`/tmp/puni-integrated-arrange-neighbor-test.log`). Uncached Nx typechecks for
+`wbs-domain`, `wbs-contracts`, `wbs-core`, `wbs-be-01` and `wbs-fe-01` and their
+dependencies passed (`/tmp/puni-integrated-arrange-typecheck.log`). OpenSpec
+validated 271/271 (`/tmp/puni-openspec-fe736.json`). These local results do not
+replace the canonical exact-SHA host gate or CI.
+
+The bounded descendant-step parity packet is detailed in
+[verify-descendant-command-parity.md](verify-descendant-command-parity.md).
+Astra High reviewed its real mounted HTTP/generated MCP and SQLite path and
+required one extra MCP refusal assertion: text alone did not prove the MCP
+error flag. The added assertion checks the existing transport projection of
+`isError` as status 0. With the projection deliberately forced to status 200,
+the mounted wrong-project-step case failed while still containing HTTP 404
+text (`/tmp/puni-descendant-mcp-flag-red.log`); the projection was restored.
+The integrated 14-case suite passed with 158 assertions before and after the
+fault; the final receipt is `/tmp/puni-descendant-mcp-flag-restored.log`.
+Changed-file ESLint and Prettier passed, and OpenSpec validation remained
+271/271 (`/tmp/puni-openspec-desc-integrated.json`). Parent 3.2/4.2 remain
+open.
