@@ -20,6 +20,7 @@ import {
   updateCalendarMarker,
 } from './calendar-marker-shapes';
 import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
+import { renewClaimLeases } from './claim-lease-shapes';
 import {
   listExternalSystems,
   listPeople,
@@ -236,6 +237,7 @@ export const httpShapes = [
   getStepReference,
   readStartableWork,
   readPersonWork,
+  renewClaimLeases,
   readProjectResources,
   applyProjectCommands,
   applyDirectoryCommands,

@@ -353,6 +353,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   {
+    operationId: 'postApiClaimsRenew',
+    method: 'POST',
+    path: '/api/claims/renew',
+    kind: 'mutation',
+  },
+  {
     operationId: 'postApiDirectoryCommands',
     method: 'POST',
     path: '/api/directory/commands',

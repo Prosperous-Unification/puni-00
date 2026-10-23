@@ -142,6 +142,7 @@ export const CASE_MANIFEST = {
     'claims.listStampedByProject:write-instant',
     'claims.remove:delegated-cascade',
     'claims.moveAll:in-place',
+    'claims.lease:write-renew-expire',
     'claims.occupancy:hold-read-cascade',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
@@ -157,6 +158,7 @@ export const CASE_MANIFEST = {
     'journal.append:history-atomic',
     'journal.append:account-redo-depth',
     'journal.flip:preconditions',
+    'journal.appendEvent:history-only',
   ],
   savedPlans: [
     'savedPlans.write:bytes-and-bodies',

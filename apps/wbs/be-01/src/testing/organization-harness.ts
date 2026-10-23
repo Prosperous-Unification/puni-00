@@ -21,6 +21,7 @@ import {
 } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
@@ -207,10 +208,21 @@ export class OrganizationHarness {
     private readonly optimizerCoordinator?: OptimizationCoordinator,
     private readonly savedPlanCapture?: SavedPlanCaptureStore,
     private readonly composedSource?: SqliteSource,
+    private readonly composedClaimLeases?: ClaimLeaseSweep,
   ) {}
+
+  /**
+   * The composed claim lease sweep (`wbs-claim-leases` L7), unstarted: boot
+   * starts it in production; a test starts it to watch a revoke's tick.
+   */
+  claimLeaseSweep(): ClaimLeaseSweep {
+    if (this.composedClaimLeases === undefined) throw new Error('composed claim leases are absent');
+    return this.composedClaimLeases;
+  }
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
   async closeComposed(): Promise<void> {
+    await this.composedClaimLeases?.stop();
     await this.optimizerCoordinator?.stop();
     await this.composedSource?.close();
     this.close();
@@ -708,6 +720,7 @@ export class OrganizationHarness {
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      claimLeases: services.claimLeases,
       ...(trustedIssuers === undefined
         ? {}
         : {
@@ -788,6 +801,7 @@ export class OrganizationHarness {
       services.optimizer,
       source.history.savedPlanCapture,
       source,
+      services.claimLeases,
     );
     harness.federated = provider !== undefined;
     return harness;

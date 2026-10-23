@@ -422,6 +422,21 @@ export async function bootBe01(
         // test report `Expected: false`, `Received: true` for timer activity.
         disposeService: (retention) => retention.stop(),
       }),
+      // The claim lease sweep (`wbs-claim-leases` L7), registered as retention
+      // is so it stops before the source it releases through closes.
+      claimLeases: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          ({ services }: { services: BeServices }): BeServices['claimLeases'] => {
+            // Proof: with this start removed, `starts the claim lease sweep with
+            // the process` (boot.db.test.ts) read it stopped (36 pass, 1 fail);
+            // watched 2026-10-23.
+            services.claimLeases.start();
+            return services.claimLeases;
+          },
+          { factoryReturnKind: 'sync-value' },
+        ),
+        disposeService: (sweep) => sweep.stop(),
+      }),
       // The listener is the last thing acquired and the first thing released.
       // `providerWithDisposal` owns the app this returns; the pushed disposers own what
       // the factory took on the way, so a failure between `listen` and the
@@ -436,9 +451,13 @@ export async function bootBe01(
               source,
               services,
               retention: _retention,
+              claimLeases,
             }: {
               source: OwnedSource;
               services: BeServices;
+              // Read for its edge as `retention` is (its disposer runs after the
+              // listener's), and handed to the app so a revoke asks it for a tick.
+              claimLeases: BeServices['claimLeases'];
               // Read for its edge, not its value: it is what puts the timer's
               // disposer after the listener's. Drop it and the timer is never
               // started at all.
@@ -506,6 +525,7 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              claimLeases,
               // Proof: omitting this binding made `serves trusted issuer
               // administration from the shared database once activated`
               // (boot.db.test.ts) throw `boot did not wire trusted issuers`:

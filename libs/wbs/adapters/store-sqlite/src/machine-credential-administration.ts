@@ -13,6 +13,7 @@ import { and, asc, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
 import { type ImmediateTransaction, writeImmediately } from './immediate-write';
 import { roleIn } from './organization';
@@ -421,6 +422,12 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         .set({ expiresAt: at, ...auditOnUpdate(act.stamp) })
         .where(and(eq(machineCredentialSecret.credentialId, credentialId), unexpired(at)))
         .run();
+      // The person's last live credential takes its claim leases with it
+      // (`wbs-claim-leases` L8); the sweep releases the claims.
+      // Proof: with this call removed, `keeps the leases when one of two keys
+      // is revoked, and ends them with the last` (claim-lease.db.test.ts) kept
+      // them in force (9 pass, 1 fail); watched 2026-10-23.
+      endLeasesOfUncredentialed(tx, row.personId, at);
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId,

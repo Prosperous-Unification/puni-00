@@ -16,6 +16,7 @@ const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
 /** The newer organization limits migrations, which reverse first. */
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -122,7 +123,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
+      `rolled back: ${CLAIM_LEASE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}`,
     );
     expect(auditRows(dbPath)).toEqual([
       { action: 'restricted_project_recovery', subject_kind: 'project' },

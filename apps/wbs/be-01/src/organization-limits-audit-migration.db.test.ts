@@ -11,6 +11,7 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -105,7 +106,7 @@ describe(LIMITS_AUDIT, () => {
     const down = await rollBack(root, dbPath, ORGANIZATION_LIMITS);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${LIMITS_AUDIT}\n`);
+    expect(down.stdout).toContain(`rolled back: ${CLAIM_LEASE}, ${LIMITS_AUDIT}\n`);
     expect(auditRows(dbPath)).toEqual([
       { action: 'session_policy_changed', subject_kind: 'session_policy' },
     ]);

@@ -2142,6 +2142,13 @@ export const claim = sqliteTable(
     parentClaimId: text('parent_claim_id').references((): AnySQLiteColumn => claim.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * The instant the claim must be renewed by, null for a claim nobody renews
+     * (`20261023100000_add_claim_lease`, `wbs-claim-leases` L1, L3).
+     */
+    leaseExpiresAt: integer('lease_expires_at'),
+    /** When the holder's last live machine credential was revoked (L8); never renewed after. */
+    leaseRevokedAt: integer('lease_revoked_at'),
     ...auditColumns(),
   },
   (t) => [
@@ -2152,6 +2159,9 @@ export const claim = sqliteTable(
     index('claim_by_step').on(t.stepId),
     index('claim_by_person').on(t.personId),
     index('claim_by_parent').on(t.parentClaimId),
+    index('claim_by_lease')
+      .on(t.leaseExpiresAt)
+      .where(sql`${t.leaseExpiresAt} IS NOT NULL`),
     check(
       'claim_run_id_length',
       sql`${t.runId} IS NULL OR (typeof(${t.runId}) = 'text' AND length(${t.runId}) BETWEEN 1 AND 256)`,
