@@ -640,6 +640,7 @@ export function usePlanLayout({
   resetTargetHiddenColumnIds,
   hasAnyExternalRefs,
   hiddenColumnIds,
+  measureColumns,
 }: {
   flat: TreeRow[];
   /** The plan's typed dependencies, whose whole-row chips size Depends on. */
@@ -655,6 +656,12 @@ export function usePlanLayout({
   resetTargetHiddenColumnIds: readonly string[];
   hasAnyExternalRefs: boolean;
   hiddenColumnIds: string[];
+  /**
+   * The reader's measure column answers (`wbs-measure-budgets` D54): whether
+   * any is held, and the writer that forgets them — Reset layout's measure
+   * half. Absent where no table offers measure columns.
+   */
+  measureColumns?: { readonly answered: boolean; readonly forget: () => void };
 }) {
   /**
    * Every fact about this plan that a column's width is allowed to depend on.
@@ -776,6 +783,9 @@ export function usePlanLayout({
     setStoredHiddenColumns(resetTargetHiddenColumnIds);
     forgetHiddenColumns(projectId);
     rememberLinksResetTarget(projectId, hasAnyExternalRefs);
+    // Proof: with this call removed, `Reset layout forgets the measure columns`
+    // (measure-panel.test.tsx) still read `{"tokens":true}`; watched 2026-10-23.
+    measureColumns?.forget();
     resetGanttSettings();
   }
 
@@ -786,6 +796,7 @@ export function usePlanLayout({
    * reader ticked things in is not a difference.
    */
   const columnsDiffer =
+    measureColumns?.answered === true ||
     hiddenColumnIds.length !== resetTargetHiddenColumnIds.length ||
     hiddenColumnIds.some((id) => !resetTargetHiddenColumnIds.includes(id));
   return { frameState, resizeColumn, resizeGantt, resetGanttSettings, resetLayout, columnsDiffer };

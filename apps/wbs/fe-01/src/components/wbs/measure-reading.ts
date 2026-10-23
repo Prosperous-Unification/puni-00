@@ -183,13 +183,34 @@ function isMicroCurrency(definition: MeasureDefinitionView): boolean {
   return definition.currency !== null && definition.unit === `micro-${definition.currency}`;
 }
 
+/** The most fraction digits a figure is ever shown with: one micro-unit of a currency. */
+const FINEST_DIGITS = 6;
+
+/**
+ * The fraction digits that show `value` as non-zero when `usual` would round
+ * it to zero: one more than its first significant decimal, so two significant
+ * digits, and never more than {@link FINEST_DIGITS}. `usual` otherwise.
+ */
+function fractionDigitsFor(value: number, usual: number): number {
+  const magnitude = Math.abs(value);
+  if (magnitude === 0 || magnitude >= 1 || Math.round(magnitude * 10 ** usual) !== 0) return usual;
+  return Math.min(FINEST_DIGITS, Math.max(usual, Math.ceil(-Math.log10(magnitude)) + 1));
+}
+
 /**
  * A figure in a definition's own unit, as a reader reads it.
  *
  * Money in micro-units of its currency reads as that currency
  * (`1500000 micro-USD` → `$1.50`): a change of scale, not a conversion, so
  * nothing about the figure's basis is touched (design D56). Every other
- * figure is grouped, and a real scale keeps at most two decimals.
+ * figure is grouped, and a real scale keeps two decimals. **A non-zero figure
+ * never reads as zero**: one the usual digits would round away takes enough
+ * of them to show two significant digits, up to a millionth (`1500 micro-USD`
+ * → `$0.0015`, `400000 micro-JPY` → `¥0.40`).
+ *
+ * Proof: with `fractionDigitsFor` answering `usual` alone, `never shows a
+ * non-zero figure as zero` (measure-reading.test.ts) read `$0.00`; watched
+ * 2026-10-23.
  *
  * @param value the figure in the definition's stored unit.
  * @param definition the measure it is in.
@@ -202,13 +223,23 @@ export function formatMeasureValue(
 ): string {
   const sign = signed && value > 0 ? '+' : '';
   if (isMicroCurrency(definition) && definition.currency !== null) {
+    const major = value / 1_000_000;
+    const usual =
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: definition.currency,
+      }).resolvedOptions().maximumFractionDigits ?? 2;
+    const digits = fractionDigitsFor(major, usual);
     return `${sign}${new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: definition.currency,
-    }).format(value / 1_000_000)}`;
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(major)}`;
   }
+  const usual = definition.scale === 'integer' ? 0 : 2;
   const text = new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: definition.scale === 'integer' ? 0 : 2,
+    maximumFractionDigits: fractionDigitsFor(value, usual),
   }).format(value);
   return `${sign}${text}`;
 }
@@ -223,17 +254,45 @@ export function unitLabelOf(definition: MeasureDefinitionView): string {
 }
 
 /**
+ * A typed figure: digits, an optional decimal part, and commas only where they
+ * group thousands (`12,000`, `1,234.5`). A comma anywhere else (`1,5`, `12,00`)
+ * is refused rather than guessed at, since it reads as a decimal mark in much
+ * of the world.
+ */
+const TYPED_FIGURE = /^-?(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/;
+
+/** Why a typed figure was refused, worded for the field it was typed in. */
+export const TYPED_FIGURE_HELP =
+  'Type a figure: digits and a decimal point, with commas only between thousands (12,000.5).';
+
+/**
  * What a figure typed into the panel means in the definition's stored unit:
  * currency back to micro-units, everything else as typed. `null` for anything
- * that is not a figure at all; scale and sign are be-01's to refuse
- * (`scale_mismatch`, `invalid_measure`), so this keeps no copy of either rule.
+ * that is not a figure ({@link TYPED_FIGURE}), and for currency finer than a
+ * micro-unit. Scale and sign are be-01's to refuse (`scale_mismatch`,
+ * `invalid_measure`), so this keeps no copy of either rule.
+ *
+ * Currency is converted on the typed digits, never through a float product:
+ * `0.29 * 1_000_000` is `290000.00000000006`.
+ *
+ * Proof: with the grouping check widened back to "drop every comma", `refuses
+ * a comma that does not group thousands` (measure-reading.test.ts) read `1,5`
+ * as 15; watched 2026-10-23.
  */
 export function storedValueOf(typed: string, definition: MeasureDefinitionView): number | null {
-  const trimmed = typed.trim().replace(/[,\s]/g, '');
-  if (trimmed === '' || !/^-?\d*\.?\d+$/.test(trimmed)) return null;
-  const value = Number(trimmed);
-  if (!Number.isFinite(value)) return null;
-  return isMicroCurrency(definition) ? Math.round(value * 1_000_000) : value;
+  const trimmed = typed.trim();
+  if (!TYPED_FIGURE.test(trimmed)) return null;
+  const plain = trimmed.replace(/,/g, '');
+  if (!isMicroCurrency(definition)) {
+    const value = Number(plain);
+    return Number.isFinite(value) ? value : null;
+  }
+  const negative = plain.startsWith('-');
+  const [whole = '0', fraction = ''] = (negative ? plain.slice(1) : plain).split('.');
+  if (fraction.length > FINEST_DIGITS) return null;
+  const micros = Number(whole) * 1_000_000 + Number(fraction.padEnd(FINEST_DIGITS, '0'));
+  if (!Number.isSafeInteger(micros)) return null;
+  return negative ? -micros : micros;
 }
 
 /** A figure in its stored unit as the panel prefills it: the inverse of {@link storedValueOf}. */
@@ -276,6 +335,13 @@ export type BudgetReading =
       held: number;
       remaining: number;
       exceeded: boolean;
+      /**
+       * Whether the coordinator refuses the next attempt on it: a strict budget
+       * with nothing remaining once holds are counted (`remaining <= 0`, the
+       * headroom read's rule). Spent exactly to the cap refuses; holds pushing
+       * the remainder below zero refuse without the facts being `exceeded`.
+       */
+      refusing: boolean;
       /** Spent over cap, clamped to [0, 1], for the bar. */
       fill: number;
     };
@@ -301,6 +367,10 @@ export function budgetReadingOf(
     held,
     remaining: budget.remaining,
     exceeded: budget.exceeded,
+    // Proof: with this keyed on `exceeded` again, `refuses at the cap and on
+    // holds, not only once facts cross it` (measure-reading.test.ts) read a
+    // strict budget spent to its cap as not refusing; watched 2026-10-23.
+    refusing: budget.policy === 'strict' && budget.remaining <= 0,
     fill: budget.cap <= 0 ? (spent > 0 ? 1 : 0) : Math.min(1, Math.max(0, spent / budget.cap)),
   };
 }

@@ -532,6 +532,11 @@ export function rememberedMeasureColumns(projectId: string): MeasureToggles {
   return storedMeasureColumns(projectId).readAndDrop().value ?? {};
 }
 
+/** Forgets the measure column answers for `projectId`: Reset layout's measure half (D54). */
+export function forgetMeasureColumns(projectId: string): boolean {
+  return storedMeasureColumns(projectId).forget();
+}
+
 /** Writes the measure column answers in force for `projectId`. */
 export function rememberMeasureColumns(projectId: string, toggles: MeasureToggles): boolean {
   return storedMeasureColumns(projectId).write(toggles);

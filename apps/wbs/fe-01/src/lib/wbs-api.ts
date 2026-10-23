@@ -343,6 +343,8 @@ export interface BudgetView {
   /** Spent above the cap: facts alone, never holds. */
   exceeded: boolean;
   held?: number;
+  /** The stated hold per running attempt, only where one is stated (design D60). */
+  holdPerAttempt?: number;
 }
 
 /** A money basis: the currency and the rate card digest a figure was priced with (D43). */

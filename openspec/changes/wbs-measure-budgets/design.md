@@ -367,11 +367,13 @@ Assumptions added while implementing slice 6 (tasks 4.2, 4.3), each the reading 
   its own: its Columns choice drives the step columns and Days through the existing hide-list.
   Cells are read-only; trios, facts and budgets name a step or a budget and are typed in the
   Measures panel. The phone's cards draw no measure figures; the panel is on the card menu.
-- **D54 Toggles are answers, not a hide-list.** `wbs.measureColumns.<project>` holds
+- **D54 Toggles are answers, not a hide-list** (amended by the review of PR #680: Reset layout
+  now forgets them, and the spec scenario says "per browser and project"). `wbs.measureColumns.<project>` holds
   `{key: boolean}` per browser and project, beside the existing remembered layout: an unanswered
   key follows `showByDefault`, so a definition created later starts hidden and a definition that
-  turns `showByDefault` on shows for readers who never answered. Saved views and Reset layout do
-  not carry it (they carry the hide-list); "per user" is per browser, as every remembered layout is.
+  turns `showByDefault` on shows for readers who never answered. Saved views do not carry it;
+  Reset layout forgets it with the hide-list; "per user" is per browser, as every remembered
+  layout is, and the delta spec now says so.
 - **D55 Definitions are read once per opened project.** `GET /api/measures` through the plan
   commands (`listMeasures`), with loading, `organization_required` (review S3-6) and any other
   refusal rendered as states in the Columns control and the panel. A definition created while the
@@ -394,6 +396,27 @@ Assumptions added while implementing slice 6 (tasks 4.2, 4.3), each the reading 
 - **D59 Panel writes go through `run`.** Each is one plan command in the existing write path, so
   a refusal is toasted and the plan reread as for any edit, and its sentence is also kept beside
   the control that asked (toasts sit above the modal, but the reader is looking at the form).
+
+Assumptions added while fixing the review of PR #680 (slice 6):
+
+- **D60 The row read names a stated hold.** A row's budget entry gains `holdPerAttempt`, present
+  exactly where the budget states a hold (beside `held`), so a row without holds answers the bytes
+  it did; D49's strip now drops `spent` alone. `setBudget` restates the whole budget (an omitted
+  hold clears it), so the panel prefills the hold box from it and sends what the box holds: an
+  emptied box is the reader's explicit "no hold" (`null`). An older be-01 that sends no
+  `holdPerAttempt` leaves the box empty, and a Save there clears the hold; that window closes with
+  this release. Saved plans capture the row read, so a captured row with a hold carries one more
+  field.
+- **D61 The panel warns where the coordinator refuses.** A strict budget reads `refusing` when its
+  `remaining <= 0` (the headroom read's rule, `budget-headroom-shapes.ts`), not when `exceeded`:
+  spent exactly to the cap, or holds taking the rest, refuse the next attempt. The bar's colour and
+  the sentence follow `refusing`; the "exceeded" badge stays for facts past the cap; holds are said
+  as "nothing left · N held", never "over".
+- **D62 Figures never round to zero, and typed commas only group thousands.** A non-zero figure the
+  usual digits would show as zero takes two significant digits, up to a millionth (`$0.0015`,
+  `¥0.40`). A typed figure accepts a comma only between thousands; currency is converted to
+  micro-units on its digits, never through a float product, and finer than a micro-unit is refused
+  in the field.
 
 ## Risks / Trade-offs
 

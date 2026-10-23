@@ -141,6 +141,14 @@ function measureFieldsFor(name: string, devStepId: string): Record<string, unkno
       },
       mixedRateCards: { cost: { facts: [CARD_A, CARD_B] } },
     };
+  if (name === 'Nightly evaluation sweep')
+    return {
+      measures: { token_actual: { [devStepId]: 1000 }, cost: { [devStepId]: 4_999 } },
+      budgets: {
+        tokens: { cap: 1000, policy: 'strict', source: 'stated', remaining: 0, exceeded: false },
+      },
+      moneyBases: { cost: { facts: CARD_A } },
+    };
   return null;
 }
 
@@ -182,6 +190,12 @@ async function seedMeasurePlan(page: Page, testInfo: TestInfo): Promise<SeededPl
           name: 'Draft the onboarding email',
           afterRef: 'batch',
           estimates: { Dev: { optimistic: 0.5, realistic: 1, pessimistic: 2 } },
+        },
+        {
+          ref: 'sweep',
+          name: 'Nightly evaluation sweep',
+          afterRef: 'fresh',
+          estimates: { Dev: { optimistic: 1, realistic: 1, pessimistic: 2 } },
         },
       ],
     },
@@ -295,6 +309,27 @@ test.describe('measure columns', () => {
     panel = await openPanel(page, '030');
     await expect(panel.locator('[data-measures-empty]')).toBeVisible();
     await capture(page, testInfo, 'desktop-panel-empty');
+    await page.keyboard.press('Escape');
+
+    // Spent exactly to a strict cap: the coordinator refuses, though nothing
+    // is exceeded; and a cost under one cent reads as itself, not $0.00.
+    panel = await openPanel(page, '040');
+    await expect(panel.locator('[data-refusing-sentence]')).toHaveText(
+      'Spent to the cap — the coordinator refuses the next attempt here.',
+    );
+    await expect(panel.getByRole('region', { name: 'Cost' }).locator('dd').nth(1)).toHaveText(
+      '$0.0050',
+    );
+    await capture(page, testInfo, 'desktop-panel-at-cap-tiny-cost');
+    await page.keyboard.press('Escape');
+
+    // The open forms: a money trio, its fact and the budget, with the rate card.
+    panel = await openPanel(page, '010');
+    const cost = panel.getByRole('region', { name: 'Cost' });
+    await cost.getByRole('button', { name: 'Edit' }).click();
+    await expect(cost.getByRole('form', { name: 'Budget of Cost' })).toBeVisible();
+    await cost.scrollIntoViewIfNeeded();
+    await capture(page, testInfo, 'desktop-panel-forms');
   });
 
   test('on a phone, the chooser and the panel fit the screen', async ({ page }, testInfo) => {
@@ -329,6 +364,27 @@ test.describe('measure columns', () => {
     await page.keyboard.press('Escape');
     await openPanel(page, '030');
     await capture(page, testInfo, 'mobile-panel-empty');
+    await page.keyboard.press('Escape');
+    await openPanel(page, '040');
+    await capture(page, testInfo, 'mobile-panel-at-cap-tiny-cost');
+    await page.keyboard.press('Escape');
+
+    // The trio's three boxes stay on one row at 390 px, their labels wrapping
+    // above them ("Cost pessimistic").
+    const forms = await openPanel(page, '010');
+    const cost = forms.getByRole('region', { name: 'Cost' });
+    await cost.getByRole('button', { name: 'Edit' }).click();
+    const boxes = cost.getByRole('form', { name: 'Estimate of Cost' }).getByRole('textbox');
+    const tops = await boxes.evaluateAll((nodes) =>
+      nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
+    );
+    expect(new Set(tops).size).toBe(1);
+    const right = await boxes.evaluateAll((nodes) =>
+      Math.max(...nodes.map((node) => node.getBoundingClientRect().right)),
+    );
+    expect(right).toBeLessThanOrEqual(390);
+    await cost.getByRole('form', { name: 'Estimate of Cost' }).scrollIntoViewIfNeeded();
+    await capture(page, testInfo, 'mobile-panel-forms');
   });
 
   test('a typed tokens estimate and fact come back from be-01 as variance', async ({
@@ -351,8 +407,9 @@ test.describe('measure columns', () => {
 
     await page.locator('details[data-columns] > summary').click();
     await page.locator('[data-measure-choice="tokens"] input').check();
-    await page.waitForTimeout(400);
+    await expect(page.locator('th[data-column="measure-tokens-variance"]')).toBeVisible();
     await page.locator('details[data-columns] > summary').click();
+    await expect(page.locator('[data-columns-panel]')).toBeHidden();
     const variance = page.locator('td[data-column="measure-tokens-variance"]').nth(2);
     await expect(variance).toHaveText('—');
 
@@ -367,13 +424,12 @@ test.describe('measure columns', () => {
     await tokens.getByLabel('Tokens fact').pressSequentially('300', { delay: 40 });
     await tokens.getByRole('button', { name: 'Save fact' }).click();
     await expect(tokens.locator('dd').nth(2)).toHaveText('+50');
-    await page.waitForTimeout(600);
     await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
     await expect(variance).toHaveText('+50');
     await expect(page.locator('td[data-column="measure-tokens-estimate"]').nth(2)).toHaveText(
       '250',
     );
-    await page.waitForTimeout(800);
     const video = page.video();
     await context.close();
     if (video !== null && evidence !== undefined && evidence !== '') {

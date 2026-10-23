@@ -117,7 +117,7 @@ export const numberedWorkItem = type({
   // Budgets by definition key (`wbs-measure-budgets` D5, design D39): stated
   // or derived from the pessimistic points, with what remains after the
   // subtree's facts and holds (negative past the cap) and whether the facts
-  // crossed it; `held` only where the budget states a hold. Absent when the
+  // crossed it; `held` and `holdPerAttempt` only where the budget states a hold. Absent when the
   // row has none, and from an older be-01 mid-swap.
   'budgets?': type({
     '[string]': type({
@@ -127,6 +127,9 @@ export const numberedWorkItem = type({
       remaining: 'number',
       exceeded: 'boolean',
       'held?': 'number',
+      // The stated hold per running attempt, beside `held`, only where the
+      // budget states one (design D60): what an editor would otherwise drop.
+      'holdPerAttempt?': 'number',
     }),
   }),
   // Money keys whose figures in the subtree are priced under two bases, per

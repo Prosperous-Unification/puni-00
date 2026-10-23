@@ -5,6 +5,7 @@ import { type MeasureDefinitionView, type StepView } from '@/lib/wbs-api';
 import { isMeasureShown, type MeasureToggles } from './measure-reading';
 import { COLUMN_LABELS } from './plan-toolbar';
 import {
+  forgetMeasureColumns,
   rememberedHiddenColumns,
   rememberedMeasureColumns,
   rememberHiddenColumns,
@@ -22,11 +23,23 @@ import { hideableColumnIds } from './table-frame';
 export function useColumnSet({ projectId, steps }: { projectId: string; steps: StepView[] }) {
   /**
    * This reader's answers about measure columns, by definition key — see
-   * {@link rememberedMeasureColumns}. Read once per mount like the hide-list;
-   * a project switch remounts the table.
+   * {@link rememberedMeasureColumns}. Held with the project they were read
+   * for: the table is not remounted when the project changes, so another
+   * project's answers are read afresh rather than carried over.
    */
-  const [measureToggles, setMeasureToggles] = useState<MeasureToggles>(() =>
-    rememberedMeasureColumns(projectId),
+  const [storedMeasureToggles, setStoredMeasureToggles] = useState<{
+    projectId: string;
+    toggles: MeasureToggles;
+  }>(() => ({ projectId, toggles: rememberedMeasureColumns(projectId) }));
+  // Proof: answering the held toggles whatever project they were read for,
+  // `reads another project’s measure columns afresh` (measure-panel.test.tsx)
+  // showed p1's tokens columns on p2; watched 2026-10-23.
+  const measureToggles = useMemo(
+    () =>
+      storedMeasureToggles.projectId === projectId
+        ? storedMeasureToggles.toggles
+        : rememberedMeasureColumns(projectId),
+    [projectId, storedMeasureToggles],
   );
   /**
    * Steps whose columns are unfolded — the three points, next to the final
@@ -140,9 +153,15 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
       ...measureToggles,
       [definition.key]: !isMeasureShown(definition, measureToggles),
     };
-    setMeasureToggles(next);
+    setStoredMeasureToggles({ projectId, toggles: next });
     rememberMeasureColumns(projectId, next);
   }
+
+  /** Forgets every measure answer for this project: Reset layout's measure half. */
+  const forgetMeasureToggles = useCallback(() => {
+    setStoredMeasureToggles({ projectId, toggles: {} });
+    forgetMeasureColumns(projectId);
+  }, [projectId]);
 
   /**
    * The scheduling measure's columns are the step columns and Days
@@ -162,6 +181,7 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
   return {
     measureToggles,
     toggleMeasure,
+    forgetMeasureToggles,
     isTimeShown,
     toggleTime,
     unfoldedSteps,

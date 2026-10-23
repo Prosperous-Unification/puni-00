@@ -808,6 +808,7 @@ export function WbsTable({
     toggleStep,
     measureToggles,
     toggleMeasure,
+    forgetMeasureToggles,
     isTimeShown,
     toggleTime,
   } = useColumnSet({ projectId, steps });
@@ -1251,6 +1252,10 @@ export function WbsTable({
       resetTargetHiddenColumnIds,
       hasAnyExternalRefs,
       hiddenColumnIds,
+      measureColumns: {
+        answered: Object.keys(measureToggles).length > 0,
+        forget: forgetMeasureToggles,
+      },
     });
   const {
     planForExport,

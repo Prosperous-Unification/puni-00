@@ -20,6 +20,7 @@ import {
   mixedSentence,
   shownDefinitions,
   storedValueOf,
+  TYPED_FIGURE_HELP,
   typedValueOf,
   unitLabelOf,
 } from './measure-reading';
@@ -204,6 +205,7 @@ describe('a budget reading', () => {
       held: 300,
       remaining: 200,
       exceeded: false,
+      refusing: false,
       fill: 0,
     });
   });
@@ -221,5 +223,85 @@ describe('a budget reading', () => {
       budgetReadingOf({ mixedRateCards: { cost: { facts: [CARD_A, CARD_B] } } }, 'cost'),
     ).toEqual({ kind: 'blocked', bases: [CARD_A, CARD_B] });
     expect(budgetReadingOf({}, 'cost')).toEqual({ kind: 'none' });
+  });
+});
+
+describe('figures below one unit (review S2-2)', () => {
+  const jpy = { ...seededMeasure('cost'), unit: 'micro-JPY', currency: 'JPY' };
+
+  it('never shows a non-zero figure as zero', () => {
+    expect(formatMeasureValue(1500, seededMeasure('cost'))).toBe('$0.0015');
+    expect(formatMeasureValue(4999, seededMeasure('cost'))).toBe('$0.0050');
+    expect(formatMeasureValue(400_000, jpy)).toBe('¥0.40');
+    expect(formatMeasureValue(1, seededMeasure('cost'), true)).toBe('+$0.000001');
+    expect(formatMeasureValue(-2_000, seededMeasure('cost'), true)).toBe('-$0.0020');
+    expect(formatMeasureValue(0.004, seededMeasure('hours'))).toBe('0.004');
+  });
+
+  it('keeps the currency’s own digits where they already show the figure', () => {
+    expect(formatMeasureValue(0, seededMeasure('cost'))).toBe('$0.00');
+    expect(formatMeasureValue(133_333, seededMeasure('cost'))).toBe('$0.13');
+    expect(formatMeasureValue(2_400_000, jpy)).toBe('¥2');
+  });
+});
+
+describe('typed figures (review S3)', () => {
+  it('refuses a comma that does not group thousands', () => {
+    expect(storedValueOf('1,5', seededMeasure('tokens'))).toBeNull();
+    expect(storedValueOf('12,00', seededMeasure('tokens'))).toBeNull();
+    expect(storedValueOf('1,234,567.5', seededMeasure('hours'))).toBe(1_234_567.5);
+    expect(storedValueOf('1234', seededMeasure('tokens'))).toBe(1234);
+    expect(TYPED_FIGURE_HELP).toMatch(/commas only between thousands/);
+  });
+
+  it('turns currency into micro-units on the digits, without float error', () => {
+    expect(storedValueOf('0.29', seededMeasure('cost'))).toBe(290_000);
+    expect(storedValueOf('1,234.567891', seededMeasure('cost'))).toBe(1_234_567_891);
+    expect(storedValueOf('0.0000001', seededMeasure('cost'))).toBeNull();
+  });
+});
+
+describe('when the coordinator refuses (review S2-3)', () => {
+  const strict = (remaining: number, exceeded: boolean, held?: number) =>
+    budgetReadingOf(
+      {
+        budgets: {
+          tokens: {
+            cap: 1000,
+            policy: 'strict',
+            source: 'stated',
+            remaining,
+            exceeded,
+            ...(held === undefined ? {} : { held }),
+          },
+        },
+      },
+      'tokens',
+    );
+
+  it('refuses at the cap and on holds, not only once facts cross it', () => {
+    expect(strict(0, false)).toMatchObject({ spent: 1000, refusing: true, exceeded: false });
+    expect(strict(-300, false, 600)).toMatchObject({ spent: 700, refusing: true, exceeded: false });
+    expect(strict(-200, true)).toMatchObject({ refusing: true, exceeded: true });
+    expect(strict(1, false)).toMatchObject({ refusing: false });
+  });
+
+  it('never refuses on an advisory budget', () => {
+    expect(
+      budgetReadingOf(
+        {
+          budgets: {
+            tokens: {
+              cap: 10,
+              policy: 'advisory',
+              source: 'stated',
+              remaining: -5,
+              exceeded: true,
+            },
+          },
+        },
+        'tokens',
+      ),
+    ).toMatchObject({ refusing: false, exceeded: true });
   });
 });

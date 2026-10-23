@@ -20,6 +20,7 @@ import {
   measureFiguresOf,
   mixedSentence,
   storedValueOf,
+  TYPED_FIGURE_HELP,
   typedValueOf,
   unitLabelOf,
 } from './measure-reading';
@@ -139,8 +140,8 @@ export function MeasurePanel({ onOpenChange, row, steps, state, writes }: Measur
                 data-measures-empty
                 className="bg-muted/50 text-muted-foreground rounded-md p-3 text-sm"
               >
-                Nothing is estimated, recorded or budgeted on this row yet. Open a measure below to
-                start.
+                Nothing is estimated, recorded or budgeted in any measure but time on this row yet.
+                Open a measure below to start.
               </p>
             )}
             {state.measures.map((definition) =>
@@ -277,7 +278,7 @@ function BasisLine({
   ].filter((line) => line !== null);
   if (lines.length === 0) return null;
   return (
-    <ul data-measure-bases className="flex list-none flex-col gap-0.5 p-0 text-xs">
+    <ul data-measure-bases className="m-0 flex list-none flex-col gap-0.5 p-0 text-xs">
       {lines.map((line) => (
         <li
           key={line}
@@ -325,23 +326,38 @@ function BudgetView({
       );
     case 'budget': {
       const over = reading.exceeded;
+      const refusing = reading.refusing;
       const held = reading.held > 0 ? ` · ${show(reading.held)} held for running attempts` : '';
+      // What is left, in the words of why: facts past the cap are "over";
+      // holds that take the rest are "nothing left", never "over" (review S2-3).
       const left =
-        reading.remaining < 0
-          ? `${show(-reading.remaining)} over`
-          : `${show(reading.remaining)} left`;
+        reading.remaining > 0
+          ? `${show(reading.remaining)} left`
+          : over
+            ? `${show(reading.spent - reading.cap)} over`
+            : 'nothing left';
+      const why = over
+        ? 'Exceeded'
+        : reading.held > 0 && reading.remaining < 0
+          ? 'Nothing left once running attempts’ holds are counted'
+          : 'Spent to the cap';
       // Proof: with this test negated (the renderings swapped), `draws a strict
       // budget as a bar and an advisory one as a marker` (measure-panel.test.tsx)
       // found no meter in the Tokens card; watched 2026-10-23.
       if (reading.policy === 'strict') {
         return (
-          <div data-budget="strict" data-exceeded={over} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-2 text-xs">
+          <div
+            data-budget="strict"
+            data-exceeded={over}
+            data-refusing={refusing}
+            className="flex flex-col gap-1"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
               <span className="font-medium">
                 Strict budget{reading.source === 'derived' ? ' (derived)' : ''}
               </span>
               <span
-                style={over ? { color: 'var(--status-blocked)' } : undefined}
+                style={refusing ? { color: 'var(--status-blocked)' } : undefined}
                 className="tabular-nums"
               >
                 {show(reading.spent)} of {show(reading.cap)} · {left}
@@ -354,20 +370,27 @@ function BudgetView({
               aria-valuemin={0}
               aria-valuemax={reading.cap}
               aria-valuenow={Math.max(0, reading.spent)}
-              aria-valuetext={`${show(reading.spent)} of ${show(reading.cap)}${over ? ', exceeded' : ''}`}
+              aria-valuetext={`${show(reading.spent)} of ${show(reading.cap)}${over ? ', exceeded' : refusing ? ', nothing left' : ''}`}
               className="bg-muted h-2 overflow-hidden rounded-full"
             >
               <div
                 className={`h-full rounded-full ${EASED}`}
                 style={{
                   width: `${String(Math.round(reading.fill * 100))}%`,
-                  background: over ? 'var(--status-blocked)' : 'var(--primary)',
+                  background: refusing ? 'var(--status-blocked)' : 'var(--primary)',
                 }}
               />
             </div>
-            {over && (
-              <p className="text-xs font-semibold" style={{ color: 'var(--status-blocked)' }}>
-                Exceeded — the coordinator refuses the next attempt here.
+            {/* Proof: with this keyed on `over` again, `warns at the cap and on
+                holds, as the coordinator refuses` (measure-panel.test.tsx) found
+                no sentence on a budget spent to its cap; watched 2026-10-23. */}
+            {refusing && (
+              <p
+                data-refusing-sentence
+                className="text-xs font-semibold"
+                style={{ color: 'var(--status-blocked)' }}
+              >
+                {why} — the coordinator refuses the next attempt here.
               </p>
             )}
           </div>
@@ -418,7 +441,6 @@ function MeasureCard({
       ]
     : [{ facet: 'fact', label: 'Fact' }];
   const reading = budgetReadingOf(row, definition.key);
-  const formId = useId();
   return (
     <CardFrame
       definition={definition}
@@ -432,7 +454,6 @@ function MeasureCard({
             size="sm"
             className="ml-auto h-7 transition-colors motion-reduce:transition-none"
             aria-expanded={editing}
-            aria-controls={formId}
             onClick={() => {
               setEditing((open) => !open);
             }}
@@ -452,11 +473,9 @@ function MeasureCard({
       <TrioLine row={row} definition={definition} />
       <BasisLine row={row} definition={definition} />
       <BudgetView reading={reading} definition={definition} />
-      {editing && (
-        <div id={formId}>
-          <MeasureForms definition={definition} row={row} steps={steps} writes={writes} />
-        </div>
-      )}
+      {/* No `aria-controls`: the forms are not mounted while closed, and a
+          control pointing at a missing id is worse than none. */}
+      {editing && <MeasureForms definition={definition} row={row} steps={steps} writes={writes} />}
     </CardFrame>
   );
 }
@@ -573,7 +592,12 @@ function MeasureForms({
       )}
       {takesFigures && definition.threePoint && !definition.derived && (
         <TrioForm
-          key={`trio-${stepId}`}
+          // Keyed on what is stored, so a Clear or a peer's write lands in the
+          // boxes instead of leaving the last typed figures there.
+          // Proof: keyed on the step alone, `clears through the panel, and the
+          // boxes follow what is stored` (measure-panel.test.tsx) read `100`
+          // after the clear; watched 2026-10-23.
+          key={`trio-${stepId}-${JSON.stringify(row.measureEstimates?.[definition.key]?.[stepId] ?? null)}`}
           prefix={prefix}
           definition={definition}
           row={row}
@@ -584,7 +608,7 @@ function MeasureForms({
       )}
       {takesFigures && !definition.derived && (
         <FactForm
-          key={`fact-${stepId}`}
+          key={`fact-${stepId}-${String(row.measures?.[factKeyOf(definition.key)]?.[stepId] ?? 'none')}`}
           prefix={prefix}
           definition={definition}
           row={row}
@@ -599,7 +623,13 @@ function MeasureForms({
           bound them.
         </p>
       )}
-      <BudgetForm prefix={prefix} definition={definition} row={row} writes={writes} />
+      <BudgetForm
+        key={`budget-${JSON.stringify(row.budgets?.[definition.key] ?? null)}`}
+        prefix={prefix}
+        definition={definition}
+        row={row}
+        writes={writes}
+      />
     </div>
   );
 }
@@ -619,7 +649,9 @@ function FigureField({
   definition: MeasureDefinitionView;
 }) {
   return (
-    <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
+    // `justify-end`: a label that wraps to two lines ("Cost pessimistic" on a
+    // phone) grows upward, so the three boxes of a trio stay on one line.
+    <label htmlFor={id} className="flex min-w-0 flex-1 flex-col justify-end gap-1 text-xs">
       {label}
       <Input
         id={id}
@@ -692,7 +724,7 @@ function TrioForm({
         const realistic = storedValueOf(points.realistic, definition);
         const pessimistic = storedValueOf(points.pessimistic, definition);
         if (optimistic === null || realistic === null || pessimistic === null) {
-          setMessage('Type all three points as figures.');
+          setMessage(`All three points. ${TYPED_FIGURE_HELP}`);
           return;
         }
         send(() =>
@@ -705,7 +737,7 @@ function TrioForm({
         );
       }}
     >
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {(['optimistic', 'realistic', 'pessimistic'] as const).map((point) => (
           <FigureField
             key={point}
@@ -768,7 +800,7 @@ function FactForm({
         event.preventDefault();
         const figure = storedValueOf(value, definition);
         if (figure === null) {
-          setMessage('Type the recorded figure.');
+          setMessage(TYPED_FIGURE_HELP);
           return;
         }
         send(() =>
@@ -826,7 +858,16 @@ function BudgetForm({
   const isStated = stated?.source === 'stated';
   const [cap, setCap] = useState(isStated ? typedValueOf(stated.cap, definition) : '');
   const [policy, setPolicy] = useState<'strict' | 'advisory'>(stated?.policy ?? 'strict');
-  const [hold, setHold] = useState('');
+  // Prefilled from the stated hold (design D60): `setBudget` restates the
+  // whole budget, so a hold the box did not show would be dropped on Save.
+  // Proof: with this prefill empty again, `keeps a stated hold when a budget is
+  // saved` (measure-panel.test.tsx) found an empty hold box, which Save sends
+  // as `holdPerAttempt: null`; watched 2026-10-23.
+  const [hold, setHold] = useState(
+    isStated && stated.holdPerAttempt !== undefined
+      ? typedValueOf(stated.holdPerAttempt, definition)
+      : '',
+  );
   const { busy, message, setMessage, send } = useWrite();
   return (
     <form
@@ -836,19 +877,20 @@ function BudgetForm({
         event.preventDefault();
         const figure = storedValueOf(cap, definition);
         if (figure === null) {
-          setMessage('Type the budget’s cap.');
+          setMessage(`The cap. ${TYPED_FIGURE_HELP}`);
           return;
         }
-        const holdFigure = hold.trim() === '' ? undefined : storedValueOf(hold, definition);
+        // Empty is the reader's explicit "no hold" (the box shows any stated one).
+        const holdFigure = hold.trim() === '' ? 'none' : storedValueOf(hold, definition);
         if (holdFigure === null) {
-          setMessage('Type the hold per attempt as a figure, or leave it empty.');
+          setMessage(`The hold per attempt, or leave it empty. ${TYPED_FIGURE_HELP}`);
           return;
         }
         send(() =>
           writes.setBudget(definition.key, {
             cap: figure,
             policy,
-            ...(holdFigure === undefined ? {} : { holdPerAttempt: holdFigure }),
+            holdPerAttempt: holdFigure === 'none' ? null : holdFigure,
           }),
         );
       }}

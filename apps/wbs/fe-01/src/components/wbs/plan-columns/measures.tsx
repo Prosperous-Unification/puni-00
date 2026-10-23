@@ -88,9 +88,12 @@ export function MeasureFigureText({
         >
           {text}
           {figure.singlePoint && (
-            <span data-single-point aria-label="single figure" className="text-quiet-ink ml-0.5">
-              ·
-            </span>
+            <>
+              <span data-single-point aria-hidden="true" className="text-quiet-ink ml-0.5">
+                ·
+              </span>
+              <span className="sr-only"> (a single legacy figure)</span>
+            </>
           )}
         </span>
       );
@@ -116,19 +119,22 @@ export function createMeasureColumns(definitions: readonly MeasureDefinitionView
           spokenHeading: `${definition.name} ${FACET_WORDS[facet]} (${unitLabelOf(definition)})`,
         },
         header: () => (
-          <span data-measure-heading className="flex flex-col leading-tight">
+          <span data-measure-heading className="flex flex-col items-end text-right leading-tight">
             <span className="truncate font-medium">{definition.name}</span>
             <span className="text-quiet-ink truncate text-[0.6875rem] font-normal">
               {FACET_WORDS[facet]} · {unitLabelOf(definition)}
             </span>
           </span>
         ),
+        // Right-aligned with tabular numerals, so figures compare down a column.
         cell: ({ row }) => (
-          <MeasureFigureText
-            figure={measureFiguresOf(row.original, definition)[facet]}
-            definition={definition}
-            facet={facet}
-          />
+          <span data-measure-cell className="block text-right tabular-nums">
+            <MeasureFigureText
+              figure={measureFiguresOf(row.original, definition)[facet]}
+              definition={definition}
+              facet={facet}
+            />
+          </span>
         ),
       }),
     ),
