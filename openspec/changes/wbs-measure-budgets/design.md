@@ -357,6 +357,44 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   budgets, read or blocked, never refuse. A readable and a blocked budget of one policy are
   both reported; the coordinator needs both (the blocked one's remainder is unknown).
 
+Assumptions added while implementing slice 6 (tasks 4.2, 4.3), each the reading closest to D1–D8:
+
+- **D52 Columns are display sums; the panel edits.** A measure column shows a row's figure summed
+  over its steps: the expected figures, the facts, and the variances the read states per step
+  (D29), never fact minus expected worked out in fe-01, so a step with a fact and no trio adds no
+  variance. A definition without three points (`hours`, `agent_minutes`) offers its fact column
+  only, since its estimate and variance could never fill. The scheduling measure has no columns of
+  its own: its Columns choice drives the step columns and Days through the existing hide-list.
+  Cells are read-only; trios, facts and budgets name a step or a budget and are typed in the
+  Measures panel. The phone's cards draw no measure figures; the panel is on the card menu.
+- **D53 Toggles are answers, not a hide-list.** `wbs.measureColumns.<project>` holds
+  `{key: boolean}` per browser and project, beside the existing remembered layout: an unanswered
+  key follows `showByDefault`, so a definition created later starts hidden and a definition that
+  turns `showByDefault` on shows for readers who never answered. Saved views and Reset layout do
+  not carry it (they carry the hide-list); "per user" is per browser, as every remembered layout is.
+- **D54 Definitions are read once per opened project.** `GET /api/measures` through the plan
+  commands (`listMeasures`), with loading, `organization_required` (review S3-6) and any other
+  refusal rendered as states in the Columns control and the panel. A definition created while the
+  plan is open shows on the next open; the directory stream does not re-read it.
+- **D55 Money reads as its currency.** A money definition whose unit is `micro-<currency>` (the
+  seeded `cost`) is shown and typed in that currency (`1500000` → `$1.50`), a change of scale and
+  no conversion; any other money unit is shown raw with its unit. A single basis is named on the
+  figure's hover and in the panel; a mixed kind is a "mixed cards" marker naming both bases, and a
+  budget whose facts mix reads "Budget unknown", never a sum. The panel prefills the rate card
+  digest from the row's one basis and sends what is typed; be-01 decides `rate_card_required`.
+- **D56 The panel is a modal from the row menu.** The plan has no work item page: attempts and
+  dependencies live in hover cards over one cell. "Measures…" sits after Duplicate in the table's
+  and the cards' row menus. A parent offers only its budget (its figures are sums, `rolled_up`);
+  a derived measure offers only its budget; time is read-only (planned days, actual days, no
+  budget, D35).
+- **D57 Read-only roles are refused like every edit.** The plan table has no role reading; a
+  viewer's write is refused by be-01 `forbidden` and worded by `plan-refusal.ts` as every other
+  edit is, beside the control in the panel and as a toast. Hiding the forms for viewers needs a
+  role on the plan read, which no slice provides (no backend change here).
+- **D58 Panel writes go through `run`.** Each is one plan command in the existing write path, so
+  a refusal is toasted and the plan reread as for any edit, and its sentence is also kept beside
+  the control that asked (toasts sit above the modal, but the reader is looking at the form).
+
 ## Risks / Trade-offs
 
 - The schedule must not move: D2's property test is the guard, and the time trio stays in its

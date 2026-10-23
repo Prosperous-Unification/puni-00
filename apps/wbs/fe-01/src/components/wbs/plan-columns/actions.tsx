@@ -66,6 +66,15 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
               void live.current.duplicateRow(row.original.id);
             },
           },
+          {
+            id: 'measures',
+            // Estimates, facts and budgets per measure: a panel and not a
+            // cell, because one row holds five measures' worth of them.
+            label: 'Measures…',
+            run: () => {
+              live.current.openMeasures(row.original.id);
+            },
+          },
           ...(row.original.frozenNumber === null
             ? []
             : [

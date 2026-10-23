@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 import { POINTS } from './estimate-draft';
+import { isMeasureColumnId } from './measure-reading';
 
 /**
  * Every fact about the plan a column's width is allowed to depend on, in one
@@ -862,6 +863,14 @@ export const FLEXIBLE_CAP = 420;
 const STEP_FINAL_WIDTH = 104;
 const STEP_POINT_WIDTH = 44;
 const STEP_ASSIGNEE_WIDTH = 120;
+/**
+ * A measure column's width (`wbs-measure-budgets` D7): room for `$1,234.56`,
+ * `-12,000` or `12,345 ·` beside its marker in the table's figure font, and a
+ * two-line heading of the measure's name over its facet and unit. Never shown
+ * by default (only `time` is, through the step columns), so the folded budget
+ * `e2e/layout.spec.ts` measures is unchanged.
+ */
+const MEASURE_FIGURE_WIDTH = 96;
 
 /** An id the width table has never heard of — a typo, or a new column nobody sized. */
 export class UnknownColumnError extends Error {
@@ -893,6 +902,12 @@ export function defaultWidthFor(columnId: string, state: FrameLayoutState): numb
   if (declared !== undefined) return declared;
   const fromPlan = PLAN_WIDTHS.get(columnId);
   if (fromPlan !== undefined) return fromPlan(state);
+  // Before the step suffixes: a measure facet is never one of them, and a
+  // measure id is the only one that starts with this prefix.
+  // Proof: with this arm removed, `lays every measure column at its declared
+  // width` (table-frame.test.ts) threw UnknownColumnError for
+  // `measure-tokens-estimate`.
+  if (isMeasureColumnId(columnId)) return MEASURE_FIGURE_WIDTH;
   if (columnId.includes('-')) {
     if (columnId.endsWith('-final')) return STEP_FINAL_WIDTH;
     if (columnId.endsWith('-assignee')) return STEP_ASSIGNEE_WIDTH;

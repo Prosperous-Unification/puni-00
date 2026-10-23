@@ -78,6 +78,17 @@ export const ganttLabelsKey = (projectId: string): string => `wbs.ganttLabels.${
  * told about it.
  */
 export const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${projectId}`;
+/**
+ * Where this browser remembers which of one project's measure columns a reader
+ * turned on or off, by definition key (`wbs-measure-budgets` D7).
+ *
+ * A record of answers rather than a hide-list, and that is the difference from
+ * {@link hiddenColumnsKey}: a measure's columns are off unless its definition
+ * says `showByDefault`, so a key nobody has answered must keep following the
+ * definition, and a definition created later must start hidden. Per project
+ * and per browser for {@link widthOverridesKey}'s reason.
+ */
+export const measureColumnsKey = (projectId: string): string => `wbs.measureColumns.${projectId}`;
 /** A reset that showed Links survives reload without freezing the whole hide-list. */
 export const linksResetShownKey = (projectId: string): string => `wbs.linksResetShown.${projectId}`;
 /**

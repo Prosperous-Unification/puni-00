@@ -1,9 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import { type StepView } from '@/lib/wbs-api';
+import { type MeasureDefinitionView, type StepView } from '@/lib/wbs-api';
 
+import { isMeasureShown, type MeasureToggles } from './measure-reading';
 import { COLUMN_LABELS } from './plan-toolbar';
-import { rememberedHiddenColumns, rememberHiddenColumns } from './remembered-layout';
+import {
+  rememberedHiddenColumns,
+  rememberedMeasureColumns,
+  rememberHiddenColumns,
+  rememberMeasureColumns,
+} from './remembered-layout';
 import { hideableColumnIds } from './table-frame';
 
 /**
@@ -14,6 +20,14 @@ import { hideableColumnIds } from './table-frame';
  * being touched. Steps join and leave the offered set as the project's do.
  */
 export function useColumnSet({ projectId, steps }: { projectId: string; steps: StepView[] }) {
+  /**
+   * This reader's answers about measure columns, by definition key — see
+   * {@link rememberedMeasureColumns}. Read once per mount like the hide-list;
+   * a project switch remounts the table.
+   */
+  const [measureToggles, setMeasureToggles] = useState<MeasureToggles>(() =>
+    rememberedMeasureColumns(projectId),
+  );
   /**
    * Steps whose columns are unfolded — the three points, next to the final
    * figure and its assignee, which are always on screen.
@@ -116,7 +130,40 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
       current.includes(stepId) ? current.filter((each) => each !== stepId) : [...current, stepId],
     );
   }, []);
+  /**
+   * Shows a measure's columns, or hides them, and writes the answer. The
+   * definition decides what "now" is, so a first answer is the opposite of its
+   * `showByDefault`.
+   */
+  function toggleMeasure(definition: MeasureDefinitionView): void {
+    const next = {
+      ...measureToggles,
+      [definition.key]: !isMeasureShown(definition, measureToggles),
+    };
+    setMeasureToggles(next);
+    rememberMeasureColumns(projectId, next);
+  }
+
+  /**
+   * The scheduling measure's columns are the step columns and Days
+   * (`wbs-measure-budgets` D7), so its toggle writes the hide-list: shown while
+   * any of them is, and one press hides them all or shows them all.
+   */
+  const timeColumnIds = useMemo(() => [...steps.map((step) => step.id), 'final-total'], [steps]);
+  const isTimeShown = timeColumnIds.some((id) => !hiddenColumnIds.includes(id));
+  function toggleTime(): void {
+    const next = isTimeShown
+      ? [...hiddenColumnIds, ...timeColumnIds.filter((id) => !hiddenColumnIds.includes(id))]
+      : hiddenColumnIds.filter((id) => !timeColumnIds.includes(id));
+    setStoredHiddenColumns(next);
+    rememberHiddenColumns(projectId, next);
+  }
+
   return {
+    measureToggles,
+    toggleMeasure,
+    isTimeShown,
+    toggleTime,
     unfoldedSteps,
     setStoredHiddenColumns,
     hiddenColumnIds,

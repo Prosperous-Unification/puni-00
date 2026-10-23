@@ -42,10 +42,10 @@
 
 - [x] 4.1 Contracts, be-01 routes and MCP tools for the new commands and reads — test: registry
       shape and route tests; negative: remove a refusal mapping and the HTTP test gets 500.
-- [ ] 4.2 fe-01 columns per definition with default visibility and per-user toggles — test:
+- [x] 4.2 fe-01 columns per definition with default visibility and per-user toggles — test:
       browser test fresh user versus toggled user; negative: drop the default filter and every
       measure shows.
-- [ ] 4.3 fe-01 measure panel per work item — test: fixture with strict and advisory budgets;
+- [x] 4.3 fe-01 measure panel per work item — test: fixture with strict and advisory budgets;
       negative: swap the renderings and the test fails.
 - [ ] 4.4 Export version, import of older versions, saved plan compare — test: byte round-trip
       and legacy import; negative: drop the version bump and compare misses a measure change.

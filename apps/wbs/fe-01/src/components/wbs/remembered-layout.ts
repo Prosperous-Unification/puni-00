@@ -8,6 +8,7 @@ import {
   ganttLabelsKey,
   hiddenColumnsKey,
   linksResetShownKey,
+  measureColumnsKey,
   MERMAID_SECTION_MODE_KEY,
   savedViewsKey,
   widthOverridesKey,
@@ -15,6 +16,7 @@ import {
 
 import { type AxisRungId, isAxisRungId, resolveAxisRung, resolveRungWidth } from './gantt-axis';
 import { type DayPx, GANTT_CEILING_PX, GANTT_MIN_PX, isDayPx } from './gantt-panel';
+import { isMeasureToggles, type MeasureToggles } from './measure-reading';
 import { isSectionMode, type SectionMode } from './plan-mermaid';
 import {
   floorFor,
@@ -33,6 +35,7 @@ export {
   ganttLabelsKey,
   hiddenColumnsKey,
   linksResetShownKey,
+  measureColumnsKey,
   MERMAID_SECTION_MODE_KEY,
   savedViewsKey,
   widthOverridesKey,
@@ -512,6 +515,26 @@ export function rememberHiddenColumns(projectId: string, hidden: readonly string
  */
 export function forgetHiddenColumns(projectId: string): boolean {
   return storedHiddenColumns(projectId).forget();
+}
+
+/** One project's measure column answers, judged by {@link isMeasureToggles}. */
+export const storedMeasureColumns = (projectId: string): RuntimeRemembered<MeasureToggles> =>
+  remembered(measureColumnsKey(projectId), isMeasureToggles);
+
+/**
+ * The measure column answers this browser holds for `projectId`, or none.
+ *
+ * None means every definition follows its own `showByDefault`
+ * ({@link isMeasureShown}). A stored value that is not a record of booleans is
+ * dropped by {@link remembered}, exactly as a malformed hide-list is.
+ */
+export function rememberedMeasureColumns(projectId: string): MeasureToggles {
+  return storedMeasureColumns(projectId).readAndDrop().value ?? {};
+}
+
+/** Writes the measure column answers in force for `projectId`. */
+export function rememberMeasureColumns(projectId: string, toggles: MeasureToggles): boolean {
+  return storedMeasureColumns(projectId).write(toggles);
 }
 
 /** Remembers only the reset outcome that differs from the initial hidden-Links baseline. */

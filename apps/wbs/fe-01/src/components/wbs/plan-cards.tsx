@@ -463,6 +463,8 @@ export interface CardRowActionHandlers {
   addChild: (row: TreeRow) => void;
   /** Opens the Move under… picker over the row, by id — the table's own. */
   moveUnder: (rowId: string) => void;
+  /** Opens the row's Measures panel, the table's own; absent where none is offered. */
+  measures?: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
   /** The table's own `chooseStatus`: Done and In progress ask first, the rest are sent at once. */
@@ -505,6 +507,17 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
       handlers.duplicate(row.id);
     },
   },
+  ...(handlers.measures === undefined
+    ? []
+    : [
+        {
+          id: 'measures',
+          label: 'Measures…',
+          run: () => {
+            handlers.measures?.(row.id);
+          },
+        },
+      ]),
   ...(row.frozenNumber === null
     ? []
     : [
