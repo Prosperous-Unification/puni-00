@@ -1,6 +1,6 @@
-## 0. Dany reads L1 to L15
+## 0. Dany reads L1 to L16
 
-- [ ] 0.1 Dany confirms or amends design.md L1 to L15, in particular L1 (which claims are
+- [ ] 0.1 Dany confirms or amends design.md L1 to L16, in particular L1 (which claims are
       leased), L2 (one constant length, no env), L8 (revocation ends leases, the sweep
       releases) and L10 (a reap is history only, never undoable). Slice 1 is built on the
       assumptions; an amendment lands as a follow-up slice.
@@ -35,15 +35,19 @@
       (revoke-one-of-two fails); skip the end (revoke-last fails); watched.
 - [x] 1.7 Release: `WorkItemService.releaseExpiredLeases`, the runner's unit of work, history
       event with reason, cascade, announce; `ClaimLeaseSweep` with injected clock and
-      intervals, bounded, coalesced, started and stopped by boot. R5 faults: no re-read inside
-      the turn (the renew race releases a renewed claim); bound ignored; boot never starting
-      it; watched.
-- [x] 1.8 Model-based race test (store-sqlite): random claim, renew, release, revoke, clock
-      advance and sweep acts, with races of sweep against renew and against release; after
-      every step a claim is held iff it is leaseless or its last renewal before expiry
-      happened, and occupancy and the bound-claim count match the model. Focused swarm-style
-      test: two agents, one exclusive unit, cap 1; the first's lease expires, the second's
-      retry is admitted.
+      intervals, started and stopped by boot, coalesced, catching per project (one project's
+      failure is reported with its id and the tick goes on), candidates ordered by their oldest
+      expired lease. The 50-project bound is passed to the read (sweep unit test) and the read
+      honours a limit (conformance, limit 1); no test drives a 51st project through a tick.
+      R5 faults watched: no re-read inside the turn (the sweep-behind-release case); one try
+      around the whole tick; boot never starting it; project-id order.
+- [x] 1.8 Model-based race test (store-sqlite): random claim, write, heartbeat, release,
+      revoke (an agent's only key, through the production revoke), clock advance and sweep
+      acts, with a sweep racing a heartbeat, a write or a release in either order; after every
+      step the stored claims and expiries equal the model's, the slot's occupancy matches, and
+      the bound-claim count equals the model's held leaves. The swarm-style case (cap 1, one
+      exclusive slot, a waiting agent's retry admitted after the sweep) is in
+      `claim-lease.db.test.ts`.
 - [x] 1.9 Reads: `leaseExpiresAt` on startable and person work; contracts and the generated
       document.
 - [x] 1.10 `CONTEXT.md` term **Claim lease**; module indexes; `verify.md` with commands,

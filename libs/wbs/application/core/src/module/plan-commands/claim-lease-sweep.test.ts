@@ -25,7 +25,7 @@ function sweepOver(
   const intervals = manualIntervals();
   const asked: { at: number; limit: number }[] = [];
   const released: string[] = [];
-  const errors: unknown[] = [];
+  const errors: { error: unknown; projectId: string | null }[] = [];
   const sweep = new ClaimLeaseSweep({
     runner: {
       releaseExpiredLeases: (projectId) => {
@@ -41,7 +41,7 @@ function sweepOver(
     intervals,
     intervalMs: 30_000,
     projectsPerTick: 50,
-    onError: (error) => errors.push(error),
+    onError: (error, projectId) => errors.push({ error, projectId }),
     ...overrides,
   });
   return { sweep, intervals, asked, released, errors };
@@ -97,6 +97,23 @@ describe('ClaimLeaseSweep', () => {
     intervals.fire();
     await sweep.settled();
     expect(released).toEqual(['p1']);
+    await sweep.stop();
+  });
+
+  it('releases the next project on the same tick when one project’s release throws', async () => {
+    const { sweep, released, errors } = sweepOver({
+      runner: {
+        releaseExpiredLeases: (projectId) => {
+          if (projectId === 'p1') return Promise.reject(new Error('corrupt project'));
+          released.push(projectId);
+          return Promise.resolve(1);
+        },
+      },
+    });
+    sweep.start();
+    await sweep.settled();
+    expect(released).toEqual(['p2']);
+    expect(errors.map(({ projectId }) => projectId)).toEqual(['p1']);
     await sweep.stop();
   });
 

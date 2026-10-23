@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
+import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
 
@@ -131,7 +132,31 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   );
   if (!plan.ok) throw new Error(`the plan was refused: ${JSON.stringify(plan)}`);
   const leafIds = plan.results.slice(0, LEAVES).map(({ id }) => id ?? '');
-  return { projectId, runner, run, leafIds };
+  // Organization isolation on, and one live API key per agent, so a revoke act
+  // goes through the production revoke and its lease ending (L8).
+  source.db.run(
+    sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
+  );
+  const keys = new Map<string, string>();
+  for (const agent of AGENTS) {
+    const id = crypto.randomUUID();
+    keys.set(agent, id);
+    source.db.run(
+      sql`INSERT INTO machine_credential (id, organization_id, person_id, issued_by, source, name, created_at, created_by) VALUES (${id}, 'org-a', ${agent}, 'dany', 'api_key', ${agent}, 1, 'dany')`,
+    );
+  }
+  const credentials = new MachineCredentialAdministrationRepository(source.db, source.gate);
+  const revoke = async (agent: string) => {
+    const id = keys.get(agent);
+    if (id === undefined) throw new Error(`no key for ${agent}`);
+    const outcome = await credentials.revoke('org-a', 'dany', id, {
+      stamp: { at: now, by: 'dany' },
+      actor: 'dany',
+      auditId: crypto.randomUUID(),
+    });
+    if (outcome !== 'revoked') throw new Error(`revoke of ${agent} answered ${outcome}`);
+  };
+  return { projectId, runner, run, leafIds, revoke };
 }
 
 /** One step the model runs. */
@@ -142,6 +167,7 @@ type Act =
   | { kind: 'release'; leaf: number; person: number }
   | { kind: 'advance'; ms: number }
   | { kind: 'sweep' }
+  | { kind: 'revoke'; agent: number }
   | {
       kind: 'race';
       with: 'heartbeat' | 'write' | 'release';
@@ -196,6 +222,10 @@ const actArb: fc.Arbitrary<Act> = fc.oneof(
   },
   { arbitrary: fc.record({ kind: fc.constant('sweep' as const) }), weight: 3 },
   {
+    arbitrary: fc.record({ kind: fc.constant('revoke' as const), agent: pick(AGENTS.length) }),
+    weight: 1,
+  },
+  {
     arbitrary: fc.record({
       kind: fc.constant('race' as const),
       with: fc.constantFrom('heartbeat' as const, 'write' as const, 'release' as const),
@@ -207,13 +237,16 @@ const actArb: fc.Arbitrary<Act> = fc.oneof(
   },
 );
 
-/** The model: per leaf, its holder and lease expiry (null for a human's). */
-type Model = Map<number, { person: string; expiresAt: number | null }>;
+/**
+ * The model: per leaf, its holder, lease expiry (null for a human's) and
+ * whether the holder's last credential was revoked, which ends the lease.
+ */
+type Model = Map<number, { person: string; expiresAt: number | null; revoked: boolean }>;
 
 /** A renewal at `at` by `person` in the model: every lease in force and due moves (L4, L5). */
 function renewIn(model: Model, person: string, at: number): void {
   for (const held of model.values()) {
-    if (held.person !== person || held.expiresAt === null) continue;
+    if (held.person !== person || held.expiresAt === null || held.revoked) continue;
     if (at < held.expiresAt && held.expiresAt < at + CLAIM_LEASE_MS - LEASE_RENEWAL_RESOLUTION_MS)
       held.expiresAt = at + CLAIM_LEASE_MS;
   }
@@ -280,24 +313,29 @@ describe('a sweep queued behind a release of the same expired claim', () => {
 
 describe('claim leases as a model', () => {
   /**
-   * Random claims, writes, heartbeats, releases, clock moves and sweeps, and
-   * a sweep racing a heartbeat, a write or a release, in either order. After
-   * every step the store holds exactly the model's claims with the model's
-   * expiries, the slot is occupied iff leaf 0 is held, and no step throws:
-   * renewal and expiry touch disjoint claims (in force against run out), so
-   * the outcome depends on the instant alone, never on which turn came first.
+   * Random claims, writes, heartbeats, releases, revocations of an agent's
+   * only key, clock moves and sweeps, and a sweep racing a heartbeat, a write
+   * or a release, in either order. After every step the store holds exactly
+   * the model's claims with the model's expiries, the slot is occupied iff
+   * leaf 0 is held, the bound claims (what the claim cap counts) equal the
+   * model's held leaves, and no step throws: renewal and expiry touch disjoint
+   * claims (in force against run out), so the outcome depends on the instant
+   * alone, never on which turn came first.
    *
-   * Proof, each watched 2026-10-23: with the in-force predicate dropped from
-   * `ClaimRepository.renewLeases`, fast-check found a heartbeat at the expiry
-   * reviving a lease the model had run out (claim, advance 900,000,
-   * heartbeat); with `lte` replaced by `lt` in `expiredLeasesOf`, it found a
-   * sweep at exactly the expiry keeping the claim (claim, advance 900,000,
-   * sweep). The stale-read fault is the case below's: random runs reach a
-   * release and a sweep wanting one expired claim too rarely to prove it.
+   * Proof, each watched 2026-10-23 with this generator: with the in-force
+   * predicate dropped from `ClaimRepository.renewLeases`, fast-check found a
+   * write at the expiry reviving a lease the model had run out (1 pass,
+   * 1 fail); with `lte` replaced by `lt` in `expiredLeasesOf`, a sweep at
+   * exactly the expiry kept the claim (0 pass, 2 fail); with the revoke's
+   * `endLeasesOfUncredentialed` call removed, a revoked agent's lease stayed
+   * in force (claim, claim, revoke, claim). The stale-read fault is the case
+   * below's: random runs reach a release and a sweep wanting one expired
+   * claim too rarely to prove it.
    */
   it('holds exactly the claims the model holds, whatever the turn order', async () => {
     let races = 0;
     let reaped = 0;
+    let revokes = 0;
     await fc.assert(
       fc.asyncProperty(fc.array(actArb, { minLength: 4, maxLength: 24 }), async (acts) => {
         await source.close();
@@ -313,9 +351,12 @@ describe('claim leases as a model', () => {
         const leafOf = (n: number) => world.leafIds.at(n) ?? '';
         const personOf = (n: number) => PEOPLE.at(n) ?? 'ann';
         const isAgent = (person: string) => person !== 'ann';
+        /** Agents whose only key was revoked: they can no longer act. */
+        const revoked = new Set<string>();
         const credentialOf = (person: string) => (isAgent(person) ? { personId: person } : null);
 
         const claim = async (leaf: number, person: string) => {
+          if (revoked.has(person)) return;
           const outcome = await world.run(
             [
               {
@@ -335,9 +376,14 @@ describe('claim leases as a model', () => {
           expect(outcome).toMatchObject({ ok: true });
           if (isAgent(person)) renewIn(model, person, now);
           if (held === undefined)
-            model.set(leaf, { person, expiresAt: isAgent(person) ? now + CLAIM_LEASE_MS : null });
+            model.set(leaf, {
+              person,
+              expiresAt: isAgent(person) ? now + CLAIM_LEASE_MS : null,
+              revoked: false,
+            });
         };
         const write = async (agent: string) => {
+          if (revoked.has(agent)) return;
           const outcome = await world.run(
             [{ kind: 'patchWorkItem', workItemId: leafOf(1), patch: { name: `by ${agent}` } }],
             { personId: agent },
@@ -346,6 +392,7 @@ describe('claim leases as a model', () => {
           renewIn(model, agent, now);
         };
         const heartbeat = async (agent: string) => {
+          if (revoked.has(agent)) return;
           await world.runner.renewLeases(agent);
           renewIn(model, agent, now);
         };
@@ -388,6 +435,19 @@ describe('claim leases as a model', () => {
               await sweep();
               sweepIn(model, now);
               break;
+            case 'revoke': {
+              const agent = AGENTS[act.agent];
+              if (revoked.has(agent)) break;
+              await world.revoke(agent);
+              revokes += 1;
+              revoked.add(agent);
+              for (const held of model.values()) {
+                if (held.person !== agent || held.expiresAt === null || held.revoked) continue;
+                held.expiresAt = Math.min(held.expiresAt, now);
+                held.revoked = true;
+              }
+              break;
+            }
             case 'race': {
               races += 1;
               expiry.snapshot = await source.stores.claims.expiredLeasesOf(world.projectId, now);
@@ -401,23 +461,31 @@ describe('claim leases as a model', () => {
                 )?.[0] ?? act.leaf;
               const releaser = model.get(target)?.person ?? personOf(act.person);
               const other = (): Promise<unknown> =>
-                act.with === 'heartbeat'
-                  ? world.runner.renewLeases(agent)
-                  : act.with === 'write'
-                    ? world.run(
-                        [{ kind: 'patchWorkItem', workItemId: leafOf(1), patch: { name: 'race' } }],
-                        { personId: agent },
-                      )
-                    : world.run(
-                        [
-                          {
-                            kind: 'releaseWorkItem',
-                            workItemId: leafOf(target),
-                            personId: releaser,
-                          },
-                        ],
-                        null,
-                      );
+                act.with !== 'release' && revoked.has(agent)
+                  ? Promise.resolve()
+                  : act.with === 'heartbeat'
+                    ? world.runner.renewLeases(agent)
+                    : act.with === 'write'
+                      ? world.run(
+                          [
+                            {
+                              kind: 'patchWorkItem',
+                              workItemId: leafOf(1),
+                              patch: { name: 'race' },
+                            },
+                          ],
+                          { personId: agent },
+                        )
+                      : world.run(
+                          [
+                            {
+                              kind: 'releaseWorkItem',
+                              workItemId: leafOf(target),
+                              personId: releaser,
+                            },
+                          ],
+                          null,
+                        );
               expiry.read = RACE_EXPIRY_READ;
               await (act.sweepFirst
                 ? Promise.all([sweep(), other()])
@@ -450,11 +518,21 @@ describe('claim leases as a model', () => {
             sql`SELECT count(DISTINCT o.claim_id) > 0 AS n FROM claim_occupancy AS o`,
           ).n;
           expect(occupied === 1).toBe(model.has(0));
+          // Every held leaf is one bound claim (one person, one run): what the
+          // organization's claim cap counts goes down with every release.
+          const bound = source.db.get<{ n: number }>(
+            sql`SELECT count(*) AS n FROM (SELECT DISTINCT work_item_id, person_id, run_id FROM claim)`,
+          ).n;
+          expect(bound).toBe(model.size);
         }
       }),
       { numRuns: 80, seed: SEED },
     );
     // The runs raced and reaped, so the invariant was tested where it bites.
-    expect({ races: races > 50, reaped: reaped > 20 }).toEqual({ races: true, reaped: true });
+    expect({ races: races > 50, reaped: reaped > 20, revokes: revokes > 10 }).toEqual({
+      races: true,
+      reaped: true,
+      revokes: true,
+    });
   }, 180_000);
 });

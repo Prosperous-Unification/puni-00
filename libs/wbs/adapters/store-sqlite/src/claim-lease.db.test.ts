@@ -265,6 +265,36 @@ describe('renewal', () => {
   });
 });
 
+describe('a heartbeat queued behind a long write', () => {
+  it('does not renew a lease that ran out while the heartbeat waited for the turn', async () => {
+    const { run, claim, items, runner, projectId, leases } = await seeded();
+    await run([claim(items.one, 'codex')], pinned('codex'));
+    let release: () => void = () => undefined;
+    let holding: () => void = () => undefined;
+    const holds = new Promise<void>((resolve) => {
+      holding = resolve;
+    });
+    const held = source.gate.enter(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+          holding();
+        }),
+    );
+    await holds;
+    // Due when asked, run out by the time the turn is its.
+    now = T + 14 * MINUTE;
+    const renewing = runner.renewLeases('codex');
+    await Bun.sleep(20);
+    now = T + CLAIM_LEASE_MS;
+    release();
+    await held;
+    expect(await renewing).toEqual({ leases: 0, leaseExpiresAt: null });
+    expect(leases()[0]?.lease).toBe(T + CLAIM_LEASE_MS);
+    expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
+  });
+});
+
 describe('release by the coordinator', () => {
   it('releases at exactly the expiry and not one millisecond before', async () => {
     const { run, claim, items, runner, projectId, claims, occupancy, stackEntries, history } =

@@ -63,7 +63,7 @@ Claim lease (in `CONTEXT.md`).
 
 ## Decisions Recorded
 
-No ADR. L1 to L15 in design.md are assumed until Dany reads them; each is overrulable by id.
+No ADR. L1 to L16 in design.md are assumed until Dany reads them; each is overrulable by id.
 
 ## Impact
 

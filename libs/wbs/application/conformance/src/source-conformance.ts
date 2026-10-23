@@ -404,7 +404,7 @@ export function existingStoreRegistrations(
             [],
             seed.stamps[0],
             [],
-            [{ claimId: elsewhere.id, expiresAt: 20_000 }],
+            [{ claimId: elsewhere.id, expiresAt: 860_000 }],
           ),
         ).toBe('written');
         expect(
@@ -416,32 +416,35 @@ export function existingStoreRegistrations(
           ['claim-leased', 10_000],
           ['claim-human', null],
         ]);
-        // Due below 15,000: the first lease moves, the second was renewed within
-        // the resolution and stays.
-        expect(
-          await port.renewLeases(agent, 5_000, { expiresAt: 50_000, dueBefore: 15_000 }),
-        ).toEqual({ leases: 2, leaseExpiresAt: 20_000 });
-        // At 25,000 the second lease has run out: it is not revived.
-        expect(
-          await port.renewLeases(agent, 25_000, { expiresAt: 70_000, dueBefore: 69_000 }),
-        ).toEqual({ leases: 1, leaseExpiresAt: 70_000 });
-        expect(
-          await port.renewLeases(human, 25_000, { expiresAt: 70_000, dueBefore: 69_000 }),
-        ).toEqual({ leases: 0, leaseExpiresAt: null });
-        expect(await port.expiredLeasesOf(seed.projectIds[1], 25_000)).toEqual([
+        // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
+        // to 905,000, the second was renewed within the resolution and stays.
+        expect(await port.renewLeases(agent, () => 5_000)).toEqual({
+          leases: 2,
+          leaseExpiresAt: 860_000,
+        });
+        // At 860,000 the second lease has run out: it is not revived.
+        expect(await port.renewLeases(agent, () => 860_000)).toEqual({
+          leases: 1,
+          leaseExpiresAt: 1_760_000,
+        });
+        expect(await port.renewLeases(human, () => 860_000)).toEqual({
+          leases: 0,
+          leaseExpiresAt: null,
+        });
+        expect(await port.expiredLeasesOf(seed.projectIds[1], 860_000)).toEqual([
           { claimId: elsewhere.id, reason: 'lease_expired' },
         ]);
-        expect(await port.expiredLeasesOf(seed.projectIds[0], 69_999)).toEqual([]);
-        expect(await port.expiredLeasesOf(seed.projectIds[0], 70_000)).toEqual([
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_759_999)).toEqual([]);
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_760_000)).toEqual([
           { claimId: leased.id, reason: 'lease_expired' },
         ]);
-        expect(await port.projectsWithExpiredLeases(25_000, 10)).toEqual([seed.projectIds[1]]);
-        expect(await port.projectsWithExpiredLeases(70_000, 10)).toEqual(
-          [...seed.projectIds].sort(),
-        );
-        expect(await port.projectsWithExpiredLeases(70_000, 1)).toEqual(
-          [...seed.projectIds].sort().slice(0, 1),
-        );
+        expect(await port.projectsWithExpiredLeases(860_000, 10)).toEqual([seed.projectIds[1]]);
+        // Oldest expired lease first: the second project's ran out at 860,000.
+        expect(await port.projectsWithExpiredLeases(1_760_000, 10)).toEqual([
+          seed.projectIds[1],
+          seed.projectIds[0],
+        ]);
+        expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
       },
     ),
     storeCase(

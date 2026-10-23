@@ -62,7 +62,6 @@ import {
   refuseDemand,
   refuseLimit,
   refuseOccupancy,
-  renewalAt,
   resolveStepResources,
   type Resource,
   type ResourceCapacity,
@@ -3583,8 +3582,7 @@ export class WorkItemService {
    * last one writes nothing.
    */
   renewLeases(personId: string): Promise<LeaseStanding> {
-    const at = this.clock.now();
-    return this.claiming().claims.renewLeases(personId, at, renewalAt(at));
+    return this.claiming().claims.renewLeases(personId, () => this.clock.now());
   }
 
   /**

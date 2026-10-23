@@ -24,7 +24,7 @@ of any renew/sweep/release interleaving depends only on instants, never on turn 
 
 ## Decisions
 
-All **assumed** by this draft (Dany has not decided, issue #667). Each is overrulable by id.
+All **assumed** by this draft (L1 to L16) (Dany has not decided, issue #667). Each is overrulable by id.
 
 - **L1. Leased iff taken under a credential pinned to its own claimant.** API key,
   trusted-issuer token and MCP consent claims for themselves carry a lease; a session's, an
@@ -43,7 +43,8 @@ All **assumed** by this draft (Dany has not decided, issue #667). Each is overru
   inside that batch's transaction (no extra turn), plus `POST /api/claims/renew`.** It renews
   every unexpired, unrevoked lease of the pinned person whose expiry is earlier than
   `now + CLAIM_LEASE_MS − 60 s`, in every project. The route reads first outside the turn and
-  enters it only when one is due. Rejected: a `renewClaims` batch command (every heartbeat
+  enters it only when one is due, then decides again at the turn's own instant, so a heartbeat
+  queued behind a long write never renews a lease that ran out while it waited. Rejected: a `renewClaims` batch command (every heartbeat
   would take the turn); renewal on reads (a stuck agent that polls would hold forever);
   renewal by undo, redo and directory batches (no claim work).
 - **L5. An expired or revoked lease never revives.** A lease is in force on
@@ -90,6 +91,13 @@ All **assumed** by this draft (Dany has not decided, issue #667). Each is overru
   sweep frees both in its transaction.
 - **L15. A reaped subtree claim takes its delegated claims with it** (`decideRelease`'s
   cascade, D8), each recorded in the same history event.
+- **L16. A project whose release keeps failing is reported, not quarantined.** The sweep
+  catches each project's failure, reports it through `onError` with the project id (be-01
+  logs it at error), and goes on to the next project; candidates are ordered by their oldest
+  expired lease. Not built: counting consecutive failures and raising them louder, or
+  skipping a stuck project. Fifty or more projects failing every tick would still starve the
+  rest (the tick reads at most fifty); a release that throws is corrupt trusted state, and
+  the error log is the signal. Rejected for now: a failure counter with a quarantine table.
 
 ## Shape
 
@@ -108,6 +116,22 @@ limit)`.
   (its own unit of work) and renewal at the end of a committed `execute`.
 - `ClaimLeaseSweep` (core, plan-commands module) over `intervals`, `now`, the runner and the
   public claim store; `bootBe01` starts and stops it as it does retention.
+
+## Known edges (review notes, 2026-10-23)
+
+- **Live credential** (L8) means unrevoked: a credential whose secrets have all expired
+  still counts as live, so its leases are not ended at revocation of a sibling, and they run
+  out at their own expiry. `lease_revoked_at` is never cleared: an agent given a new
+  credential keeps losing the leases its last revocation ended; it claims again.
+- **Rollback and mid-swap** (blue/green): the unguarded `down.sql` drops every lease, so after
+  a rollback every claim is held until released, as before leases. The outgoing image writes
+  leaseless claims, and its undo of a release puts claims back leaseless, so those are never
+  reaped.
+- **L1 hole:** a session's or an admin's claim made for an agent person is never leased, so
+  it strands if that agent dies; only the agent's own claims self-heal.
+- **Where a reap shows** (L10): the history event is under the claim's writing account,
+  which for a machine principal is the agent person's bound account (often a human's), so
+  the reap reads as theirs in the history.
 
 ## Risks
 

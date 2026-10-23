@@ -1,7 +1,7 @@
 ## Verification record
 
 Drafted 2026-10-23 as an OpenSpec proposal; slice 1 is built on branch
-`feat/wbs-claim-leases-1`. L1 to L15 in design.md are assumed until Dany reads them. Sources
+`feat/wbs-claim-leases-1`. L1 to L16 in design.md are assumed until Dany reads them. Sources
 read on 2026-10-23 on `main` at `52a41bfc4`: issue #667, issue #668 and PR #670,
 `wbs-team-claims` (D1 to D8), `wbs-organization-limits` (L5, L9, L10), `claim.ts` (domain,
 sqlite and memory), `claims.ts`, `work-item.resource.ts` (`claim`, `release`, `record`, the
@@ -70,6 +70,10 @@ No new environment variable (L2): nothing to seed on dev or in any spawn fixture
 | revoke asks for a tick                      | `afterRevoke()` removed; app no-op       | `releases a revoked agent’s claims on the tick the revoke asks for` 2 pass, 1 fail each        |
 | sweep schedule, coalescing, error report    | no-op `every`; guard off; rethrow        | claim-lease-sweep.test.ts 2/2, 3/1, 3/1 pass/fail                                              |
 | boot starts the sweep                       | `start()` removed                        | `starts the claim lease sweep with the process` (boot.db.test.ts) 36 pass, 1 fail              |
+| sweep catches per project                   | one try around the tick                  | `releases the next project on the same tick when one project’s release throws` 4 pass, 1 fail  |
+| candidates by oldest expired lease          | ordered by project id                    | `claims.lease:write-renew-expire` SQLite certification 74 pass, 1 fail                         |
+| heartbeat decides at the turn's instant     | instant read before the turn kept        | `does not renew a lease that ran out while the heartbeat waited for the turn` 10 pass, 1 fail  |
+| revocation in the model                     | revoke's lease ending removed            | model counterexample: claim, claim, revoke, claim                                              |
 
 ### Fresh results
 

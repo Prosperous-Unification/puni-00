@@ -86,7 +86,7 @@ async function seeded(hold?: Hold) {
       claims.add(written, stated, stamp, occupancy, leases),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
-    renewLeases: (personId, at, renewal) => claims.renewLeases(personId, at, renewal),
+    renewLeases: (personId, now) => claims.renewLeases(personId, now),
     expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
     projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(BOUND.get(personId) ?? null),

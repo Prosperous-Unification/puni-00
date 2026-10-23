@@ -24,10 +24,11 @@ export interface ClaimLeaseSweepOptions {
   /** Reported per tick that released something. */
   readonly onSweep?: (released: number) => void;
   /**
-   * A tick that threw. Required: a dead sweep strands capacity exactly as the
-   * missing one did, and looks identical to a healthy one from outside.
+   * A tick or one project's release that threw, with that project's id when
+   * it was one project's. Required: a dead sweep strands capacity exactly as
+   * the missing one did, and looks identical to a healthy one from outside.
    */
-  readonly onError: (error: unknown) => void;
+  readonly onError: (error: unknown, projectId: string | null) => void;
 }
 
 /**
@@ -104,21 +105,33 @@ export class ClaimLeaseSweep {
   }
 
   private async tick(): Promise<void> {
+    let projects: string[];
     try {
-      const projects = await this.opts.projectsWithExpiredLeases(
+      projects = await this.opts.projectsWithExpiredLeases(
         this.opts.now(),
         this.opts.projectsPerTick,
       );
-      let released = 0;
-      for (const projectId of projects)
-        released += await this.opts.runner.releaseExpiredLeases(projectId);
-      if (released > 0) this.opts.onSweep?.(released);
     } catch (error) {
       // Reported and the schedule kept: one failed tick is a busy database or
       // a transient I/O error; stopping would strand every later lease.
       // Proof: rethrowing here failed `reports a failed tick and keeps the
       // schedule` (3 pass, 1 fail); watched 2026-10-23.
-      this.opts.onError(error);
+      this.opts.onError(error, null);
+      return;
     }
+    let released = 0;
+    for (const projectId of projects) {
+      // One project's failure is its own: the rest of the tick still runs.
+      // Proof: with one try around the whole loop, `releases the next project
+      // on the same tick when one project's release throws`
+      // (claim-lease-sweep.test.ts) released nothing after the first
+      // (4 pass, 1 fail); watched 2026-10-23.
+      try {
+        released += await this.opts.runner.releaseExpiredLeases(projectId);
+      } catch (error) {
+        this.opts.onError(error, projectId);
+      }
+    }
+    if (released > 0) this.opts.onSweep?.(released);
   }
 }

@@ -15,6 +15,7 @@ import {
   unstampClaim,
   type WriteStamp,
 } from '@wbs/core';
+import { renewalAt } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -260,18 +261,13 @@ export class ClaimRepository implements ClaimStore {
     });
   }
 
-  async renewLeases(
-    personId: string,
-    at: number,
-    renewal: { readonly expiresAt: number; readonly dueBefore: number },
-  ): Promise<LeaseStanding> {
-    const inForce = and(
-      eq(claim.personId, personId),
-      isNull(claim.leaseRevokedAt),
-      gt(claim.leaseExpiresAt, at),
-    );
-    const due = and(inForce, lt(claim.leaseExpiresAt, renewal.dueBefore));
-    const anyDue = this.db.select({ id: claim.id }).from(claim).where(due).limit(1).all();
+  async renewLeases(personId: string, now: () => number): Promise<LeaseStanding> {
+    const inForceAt = (at: number) =>
+      and(eq(claim.personId, personId), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
+    const dueAt = (at: number) =>
+      and(inForceAt(at), lt(claim.leaseExpiresAt, renewalAt(at).dueBefore));
+    let at = now();
+    const anyDue = this.db.select({ id: claim.id }).from(claim).where(dueAt(at)).limit(1).all();
     // Read before the turn: a heartbeat within the resolution answers without
     // waiting for whatever write holds it (issue #668's lesson).
     // Proof: with this read skipped (always entering the turn), `answers a
@@ -280,10 +276,16 @@ export class ClaimRepository implements ClaimStore {
     if (anyDue.length > 0) {
       await this.gate.enter(async () => {
         await Promise.resolve();
-        // Again inside the turn: a sweep may have released a claim, or another
-        // renewal moved it, since the read above.
+        // Again inside the turn, at the turn's own instant: a sweep may have
+        // released a claim, another renewal moved it, or its lease ran out
+        // while this heartbeat waited behind a long write.
+        // Proof: with the instant read before the turn kept here, `does not
+        // renew a lease that ran out while the heartbeat waited for the turn`
+        // (claim-lease.db.test.ts) renewed it (10 pass, 1 fail); watched 2026-10-23.
+        at = now();
+        const renewed = renewalAt(at).expiresAt;
         this.db.transaction((tx) => {
-          tx.update(claim).set({ leaseExpiresAt: renewal.expiresAt }).where(due).run();
+          tx.update(claim).set({ leaseExpiresAt: renewed }).where(dueAt(at)).run();
         });
       });
     }
@@ -293,7 +295,7 @@ export class ClaimRepository implements ClaimStore {
         leaseExpiresAt: sql<number | null>`min(${claim.leaseExpiresAt})`,
       })
       .from(claim)
-      .where(inForce)
+      .where(inForceAt(at))
       .get();
     if (standing === undefined) throw new Error('a count of leases answered no row');
     return { leases: standing.leases, leaseExpiresAt: standing.leaseExpiresAt };
@@ -313,12 +315,19 @@ export class ClaimRepository implements ClaimStore {
   }
 
   async projectsWithExpiredLeases(at: number, limit: number): Promise<string[]> {
+    const oldest = sql<number>`min(${claim.leaseExpiresAt})`;
     const rows = await this.db
-      .selectDistinct({ projectId: workItem.projectId })
+      .select({ projectId: workItem.projectId, oldest })
       .from(claim)
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
       .where(and(isNotNull(claim.leaseExpiresAt), lte(claim.leaseExpiresAt, at)))
-      .orderBy(asc(workItem.projectId))
+      .groupBy(workItem.projectId)
+      // Oldest expiry first, so a project stuck at the head cannot pin the
+      // tick's bound to project-id order (the sweep also catches per project).
+      // Proof: ordered by project id alone, the SQLite certification's
+      // `claims.lease:write-renew-expire` case failed (74 pass, 1 fail);
+      // watched 2026-10-23.
+      .orderBy(asc(oldest), asc(workItem.projectId))
       .limit(limit);
     return rows.map(({ projectId }) => projectId);
   }

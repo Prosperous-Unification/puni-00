@@ -7,6 +7,7 @@ import {
   unstampClaim,
   type WorkItemStore,
 } from '@wbs/core';
+import { renewalAt } from '@wbs/domain';
 
 import type { MemoryProgressTable } from './progress-fixture';
 
@@ -167,7 +168,10 @@ export function inMemoryClaims(
       );
       return Promise.resolve();
     },
-    renewLeases(personId, at, renewal) {
+    renewLeases(personId, now) {
+      // One instant: the memory source has no write turn to wait behind.
+      const at = now();
+      const renewal = renewalAt(at);
       // The memory source has no machine credentials, so no lease of it is
       // ever revoked: in force is unexpired.
       const isInForce = (row: StampedClaim): boolean =>
@@ -199,14 +203,20 @@ export function inMemoryClaims(
         .map(({ id }) => ({ claimId: id, reason: 'lease_expired' as const }));
     },
     async projectsWithExpiredLeases(at, limit) {
-      const projects = new Set<string>();
+      const oldest = new Map<string, number>();
       for (const row of table.rows) {
         if (row.leaseExpiresAt === null || row.leaseExpiresAt > at) continue;
         const item = await workItems.findById(row.workItemId);
         if (item === null) throw new Error(`claim ${row.id} names an absent work item`);
-        projects.add(item.projectId);
+        oldest.set(
+          item.projectId,
+          Math.min(oldest.get(item.projectId) ?? row.leaseExpiresAt, row.leaseExpiresAt),
+        );
       }
-      return [...projects].sort(compare).slice(0, limit);
+      return [...oldest]
+        .sort(([left, a], [right, b]) => a - b || compare(left, right))
+        .slice(0, limit)
+        .map(([projectId]) => projectId);
     },
     moveAll(fromWorkItemId, toWorkItemId, _stamp) {
       const moving = table.rows.filter(({ workItemId }) => workItemId === fromWorkItemId);

@@ -112,17 +112,15 @@ export interface ClaimStore extends ClaimIdentity {
     leases?: readonly ClaimLease[],
   ): Promise<ClaimWriteOutcome>;
   /**
-   * Moves every lease of `personId` that is in force at `at`, not revoked, and
-   * expires before `renewal.dueBefore` to `renewal.expiresAt`, in every
-   * project (`wbs-claim-leases` L4, L5), and answers the person's standing
-   * after it. It reads first and takes the write turn only when one lease is
-   * due, so a heartbeat within the resolution never waits for a write.
+   * Moves every lease of `personId` that is in force, not revoked, and due
+   * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
+   * L5), and answers the person's standing after it. It reads `now` and the
+   * due leases first, and takes the write turn only when one is due; inside
+   * the turn it reads `now` again and decides against that instant, so a
+   * heartbeat queued behind a long write never renews a lease that ran out
+   * while it waited.
    */
-  renewLeases(
-    personId: string,
-    at: number,
-    renewal: { readonly expiresAt: number; readonly dueBefore: number },
-  ): Promise<LeaseStanding>;
+  renewLeases(personId: string, now: () => number): Promise<LeaseStanding>;
   /**
    * The project's claims whose lease has run out at `at` (expiry at or before
    * it), in claim-id order, each with its reason: `credential_revoked` when
@@ -131,7 +129,8 @@ export interface ClaimStore extends ClaimIdentity {
   expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]>;
   /**
    * The projects holding a claim whose lease has run out at `at`, at most
-   * `limit` of them, in project-id order: what one sweep tick works through.
+   * `limit` of them, ordered by their oldest expired lease, then project id:
+   * what one sweep tick works through.
    */
   projectsWithExpiredLeases(at: number, limit: number): Promise<string[]>;
   /**

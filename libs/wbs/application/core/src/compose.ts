@@ -443,8 +443,8 @@ export function composeServices(
       onSweep: (released) => {
         shared.logger.info({ released }, 'expired claim leases released');
       },
-      onError: (error) => {
-        shared.logger.error({ err: error }, 'claim lease sweep failed');
+      onError: (error, projectId) => {
+        shared.logger.error({ err: error, projectId }, 'claim lease sweep failed');
       },
     }),
     history: installPlanHistory({
