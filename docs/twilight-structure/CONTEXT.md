@@ -262,7 +262,8 @@ _Avoid_: Workflow config, pipeline, step mapping
 
 **Attempt**:
 One admitted try of one activity on one claimed step, with its own state, agent run and
-usage; a retry is a new attempt on the same claim.
+usage; a retry is a new attempt on the same claim. Reported to WBS as that step node's
+**Attempt** ([root glossary](../../CONTEXT.md)); one Dash attempt is one WBS attempt.
 _Avoid_: Job, execution, session, try
 
 **Run store**:

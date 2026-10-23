@@ -54,9 +54,9 @@
 ## 5. The WBS run bridge
 
 - [ ] 5.1 Red: `wbs-bridge.test.ts` against a booted be-01 (`*.boot.db.test.ts` pattern,
-      as `swarm-rehearsal.boot.db.test.ts`) with one linked fleet credential: startable read,
+      as `swarm-rehearsal.boot.db.test.ts`) with one machine credential (pinned to the coordinator's agent person): startable read,
       claim with run id, `setProgress`, `setMeasure` only when measured, release, external
-      refs. Each listed refusal code is one case; an unlisted code throws.
+      refs. Each code of the unions is one case; an unlisted code throws.
 - [ ] 5.2 Green: the client over `@wbs/contracts` shapes; the race case through two
       credentials; negative: drop the `person_not_bound` mapping and the write is retried
       forever — watched, bounded, `Proof:`.
@@ -109,7 +109,8 @@
 ## 8. Compatibility dogfood and staged governance cutover
 
 - [ ] 8.1 WBS: the puni-00 project's work item types and step codes match the binding; the
-      coordinator's fleet credential linked on dev per `docs/auth-integration.md`.
+      a machine credential (source `api_key`) created for the coordinator's agent person in
+      organization settings.
 - [ ] 8.2 `docs/runbook-agentic-workflows.md`: start, inspect, resume, cancel, what each
       refusal means; linked from `docs/twilight-structure/README.md` and `LLM_README.md`.
 - [ ] 8.3 After S7a recovery proofs, I1–I4 bindings/adapters/bridge and a supervised deployment, dogfood (design A11): one small real work item claimed, run through `plan`,

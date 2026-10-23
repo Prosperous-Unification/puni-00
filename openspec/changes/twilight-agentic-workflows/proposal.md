@@ -10,8 +10,8 @@ LangGraph, infrastructure and a Backlog.md migration before a working execution 
   harnesses, ACP, tools and humans.
 - **Bindings:** Burokrat validates type/activity bindings; Dash retains immutable manifests
   and referenced prompt/tool-policy versions for each run.
-- **WBS bridge:** guarded claims, progress, measures and exact-authority release under a fleet
-  credential, with typed refusals.
+- **WBS bridge:** guarded claims, progress, measures and exact-authority release under a machine
+  credential (pinned to the coordinator's agent person), with typed refusals.
 - **S7a coordinator:** unified CTT hints, deferral and summary over a linear compatibility
   workflow; abstract RunStore/ArtifactStore ports; intent/outbox reconciliation and safe
   recovery of surviving workers or uncertain effects. SQLite is the current adapter choice;
@@ -28,7 +28,7 @@ plans the integration; the WBS editor, model and migration are delivered by W0â€
 
 ## Constraints
 
-Bun/Nx; pinned SDK packages; provider-prefixed model IDs; fleet credentials; no credentials
+Bun/Nx; pinned SDK packages; provider-prefixed model IDs; machine credentials (pinned to the coordinator's agent person); no credentials
 in retained manifests. Burokrat rules are pure. Storage engines and schemas stay behind
 semantic ports. Unknown worker/effect state blocks automatic retry. The laptop cap is two.
 
