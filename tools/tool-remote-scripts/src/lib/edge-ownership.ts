@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { lstat, open, readdir, realpath, rename } from 'node:fs/promises';
+import { closeSync, constants, fstatSync, fsyncSync, readFileSync, writeFileSync } from 'node:fs';
+import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
+import { openDirectoryFile, renameDirectoryFile } from './directory-file';
 import type { RunDocker } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
 import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
@@ -296,66 +297,120 @@ export async function publishOwnedSiteFile(
     basename(original.path) !== (layout.env === 'prod' ? 'site.caddy' : 'site-dev.caddy')
   )
     throw new Error('owner site publication path is outside selected scope');
+
   const parent = dirname(original.path);
-  const parentIdentity = await lstat(parent, { bigint: true });
-  if (!parentIdentity.isDirectory() || (await realpath(parent)) !== parent)
-    throw new Error('owner site publication parent is not canonical');
-  // Proof: omitted original equality guards; changed-original publication replaced unknown bytes (exit 1).
-  if (JSON.stringify(await captureOwnedSiteFile(original.path)) !== JSON.stringify(original))
-    throw new Error('owner site original file changed');
-  const sibling = join(parent, `.${basename(original.path)}.dependency-${randomUUID()}`);
-  // Proof: omitted original/intent publications; actual rename port refused absent private durable evidence (exit 1).
-  await retainIngressRecord(owner, layout, 'original', original);
-  await retainIngressRecord(owner, layout, 'intent', { original, contents, sibling });
-  // Proof: replacing exclusive no-follow creation with following creation admitted the injected sibling symlink (exit 1).
-  const file = await open(
-    sibling,
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-    0o600,
+  const directory = await open(
+    parent,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
   );
-  let published: OwnedSiteFile;
   try {
-    await file.writeFile(contents);
-    // Proof: omitted staged fsync; actual rename port refused unsynced source (exit 1).
-    await file.sync();
-    await assertDependencyOwner(owner, layout);
-    if (JSON.stringify(await captureOwnedSiteFile(original.path)) !== JSON.stringify(original))
-      throw new Error('owner site original changed before publication');
-    const currentParent = await lstat(parent, { bigint: true });
+    const parentIdentity = await directory.stat({ bigint: true });
+    const namedParent = await lstat(parent, { bigint: true });
     if (
-      currentParent.dev !== parentIdentity.dev ||
-      currentParent.ino !== parentIdentity.ino ||
+      !parentIdentity.isDirectory() ||
+      !namedParent.isDirectory() ||
+      parentIdentity.dev !== namedParent.dev ||
+      parentIdentity.ino !== namedParent.ino ||
       (await realpath(parent)) !== parent
     )
-      throw new Error('owner site parent changed before publication');
-    const created = await file.stat({ bigint: true });
+      throw new Error('owner site publication parent is not canonical');
+    // Proof: omitted original equality guards; changed-original publication replaced unknown bytes.
+    if (JSON.stringify(await captureOwnedSiteFile(original.path)) !== JSON.stringify(original))
+      throw new Error('owner site original file changed');
+    const sibling = `.${basename(original.path)}.dependency-${randomUUID()}`;
+    const parentBinding = {
+      path: parent,
+      device: String(parentIdentity.dev),
+      inode: String(parentIdentity.ino),
+    };
+    // Proof: omitted original/intent publication; actual rename refused absent private durable evidence.
+    await retainIngressRecord(owner, layout, 'original', original);
     await retainIngressRecord(owner, layout, 'intent', {
       original,
       contents,
       sibling,
-      created: { device: String(created.dev), inode: String(created.ino) },
+      directory: parentBinding,
     });
-    await assertDependencyOwner(owner, layout);
-    await rename(sibling, original.path);
-    const directory = await open(parent, constants.O_RDONLY | constants.O_NOFOLLOW);
+    // Both names resolve against this retained directory, never the asynchronously mutable pathname.
+    // Proof: following sibling creation overwrote the foreign symlink target in owner-site-publication.test.ts.
+    const descriptor = openDirectoryFile(
+      directory.fd,
+      sibling,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+    );
+    let published: OwnedSiteFile;
     try {
-      // Proof: omitted directory fsync; successful-publication effect test failed its persistence observation (exit 1).
-      await directory.sync();
+      writeFileSync(descriptor, contents, 'utf8');
+      // Proof: omitted staged fsync; actual rename boundary refused the unsynchronized source.
+      fsyncSync(descriptor);
+      await assertDependencyOwner(owner, layout);
+      if (JSON.stringify(await captureOwnedSiteFile(original.path)) !== JSON.stringify(original))
+        throw new Error('owner site original changed before publication');
+      const currentParent = await lstat(parent, { bigint: true });
+      if (
+        currentParent.dev !== parentIdentity.dev ||
+        currentParent.ino !== parentIdentity.ino ||
+        !currentParent.isDirectory() ||
+        (await realpath(parent)) !== parent
+      )
+        throw new Error('owner site parent changed before publication');
+      const created = fstatSync(descriptor, { bigint: true });
+      await retainIngressRecord(owner, layout, 'intent', {
+        original,
+        contents,
+        sibling,
+        directory: parentBinding,
+        created: { device: String(created.dev), inode: String(created.ino) },
+      });
+      await assertDependencyOwner(owner, layout);
+      renameDirectoryFile(directory.fd, sibling, basename(original.path));
+      // Proof: omitted directory fsync; successful-publication acceptance lacked its durability observation.
+      fsyncSync(directory.fd);
+      const readback = openDirectoryFile(
+        directory.fd,
+        basename(original.path),
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
+      try {
+        const observed = fstatSync(readback, { bigint: true });
+        const retained = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+          readFileSync(readback),
+        );
+        // Proof: omitted identity/byte readback; zero-exit no-op rename returned success.
+        if (
+          !observed.isFile() ||
+          observed.dev !== created.dev ||
+          observed.ino !== created.ino ||
+          retained !== contents
+        )
+          throw new Error('owner site publication readback differs');
+        published = {
+          path: original.path,
+          device: String(observed.dev),
+          inode: String(observed.ino),
+          mode: Number(observed.mode & 0o777n),
+          contents: retained,
+        };
+      } finally {
+        closeSync(readback);
+      }
+      const finalParent = await lstat(parent, { bigint: true });
+      if (
+        !finalParent.isDirectory() ||
+        finalParent.dev !== parentIdentity.dev ||
+        finalParent.ino !== parentIdentity.ino ||
+        (await realpath(parent)) !== parent
+      )
+        throw new Error(
+          'owner site parent changed after publication; retained directory evidence required',
+        );
     } finally {
-      await directory.close();
+      closeSync(descriptor);
     }
-    published = await captureOwnedSiteFile(original.path);
-    // Proof: omitted readback equality; zero-exit no-op rename returned success and failed the refusal assertion (exit 1).
-    if (
-      published.device !== String(created.dev) ||
-      published.inode !== String(created.ino) ||
-      published.contents !== contents
-    )
-      throw new Error('owner site publication readback differs');
+    await assertDependencyOwner(owner, layout);
+    await retainIngressRecord(owner, layout, 'complete', { site: published });
+    return published;
   } finally {
-    await file.close();
+    await directory.close();
   }
-  await assertDependencyOwner(owner, layout);
-  await retainIngressRecord(owner, layout, 'complete', { site: published });
-  return published;
 }

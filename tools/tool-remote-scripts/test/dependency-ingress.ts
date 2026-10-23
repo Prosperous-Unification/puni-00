@@ -5,10 +5,26 @@ import { join } from 'node:path';
 
 import { CADDY_IMAGE } from '../caddy/image';
 import { fenceDependencyIngress, inspectDependencyIngress } from '../src/lib/dependency-ingress';
-import { type RunDocker, runDockerCli } from '../src/lib/docker-deadline';
+import { type RunDocker, runDockerBefore, runDockerCli } from '../src/lib/docker-deadline';
 import { withDependencyOwner } from '../src/lib/edge-ownership';
 import { EDGE_CONTAINER, envLayout } from '../src/lib/env';
 import { readFields, readString } from '../src/lib/managed-cohort';
+
+/** Bounds each actual Docker call, including cleanup, independently of serving convergence. */
+async function fixtureDocker(args: string[], signal?: AbortSignal): Promise<string> {
+  // Proof: without this boundary a stalled fake Docker exceeded 15s; restored call reaped it at 10s.
+  return runDockerBefore(
+    args,
+    (command, timeout) => {
+      if (timeout === undefined) throw new Error('fixture Docker deadline signal absent');
+      return runDockerCli(
+        command,
+        signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
+      );
+    },
+    performance.now() + 10000,
+  );
+}
 
 /**
  * Disposable actual-Caddy acceptance. Never targets a production name/path: the
@@ -53,7 +69,7 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
   async function inspectOwned() {
     if (id === undefined || !/^[a-f0-9]{64}$/.test(id))
       throw new Error('fixture has no exact owned ID');
-    const inspected: unknown = JSON.parse(await runDockerCli(['inspect', id]));
+    const inspected: unknown = JSON.parse(await fixtureDocker(['inspect', id]));
     if (!Array.isArray(inspected) || inspected.length !== 1)
       throw new Error('fixture identity absent');
     const container = readFields(inspected[0]);
@@ -68,9 +84,9 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
   }
   try {
     // Missing image/daemon is a blocking failure; this runner never silently skips.
-    await runDockerCli(['image', 'inspect', CADDY_IMAGE]);
+    await fixtureDocker(['image', 'inspect', CADDY_IMAGE]);
     const created = (
-      await runDockerCli([
+      await fixtureDocker([
         'run',
         '--detach',
         '--init',
@@ -128,7 +144,7 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
         throw new Error('fixture refuses non-owned Docker operation');
       const mapped = [...args];
       mapped[1] = id;
-      const output = await runDockerCli(mapped, signal);
+      const output = await fixtureDocker(mapped, signal);
       if (args[0] !== 'inspect') return output;
       const actual = await inspectOwned();
       return JSON.stringify([{ ...actual, Name: `/${EDGE_CONTAINER}` }]);
@@ -148,7 +164,7 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
     );
     await inspectOwned();
     // Only the invocation-owned disposable server is restarted to test disk persistence.
-    await runDockerCli(['restart', id]);
+    await fixtureDocker(['restart', id]);
     await inspectOwned();
     await request(layout.siteAddress, 503, 'WBS dependency maintenance');
     await request('dev.owner.test', 200, 'dev original');
@@ -172,8 +188,8 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
   if (id !== undefined) {
     try {
       await inspectOwned();
-      await runDockerCli(['rm', '--force', '--volumes', id]);
-      const remaining = await runDockerCli([
+      await fixtureDocker(['rm', '--force', '--volumes', id]);
+      const remaining = await fixtureDocker([
         'ps',
         '--all',
         '--quiet',

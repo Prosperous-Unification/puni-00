@@ -115,3 +115,46 @@ persistence and fixture cleanup remain unverified until this host runner is
 observed. Independent source/fixture review and the integrated exact-SHA host
 gate also remain pending. No live production edge, h2 operation, installation,
 deployment, activation, marker cleanup, automatic restoration or push ran here.
+
+## Review correction: retained directory and bounded fixture — 2026-10-23
+
+Independent Astra review reproduced a P2: replacing the selected file's parent
+after its final path check could redirect the original path-based rename and
+overwrite a foreign site before a later refusal. Publication now opens the
+canonical parent once and retains its descriptor. Native `openat` creates the
+exclusive no-follow private sibling; `renameat`, readback and directory sync all
+resolve against that same retained directory. A replaced named parent refuses
+afterward without changing the foreign directory. Originals and intents also
+retain the directory device/inode. No recovery or automatic restoration is added.
+
+The real child-process parent-swap acceptance injects both a symlink and a
+different directory at the actual rename boundary, supplies a matching sibling
+in that foreign directory and asserts its original site bytes remain unchanged.
+Restoring the exact original `5dca4299a` production publisher produced **two
+failures**, both observing `foreign staged sibling` where `foreign original`
+was required (`/tmp/puni-ingress-parent-path-regression.log`). Restoring the
+descriptor-bound publisher produced **two passes**. The effect tests were moved
+to the new native ports; they still invoke the production publisher and real
+filesystem operations. Staged-fsync, directory-fsync, following-sibling and
+readback omissions independently failed; restored publication acceptance passed
+all four cases. Logs: `/tmp/puni-ingress-native-{stage-sync,directory-sync,
+following-sibling,readback,restored}.log`.
+
+The P3 fixture issue is also corrected: every direct Docker operation, including
+identity inspection, restart and cleanup, has an independent ten-second deadline
+and propagates any narrower caller cancellation. The actual fixture entrypoint
+was run with an invocation-private fake Docker that records its PID then stalls.
+Removing the deadline required the external 15-second watchdog to kill the
+fixture; restoring it refused in 10.04 seconds and its exact Docker child was
+absent. The source was restored in a `finally` block. Receipts:
+`/tmp/puni-ingress-deadline-proof.json`, with private per-run output paths. This
+proves fixture process termination, not actual Caddy serving or host acceptance.
+
+Fresh corrected-source checks: 192 passed, zero failed, 981 assertions across
+eight named ingress/publication/parent/owner/canonical-lock/gateway/backend/CLI
+files (`/tmp/puni-ingress-native-combined-complete.log`). Uncached Nx
+`run-many -t lint,typecheck,build -p tool-remote-scripts --parallel=1
+--skip-nx-cache --outputStyle=static` passed all three requested targets and
+their three prerequisites (`/tmp/puni-ingress-native-checks.log`). Formatting
+and `git diff --check` passed. Correction review, actual-Caddy acceptance and
+the integrated host gate remain open.
