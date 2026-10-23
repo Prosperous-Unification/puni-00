@@ -116,8 +116,9 @@ import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/d
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
 import {
-  type ExternalDependencyAuthoring,
+  type ExternalDependencyAuthoringSource,
   permitsExternalDependencies,
+  validateExternalDependencyAuthoring,
 } from '../../ports/external-dependency-authoring';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
 import type {
@@ -825,7 +826,7 @@ export interface MoveWorkItem {
 
 export interface WorkItemServiceOptions {
   dependencyContext: ServiceDependencyContext;
-  externalDependencyAuthoring: ExternalDependencyAuthoring;
+  externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   livePlans?: LivePlanStore;
   workItems: WorkItemStore;
   /** Required scope-bound evidence; create refuses retained facts before any writes. */
@@ -1457,14 +1458,15 @@ export class WorkItemService {
     this.clock = opts.clock;
     // Proof: required-authoring-construction bypass failed `actual typed service rejects an unknown`'s selected assertion
     // (actual service with memory stores; watched 2026-10-22).
-    permitsExternalDependencies(opts.externalDependencyAuthoring);
+    validateExternalDependencyAuthoring(opts.externalDependencyAuthoring);
   }
 
   /**
    * Reads current trusted authoring authority at each external operation's existing
    * admission point, after principal, owner and endpoint concealment checks.
-   * Constructor validation still rejects missing or unknown initial authority;
-   * later unreadability throws inside the caller's transaction instead of retaining
+   * Constructor validation rejects missing or unknown explicit fixture authority;
+   * borrowed production readers remain unopened until an admitted operation.
+   * Later unreadability throws inside the caller's transaction instead of retaining
    * construction-time permission. Local commands do not require this capability.
    */
   private get externalDependenciesActive(): boolean {

@@ -7,6 +7,7 @@ import { buildStores } from './build-stores';
 import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
 import type { ConnectedCaptureOptions } from './captured-scheduler';
 import { type ChainSnapshotOptions, createLivePlanStore } from './chain-snapshot';
+import { readDependencyAuthoring } from './cross-project-dependency-activation';
 import {
   type Connection,
   openConnection as openDatabaseConnection,
@@ -104,6 +105,17 @@ function openSqliteSourceWithSeams(
       : { organizationLimits: new OrganizationLimitGaugeRepository(process.db, defaults) };
   const stores = buildStores(process.db, coordinator, lateWrite);
   const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
+  /** Borrows the exact BEGIN IMMEDIATE owner; current binaries cannot serve enabled semantics. */
+  const createWriterAuthority = (lifetime: ReadSnapshotLifetime) => () => {
+    // Proof: removing expiry admitted retained authority after settlement in writer-authority-binding.db.test.ts.
+    lifetime.assertOpen();
+    // Proof: constant inactive hid staged deletion of authority on this writer in the same test.
+    const authoring = readDependencyAuthoring(process.db);
+    // Proof: removing this refusal admitted enabled-empty authority in writer-authority-binding.db.test.ts.
+    if (authoring.state === 'active')
+      throw new Error('external dependency semantic runtime is unsupported');
+    return { state: 'inactive' } as const;
+  };
   let closed = false;
 
   return {
@@ -136,7 +148,11 @@ function openSqliteSourceWithSeams(
                 lifetime,
               });
               return {
-                stores: { ...buildStores(process.db, OPEN, lateWrite, commandPlans), ...limits },
+                stores: {
+                  ...buildStores(process.db, OPEN, lateWrite, commandPlans),
+                  ...limits,
+                  externalDependencyAuthoring: createWriterAuthority(lifetime),
+                },
                 fanoutCapture:
                   // Proof: omitting this borrowed capture made a cold mounted shared
                   // command fail 500 before the expected recipient row.
@@ -204,7 +220,9 @@ function openSqliteSourceWithSeams(
       ),
     },
     uow: sqliteUnitOfWork(process.db, coordinator, {
-      createScope: () => ({ stores: admitted }),
+      createScope: (lifetime) => ({
+        stores: { ...admitted, externalDependencyAuthoring: createWriterAuthority(lifetime) },
+      }),
       createRepairScope: () => ({ stores: admitted }),
     }),
     health() {

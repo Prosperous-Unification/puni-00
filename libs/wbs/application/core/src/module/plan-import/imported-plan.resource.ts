@@ -10,7 +10,7 @@ import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import type { CommandCaller } from '../../ports/command-access';
 import type { DependencyContext } from '../../ports/dependency-context';
 import {
-  type ExternalDependencyAuthoring,
+  type ExternalDependencyAuthoringSource,
   permitsExternalDependencies,
 } from '../../ports/external-dependency-authoring';
 import type { ImportDirectory } from '../../ports/import-directory';
@@ -86,7 +86,7 @@ export interface ImportDependencyRefusal {
 export interface ImportAuthority {
   readonly actorId: string;
   readonly access: ResourceAccess;
-  readonly externalDependencies: ExternalDependencyAuthoring;
+  readonly externalDependencies: ExternalDependencyAuthoringSource;
   assertActive(): void;
   contextFor(projectId: string): DependencyContext;
 }

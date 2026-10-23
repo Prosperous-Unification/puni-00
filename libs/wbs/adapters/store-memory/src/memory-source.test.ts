@@ -23,6 +23,7 @@ const STORE_BINDINGS = [
   'directory',
   'estimates',
   'eventLog',
+  'externalDependencyAuthoring',
   'journal',
   'measures',
   'planEvents',

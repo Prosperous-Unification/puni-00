@@ -71,6 +71,7 @@ function coordinatedStores(
   coordinator: MemoryCoordinator,
 ): TransactionalStores {
   return {
+    externalDependencyAuthoring: stores.externalDependencyAuthoring,
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
     projects: coordinatedStore(
       stores.projects,

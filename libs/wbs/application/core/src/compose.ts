@@ -35,7 +35,6 @@ import type { CommandAccess } from './ports/command-access';
 import type { DependencyContext, ServiceDependencyContext } from './ports/dependency-context';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
-import { INACTIVE_EXTERNAL_DEPENDENCIES } from './ports/external-dependency-authoring';
 import type {
   BeforeProjectUpdate,
   BeforeStepRemoval,
@@ -217,7 +216,8 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       priorityBands: stores.priorityBands,
       subtrees: stores.subtrees,
       journal: stores.journal,
-      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
+      // Proof: inactive substitution hid deleted authority in the mounted production command reread test.
+      externalDependencyAuthoring: stores.externalDependencyAuthoring,
       dependencyContext: shared.dependencyContext,
       broadcast,
       admission,
@@ -431,8 +431,8 @@ export function composeServices(
     batch,
     imports: installPlanImport({
       commandAccess: runtime.commandAccess,
-      // Proof: active substitution failed the mounted dormant case even with synthetic storage authority (2026-10-22).
-      externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
+      // Proof: inactive substitution returned 409 instead of 500 after authority deletion in the mounted production import test.
+      externalDependencies: (scope) => scope.stores.externalDependencyAuthoring,
       clock: runtime.clock,
       scheduler: runtime.scheduler,
       uow: source.uow,

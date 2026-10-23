@@ -13,6 +13,7 @@ import type { DependencyContext } from '@wbs/core/ports/dependency-context';
 import type { CompensatingCommand } from '@wbs/core/service/compensating';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { openDrizzle } from '@wbs/store-sqlite/db';
 import { beginOptimizationDrain } from '@wbs/store-sqlite/optimization-drain';
@@ -30,6 +31,7 @@ async function open(
   pushUrls?: string[],
   syntheticExternalCommands?: true,
   onPush?: () => void | Promise<void>,
+  dormant = false,
 ) {
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
@@ -45,7 +47,7 @@ async function open(
         }),
   });
   // Synthetic stored authority supports this suite's admitted semantic fixture; mounted production admission stays dormant.
-  seedDependencyAuthority(harness.databasePath());
+  if (!dormant) seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'super_admin');
@@ -180,7 +182,7 @@ function effects() {
 
 // Proof: replacing compose's inactive authoring with active made this mounted control answer 200 instead of 409, including after capability observation (2026-10-23).
 test('mounted external authoring stays dormant and rolls back an earlier successful command', async () => {
-  const fixture = await open();
+  const fixture = await open(undefined, undefined, undefined, true);
   const capability = await harness.request('/api/runtime/dependency-capability');
   expect(capability.status).toBe(200);
   expect(await capability.json()).toEqual({
@@ -3669,7 +3671,7 @@ test('synthetic mounted external authoring conceals foreign organization endpoin
 });
 
 async function nodeAuthoringFixture(synthetic?: true) {
-  const fixture = await open(undefined, synthetic);
+  const fixture = await open(undefined, synthetic, undefined, synthetic === undefined);
   await harness.register('grace');
   harness.member('org-a', 'grace', 'member');
   harness.sqlite
@@ -3951,4 +3953,82 @@ test('node authoring direct semantic service accepts the same stable remote node
       type: 'FS',
     },
   ]);
+});
+
+test('mounted production commands reread writer authority after dormant refusal', async () => {
+  const fixture = await open(undefined, undefined, undefined, true);
+  const command = () =>
+    fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.owner.workItemId,
+          patch: { name: 'Rollback' },
+        },
+        { kind: 'addTypedDependency', ...fixture.input },
+      ],
+    });
+  expect((await command()).status).toBe(409);
+  harness.sqlite.run('DELETE FROM cross_project_dependency_activation');
+  const before = effects();
+  expect((await command()).status).toBe(500);
+  expect(effects()).toEqual(before);
+});
+
+test('mounted production commands refuse enabled unsupported runtime and retain prior effects', async () => {
+  const fixture = await open();
+  const before = effects();
+  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    commands: [
+      { kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { name: 'Rollback' } },
+      { kind: 'addTypedDependency', ...fixture.input },
+    ],
+  });
+  expect(response.status).toBe(500);
+  expect(effects()).toEqual(before);
+});
+
+test('mounted production imports resolve fresh writer authority before external allocation', async () => {
+  const fixture = await open(undefined, undefined, undefined, true);
+  const document = planDocumentFixture();
+  document.document.version = 11;
+  document.typedDependencies = [
+    {
+      id: 'external-import',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        ...fixture.input.predecessor,
+        display: {
+          projectName: 'Predecessor',
+          abbreviation: 'PRE',
+          workItemName: 'Remote row',
+          address: 'PRE.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ];
+  const send = () =>
+    fixture.request('/api/projects/import', {
+      ...document,
+      workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
+        ...row,
+        attempts: {},
+      })),
+    });
+  const before = effects();
+  const dormant = await send();
+  expect(dormant.status).toBe(409);
+  const refusal: unknown = await dormant.json();
+  expect(refusal).toMatchObject({ error: 'external_dependencies_inactive' });
+  expect(effects()).toEqual(before);
+  seedDependencyAuthority(harness.databasePath());
+  const enabled = effects();
+  expect((await send()).status).toBe(500);
+  expect(effects()).toEqual(enabled);
+  harness.sqlite.run('DELETE FROM cross_project_dependency_activation');
+  const malformed = effects();
+  expect((await send()).status).toBe(500);
+  expect(effects()).toEqual(malformed);
 });

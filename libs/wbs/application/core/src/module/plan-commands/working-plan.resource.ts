@@ -499,6 +499,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get externalDependencyAuthoring() {
+      assertOpen();
+      return scope.stores.externalDependencyAuthoring;
+    },
     get livePlans() {
       assertOpen();
       return scope.stores.livePlans;

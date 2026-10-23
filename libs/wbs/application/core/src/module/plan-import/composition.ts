@@ -3,12 +3,13 @@ import type { CommandAccess, CommandCaller } from '../../ports/command-access';
 import { NO_ADMISSION } from '../../ports/edit-admission';
 import {
   type ExternalDependencyAuthoring,
-  permitsExternalDependencies,
+  type ExternalDependencyAuthoringSource,
+  validateExternalDependencyAuthoring,
 } from '../../ports/external-dependency-authoring';
 import type { RefusedOrganizationAccess, ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
-import type { UnitOfWork } from '../../ports/unit-of-work';
+import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import {
   type CommittedFanoutDelivery,
   type CommittedProjectEvent,
@@ -32,8 +33,13 @@ export interface PlanImportSource {
   /** Current persisted authority over this source's admitted writer, including explicit legacy callers. */
   commandAccess: CommandAccess;
   clock: Clock;
-  /** Production binds inactive explicitly; synthetic storage authority alone never activates imports. */
-  externalDependencies: ExternalDependencyAuthoring;
+  /**
+   * Explicit fixture authority or a production resolver invoked after writer admission.
+   * Its reader remains bound to that scope; synthetic storage authority alone cannot
+   * grant support to the dormant production binary.
+   */
+  externalDependencies:
+    ExternalDependencyAuthoring | ((scope: Scope) => ExternalDependencyAuthoringSource);
   scheduler: Scheduler;
   uow: UnitOfWork;
   announcements: Broadcaster;
@@ -45,7 +51,7 @@ function importTransaction(
   uow: UnitOfWork,
   commandAccess: CommandAccess,
   graphOver: ImportGraphFactory,
-  externalDependencies: ExternalDependencyAuthoring,
+  externalDependencies: PlanImportSource['externalDependencies'],
   delivery?: CommittedFanoutDelivery,
 ): ImportTransaction {
   return {
@@ -78,7 +84,10 @@ function importTransaction(
           actorId,
           // Proof: independently binding expected access here, in the dependency context or callback failed the SQLite fresh-access observation (2026-10-22).
           access,
-          externalDependencies,
+          externalDependencies:
+            typeof externalDependencies === 'function'
+              ? externalDependencies(scope)
+              : externalDependencies,
           assertActive,
           contextFor: (projectId) => {
             assertActive();
@@ -156,7 +165,8 @@ function importTransaction(
 
 export function createImportService(source: PlanImportSource): ImportService {
   // Proof: omitting this validation failed missing/malformed required-capability construction cases (2026-10-22).
-  permitsExternalDependencies(source.externalDependencies);
+  if (typeof source.externalDependencies !== 'function')
+    validateExternalDependencyAuthoring(source.externalDependencies);
   return new ImportService({
     clock: source.clock,
     scheduler: source.scheduler,

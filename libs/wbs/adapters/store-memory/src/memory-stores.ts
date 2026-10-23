@@ -1,4 +1,5 @@
 import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
@@ -614,6 +615,7 @@ export function bindStores(
     ),
     dependencies,
     typedDependencies,
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     capacity: inMemoryCapacity({}, state.tables.capacity),
     resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (projectId) =>
       Promise.resolve(state.tables.projects.projects.has(projectId)),

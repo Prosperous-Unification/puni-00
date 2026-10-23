@@ -10,9 +10,10 @@ import type { ImportService } from './plan-import.feature';
  * supplies. Composition binds it to the unit of work before constructing the
  * feature, which receives only mapped import resources. The factory is built
  * per admission because staged stores are fresh on every turn.
- * `externalDependencies` is required and production supplies inactive; only
- * isolated semantic fixtures combine active capability with synthetic storage
- * authority. `commandAccess` revalidates retained principal evidence on the same
+ * `externalDependencies` is required: production resolves the admitted catalog's
+ * lifetime-bound reader inside the import transaction. DISABLED authority stays
+ * inactive; ENABLED refuses until the binary implements semantic support. Only
+ * isolated semantic fixtures supply explicit active capability. `commandAccess` revalidates retained principal evidence on the same
  * admitted writer before resources or observations open. Current access, rather
  * than expected access, supplies the callback, private resource and dependency
  * context. Browser binding/revocation, membership/policy and persisted

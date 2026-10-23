@@ -9,7 +9,6 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
-import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
@@ -73,7 +72,6 @@ async function seeded() {
   let ids = 0;
   const requirements = {
     dependencyContext: createLocalDependencyContext(stores),
-    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     ...stores,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
