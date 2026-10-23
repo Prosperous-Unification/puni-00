@@ -1,4 +1,4 @@
-import { lstat } from 'node:fs/promises';
+import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { assertInheritedLock, withLock } from './lock';
@@ -55,4 +55,41 @@ export async function withEdgeAdmission<T>(action: () => Promise<T>): Promise<T>
       delete process.env['WBS_EDGE_LOCK_FD'];
     }
   });
+}
+
+/**
+ * Requires a local inherited open description before launching a solver child.
+ * The caller owns its lifetime; the child receives the same description, never
+ * a reopened lock file. This grants no installation or activation authority.
+ */
+export async function requireInheritedEdgeLock(): Promise<number> {
+  const stateDirectory = edgeStateDirectory();
+  const lockPath = join(stateDirectory, 'edge.lock');
+  const inherited = process.env['WBS_EDGE_LOCK_FD'];
+  // Proof: omitting token validation changed the required-descriptor refusal for missing and malformed tokens.
+  if (inherited === undefined || !/^[0-9]+$/.test(inherited)) {
+    throw new Error('solver child requires an inherited shared edge descriptor');
+  }
+  const descriptor = Number(inherited);
+  // Proof: omitting this range guard changed the unsafe-integer refusal to EBADF in the real launcher.
+  if (!Number.isSafeInteger(descriptor) || descriptor < 3) {
+    throw new Error('invalid inherited shared edge descriptor');
+  }
+  const state = await lstat(stateDirectory);
+  // Proof: omitting this guard admitted a symlink canonical state in solver-binding-command.test.ts.
+  if (!state.isDirectory() || state.isSymbolicLink()) {
+    throw new Error('invalid canonical edge state: expected a real directory');
+  }
+  // Proof: omitting readdir launched a child through execute-only (0111) trusted state.
+  await readdir(stateDirectory);
+  const lock = await lstat(lockPath);
+  // Proof: omitting this guard admitted a symlink canonical lock in the real solver child path.
+  if (!lock.isFile() || lock.isSymbolicLink()) {
+    throw new Error('invalid canonical edge lock: expected a regular nonsymlink file');
+  }
+  // Proof: omitting verification launched a child for a foreign or independently opened FD.
+  assertInheritedLock(lockPath, descriptor);
+  // Proof: omitting this admission launched the child for retained JSON/pending markers.
+  await assertNoEdgeOwner(stateDirectory);
+  return descriptor;
 }

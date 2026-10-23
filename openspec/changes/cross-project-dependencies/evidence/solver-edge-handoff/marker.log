@@ -1,0 +1,139 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [52.91ms]
+(pass) missing inherited descriptor refuses before launching solver command [22.51ms]
+(pass) invalid inherited descriptor refuses before launching solver command [22.20ms]
+(pass) foreign inherited descriptor refuses before launching solver command [23.97ms]
+(pass) independent inherited descriptor refuses before launching solver command [27.38ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [25.33ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.json malformed refuses inherited solver command [42.50ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.json unreadable refuses inherited solver command [50.44ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.json directory refuses inherited solver command [53.54ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.json dangling refuses inherited solver command [46.05ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.pending malformed refuses inherited solver command [44.73ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.pending unreadable refuses inherited solver command [45.19ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.pending directory refuses inherited solver command [45.46ms]
+69 |       ]);
+70 |       return { code, output: stdout + stderr };
+71 |     },
+72 |     async expectUnreached() {
+73 |       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+74 |       expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at expectUnreached (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:74:63)
+      at async <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:118:18)
+(fail) edge-owner.pending dangling refuses inherited solver command [51.99ms]
+(pass) symlink canonical state refuses verified solver command [24.54ms]
+(pass) symlink canonical lock refuses verified solver command [25.52ms]
+(pass) missing canonical state refuses before child launch [23.35ms]
+(pass) directory canonical state refuses before child launch [24.57ms]
+(pass) unreadable canonical state refuses before child launch [23.75ms]
+
+ 11 pass
+ 8 fail
+ 70 expect() calls
+Ran 19 tests across 1 file. [708.00ms]

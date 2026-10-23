@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [51.13ms]
+(pass) missing inherited descriptor refuses before launching solver command [23.14ms]
+(pass) invalid inherited descriptor refuses before launching solver command [22.83ms]
+(pass) foreign inherited descriptor refuses before launching solver command [24.89ms]
+(pass) independent inherited descriptor refuses before launching solver command [24.91ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [23.11ms]
+(pass) edge-owner.json malformed refuses inherited solver command [35.27ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [25.96ms]
+(pass) edge-owner.json directory refuses inherited solver command [25.50ms]
+(pass) edge-owner.json dangling refuses inherited solver command [24.18ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [25.34ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [25.14ms]
+(pass) edge-owner.pending directory refuses inherited solver command [30.02ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [26.19ms]
+(pass) symlink canonical state refuses verified solver command [25.67ms]
+130 | 
+131 | test('symlink canonical lock refuses verified solver command', async () => {
+132 |   const host = await fixture();
+133 |   await rename(join(host.state, 'edge.lock'), join(host.state, 'real.lock'));
+134 |   await symlink('real.lock', join(host.state, 'edge.lock'));
+135 |   expect((await host.run()).code).not.toBe(0);
+                                            ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:135:39)
+(fail) symlink canonical lock refuses verified solver command [47.23ms]
+(pass) missing canonical state refuses before child launch [27.33ms]
+(pass) directory canonical state refuses before child launch [28.01ms]
+(pass) unreadable canonical state refuses before child launch [29.52ms]
+
+ 18 pass
+ 1 fail
+ 68 expect() calls
+Ran 19 tests across 1 file. [578.00ms]

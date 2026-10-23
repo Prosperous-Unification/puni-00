@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [49.95ms]
+(pass) missing inherited descriptor refuses before launching solver command [22.23ms]
+(pass) invalid inherited descriptor refuses before launching solver command [22.82ms]
+86 | for (const mode of ['missing', 'invalid', 'foreign', 'independent', 'unsafe']) {
+87 |   test(`${mode} inherited descriptor refuses before launching solver command`, async () => {
+88 |     const host = await fixture();
+89 |     const attempt = await host.run(mode);
+90 |     expect(attempt.code).not.toBe(0);
+91 |     expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+                                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "does not name"
+Received: "error: 147 |  */"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:91:83)
+(fail) foreign inherited descriptor refuses before launching solver command [43.53ms]
+86 | for (const mode of ['missing', 'invalid', 'foreign', 'independent', 'unsafe']) {
+87 |   test(`${mode} inherited descriptor refuses before launching solver command`, async () => {
+88 |     const host = await fixture();
+89 |     const attempt = await host.run(mode);
+90 |     expect(attempt.code).not.toBe(0);
+91 |     expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+                                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "shared edge lock held"
+Received: "error: 150 |   const expected = statSync(lockPath);"
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:91:83)
+(fail) independent inherited descriptor refuses before launching solver command [52.24ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [22.73ms]
+(pass) edge-owner.json malformed refuses inherited solver command [34.04ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [28.96ms]
+(pass) edge-owner.json directory refuses inherited solver command [26.06ms]
+(pass) edge-owner.json dangling refuses inherited solver command [27.95ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [24.38ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [37.14ms]
+(pass) edge-owner.pending directory refuses inherited solver command [24.60ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [31.17ms]
+(pass) symlink canonical state refuses verified solver command [27.84ms]
+(pass) symlink canonical lock refuses verified solver command [26.63ms]
+(pass) missing canonical state refuses before child launch [26.58ms]
+(pass) directory canonical state refuses before child launch [26.03ms]
+(pass) unreadable canonical state refuses before child launch [24.82ms]
+
+ 17 pass
+ 2 fail
+ 66 expect() calls
+Ran 19 tests across 1 file. [612.00ms]

@@ -770,3 +770,9 @@ the canonical host gate and production activation remain open.
 ### Task 11.1 bounded alphabetical discovery and new authoring browser acceptance (2026-10-23)
 
 - [x] An unlinked desktop successor uses the actual alphabetic picker to discover a remote project and create a qualified whole-to-whole FS dependency through accepted HTTP, exact SQLite identity/owner readback, reload/reopen and completion-driven live refresh. Independent production discovery and persisted endpoint/owner faults fail the browser assertions; the production dormant-authoring control remains passing. Independent Astra rereview approved the corrected Bun proof. See [bounded acceptance receipt](verify-task11-browser-author.md). Parent 11.1, broader endpoint/phone scenarios and production activation remain open.
+
+### Bounded Task 10.2 solver local descriptor handoff prerequisite
+
+- [x] Red/green the callable production command runner's explicit local inherited-edge mode, real child FD3 retention and foreign/independent descriptor refusal before launch.
+- [x] Validate canonical state/lock kinds and readability, reject all retained JSON/pending marker shapes, pin child admission environment, and watch independent production omissions fail; independent Astra rereview approved the corrected path admission. Record scoped checks in [verify-solver-edge-handoff.md](verify-solver-edge-handoff.md).
+- [ ] Share the admitted local/remote supervisor install operation and wire the devsync caller; remote CLI must take canonical edge.lock, capture reviewed hashes before transport, use unique staging and hold admission through all four replacements, readback, service changes and readiness. Prove generated shell/transport/service interval and partial-publication diagnostics. Parent 10.2 remains open; no live installation, activation or automatic rollback is granted here.

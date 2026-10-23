@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [58.30ms]
+(pass) missing inherited descriptor refuses before launching solver command [34.03ms]
+(pass) invalid inherited descriptor refuses before launching solver command [24.23ms]
+(pass) foreign inherited descriptor refuses before launching solver command [20.35ms]
+(pass) independent inherited descriptor refuses before launching solver command [23.89ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [25.95ms]
+(pass) edge-owner.json malformed refuses inherited solver command [23.34ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [23.49ms]
+(pass) edge-owner.json directory refuses inherited solver command [23.93ms]
+(pass) edge-owner.json dangling refuses inherited solver command [24.42ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [23.61ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [25.37ms]
+(pass) edge-owner.pending directory refuses inherited solver command [26.54ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [26.43ms]
+(pass) symlink canonical state refuses verified solver command [21.88ms]
+(pass) symlink canonical lock refuses verified solver command [22.90ms]
+(pass) missing canonical state refuses before child launch [24.29ms]
+(pass) directory canonical state refuses before child launch [26.98ms]
+144 |         ? 'rm "$WBS_EDGE_STATE/edge.lock";'
+145 |         : shape === 'directory'
+146 |           ? 'rm "$WBS_EDGE_STATE/edge.lock"; mkdir "$WBS_EDGE_STATE/edge.lock";'
+147 |           : 'chmod 111 "$WBS_EDGE_STATE";';
+148 |     try {
+149 |       expect((await host.run('valid', fault)).code).not.toBe(0);
+                                                              ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:149:57)
+(fail) unreadable canonical state refuses before child launch [46.14ms]
+
+ 18 pass
+ 1 fail
+ 68 expect() calls
+Ran 19 tests across 1 file. [555.00ms]

@@ -1256,3 +1256,21 @@ duplicate timer; systemd bytes do not prove loaded/drop-in/transient units/MainP
 Compose bytes do not prove Docker configuration/restart policy. Solver supervisor
 bundle/config/runtime/systemd and its installer admission are an unsupported known
 restart surface. Parent 10.1/10.2 remain open.
+
+### Bounded solver local descriptor handoff prerequisite (2026-10-23)
+
+`runSolverBindingCommand` is the production default command runner and exposes
+an explicit `edgeLock: 'inherit'` invocation mode. It validates canonical local
+state and the actual inherited open description, rejects retained owner paths,
+and explicitly maps that description to child FD3. It pins the child lock token
+and state environment to those verified by the parent, including when ordinary
+invocation environment overrides are supplied. It neither closes nor reopens the
+parent descriptor. Child failure remains an ordinary nonzero command outcome.
+
+The existing solver install caller intentionally does not request this mode and
+still uses its original remote CLI. Wiring that caller now would leave remote
+self-contention unresolved. The next packet must share the local/remote install
+operation, capture reviewed hashes before transport, use unique staging, and
+hold one canonical admission interval through four replacements, installed
+readback, service operations and readiness. No installer admission, owner writer,
+activation, rollback or host adoption is implemented by this prerequisite.

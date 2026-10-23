@@ -1,0 +1,68 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+76 |   };
+77 | }
+78 | 
+79 | test('solver command remaps the verified inherited lock to child FD3 through the real child path', async () => {
+80 |   const host = await fixture();
+81 |   expect(await host.run()).toMatchObject({ code: 0 });
+                                ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "code": 0,
++   "code": 1,
++   "output": 
++ "2 | import { runSolverBindingCommand } from "/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts";
++ 3 | const outcome = await runSolverBindingCommand({ cwd: "/tmp/solver-edge-command-aTyACw", argv: [process.execPath, "/tmp/solver-edge-command-aTyACw/child.ts"], env: { WBS_EDGE_LOCK_FD: 'forged', WBS_EDGE_STATE: '/wrong' }, edgeLock: 'inherit' });
++                                           ^
++ error: 147 |  */
++ 148 | export function assertInheritedLock(lockPath: string, descriptor: number): void {
++ 149 |   const inherited = fstatSync(descriptor);
++ 150 |   const expected = statSync(lockPath);
++ 151 |   if (inherited.dev !== expected.dev || inherited.ino !== expected.ino) {
++ 152 |     throw new Error(`inherited shared edge lock does not name ${lockPath}`);
++                     ^
++ error: inherited shared edge lock does not name /tmp/solver-edge-command-aTyACw/state/edge.lock
++       at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:152:15)
++       at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)
++       at /tmp/solver-edge-command-aTyACw/child.ts:3:7
++ 
++ Bun v1.4.2 (Linux x64)
++ 
++       at /tmp/solver-edge-command-aTyACw/launcher.ts:3:39
++ 
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 1
++ Received  + 24
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:81:28)
+(fail) solver command remaps the verified inherited lock to child FD3 through the real child path [56.48ms]
+(pass) missing inherited descriptor refuses before launching solver command [22.21ms]
+(pass) invalid inherited descriptor refuses before launching solver command [26.60ms]
+(pass) foreign inherited descriptor refuses before launching solver command [32.18ms]
+(pass) independent inherited descriptor refuses before launching solver command [24.79ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [29.27ms]
+(pass) edge-owner.json malformed refuses inherited solver command [38.65ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [25.45ms]
+(pass) edge-owner.json directory refuses inherited solver command [28.89ms]
+(pass) edge-owner.json dangling refuses inherited solver command [33.43ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [27.23ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [25.67ms]
+(pass) edge-owner.pending directory refuses inherited solver command [32.48ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [25.06ms]
+(pass) symlink canonical state refuses verified solver command [35.87ms]
+(pass) symlink canonical lock refuses verified solver command [23.89ms]
+(pass) missing canonical state refuses before child launch [26.08ms]
+(pass) directory canonical state refuses before child launch [29.31ms]
+(pass) unreadable canonical state refuses before child launch [33.98ms]
+
+ 18 pass
+ 1 fail
+ 68 expect() calls
+Ran 19 tests across 1 file. [618.00ms]

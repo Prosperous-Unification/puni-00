@@ -1145,3 +1145,24 @@ all required local captured writer artifacts and SHALL always block activation.
 - **WHEN** a required artifact or the reviewed manifest changes during the two-pass inspection
 - **THEN** the CLI refuses without inventory output
 - **AND** equal local snapshots never establish host-wide quiescence, effective authority or live process drain
+
+### Requirement: Solver command local inherited edge descriptor prerequisite
+
+The solver command runner SHALL offer an explicit local mode that validates
+canonical state readability, nonsymlink state/lock kinds, inherited descriptor
+identity and flock before launch. It SHALL refuse retained owner markers and
+map the verified open description to child FD3, preserving exclusion. Existing
+remote installer calls SHALL remain unchanged until a shared install operation
+is admitted.
+
+#### Scenario: Local child inherits the held description
+
+- **GIVEN** the parent holds the canonical edge lock on inherited FD8
+- **WHEN** it explicitly invokes the local solver command mode
+- **THEN** the real child verifies FD3 and a competing lock acquisition refuses
+
+#### Scenario: Forged descriptor or retained ownership refuses before launch
+
+- **GIVEN** a missing, malformed, foreign or independently opened descriptor, a retained marker, unreadable state or symlink canonical path
+- **WHEN** the local solver command mode is requested
+- **THEN** the runner refuses before the child starts

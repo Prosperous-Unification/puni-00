@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import {
+  requireInheritedEdgeLock,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
@@ -31,6 +32,7 @@ export interface SolverBindingRuntimeInvocation {
   cwd: string;
   argv: readonly string[];
   env?: Readonly<Record<string, string>>;
+  edgeLock?: 'inherit';
 }
 
 export interface SolverBindingRuntimeIo {
@@ -61,14 +63,31 @@ export interface TargetSolverBindingRuntime {
   dependencies: TargetSolverBindingDependencies;
 }
 
-async function command(
+/**
+ * Runs a target-clone command; explicit local edge inheritance verifies the
+ * canonical descriptor and remaps it to child FD3. Ordinary commands retain
+ * their existing transport. The installer caller does not opt in yet.
+ */
+export async function runSolverBindingCommand(
   invocation: SolverBindingRuntimeInvocation,
 ): Promise<{ exitCode: number; stderr: string }> {
+  const descriptor =
+    invocation.edgeLock === 'inherit' ? await requireInheritedEdgeLock() : undefined;
   const child = Bun.spawn([...invocation.argv], {
     cwd: invocation.cwd,
-    env: { ...process.env, ...invocation.env },
-    stdout: 'inherit',
-    stderr: 'pipe',
+    env: {
+      ...process.env,
+      ...invocation.env,
+      // Proof: allowing either admission environment override fails the real child FD3 control.
+      ...(descriptor === undefined
+        ? {}
+        : { WBS_EDGE_LOCK_FD: '3', WBS_EDGE_STATE: process.env['WBS_EDGE_STATE'] }),
+    },
+    // Proof: omitting FD3 mapping fails the real solver child exclusion control.
+    stdio:
+      descriptor === undefined
+        ? ['inherit', 'inherit', 'pipe']
+        : ['inherit', 'inherit', 'pipe', descriptor],
   });
   const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
   return { exitCode, stderr };
@@ -111,7 +130,7 @@ const DEFAULT_IO: SolverBindingRuntimeIo = {
         .slice(0, HOST_INPUT_MAX_BYTES + 1)
         .arrayBuffer(),
     ),
-  command,
+  command: runSolverBindingCommand,
   query,
   writeAtomic: (path, contents) => writeAtomic(path, contents),
   withLock,

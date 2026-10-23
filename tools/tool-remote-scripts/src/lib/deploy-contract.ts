@@ -115,7 +115,7 @@ export {
   type DormantDependencyStore,
 } from './dependency-inventory';
 export { observeDependencyCapabilities, probeDependencyCapabilities } from './dependency-preflight';
-export { assertNoEdgeOwner, withEdgeAdmission } from './edge-admission';
+export { assertNoEdgeOwner, requireInheritedEdgeLock, withEdgeAdmission } from './edge-admission';
 export { withLock } from './lock';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 export {

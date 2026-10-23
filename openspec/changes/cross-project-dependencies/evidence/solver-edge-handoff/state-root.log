@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/solver-binding-command.test.ts:
+(pass) solver command remaps the verified inherited lock to child FD3 through the real child path [46.90ms]
+(pass) missing inherited descriptor refuses before launching solver command [22.72ms]
+(pass) invalid inherited descriptor refuses before launching solver command [22.22ms]
+(pass) foreign inherited descriptor refuses before launching solver command [24.51ms]
+(pass) independent inherited descriptor refuses before launching solver command [24.32ms]
+(pass) unsafe inherited descriptor refuses before launching solver command [23.23ms]
+(pass) edge-owner.json malformed refuses inherited solver command [25.45ms]
+(pass) edge-owner.json unreadable refuses inherited solver command [25.19ms]
+(pass) edge-owner.json directory refuses inherited solver command [25.01ms]
+(pass) edge-owner.json dangling refuses inherited solver command [23.35ms]
+(pass) edge-owner.pending malformed refuses inherited solver command [25.27ms]
+(pass) edge-owner.pending unreadable refuses inherited solver command [23.66ms]
+(pass) edge-owner.pending directory refuses inherited solver command [24.67ms]
+(pass) edge-owner.pending dangling refuses inherited solver command [23.60ms]
+122 | 
+123 | test('symlink canonical state refuses verified solver command', async () => {
+124 |   const host = await fixture();
+125 |   await rename(host.state, `${host.state}-real`);
+126 |   await symlink(`${host.state}-real`, host.state);
+127 |   expect((await host.run()).code).not.toBe(0);
+                                            ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:127:39)
+(fail) symlink canonical state refuses verified solver command [46.24ms]
+(pass) symlink canonical lock refuses verified solver command [23.55ms]
+(pass) missing canonical state refuses before child launch [24.64ms]
+(pass) directory canonical state refuses before child launch [25.14ms]
+(pass) unreadable canonical state refuses before child launch [24.85ms]
+
+ 18 pass
+ 1 fail
+ 68 expect() calls
+Ran 19 tests across 1 file. [535.00ms]

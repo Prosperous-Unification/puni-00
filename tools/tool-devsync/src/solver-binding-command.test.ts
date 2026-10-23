@@ -1,0 +1,155 @@
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, expect, test } from 'bun:test';
+
+const roots: string[] = [];
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+async function fixture() {
+  const root = await mkdtemp(join(tmpdir(), 'solver-edge-command-'));
+  roots.push(root);
+  const state = join(root, 'state');
+  await mkdir(state);
+  await writeFile(join(state, 'edge.lock'), '');
+  await writeFile(join(root, 'foreign.lock'), '');
+  const runner = new URL('./solver-binding-runtime.ts', import.meta.url).pathname;
+  const admission = new URL('../../tool-remote-scripts/src/lib/edge-admission.ts', import.meta.url)
+    .pathname;
+  const child = join(root, 'child.ts');
+  const launcher = join(root, 'launcher.ts');
+  await writeFile(
+    child,
+    `import { withEdgeAdmission } from ${JSON.stringify(admission)};
+await Bun.write(${JSON.stringify(join(root, 'launched'))}, 'launched');
+await withEdgeAdmission(async () => {
+ if (process.env.WBS_EDGE_LOCK_FD !== '3') throw new Error('child descriptor was not remapped');
+ const competitor = Bun.spawn(['flock', '-n', ${JSON.stringify(join(state, 'edge.lock'))}, 'true']);
+ if (await competitor.exited === 0) throw new Error('child escaped edge lock');
+ await Bun.write(${JSON.stringify(join(root, 'reached'))}, 'locked');
+});`,
+  );
+  await writeFile(
+    launcher,
+    `import { runSolverBindingCommand } from ${JSON.stringify(runner)};
+const outcome = await runSolverBindingCommand({ cwd: ${JSON.stringify(root)}, argv: [process.execPath, ${JSON.stringify(child)}], env: { WBS_EDGE_LOCK_FD: 'forged', WBS_EDGE_STATE: '/wrong' }, edgeLock: 'inherit' });
+if (outcome.exitCode !== 0) throw new Error(outcome.stderr);`,
+  );
+  return {
+    root,
+    state,
+    async run(mode = 'valid', afterLock = '') {
+      const setup =
+        mode === 'missing'
+          ? 'unset WBS_EDGE_LOCK_FD;'
+          : mode === 'invalid'
+            ? 'export WBS_EDGE_LOCK_FD=bogus;'
+            : mode === 'unsafe'
+              ? 'export WBS_EDGE_LOCK_FD=9007199254740992;'
+              : mode === 'foreign'
+                ? 'exec 8<"$TEST_ROOT/foreign.lock"; flock -n 8; export WBS_EDGE_LOCK_FD=8;'
+                : mode === 'independent'
+                  ? 'exec 8<"$WBS_EDGE_STATE/edge.lock"; flock -n 8; exec 7<"$WBS_EDGE_STATE/edge.lock"; export WBS_EDGE_LOCK_FD=7;'
+                  : 'exec 8<"$WBS_EDGE_STATE/edge.lock"; flock -n 8; export WBS_EDGE_LOCK_FD=8;';
+      const processChild = Bun.spawn(
+        ['bash', '-c', `${setup} ${afterLock} exec "$@"`, 'launch', process.execPath, launcher],
+        {
+          env: { ...process.env, TEST_ROOT: root, WBS_EDGE_STATE: state },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      );
+      const [stdout, stderr, code] = await Promise.all([
+        new Response(processChild.stdout).text(),
+        new Response(processChild.stderr).text(),
+        processChild.exited,
+      ]);
+      return { code, output: stdout + stderr };
+    },
+    async expectUnreached() {
+      expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);
+      expect(await Bun.file(join(root, 'launched')).exists()).toBe(false);
+    },
+  };
+}
+
+test('solver command remaps the verified inherited lock to child FD3 through the real child path', async () => {
+  const host = await fixture();
+  expect(await host.run()).toMatchObject({ code: 0 });
+  expect(await readFile(join(host.root, 'reached'), 'utf8')).toBe('locked');
+  expect(await Bun.spawn(['flock', '-n', join(host.state, 'edge.lock'), 'true']).exited).toBe(0);
+});
+
+for (const mode of ['missing', 'invalid', 'foreign', 'independent', 'unsafe']) {
+  test(`${mode} inherited descriptor refuses before launching solver command`, async () => {
+    const host = await fixture();
+    const attempt = await host.run(mode);
+    expect(attempt.code).not.toBe(0);
+    expect(attempt.output.split('\n').find((line) => line.startsWith('error: '))).toContain(
+      mode === 'foreign'
+        ? 'does not name'
+        : mode === 'independent'
+          ? 'shared edge lock held'
+          : mode === 'unsafe'
+            ? 'invalid inherited shared edge descriptor'
+            : 'requires an inherited shared edge descriptor',
+    );
+    await host.expectUnreached();
+  });
+}
+
+for (const marker of ['edge-owner.json', 'edge-owner.pending']) {
+  for (const shape of ['malformed', 'unreadable', 'directory', 'dangling']) {
+    test(`${marker} ${shape} refuses inherited solver command`, async () => {
+      const host = await fixture();
+      const path = join(host.state, marker);
+      if (shape === 'directory') await mkdir(path);
+      else if (shape === 'dangling') await symlink('absent', path);
+      else {
+        await writeFile(path, '{bad');
+        if (shape === 'unreadable') await chmod(path, 0);
+      }
+      const attempt = await host.run();
+      expect(attempt.code).not.toBe(0);
+      expect(attempt.output).toContain('owner admission closed');
+      await host.expectUnreached();
+    });
+  }
+}
+
+test('symlink canonical state refuses verified solver command', async () => {
+  const host = await fixture();
+  await rename(host.state, `${host.state}-real`);
+  await symlink(`${host.state}-real`, host.state);
+  expect((await host.run()).code).not.toBe(0);
+  await host.expectUnreached();
+});
+
+test('symlink canonical lock refuses verified solver command', async () => {
+  const host = await fixture();
+  await rename(join(host.state, 'edge.lock'), join(host.state, 'real.lock'));
+  await symlink('real.lock', join(host.state, 'edge.lock'));
+  expect((await host.run()).code).not.toBe(0);
+  await host.expectUnreached();
+});
+
+for (const shape of ['missing', 'directory', 'unreadable']) {
+  test(`${shape} canonical state refuses before child launch`, async () => {
+    const host = await fixture();
+    const fault =
+      shape === 'missing'
+        ? 'rm "$WBS_EDGE_STATE/edge.lock";'
+        : shape === 'directory'
+          ? 'rm "$WBS_EDGE_STATE/edge.lock"; mkdir "$WBS_EDGE_STATE/edge.lock";'
+          : 'chmod 111 "$WBS_EDGE_STATE";';
+    try {
+      expect((await host.run('valid', fault)).code).not.toBe(0);
+      await host.expectUnreached();
+    } finally {
+      await chmod(host.state, 0o700);
+    }
+  });
+}

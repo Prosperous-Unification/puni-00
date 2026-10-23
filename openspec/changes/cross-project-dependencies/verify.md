@@ -7027,3 +7027,11 @@ foreign deletion. Independent live read/compare faults each failed both post-edi
 cases and were restored; the focused three-file suite passed 23 tests and 234
 assertions. The packet records scoped checks and dependency reuse. Parent task
 8.3 and the canonical exact-SHA host gate remain open.
+
+## Bounded Task 10.2 solver local descriptor handoff prerequisite — 2026-10-23
+
+[The local handoff packet](verify-solver-edge-handoff.md) records actual child FD3
+retention, forged/independent descriptor refusal and watched path/marker/descriptor
+faults. The existing remote installer and devsync install caller remain unchanged.
+Independent Astra rereview approved the corrected path admission. The shared
+admitted install operation and parent Task 10.2 remain open.
