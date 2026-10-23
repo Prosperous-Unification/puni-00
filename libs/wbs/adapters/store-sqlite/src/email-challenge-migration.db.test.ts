@@ -17,6 +17,7 @@ test('challenge migration rolls back empty before activation and refuses retaine
     const path = join(directory, 'test.db');
     runMigrations(path, folder);
     expect(rollbackTo(path, folder, prior)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',

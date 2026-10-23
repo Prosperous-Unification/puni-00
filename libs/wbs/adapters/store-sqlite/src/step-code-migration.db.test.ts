@@ -137,6 +137,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261023100000_add_claim_lease',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
