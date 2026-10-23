@@ -64,6 +64,8 @@ case beside that guard at `work-item.resource.ts:7679`.
   `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`, exit 0, including its
   `typecheck:module` dependency. Nx printed socket-sandbox guidance before
   completing both targets successfully.
+  Four carriage returns in the captured Nx command echo were normalized to
+  line feeds for the committed-range whitespace check; command content is unchanged.
 
 Not run: full backend suite, full repository CI checks, h2puni/h4claw SHA gate,
 secrets scan, migration lint, OpenSpec validation, or build. This packet proves
