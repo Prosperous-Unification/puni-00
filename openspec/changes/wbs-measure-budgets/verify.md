@@ -628,7 +628,11 @@ Commands after the fixes (fresh):
 | `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`                                                                 | 81 files, 1008 pass                                       |
 | fe-01 whole DOM tier `TZ=UTC bunx vitest run --maxWorkers=2`                                                      | 221 files, 4351 pass                                      |
 | `E2E_PORT_SHIFT=1900 … playwright test … measure-columns`                                                         | 4 pass                                                    |
-| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                   | see below                                                 |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                   | 920 pass, 0 fail (689 s), run by the coordinating session |
+
+Also run by the coordinating session on 5d8beaa51: `check-indexes committed . HEAD` exit 0, `nx format:check --all`
+exit 0, `openspec validate --all --json` 270 of 270. It reviewed `desktop-panel-at-cap-tiny-cost.png` and
+`mobile-panel-forms.png` by eye and accepted them.
 
 Visual review of the fixes, from the re-shot evidence: `desktop-panel-forms.png` and
 `mobile-panel-forms.png` show the open estimate, fact and budget forms; at 390 px the trio's labels
