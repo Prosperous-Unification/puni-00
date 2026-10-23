@@ -1269,7 +1269,7 @@ The generated unit SHALL explicitly constrain config, environment files, package
 
 ### Requirement: Both connected sockets are bound to one service invocation
 
-The installer SHALL authenticate private nonce readiness and public solver connections using kernel SO_PEERCRED matching expected service UID and systemd MainPID. Readiness SHALL follow config validation, orphan sweep and public listen. Challenge and captured boot identities SHALL match exactly. The public solver client SHALL authenticate its expected server before sending work.
+The host installer SHALL authenticate private nonce readiness and public solver connections using kernel SO_PEERCRED matching expected host service UID and systemd MainPID. Readiness SHALL follow config validation, orphan sweep and public listen. Challenge and captured boot identities SHALL match exactly. The container public client SHALL use a reviewed namespace-compatible authentication and expectation-refresh protocol before work.
 
 #### Scenario: Private readiness correlates the boot report
 
@@ -1282,6 +1282,30 @@ The installer SHALL authenticate private nonce readiness and public solver conne
 - **WHEN** a stale response is replayed, a nonce/digest differs, a foreign process serves either socket, a peer UID differs, or a private success coexists with a foreign public listener
 - **THEN** installation refuses even if both paths exist and the service reports active
 - **AND** no public solver request is sent before its server identity is admitted
+
+### Requirement: Container clients authenticate across the PID namespace boundary
+
+A pre-implementation feasibility gate SHALL prove reviewed public-client authentication and trusted expectation refresh across the Docker private PID namespace. PID 0, UID alone or payload identity SHALL NOT suffice. Backend systemd authority and host PID sharing SHALL NOT be fallbacks. Unauthenticated, stale or uncertain connections SHALL refuse before work.
+
+#### Scenario: A legitimate isolated backend completes authenticated work
+
+- **GIVEN** the host installer authenticates both host-connected sockets against systemd MainPID and UID
+- **WHEN** a backend in its actual Docker private PID namespace connects through the mounted runtime directory
+- **THEN** the reviewed namespace-compatible protocol authenticates the connected supervisor and admits a legitimate solver request without requiring a visible host PID
+- **AND** a zero SO_PEERCRED PID is never sufficient authentication
+
+#### Scenario: A foreign listener sharing the UID cannot release work
+
+- **WHEN** a foreign listener shares the expected UID or copies public identity claims
+- **THEN** the container client refuses before a solver start frame or work is released
+- **AND** removing the connection-authentication guard fails this acceptance
+
+#### Scenario: Replay and restart require trusted expectation refresh
+
+- **WHEN** authentication is replayed, an expectation becomes stale after restart, or refresh is unavailable or races an invocation change
+- **THEN** the client refuses before work until a fresh connected exchange and trusted expectation refresh establish the admitted invocation
+- **AND** the legitimate restarted supervisor can complete work after bounded verified refresh
+- **AND** independently removing freshness or refresh admission fails its respective acceptance
 
 ### Requirement: Effective service evidence converges under one admission deadline
 

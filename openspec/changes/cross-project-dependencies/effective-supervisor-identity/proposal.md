@@ -14,7 +14,7 @@ No activation, installed-byte adoption, retained owner publication, prior-holder
 
 ## Constraints
 
-Reuse the existing installer admission and captured source hashes; preserve unrelated work. Hash and consume identical bundle/config buffers. Authenticate both sockets against systemd MainPID and UID; never trust a payload PID. Require typed before/after systemd observations, bounded per-call and overall deadlines, and final four-artifact readback. Fail closed on missing, malformed, unreadable, changed or timed-out evidence. Preserve uncertainty evidence after publication begins. Follow repository R1–R5; every production safety check needs its own watched production-path negative.
+Reuse the existing installer admission and captured source hashes; preserve unrelated work. Hash and consume identical bundle/config buffers. Bind both host installer probes to systemd MainPID and UID; require reviewed namespace-compatible public-client authentication and expectation refresh; never trust a payload PID. Require typed before/after systemd observations, bounded per-call and overall deadlines, and final four-artifact readback. Fail closed on missing, malformed, unreadable, changed or timed-out evidence. Preserve uncertainty evidence after publication begins. Follow repository R1–R5; every production safety check needs its own watched production-path negative.
 
 ## Capabilities
 

@@ -80,8 +80,29 @@ Explicit packet-file Prettier check exited 0 with `All matched files use Prettie
 
 ## Remaining gates and limitations
 
-Only slice 1.1 is complete. Slice 1.2 is the immediate P1 gate: real generated unit literal bootstrap argv and effective pre-exec environment policy under a disposable user manager, including independently removed unit controls. Clean Bun.spawn env is not proof about systemd UnsetEnvironment, manager inheritance, drop-ins or the actual service. The draft unit policy is explicitly provisional pending that experiment.
+Only slice 1.1 is complete. Slices 1.2 and 1.3 are mandatory pre-implementation P1 gates. Slice 1.2 requires: real generated unit literal bootstrap argv and effective pre-exec environment policy under a disposable user manager, including independently removed unit controls. Clean Bun.spawn env is not proof about systemd UnsetEnvironment, manager inheritance, drop-ins or the actual service. The draft unit policy is explicitly provisional pending that experiment.
 
-All protocol slices remain unchecked: captured bundle/config production loader, `/proc/self/exe` production identity, private nonce readiness, both socket kernel peer bindings, public client pre-send admission, typed before/after systemd properties, bounded convergence, final hashes under retained admission and composed failures. Existing prior-spike evidence is [snapshotted](evidence/prior-identity-spike.md) with its original distinct source SHA and limitations; none of it is relabeled as current production acceptance.
+All protocol slices remain unchecked: captured bundle/config production loader, `/proc/self/exe` production identity, private nonce readiness, both host installer socket kernel peer bindings, namespace-compatible public client authentication/expectation refresh and pre-send admission, typed before/after systemd properties, bounded convergence, final hashes under retained admission and composed failures. Existing prior-spike evidence is [snapshotted](evidence/prior-identity-spike.md) with its original distinct source SHA and limitations; none of it is relabeled as current production acceptance.
 
 No production runtime code, unit, installer or service was changed or run. No service install/start/restart, Docker operation, deployment, activation, adoption, full Nx gate, h2 gate, push or PR was performed. Full project tests, lint/typecheck/build and full CI are skipped for this docs/disposable experiment packet; normal scoped hooks and explicit formatting are separate limited checks. No independent Astra review or integrated exact-SHA host acceptance is claimed. Remaining tasks block archive and Task 10.2 completion.
+
+## Astra namespace correction after 08a5cedb
+
+The review identified that a Docker backend's private PID namespace cannot compare the host listener's kernel peer PID to the host systemd MainPID. The corrected design preserves both host installer MainPID/UID checks, and adds unchecked Task 1.3 before production implementation: demonstrate and review namespace-compatible public-client authentication and trusted expectation refresh. Legitimate authenticated request, foreign same-UID listener, replay, restart, stale/unavailable/raced refresh and refusal-before-work cases are required. PID 0 or UID alone is insufficient; sharing host PIDs or giving the backend systemd/host authority is prohibited. No replacement authentication protocol is chosen or claimed proven. Actual generated-unit policy gate 1.2 also remains open.
+
+A disposable pinned-runtime probe uses the actual `readSupervisorPeerCredentials` helper with a host listener, then a client launched through `/usr/bin/unshare --user --map-current-user --pid --fork`. Both client connections use actual Bun.connect and raw kernel getsockopt; no payload PID establishes the raw credentials. The host control sees the independently observed listener process PID. The private-namespace client observes raw PID 0 with UID 1000, and asserts that the existing production helper rejects that invisible PID rather than weakening it.
+
+```sh
+bun openspec/changes/cross-project-dependencies/effective-supervisor-identity/evidence/namespace-spike.mjs
+```
+
+Exit 0; [exact output](evidence/namespace.log):
+
+```text
+READY 2781123
+{"name":"host","exit":0,"clientPid":2781163,"serverPid":2781123,"serverUid":1000}
+{"name":"private-pid-namespace","exit":0,"stdout":"{\"clientPid\":1,\"serverPid\":0,\"serverUid\":1000}","stderr":""}
+PASS host SO_PEERCRED equals host listener PID; private PID namespace observes 0 and production credential helper refuses
+```
+
+The initial sandbox run denied disposable Unix listen with EPERM; narrowly scoped execution approval permitted only this fixture outside that socket restriction. The probe owns a private mkdtemp directory, bounds its server to fifteen seconds and each client to five seconds, and terminates the listener/removes its directory in finally. No Docker daemon or production service was used. This establishes the PID-visibility mismatch using a private user/PID namespace; it is not the actual Docker runtime-directory mount or a completed request/authentication/refresh proof, so Task 1.3 stays unchecked. No production safety check is added or changed; there is no new production R5 claim. Scoped fixture ESLint passes. Fresh explicit packet-file formatting and git diff --check pass; fresh structural validation reports 274 items, 274 passed, 0 failed. Normal commit hooks remain enabled for the correction commit.
