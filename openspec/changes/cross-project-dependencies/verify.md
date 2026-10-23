@@ -5278,3 +5278,82 @@ made the mounted undo succeed unsafely, then restoration passed. The focused
 packet passed 32 combined history tests and configured backend lint/typecheck.
 This closes only the mounted evidence gap; parent 4.4, activation and the
 exact-SHA release gate remain open.
+
+## Connected arrangement consumer (2026-10-23)
+
+Bounded continuation of 6.1/6.2, based on `be436a9ef`, in isolated
+`/tmp/puni-connected-arrange`. Production authoring and supported capacity modes
+remain inactive. The parent scheduling tasks remain unchecked.
+
+The command reads the borrowed connected observation before constructing any
+local canonical input. It arranges captured target rows by the final target
+placement, using the retained target optimization selection only to determine
+readiness. Existing held-subtree reduction, positions journal and stored-position
+undo/redo remain in the path. Missing anchors now produce a typed command 409
+`dependency_calendar_missing`; route shape and client refusal vocabulary include it.
+
+Focused evidence:
+
+- Initial mounted RED: all three first cases returned 500 (`no work item remote
+in this plan`), rather than connected order or typed missing-calendar refusal.
+- `bun test apps/wbs/be-01/src/controller/connected-arrange.controller.db.test.ts
+libs/wbs/application/core/src/service/connected-arrange.test.ts
+libs/wbs/application/core/src/service/arrange-by-schedule.test.ts
+libs/wbs/application/core/src/service/work-item-status-command.test.ts
+--timeout=10000`: passing focused suite; final count recorded below.
+- Mounted real SQLite cases cover foreign FS tree dates/order, held and foreign
+  positions, one journal entry, repeated no-op with exact table equality,
+  undo/redo, shared people, pending selected Optimized without solver admission,
+  missing target/foreign anchors, an earlier collected edit rolled back, and cycle.
+- Detached core consumer cases cover pending and boundary-infeasible selected
+  objectives, ready selected objective with terminal sibling, quantisation-floor
+  acceptance and final placement distinct from baseline. Final-placement order is
+  controlled at the captured consumer boundary, not a new solver acceptance proof.
+  Engine loss and calendar-range mapping are injected captured outcomes.
+
+Watched independent production faults (restored before passing checks):
+
+1. Original connected-to-local routing: mounted order/calendar cases fail with 500.
+2. Bypassed selected readiness: pending and terminal core cases return success
+   instead of `schedule_not_ready` (2 fail).
+3. Component baseline substituted for final placement: ready, ready-sibling and
+   floor final-order assertions fail (3 fail).
+4. Removed missing-calendar refusal: both missing anchors and collected-edit case
+   return 500 instead of typed 409 (3 fail).
+5. Unreduced captured rows substituted: both mounted held-sibling cases throw
+   `no scheduled start for work item held` (2 fail).
+
+Adjacent `Proof:` comments name these faults and observations. Temporary receipts
+are `/tmp/connected-arrange-proof-{pending,baseline,calendar,held}.log`.
+
+Scoped checks: backend and frontend TypeScript project builds exited 0;
+changed-file ESLint exited 0 after building the Nx graph in-process;
+`openspec validate --all --json` passed all items. Format and final rerun results
+are recorded below. An initial default Nx graph invocation refused sandbox sockets
+without building a graph; it is not counted. An attempted configured four-project
+lint has not yet completed and is not counted as passing.
+
+Limits: a huge-estimate isolated/shared fixture remained scheduled rather than
+producing `calendar_range`; no new producer range guarantee is claimed. Canonical
+host gate, fresh CI, independent review, live activation and full product suites
+remain separate obligations.
+
+6. Removed engine-loss refusal: injected captured engine-loss case threw instead
+   of returning `engine_unavailable` (1 fail).
+7. Removed unavailable-placement refusal: injected captured calendar-range case
+   threw instead of returning `calendar_range` (1 fail).
+
+Final focused suite: **62 pass, 0 fail** across four files. Scoped backend/frontend
+TypeScript builds, changed-file lint, Prettier and OpenSpec validation pass. The initial four-project configured lint and a fresh core-only Nx target both
+exited 1 naming `wbs-core:lint` but printed no underlying ESLint diagnostics.
+Those configured targets are not counted as passing; a direct invocation of the
+configured ESLint command is recorded separately below. The cause of the silent
+Nx failure is unverified.
+
+The direct configured core command,
+`bunx eslint libs/wbs/application/core/src libs/wbs/application/core/testing
+libs/wbs/application/core/playwright.config.ts`, subsequently exited **0** with no
+diagnostics. This establishes full core ESLint success; it does not erase the
+unexplained configured Nx target failures. Final backend project typecheck also
+exited 0 after the last test edits. Pre-commit format, secret, private-nesting and
+inactive Tool Wiki checks ran normally; no hooks were bypassed.

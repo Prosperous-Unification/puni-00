@@ -205,7 +205,7 @@ import { type ConnectedTreeProjection, projectConnectedTree } from '../../servic
 import { type DependencyGraphChange, resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
-import { prepareScheduleParts } from '../../service/schedule-parts';
+import { prepareCapturedScheduleParts, prepareScheduleParts } from '../../service/schedule-parts';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import {
   type Claimed,
@@ -520,6 +520,7 @@ export type WorkItemRefusal =
    * write.
    */
   | 'calendar_range'
+  | 'dependency_calendar_missing'
   | 'schedule_not_ready'
   /** The selected engine's adapter is not installed in this deployment. */
   | 'engine_unavailable'
@@ -5437,71 +5438,103 @@ export class WorkItemService {
    *
    * A project already in schedule order writes nothing, journals nothing and
    * announces nothing — {@link freeze}'s precedent for a write that pinned
-   * nothing, and what keeps a second press off the undo stack.
+   * nothing, and what keeps a second press off the undo stack. Connected commands
+   * borrow the final target placement; selected readiness comes from its retained
+   * optimization stage. No command read admits optimizer work.
    */
   async arrangeBySchedule(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const stored = await this.opts.estimates.listByProject(projectId);
-    const edges = await this.opts.dependencies.listByProject(projectId);
-    const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
-    const steps = await this.opts.projects.stepsOf(projectId);
-    const slotsOf = await this.opts.capacity.slotsFor(projectId);
-    const canonical = canonicalScheduleParts(
-      project,
-      rows,
-      stored,
-      edges,
-      await this.opts.typedDependencies.listByProject(projectId),
-      assigned,
-      steps,
-      slotsOf,
-      await this.opts.demands.listByProject(projectId),
-      await this.opts.resourceCapacity.listFor(projectId),
-    );
-
-    const captured =
-      this.opts.livePlans === undefined
-        ? undefined
-        : await this.opts.livePlans.readProject(projectId);
+    const captured = await this.opts.livePlans?.readProject(projectId);
     if (captured?.kind === 'not_found') return { ok: false, reason: 'not_found' };
-    const shared = captured?.kind === 'shared' ? captured.chain : undefined;
-    if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
-    if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
-    const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
-    let selected;
-    try {
-      const read =
-        shared?.kind === 'scheduled'
-          ? shared.scheduled
-          : await this.opts.scheduler.read({
-              projectId: project.id,
-              input: canonical.input,
-              engine: project.scheduleEngine,
-              objective: project.scheduleObjective,
-              enabled: project.optimizationEnabled,
-              mode: this.opts.schedulerMode ?? 'live',
-            });
-      if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
-      selected = selectedSchedule(project, read.fast, read.optimization);
-    } catch (err) {
-      // Only the modeled failure, for the plan read's reason exactly: an
-      // unqualified catch would turn any future mistake in `slicesOf` into
-      // "your dependencies run in a circle", which is a lie told confidently.
-      if (!(err instanceof ScheduleCycleError)) throw err;
-      return { ok: false, reason: 'cycle' };
-    }
-    if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
+    let rows: readonly LabelledWorkItem[];
+    let arrangement: ReturnType<typeof arrangeSiblingsBySchedule>;
+    // Proof: routing connected observations through the local scheduler made the mounted
+    // connected arrangement fail with a foreign endpoint error (500); watched 2026-10-23.
+    if (captured?.kind === 'connected') {
+      const view = projectConnectedTree(captured, projectId);
+      // Proof: removing calendar refusal changed all three mounted missing-calendar
+      // cases from typed 409 to 500; prior collected edit still rolled back (2026-10-23).
+      if (view.placement.kind === 'dependency_calendar_missing')
+        return { ok: false, reason: 'dependency_calendar_missing' };
+      // Proof: removing engine refusal made the captured engine-loss case throw
+      // instead of returning engine_unavailable (2026-10-23).
+      if (view.placement.kind === 'engine_unavailable')
+        return { ok: false, reason: 'engine_unavailable' };
+      // Proof: removing unavailable refusal made the captured calendar-range case
+      // throw instead of returning calendar_range (2026-10-23).
+      if (view.placement.kind === 'unavailable')
+        return { ok: false, reason: view.placement.reason };
+      const settings = view.reads.project;
+      // Proof: bypassing readiness let pending and boundary-infeasible selected
+      // objectives arrange successfully in connected-arrange.test.ts (2026-10-23).
+      if (
+        settings.optimizationEnabled &&
+        settings.scheduleEngine === 'optimized' &&
+        view.optimization !== null &&
+        view.optimization.chosen === null
+      )
+        return { ok: false, reason: 'schedule_not_ready' };
+      rows = view.metadata.workItems;
+      arrangement = arrangeSiblingsBySchedule(
+        // Proof: using all captured rows failed both mounted held-sibling cases
+        // with a missing scheduled start (2026-10-23).
+        prepareCapturedScheduleParts(view.reads).input.rows,
+        // Proof: substituting component baseline failed all three selected ready/floor
+        // final-placement consumer cases in connected-arrange.test.ts (2026-10-23).
+        view.placement.schedule.workItems,
+      );
+    } else {
+      rows = await this.opts.workItems.listByProject(projectId);
+      const stored = await this.opts.estimates.listByProject(projectId);
+      const edges = await this.opts.dependencies.listByProject(projectId);
+      const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+      const steps = await this.opts.projects.stepsOf(projectId);
+      const slotsOf = await this.opts.capacity.slotsFor(projectId);
+      const canonical = canonicalScheduleParts(
+        project,
+        rows,
+        stored,
+        edges,
+        await this.opts.typedDependencies.listByProject(projectId),
+        assigned,
+        steps,
+        slotsOf,
+        await this.opts.demands.listByProject(projectId),
+        await this.opts.resourceCapacity.listFor(projectId),
+      );
 
-    // Over the rows the schedule was computed from: an on-hold row has no
-    // scheduled start, so it is left where it is (`add-work-item-statuses`).
-    // Proof: the full `rows` passed here made `arranges a plan holding an
-    // on-hold leaf, and leaves the held row where it was` fail on `no
-    // scheduled start for work item …`; watched 2026-09-29.
-    const arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
+      const shared = captured?.kind === 'shared' ? captured.chain : undefined;
+      if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
+      if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
+      const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
+      let selected;
+      try {
+        const read =
+          shared?.kind === 'scheduled'
+            ? shared.scheduled
+            : await this.opts.scheduler.read({
+                projectId: project.id,
+                input: canonical.input,
+                engine: project.scheduleEngine,
+                objective: project.scheduleObjective,
+                enabled: project.optimizationEnabled,
+                mode: this.opts.schedulerMode ?? 'live',
+              });
+        if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
+        selected = selectedSchedule(project, read.fast, read.optimization);
+      } catch (err) {
+        // Only the modeled failure, for the plan read's reason exactly: an
+        // unqualified catch would turn any future mistake in `slicesOf` into
+        // "your dependencies run in a circle", which is a lie told confidently.
+        if (!(err instanceof ScheduleCycleError)) throw err;
+        return { ok: false, reason: 'cycle' };
+      }
+      if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
+      arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
+    }
     // Nothing to arrange. Not an error and not a write: the project already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };

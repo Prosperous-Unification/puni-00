@@ -388,3 +388,34 @@ remain authoritative.
 - **WHEN** the target becomes disabled or draining before source writer admission
 - **THEN** existing source-owned admission refuses solver work
 - **AND** the response still presents the captured observation
+
+### Requirement: Connected schedule arrangement consumes the captured placement
+
+`arrangeBySchedule` SHALL use the final connected target placement from the command's
+borrowed observation, preserving held rows and foreign projects. It SHALL refuse a
+selected enabled Optimized target whose retained selection has no published decision
+with `schedule_not_ready`, even when the read displays Fast provisionally. Missing
+component anchors SHALL return `dependency_calendar_missing` as a command conflict.
+Refusals SHALL preserve the entire command batch; successful changes SHALL use the
+existing single arrangement journal entry and stored-position undo/redo.
+
+#### Scenario: Foreign prerequisite changes target sibling order
+
+- **WHEN** a foreign FS prerequisite delays the first target sibling behind another
+- **THEN** arrangement follows the captured target dates, leaves held rows in place,
+  and changes no foreign positions
+- **AND** a repeated press records nothing, while undo and redo restore stored positions
+
+#### Scenario: Unavailable captured arrangement refuses the whole batch
+
+- **WHEN** a component anchor is missing after an earlier command in the same batch
+- **THEN** arrangement returns `dependency_calendar_missing` at its command index
+- **AND** the earlier command, journal, events and sequence changes are rolled back
+
+#### Scenario: Selected optimization readiness is distinct from final placement
+
+- **WHEN** the selected target objective is pending or terminal without publication
+- **THEN** arrangement returns `schedule_not_ready` without optimizer admission or writes
+- **WHEN** the selected objective is published, including a quantisation-floor decision
+- **THEN** arrangement uses the final target placement, rather than the component baseline
+  or the target's retained earlier optimization stage

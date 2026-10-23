@@ -133,6 +133,7 @@ export type CommandRefusalCode =
    * the solve lands, and arranging by Fast instead would put the rows in an
    * order the reader did not pick (ADR 0022's reasoning about unmarked dates).
    */
+  | 'dependency_calendar_missing'
   | 'schedule_not_ready'
   | 'minutes_not_integer'
   | 'minutes_above_max'

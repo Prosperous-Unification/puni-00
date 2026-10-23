@@ -487,3 +487,9 @@ implementation was added. Fresh selected mounted/adapter checks and independentl
 rewatched navigation, label and chart regressions are recorded in
 [the audit](evidence/task-9-2-remote-navigation-audit.md). This audit leaves parent
 9.2 unchecked and grants no authoring activation or release acceptance.
+
+Connected arrangement consumer checkpoint (2026-10-23): the bounded command slice
+under 6.1/6.2 now consumes captured final target placement, preserves held/foreign
+rows, refuses missing anchors and selected unready optimization, and retains atomic
+journal/replay behavior. Evidence is in `verify.md` under “Connected arrangement
+consumer”. Parent 6.1/6.2 remain open for their broader obligations.

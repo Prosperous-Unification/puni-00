@@ -316,6 +316,7 @@ function answerBatch(
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'dependency_calendar_missing':
     case 'schedule_not_ready':
       // A conflict, not a fault: the same request is accepted the moment the
       // solve lands. `refusal-status.ts` has the family's definition.

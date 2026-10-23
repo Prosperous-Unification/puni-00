@@ -195,6 +195,7 @@ const batchRefusals = [
         type({ ...context, error: "'frozen'" }),
         // `arrangeBySchedule` while the project's selected optimized variant is
         // still solving, and on a deployment with no optimizer installed.
+        type({ ...context, error: "'dependency_calendar_missing'" }),
         type({ ...context, error: "'schedule_not_ready'" }),
         type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
