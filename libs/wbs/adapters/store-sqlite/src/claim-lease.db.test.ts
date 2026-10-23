@@ -233,12 +233,18 @@ describe('renewal', () => {
     const { run, claim, items, runner } = await seeded();
     await run([claim(items.one, 'codex')], pinned('codex'));
     let release: () => void = () => undefined;
+    let holding: () => void = () => undefined;
+    const holds = new Promise<void>((resolve) => {
+      holding = resolve;
+    });
     const held = source.gate.enter(
       () =>
         new Promise<void>((resolve) => {
           release = resolve;
+          holding();
         }),
     );
+    await holds;
     now = T + 30_000;
     expect(await runner.renewLeases('codex')).toEqual({
       leases: 1,
