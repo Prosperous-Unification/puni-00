@@ -6801,3 +6801,13 @@ active. This includes the actual rollback import budget and the generated
 backend-task SQL failure, schema/ledger preservation and same-capture recovery.
 The complete test log is `/tmp/puni-ci-memory-nx-test.log`; the watched fault
 logs are `/tmp/puni-ci-memory-{red,barrel-red,sql-red}.log`.
+
+## Generated MCP startable and governed claim acceptance (2026-10-23)
+
+[The bounded Task 6.3 packet](verify-mcp-startable-claim.md) adds six actual
+generated MCP local/remote FS/SS/FF runtime cases, atomic mixed-step refusal and
+corrected selected-step durable claim identity. All six passed with 236 assertions;
+erasing prerequisite disclosure in production response forwarding independently
+failed all six. Configured MCP lint and scoped typecheck passed. Production and
+skip-policy behavior are unchanged; independent review, parent 6.3 completion
+and the integrated exact-SHA gate remain open.

@@ -665,3 +665,9 @@ Task 5.2 remains open for its broader writer audit, socket/browser acceptance an
 - [x] Watch production stop/init/fresh-inspection omissions and absent-child startup fail independently; restore, run the configured Docker target and record [evidence](verify-gateway-exclusion-docker.md).
 - [x] Correct reviewed pending-create ownership: watch network/container daemon-success/CLI-stall cleanup, unresolved pre-create refusal, unchanged unrelated resources and explicit dirty-source provenance; normalize retained log CRs and pass the full packet range diff check.
 - [ ] Complete independent Astra High review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open; no production activation, admission behavior, swap, clearance or deployment changes are included.
+
+### Bounded task 6.3 generated MCP startable-to-claim acceptance (2026-10-23)
+
+- [x] Exercise actual generated MCP local/remote FS/SS start refusal and milestone correction, FF finish disclosure, omitted/explicit mixed-step atomic refusal and corrected first-step claim with stable owner/step/durable claim identity.
+- [x] Watch independent production response forwarding erase prerequisite disclosure and fail all six cases; restore and rerun green, configured MCP lint and scoped typecheck. Record [bounded evidence](verify-mcp-startable-claim.md).
+- [ ] Complete independent review and isolated integrated exact-SHA host gate. Parent 6.3 remains open; production admission, historical-attempt/manual-correction skip policy, activation and deployment are unchanged.

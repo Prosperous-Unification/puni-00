@@ -1680,3 +1680,187 @@ for (const fault of ['revoke-credential', 'restrict-successor'] as const) {
     }
   });
 }
+
+// Proof: stripping startable prerequisites in production wbs-client forwarding failed
+// all six generated MCP runtime permission cases (2026-10-23).
+for (const locality of ['local', 'remote'] as const) {
+  for (const type of ['FS', 'SS', 'FF'] as const) {
+    test(`generated MCP ${locality} ${type} startable permission governs corrected claim identity`, async () => {
+      const fixture = await openFixture();
+      try {
+        const { successor } = fixture;
+        const stepId = successor.steps.at(0);
+        const secondStepId = successor.steps.at(1);
+        if (stepId === undefined || secondStepId === undefined)
+          throw new Error('claim fixture steps missing');
+        let predecessor = fixture.predecessor;
+        if (locality === 'local') {
+          const created = await submit(fixture, 'MCP', [
+            { kind: 'createWorkItem', name: 'Local predecessor' },
+          ]);
+          expect(created.status).toBe(200);
+          const identity = JSON.parse(created.text) as { results: { id: string }[] };
+          const workItemId = identity.results.at(0)?.id;
+          if (workItemId === undefined) throw new Error('local predecessor identity missing');
+          predecessor = { ...successor, workItemId };
+          expect(
+            (await submit(fixture, 'MCP', [{ kind: 'setStatus', workItemId, status: 'ready' }]))
+              .status,
+          ).toBe(200);
+        }
+        const predecessorStepId = predecessor.steps.at(0);
+        if (predecessorStepId === undefined) throw new Error('predecessor step missing');
+        const added = await submit(fixture, 'MCP', [
+          {
+            kind: 'addTypedDependency',
+            predecessor: {
+              ...wholeEndpoint(predecessor),
+              scope: 'node',
+              stepId: predecessorStepId,
+            },
+            successor: { ...wholeEndpoint(successor), scope: 'node', stepId },
+            type,
+          },
+        ]);
+        expect(added.status).toBe(200);
+        const addedIdentity = JSON.parse(added.text) as { results: { id: string }[] };
+        const relationshipId = addedIdentity.results.at(0)?.id;
+        if (relationshipId === undefined) throw new Error('claim prerequisite identity missing');
+        const read = async () => {
+          const direct = await fixture.http(
+            'GET',
+            `/api/projects/${successor.projectId}/startable`,
+          );
+          expect(direct.status).toBe(200);
+          const reply = await fixture.call('getApiProjectsByIdStartable', {
+            id: successor.projectId,
+          });
+          expect(reply.isError).not.toBe(true);
+          const reading = JSON.parse(reply.text) as {
+            leaves: { workItemId: string; stepIds: string[] }[];
+            prerequisites: {
+              workItemId: string;
+              stepId: string;
+              started: boolean;
+              canStart: boolean;
+              canFinish: boolean;
+              startBlockers: unknown[];
+              finishBlockers: unknown[];
+            }[];
+            claimed: { workItemId: string; stepId: string; claimId: string }[];
+          };
+          expect(reading as unknown).toEqual(direct.body);
+          expect(fixture.forwarded.at(-1)?.url).toBe(
+            `${fixture.apiUrl}/api/projects/${successor.projectId}/startable`,
+          );
+          return reading;
+        };
+        const reading = await read();
+        const blocker = {
+          workItemId: predecessor.workItemId,
+          stepId: predecessorStepId,
+          type,
+          provenance: 'authored',
+          relationshipId,
+        };
+        expect(
+          reading.prerequisites.find(
+            (step) => step.workItemId === successor.workItemId && step.stepId === stepId,
+          ),
+        ).toEqual({
+          workItemId: successor.workItemId,
+          stepId,
+          started: false,
+          canStart: type === 'FF',
+          canFinish: type !== 'FF',
+          startBlockers: type === 'FF' ? [] : [blocker],
+          finishBlockers: type === 'FF' ? [blocker] : [],
+        });
+        const claim = {
+          kind: 'claimWorkItem',
+          workItemId: successor.workItemId,
+          personId: 'parity-agent',
+        };
+        const refuse = async (steps: string[] | undefined) => {
+          const before = await fixture.inspect();
+          const refused = await submit(fixture, 'MCP', [
+            {
+              kind: 'patchWorkItem',
+              workItemId: successor.workItemId,
+              patch: { name: 'Must roll back' },
+            },
+            { ...claim, ...(steps === undefined ? {} : { steps }) },
+          ]);
+          expect(refused.status).toBe(0);
+          expect(refused.text).toContain('HTTP 409 prerequisites_unmet');
+          expect(refused.text).toContain('"at":1');
+          expect(refused.text).toContain('"kind":"claimWorkItem"');
+          const after = await fixture.inspect();
+          expect(after.effects).toEqual(before.effects);
+          expect(after.pushes).toEqual(before.pushes);
+        };
+        if (type !== 'FF') {
+          expect(
+            reading.leaves.find((leaf) => leaf.workItemId === successor.workItemId),
+          ).toBeUndefined();
+          await refuse([stepId]);
+          // These remain observation commands: only the subsequent claim is governed.
+          const milestone = await fixture.call('postApiProjectsByIdCommands', {
+            id: predecessor.projectId,
+            commands: [
+              type === 'FS'
+                ? {
+                    kind: 'setProgress',
+                    workItemId: predecessor.workItemId,
+                    stepId: predecessorStepId,
+                    state: 'done',
+                  }
+                : {
+                    kind: 'startAttempt',
+                    workItemId: predecessor.workItemId,
+                    stepId: predecessorStepId,
+                    at: 1,
+                  },
+            ],
+          });
+          expect(milestone.isError).not.toBe(true);
+        }
+        const ready = await read();
+        const leaf = ready.leaves.find((leaf) => leaf.workItemId === successor.workItemId);
+        expect(leaf).toMatchObject({ workItemId: successor.workItemId, stepIds: [stepId] });
+        // The second step still requires completion of the first: both whole-leaf
+        // omission and explicit mixed selection must roll back the preceding edit.
+        await refuse(undefined);
+        await refuse([stepId, secondStepId]);
+        const accepted = await submit(fixture, 'MCP', [{ ...claim, steps: [stepId] }]);
+        expect(accepted.status).toBe(200);
+        const after = await read();
+        expect(after.claimed).toMatchObject([
+          { workItemId: successor.workItemId, stepId, holder: { personId: 'parity-agent' } },
+        ]);
+        expect(after.claimed).toHaveLength(1);
+        expect(
+          after.leaves.find((candidate) => candidate.workItemId === successor.workItemId),
+        ).toBeUndefined();
+        const durable = await fixture.inspect();
+        const claims = durable.effects as { name: string; rows: unknown[] }[];
+        expect(claims.find((table) => table.name === 'claim')?.rows).toMatchObject([
+          {
+            id: after.claimed[0].claimId,
+            work_item_id: successor.workItemId,
+            step_id: stepId,
+            person_id: 'parity-agent',
+          },
+        ]);
+        expect(
+          fixture.forwarded.filter((request) => request.method === 'POST').at(-1),
+        ).toMatchObject({
+          url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
+          body: JSON.stringify({ commands: [{ ...claim, steps: [stepId] }] }),
+        });
+      } finally {
+        await fixture.close();
+      }
+    });
+  }
+}
