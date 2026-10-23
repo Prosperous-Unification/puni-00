@@ -66,3 +66,20 @@ picker" radius 0px`, `button "Cancel" radius 0px`, `button "Add" radius 0px`.
 - Playwright `chrome-frames mobile deps-cell external-refs reference-cells`: 65 passed.
   `plan-table-review` (the grid's Customize editor) and the capture pass: 17 passed.
 - Vitest `typed-dependency-editor`, `plan-dependencies`, `plan-cards`: 250 passed. `typecheck` passes.
+
+## Synced with main (2026-10-24, head after merging main 1de277850)
+
+- Main deleted `apps/wbs/fe-01/src/components/ui/{button,control,input}.tsx` (#600, the kit
+  `libs/shared/adapters/ui-saas-01` owns the primitives). The round's edits to them were re-ported
+  into `ui-saas-01/src/{button.tsx,control.ts,input.tsx}` byte for byte (assumption U1 in PR #566:
+  the edge lives in the kit for every consumer; `--input` stays in the kit vocabulary, open for
+  Dany). Nine fe-01 files import the primitives from `@ui/saas-01`.
+- Kit tests added: `control.test.ts` and `input.test.tsx` pin `border-control-edge` on the select
+  class and the `Input` box. Proof: with `border-control-edge` put back to `border-input` in
+  `control.ts` and `input.tsx`, both failed on `Expected to contain: "border-control-edge"`;
+  restored, 4 pass.
+- By eye (session a33e0b, scratch Playwright capture, not committed): desktop Project settings
+  with one radio ring per option on Estimating and Steps; the 375px priorities ladder with
+  `Starts at` / range / `Writes` labels; an input, a native select, an outline and a default button
+  on one card sharing the control edge in light and in dark.
+- `chrome-frames.spec.ts` walks seven settings tabs (main added Resources).
