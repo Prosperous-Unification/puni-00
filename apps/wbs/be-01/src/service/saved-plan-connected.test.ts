@@ -1,3 +1,5 @@
+import { buildConnectedSolverRequest } from '@wbs/contracts/solver/build-connected-request';
+import { encodeConnectedSuccess } from '@wbs/contracts/solver/connected-durable';
 import { captureConnectedHistory } from '@wbs/core/module/saved-plans/connected-history';
 import {
   canonicalConnectedStageInput,
@@ -6,6 +8,12 @@ import {
   serializeSavedConnectedScheduleBody,
   sliceKey,
 } from '@wbs/domain';
+import {
+  captureConnectedQuestion,
+  hashConnectedBytes,
+} from '@wbs/store-sqlite/connected-question-identity';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { optimizedScheduleCache } from '@wbs/store-sqlite/schema';
 import { expect, test } from 'bun:test';
 
 import { captureMixedFixture, captureSavedConnectedFixture } from './saved-plan-connected.fixture';
@@ -267,3 +275,117 @@ test.each(['team', 'resource'] as const)(
     expect(serializeSavedConnectedScheduleBody(body)).toContain('capacityPredecessorIds');
   },
 );
+
+test('saved fractional FS evidence retains durable movement scores and the real Fast baseline', async () => {
+  let durableComparison: ReturnType<typeof encodeConnectedSuccess>['comparison'] | undefined;
+  const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
+  const captured = await captureSavedConnectedFixture('isolated', {
+    connected: installed,
+    seed: (client) => {
+      client.run("DELETE FROM external_dependency WHERE id IN ('ba','hb')");
+      client.run("DELETE FROM estimate WHERE step_id='test'");
+      client.run("DELETE FROM step WHERE id='test'");
+      client.run(
+        "UPDATE estimate SET optimistic=0.2,realistic=0.2,pessimistic=0.2 WHERE work_item_id='a'",
+      );
+      client.run(
+        "UPDATE estimate SET optimistic=1,realistic=1,pessimistic=1 WHERE work_item_id='b'",
+      );
+      client.run(
+        "UPDATE project SET start_date='2026-10-05',schedule_engine='fast',optimization_enabled=0 WHERE id='a1'",
+      );
+      client.run(
+        "UPDATE project SET start_date='2026-10-05',schedule_engine='optimized',optimization_enabled=1,schedule_objective='time' WHERE id='a2'",
+      );
+    },
+    prepare: async (path, read) => {
+      const current = await read();
+      if (current.projection.placement.kind !== 'scheduled') throw new Error('placement expected');
+      const stage = current.projection.placement.stages.find(
+        (selection) => selection.stage.projectId === 'a2',
+      )?.stage;
+      if (stage === undefined) throw new Error('stage expected');
+      expect(stage.starts.get(sliceKey('b', 'build'))).toBeCloseTo(0.2, 14);
+      const question = captureConnectedQuestion(stage, 'time', installed);
+      const { stageBytes: _stageBytes, ...identity } = question;
+      const prepared = buildConnectedSolverRequest(stage, identity, installed, 'time');
+      if (prepared.kind !== 'request') throw new Error('request expected');
+      expect(prepared.request.movementReferenceOffsets).toEqual({ [sliceKey('b', 'build')]: 10 });
+      const term = (value: number) => ({
+        value,
+        stageValue: value,
+        bound: value,
+        status: 'optimal',
+      });
+      const success = encodeConnectedSuccess(
+        stage,
+        identity,
+        prepared.request,
+        JSON.stringify({
+          wireVersion: 5,
+          scope: {
+            kind: 'connected-stage',
+            projectId: 'a2',
+            inputHash: question.inputHash,
+            questionHash: question.questionHash,
+          },
+          status: 'feasible',
+          offsets: { [sliceKey('b', 'build')]: 10 },
+          objectiveValues: { makespan: term(58), priority: term(0), movement: term(0) },
+        }),
+        hashConnectedBytes,
+      );
+      durableComparison = success.comparison;
+      expect(success.publication).toBe('baseline');
+      expect(success.comparison.baselineValues.movement).toBeCloseTo(1 / 120, 14);
+      expect(success.comparison.optimizedValues.movement).toBe(0);
+      const publisher = openConnection(path);
+      try {
+        publisher.db
+          .insert(optimizedScheduleCache)
+          .values({
+            ...question,
+            generation: 1,
+            status: 'ok',
+            resultJson: JSON.stringify(success),
+            createdAt: 12,
+          })
+          .run();
+      } finally {
+        publisher.close();
+      }
+    },
+  });
+  if (durableComparison === undefined) throw new Error('durable comparison expected');
+  if (captured.projection.placement.kind !== 'scheduled') throw new Error('placement expected');
+  const decision = captured.projection.placement.stages.find(
+    (selection) => selection.stage.projectId === 'a2',
+  )?.decisions.time;
+  const history = captureConnectedHistory(captured, 'a2');
+  if (!history.schedule.present) throw new Error('schedule expected');
+  const saved = history.schedule.body.connection.stages.find((stage) => stage.projectId === 'a2');
+  expect(saved?.selected).toBe('time');
+  const variant = saved?.variants?.time;
+  if (variant?.state !== 'ready') throw new Error('ready evidence expected');
+  expect(variant.proof).toBe('quantisation-floor');
+  expect(variant.decision.chosen).toBe('baseline');
+  expect(variant.decision.baselineValues.movement).toBeCloseTo(1 / 120, 14);
+  expect(variant.decision.optimizedValues.movement).toBe(0);
+  expect(variant.decision.values.movement).toBeCloseTo(1 / 120, 14);
+  expect(variant.decision.baselineValues).toEqual(durableComparison.baselineValues);
+  expect(variant.decision.optimizedValues).toEqual(durableComparison.optimizedValues);
+  expect(variant.decision.values).toEqual(durableComparison.values);
+  expect(decision?.baselineValues).toEqual(durableComparison.baselineValues);
+  expect(decision?.optimizedValues).toEqual(durableComparison.optimizedValues);
+  expect(decision?.values).toEqual(durableComparison.values);
+  expect(
+    history.schedule.body.connection.baseline.slices[sliceKey('b', 'build')].earliestStart,
+  ).toBeCloseTo(0.2, 14);
+  expect(
+    history.schedule.body.connection.composite.slices[sliceKey('b', 'build')].earliestStart,
+  ).toBeCloseTo(0.2, 14);
+  expect(
+    history.schedule.body.connection.composite.slices[sliceKey('a', 'design')].earliestStart,
+  ).toBe(0);
+  expect(history.schedule.body.slices[sliceKey('b', 'build')].earliestStart).toBeCloseTo(0.2, 14);
+});

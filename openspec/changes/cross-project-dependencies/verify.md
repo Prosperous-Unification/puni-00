@@ -6474,3 +6474,11 @@ source and two mounted cases passed 2 tests/41 assertions. Astra High approved
 the packet after four captured CR line endings were normalized; the committed
 range passed `git diff --check`. Integrated with incident replay, 6 tests/163
 assertions passed. Parent 4.4 and full host/CI gates remain open.
+
+## Task 7.3/7.4 bounded movement-reference parity — 2026-10-23
+
+[The movement-reference packet](verify-task-7-movement-reference.md) records the
+fractional Fast FS baseline discrepancy between durable evaluation, core
+revalidation and saved history, its bounded local-reference correction and the
+watched raw-reference regression. Parent tasks 7.3/7.4 and the integrated host
+gate remain open.

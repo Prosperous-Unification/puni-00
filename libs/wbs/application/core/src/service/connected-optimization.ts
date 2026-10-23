@@ -191,7 +191,6 @@ function validateObservation(
       .filter((slice) => order.projectIdByWorkItem.get(slice.workItemId) === stage.projectId)
       .map((slice) => sliceKey(slice.workItemId, slice.stepId)),
   );
-  const reference = new Map([...stage.starts].filter(([key]) => localKeys.has(key)));
   for (const objective of ['pri', 'time'] as const) {
     const state = variants[objective];
     const candidate = candidates[objective];
@@ -208,6 +207,14 @@ function validateObservation(
         message = 'connected candidate question mismatch';
       } else {
         try {
+          // Match the request's integer movement origin without rounding the real baseline or foreign pins.
+          // Proof: restoring raw stage.starts failed the saved fractional FS evidence test: baseline movement was 0 instead of 1/120.
+          const quantum = candidate.question.quantum;
+          const reference = new Map(
+            [...stage.starts]
+              .filter(([key]) => localKeys.has(key))
+              .map(([key, start]) => [key, Math.round(start * quantum) / quantum]),
+          );
           // Proof: removing the graph here admitted an invalid final B stage in `whole-component replay...`.
           decisions[objective] = guardConnectedPublication(
             stage,
@@ -231,7 +238,8 @@ function validateObservation(
 
 /**
  * Visit each project once in captured rank/bytewise-ID order. Both objective
- * alternatives see one stage; only the configured objective can replace it.
+ * alternatives see one stage and use their question's quantized movement origin
+ * against the real baseline; only the configured objective can replace it.
  * Reads are synchronous and non-admitting under the caller's snapshot lifetime.
  * Missing required connected capability is a modeled refusal for the component.
  */

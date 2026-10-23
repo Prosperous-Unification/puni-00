@@ -640,3 +640,44 @@ test.each(['duplicate-project', 'missing-rank', 'nonfinite-rank'] as const)(
     expect(() => selectConnectedOptimizations(malformed, placement, null)).toThrow('membership');
   },
 );
+
+test('fractional Fast baseline scores movement against the captured integer question', () => {
+  const component = prepared();
+  const configured = {
+    ...component,
+    input: {
+      ...component.input,
+      slices: component.input.slices.map((slice) => ({ ...slice, days: 0.2 })),
+    },
+  };
+  const plan = scheduleResolved(
+    configured.input,
+    new Map([
+      [key('a'), 0.2],
+      [key('b'), 0.2],
+      [key('c'), 0.2],
+    ]),
+  );
+  const selected = selectConnectedOptimizations(configured, plan, {
+    readConnectedCaptured: ({ stage }) => {
+      const observation = ready(stage);
+      const candidate = observation.candidates.time;
+      if (candidate === null) throw new Error('candidate expected');
+      return {
+        ...observation,
+        candidates: {
+          pri: null,
+          time: { ...candidate, starts: new Map([[key(stage.projectId.toLowerCase()), 10 / 48]]) },
+        },
+      };
+    },
+  });
+  if (selected.kind !== 'selected') throw new Error('selection expected');
+  const decision = selected.stages[0]?.decisions.time;
+  expect(decision?.chosen).toBe('baseline');
+  expect(decision?.baselineValues.movement).toBeCloseTo(1 / 120, 14);
+  expect(decision?.optimizedValues.movement).toBe(0);
+  expect(decision?.baselineValues.makespan).toBe(0.4);
+  expect(decision?.optimizedValues.makespan).toBe(10 / 48 + 0.2);
+  expect(selected.placement).toEqual(plan);
+});
