@@ -20,6 +20,8 @@ export interface HeldClaim extends WorkItemAddress {
   readonly parentClaimId: string | null;
   /** When the claim was written, epoch milliseconds. */
   readonly claimedAt: number;
+  /** When its lease runs out, epoch milliseconds; null for a claim no agent renews. */
+  readonly leaseExpiresAt: number | null;
 }
 
 /** What one person holds in one project: assignments and claims, apart (D1). */
@@ -95,6 +97,7 @@ export function findPersonWork(reads: PersonWorkReads): PersonWork {
       runId: each.runId,
       parentClaimId: each.parentClaimId,
       claimedAt: each.claimedAt,
+      leaseExpiresAt: each.leaseExpiresAt,
     }),
   );
   return { person, assignments, claims };

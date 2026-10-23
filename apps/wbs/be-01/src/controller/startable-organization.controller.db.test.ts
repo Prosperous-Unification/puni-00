@@ -122,6 +122,7 @@ describe('the startable read', () => {
             runId: 'run-c-dev',
             parentClaimId: 'c-subtree',
             claimedAt: 200,
+            leaseExpiresAt: null,
           },
         ],
         subtreeClaims: [
@@ -135,6 +136,7 @@ describe('the startable read', () => {
             runId: 'run-c-subtree',
             parentClaimId: null,
             claimedAt: 100,
+            leaseExpiresAt: null,
           },
         ],
         doesNotFit: [],

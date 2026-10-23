@@ -19,6 +19,7 @@ const COMPUTE_PROVIDERS =
 /** The organization limits migrations, which reverse after the compute providers. */
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const TABLES = ['organization_trusted_issuer', 'machine_credential', 'machine_credential_secret'];
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
 const roots: string[] = [];
@@ -148,7 +149,7 @@ describe(MACHINE_CREDENTIAL, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
+      `rolled back: ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
     );
     for (const table of TABLES) expect(tablesOf(dbPath)).not.toContain(table);
     runMigrations(dbPath, join(root, 'drizzle'));

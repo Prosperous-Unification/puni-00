@@ -40,6 +40,7 @@ export const readPersonWork = defineEndpointShape({
             runId: 'string | null',
             parentClaimId: 'string | null',
             claimedAt: 'number',
+            leaseExpiresAt: 'number | null',
           }).array(),
         }),
       ),
@@ -61,6 +62,6 @@ export const readPersonWork = defineEndpointShape({
   document: {
     summary: 'List what one person is assigned to and what they hold claimed in a project.',
     description:
-      'assignments: each step the person is assigned to, with the work item id, its frozen number (numberIsFrozen) or else its derived one, its name and the step id. claims: each claim the person holds, with the work item, the step (null for a subtree claim on a non-leaf), the claim id, run, parent claim and write instant. Both in tree order, then step order; an assignment and a claim on the same step are listed in each. Give personId from getApiPeople; assign a subtree with postApiProjectsByIdCommands kind assignSubtree, or claim and assign at once with claimWorkItem assign true.',
+      'assignments: each step the person is assigned to, with the work item id, its frozen number (numberIsFrozen) or else its derived one, its name and the step id. claims: each claim the person holds, with the work item, the step (null for a subtree claim on a non-leaf), the claim id, run, parent claim, write instant and lease expiry (epoch milliseconds; null for a claim no agent renews). Both in tree order, then step order; an assignment and a claim on the same step are listed in each. Give personId from getApiPeople; assign a subtree with postApiProjectsByIdCommands kind assignSubtree, or claim and assign at once with claimWorkItem assign true.',
   },
 });

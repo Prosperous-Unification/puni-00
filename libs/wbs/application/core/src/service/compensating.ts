@@ -937,6 +937,15 @@ function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
       throw new Error('a journal claim replay holds a malformed progress key');
   }
   if (keys === 'cleared') return;
+  if ('leased' in value) {
+    const leased: unknown = value.leased;
+    const carried = new Set<unknown>(claims.map((each): unknown => Reflect.get(each, 'id')));
+    // Proof: with this check answering early, `refuses a claim replay whose
+    // leased list is malformed or names a claim it does not carry`
+    // (compensating.test.ts) did not throw (38 pass, 1 fail); watched 2026-10-23.
+    if (!Array.isArray(leased) || leased.some((id: unknown) => !carried.has(id)))
+      throw new Error('a journal claim replay holds a malformed leased list');
+  }
   // Absent `occupancy` is the shape written before `20261020130000_add_claim_occupancy`
   // (a claim of claims slice 1, a release's undo, or an outgoing colour mid-swap):
   // those claims held nothing, so the replay re-adds them holding nothing.

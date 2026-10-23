@@ -882,47 +882,55 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     outcome.revoked = { agent: holder, key: heldKey };
   });
 
-  it('10. revoking a holding agent’s key mid-swarm refuses it at once; its claims stand', async () => {
+  it('10. revoking a holding agent’s last key refuses it at once and the sweep releases its claims', async () => {
     const { agent, key } = outcome.revoked;
     if (agent === undefined || key === undefined) throw new Error('step 9 chose no holder');
-    const before = await startable();
-    const revoked = await asAdmin(
-      'DELETE',
-      `/api/organization/machine-credentials/${credentialOf(agent).id}`,
-    );
-    expect(revoked.status).toBe(204);
-    // `machine-credentials` "Revocation is immediate and audited": the next request is 401.
-    expect(await agentCommands(agent, [claim(agent, 'B3')])).toMatchObject({
-      status: 401,
-      body: { error: 'unknown_identity' },
-    });
-    expect(await asAgent(agent, 'GET', '/api/projects')).toMatchObject({
-      status: 401,
-      body: { error: 'unknown_identity' },
-    });
-    // The spec is silent on a revoked credential's claims (FINDING): today they stand, held,
-    // occupying their units and counting toward the claim cap.
-    const after = await startable();
-    expect(after.claimed).toEqual(before.claimed);
-    expect(after.resources).toEqual(before.resources);
-    expect((await limits()).usage.concurrentClaims).toBe(CAPS.claims);
-    // Every other agent's key still works.
-    for (const other of AGENTS.filter((each) => each !== agent))
-      expect((await asAgent(other, 'GET', `/api/projects/${ids.project}/startable`)).status).toBe(
-        200,
+    // `wbs-claim-leases` L8: revoking a person's last live credential ends its leases in the
+    // revoke's own transaction, and the revoke asks the sweep for an immediate tick, which
+    // releases them. The sweep runs as boot starts it; its first tick finds nothing expired.
+    const sweep = h.claimLeaseSweep();
+    sweep.start();
+    try {
+      await sweep.settled();
+      const held = [...(await holders())].filter(([, holder]) => holder === agent);
+      expect(held.map(([each]) => each)).toContain(key);
+      const occupiedBefore = await ramOccupied();
+      const claimsBefore = (await limits()).usage.concurrentClaims;
+      const revoked = await asAdmin(
+        'DELETE',
+        `/api/organization/machine-credentials/${credentialOf(agent).id}`,
       );
-    // An admin's session can release them for the agent (`person_not_bound` admits an admin).
-    const occupiedBefore = await ramOccupied();
-    expect(
-      (
-        await adminCommands(ids.project, [
-          { kind: 'releaseWorkItem', workItemId: leafOf(key), personId: personOf(agent) },
-        ])
-      ).status,
-    ).toBe(200);
-    expect(await ramOccupied()).toBe(occupiedBefore - ramOf(key));
-    expect((await holders()).has(key)).toBe(false);
-    expect((await limits()).usage.concurrentClaims).toBe(CAPS.claims - 1);
+      expect(revoked.status).toBe(204);
+      // `machine-credentials` "Revocation is immediate and audited": the next request is 401.
+      expect(await agentCommands(agent, [claim(agent, 'B3')])).toMatchObject({
+        status: 401,
+        body: { error: 'unknown_identity' },
+      });
+      expect(await asAgent(agent, 'GET', '/api/projects')).toMatchObject({
+        status: 401,
+        body: { error: 'unknown_identity' },
+      });
+      await sweep.settled();
+      const after = await holders();
+      for (const [each] of held) expect(after.has(each)).toBe(false);
+      expect(await ramOccupied()).toBe(
+        occupiedBefore - held.reduce((sum, [each]) => sum + ramOf(each), 0),
+      );
+      expect((await limits()).usage.concurrentClaims).toBe(claimsBefore - held.length);
+      // L10: the reap is history under the claim's writing account, naming its reason.
+      const history = await asAdmin('GET', `/api/projects/${ids.project}/history`);
+      expect(history.status).toBe(200);
+      expect(history.text).toContain('(credential revoked)');
+      // Every other agent's key still works, and their claims stand.
+      for (const other of AGENTS.filter((each) => each !== agent))
+        expect((await asAgent(other, 'GET', `/api/projects/${ids.project}/startable`)).status).toBe(
+          200,
+        );
+      expect([...after.values()]).not.toContain(agent);
+      expect(after.size).toBeGreaterThan(0);
+    } finally {
+      await sweep.stop();
+    }
   });
 
   // Proof: 2026-10-23, with the four create answers pushed into `answered`, this listed them.

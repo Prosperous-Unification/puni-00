@@ -10,6 +10,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
 import { writeImmediately } from './immediate-write';
 import { roleIn } from './organization';
@@ -120,6 +121,12 @@ export class ConsentCredentialRepository implements ConsentCredentials {
         .set({ revokedAt: at, ...auditOnUpdate(act.stamp) })
         .where(and(eq(machineCredential.id, credentialId), isNull(machineCredential.revokedAt)))
         .run();
+      // An ended consent that was the person's last live credential ends its
+      // claim leases too (`wbs-claim-leases` L8).
+      // Proof: with this call removed, `ends the leases when an MCP consent was
+      // the last live credential` (claim-lease.db.test.ts) kept them in force
+      // (9 pass, 1 fail); watched 2026-10-23.
+      endLeasesOfUncredentialed(tx, row.personId, at);
       appendOrganizationAudit(tx, {
         id: act.auditId,
         organizationId: row.organizationId,

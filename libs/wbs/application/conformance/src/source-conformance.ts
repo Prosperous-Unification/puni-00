@@ -271,8 +271,8 @@ export function existingStoreRegistrations(
         expect(await port.add([second], [], seed.stamps[1], [])).toBe('written');
         expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
           [
-            { ...first, claimedAt: seed.stamps[0].at },
-            { ...second, claimedAt: seed.stamps[1].at },
+            { ...first, claimedAt: seed.stamps[0].at, leaseExpiresAt: null },
+            { ...second, claimedAt: seed.stamps[1].at, leaseExpiresAt: null },
           ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
         );
         expect(await port.listStampedByProject(seed.projectIds[1])).toEqual([]);
@@ -341,8 +341,8 @@ export function existingStoreRegistrations(
       await port.moveAll(leaf, child, seed.stamps[1]);
       expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
         [
-          { ...moved, workItemId: child, claimedAt: seed.stamps[0].at },
-          { ...under, claimedAt: seed.stamps[0].at },
+          { ...moved, workItemId: child, claimedAt: seed.stamps[0].at, leaseExpiresAt: null },
+          { ...under, claimedAt: seed.stamps[0].at, leaseExpiresAt: null },
         ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
       );
       const clash = { ...moved, id: 'claim-clash', workItemId: leaf, stepId: otherStepId };
@@ -354,6 +354,99 @@ export function existingStoreRegistrations(
       await port.remove([moved], [], seed.stamps[1]);
       expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
     }),
+    // `wbs-claim-leases` L1, L4, L5: a lease is written with its claim,
+    // renewed only while in force and due, and read as expired at exactly
+    // its instant.
+    storeCase(
+      'claims',
+      'claims.lease:write-renew-expire',
+      openers.claims,
+      async ({ port, seed }) => {
+        const [leaf] = seed.workItemIds[0];
+        const [otherLeaf] = seed.workItemIds[1];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const [otherProjectStep] = seed.stepIds[1];
+        const [agent, human] = seed.personIds;
+        const leased = {
+          id: 'claim-leased',
+          workItemId: leaf,
+          stepId,
+          personId: agent,
+          runId: 'run-1',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const unleased = { ...leased, id: 'claim-human', stepId: otherStepId, personId: human };
+        const elsewhere = {
+          ...leased,
+          id: 'claim-elsewhere',
+          workItemId: otherLeaf,
+          stepId: otherProjectStep,
+        };
+        expect(
+          await failureOf(
+            port.add([leased], [], seed.stamps[0], [], [{ claimId: 'stray', expiresAt: 1 }]),
+          ),
+        ).toContain('not added');
+        expect(
+          await port.add(
+            [leased],
+            [],
+            seed.stamps[0],
+            [],
+            [{ claimId: leased.id, expiresAt: 10_000 }],
+          ),
+        ).toBe('written');
+        expect(await port.add([unleased], [], seed.stamps[0], [])).toBe('written');
+        expect(
+          await port.add(
+            [elsewhere],
+            [],
+            seed.stamps[0],
+            [],
+            [{ claimId: elsewhere.id, expiresAt: 860_000 }],
+          ),
+        ).toBe('written');
+        expect(
+          (await port.listStampedByProject(seed.projectIds[0])).map(({ id, leaseExpiresAt }) => [
+            id,
+            leaseExpiresAt,
+          ]),
+        ).toEqual([
+          ['claim-leased', 10_000],
+          ['claim-human', null],
+        ]);
+        // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
+        // to 905,000, the second was renewed within the resolution and stays.
+        expect(await port.renewLeases(agent, () => 5_000)).toEqual({
+          leases: 2,
+          leaseExpiresAt: 860_000,
+        });
+        // At 860,000 the second lease has run out: it is not revived.
+        expect(await port.renewLeases(agent, () => 860_000)).toEqual({
+          leases: 1,
+          leaseExpiresAt: 1_760_000,
+        });
+        expect(await port.renewLeases(human, () => 860_000)).toEqual({
+          leases: 0,
+          leaseExpiresAt: null,
+        });
+        expect(await port.expiredLeasesOf(seed.projectIds[1], 860_000)).toEqual([
+          { claimId: elsewhere.id, reason: 'lease_expired' },
+        ]);
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_759_999)).toEqual([]);
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_760_000)).toEqual([
+          { claimId: leased.id, reason: 'lease_expired' },
+        ]);
+        expect(await port.projectsWithExpiredLeases(860_000, 10)).toEqual([seed.projectIds[1]]);
+        // Oldest expired lease first: the second project's ran out at 860,000.
+        expect(await port.projectsWithExpiredLeases(1_760_000, 10)).toEqual([
+          seed.projectIds[1],
+          seed.projectIds[0],
+        ]);
+        expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
+      },
+    ),
     storeCase(
       'claims',
       'claims.occupancy:hold-read-cascade',

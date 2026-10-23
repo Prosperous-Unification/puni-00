@@ -25,6 +25,7 @@ with it, and the two cannot disagree about a date.
 | Who may write a project                    | `project-ownership.ts`   | unrestricted, or the restricted project's owner   |
 | How many of a team work at once            | `capacity.ts`            | per project, never a property of the team         |
 | How much one organization may hold         | `organization-limits.ts` | three caps, one decision: `refuseLimit`           |
+| How long an agent's claim stays held       | `claim-lease.ts`         | `leaseOf`, `isLeaseInForce`, `renewalAt`          |
 | Whether a row sits under another           | `is-within.ts`           | one upward walk, four copies before 2026-09-02    |
 | How long a slice is on the solver's axis   | `solver-quantum.ts`      | quantises `durationOf`, never restates it         |
 
