@@ -175,7 +175,7 @@ checkboxes remain open. Commands, watched producer faults and limits: `verify.md
   - Bounded read-side v11 export slices (parent 8.1 remains open):
     - [x] Define required v11 connected response evidence and pure detached projection; preserve writable import stripping and frozen v10 behavior.
     - [x] Capture document facts alongside connected live reads and wire actual JSON/Markdown export without post-closure reads or optimizer admission.
-    - [ ] Prove stable successor-owned transfer links, unavailable outcomes, immutable stage boundaries and current client download/import projection; record watched faults and focused checks.
+    - [x] Prove stable successor-owned transfer links, unavailable outcomes, immutable stage boundaries and current client download/import projection; record watched faults and focused checks. Reconciled existing mounted/client slices and added detached-memory evidence in [read-side acceptance](verify-v11-export-acceptance.md).
     - [ ] Integrate current-principal import packet and whole-project authorized export/import rollback proofs before claiming 8.1/8.2 complete.
 
   - Bounded whole-project v11 integration slices 1–2 (parent 8.1 remains open):

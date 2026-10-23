@@ -177,7 +177,9 @@ export function projectConnectedDocument(
     relationships,
     placement:
       placement.kind !== 'scheduled'
-        ? structuredClone(placement)
+        ? // Proof: returning the source placement emptied exported calendar projects in
+          // `unavailable document evidence is detached from later capture mutation`.
+          structuredClone(placement)
         : {
             kind: 'scheduled' as const,
             originOrdinal: placement.originOrdinal,
@@ -211,7 +213,9 @@ export function projectConnectedDocument(
                     ? null
                     : {
                         ...optimization,
-                        // Proof: drop-certificate.txt: dropping captured variants lost the exact terminal certificate.
+                        // Proof: drop-certificate.txt lost the exact terminal certificate. Shallow variants
+                        // changed exported bounds and stage bytes in
+                        // `terminal boundary certificate stays distinct from authored plan infeasibility`.
                         variants: structuredClone(optimization.variants),
                         candidates: {
                           pri: candidateOf(optimization.candidates.pri),

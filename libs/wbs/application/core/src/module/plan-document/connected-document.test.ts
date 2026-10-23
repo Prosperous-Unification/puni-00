@@ -176,6 +176,25 @@ test('unavailable evidence preserves exact calendar and engine refusals', () => 
     ).toBe(JSON.stringify(placement));
   }
 });
+test('unavailable document evidence is detached from later capture mutation', () => {
+  const captured = live(connectedCapture(connectedReads('A', null)));
+  const placement = captured.projection.placement;
+  if (placement.kind !== 'dependency_calendar_missing')
+    throw new Error('expected calendar refusal');
+  const exported = projectConnectedDocument(captured, 'B');
+  const retained = structuredClone(exported);
+  const project = placement.projects.at(0);
+  if (project === undefined) throw new Error('expected missing-calendar project');
+  Reflect.set(project, 'name', 'Later remote');
+  Reflect.set(project, 'projectId', 'replacement-project');
+  Reflect.set(placement.projects, 'length', 0);
+  expect(exported).toEqual(retained);
+  expect(exported.connected.placement).toEqual({
+    kind: 'dependency_calendar_missing',
+    projects: [{ projectId: 'A', name: 'A', abbreviation: 'A' }],
+  });
+});
+
 test('export rejects a stored relationship whose owner differs from its successor', () => {
   const captured = live();
   const relationships = captured.projection.capture.relationships.map((relationship) => ({
@@ -389,6 +408,22 @@ test('terminal boundary certificate stays distinct from authored plan infeasibil
     },
   });
   expect(stage.chosen).toBeNull();
+  const retained = structuredClone(evidence);
+  const placement = captured.projection.placement;
+  if (placement.kind !== 'scheduled') throw new Error('expected retained schedule');
+  const optimization = placement.stages.at(0)?.optimization;
+  if (optimization === undefined || optimization === null)
+    throw new Error('expected optimizer evidence');
+  const pri = optimization.variants.pri;
+  const time = optimization.variants.time;
+  if (pri.state !== 'plan-infeasible' || time.state !== 'boundary-infeasible')
+    throw new Error('expected terminal evidence');
+  const bound = pri.items.at(0);
+  if (bound === undefined) throw new Error('expected terminal bound');
+  Reflect.set(bound, 'effectiveDeadlineOffset', 999);
+  Reflect.set(time.certificate.question, 'stageBytes', 'later boundary');
+  Reflect.set(time.certificate, 'evidence', 'later evidence');
+  expect(evidence).toEqual(retained);
 });
 
 test('producer refuses missing and nonfinite captured provenance', () => {
