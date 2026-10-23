@@ -52,7 +52,11 @@ function unit(active: boolean, edgeState: string) {
     .map(([key, value]) => `${key}=${value}\n`)
     .join('');
 }
-export async function createSourceSolverFixture(root: string) {
+export async function createSourceSolverFixture(
+  root: string,
+  solverImage = `registry/solver@sha256:${'c'.repeat(64)}`,
+  inert = false,
+) {
   await mkdir(join(root, 'dev'));
   const layouts = {
     prod: { ...envLayout('prod'), root, stateDir: root },
@@ -75,7 +79,7 @@ export async function createSourceSolverFixture(root: string) {
       {
         callerName: 'be-01-blue',
         callerImage: `registry/be@sha256:${'b'.repeat(64)}`,
-        solverImage: `registry/solver@sha256:${'c'.repeat(64)}`,
+        solverImage,
       },
     ],
   });
@@ -93,7 +97,7 @@ export async function createSourceSolverFixture(root: string) {
     unitSha256: hash('unit'),
   };
   let stopped = false;
-  let running = true;
+  let running = !inert;
   const commands: string[] = [];
   const container = () =>
     JSON.stringify({
@@ -107,7 +111,7 @@ export async function createSourceSolverFixture(root: string) {
         'wbs-objective': 'pri',
       },
       image: `sha256:${'c'.repeat(64)}`,
-      imageRef: `registry/solver@sha256:${'c'.repeat(64)}`,
+      imageRef: solverImage,
       restart: { Name: 'no', MaximumRetryCount: 0 },
       restartCount: 0,
       state: {
@@ -115,13 +119,13 @@ export async function createSourceSolverFixture(root: string) {
         Restarting: false,
         Paused: false,
         Dead: false,
-        Status: running ? 'running' : 'exited',
+        Status: running ? 'running' : inert ? 'created' : 'exited',
         Pid: running ? 456 : 0,
-        ExitCode: running ? 0 : 137,
+        ExitCode: running || inert ? 0 : 137,
         OOMKilled: false,
         Error: '',
-        StartedAt: '2026-01-01T00:00:00Z',
-        FinishedAt: running ? '0001-01-01T00:00:00Z' : '2026-01-01T00:01:00Z',
+        StartedAt: inert ? '0001-01-01T00:00:00Z' : '2026-01-01T00:00:00Z',
+        FinishedAt: running || inert ? '0001-01-01T00:00:00Z' : '2026-01-01T00:01:00Z',
       },
     });
   const ports: SolverPorts = {

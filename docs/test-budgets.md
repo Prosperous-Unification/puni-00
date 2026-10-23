@@ -182,3 +182,11 @@ These tests failed on the loaded run, but not at a time budget. They need their 
   and checks each sample's read counts, and the refusal is told apart from a wait by its outcome.
 - twilight-burokrat: `a competing recovery cannot clear publication while Git holds prepared ref
 locks` and two `review invocation provenance` cases. All three failed at about 3 s.
+
+- `tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts`, solver-restoration
+  composition cases: inherited 10 to explicit 20 s (2026-10-24). Exact terminal and
+  created-attempt cases perform the full owner/exclusion/finalizer, durable
+  private-record, cleanup and readiness sequence. Idle runs took about 3.4–4.3 s;
+  a loaded focused replay passed terminal at 6.54 s but timed out created at
+  10.005 s. The scoped 20 s budget meets both three times idle and twice the
+  overrun budget; production operation deadlines and all refusal assertions remain.

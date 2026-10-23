@@ -1461,7 +1461,7 @@ current exclusion SHALL be checked. Ordinary audits SHALL remain strict.
 
 ### Requirement: Adopted solver requires explicit ordinary edge policy
 
-An adopted supervisor SHALL require the closed version-1 ordinary policy bound to its canonical edge directory, read under its process-lifetime runtime lock before config, sweep or listener startup. Missing, unreadable, malformed, oversized, aliased, nonregular, replaced or drifting policy state SHALL refuse. Unsupported restoring or active phases SHALL refuse until their complete verifier exists. Legacy ordinary startup SHALL remain separate from adopted unit authority.
+An adopted supervisor SHALL require the closed version-1 ordinary policy bound to its canonical edge directory, read under its process-lifetime runtime lock before config, sweep or listener startup. Missing, unreadable, malformed, oversized, aliased, nonregular, replaced or drifting policy state SHALL refuse. Restoring policy SHALL be admitted only by the complete solver-only verifier below; active SHALL remain unsupported. Legacy ordinary startup SHALL remain separate from adopted unit authority.
 
 #### Scenario: Policy startup refuses before config
 
@@ -1488,11 +1488,11 @@ An adopted supervisor SHALL require the closed version-1 ordinary policy bound t
 
 ### Requirement: Retained-owner solver refusal preserves controlled terminal evidence
 
-A solver startup SHALL classify only a successfully observed retained owner marker as controlled refusal with exit 78. Canonical readable state validation SHALL precede marker classification, which SHALL run both before runtime-lock acquisition and inside that lock. Ordinary configuration, filesystem, unknown and callback failures, and lock contention without a marker, SHALL retain exit 1. The installed unit SHALL prevent automatic restart on exit 78.
+An ordinary solver startup SHALL classify only a successfully observed retained owner marker as controlled refusal with exit 78. Canonical readable state validation SHALL precede marker classification, which SHALL run both before runtime-lock acquisition and inside that lock. Ordinary configuration, filesystem, unknown and callback failures, and lock contention without a marker, SHALL retain exit 1. The installed unit SHALL prevent automatic restart on exit 78.
 
 #### Scenario: Retained marker and occupied runtime refuse coherently
 
-- **WHEN** a retained owner marker exists while the runtime lock is occupied
+- **WHEN** a retained owner marker exists without a decoded restoring policy while the runtime lock is occupied
 - **THEN** supervisor and fixture startup exit 78 without entering configuration, sweep or listener startup
 - **AND** a marker published after the outer check is refused by the check inside the acquired runtime lock
 - **AND** a fixture receipt identifies the typed retained-owner reason rather than inferring authority from diagnostic text
@@ -1510,3 +1510,55 @@ A solver startup SHALL classify only a successfully observed retained owner mark
 - **AND** inactive/dead remains an accepted stopped state under the same process/job/current-cgroup checks
 - **AND** original-cgroup emptiness and installed-tuple identity remain independently required
 - **AND** active-service observation rejects the failed state and no reset-failed erases its evidence
+
+### Requirement: Compatible solver-only restoration retains every application barrier
+
+The structured owner coordinator SHALL accept independently prepared solver pins, reuse every existing ingress/solver/source/managed exclusion and finalizer, and produce compatibility evidence only through actual owner-bound immutable-image capability observation. It SHALL publish no restoring eligibility until every final inspection succeeds and source/solver tokens expire. It SHALL remove only exact captured terminal/inert solver attempts under fresh complete inventory and retained-evidence checks, without force/volume flags, retaining terminal receipts and deadline timers. No new or changed attempt SHALL be admitted.
+
+#### Scenario: Compatible supervisor returns while application participants stay fenced
+
+- **WHEN** independently pinned files and every configured immutable solver image prove v1 semantic support
+- **THEN** the coordinator retains exact owner-bound intent, completes every exclusion finalizer and exact attempt cleanup, then atomically publishes private restoring policy
+- **AND** the fixed supervisor starts only after the prior runtime description is released
+- **AND** strict service/process/cgroup, pinned tuple, complete image mapping, actual bounded socket connect and fresh parked-participant/ingress readbacks precede success
+- **AND** the exact return is solver-restored-participants-fenced, activation not-performed, exposure closed
+- **AND** no maintenance callback, storage activation, migration, application startup, ingress reopening or marker retirement occurs
+
+#### Scenario: A final exclusion inspection or compatibility observation fails
+
+- **WHEN** solver, source, backend or ingress final inspection fails, tuple/image identity changes, image coverage is incomplete, or an image lacks required semantics
+- **THEN** restoring eligibility is never published and fixed service start is not attempted
+- **AND** pending owner, fences and evidence remain retained
+
+#### Scenario: Interrupted cleanup and superficial startup retain closure
+
+- **WHEN** exact-ID removal is uncertain or a new/changed participant appears, a required retained record changes, or service/process/socket/mapping readback fails
+- **THEN** the bounded coordinator refuses success and preserves current state and barriers
+- **AND** an already published restoring policy remains eligible only for the same compatible supervisor restart
+- **AND** no old-tuple restart, ordinary-policy reset, automatic retry or participant exposure occurs
+
+### Requirement: Restoring runtime independently verifies its retained eligibility
+
+A restoring supervisor SHALL acquire the canonical runtime lock and independently validate the closed private bounded policy and referenced intent, exact pending bytes and both hash bindings, existing closed owner publication with exact prod/dev scope, absent committed marker, actual fixed executable/kernel inode/bundled module/argv, current independent tuple pins and complete configured immutable image IDs. It SHALL reread policy/intent/pending identities and bytes before configuration or startup and retain the runtime lock through process exit. No runtime consumer SHALL obtain a live DependencyOwner.
+
+#### Scenario: Valid retained restoring policy reaches the actual runtime
+
+- **WHEN** a trusted bounded policy decode identifies restoring
+- **THEN** precheck selects only the full under-lock verifier
+- **AND** a matching actual bundled compatible supervisor reaches listener readiness under retained pending ownership and holds the runtime description until exit
+- **AND** wrong executable, module, arguments, hashes, owner, pins, coverage, committed marker, unreadable/missing/malformed records or identity drift refuse before config/sweep/bind
+
+#### Scenario: Policy publication cannot claim persistence without evidence
+
+- **WHEN** owner, layouts, lock descriptions, pending bytes, original policy file/parent or newly retained intent differs, or creation mode is public
+- **THEN** fixed-path publication refuses before unauthorized replacement
+- **AND** no-op rename or failed file/directory sync cannot report publication success
+- **AND** ordinary installer/deployer and read-only ordinary preflight remain closed and active policy remains unsupported
+
+#### Scenario: Failed restoring admission stays terminal without hiding runtime failures
+
+- **GIVEN** a successfully observed retained owner and a decoded restoring policy
+- **WHEN** its full under-lock admission verifier refuses
+- **THEN** the actual CLI exits 78 before application config, orphan sweep or bind, with a privacy-safe diagnostic cause
+- **AND** ordinary policy startup cannot be selected by substituting ordinary phase and removing markers after the precheck
+- **AND** lock contention and failures after successful admission retain ordinary exit 1

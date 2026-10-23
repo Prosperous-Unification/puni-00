@@ -550,3 +550,35 @@ export async function auditManagedMounts(
     database.path,
   );
 }
+
+/** Read-only parked-state monitoring after protected work; never performs namespace admission or yields recognized members. */
+export async function assertParkedBackendCohort(
+  layout: EnvLayout,
+  expected: BackendCohort,
+  binding: GatewayBinding,
+  runDocker: RunDocker,
+  deadline: number,
+): Promise<void> {
+  const first = await observeBackendCohort(
+    layout,
+    runDocker,
+    deadline,
+    binding,
+    verifyContainerNamespace,
+    false,
+  );
+  const second = await observeBackendCohort(
+    layout,
+    runDocker,
+    deadline,
+    binding,
+    verifyContainerNamespace,
+    false,
+  );
+  assertSame(first.inventory, second.inventory, 'parked backend full inventory');
+  // Proof: parked-database omissions admitted a replaced SQLite inode; composed database test failed (exit 1).
+  assertSame(expected, first.cohort, 'parked backend cohort and database');
+  // Proof: both parked-database comparisons were removed; composed database test failed (exit 1).
+  assertSame(expected, second.cohort, 'parked backend final cohort and database');
+  assertExcluded(second.cohort);
+}

@@ -1,9 +1,15 @@
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
-import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
-import { readOrdinaryEdgePolicy } from './edge-policy';
+import {
+  assertNoEdgeOwner,
+  edgeStateDirectory,
+  isRetainedEdgeOwnerRefusal,
+  throwRetainedSolverRefusal,
+} from './edge-admission';
+import { captureEdgePolicy } from './edge-policy';
 import { withCanonicalLock } from './lock';
+import { verifyRestoringSolverPolicy } from './solver-restoration';
 
 /**
  * Admits only a guarded supervisor, independently of installer edge.lock.
@@ -27,21 +33,50 @@ export async function withSolverRuntimeAdmission<T>(
   });
 }
 
-/** Requires the mandatory ordinary policy under the same process-lifetime runtime lock. */
+/** Admits ordinary startup or the complete solver-only restoring verifier under the same process-lifetime runtime lock. */
 export async function withSolverPolicyAdmission<T>(
   action: () => Promise<T>,
   directory = edgeStateDirectory(),
 ): Promise<T> {
   await assertSolverStateDirectory(directory);
-  // Proof: policy-precheck omission yielded exit 1 for 2 retained-owner/runtime-contention cases in solver-runtime-admission.proc.test.ts.
-  await assertNoEdgeOwner(directory);
-  return withCanonicalLock(join(directory, 'solver-runtime.lock'), async () => {
-    // Proof: runtime-policy omission reached absent config with no policy;
-    // solver-runtime-admission.proc.test.ts exited 1.
-    await readOrdinaryEdgePolicy(directory);
-    // Proof: policy-runtime-marker omission reached config under retained markers;
-    // solver-runtime-admission.proc.test.ts exited 1.
+  let retained: unknown;
+  // Ordinary retained admission remains a terminal refusal before runtime contention.
+  // The only exception is a decoded restoring policy; its complete verifier runs under the lock.
+  try {
     await assertNoEdgeOwner(directory);
+  } catch (cause) {
+    if (!isRetainedEdgeOwnerRefusal(cause)) throw cause;
+    retained = cause;
+    let restoring: boolean;
+    try {
+      restoring = (await captureEdgePolicy(directory)).policy.phase === 'restoring';
+    } catch {
+      throw cause;
+    }
+    if (!restoring) throw cause;
+  }
+  return withCanonicalLock(join(directory, 'solver-runtime.lock'), async () => {
+    try {
+      // Proof: runtime-policy omission reached absent config with no policy;
+      // solver-runtime-admission.proc.test.ts exited 1.
+      const snapshot = await captureEdgePolicy(directory);
+      if (snapshot.policy.phase === 'ordinary') {
+        // Proof: restoring-no-ordinary-fallback omission entered the callback after phase/marker substitution; phase-drift runtime test failed (exit 1).
+        if (retained !== undefined) throw new Error('solver restoration policy phase changed');
+        await assertNoEdgeOwner(directory);
+      } else {
+        try {
+          await assertNoEdgeOwner(directory);
+        } catch (cause) {
+          if (!isRetainedEdgeOwnerRefusal(cause)) throw cause;
+          retained = cause;
+        }
+        await verifyRestoringSolverPolicy(snapshot);
+      }
+    } catch (cause) {
+      // Proof: terminal-restoring-refusal omission changed wrong-executable admission from exit 78 to 1; actual built CLI test failed (exit 1).
+      throwRetainedSolverRefusal(retained, cause);
+    }
     return action();
   });
 }

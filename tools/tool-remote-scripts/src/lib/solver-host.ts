@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
+import { createConnection } from 'node:net';
 import { posix } from 'node:path';
 
 import { runDockerCli } from './docker-deadline';
@@ -11,6 +12,7 @@ import {
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
+  SOLVER_SUPERVISOR_SOCKET,
   SOLVER_SUPERVISOR_UNIT,
 } from './solver-supervisor-install-contract';
 import {
@@ -35,7 +37,8 @@ export interface SolverFile {
   readonly sha256: string;
   readonly solverImages?: readonly string[];
 }
-export type SolverHostCommand = { readonly kind: 'show' } | { readonly kind: 'stop' };
+export type SolverHostCommand =
+  { readonly kind: 'show' } | { readonly kind: 'stop' } | { readonly kind: 'start' };
 export type RunSolverHost = (command: SolverHostCommand, signal?: AbortSignal) => Promise<string>;
 export interface SolverProcess {
   readonly pid: number;
@@ -269,7 +272,7 @@ export async function runSolverHost(
 ): Promise<string> {
   if (command.kind === 'show')
     return observeSolverUnit(SOLVER_SUPERVISOR_SERVICE, runSolverCommand, signal);
-  return runSolverCommand(['systemctl', '--user', 'stop', SOLVER_SUPERVISOR_SERVICE], signal);
+  return runSolverCommand(['systemctl', '--user', command.kind, SOLVER_SUPERVISOR_SERVICE], signal);
 }
 
 async function runSolverCommand(argv: string[], signal?: AbortSignal): Promise<string> {
@@ -402,5 +405,50 @@ export function solverHostPorts(): SolverPorts {
     captureFile: captureSolverFile,
     observeProcess: observeSolverProcess,
     observeCgroup: observeSolverCgroup,
+  };
+}
+
+export interface SolverRestorePorts extends SolverPorts {
+  readonly connectSocket: (signal?: AbortSignal) => Promise<void>;
+}
+
+/** Fixed actual socket-connect readiness. Only absent/refusing startup races retry within a shared finite cancellation bound. */
+export function solverRestoreHostPorts(): SolverRestorePorts {
+  return {
+    ...solverHostPorts(),
+    connectSocket: async (signal) => {
+      const abort =
+        signal === undefined
+          ? AbortSignal.timeout(15000)
+          : AbortSignal.any([signal, AbortSignal.timeout(15000)]);
+      for (let attempt = 0; attempt < 750; attempt++) {
+        abort.throwIfAborted();
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const socket = createConnection({ path: SOLVER_SUPERVISOR_SOCKET, signal: abort });
+            socket.once('connect', () => {
+              socket.destroy();
+              resolve();
+            });
+            socket.once('error', (cause) => {
+              socket.destroy();
+              reject(cause);
+            });
+          });
+          return;
+        } catch (cause) {
+          if (
+            !(cause instanceof Error) ||
+            !('code' in cause) ||
+            !['ENOENT', 'ECONNREFUSED'].includes(String(cause.code))
+          )
+            throw cause;
+          if (attempt === 749)
+            throw new Error('solver listener readiness did not converge', { cause });
+          await Bun.sleep(20);
+        }
+      }
+      throw new Error('solver listener readiness exhausted');
+    },
   };
 }

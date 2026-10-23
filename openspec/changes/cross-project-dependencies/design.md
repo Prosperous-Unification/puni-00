@@ -1423,3 +1423,66 @@ installed-file replacement. Policy is preserved separately from the four
 installed artifacts. First adoption therefore requires explicit initialization,
 installation, then a separate installed audit. These source prerequisites do not
 complete S4 restoration or authorize live adoption.
+
+### Solver-only compatible restoration under retained ownership (P2a)
+
+`restoreSolverAfterDependencyExclusion()` accepts independent `SolverPins` and
+performs no caller maintenance callback, storage activation, migration, participant
+startup, ingress reopening or marker retirement. The existing source-inclusive
+entrypoint and the new structured entrypoint share the same internal exclusion
+sequence and final inspections. Compatibility is observed inside the innermost
+live source/solver scope: pinned installed tuple, complete configured image set,
+immutable Docker IDs, actual backend capability probes requiring v1 semantics,
+then fresh tuple and image readback. The numbered private restoration intent uses
+the existing exact owner-publication envelope and contains only pins and image
+identities/semantics.
+
+All source and solver finalizers must succeed and their tokens expire before
+eligibility can be published. A private in-memory parked-dependency baseline is
+monitoring only: fresh complete Docker inventory, exact non-solver configuration,
+mount/network/restart/process identity, source image/tag/entrypoint and stopped
+state, managed backend/gateway and database-family identities, retained evidence
+bytes and closed ingress. It never recreates tokens or supplies namespace/storage
+admission. Outer edge/poll/devsync/deploy locks remain held throughout.
+
+The reviewed cleanup correction removes every captured terminal or never-started
+inert solver attempt before eligibility publication. Generic orphan sweep waits
+for terminal evidence and cannot safely wait on a never-started container. Under
+the still-live owner, fresh exact full terminal/inert snapshot and complete parked
+inventory checks precede each `docker rm <full-id>` without force or volume flags.
+Private durable intent records ID/image/snapshot hash before each effect; fresh
+inventory must equal the baseline minus exactly the already removed IDs. Terminal
+receipts and deadline timers remain retained. No new or changed solver member is
+accepted; after cleanup and startup the expected managed solver cohort is empty.
+
+Only then may the fixed private `edge-policy.json` be atomically replaced through
+the retained directory descriptor. The original ordinary bytes and file/parent
+identities, live joint owner, exact pending bytes, newly retained intent identity,
+intent hash and absence of a committed marker are required. Exclusive private
+sibling creation, file/directory sync and exact inode/byte/parent readback precede
+success. Partial state is retained without repair.
+
+The closed restoring policy references the numbered intent and hashes the exact
+pending publication. The runtime consumes these documents under its canonical
+process-lifetime lock, validates the existing exact prod/dev publication grammar,
+independent tuple pins and complete immutable image coverage, and rereads
+policy/intent/pending identities and bytes before config or startup. Its own
+executable and kernel inode, bundled module path and actual arguments must match
+the fixed installed entrypoint; caller-supplied execution context is unsupported.
+A trusted restoring decode only selects the full under-lock verifier. Every other
+retained-owner startup retains the typed exit-78 precheck and restart suppression.
+Full restoring-admission failure under an observed retained owner also exits 78,
+with a sanitized field-oriented cause. Lock contention and failures after
+admission remain ordinary exit 1. Ordinary policy preflight/installers/deployers
+continue refusing retained state. `active` is unsupported.
+
+Fixed service start must be followed by strict effective-unit, fresh PID/start
+identity and populated cgroup observation, unchanged pinned tuple and image
+mapping/resolution, bounded actual socket connection and repeated service/process
+readback. Only modeled missing/refusing-listener startup races retry within the
+shared cancellation bound. Final fresh parked monitoring and exact retained-policy readback precede the exact
+`solver-restored-participants-fenced` / `not-performed` / `closed` return. Any
+failure retains pending ownership, policy and barriers; a published restoring
+policy permits only that compatible supervisor to restart. P2b, P3, parent S4 and
+the full activation/exposure goal remain open. Local source evidence is recorded
+in [the P2a receipt](verify-solver-restoration.md); no host adoption is claimed.

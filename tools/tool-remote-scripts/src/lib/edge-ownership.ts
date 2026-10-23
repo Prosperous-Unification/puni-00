@@ -7,16 +7,91 @@ import { openDirectoryFile, renameDirectoryFile } from './directory-file';
 import type { RunDocker } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
 import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
+import {
+  captureEdgePolicy,
+  captureEdgeRecord,
+  decodeOrdinaryEdgePolicy,
+  type EdgePolicySnapshot,
+  type RestoringEdgePolicy,
+} from './edge-policy';
 import type { EnvLayout } from './env';
 import { assertInheritedLock, withCanonicalLock } from './lock';
-import { publishRecord, readRecord } from './managed-cohort';
+import { publishRecord, readClosed, readRecord, readString } from './managed-cohort';
 import type { RunSolverHost } from './solver-host';
+import {
+  assertRetainedSolverRestoration,
+  type RetainedSolverRestoration,
+  solverRestorationReference,
+} from './solver-restoration';
 
 /** Reviewed managed-fence scope only; never a complete participant or activation proof. */
 export interface DependencyOwnerPlan {
   readonly sha: string;
   readonly layouts: readonly EnvLayout[];
 }
+export interface DependencyOwnerPublication {
+  readonly format: 'dependency-edge-owner';
+  readonly version: 1;
+  readonly attempt: string;
+  readonly plan: DependencyOwnerPlan;
+}
+
+/** Decodes the existing publication grammar for solver restoration without reconstructing live authority. */
+export function decodeDependencyOwnerPublication(value: unknown): DependencyOwnerPublication {
+  // Proof: pending-closed omission admitted extra authority fields through runtime owner-extra; test failed (exit 1).
+  const publication = readClosed(value, ['format', 'version', 'attempt', 'plan']);
+  const plan = readClosed(publication['plan'], ['sha', 'layouts']);
+  const sha = readString(plan['sha']);
+  const attempt = readString(publication['attempt']);
+  if (
+    publication['format'] !== 'dependency-edge-owner' ||
+    publication['version'] !== 1 ||
+    !/^[a-f0-9]{40}$/.test(sha) ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(attempt) ||
+    !Array.isArray(plan['layouts']) ||
+    plan['layouts'].length !== 2
+  )
+    throw new Error('solver restoration requires exact joint owner publication');
+  const layouts: EnvLayout[] = [];
+  for (const raw of plan['layouts']) {
+    const layout = readClosed(raw, [
+      'env',
+      'root',
+      'network',
+      'containerPrefix',
+      'sharedEnvPath',
+      'oidcEnvPath',
+      'stateDir',
+      'siteCaddyPath',
+      'siteAddress',
+    ]);
+    const env = layout['env'];
+    if ((env !== 'prod' && env !== 'dev') || layouts.some((prior) => prior.env === env))
+      throw new Error('solver restoration owner layouts are duplicate or unknown');
+    const paths = ['root', 'sharedEnvPath', 'stateDir', 'siteCaddyPath'] as const;
+    for (const key of paths) {
+      const path = readString(layout[key]);
+      if (!isAbsolute(path) || resolve(path) !== path || path.includes('\0'))
+        throw new Error('solver restoration owner path is not canonical');
+    }
+    const oidcEnvPath = layout['oidcEnvPath'] === null ? null : readString(layout['oidcEnvPath']);
+    if (oidcEnvPath !== null && (!isAbsolute(oidcEnvPath) || resolve(oidcEnvPath) !== oidcEnvPath))
+      throw new Error('solver restoration owner OIDC path is not canonical');
+    layouts.push({
+      env,
+      root: readString(layout['root']),
+      network: readString(layout['network']),
+      containerPrefix: readString(layout['containerPrefix']),
+      sharedEnvPath: readString(layout['sharedEnvPath']),
+      oidcEnvPath,
+      stateDir: readString(layout['stateDir']),
+      siteCaddyPath: readString(layout['siteCaddyPath']),
+      siteAddress: readString(layout['siteAddress']),
+    });
+  }
+  return { format: 'dependency-edge-owner', version: 1, attempt, plan: { sha, layouts } };
+}
+
 const identity: unique symbol = Symbol('dependency-owner');
 /** Live callback-scoped authority; retained records cannot recreate it. */
 export interface DependencyOwner {
@@ -441,7 +516,8 @@ export function ownerHostCommand(
   return async (command, signal) => {
     await assertDependencyOwner(owner, layouts.prod);
     await assertDependencyOwner(owner, layouts.dev);
-    return ownerDocker(owner, layouts.prod, async (_args, boundedSignal) => {
+    // Proof: raw host-response retention leaked PRIVATE_HOST_SENTINEL in the composed host-private refusal test (exit 1).
+    return ownerDockerHashed(owner, layouts.prod, async (_args, boundedSignal) => {
       await assertDependencyOwner(owner, layouts.dev);
       const response = await runHost(command, boundedSignal);
       await assertDependencyOwner(owner, layouts.dev);
@@ -454,7 +530,7 @@ export function ownerHostCommand(
 export async function retainSolverRecord(
   owner: DependencyOwner,
   layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
-  label: 'installed' | 'stop' | 'drained' | 'complete',
+  label: 'installed' | 'stop' | 'drained' | 'complete' | 'restore-intent' | 'restore-complete',
   record: object,
 ): Promise<{ path: string; contents: string }> {
   await assertDependencyOwner(owner, layouts.prod);
@@ -492,4 +568,125 @@ export function ownerDockerHashed(
   runDocker: RunDocker,
 ): RunDocker {
   return ownerDockerBoundary(owner, layout, runDocker, true);
+}
+
+/** Fixed-path owner-only policy replacement after all exclusion finalizers; never retires retained admission. */
+export async function publishRestoringEdgePolicy(
+  owner: DependencyOwner,
+  original: EdgePolicySnapshot,
+  intent: RetainedSolverRestoration,
+): Promise<void> {
+  const envelope = await assertRetainedSolverRestoration(owner, intent);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  const prod = ownership.layouts.find((layout) => layout.env === 'prod');
+  const dev = ownership.layouts.find((layout) => layout.env === 'dev');
+  if (prod === undefined || dev === undefined || ownership.layouts.length !== 2)
+    throw new Error('restoring policy requires joint prod/dev owner');
+  const layouts = { prod, dev };
+  const path = join(ownership.directory, 'edge-policy.json');
+  const reference = solverRestorationReference(intent);
+  // Proof: publication-scope omission lost the exact fixed-path refusal; owner publisher test failed (exit 1).
+  if (
+    original.path !== path ||
+    intent.path !== join(ownership.directory, reference.name) ||
+    !/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(reference.name) ||
+    envelope.owner !== ownership.publication ||
+    original.policy.phase !== 'ordinary'
+  )
+    throw new Error('restoring policy scope or owner binding differs');
+  decodeOrdinaryEdgePolicy(original.policy, ownership.directory);
+  await assertNoCommittedDependencyOwner(ownership.directory);
+  const retained = await captureEdgeRecord(ownership.directory, reference.name, 65536);
+  if (retained.contents !== intent.contents) throw new Error('restoration intent bytes changed');
+  const policy: RestoringEdgePolicy = {
+    format: 'dependency-edge-policy',
+    version: 1,
+    phase: 'restoring',
+    edgeState: ownership.directory,
+    ownerPublicationSha256: createHash('sha256').update(ownership.publication).digest('hex'),
+    restorationIntent: reference,
+  };
+  const contents = `${JSON.stringify(policy)}\n`;
+  const directory = await open(
+    ownership.directory,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    const parent = await directory.stat({ bigint: true });
+    const assertOriginal = async () => {
+      await assertDependencyOwner(owner, prod);
+      await assertDependencyOwner(owner, dev);
+      await assertNoCommittedDependencyOwner(ownership.directory);
+      // Proof: publication-original omission replaced changed ordinary bytes; changed-original fault test failed (exit 1).
+      if (
+        JSON.stringify(await captureEdgePolicy(ownership.directory)) !== JSON.stringify(original) ||
+        String(parent.dev) !== original.parentDevice ||
+        String(parent.ino) !== original.parentInode ||
+        JSON.stringify(await captureEdgeRecord(ownership.directory, reference.name, 65536)) !==
+          JSON.stringify(retained)
+      )
+        throw new Error('restoring policy original, parent or intent changed');
+    };
+    await assertOriginal();
+    const sibling = `.edge-policy.json.dependency-${randomUUID()}`;
+    await retainSolverRecord(owner, layouts, 'restore-complete', {
+      phase: 'policy-publication-intent',
+      reference,
+      originalSha256: createHash('sha256').update(original.contents).digest('hex'),
+      sibling,
+    });
+    const descriptor = openDirectoryFile(
+      directory.fd,
+      sibling,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+    );
+    try {
+      const created = fstatSync(descriptor, { bigint: true });
+      // Proof: publication-private omission crossed the public-mode publication boundary; public-mode fault test failed (exit 1).
+      if ((created.mode & 0o777n) !== 0o600n)
+        throw new Error('restoring policy creation mode is not private');
+      writeFileSync(descriptor, contents, 'utf8');
+      // Proof: publication-file-sync omission ignored injected fsync failure; file-sync fault test failed (exit 1).
+      fsyncSync(descriptor);
+      await assertOriginal();
+      renameDirectoryFile(directory.fd, sibling, 'edge-policy.json');
+      // Proof: publication-directory-sync omission ignored injected fsync failure; directory-sync fault test failed (exit 1).
+      fsyncSync(directory.fd);
+      const published = await captureEdgePolicy(ownership.directory);
+      // Proof: publication-readback omission accepted no-op rename; noop-rename fault test failed (exit 1).
+      if (
+        published.device !== String(created.dev) ||
+        published.inode !== String(created.ino) ||
+        published.parentDevice !== String(parent.dev) ||
+        published.parentInode !== String(parent.ino) ||
+        published.contents !== contents ||
+        published.mode !== 0o600
+      )
+        throw new Error('restoring policy publication readback differs');
+    } finally {
+      closeSync(descriptor);
+    }
+    await assertDependencyOwner(owner, prod);
+    await assertDependencyOwner(owner, dev);
+    await assertNoCommittedDependencyOwner(ownership.directory);
+    await retainSolverRecord(owner, layouts, 'restore-complete', {
+      phase: 'policy-published',
+      reference,
+    });
+  } finally {
+    await directory.close();
+  }
+}
+
+/** A pending P2a owner never grants a committed owner transition. */
+export async function assertNoCommittedDependencyOwner(directory: string): Promise<void> {
+  try {
+    await lstat(join(directory, 'edge-owner.json'));
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+    throw cause;
+  }
+  // Proof: committed-marker omission admitted a committed marker; runtime committed test failed (exit 1).
+  throw new Error('solver-only restoration refuses a committed dependency owner');
 }

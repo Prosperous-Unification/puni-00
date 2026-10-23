@@ -379,3 +379,33 @@ test('held dev poll refuses before touching prod deploy lock', async () => {
     expect(await Bun.file(`${root}/edge.lock`).exists()).toBe(true);
   });
 });
+
+test('shared pending decoder preserves the existing publication and refuses unscoped restoration', async () => {
+  const { decodeDependencyOwnerPublication } = await import('./edge-ownership');
+  const { envLayout } = await import('./env');
+  const publication = {
+    format: 'dependency-edge-owner',
+    version: 1,
+    attempt: '12345678-1234-4123-8123-123456789abc',
+    plan: { sha: 'a'.repeat(40), layouts: [envLayout('prod'), envLayout('dev')] },
+  } as const;
+  expect(decodeDependencyOwnerPublication(publication)).toEqual(publication);
+  for (const value of [
+    { ...publication, extra: true },
+    { ...publication, attempt: 'foreign' },
+    { ...publication, plan: { ...publication.plan, extra: true } },
+    { ...publication, plan: { ...publication.plan, layouts: [envLayout('prod')] } },
+    {
+      ...publication,
+      plan: { ...publication.plan, layouts: [envLayout('prod'), envLayout('prod')] },
+    },
+    {
+      ...publication,
+      plan: {
+        ...publication.plan,
+        layouts: [envLayout('prod'), { ...envLayout('dev'), authority: true }],
+      },
+    },
+  ])
+    expect(() => decodeDependencyOwnerPublication(value)).toThrow();
+});

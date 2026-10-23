@@ -115,3 +115,41 @@ export async function requireInheritedEdgeLock(): Promise<{
   await assertNoEdgeOwner(stateDirectory);
   return { descriptor, stateDirectory };
 }
+
+/** Converts only an observed retained-owner restoration admission failure; raw trusted-file diagnostics stay private. */
+export function throwRetainedSolverRefusal(retained: unknown, cause: unknown): never {
+  // Proof: terminal-observed-owner omission changed missing-policy startup from exit 1 to 78; actual CLI test failed (exit 1).
+  if (!isRetainedEdgeOwnerRefusal(retained)) throw cause;
+  const fixed = new Set([
+    'solver restoration requires private restoring policy',
+    'solver restoration policy phase changed',
+    'solver restoration policy hash binding differs',
+    'solver restoration pending owner bytes differ',
+    'solver restoration executing identity differs from fixed installed entrypoint',
+    'solver-only restoration refuses a committed dependency owner',
+    'solver restoration record JSON is malformed',
+    'solver installed tuple differs from independent pins',
+    'solver restoration configured image coverage is absent',
+    'solver restoration immutable image identity is malformed',
+    'invalid edge policy JSON or UTF-8',
+    'invalid restoring edge policy',
+    ...[
+      'exact owner layout',
+      'configured image coverage',
+      'executing tuple readback',
+      'policy readback',
+      'intent readback',
+      'pending readback',
+    ].map((binding) => `managed cohort solver restoration ${binding} changed or was not excluded`),
+  ]);
+  const message = cause instanceof Error ? cause.message : undefined;
+  // Proof: terminal-private-cause omission exposed PRIVATE_CONFIG_SENTINEL; actual built restoring CLI test failed (exit 1).
+  const reason =
+    message !== undefined && fixed.has(message)
+      ? message
+      : 'solver restoration admission verifier refused';
+  throw new RetainedEdgeOwnerRefusal(
+    `shared edge owner admission closed: ${reason}; retained marker; no activation`,
+    { cause: new Error(reason) },
+  );
+}

@@ -20,6 +20,7 @@ import { fenceGateways, fenceGatewaysUnderOwner } from './gateway-exclusion';
 import { withLock } from './lock';
 import { verifyContainerNamespace } from './mount-audit';
 import { GROUP_PROGRAM } from './mount-exec-program';
+import type { SolverHostCommand } from './solver-host';
 
 const id = 'a'.repeat(64);
 const imageId = `sha256:${'b'.repeat(64)}`;
@@ -860,13 +861,12 @@ test('source context survives every owner backend observation and final inspecti
   await refuses(inspectBackendFence(f.layout, f.runner), 'unmanaged namespace');
 });
 
-test('combined coordinator retains solver tmpfs and source members throughout awaited protected work', async () => {
-  const { excludeSourceAndManagedDependencies } = await import('./dependency-activation-owner');
+async function createSourceCompositionFixture(solverImage?: string, inert = false) {
   const { createSourceSolverFixture } = await import('../fixtures/source-solver');
   const { sourceFixture } = await import('../fixtures/source-dev');
   const { sourceDevContract } = await import('./env');
   const f = await fixture();
-  const solver = await createSourceSolverFixture(f.root);
+  const solver = await createSourceSolverFixture(f.root, solverImage, inert);
   for (const name of ['fence', 'intent', 'complete'])
     await unlink(`${f.root}/dependency-gateway-${name}.json`);
   Object.assign(f.gateway.State, { Running: true, Pid: 100, Status: 'running' });
@@ -998,6 +998,13 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
   );
   const events: string[] = [];
   const runner: RunDocker = async (args, signal) => {
+    if (args[0] === 'rm' && args.length === 2 && args[1] === retained.Id) {
+      const index = f.containers.indexOf(retained);
+      if (index < 0) throw new Error('attempt already removed');
+      f.containers.splice(index, 1);
+      events.push('removed');
+      return retained.Id + '\n';
+    }
     if (args[0] === 'exec') {
       if (args.includes('adapt')) return JSON.stringify(await adapt());
       if (args.includes('reload')) {
@@ -1010,7 +1017,7 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
     if (args[0] === 'inspect' && (args[1] === edge.Id || args[1] === 'wbs-caddy-1'))
       return JSON.stringify([edge]);
     if (args[0] === 'stop' && args.at(-1) === source.Id) events.push('source');
-    if (args[0] === 'inspect') {
+    if (args[0] === 'inspect' && f.containers.includes(retained)) {
       const current: unknown = JSON.parse(await solver.ports.runDocker(['inspect', retained.Id]));
       if (!Array.isArray(current) || current.length !== 1)
         throw new Error('missing fresh solver fixture');
@@ -1018,6 +1025,13 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
     }
     return f.runner(args, signal);
   };
+  return { f, solver, prod, selectedDev, source, retained, events, runner };
+}
+
+test('combined coordinator retains solver tmpfs and source members throughout awaited protected work', async () => {
+  const { excludeSourceAndManagedDependencies } = await import('./dependency-activation-owner');
+  const { f, solver, prod, selectedDev, source, retained, events, runner } =
+    await createSourceCompositionFixture();
   const runHost = solver.ports.runHost;
   const ports: typeof solver.ports = {
     ...solver.ports,
@@ -1065,3 +1079,242 @@ test('combined coordinator retains solver tmpfs and source members throughout aw
           /COMPOSED_(?:PRIVATE|CADDY|ADAPTED)_SENTINEL/,
         );
 });
+
+for (const fault of [
+  'none',
+  'created',
+  'host-private',
+  'solver-final',
+  'source-final',
+  'backend-final',
+  'ingress-final',
+  'incapable',
+  'tuple',
+  'image',
+  'missing-image',
+  'noop-remove',
+  'interrupt-remove',
+  'start',
+  'service',
+  'process',
+  'socket',
+  'mapping',
+  'source-resumed',
+  'new-participant',
+  'source-record',
+  'database',
+  'intent-resumed',
+  'process-drift',
+  'policy-after-start',
+] as const) {
+  test(`restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: ${fault}`, async () => {
+    const { restoreSolverAfterDependencyExclusion } = await import('./dependency-activation-owner');
+    const { f, solver, prod, selectedDev, source, retained, events, runner } =
+      await createSourceCompositionFixture(image, fault === 'created');
+    await (await import('./edge-policy')).initializeOrdinaryEdgePolicy(f.root);
+    let started = false;
+    let observedCapabilities = false;
+    let connected = false;
+    const restoredPhase = [
+      'start',
+      'service',
+      'process',
+      'socket',
+      'mapping',
+      'source-resumed',
+      'new-participant',
+      'source-record',
+      'database',
+      'intent-resumed',
+      'process-drift',
+    ].includes(fault);
+    const monitoredDocker: RunDocker = async (args, signal) => {
+      if (
+        observedCapabilities &&
+        fault === 'ingress-final' &&
+        args[0] === 'exec' &&
+        args.includes('wget')
+      )
+        return '{}';
+      if (args[0] === 'rm' && fault === 'noop-remove') return '';
+      const response = await runner(args, signal);
+      if (args[0] === 'rm' && fault === 'interrupt-remove')
+        throw new Error('coordinator interrupted after removal');
+      return response;
+    };
+    const runHost = solver.ports.runHost;
+    const ports = {
+      ...solver.ports,
+      observeCgroup: async (path: string, removedAllowed: boolean) => {
+        const observed = await solver.ports.observeCgroup(path, removedAllowed);
+        return started && observed !== null ? { ...observed, populated: true } : observed;
+      },
+      observeProcess: async (pid: number) => {
+        const observed = await solver.ports.observeProcess(pid);
+        return started && fault === 'process'
+          ? { ...observed, cgroup: '/foreign' }
+          : connected && fault === 'process-drift'
+            ? { ...observed, startTime: '99999' }
+            : observed;
+      },
+      connectSocket: async () => {
+        if (!started || fault === 'socket') throw new Error('not listening');
+        connected = true;
+        if (fault === 'policy-after-start')
+          await writeFile(
+            `${f.root}/edge-policy.json`,
+            JSON.stringify({
+              format: 'dependency-edge-policy',
+              version: 1,
+              phase: 'ordinary',
+              edgeState: f.root,
+            }),
+          );
+        if (fault === 'intent-resumed') {
+          const name = (await readdir(f.root)).find((name) =>
+            name.endsWith('-solver-restore-intent.json'),
+          );
+          if (name === undefined) throw new Error('fixture restoration intent missing');
+          const path = `${f.root}/${name}`;
+          const bytes = await readFile(path);
+          await rename(path, path + '.previous');
+          await writeFile(path, bytes, { mode: 0o600 });
+        }
+        if (fault === 'source-resumed') source.State.Running = true;
+        if (fault === 'new-participant') {
+          const unrelated = structuredClone(f.container);
+          unrelated.Id = '6'.repeat(64);
+          unrelated.Name = '/unrelated';
+          unrelated.Config.Image = 'alpine:1';
+          unrelated.Config.Labels = {
+            'com.docker.compose.service': 'unrelated',
+            'com.docker.compose.project': 'other',
+          };
+          unrelated.Mounts = [];
+          unrelated.NetworkSettings.Networks = {} as typeof unrelated.NetworkSettings.Networks;
+          f.containers.push(unrelated);
+        }
+        if (fault === 'source-record')
+          await writeFile(
+            `${selectedDev.stateDir}/dependency-source-dev-intent.json`,
+            (await readFile(`${selectedDev.stateDir}/dependency-source-dev-intent.json`, 'utf8')) +
+              '\n',
+          );
+        if (fault === 'database') {
+          await rename(`${f.root}/db/wbs.db`, `${f.root}/db/previous.db`);
+          await writeFile(`${f.root}/db/wbs.db`, 'sqlite fixture');
+        }
+      },
+      runDocker: async (args: string[], signal?: AbortSignal) => {
+        if (args[0] === 'run') {
+          observedCapabilities = true;
+          if (fault === 'source-final') source.State.Running = true;
+          if (fault === 'backend-final') f.container.State.Running = true;
+          if (fault === 'tuple') await writeFile(`${f.root}/installed-1`, 'changed bundle');
+          return JSON.stringify({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: fault === 'incapable' ? [] : ['cross-project-dependencies-v1'],
+          });
+        }
+        if (args[0] === 'image' && observedCapabilities && fault === 'missing-image')
+          throw new Error('configured image missing');
+        if (
+          args[0] === 'image' &&
+          ((observedCapabilities && fault === 'image') || (started && fault === 'mapping'))
+        )
+          return `sha256:${'f'.repeat(64)}\n`;
+        return solver.ports.runDocker(args, signal);
+      },
+      runHost: async (command: SolverHostCommand, signal?: AbortSignal) => {
+        if (command.kind === 'show' && fault === 'host-private')
+          return (await runHost(command, signal)).replace(
+            'Environment=',
+            'Environment=PRIVATE_HOST_SENTINEL=secret ',
+          );
+        if (command.kind === 'show' && observedCapabilities && fault === 'solver-final')
+          throw new Error('final solver inspection');
+        if (command.kind === 'start') {
+          if (fault === 'start')
+            throw new Error('coordinator interrupted after policy publication');
+          await withLock(`${f.root}/solver-runtime.lock`, () => Promise.resolve());
+          expect(
+            (await (await import('./edge-policy')).captureEdgePolicy(f.root)).policy.phase,
+          ).toBe('restoring');
+          expect(source.State.Running).toBe(false);
+          expect(f.container.State.Running).toBe(false);
+          started = true;
+          events.push('start');
+          return '';
+        }
+        if (started && fault === 'service' && command.kind === 'show')
+          return runHost(command, signal);
+        if (started && command.kind === 'show')
+          return (await runHost(command, signal))
+            .replace('ActiveState=inactive', 'ActiveState=active')
+            .replace('SubState=dead', 'SubState=running')
+            .replace('MainPID=0', 'MainPID=123')
+            .replace('InvocationID=\n', `InvocationID=${'a'.repeat(32)}\n`)
+            .replace(
+              'ControlGroup=\n',
+              'ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/wbs-solver-supervisor.service\n',
+            );
+        if (command.kind === 'stop') events.push('solver');
+        return runHost(command, signal);
+      },
+    };
+    const restoring = restoreSolverAfterDependencyExclusion(
+      { sha, layouts: [prod, selectedDev] },
+      solver.pins,
+      ports,
+      monitoredDocker,
+      performance.now() + 60000,
+      namespaceFor(f.layout),
+      f.exec,
+      f.root,
+    );
+    if (fault !== 'none' && fault !== 'created') {
+      await refuses(
+        restoring,
+        fault === 'new-participant'
+          ? 'restoration exact parked participants'
+          : fault === 'source-record'
+            ? 'restoration retained participant bytes'
+            : '',
+      );
+      expect((await (await import('./edge-policy')).captureEdgePolicy(f.root)).policy.phase).toBe(
+        restoredPhase ? 'restoring' : 'ordinary',
+      );
+      for (const name of await readdir(f.root))
+        if (name.endsWith('.json'))
+          expect(await readFile(`${f.root}/${name}`, 'utf8')).not.toContain(
+            'PRIVATE_HOST_SENTINEL',
+          );
+      await refuses(assertNoEdgeOwner(f.root), 'admission closed');
+      expect(
+        (await readFile(prod.siteCaddyPath, 'utf8')).includes('WBS dependency maintenance'),
+      ).toBe(true);
+      return;
+    }
+    expect(await restoring).toEqual({
+      state: 'solver-restored-participants-fenced',
+      activation: 'not-performed',
+      exposure: 'closed',
+    });
+    expect(started).toBe(true);
+    expect(events.indexOf('removed')).toBeLessThan(events.indexOf('start'));
+    expect(source.State.Running).toBe(false);
+    expect(f.container.State.Running).toBe(false);
+    expect(f.gateway.State.Running).toBe(false);
+    expect(events.slice(0, 3)).toEqual(['ingress', 'solver', 'source']);
+    expect(f.containers).not.toContain(retained);
+    expect(f.namespaceCalls.some((call) => call.id === retained.Id)).toBe(false);
+    for (const directory of [f.root, selectedDev.stateDir])
+      for (const name of await readdir(directory))
+        if (name.endsWith('.json'))
+          expect(await readFile(`${directory}/${name}`, 'utf8')).not.toMatch(
+            /COMPOSED_(?:PRIVATE|CADDY|ADAPTED)_SENTINEL/,
+          );
+  }, 20_000);
+}

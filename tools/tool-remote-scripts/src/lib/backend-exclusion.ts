@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
+  assertParkedBackendCohort,
   type BackendCohort as Cohort,
   type GatewayBinding,
   gatewayBinding,
@@ -429,4 +430,25 @@ export async function inspectBackendFenceUnderOwner(
   assertSame(completion.cohort, observed, 'current completed owner cohort');
   assertExcluded(observed);
   return completion;
+}
+
+/** Fresh monitoring of a retained parked backend and DB family; supplies no storage-admission capability. */
+export async function assertParkedBackendFenceUnderOwner(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  sha: string,
+  runDocker: RunDocker,
+  deadline: number,
+): Promise<void> {
+  await assertDependencyOwner(owner, layout, sha);
+  await assertRoot(layout);
+  const { completion, intent } = await readCompletion(layout);
+  await assertParkedBackendCohort(
+    layout,
+    completion.cohort,
+    intent.gateway,
+    ownerDockerHashed(owner, layout, runDocker),
+    deadline,
+  );
+  await assertDependencyOwner(owner, layout, sha);
 }

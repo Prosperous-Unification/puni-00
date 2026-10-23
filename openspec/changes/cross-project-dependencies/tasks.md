@@ -892,3 +892,16 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 - [ ] X7b Independently review the exact corrected source SHA and complete the separately authorized physical rerun. The first physical failure's exact cause remains unverified; no source acceptance or parent 10.2 completion is claimed.
 
 - [x] X7c: Make fixture diagnostics descriptor-only; prove zero getter invocations, strict expected-refusal behavior and bounded prototype traversal in local production-path regressions (see verify-source-native-init.md).
+
+### P2a compatible supervisor only, participants fenced
+
+- [x] P2a.1 Prove and implement closed ordinary/restoring policy snapshots, private bounded restoration records and the shared exact pending-publication decoder.
+- [x] P2a.2 Produce restoration intent from independent pins, complete immutable configured images and actual owner-bound semantic probes, followed by fresh tuple/image identity readback.
+- [x] P2a.3 Prove fixed-path owner-only private atomic policy replacement with live authority, original/intent binding, descriptor-relative rename, file/directory sync and independent exact readback.
+- [x] P2a.4 Prove full under-lock restoring runtime verification, actual bundled execution identity and process-lifetime lock while preserving ordinary exit-78 refusal and ordinary installer/deployer closure.
+- [x] P2a.5 Share existing full exclusion/finalizers; prove token expiry before fresh parked monitoring, exact owner-bound terminal/inert attempt cleanup, eligibility publication, fixed supervisor start and actual bounded readiness/readbacks.
+- [x] P2a.6a Record production-path refusal/interruption/privacy and independently watched omission proofs, focused checks, lint/typecheck/build/OpenSpec.
+- [ ] P2a.6b Complete independent source review. Exact-SHA host acceptance is separate authorized follow-on work.
+
+P2a restores only the compatible supervisor. Activation, application participants,
+public exposure, marker retirement, complete P2/P3, S4 and parent 10.2 remain open.

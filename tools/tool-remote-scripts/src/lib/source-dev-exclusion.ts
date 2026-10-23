@@ -285,3 +285,29 @@ export async function inspectSourceDevExclusion(
   if (exclusions.get(token) !== scope)
     throw new Error('source dev exclusion expired during inspection');
 }
+
+/** Fresh source-only parked monitoring; never returns audit recognition or recreates an exclusion token. */
+export async function assertParkedSourceDev(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  sha: string,
+  expected: SourceDevMember,
+  inventory: readonly unknown[],
+  runDocker: RunDocker,
+  deadline: number,
+): Promise<void> {
+  const scope: SourceScope = {
+    owner,
+    layouts,
+    sha,
+    member: null,
+    records: [],
+    deadline,
+    docker: ownerDockerHashed(owner, layouts.dev, runDocker),
+  };
+  await assertScope(scope);
+  const observed = await observeMember(scope, inventory);
+  assertSame(expected, observed, 'restoration parked source');
+  assertSourceDevExcluded(observed);
+  await assertScope(scope);
+}

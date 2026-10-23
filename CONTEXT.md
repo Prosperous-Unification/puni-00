@@ -2158,3 +2158,11 @@ _Avoid_: certificate file, supervisor identity endpoint, activation controller
 The approved supervisor artifact and service-policy identity against which the
 solver identity broker admits a running invocation.
 _Avoid_: observed identity, auto-adopted hashes, current certificate cache
+
+**Solver restoration intent**:
+An owner's declaration of the independently approved compatible supervisor and solver images eligible for solver-only restoration. It establishes neither semantic activation nor permission to expose application participants.
+_Avoid_: activation receipt, installed-adoption proof, maintenance-success claim
+
+**Parked dependencies**:
+Application participants kept excluded, with ingress closed, during solver-only restoration.
+_Avoid_: activated participants, restored application, reopened deployment

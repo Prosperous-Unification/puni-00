@@ -1,0 +1,362 @@
+[
+  {
+    "mutation": "semantic-observation",
+    "file": "solver-restoration.ts",
+    "pattern": "fenced: incapable",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: incapable [3128.77ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-intent-hash",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: policy-hash",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: policy-hash [70.80ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-owner-bytes",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: foreign-owner",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: foreign-owner [73.66ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-image-coverage",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: coverage",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: coverage [65.64ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-tuple-readback",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: tuple-inode",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: tuple-inode [66.93ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-policy-readback",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: policy-drift",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: policy-drift [67.97ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-intent-readback",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: intent-drift",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: intent-drift [66.55ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-pending-readback",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: pending-drift",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: pending-drift [70.60ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "publication-file-sync",
+    "file": "edge-ownership.ts",
+    "pattern": "production file-sync",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoring publication refuses production file-sync fault [70.65ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "publication-directory-sync",
+    "file": "edge-ownership.ts",
+    "pattern": "production directory-sync",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoring publication refuses production directory-sync fault [69.27ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "publication-readback",
+    "file": "edge-ownership.ts",
+    "pattern": "production noop-rename",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoring publication refuses production noop-rename fault [72.22ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "publication-private",
+    "file": "edge-ownership.ts",
+    "pattern": "production public-mode",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoring publication refuses production public-mode fault [72.19ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "parked-records",
+    "file": "parked-dependencies.ts",
+    "pattern": "fenced: source-record",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: source-record [3292.88ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "parked-database",
+    "file": "backend-cohort.ts",
+    "pattern": "fenced: database",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: database [3121.70ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "restored-process",
+    "file": "dependency-activation-owner.ts",
+    "pattern": "fenced: process",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: process [3031.99ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "restored-mapping",
+    "file": "dependency-activation-owner.ts",
+    "pattern": "fenced: mapping",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: mapping [3223.10ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "restored-socket",
+    "file": "dependency-activation-owner.ts",
+    "pattern": "fenced: socket",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: socket [4304.91ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "removed-attempt-absence",
+    "file": "parked-dependencies.ts",
+    "pattern": "fenced: noop-remove",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: noop-remove [3417.54ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "actual-self-identity",
+    "file": "solver-execution.ts",
+    "pattern": "actual built restoring CLI",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) actual built restoring CLI proves executing identity and retains the runtime lock through readiness and exit [1105.88ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "policy-closed",
+    "file": "edge-policy.ts",
+    "pattern": "restoring policy is closed",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoring policy is closed, bound and readable only by the phase-aware reader [3.83ms]",
+    "assertion": "error: expect(received).toBeInstanceOf(expected)"
+  },
+  {
+    "mutation": "edge-record-identity-size-mode",
+    "file": "edge-policy.ts",
+    "pattern": "trusted records",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration trusted records require bounded private unchanged regular bytes [2.37ms]",
+    "assertion": "error: expect(received).toBeInstanceOf(expected)"
+  },
+  {
+    "mutation": "intent-format",
+    "file": "solver-restoration.ts",
+    "pattern": "decoder refuses",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration decoder refuses caller claims, incapable images and ambiguous coverage [0.70ms]",
+    "assertion": "error: expect(received).toThrow()"
+  },
+  {
+    "mutation": "intent-nonempty-images",
+    "file": "solver-restoration.ts",
+    "pattern": "decoder refuses",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration decoder refuses caller claims, incapable images and ambiguous coverage [0.61ms]",
+    "assertion": "error: expect(received).toThrow()"
+  },
+  {
+    "mutation": "intent-image-validation",
+    "file": "solver-restoration.ts",
+    "pattern": "decoder refuses",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration decoder refuses caller claims, incapable images and ambiguous coverage [0.68ms]",
+    "assertion": "error: expect(received).toThrow()"
+  },
+  {
+    "mutation": "publication-original",
+    "file": "edge-ownership.ts",
+    "pattern": "production changed-original",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoring publication refuses production changed-original fault [76.69ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "publication-scope",
+    "file": "edge-ownership.ts",
+    "pattern": "atomically replace",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) only a newly retained compatible intent can atomically replace the captured ordinary policy [28.30ms]",
+    "assertion": "error: expect(received).toContain(expected)"
+  },
+  {
+    "mutation": "committed-marker",
+    "file": "edge-ownership.ts",
+    "pattern": "lock: committed",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: committed [73.87ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-owner-scope",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: owner-scope",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: owner-scope [74.41ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "pending-closed",
+    "file": "edge-ownership.ts",
+    "pattern": "lock: owner-extra",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: owner-extra [88.77ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "runtime-private-policy",
+    "file": "solver-restoration.ts",
+    "pattern": "lock: public-policy",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: public-policy [76.10ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "retained-intent-identity",
+    "file": "solver-restoration.ts",
+    "pattern": "fenced: intent-resumed",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: intent-resumed [3063.92ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "readiness-process-recheck",
+    "file": "dependency-activation-owner.ts",
+    "pattern": "fenced: process-drift",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: process-drift [3011.85ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "fixed-record-path",
+    "file": "edge-policy.ts",
+    "pattern": "trusted records",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration trusted records require bounded private unchanged regular bytes [3.13ms]",
+    "assertion": "error: expect(received).toBeInstanceOf(expected)"
+  },
+  {
+    "mutation": "retained-intent-object",
+    "file": "solver-restoration.ts",
+    "pattern": "atomically replace",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) only a newly retained compatible intent can atomically replace the captured ordinary policy [26.69ms]",
+    "assertion": "error: expect(received).toContain(expected)"
+  },
+  {
+    "mutation": "terminal-restoring-refusal",
+    "file": "solver-runtime-admission.ts",
+    "pattern": "actual built restoring CLI",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) actual built restoring CLI proves executing identity and retains the runtime lock through readiness and exit [136.69ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "terminal-private-cause",
+    "file": "edge-admission.ts",
+    "pattern": "actual built restoring CLI",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) actual built restoring CLI proves executing identity and retains the runtime lock through readiness and exit [292.41ms]",
+    "assertion": "error: expect(received).not.toContain(expected)"
+  },
+  {
+    "mutation": "terminal-observed-owner",
+    "file": "edge-admission.ts",
+    "pattern": "actual policy CLI missing",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) actual policy CLI missing reaches only its admitted boundary [39.08ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "restoring-no-ordinary-fallback",
+    "file": "solver-runtime-admission.ts",
+    "pattern": "lock: phase-drift",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) phase-aware runtime verifies restoring bindings under the lifetime lock: phase-drift [81.80ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "parked-inventory",
+    "file": "parked-dependencies.ts",
+    "pattern": "fenced: new-participant",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: new-participant [4693.94ms]",
+    "assertion": "error: expect(received).toBe(expected)"
+  },
+  {
+    "mutation": "restored-retained-policy",
+    "file": "dependency-activation-owner.ts",
+    "pattern": "fenced: policy-after-start",
+    "exit": 1,
+    "failed": true,
+    "observedTest": "(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: policy-after-start [10001.41ms]",
+    "assertion": "explicit test assertion failed"
+  }
+]

@@ -291,3 +291,39 @@ test('malformed policy diagnostics never echo file contents', async () => {
   expect(refusal).toBeInstanceOf(Error);
   expect(String(refusal)).not.toContain('PRIVATE_POLICY_SENTINEL');
 });
+
+test('restoring policy is closed, bound and readable only by the phase-aware reader', async () => {
+  const module = await import('./edge-policy');
+  const directory = scratchSync('edge-restoring-policy-');
+  const restoring = {
+    format: 'dependency-edge-policy',
+    version: 1,
+    phase: 'restoring',
+    edgeState: directory,
+    ownerPublicationSha256: 'a'.repeat(64),
+    restorationIntent: {
+      name: 'edge-owner-000001-solver-restore-intent.json',
+      sha256: 'b'.repeat(64),
+    },
+  } as const;
+  await writeFile(`${directory}/edge-policy.json`, JSON.stringify(restoring), { mode: 0o600 });
+  expect((await module.captureEdgePolicy(directory)).policy).toEqual(restoring);
+  await refuses(readOrdinaryEdgePolicy(directory));
+  for (const malformed of [
+    { ...restoring, phase: 'active' },
+    { ...restoring, extra: true },
+    { ...restoring, ownerPublicationSha256: 'x' },
+    { ...restoring, restorationIntent: { ...restoring.restorationIntent, extra: true } },
+    {
+      ...restoring,
+      restorationIntent: {
+        ...restoring.restorationIntent,
+        name: '../edge-owner-000001-solver-restore-intent.json',
+      },
+    },
+    { ...restoring, restorationIntent: { ...restoring.restorationIntent, sha256: 'x' } },
+  ]) {
+    await writeFile(`${directory}/edge-policy.json`, JSON.stringify(malformed));
+    await refuses(module.captureEdgePolicy(directory));
+  }
+});

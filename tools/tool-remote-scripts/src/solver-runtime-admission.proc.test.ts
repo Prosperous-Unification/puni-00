@@ -271,9 +271,11 @@ for (const fault of [
             ? 'lock held'
             : fault === 'owner' || fault === 'pending'
               ? 'admission closed'
-              : fault === 'active' || fault === 'restoring'
+              : fault === 'active'
                 ? 'invalid ordinary edge policy'
-                : 'edge-policy.json',
+                : fault === 'restoring'
+                  ? 'invalid restoring edge policy'
+                  : 'edge-policy.json',
         );
       }
       expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
