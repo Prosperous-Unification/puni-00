@@ -104,3 +104,5 @@ restoring the production workflow to 50 made that test fail with
 `Expected: 75 · Received: 50`; restoring 75 passed. The raw focused outcomes and
 unchanged guard are retained in the
 [allowance evidence](../../openspec/changes/burokrat-serial-legacy-compiler/evidence/ci-allowance/README.md).
+
+Merge-check enforcement qualification is in progress on 2026-10-23.
