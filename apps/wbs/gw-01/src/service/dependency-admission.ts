@@ -36,7 +36,7 @@ export async function admitDependencyUpgrade(
     });
     // Proof: accepting typed409 as success admitted incompatible clients in dependency-admission.test.ts.
     if (response.status === 204) return null;
-    // Proof: removing this status guard accepted a typed refusal under200/401/500 in dependency-admission.test.ts.
+    // Proof: removing this status guard resolved the first unexpected-status case (200) instead of rejecting in dependency-admission.test.ts.
     if (response.status !== 409) {
       await response.body?.cancel();
       throw new Error(`dependency admission failed ${String(response.status)}`);

@@ -199,7 +199,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
       return undefined;
     } catch (caught) {
       logger.error({ err: caught }, 'dependency upgrade admission unavailable');
-      // Proof: returning undefined here opened failed/malformed/deadline upgrades in dependency-admission.integration.test.ts.
+      // Proof: returning undefined here opened the first transport-failure case in dependency-admission.integration.test.ts.
       set.status = 503;
       return { error: 'dependency_admission_unavailable' };
     }
