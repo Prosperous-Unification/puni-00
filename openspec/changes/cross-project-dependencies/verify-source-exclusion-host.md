@@ -93,3 +93,44 @@ required. Historical source-only receipts describe their original bounded
 contract and are not current proof for a superseded order-only check. The shared
 correction, its independent review and the new exact-SHA fixture retry remain
 open. No combined native acceptance or production change is claimed here.
+
+## Passing combined native acceptance
+
+Exact `6f6f424e2d5ebf7c52f55e49131c492b535f22ac` passed
+`tool-remote-scripts:test:source-exclusion` under the canonical h2 heavy lock:
+**exit 0, 3m 50s**, uncached. The owned isolated worktree reused the existing
+node_modules only after exact package.json and bun.lock comparisons; no fresh
+frozen dependency installation is claimed.
+
+The native runner observed real source and descendant SQLite writes, rejected an
+actual mutable-tag substitution, completed the joint ingress/source/solver/prod
+managed exclusion callback, observed **44 actual namespace scanners DONE and
+REAPED**, refused an unrelated mounted child and verified source-token expiry.
+Its exact result is source-managed-excluded, activation blocked. Both component
+and outer cleanup completed with zero recorded failures.
+
+Independent read-only queries confirmed absence of both owned container-label
+universes and all eight recorded container IDs, both owned networks, the exact
+temporary image tag and the exact owned unit link. Scratch source/database/state
+files and original logs remain private for review. No production deployment,
+adoption, semantic activation or public exposure was performed.
+
+The [hash-only receipt](evidence/source-exclusion-acceptance/host-6f6f424e2.json)
+binds the original private receipt, log and independent cleanup record. The
+private receipt SHA256 is
+`de452589263ce5b9f1f8c6c1565c0a9de92690e3a760842571907a57314b512c`.
+The earlier failed attempts remain historical failed evidence.
+
+Before host execution the integrated production modules matched the independently
+reviewed source packet byte-for-byte. Root focused integration checks passed:
+**213 tests / 507 assertions** across six files, then **4 composed restoration
+cases / 8,422 assertions**. Independent Astra review separately passed 127 native
+identity tests plus five composed/parked cases and inspected all twelve current
+mount-identity omission receipts.
+
+This closes the bounded native source fixture acceptance at that exact SHA. It
+does not exercise the subsequently integrated source-input/migration-artifact
+observers or establish independently prepared real release artifacts, installed
+writer adoption, activation/restoration/handoff, normal controller resumption,
+the final integrated host gate or CI. Parent O4/10.2 and the delivery goal remain
+open.

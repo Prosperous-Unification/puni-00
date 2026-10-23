@@ -867,7 +867,7 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] X3 Owner backend audit recognizes only the verified same-inventory source member; ordinary stopped mounts remain refused.
 - [x] X4 Explicit solver/ingress/source/prod managed composition with fresh before/after/final inspections.
 - [x] X5a Watched omissions and focused checks: [source receipt](verify-source-dev-exclusion.md).
-- [ ] X5b Independent final source review and separately reviewed physical runner/acceptance. Parent O4/10.2 and adoption stay open.
+- [x] X5b Independent final source review and separately reviewed owned physical runner/acceptance passed at `6f6f424e2`; see [native host receipt](verify-source-exclusion-host.md). Parent O4/10.2, adoption and final integrated gate stay open.
 
 Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bind full native terminal/inert snapshots and retained hashes, and recognize only exact same-inventory objects. No stopped/tmpfs exemption is introduced.
 
@@ -877,19 +877,19 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 
 - [x] P1a Implement the closed mandatory ordinary policy reader and exclusive explicit initializer, with bounded canonical regular-file read, identity checks, durable publication and watched negatives.
 - [x] P1b Add explicit policy startup under existing runtime lifetime admission, read-only policy preflight, staged installer preflight, strict adopted unit argv and matching actual drain fixture admission. Preserve legacy ordinary startup without treating legacy unit argv as adopted.
-- [ ] P1c Complete independent exact-SHA source review and authorized host acceptance. [Source evidence](verify-ordinary-edge-policy.md). No live initialization, installation or adoption claimed.
+- [x] P1c Complete independent exact-SHA source review and authorized owned-fixture host acceptance through `6f6f424e2`; [host evidence](verify-source-exclusion-host.md). No production initialization, installation or adoption claimed.
 - [ ] P2 Implement complete restoring/active policy verification before accepting either phase.
 - [ ] P3 Integrate compatible restoration controllers and prove S4 reopening. Parent 10.2-S4 remains open.
 
 ### Bounded source/solver physical acceptance runner source
 
 - [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).
-- [ ] XS2 Integrate reviewed ordinary policy and typed refusal-terminal packets, complete independent runner review, then execute only the root-authorized exact SHA and record physical evidence. X5b/D5b/S1/S2/O4 and parent 10.2 remain open.
+- [x] XS2 Integrate reviewed ordinary policy and typed refusal-terminal packets, complete independent runner review and observe passing physical evidence at `6f6f424e2`; [host receipt](verify-source-exclusion-host.md). D5b/S1/S2/O4 and parent 10.2 remain open.
 
 ### Native source shape and bounded diagnostic correction
 
 - [x] X7a Model native omitted source Init without manufacturing a field; prove inherited full-native owner/tag behavior, malformed present values, private PID/terminal guards and shape drift. Preserve managed init:true. Add private bounded stage/category/command-exit cause diagnostics and strict expected-refusal recovery, with configured local suites and watched faults. [Local receipt](verify-source-native-init.md).
-- [ ] X7b Independently review the exact corrected source SHA and complete the separately authorized physical rerun. The first physical failure's exact cause remains unverified; no source acceptance or parent 10.2 completion is claimed.
+- [x] X7b Independently review the corrected source and complete the authorized owned physical rerun at `6f6f424e2`. The first failure's sole cause remains unverified; fresh combined acceptance passed. Parent 10.2 completion is not claimed.
 
 - [x] X7c: Make fixture diagnostics descriptor-only; prove zero getter invocations, strict expected-refusal behavior and bounded prototype traversal in local production-path regressions (see verify-source-native-init.md).
 
