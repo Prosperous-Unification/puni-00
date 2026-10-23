@@ -101,7 +101,7 @@ claim these observations in advance.
 | Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN                                                                                               |
 | Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | Closed; see Task 4.3 reconciliation below                                                             |
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                               |
-| Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | NOT RUN                                                                                               |
+| Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | [Post-close observed](evidence/task-5-postclose/verify.md); other faults not reverified here          |
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | NOT RUN                                                                                               |
 | Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | NOT RUN                                                                                               |
 | Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Domain seam observed; core/calendar/runtime NOT RUN; [evidence](evidence/task-6-resolved-schedule.md) |
@@ -5585,3 +5585,13 @@ publication silence through 11 watched production faults. After integration and
 reviewer refinements, its mounted suite passed 13/13 with 201 assertions;
 changed-file ESLint, Prettier and diff check passed. Production authoring remains
 inactive. The full 4.2 matrix, MCP parity and activation acceptance remain open.
+
+## Task 5.1 post-close derivation and connected cache proof (2026-10-23)
+
+[The bounded post-close packet](evidence/task-5-postclose/verify.md) records
+two independent production mutations: a late real connected placement derivation
+and a late real captured optimization question. Both mounted HTTP tests failed
+with `read snapshot is closed`; restoring production passed the entire five-case
+connected Saved plan controller suite. This supplies the previously unobserved
+post-close derive/cache fault in the coherent-capture register. Other register
+faults and the parent task remain independently tracked; no task is closed here.

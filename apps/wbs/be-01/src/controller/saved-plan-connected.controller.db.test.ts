@@ -110,6 +110,8 @@ test('mounted connected save persists input9 schedule2 and equals one current ob
 });
 
 // Proof: removing current/current reuse produced two read connections instead of one (slice-d-fault-current-recapture.log).
+// Proof: task-5-postclose/derive.patch reran real placement derivation during history conversion;
+// the expired snapshot threw `read snapshot is closed` and this mounted comparison returned 500.
 test('connected current/current captures once and serialization follows read connection closure', async () => {
   const { mounted, beta, probe } = await openFixture();
   const before = probe.opened;
@@ -177,6 +179,8 @@ test('connected save rolls back header and input when schedule insert fails', as
 });
 
 // Proof: injecting live scheduler mode wrote optimization_generation despite capture intent (slice-d-fault-solver-admission.log).
+// Proof: task-5-postclose/cache.patch repeated the real captured optimization question during
+// history conversion; captured-scheduler expiry threw and this mounted save returned 500.
 test('enabled connected capture never enters solver admission or changes durable optimization state', async () => {
   const { mounted, beta, probe } = await openFixture();
   mounted.sqlite.run("UPDATE project SET optimization_enabled=1,schedule_engine='optimized'");
