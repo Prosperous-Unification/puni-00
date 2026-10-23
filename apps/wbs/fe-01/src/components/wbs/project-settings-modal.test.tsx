@@ -949,8 +949,14 @@ describe('the project timezone (step-node-attempts D3)', () => {
 });
 
 describe('project abbreviation in General settings', () => {
-  itDom('applies a twenty-character code and shows the server canonical value', async () => {
-    const setAbbreviation = vi.fn(() => Promise.resolve('PUNI2-CORE_MAIN12345'));
+  // Proof: requiring two characters in GeneralPanel's production regex failed
+  // the `p` case: the field retained lowercase p instead of the canonical P.
+  // The twenty-character control still passed (2026-10-23).
+  itDom.each([
+    ['p', 'P'],
+    ['puni2-core_main12345', 'PUNI2-CORE_MAIN12345'],
+  ])('applies the boundary code %s and shows its canonical value', async (draft, canonical) => {
+    const setAbbreviation = vi.fn(() => Promise.resolve(canonical));
     mounted({
       general: { abbreviation: 'PUNI', setAbbreviation, onChanged: () => Promise.resolve() },
     });
@@ -958,10 +964,10 @@ describe('project abbreviation in General settings', () => {
     fireEvent.click(tab('General'));
     const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
     expect(field).toHaveValue('PUNI');
-    fireEvent.change(field, { target: { value: 'puni2-core_main12345' } });
+    fireEvent.change(field, { target: { value: draft } });
     fireEvent.keyDown(field, { key: 'Enter' });
-    await waitFor(() => expect(field).toHaveValue('PUNI2-CORE_MAIN12345'));
-    expect(setAbbreviation).toHaveBeenCalledWith('puni2-core_main12345');
+    await waitFor(() => expect(field).toHaveValue(canonical));
+    expect(setAbbreviation).toHaveBeenCalledWith(draft);
   });
   itDom.each(['', '2PUNI', 'P'.repeat(21), 'PUNI.CORE', '-PUNI', '_PUNI', 'PÜNI'])(
     'retains invalid draft %s visibly',
