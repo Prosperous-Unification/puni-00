@@ -40,7 +40,7 @@ export interface ResourceFactsReader {
 
 /**
  * The project's stored measures an export reads (`wbs-measure-budgets` design
- * D53): its organization's definitions (null when none owns it), every fact
+ * D63): its organization's definitions (null when none owns it), every fact
  * with its basis, every trio and every stated budget.
  */
 export interface MeasureFactsReader {

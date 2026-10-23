@@ -237,7 +237,7 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   against every leaf's spend, and the budget is absent. `budgetFactor` is a project column
   (default 1, additive), patched like the other settings, refused `422 bad_budget_factor`
   unless finite, above 0 and at most 1000. It moves no date, so saved plan captures and the
-  export leave it out (D22) until slice 7 carries it (D53, D56).
+  export leave it out (D22) until slice 7 carries it (D63, D66).
 - **D39 Reading.** `spent` is the subtree's facts in the key summed over every step
   (`agent_minutes` derived, D20; nothing recorded reads 0). `held` is the budget's
   `holdPerAttempt` times the RUNNING attempts in the subtree whose usage is unknown. In a typed
@@ -293,7 +293,7 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   a basis only when mixed (slice 5 reads, slice 6 panel); the export carries neither budgets
   nor bases (D22, slice 7); `findCrossReferences` does not follow `work_item_budget` (D34).
   Slice 5 closed the route, the read's basis and the cross references (D48–D50); slice 7 closed
-  the export (D53); the panel remains.
+  the export (D63); the panel remains.
 - **D46 Strict and advisory headroom apart (review S2-1).** Per key the headroom read answers
   `{strict?, advisory?, mixedRateCards?, mixedAt?}` (the two mixed fields superseded by D52): the tightest strict budget of the chain,
   which the coordinator refuses on, and apart the tightest advisory or derived one, which it
@@ -359,7 +359,7 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
 
 Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading closest to D1–D8:
 
-- **D53 Version 11, written only when it carries something.** The plan document gains version
+- **D63 Version 11, written only when it carries something.** The plan document gains version
   11: `settings.budgetFactor`, `measureDefinitions` (every field but the id, for the keys its
   figures name, in list order), `measureFacts` (facts in defined measures with their `basis`),
   `measureEstimates` (every trio but the single-point tokens trios, with `basis`) and `budgets`
@@ -374,11 +374,11 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
   golden hashes stand. Known lag: Navigator, Burokrat's `planDocumentVersion` and Dash refuse a
   version-11 file loudly until they admit it; nothing silently drops measures any more (D22
   closed).
-- **D54 Row readings never enter the document.** The row read's `measureEstimates`, `budgets`,
+- **D64 Row readings never enter the document.** The row read's `measureEstimates`, `budgets`,
   `mixedRateCards` and `moneyBases` are readings (summed, expected, remaining) and are stripped
   from every exported row, as spans are; slices 3–5 had let them ride along on the plan branch
   (never on `main`), which also leaked derived budgets computed from the factor into version 10.
-- **D55 Import matches definitions by key and never remaps.** A file definition the importing
+- **D65 Import matches definitions by key and never remaps.** A file definition the importing
   organization holds must agree on `kind`, `scale`, `unit`, `currency`, `threePoint`, `derived`
   and `schedulesWork`; the first field that differs refuses the import `409 source_refused`
   with `path: measureDefinitions[i].<field>` and `detail: measure_shape_mismatch`, writing
@@ -394,15 +394,15 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
   D47's enumerations are untouched. Found while round-tripping: SQLite's `insertSubtree` wrote
   facts without their basis, so an import and an undo of a delete put priced facts back
   unpriced; it now writes the basis columns.
-- **D56 Saved plans capture measures (plan input schema 9).** `CanonicalPlanInput` gains
-  `measureEstimates` (single-point tokens trios excluded, as in D53), `budgets` and
+- **D66 Saved plans capture measures (plan input schema 9).** `CanonicalPlanInput` gains
+  `measureEstimates` (single-point tokens trios excluded, as in D63), `budgets` and
   `project.budgetFactor`, and each measure its `currency` and `rateCardDigest`; a schema-8 body
   upgrades with none of them, a factor of 1 and unpriced facts, and stored bytes are never
   rewritten. Compare reports trios and budgets under `measures` and the factor under
   `settings`. Definitions are not captured: the key is the name a capture shows. A schema-9 body
   is new bytes, so new captures hash differently from schema-8 ones by design.
-- **D57 Golden fixtures state the default factor.** The core export fixture's project had
-  `budgetFactor: 1.5` to prove slice 4's strip; under D53 that factor is version-11 data, so the
+- **D67 Golden fixtures state the default factor.** The core export fixture's project had
+  `budgetFactor: 1.5` to prove slice 4's strip; under D63 that factor is version-11 data, so the
   legacy-shape fixtures state 1 and the version-11 cases state 1.5. The v9 and v10 golden
   hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`).
 

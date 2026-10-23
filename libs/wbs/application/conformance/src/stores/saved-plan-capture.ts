@@ -282,7 +282,7 @@ export function savedPlanCaptureExpected(
       },
     ],
     // A three-point tokens trio and a tokens budget, the measures an unowned
-    // project may hold beyond its legacy facts (`wbs-measure-budgets` D56).
+    // project may hold beyond its legacy facts (`wbs-measure-budgets` D66).
     measureEstimates: isA
       ? [
           {

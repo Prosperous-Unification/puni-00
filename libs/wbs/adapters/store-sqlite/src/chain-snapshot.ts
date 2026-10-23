@@ -360,7 +360,7 @@ export function createLivePlanStore(
           new ResourceCapacityRepository(db, OPEN).listFor(projectId),
           new DemandRepository(db, OPEN).listByProject(projectId),
           // The measures version 11 carries, on the tree's snapshot
-          // (`wbs-measure-budgets` design D53).
+          // (`wbs-measure-budgets` design D63).
           // Proof: with these four read as empty, the shared `round-trips a
           // version-11 plan byte for byte into an organization lacking a
           // measure` (measure-export.controller.db.test.ts) failed; watched

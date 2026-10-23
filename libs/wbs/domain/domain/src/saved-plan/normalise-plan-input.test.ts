@@ -20,7 +20,7 @@ const bytes = serialiseCanonicalPlanInput(canonicalisePlanInput(planFixtureRows)
 /**
  * {@link planFixtureRows} as any body saved before schema 9 reads once
  * upgraded: no trios, no budgets, every fact unpriced and a factor of 1
- * (`wbs-measure-budgets` design D56). The earlier upgrades' cases compare
+ * (`wbs-measure-budgets` design D66). The earlier upgrades' cases compare
  * against it, since a body that old cannot have held any of those.
  */
 const beforeMeasures: typeof planFixtureRows = {

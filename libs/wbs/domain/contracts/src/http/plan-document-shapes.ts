@@ -7,7 +7,7 @@ import { moneyBasis, numberedWorkItem, workItemTree } from './work-item-response
 /**
  * The newest plan document version this release writes.
  *
- * `11` carries the project's measures (`wbs-measure-budgets` D8, design D53):
+ * `11` carries the project's measures (`wbs-measure-budgets` D8, design D63):
  * the definitions its facts, estimates and budgets name, those three, and the
  * budget factor. The export writes it only when the plan holds one of them or
  * a factor other than 1, and {@link LEGACY_PLAN_DOCUMENT_VERSION} otherwise.
@@ -24,7 +24,7 @@ export const PLAN_DOCUMENT_VERSION = 11;
 /**
  * The version the export writes for a plan with nothing version 11 adds, byte
  * for byte what the release before measures wrote, so the outgoing release,
- * Twilight Navigator and every saved file read it as before (design D53).
+ * Twilight Navigator and every saved file read it as before (design D63).
  */
 export const LEGACY_PLAN_DOCUMENT_VERSION = 10;
 
@@ -54,7 +54,7 @@ const planSettings = type({
   scheduleObjective: "'pri' | 'time'",
   /** The IANA zone the project reads instants as days in; `UTC` before version 7. */
   timezone: 'string',
-  /** What a derived budget multiplies the pessimistic point by; version 11 only (design D53). */
+  /** What a derived budget multiplies the pessimistic point by; version 11 only (design D63). */
   'budgetFactor?': 'number',
 });
 
@@ -92,7 +92,7 @@ export type DocumentDemand = (typeof documentDemand)['infer'];
 
 /**
  * A measure definition as version 11 writes it (`wbs-measure-budgets` D1,
- * design D53): every field but the organization's id, so an import elsewhere
+ * design D63): every field but the organization's id, so an import elsewhere
  * can match it by key or create it.
  */
 export const documentMeasureDefinition = type({
@@ -253,7 +253,7 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
   demands: documentDemand.array(),
   calendarMarkers: authoredMarker.array(),
   directory: directory.and({ resources: documentResource.array() }),
-  // Version 11 only, all four together (design D53).
+  // Version 11 only, all four together (design D63).
   'measureDefinitions?': documentMeasureDefinition.array(),
   'measureFacts?': documentMeasureFact.array(),
   'measureEstimates?': documentMeasureEstimate.array(),
@@ -335,7 +335,7 @@ const writablePlanDocument = type({
   'resourceCapacities?': 'unknown',
   'demands?': 'unknown',
   // Opaque until the version is read: version 11 must state all four, and
-  // earlier versions carry none (`wbs-measure-budgets` design D53).
+  // earlier versions carry none (`wbs-measure-budgets` design D63).
   'measureDefinitions?': 'unknown',
   'measureFacts?': 'unknown',
   'measureEstimates?': 'unknown',
@@ -386,7 +386,7 @@ export type PlanDocumentImport = Omit<
   | 'measureEstimates'
   | 'budgets'
 > & {
-  /** The measures version 11 states (design D53), none before. */
+  /** The measures version 11 states (design D63), none before. */
   measureDefinitions: DocumentMeasureDefinition[];
   measureFacts: DocumentMeasureFact[];
   measureEstimates: DocumentMeasureEstimate[];

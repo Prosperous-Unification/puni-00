@@ -28,7 +28,7 @@ const PROJECT: Project & { timezone: string } = {
   scheduleEngine: 'optimized',
   scheduleObjective: 'time',
   // The default: a factor other than 1 is data version 10 cannot carry, so
-  // these legacy-shape fixtures export version 10 (design D53); the version-11
+  // these legacy-shape fixtures export version 10 (design D63); the version-11
   // cases below state 1.5.
   budgetFactor: 1,
   timezone: 'Europe/Kyiv',

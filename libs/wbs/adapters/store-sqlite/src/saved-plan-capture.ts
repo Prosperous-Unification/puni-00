@@ -188,7 +188,7 @@ export async function readPlanInputIn(
   const stepParallels = await new StepParallelRepository(db, OPEN).listByProject(projectId);
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
   // On the snapshot with the facts, so a saved plan pairs each budget with
-  // the figures it bounds (`wbs-measure-budgets` design D56).
+  // the figures it bounds (`wbs-measure-budgets` design D66).
   // Proof: with either read replaced by `[]`, the SQLite run of the
   // conformance case `savedPlanCapture.readPlanInput:complete` captured none;
   // watched 2026-10-23.

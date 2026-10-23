@@ -70,7 +70,7 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
 ]);
 
 /**
- * Version 8 to 9 (`wbs-measure-budgets` design D56): a body saved before
+ * Version 8 to 9 (`wbs-measure-budgets` design D66): a body saved before
  * measure estimates, budgets and bases were captured held none of them, and
  * its project the factor every project had, 1. Its facts read as unpriced.
  *

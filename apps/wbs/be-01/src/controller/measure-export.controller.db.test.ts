@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * Plan document version 11 (`wbs-measure-budgets` task 4.4, design D53) over
+ * Plan document version 11 (`wbs-measure-budgets` task 4.4, design D63) over
  * be-01's production composition and real SQLite: one organization's plan
  * holding a defined measure, priced money facts and trios, a three-point
  * tokens trio, budgets and a factor is exported, imported into another

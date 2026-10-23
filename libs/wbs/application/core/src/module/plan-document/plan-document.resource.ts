@@ -297,7 +297,7 @@ function buildDocument(
   // test receive a TypeError from .map instead of the named trusted-state error.
   if (tree.typedDependencies === undefined)
     throw new Error(`project "${project.id}" tree was read without typed dependencies`);
-  // The factor travels in `settings` at version 11 only (design D53); the
+  // The factor travels in `settings` at version 11 only (design D63); the
   // embedded project never carries it, so version 10 keeps its bytes.
   // Proof: with the factor left in, `v9 zero-fact export retains canonical
   // bytes` (plan-document.resource.test.ts) read other bytes; watched 2026-10-23.
@@ -320,7 +320,7 @@ function buildDocument(
     timezone: project.timezone,
   };
   // Version 11 only when the plan holds something version 10 cannot carry
-  // (design D53): a plan without measures exports the bytes it always did.
+  // (design D63): a plan without measures exports the bytes it always did.
   // Proof: with this test made `true`, `v10 resources export retains canonical
   // bytes` and `v9 zero-fact export retains canonical bytes`
   // (plan-document.resource.test.ts) read version 11 and other bytes; with it
@@ -400,7 +400,7 @@ interface DocumentMeasures {
 }
 
 /**
- * The measures version 11 carries (`wbs-measure-budgets` design D53), or null
+ * The measures version 11 carries (`wbs-measure-budgets` design D63), or null
  * when the plan holds none: every stored fact in a defined measure (the legacy
  * `token_actual`, `hours_actual` and `token_estimate` stay in the row's
  * `measures`, D18), every trio but the single-point tokens trios (each is its
@@ -569,7 +569,7 @@ function documentWorkItems(
       // Proof: retaining this field leaked derived resources in both mounted
       // mode exports; their omission assertions failed, watched 2026-10-15.
       nodeResources: _nodeResources,
-      // Readings, not records (`wbs-measure-budgets` design D54): expected
+      // Readings, not records (`wbs-measure-budgets` design D64): expected
       // measures, remaining budgets and bases are computed again from what
       // version 11 carries in its own lists.
       // Proof: with these four kept, `leaves the row's measure readings out of
@@ -582,7 +582,7 @@ function documentWorkItems(
       ...held
     }) => {
       // The row keeps the legacy metrics only (`wbs-measure-budgets` D18,
-      // design D53): a fact in a defined measure travels in `measureFacts`
+      // design D63): a fact in a defined measure travels in `measureFacts`
       // with its basis, and the derived `agent_minutes` comes back from the
       // attempts the row carries.
       // Proof: with every metric kept, `exports legacy metrics only, leaving
@@ -974,7 +974,7 @@ function resourceFactsOf(
 }
 
 /**
- * The measures a file states (`wbs-measure-budgets` design D53): from version
+ * The measures a file states (`wbs-measure-budgets` design D63): from version
  * 11 the four lists are required, every entry well formed and every figure a
  * finite number, and the budget factor one a project may hold; before version
  * 11 a file states none of them and reads with a factor of 1, and one that

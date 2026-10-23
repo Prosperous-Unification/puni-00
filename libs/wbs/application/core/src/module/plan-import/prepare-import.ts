@@ -797,7 +797,7 @@ export function prepareImport(
 
 /**
  * The file's measures checked against its own definitions (`wbs-measure-budgets`
- * design D53), as the commands would check them against an organization's:
+ * design D63), as the commands would check them against an organization's:
  *
  * - each definition well formed as `createMeasure` requires (key, unit, order,
  *   currency exactly on money) and its key stated once and not a legacy metric

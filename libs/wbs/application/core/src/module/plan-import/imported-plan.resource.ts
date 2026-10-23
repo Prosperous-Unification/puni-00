@@ -230,7 +230,7 @@ export class ImportedPlanResource {
 
   /**
    * The measure definitions the created project's figures are decided
-   * against (`wbs-measure-budgets` design D53): the organization's under
+   * against (`wbs-measure-budgets` design D63): the organization's under
    * scoped access; null under legacy access, whose import creates a project
    * no organization owns, which answers the seeded four (design D19).
    */

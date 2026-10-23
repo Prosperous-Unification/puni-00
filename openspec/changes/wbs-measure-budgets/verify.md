@@ -510,20 +510,20 @@ were not rerun (a slice-6 worker shares the laptop).
 
 ## Slice 7 — tasks 4.4 and 4.5 (2026-10-23)
 
-Plan document version 11 (D53), row readings out of the document (D54), import matching
-definitions by key (D55), saved plan input schema 9 (D56), golden fixtures (D57); CONTEXT.md,
+Plan document version 11 (D63), row readings out of the document (D64), import matching
+definitions by key (D65), saved plan input schema 9 (D66), golden fixtures (D67); CONTEXT.md,
 `docs/wbs/measures-and-budgets.md` (indexed in `LLM_README.md`), the prod runbook and the
 proposal's Impact updated. Branch `feat/wbs-measure-export` from slice 5's head 376e7d1c2.
 
 **Golden hashes.** The v9 (`016181aa…`) and v10 (`f2308a55…`) export hashes in
 `plan-document.resource.test.ts` are unchanged; their fixture now states `budgetFactor: 1`
-(slice 4 had set 1.5 to prove the strip; under D53 a factor other than 1 is version-11 data,
-D57). Version 11 adds `62708699…`. Saved-plan bodies are schema 9, so new captures hash
+(slice 4 had set 1.5 to prove the strip; under D63 a factor other than 1 is version-11 data,
+D67). Version 11 adds `62708699…`. Saved-plan bodies are schema 9, so new captures hash
 differently from schema-8 ones; no stored-body golden exists, and every stored body upgrades in
 memory. The SQLite capture conformance seed gained a tokens trio and budget, so the
 sqlite-bumped revision of A's first row moved from 7 to 9 (two more writes).
 
-**Found while round-tripping (D55).** SQLite's `insertSubtree` wrote facts without their
+**Found while round-tripping (D65).** SQLite's `insertSubtree` wrote facts without their
 basis: an import and an undo of a delete put a priced `cost` fact back unpriced (memory kept
 it). It now writes `currency` and `rate_card_digest`; `undo of a delete puts a priced fact back
 with its basis` (be-01) covers the undo path.
@@ -562,7 +562,7 @@ restored; the adjacent `Proof:` comments carry the same.
 | the same                                             | test made `false`                             | core `exports version 11 with every measure the plan holds` and 5 more v11 cases                                                                                           |
 | legacy metrics stay out of `measureFacts`            | filter removed                                | core `exports version 11 …`, `a plan whose measures are all legacy exports version 10 …`                                                                                   |
 | single-point trios stay out of `measureEstimates`    | filter removed                                | the same two cases and the v11 golden                                                                                                                                      |
-| row readings stripped (D54)                          | the four omissions removed                    | core `leaves the row’s measure readings out of the document`                                                                                                               |
+| row readings stripped (D64)                          | the four omissions removed                    | core `leaves the row’s measure readings out of the document`                                                                                                               |
 | older versions refuse measure lists and a factor ≠ 1 | refusal bypassed                              | core `refuses measures in a file older than version 11`                                                                                                                    |
 | version-11 factor bound                              | `isBudgetFactor` removed                      | core `refuses a version-11 file with a malformed measure entry or factor`                                                                                                  |
 | version-11 entry shapes                              | refusal removed                               | the same                                                                                                                                                                   |
@@ -585,6 +585,6 @@ conformance case covers them; reads replaced by `[]` were not separately injecte
 ### Skipped or unverified
 
 - The h2puni gate was not run (shared laptop; a slice-6 worker runs beside it).
-- Twilight Navigator, Burokrat and Dash still read plan documents up to version 10 (D53 lag);
+- Twilight Navigator, Burokrat and Dash still read plan documents up to version 10 (D63 lag);
   they were not changed and not rerun, since no legacy-shape export changed a byte.
 - fe-01's full suites were not run: no fe-01 file changed; its contract-facing `wbs-api.test.ts` was.

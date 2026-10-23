@@ -1149,7 +1149,7 @@ export class SubtreeRepository implements SubtreeStore {
         // {@link SubtreeCopy.measures}.
         // A defined measure's fact is written as its definition's id, a legacy
         // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does,
-        // and a priced fact with its basis (`wbs-measure-budgets` design D55).
+        // and a priced fact with its basis (`wbs-measure-budgets` design D65).
         // Proof: with the basis columns left out, `round-trips a version-11 plan
         // byte for byte into an organization lacking a measure` and `undo of a
         // delete puts a priced fact back with its basis`

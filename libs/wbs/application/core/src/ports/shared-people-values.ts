@@ -121,7 +121,7 @@ export interface PlanDocumentReads {
     readonly demands: readonly Demand[];
   };
   /**
-   * The project's measures as stored (`wbs-measure-budgets` design D53): the
+   * The project's measures as stored (`wbs-measure-budgets` design D63): the
    * definitions of its organization (null when none owns it), every stored
    * fact with its basis, every trio and every stated budget. Version 11
    * writes the ones version 10 cannot carry.

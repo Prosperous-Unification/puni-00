@@ -3,7 +3,7 @@
 What a planner or an operator needs to know about measures, their estimates and facts, and
 budgets. The rules themselves are in the
 [measure-budgets spec](../../openspec/changes/wbs-measure-budgets/specs/measure-budgets/spec.md)
-and the decisions (D1–D57) in its
+and the decisions (D1–D67) in its
 [design](../../openspec/changes/wbs-measure-budgets/design.md); the terms are in
 [CONTEXT.md](../../CONTEXT.md) under **Measure definition** through **Token estimate**.
 
@@ -35,15 +35,15 @@ and the decisions (D1–D57) in its
 - A plan holding a fact in a defined measure, a three-point trio, a stated budget or a factor
   other than 1 exports as plan document **version 11**, which carries the definitions those
   name, the facts and trios with their basis, the budgets and the factor. Any other plan
-  exports version 10, byte for byte as before (design D53).
+  exports version 10, byte for byte as before (design D63).
 - Importing version 11 matches each definition by key: one the organization holds must agree on
   kind, scale, unit, currency, three points, derived and scheduling, or the import answers
   `409 source_refused` with `detail: measure_shape_mismatch` at the first differing field and
   writes nothing; one it lacks is defined. Older versions import as before onto the seeded
-  definitions (design D55).
+  definitions (design D65).
 - Twilight Navigator reads versions 7 to 10 and refuses a version-11 file until it admits it.
 - Saved plans capture trios, budgets, bases and the factor (plan input schema 9), so compare
-  names a change in any of them (design D56).
+  names a change in any of them (design D66).
 
 ## Operating it
 

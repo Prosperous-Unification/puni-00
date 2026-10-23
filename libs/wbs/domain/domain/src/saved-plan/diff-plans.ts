@@ -200,7 +200,7 @@ const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefine
   project: 'settings',
   measures: 'measures',
   // A trio or a budget in any measure other than time reads as a measure
-  // change (`wbs-measure-budgets` design D56); the factor is a setting.
+  // change (`wbs-measure-budgets` design D66); the factor is a setting.
   measureEstimates: 'measures',
   budgets: 'measures',
   stepBlockages: 'progress',

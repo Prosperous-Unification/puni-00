@@ -140,7 +140,7 @@ function parentsFirst(rows: readonly PreparedWorkItem[]): PreparedWorkItem[] {
 
 /**
  * The fields that decide what a measure's figures mean (`wbs-measure-budgets`
- * design D53). A held definition differing in any of them is refused rather
+ * design D63). A held definition differing in any of them is refused rather
  * than remapped; its name, order and default visibility are the
  * organization's own and stay as they are.
  */
@@ -157,7 +157,7 @@ const MEASURE_SHAPE_FIELDS = [
 /**
  * Matches every measure definition the file names by key among the
  * organization's and defines the ones it lacks (`wbs-measure-budgets` design
- * D53). Under legacy access the created project is owned by no organization,
+ * D63). Under legacy access the created project is owned by no organization,
  * so the file's definitions are matched against the seeded four it answers
  * and none is defined (design D19).
  *
@@ -488,7 +488,7 @@ export class ImportService {
           optimizationEnabled: settings.optimizationEnabled,
           scheduleEngine: settings.scheduleEngine,
           scheduleObjective: settings.scheduleObjective,
-          // Version 11 states it; earlier versions read as 1 (design D53).
+          // Version 11 states it; earlier versions read as 1 (design D63).
           // Proof: with the factor left off, `round-trips a version-11 plan’s
           // trios, budgets and factor byte for byte`
           // (import-service-source-contract.ts, memory source) failed; watched
@@ -618,7 +618,7 @@ export class ImportService {
                 })),
               ),
               // Facts in defined measures, addressed by key with their basis
-              // (design D53); `resolveMeasures` has defined every key.
+              // (design D63); `resolveMeasures` has defined every key.
               ...prepared.measureFacts.map(({ workItemId, stepId, measure, value, basis }) => ({
                 workItemId: resolvedId(rowsByFileId, workItemId, 'measured work item'),
                 stepId: resolvedId(stepsByFileId, stepId, 'measure step'),
