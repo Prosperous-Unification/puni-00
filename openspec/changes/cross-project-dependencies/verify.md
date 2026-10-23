@@ -6911,3 +6911,13 @@ the missing downstream invalidation before the fix, semantic hold fingerprint,
 isolated/shared A→B→C block/clear/undo/redo and rollback acceptance, and the
 watched omission fault. Independent Astra review approved the bounded packet;
 parent 5.2 and the integrated exact-SHA gate remain open.
+
+## Bounded shared edge owner admission prerequisite (2026-10-23)
+
+The [shared edge admission packet](verify-shared-edge-admission.md) records
+real source-path lock and retained-marker refusal across prod/dev/bootstrap
+entrypoints, plus watched corrections for child descriptor handoff, staged
+configuration commit, and prefetch admission. Independent Astra rereview
+approved this bounded prerequisite. Installed writer adoption, marker
+publication, complete participant exclusion, activation, and the integrated
+exact-SHA host gate remain open.

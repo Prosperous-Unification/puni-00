@@ -725,6 +725,6 @@ Ordinary application source retains watcher delivery. Parent tasks stay open.
 
 - [x] Red/green real source writer marker refusal and canonical shared-lock contention across prod/dev swaps, dev poller/loader/devsync and bootstrap/configure.
 - [x] Preserve legacy absence, retain closed/orphan marker semantics, verify inherited descriptor identity/kernel lock and repeat direct-executor admission; watch production-path guard omissions fail.
-- [ ] Complete independent review and integrated exact-SHA host gate. Installed writer identity/drain/adoption, retained owner publication and activation remain outside this prerequisite; parent 10.1/10.2 stay unchecked. Evidence: [verify-shared-edge-admission.md](verify-shared-edge-admission.md).
+- [ ] Complete integrated exact-SHA host gate. Independent Astra rereview approved the bounded packet after the child-FD, staged-config and prefetch corrections. Installed writer identity/drain/adoption, retained owner publication and activation remain outside this prerequisite; parent 10.1/10.2 stay unchecked. Evidence: [verify-shared-edge-admission.md](verify-shared-edge-admission.md).
 
 - [x] Correct review findings with explicit inherited-FD remapping across real devsync child launch, staged provisioning base commit under configure admission, and manual retained-marker refusal before fetch; watch omitted mapping, direct live copy and prefetch admission negatives fail. Parent activation/installed-adoption obligations remain open.

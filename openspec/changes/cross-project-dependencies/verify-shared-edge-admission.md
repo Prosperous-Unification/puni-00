@@ -122,6 +122,11 @@ Installed-owner adoption, prior-holder drain, marker publication, continuous
 exclusion and activation remain unproven. This follow-up adds no publisher or
 activation command and changes no host.
 
+Independent Astra rereview approved the corrected bounded source-admission
+packet after checking the real descriptor handoff, staged configuration
+transport, and prefetch refusal paths. This approval does not cover the
+integrated exact-SHA host gate or installed-host adoption.
+
 Correction verification commands and observed output:
 
 ```sh
@@ -140,4 +145,4 @@ bash -n bin/dev-deploy.sh tools/tool-bootstrap/src/configure.sh
 
 Configured ESLint passed every corrected TypeScript file. Normal commit hooks
 repeat staged lint, format and repository guards. The integrated host gate,
-installed adoption audit and independent rereview remain outstanding.
+installed adoption audit remain outstanding.
