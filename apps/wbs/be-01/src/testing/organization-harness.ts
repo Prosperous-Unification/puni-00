@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { DeliveryReader } from '@shared/delivery';
 import {
   buildOidcVerifier,
   type IssuerFetch,
@@ -579,6 +580,7 @@ export class OrganizationHarness {
    */
   static openComposedWith({
     withOptimizer = false,
+    delivery,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -674,6 +676,7 @@ export class OrganizationHarness {
       () => services.clock.now(),
     );
     const app = buildApp({
+      ...(delivery === undefined ? {} : { delivery }),
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
@@ -979,6 +982,8 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Trusted external delivery reader; absent exercises production composition. */
+  readonly delivery?: DeliveryReader;
   readonly sessionBinding?: boolean;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;

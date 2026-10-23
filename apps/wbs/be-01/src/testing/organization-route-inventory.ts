@@ -280,6 +280,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+    method: 'GET',
+    path: '/api/projects/:id/work-items/:workItemId/refs/:refId/delivery',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdWork-itemsByWorkItemId',
     method: 'GET',
     path: '/api/projects/:id/work-items/:workItemId',

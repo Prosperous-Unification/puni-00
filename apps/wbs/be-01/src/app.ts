@@ -1,3 +1,5 @@
+import type { DeliveryReader } from '@shared/delivery';
+import { createGitHubDeliveryReader } from '@shared/delivery-github';
 import type { SessionFeatures } from '@wbs/contracts';
 import type { StepParallelStore } from '@wbs/core';
 import type {
@@ -42,6 +44,7 @@ import {
 } from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
+import { deliveryRoutes } from '@wbs/core/http/delivery.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
@@ -153,6 +156,8 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 };
 
 export interface AppOptions {
+  /** Overrides the anonymous public GitHub reader for a trusted composition. */
+  delivery?: DeliveryReader;
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
   appOrigin: string;
@@ -668,6 +673,11 @@ export function mountedEndpoints(
       reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
       clock: opts.clock,
     }),
+    ...deliveryRoutes(
+      opts.workItems,
+      opts.organizations,
+      opts.delivery ?? createGitHubDeliveryReader({ clock: () => opts.clock.now() }),
+    ),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
       new SpaceResource({
