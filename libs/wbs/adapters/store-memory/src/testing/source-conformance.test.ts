@@ -26,6 +26,7 @@ import {
   type FaultRun,
   type HistoryBatchFixture,
   isMeasureDefinitionCase,
+  isMeasureFactCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
@@ -37,6 +38,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedMeasureFactCase,
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
@@ -98,6 +100,7 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   storeDependencyById(dependency: StoredDependency): void;
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
   addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
+  ownProjectInOrganization: ReturnType<typeof openMemorySourceFixture>['ownProjectInOrganization'];
   pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
@@ -172,6 +175,9 @@ function conformanceMemorySource(
     },
     addOrganization: (organizationId: string, options: { legacy: boolean }) => {
       fixture.addOrganization(organizationId, options);
+    },
+    ownProjectInOrganization: (projectId: string, organizationId: string) => {
+      fixture.ownProjectInOrganization(projectId, organizationId);
     },
     pinCredential: (issuer: string, subject: string, personId: string) => {
       fixture.pinCredential(issuer, subject, personId);
@@ -391,9 +397,16 @@ async function openMemoryCase<Family extends ExistingFamily>(
         DETERMINISTIC_SEED.ownerIds[0],
       ]);
     }
-    if (isMeasureDefinitionCase(caseId)) {
+    if (isMeasureDefinitionCase(caseId) || isMeasureFactCase(caseId)) {
       seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.legacy, { legacy: true });
       seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.other, { legacy: false });
+    }
+    if (isMeasureFactCase(caseId)) {
+      seeded.ownProjectInOrganization(
+        DETERMINISTIC_SEED.projectIds[0],
+        CONFORMANCE_MEASURE_ORGANIZATIONS.legacy,
+      );
+      await seedMeasureFactCase(seeded.stores, caseId, DETERMINISTIC_SEED);
     }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);

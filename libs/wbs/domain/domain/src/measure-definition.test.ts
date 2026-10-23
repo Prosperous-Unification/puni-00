@@ -97,6 +97,13 @@ describe('decideMeasureCreate', () => {
     );
   });
 
+  // Proof: with the legacy-name test removed from decideMeasureCreate, this
+  // case answered null for `token_actual`; watched 2026-10-23.
+  it('refuses a key that is a legacy metric name', () => {
+    for (const key of ['token_estimate', 'token_actual', 'hours_actual'])
+      expect(decideMeasureCreate(SEEDED, { ...GPU_MINUTES, key })).toBe('measure_key_taken');
+  });
+
   // Proof: with the scheduling test removed from decideMeasureCreate, this case
   // answered null while time holds the flag; watched 2026-10-23.
   it('refuses a second scheduling measure', () => {

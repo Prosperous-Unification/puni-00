@@ -429,6 +429,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_step':
     case 'unknown_dependency':
     case 'unknown_metric':
+    case 'unknown_measure':
     case 'unknown_person':
     case 'unknown_account':
     case 'unknown_team':
@@ -441,6 +442,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'schedule_not_ready':
     case 'engine_unavailable':
     case 'rolled_up':
+    case 'derived_measure':
+    case 'scheduling_measure_fact':
+    case 'scale_mismatch':
     case 'ancestor':
     case 'self_node':
     case 'not_a_parent':

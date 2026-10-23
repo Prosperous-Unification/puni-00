@@ -56,6 +56,7 @@ describe('space rollback save, remove and restore', () => {
     expect(snapshot()).toEqual({ spaces: [], members: [] });
 
     expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+      '20261023110000_key_step_measure',
       '20261023100000_add_measure',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',

@@ -1,5 +1,6 @@
 import {
   addWorkdays,
+  agentMinutesOf,
   allowanceOf,
   type AllowancePercent,
   assumedAssignee,
@@ -19,6 +20,7 @@ import {
   deadlineOffsetOf,
   deadlineOffsetsOf,
   decideClaim,
+  decideMeasureFact,
   decideRelease,
   type Demand,
   type DependencyEndpoint,
@@ -34,6 +36,7 @@ import {
   freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
+  isLegacyMetric,
   type IsoDate,
   isoDateOfInstantIn,
   isWithin,
@@ -41,8 +44,8 @@ import {
   lastWorkdayOf,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
-  MEASURE_METRICS,
   type MeasureMetric,
+  metricsIn,
   minuteTrioProblem,
   nextWorkday,
   type NodeReading,
@@ -794,17 +797,27 @@ export type WorkItemRefusal =
   | 'invalid_estimate'
   | 'unknown_step'
   /**
-   * A figure in a unit this release does not keep — anything outside
-   * {@link MEASURE_METRICS}.
+   * A metric naming no measure definition of the project's organization, and
+   * none of the legacy names (`wbs-measure-budgets` D4; was `unknown_metric`
+   * before definitions existed).
    *
    * A **404** and not a 400, which is the one refusal in `token-tracking` that
-   * is not cloned from the actual pair. The metric is in the path, and it names
-   * a thing: `/measures/tokens_estimate/step-dev` is a request for a figure that
-   * does not exist in the same way a work item id nobody holds does not exist.
-   * A 400 would say the request was malformed, and it is not — it is
-   * well-formed about a unit this release has never heard of.
+   * is not cloned from the actual pair. The metric names a thing:
+   * `story_points` is a request for a figure that does not exist in the same
+   * way a work item id nobody holds does not exist. A 400 would say the
+   * request was malformed, and it is not — it is well-formed about a measure
+   * this organization has never defined.
    */
-  | 'unknown_metric'
+  | 'unknown_measure'
+  /** A fact or a clear on a derived measure (`agent_minutes`): nobody types it (409). */
+  | 'derived_measure'
+  /**
+   * A fact in the scheduling measure (`time`) (409): its fact is the actual
+   * days, recorded with `setActual`.
+   */
+  | 'scheduling_measure_fact'
+  /** A fraction on an integer-scale measure (409). */
+  | 'scale_mismatch'
   /**
    * A person the directory no longer holds, decided inside the write's own
    * transaction — see {@link AssignmentWritten}. Without it the same
@@ -994,18 +1007,6 @@ interface ClaimsTaken {
 }
 
 /**
- * Whether this release keeps figures in the unit a caller named.
- *
- * A function rather than an inline `includes`, because both write methods ask
- * and both must answer the same way; and it narrows, so the `MeasureMetric`
- * reaching the store is checked rather than asserted. The value arrives from a
- * URL path, so it is genuinely `string` no matter what the signature says.
- */
-function holdsMetric(metric: string): metric is MeasureMetric {
-  return (MEASURE_METRICS as readonly string[]).includes(metric);
-}
-
-/**
  * What each metric is called in a sentence somebody reads in the plan's
  * history.
  *
@@ -1020,6 +1021,11 @@ const MEASURE_LABELS: Record<MeasureMetric, string> = {
   token_actual: 'tokens spent',
   hours_actual: 'hours spent',
 };
+
+/** {@link MEASURE_LABELS} for a legacy metric; a defined measure is named by its key. */
+function measureLabelOf(metric: string): string {
+  return isLegacyMetric(metric) ? MEASURE_LABELS[metric] : metric;
+}
 
 export interface CreateWorkItem {
   parentId: string | null;
@@ -4794,7 +4800,7 @@ export class WorkItemService {
           statedHandedUp.push({ workItemId: parentId, stepId, state, statedAt: latest });
         }
         const measuredInside = storedMeasures.filter((each) => inside.has(each.workItemId));
-        for (const metric of MEASURE_METRICS) {
+        for (const metric of metricsIn(storedMeasures)) {
           for (const [stepId, value] of rollUpMeasures(rows, storedMeasures, metric).get(id) ??
             []) {
             // The newest stamp **in this metric**, not the newest in the branch.
@@ -5638,16 +5644,21 @@ export class WorkItemService {
 
   /**
    * Writes one figure in one unit that is not days — tokens estimated, tokens
-   * spent, hours spent — for one step on one work item.
+   * spent, hours spent, or a fact in any measure the organization defines —
+   * for one step on one work item.
    *
-   * Guarded exactly as {@link WorkItemService.setActual} is, plus **one refusal
-   * that pair does not have**: a `metric` outside {@link MEASURE_METRICS} is
-   * `unknown_metric`, which the controller answers 404 to. See
-   * {@link WorkItemRefusal} for why it is not a 400.
+   * Guarded exactly as {@link WorkItemService.setActual} is, plus **the
+   * refusals that pair does not have**, decided by {@link decideMeasureFact}
+   * against the definitions of the organization owning the project
+   * (`wbs-measure-budgets` D4): `unknown_measure` (404, see
+   * {@link WorkItemRefusal} for why it is not a 400), `derived_measure` and
+   * `scale_mismatch` (409). `token_actual` and `hours_actual` stay aliases of
+   * `tokens` and `hours` for one release, and the fact is journalled under
+   * the legacy name either way (design D18), so the outgoing release can undo it.
    *
-   * The check is here rather than left to the database, even though the column
-   * carries a `CHECK`: a constraint failure is a 500, and a client asking for a
-   * unit this release does not keep is out of date rather than broken.
+   * The check is here rather than left to the database: a constraint failure
+   * is a 500, and a client asking for a measure the organization does not
+   * define is out of date rather than broken.
    *
    * **Nothing about this reaches the schedule**, for
    * {@link WorkItemService.setActual}'s reason and one more of its own: the
@@ -5663,19 +5674,27 @@ export class WorkItemService {
     actorId: string,
     stepId: string,
     /**
-     * `string`, not {@link MeasureMetric}, and that is the honest type: this
-     * value arrives as a path segment, so the caller genuinely has a string and
-     * a narrower signature would only move the assertion to the route — where
-     * `unknown_metric` would then be unreachable through the API it exists for.
-     * {@link holdsMetric} narrows it here, once, for both methods.
+     * `string`, and that is the honest type: the value arrives from a command
+     * body, and which strings name a measure is the organization's data,
+     * decided once below.
      */
-    metric: string,
+    requested: string,
     value: number,
   ): Promise<WorkItemOutcome<null>> {
-    if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
+    // Proof: with this refusal skipped, `refuses a fact in a measure the
+    // organization does not define, in a derived measure or in the wrong
+    // scale` (measure-fact-command.test.ts) reached the store and threw
+    // (5 pass, 1 fail); watched 2026-10-23.
+    const decided = decideMeasureFact(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      value,
+    );
+    if (!decided.ok) return decided;
+    const { metric } = decided;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
@@ -5692,7 +5711,7 @@ export class WorkItemService {
       workItem.projectId,
       stamp,
       'measure',
-      `record ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
+      `record ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
       {
         forward: { do: 'set_measure', workItemId: id, stepId, metric, value },
         // The figure that was there **in this metric**, or its absence. The
@@ -5717,22 +5736,29 @@ export class WorkItemService {
    *
    * Idempotent and not refused on a rolled-up row, exactly as
    * {@link WorkItemService.clearActual} is and for its reasons. A missing
-   * **work item** is still `not_found`, and a metric outside the set is still
-   * `unknown_metric` — a clear of a unit that does not exist is not the state
-   * the caller asked for, it is a caller who believes in a unit this release
-   * has never kept.
+   * **work item** is still `not_found`, and a metric naming no definition is
+   * still `unknown_measure` — a clear of a measure that does not exist is not
+   * the state the caller asked for, it is a caller who believes in a measure
+   * the organization never defined. A derived measure is `derived_measure`:
+   * nothing typed is there to clear.
    */
   async clearMeasure(
     id: string,
     actorId: string,
     stepId: string,
     /** `string` for {@link WorkItemService.setMeasure}'s reason. */
-    metric: string,
+    requested: string,
   ): Promise<WorkItemOutcome<null>> {
-    if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
+    const decided = decideMeasureFact(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      null,
+    );
+    if (!decided.ok) return decided;
+    const { metric } = decided;
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
@@ -5744,7 +5770,7 @@ export class WorkItemService {
         workItem.projectId,
         stamp,
         'clear_measure',
-        `clear the recorded ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
+        `clear the recorded ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
         {
           forward: { do: 'clear_measure', workItemId: id, stepId, metric },
           inverse: { do: 'set_measure', workItemId: id, stepId, metric, value: before },
@@ -7310,6 +7336,20 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
+        // A defined measure may have been deleted since its fact was cleared;
+        // the store would throw on a key its organization no longer defines.
+        // Proof: with this check skipped, `refuses an undo that would put a
+        // fact back in a measure deleted since` (measure-fact-command.test.ts)
+        // threw from the store instead of refusing; watched 2026-10-23.
+        if (
+          !decideMeasureFact(
+            await this.opts.measures.definitionsFor(projectId),
+            command.metric,
+            null,
+          ).ok
+        ) {
+          return { ok: false, detail: 'that measure is no longer defined.' };
+        }
         const restored = await this.opts.measures.set(
           {
             workItemId: command.workItemId,
@@ -7889,6 +7929,13 @@ export class WorkItemService {
         ok: false,
         detail: 'a removed work item has step parallelism stated since this command.',
       };
+    // The hand-up below writes facts; one in a measure deleted since would
+    // throw from the store.
+    // Proof: with this refusal removed, `refuses an undo of a first-child create
+    // whose handed-down fact is in a measure deleted since`
+    // (measure-fact-command.test.ts) threw from the store; watched 2026-10-23.
+    const measuresRefused = await this.measuresRefusal(projectId, command.setMeasures);
+    if (measuresRefused !== null) return measuresRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)
@@ -7944,6 +7991,22 @@ export class WorkItemService {
     }
     await this.opts.attempts.restore(attempt, stamp);
     return { ok: true, detail: null };
+  }
+
+  /**
+   * Why these facts cannot be written back: one is in a measure the project's
+   * organization no longer defines (design D24). Null when nothing stands in
+   * the way, and without a read when there are none.
+   */
+  private async measuresRefusal(
+    projectId: string,
+    measures: readonly StoredMeasure[],
+  ): Promise<ApplyOutcome | null> {
+    if (measures.length === 0) return null;
+    const definitions = await this.opts.measures.definitionsFor(projectId);
+    return measures.some(({ metric }) => !decideMeasureFact(definitions, metric, null).ok)
+      ? { ok: false, detail: 'a measure it recorded is no longer defined.' }
+      : null;
   }
 
   /**
@@ -8036,6 +8099,13 @@ export class WorkItemService {
     if (stepGone !== null) return stepGone;
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    // A fact in a defined measure deleted since the subtree went: the store
+    // would throw on a key the organization no longer defines.
+    // Proof: with this refusal removed, `refuses an undo of a delete whose
+    // fact is in a measure deleted since` (measure-fact-command.test.ts) threw
+    // from the store instead of refusing; watched 2026-10-23.
+    const measuresRefused = await this.measuresRefusal(projectId, command.measures);
+    if (measuresRefused !== null) return measuresRefused;
     const demands = command.demands ?? [];
     if (demands.length > 0) {
       const held = new Set((await this.opts.directory.listResources()).map(({ id }) => id));
@@ -8427,7 +8497,7 @@ export class WorkItemService {
     projectId: string,
     workItemId: string,
     stepId: string,
-    metric: MeasureMetric,
+    metric: string,
   ): Promise<number | null> {
     const found = (await this.opts.measures.listByProject(projectId)).find(
       (each) => each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
@@ -8730,13 +8800,22 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   const numbers = deriveNumbers(rows);
   const totals = rollUp(rows, stored);
   const recordedTotals = rollUpActuals(rows, recorded);
-  // Three folds over a tree already in memory, one per metric, because adding
+  // One fold over a tree already in memory per metric held, because adding
   // a token to an hour is the thing `rollUpMeasures` exists to make
   // impossible. Built as a map of metric to the whole fold rather than as a
   // per-row object here, so the recursion runs once per metric for the project
   // instead of once per metric per row.
+  //
+  // `agent_minutes` joins the stored facts here, derived from the ended
+  // attempts on every read and never stored (`wbs-measure-budgets` task 1.4).
+  // Proof: with the derived facts left out, `reads agent minutes from ended
+  // attempts and rolls them up; a running attempt adds nothing`
+  // (measure-fact-command.test.ts) read no `agent_minutes`; watched 2026-10-23.
+  const measuredWithDerived = [...measured, ...agentMinutesOf(attempts)];
   const measuredTotals = new Map(
-    MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
+    metricsIn(measuredWithDerived).map(
+      (metric) => [metric, rollUpMeasures(rows, measuredWithDerived, metric)] as const,
+    ),
   );
   // Which steps have work on each leaf: the ones with an estimate, the ones
   // with a recorded day, and the ones somebody has already spoken about.

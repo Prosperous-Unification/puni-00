@@ -412,6 +412,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -793,6 +794,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -1312,6 +1314,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -1598,6 +1601,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -1936,6 +1940,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -2212,6 +2217,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -2532,6 +2538,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -2836,6 +2843,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -3131,6 +3139,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -3531,6 +3540,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -3723,6 +3733,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      '20261023110000_key_step_measure',
       '20261023100000_add_measure',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
@@ -3926,6 +3937,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -4262,6 +4274,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -4397,6 +4410,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      '20261023110000_key_step_measure',
       '20261023100000_add_measure',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
@@ -4672,6 +4686,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -4908,6 +4923,7 @@ describe('the step allowance migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -4982,6 +4998,7 @@ describe('the step allowance migration', () => {
       seededBeforeAllowances(db.path);
 
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',

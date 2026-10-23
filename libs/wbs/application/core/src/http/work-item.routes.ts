@@ -286,7 +286,7 @@ function answerBatch(
     case 'unknown_step':
     case 'unknown_dependency':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
-    case 'unknown_metric':
+    case 'unknown_measure':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_person':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
@@ -335,6 +335,10 @@ function answerBatch(
       // so a client meets one word for "this release has no optimizer".
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'rolled_up':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'derived_measure':
+    case 'scheduling_measure_fact':
+    case 'scale_mismatch':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };

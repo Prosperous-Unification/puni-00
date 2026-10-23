@@ -40,6 +40,7 @@ import {
   workItemType,
   workItemWorkItemType,
 } from './schema';
+import { factCondition, storedColumnsOf } from './step-measure';
 
 /**
  * The not-before pair as the row will stand: what the patch names, and what the
@@ -1146,9 +1147,17 @@ export class SubtreeRepository implements SubtreeStore {
         // it in every metric. The rule runs through the collection rather than
         // around it, because the metric is in the key. See
         // {@link SubtreeCopy.measures}.
+        // A defined measure's fact is written as its definition's id, a legacy
+        // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does.
         if (copy.measures.length > 0)
           tx.insert(stepMeasure)
-            .values(copy.measures.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+            .values(
+              copy.measures.map((each) => ({
+                ...each,
+                ...storedColumnsOf(tx, each),
+                ...auditOnCreate(stamp),
+              })),
+            )
             .run();
         if (copy.assignments.length > 0)
           tx.insert(assignment)
@@ -1211,15 +1220,8 @@ export class SubtreeRepository implements SubtreeStore {
         // handed it: an hours fact it has held since before the delete, gone
         // because a token estimate came home.
         for (const taken of copy.removedMeasures) {
-          tx.delete(stepMeasure)
-            .where(
-              and(
-                eq(stepMeasure.workItemId, taken.workItemId),
-                eq(stepMeasure.stepId, taken.stepId),
-                eq(stepMeasure.metric, taken.metric),
-              ),
-            )
-            .run();
+          const named = factCondition(tx, taken.workItemId, taken.stepId, taken.metric);
+          if (named !== undefined) tx.delete(stepMeasure).where(named).run();
         }
         bumpWorkItems(
           tx,

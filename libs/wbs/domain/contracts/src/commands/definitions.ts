@@ -209,13 +209,13 @@ export const commandDefinitions = {
     schema: type({ kind: "'setMeasure'", ...step, metric: 'string', value: 'number' }),
     scope: 'project',
     description:
-      'Record a measured figure (tokens, hours…) for one step of a work item. Accepts stepNodeId in place of the work-item and step pair.',
+      'Record a fact in one measure for one step of a work item. metric is a measure definition key of the organization (tokens, hours, cost or a defined one; token_actual and hours_actual still name tokens and hours, token_estimate the legacy token estimate). Refused unknown_measure, derived_measure (agent_minutes is read from attempts), scheduling_measure_fact (the fact of time is the actual days, set with setActual) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearMeasure: defineCommand('clearMeasure', {
     schema: type({ kind: "'clearMeasure'", ...step, metric: 'string' }),
     scope: 'project',
     description:
-      'Remove one measured figure. Accepts stepNodeId in place of the work-item and step pair.',
+      'Remove one fact in one measure (metric as for setMeasure). Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setAssignee: defineCommand('setAssignee', {
     schema: type({

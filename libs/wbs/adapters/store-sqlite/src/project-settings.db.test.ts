@@ -202,6 +202,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -283,6 +284,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
@@ -406,6 +408,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',

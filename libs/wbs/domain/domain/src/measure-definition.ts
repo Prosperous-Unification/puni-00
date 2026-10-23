@@ -1,4 +1,4 @@
-import type { MeasureKind, MeasureScale } from './stored-vocabularies';
+import { MEASURE_METRICS, type MeasureKind, type MeasureScale } from './stored-vocabularies';
 
 /**
  * One thing an organization estimates and records (`wbs-measure-budgets` D1):
@@ -210,6 +210,12 @@ export function decideMeasureCreate(
   held: readonly MeasureDefinition[],
   fields: MeasureDefinitionFields,
 ): MeasureDefinitionRefusal | null {
+  // The three legacy metric names stay taken while facts are answered under
+  // them (design D18): a definition keyed `token_actual` would be a second
+  // name for the tokens fact on every read and journal entry.
+  // Proof: with this test removed, `refuses a key that is a legacy metric
+  // name` (measure-definition.test.ts) answered null; watched 2026-10-23.
+  if ((MEASURE_METRICS as readonly string[]).includes(fields.key)) return 'measure_key_taken';
   if (held.some((each) => each.key === fields.key)) return 'measure_key_taken';
   if (fields.schedulesWork && held.some((each) => each.schedulesWork))
     return 'second_scheduling_measure';
@@ -262,10 +268,10 @@ export function decideMeasurePatch(
 }
 
 /**
- * What references one definition. Nothing does in slice 1, so stores answer
- * zero; the later slices' `step_measure.measure_id`, `measure_estimate` and
- * `work_item_budget` rows are what this counts once they exist. The hook is
- * the store's `usageOfMeasure`, which those slices extend.
+ * What references one definition: the facts keyed by it
+ * (`step_measure.measure_id`, slice 2), and once they exist the later slices'
+ * `measure_estimate` and `work_item_budget` rows. The hook is the store's
+ * `usageOfMeasure`, which those slices extend.
  */
 export interface MeasureUsage {
   readonly references: number;
@@ -274,7 +280,8 @@ export interface MeasureUsage {
 /**
  * Why `target` cannot be removed, or null when it can: `measure_in_use` for a
  * seeded definition ({@link isSeededMeasureKey}) or one anything references.
- * Cascading a removal (D1) arrives with the first referencing table.
+ * Cascading a removal (D1) is not offered yet: directory commands have no undo
+ * (design D11), so a cascade would discard facts for good (design D21).
  */
 export function refuseMeasureRemoval(
   target: MeasureDefinition,

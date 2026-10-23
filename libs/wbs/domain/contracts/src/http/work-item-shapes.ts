@@ -179,7 +179,10 @@ const batchRefusals = [
         type({ ...context, error: "'parent_claim_unknown'" }),
         type({ ...context, error: "'unknown_step'" }),
         type({ ...context, error: "'unknown_dependency'" }),
+        // Retired by `wbs-measure-budgets` slice 2 and kept for the swap, like
+        // `frozen` below: an outgoing be-01 still answers it.
         type({ ...context, error: "'unknown_metric'" }),
+        type({ ...context, error: "'unknown_measure'" }),
         type({ ...context, error: "'unknown_person'" }),
         type({ ...context, error: "'unknown_team'" }),
         type({ ...context, error: "'unknown_tag'" }),
@@ -208,6 +211,10 @@ const batchRefusals = [
         type({ ...context, error: "'schedule_not_ready'" }),
         type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
+        // `setMeasure` on a derived measure, or a fraction on an integer one.
+        type({ ...context, error: "'derived_measure'" }),
+        type({ ...context, error: "'scheduling_measure_fact'" }),
+        type({ ...context, error: "'scale_mismatch'" }),
         type({ ...context, error: "'ancestor'" }),
         // A typed dependency whose endpoints resolve a step node onto itself.
         type({ ...context, error: "'self_node'" }),

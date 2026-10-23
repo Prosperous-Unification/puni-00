@@ -312,6 +312,19 @@ docker exec be-01-<colour> bun run src/<cli> restore <file>
   attempt's work item is gone or has become a parent, a saved mark's work item is gone, or a saved
   step is gone, and it refuses a version-1 file.
 
+## Measure fact rollback
+
+`20261023110000_key_step_measure` (`wbs-measure-budgets` slice 2) keys `step_measure` rows by
+measure definition. A fact in a defined measure (`cost`, or one an organization defined) has no
+legacy `metric` and no save/remove CLI. Backend swaps stop the old writer before migrating, so
+blue and green never serve the new schema together; the exposure is recovery only. While such a
+fact exists, an attended restart of the older image answers 500 on every work item holding one
+(its targeted read refuses a row with no metric), and `down.sql` refuses with `facts on defined
+measures exist`. Both exits stay closed until those rows are cleared by hand: record every
+`step_measure` row whose `metric` is NULL, remove each with `clearMeasure` (or by SQL), then run
+`migrate-down-cli.ts --to=20261023100000_add_measure`. Tokens and hours facts keep their legacy
+names and need nothing.
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at

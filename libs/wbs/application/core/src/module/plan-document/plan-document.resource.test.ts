@@ -72,7 +72,11 @@ const TREE: WorkItemTree = {
       actuals: { 'step-1': 1 },
       progress: { 'step-1': 'in_progress' },
       status: 'in_progress',
-      measures: { hours: { 'step-1': 4 } },
+      // A legacy metric: the export keeps legacy metrics only (wbs-measure-budgets
+      // design D22); the golden hashes below moved from 61243efa/f8bf291a when
+      // this fixture's made-up `hours` key became `hours_actual`, and match the
+      // export with the filter removed.
+      measures: { hours_actual: { 'step-1': 4 } },
       dependsOn: [],
       finalDays: { 'step-1': 2 },
       finalTotal: 2,
@@ -271,6 +275,24 @@ async function exportError(tree: WorkItemTree): Promise<string> {
   if (!(outcome instanceof Error)) throw new Error('malformed tree did not throw');
   return outcome.message;
 }
+
+// Proof: with every metric kept, this case exported `cost` and
+// `agent_minutes` beside `hours_actual`; watched 2026-10-23.
+test('exports legacy metrics only, leaving defined and derived measures out', async () => {
+  const tree = structuredClone(TREE);
+  tree.workItems = tree.workItems.map((row) => ({
+    ...row,
+    measures: {
+      hours_actual: { 'step-1': 4 },
+      cost: { 'step-1': 2_500_000 },
+      agent_minutes: { 'step-1': 30 },
+    },
+  }));
+  const exported = await exportDocument(tree);
+  expect(exported.workItems.map(({ measures }) => measures)).toEqual(
+    tree.workItems.map(() => ({ hours_actual: { 'step-1': 4 } })),
+  );
+});
 
 test('preserves the existing JSON export fields', async () => {
   const exported = await exportDocument();
@@ -1276,7 +1298,7 @@ test('v9 zero-fact export retains canonical bytes', async () => {
     directory: directoryBefore,
   });
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    '61243efaf10088375accb4ab8c3e449255c2fd3483558282dfc6f8e0e793f6a2',
+    '016181aa4021ca4b8b400feac0780e135635c49d149f2fd13e655015ceb1e6e5',
   );
 });
 
@@ -1356,7 +1378,7 @@ test('exports only the resources its capacities and demands name (wbs-resources)
 test('v10 resources export retains canonical bytes', async () => {
   const bytes = JSON.stringify(await exportWithResources());
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    'f8bf291a161b40edf3bf9cd4ef05677d8b86bd775fa709bbd253799037763024',
+    'f2308a55167653345d85178e2253675097c1ee00956f34c4df933da06163fa4a',
   );
 });
 

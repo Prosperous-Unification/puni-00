@@ -192,7 +192,7 @@ const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   ),
   step_measure_step: buildWorkItemStepConflictSql(
     'step_measure',
-    "l.work_item_id || '/' || l.step_id || '/' || l.metric",
+    "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
   ),
   person_team: `SELECT pt.person_id || '/' || pt.service_team_id AS id FROM person_team AS pt
     WHERE ${buildCatalogOwnerSql('person', 'pt.person_id')} != ${buildCatalogOwnerSql('service_team', 'pt.service_team_id')}`,

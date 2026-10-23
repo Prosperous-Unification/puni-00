@@ -12,6 +12,10 @@ import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
 import { directoryMeasureRegistrations } from './stores/measure-definitions';
+import {
+  directoryMeasureFactRegistrations,
+  measureFactRegistrations,
+} from './stores/measure-facts';
 import { measureRegistrations } from './stores/measures';
 import { organizationLimitRegistrations } from './stores/organization-limits';
 import { planEventRegistrations } from './stores/plan-events';
@@ -174,6 +178,7 @@ export function existingStoreRegistrations(
     ...estimateRegistrations(openers.estimates),
     ...actualRegistrations(openers.actuals),
     ...measureRegistrations(openers.measures),
+    ...measureFactRegistrations(openers.measures),
     ...progressRegistrations(openers.progress),
     ...attemptRegistrations(openers.attempts),
     storeCase(
@@ -416,6 +421,7 @@ export function existingStoreRegistrations(
     ...directoryRegistrations(openers.directory),
     ...directoryResourceRegistrations(openers.directory),
     ...directoryMeasureRegistrations(openers.directory),
+    ...directoryMeasureFactRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
     ...planEventRegistrations(openers.planEvents),
     ...subtreeRegistrations(openers.subtrees),

@@ -244,6 +244,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261023110000_key_step_measure',
       '20261023100000_add_measure',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',

@@ -26,6 +26,7 @@ import {
   formatStepReference,
   isEstimateUnit,
   isHold,
+  isLegacyMetric,
   isReadiness,
   isTimezone,
   MOST_RESOURCE_UNITS,
@@ -431,8 +432,21 @@ function documentWorkItems(
       // Proof: retaining this field leaked derived resources in both mounted
       // mode exports; their omission assertions failed, watched 2026-10-15.
       nodeResources: _nodeResources,
-      ...row
+      ...held
     }) => {
+      // The document keeps its version's shape until slice 7 bumps it
+      // (`wbs-measure-budgets` D8, design D22): legacy metrics only, so a fact
+      // in a defined measure and the derived `agent_minutes` stay out.
+      // Proof: with every metric kept, `exports legacy metrics only, leaving
+      // defined and derived measures out` (plan-document.resource.test.ts)
+      // exported `cost` and `agent_minutes` (78 pass, 1 fail); watched 2026-10-23.
+      // Spread first so `measures` keeps its place in the canonical bytes.
+      const row = {
+        ...held,
+        measures: Object.fromEntries(
+          Object.entries(held.measures).filter(([metric]) => isLegacyMetric(metric)),
+        ),
+      };
       if (attempts === undefined) return row;
       const byCode: Record<string, DocumentAttempt[]> = {};
       for (const [stepId, held] of Object.entries(attempts)) {
