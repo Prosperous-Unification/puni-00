@@ -766,3 +766,7 @@ the canonical host gate and production activation remain open.
 - [x] Add offline read-only CLI/Nx target, two complete artifact reads and manifest readback; always block activation with explicit authority/process/solver runtime limits.
 - [x] Add real CLI omission, malformed, mismatch, interpreter, unreadability and between-pass drift negatives; record watched production-check omissions in [verify-installed-writers.md](verify-installed-writers.md).
 - [ ] Effective live installed-authority collection/adoption, prior-holder drain, continuous exclusion and isolated exact-SHA integrated host gate. Independent Astra review approved the corrected bounded offline packet; parent 10.1/10.2 remain open.
+
+### Task 11.1 bounded alphabetical discovery and new authoring browser acceptance (2026-10-23)
+
+- [x] An unlinked desktop successor uses the actual alphabetic picker to discover a remote project and create a qualified whole-to-whole FS dependency through accepted HTTP, exact SQLite identity/owner readback, reload/reopen and completion-driven live refresh. Independent production discovery and persisted endpoint/owner faults fail the browser assertions; the production dormant-authoring control remains passing. Independent Astra rereview approved the corrected Bun proof. See [bounded acceptance receipt](verify-task11-browser-author.md). Parent 11.1, broader endpoint/phone scenarios and production activation remain open.

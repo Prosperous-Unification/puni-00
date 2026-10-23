@@ -567,3 +567,128 @@ test('successor-only dated trees install the upstream estimate revision', async 
     await Promise.all(contexts.map((context) => context.close()));
   }
 });
+
+test('alphabetical discovery creates a qualified dependency that persists and refreshes on completion', async ({
+  browser,
+  request,
+}, testInfo) => {
+  const identities = await request.get('http://localhost:7500/__fixture/identities');
+  expect(identities.status()).toBe(200);
+  const fixture = (await identities.json()) as {
+    projects: Record<string, Identity | undefined>;
+    token: string;
+  };
+  const owner = fixture.projects['Author'];
+  const remote = fixture.projects['A'];
+  if (owner === undefined || remote === undefined) throw new Error('missing authoring fixture');
+  expect((await request.post('http://localhost:7500/__fixture/reset')).status()).toBe(200);
+  const relationships = async () => {
+    const response = await request.get('http://localhost:7500/__fixture/relationships');
+    expect(response.status()).toBe(200);
+    return (await response.json()) as { id: string; successor_project_id: string }[];
+  };
+  expect((await relationships()).filter((row) => row.successor_project_id === owner.id)).toEqual(
+    [],
+  );
+  const context = await browser.newContext();
+  try {
+    await authenticate(context, fixture.token);
+    const page = await context.newPage();
+    const observed = observe(page);
+    await page.goto(
+      `http://localhost:7600/e2e/cross-project-refresh.html?project=${owner.id}&organization=org-a`,
+    );
+    await expect(page.getByLabel('Name of 010')).toHaveValue('Author row');
+    const picker = page.getByLabel('Add a dependency to 010');
+    await picker.fill('axx');
+    // Proof: suppressing alphabetic discovery made this real picker assertion fail (Task11 receipt).
+    await expect(page.getByRole('option', { name: 'Project AXX - A', exact: true })).toBeVisible();
+    await page.getByRole('option', { name: 'Project AXX - A', exact: true }).click();
+    await expect(picker).toHaveValue('AXX.');
+    const commands = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/projects/${owner.id}/commands` &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('option', { name: 'AXX.010 - A row', exact: true }).click();
+    const response = await commands;
+    expect(response.status(), await response.text()).toBe(200);
+    const accepted: unknown = await response.json();
+    expect(accepted).toEqual({
+      results: [{ index: 0, id: expect.any(String) }],
+      undoable: true,
+      redoable: false,
+    });
+    const rows = (await relationships()).filter((row) => row.successor_project_id === owner.id);
+    // Proof: reversing persisted endpoints and successor ownership left this owner's SQLite set empty.
+    expect(rows).toHaveLength(1);
+    expect(rows).toEqual([
+      {
+        id: expect.any(String),
+        organization_id: 'org-a',
+        predecessor_project_id: remote.id,
+        predecessor_work_item_id: remote.row,
+        predecessor_scope: 'whole',
+        predecessor_step_id: null,
+        successor_project_id: owner.id,
+        successor_work_item_id: owner.row,
+        successor_scope: 'whole',
+        successor_step_id: null,
+        type: 'FS',
+      },
+    ]);
+    expect(accepted).toEqual({
+      results: [{ index: 0, id: rows[0]?.id }],
+      undoable: true,
+      redoable: false,
+    });
+    const admissions = () =>
+      observed.frames.filter(
+        (frame) =>
+          frame.type === 'resume_ack' &&
+          typeof frame.replayed?.[`project:${owner.id}`] === 'number',
+      ).length;
+    const beforeReload = admissions();
+    await page.reload();
+    await expect(page.getByLabel('Name of 010')).toHaveValue('Author row');
+    await picker.click();
+    await picker.press('Home');
+    await page.keyboard.press('Enter');
+    const details = page.getByRole('dialog', { name: 'Captured dependency' });
+    await expect(details).toBeVisible();
+    await expect(details).toContainText('AXX.010');
+    await details.getByRole('button', { name: 'Back to dependency picker', exact: true }).click();
+    await expect(page.locator('[data-node-reading]').first()).toHaveAttribute(
+      'data-node-reading',
+      'unknown',
+    );
+    await expect.poll(admissions).toBeGreaterThan(beforeReload);
+    const pongs = observed.frames.filter((frame) => frame.type === 'pong').length;
+    await operateSocket(page, 'ping');
+    await expect
+      .poll(() => observed.frames.filter((frame) => frame.type === 'pong').length)
+      .toBe(pongs + 1);
+    const notifications = () =>
+      observed.frames.filter((frame) => frame.message?.type === 'elsewhere_changed').length;
+    const beforeNotifications = notifications();
+    const before = observed.reads.length;
+    expect((await request.post('http://localhost:7500/__fixture/complete')).status()).toBe(200);
+    await expect(page.locator('[data-node-reading]').first()).toHaveAttribute(
+      'data-node-reading',
+      'waiting',
+    );
+    await expect.poll(() => observed.reads.length).toBeGreaterThan(before);
+    await expect(page.locator('body')).toHaveAttribute(
+      'data-installed-seq',
+      String(observed.reads.at(-1)?.seq),
+    );
+    expect(notifications()).toBe(beforeNotifications + 1);
+    expect(await relationships()).toEqual(expect.arrayContaining(rows));
+    await testInfo.attach('created-qualified-dependency', {
+      body: JSON.stringify({ rows, accepted, reads: observed.reads, frames: observed.frames }),
+      contentType: 'application/json',
+    });
+  } finally {
+    await context.close();
+  }
+});

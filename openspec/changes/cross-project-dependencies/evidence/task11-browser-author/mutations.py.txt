@@ -1,0 +1,26 @@
+from pathlib import Path
+import subprocess, os, json
+command=['bunx','nx','run','wbs-fe-01:e2e-cross-project','--skip-nx-cache','--','--grep','alphabetical discovery']
+environment=dict(os.environ,NX_DAEMON='false',NX_ISOLATE_PLUGINS='false')
+mutations=[]
+picker=Path('apps/wbs/fe-01/src/components/wbs/use-dependency-search.ts')
+storage=Path('libs/wbs/adapters/store-sqlite/src/typed-dependency.ts')
+for label,path in [('discovery',picker),('owner',storage)]:
+    original=path.read_text()
+    if label=='discovery':
+        changed=original.replace('const eligible = active && (scoped !== null || /^[A-Za-z]/.test(token));','const eligible = active && scoped !== null;')
+    else:
+        start=original.index('  async add(row: StoredTypedDependency')
+        finish=original.index('  async update(',start)
+        section=original[start:finish].replace('...mapStoredColumns(row),','...mapStoredColumns({ ...row, predecessor: row.successor, successor: row.predecessor }),').replace('predecessorProjectId: row.predecessor.projectId,','predecessorProjectId: row.successor.projectId,').replace('successorProjectId: row.successor.projectId,','successorProjectId: row.predecessor.projectId,')
+        changed=original[:start]+section+original[finish:]
+    assert changed!=original
+    try:
+        path.write_text(changed)
+        with open('/tmp/task11-'+label+'-negative.log','w') as receipt:
+            completed=subprocess.run(command,env=environment,stdout=receipt,stderr=subprocess.STDOUT)
+        mutations.append({'fault':label,'exit':completed.returncode})
+        if completed.returncode==0: raise RuntimeError('mutation survived: '+label)
+    finally:
+        path.write_text(original)
+Path('/tmp/task11-mutations.json').write_text(json.dumps(mutations,indent=2)+'\n')

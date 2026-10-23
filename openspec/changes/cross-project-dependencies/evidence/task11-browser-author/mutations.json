@@ -1,0 +1,10 @@
+[
+  {
+    "fault": "discovery",
+    "exit": 1
+  },
+  {
+    "fault": "owner",
+    "exit": 1
+  }
+]

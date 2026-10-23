@@ -97,6 +97,7 @@ for (const name of [
   'Phone',
   'SuccessorDesktop',
   'SuccessorPhone',
+  'Author',
   'DatedA',
   'DatedB',
   'DatedC',
