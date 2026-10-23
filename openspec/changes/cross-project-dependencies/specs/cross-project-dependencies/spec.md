@@ -1277,6 +1277,13 @@ The host installer SHALL authenticate private nonce readiness and public solver 
 - **THEN** its nonce, bundle/config/runtime identities and connected kernel PID/UID agree with installer expectations
 - **AND** the per-attempt readiness socket is host-private, separate from the public socket, and payload process claims cannot replace kernel credentials
 
+#### Scenario: Invocation observer supports installer and subsequent clients
+
+- **WHEN** the installer completes its private query and multiple broker clients then observe the same invocation, including concurrent queries
+- **THEN** the invocation-lifetime host-private observer remains listening and each query uses a distinct fresh nonce and bounded isolated state
+- **AND** query completion/refusal closes only its connection and discards its query state
+- **AND** invocation shutdown/restart closes the old listener and removes only its owned private socket/directory, with cleanup failures reported
+
 #### Scenario: Stale, foreign or partial readiness refuses
 
 - **WHEN** a stale response is replayed, a nonce/digest differs, a foreign process serves either socket, a peer UID differs, or a private success coexists with a foreign public listener
@@ -1401,9 +1408,17 @@ Client and broker SHALL independently bound calls, frames, pending sessions, con
 
 #### Scenario: Restart or baseline race refuses the stale attempt
 
-- **WHEN** supervisor key/invocation, broker session or approved baseline changes between resolve, TLS handshake, hello, confirm and start
+- **WHEN** supervisor key/invocation or broker session changes before start, or an approved baseline/policy change is observed between resolve and the final confirmation observation
 - **THEN** the stale attempt refuses before work and only a fresh complete resolution can admit the replacement
 - **AND** old invocations cannot retain listener/key-bearing children after replacement, including after bound
+
+#### Scenario: Authority update after confirmation is not instant revocation
+
+- **GIVEN** final confirmation admitted the baseline/policy and the same authenticated supervisor connection remains alive
+- **WHEN** root authority updates baseline or policy after that confirmation observation and before start
+- **THEN** the already confirmed connection can proceed within its existing deadline and protocol state; the update does not instantly revoke it
+- **AND** later resolve/confirm observations use the updated authority and refuse any now-unapproved tuple
+- **AND** this contract adds no serialized online revocation or atomic future-policy guarantee
 
 #### Scenario: Hung peers and refresh failure stay within budget
 
@@ -1416,7 +1431,7 @@ Client and broker SHALL independently bound calls, frames, pending sessions, con
 
 - **WHEN** an admitted invocation dies after confirmation
 - **THEN** its authenticated connection fails and any replacement connection requires a new complete admission
-- **AND** confirmation denotes its finite observation point, not serialized exclusion of every concurrent future restart
+- **AND** baseline/policy freshness ends at the final confirmation observation, without serialized exclusion of future authority updates or restarts
 
 ### Requirement: Deployment exposes only dedicated read-only identity surfaces
 

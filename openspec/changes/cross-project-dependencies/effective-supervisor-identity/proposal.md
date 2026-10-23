@@ -14,7 +14,7 @@ No production edits, root provisioning, installation, service operation, rollout
 
 ## Constraints
 
-Preserve captured bundle/config bytes and `/proc/self/exe` identity, both host installer SO_PEERCRED MainPID/UID probes, typed stable before/after D-Bus policy and final four-artifact hashes under the same edge admission. The broker uses independently approved root state, never observed hashes as expectations; it neither acquires edge.lock nor changes services. Root/kernel/user-manager integrity and supervisor memory are trusted. No host PID sharing or backend systemd/Docker authority. Bound calls, sessions and restart retries; absent, stale, malformed or raced authority refuses before work. Every production guard requires a watched production-path negative.
+Preserve captured bundle/config bytes and `/proc/self/exe` identity, both host installer SO_PEERCRED MainPID/UID probes, typed stable before/after D-Bus policy and final four-artifact hashes under the same edge admission. The broker uses independently approved root state, never observed hashes as expectations; it neither acquires edge.lock nor changes services. Root/kernel/user-manager integrity and supervisor memory are trusted. No host PID sharing or backend systemd/Docker authority. Keep the private observer alive for its invocation; bound per-query state and restart retries. Freshness ends at final confirmation, without instant post-confirm revocation; absent, stale, malformed or raced authority refuses before work. Every production guard requires a watched production-path negative.
 
 ## Capabilities
 

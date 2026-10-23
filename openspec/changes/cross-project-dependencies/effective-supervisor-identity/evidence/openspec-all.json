@@ -5,14 +5,14 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 38
+      "durationMs": 36
     },
     {
       "id": "activate-step-blockage-writers",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 41
+      "durationMs": 39
     },
     {
       "id": "add-button-toggles",
@@ -48,7 +48,7 @@
           "message": "ADDED \"Moving into a parent has a clear target and keyboard equivalent\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 39
+      "durationMs": 37
     },
     {
       "id": "add-project-step-estimate-allowances",
@@ -66,7 +66,7 @@
           "message": "ADDED \"Fast and optimized scheduling use charged effort\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 72
+      "durationMs": 80
     },
     {
       "id": "add-spaces",
@@ -119,7 +119,7 @@
           "message": "ADDED \"fe-01 renders spaces and refreshes by polling\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 51
+      "durationMs": 54
     },
     {
       "id": "add-start-and-finish-dependency-types",
@@ -132,7 +132,7 @@
           "message": "ADDED \"Fast replay and float support weighted relationships\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 69
+      "durationMs": 59
     },
     {
       "id": "add-step-node-blocking",
@@ -220,7 +220,7 @@
           "message": "ADDED \"Backend migration uses inert maintenance before application startup\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 10
+      "durationMs": 12
     },
     {
       "id": "add-work-item-statuses",
@@ -268,7 +268,7 @@
           "message": "ADDED \"The row menu and Status cell offer every status the row does not read\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 39
+      "durationMs": 37
     },
     {
       "id": "address-step-nodes",
@@ -316,14 +316,14 @@
           "message": "ADDED \"A step cell names its step node\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 19
+      "durationMs": 25
     },
     {
       "id": "admit-progress-against-selected-reference",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 15
+      "durationMs": 11
     },
     {
       "id": "adopt-di-composition",
@@ -354,7 +354,7 @@
           "message": "ADDED \"A browser fault boundary discloses a public report and nothing raw\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 20
+      "durationMs": 15
     },
     {
       "id": "adopt-frontend-lifetimes",
@@ -429,7 +429,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 16
+      "durationMs": 14
     },
     {
       "id": "affected-pr-gate",
@@ -459,28 +459,28 @@
           "message": "ADDED \"Done nodes take no remaining duration and running nodes pin to their start\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 63
+      "durationMs": 44
     },
     {
       "id": "agent-scalable-llm-wiki",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 61
+      "durationMs": 43
     },
     {
       "id": "align-mcp-resource-body-limit",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 12
     },
     {
       "id": "align-website-app-visuals",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 20
+      "durationMs": 12
     },
     {
       "id": "arrange-by-schedule",
@@ -498,7 +498,7 @@
           "message": "ADDED \"A frozen number is a name, not a place\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 29
+      "durationMs": 12
     },
     {
       "id": "assistant-ui-build",
@@ -511,7 +511,7 @@
           "message": "ADDED \"Customer conversation\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 23
+      "durationMs": 13
     },
     {
       "id": "audit-columns",
@@ -529,7 +529,7 @@
           "message": "ADDED \"A tag, work item type, service, team or person records who created it\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 20
+      "durationMs": 15
     },
     {
       "id": "authentication",
@@ -543,7 +543,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 25
+      "durationMs": 16
     },
     {
       "id": "automatic-trusted-activation",
@@ -676,7 +676,7 @@
           "message": "ADDED \"Pinned compiler paths attempt observation prerequisite\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 24
+      "durationMs": 20
     },
     {
       "id": "await-session-retirement-on-page-hide",
@@ -689,21 +689,21 @@
           "message": "ADDED \"Page hide's application retirement awaits the session's\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 24
+      "durationMs": 17
     },
     {
       "id": "backend-audit-busybox",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 22
+      "durationMs": 16
     },
     {
       "id": "backend-startup-ownership",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 17
+      "durationMs": 14
     },
     {
       "id": "bounded-replay-sweep",
@@ -738,7 +738,7 @@
           "message": "ADDED \"Preview identity and command status convey only proposed citation effects\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 10
     },
     {
       "id": "build-ai-chat-harness",
@@ -826,28 +826,28 @@
           "message": "ADDED \"Conversation content is request content\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 36
+      "durationMs": 37
     },
     {
       "id": "burokrat-serial-legacy-compiler",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 19
+      "durationMs": 12
     },
     {
       "id": "calendar-horizon-guard",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 16
+      "durationMs": 13
     },
     {
       "id": "card-takeover-delay",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 16
+      "durationMs": 14
     },
     {
       "id": "cards-open-diagonally",
@@ -860,7 +860,7 @@
           "message": "ADDED \"Every column's pop-up opens diagonally, in the table's own type\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 17
+      "durationMs": 15
     },
     {
       "id": "change-aware-ci",
@@ -885,21 +885,21 @@
           "message": "ADDED \"Preparers judge check runs instead of running checks\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 14
     },
     {
       "id": "ci-gate-annotation-safety",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 12
+      "durationMs": 13
     },
     {
       "id": "ci-pr-merge-base",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 14
     },
     {
       "id": "clear-estimate",
@@ -912,14 +912,14 @@
           "message": "ADDED \"A stored estimate can be taken back off\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 16
     },
     {
       "id": "close-observability-alert-gaps",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 16
     },
     {
       "id": "column-widths-drag",
@@ -937,7 +937,7 @@
           "message": "ADDED \"Remembered widths are a claim, not a fact\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 15
+      "durationMs": 16
     },
     {
       "id": "combined-trio-entry",
@@ -998,14 +998,14 @@
           "message": "ADDED \"The Number column fits a stated envelope, not every number\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 16
+      "durationMs": 15
     },
     {
       "id": "complete-check-performance-evidence",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 11
     },
     {
       "id": "compute-providers",
@@ -1048,7 +1048,7 @@
           "message": "ADDED \"A resource may name the provider instance that fulfils it\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 21
+      "durationMs": 17
     },
     {
       "id": "contextual-links-default",
@@ -1071,7 +1071,7 @@
           "message": "ADDED \"The contextual reset result is local, durable and geometrically exact\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 15
     },
     {
       "id": "core-lib-extraction",
@@ -1192,7 +1192,7 @@
           "message": "ADDED \"Connected schedule arrangement consumes the captured placement\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 93
+      "durationMs": 69
     },
     {
       "id": "cycle-aware-dep-picker",
@@ -1205,7 +1205,7 @@
           "message": "ADDED \"The Depends on list marks the edges be-01 would refuse\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 14
     },
     {
       "id": "dash-account-outcomes",
@@ -1228,7 +1228,7 @@
           "message": "ADDED \"The command writes a reproducible breakdown and refuses to overwrite\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 14
     },
     {
       "id": "dash-activation-relocation",
@@ -1246,7 +1246,7 @@
           "message": "ADDED \"The observation store keeps its identity under explicit commands\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 14
+      "durationMs": 13
     },
     {
       "id": "dash-authority-relocation",
@@ -1259,14 +1259,14 @@
           "message": "ADDED \"Dash owns the runtime admission authority\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 10
     },
     {
       "id": "dash-local-plan-facade",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 10
     },
     {
       "id": "dash-record-progress",
@@ -1294,14 +1294,14 @@
           "message": "ADDED \"Required inputs and exclusive output fail visibly\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 10
     },
     {
       "id": "declare-website-binary-assets",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 9
     },
     {
       "id": "deep-indent",
@@ -1314,7 +1314,7 @@
           "message": "ADDED \"A row's depth is visible past the Number column's cap\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 23
+      "durationMs": 9
     },
     {
       "id": "dep-add-button",
@@ -1327,7 +1327,7 @@
           "message": "ADDED \"The Depends on cell offers a visible way to add\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 27
+      "durationMs": 13
     },
     {
       "id": "dep-hover-highlights",
@@ -1340,7 +1340,7 @@
           "message": "ADDED \"Hovering a dependency lights the rows it names\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 32
+      "durationMs": 13
     },
     {
       "id": "deps-single-line",
@@ -1353,28 +1353,28 @@
           "message": "ADDED \"The Depends on cell rests on one line\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 33
+      "durationMs": 12
     },
     {
       "id": "derive-devsync-pins",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 31
+      "durationMs": 12
     },
     {
       "id": "design-system-foundation",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 38
+      "durationMs": 30
     },
     {
       "id": "detail-keeps-unestimated",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 23
+      "durationMs": 15
     },
     {
       "id": "dev-deploy",
@@ -1401,7 +1401,7 @@
           "message": "ADDED \"Module labels and binding origins are read from explicit metadata\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 17
+      "durationMs": 14
     },
     {
       "id": "directory-crud",
@@ -1424,7 +1424,7 @@
           "message": "ADDED \"Directory writes that touch projects tell them\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 16
+      "durationMs": 17
     },
     {
       "id": "directory-page",
@@ -1447,7 +1447,7 @@
           "message": "ADDED \"The header carries the way to the directory and still fits one row\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 15
+      "durationMs": 16
     },
     {
       "id": "discovery-ssh-transport",
@@ -1460,7 +1460,7 @@
           "message": "ADDED \"Production SSH discovery uses one validated transport\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 14
+      "durationMs": 16
     },
     {
       "id": "drag-number-spacing",
@@ -1650,21 +1650,21 @@
           "message": "ADDED \"An empty project bypasses the solver entirely\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 17
+      "durationMs": 15
     },
     {
       "id": "e2e-plan-seeding",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 13
     },
     {
       "id": "editable-brief-proposal-acceptance",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 15
+      "durationMs": 14
     },
     {
       "id": "enable-public-mcp-client-auth",
@@ -1687,21 +1687,21 @@
           "message": "ADDED \"Public MCP writes require verified per-user write scope\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 26
+      "durationMs": 21
     },
     {
       "id": "enroll-existing-hosts",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 10
     },
     {
       "id": "estimate-cell-at-rest",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 9
     },
     {
       "id": "estimate-trio-ellipsis",
@@ -1751,70 +1751,70 @@
           "message": "ADDED \"One showDuration formats every duration\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 51
+      "durationMs": 29
     },
     {
       "id": "every-cell-card-clears-its-lane",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 10
     },
     {
       "id": "every-column-answers-aside",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 10
     },
     {
       "id": "exclusive-heavy-lock",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 17
+      "durationMs": 10
     },
     {
       "id": "f9-creation-journal-phase1",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 8
     },
     {
       "id": "f9-cri-relay-feasibility",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 17
+      "durationMs": 8
     },
     {
       "id": "f9-direct-creation-receipts",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 16
+      "durationMs": 6
     },
     {
       "id": "f9-local-process-observation",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 6
     },
     {
       "id": "f9-local-source-memory-observation",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 10
     },
     {
       "id": "f9-read-only-http-diagnostics",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 9
     },
     {
       "id": "f9-runtime-source-memory-binding",
@@ -1857,21 +1857,21 @@
           "message": "ADDED \"Installed acceptance proves the production path\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 23
+      "durationMs": 17
     },
     {
       "id": "f9-source-memory-evidence",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 23
+      "durationMs": 19
     },
     {
       "id": "fifo-heavy-lock",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 24
+      "durationMs": 19
     },
     {
       "id": "find-in-the-tree",
@@ -1889,7 +1889,7 @@
           "message": "ADDED \"The tree folds and unfolds whole, and is remembered\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 20
+      "durationMs": 24
     },
     {
       "id": "fold-over-included-nodes",
@@ -1902,14 +1902,14 @@
           "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: A leaf's status folds its progress, hold, readiness and predecessors\" - not found"
         }
       ],
-      "durationMs": 20
+      "durationMs": 24
     },
     {
       "id": "forge-environment-namespaces",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 24
     },
     {
       "id": "forge-restart-state",
@@ -1922,7 +1922,7 @@
           "message": "ADDED \"Receipt-backed lab ownership before automation\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 30
     },
     {
       "id": "frontend-label-agreement",
@@ -1935,7 +1935,7 @@
           "message": "ADDED \"Label agreement covers the frontend modules\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 11
+      "durationMs": 28
     },
     {
       "id": "gantt-attempt-marks",
@@ -1958,7 +1958,7 @@
           "message": "ADDED \"The sub-day display range contains eligible attempts\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 15
+      "durationMs": 28
     },
     {
       "id": "gantt-bar-hover",
@@ -1991,7 +1991,7 @@
           "message": "ADDED \"A bar's explanation uses the shared accessible surface\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 24
     },
     {
       "id": "gantt-calendar-axis",
@@ -2009,7 +2009,7 @@
           "message": "ADDED \"One resolved calendar geometry places every mark\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 17
+      "durationMs": 27
     },
     {
       "id": "gantt-calendar-markers",
@@ -2067,7 +2067,7 @@
           "message": "ADDED \"Markers persist per project and broadcast their change\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 17
+      "durationMs": 30
     },
     {
       "id": "gantt-height-column-clamp",
@@ -2080,7 +2080,7 @@
           "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: A dragged Gantt panel stays inside the column it lives in\" - not found"
         }
       ],
-      "durationMs": 17
+      "durationMs": 19
     },
     {
       "id": "gantt-legibility",
@@ -2111,14 +2111,14 @@
           "message": "ADDED \"The gate environment is proven on the host\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 15
+      "durationMs": 16
     },
     {
       "id": "gate-readable-checkout",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 14
+      "durationMs": 15
     },
     {
       "id": "gateway-request-deadlines",
@@ -2132,7 +2132,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 12
     },
     {
       "id": "guide-ai-project-imports",
@@ -2155,21 +2155,21 @@
           "message": "ADDED \"Import with AI help is discoverable in the editor\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 25
+      "durationMs": 19
     },
     {
       "id": "hint-press-cancels",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 17
+      "durationMs": 12
     },
     {
       "id": "host-gate-locked-install",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 9
     },
     {
       "id": "http-endpoint-port",
@@ -2183,14 +2183,14 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 9
     },
     {
       "id": "informative-cards-open-beside",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 22
+      "durationMs": 13
     },
     {
       "id": "infra-evaluation-coverage",
@@ -2208,28 +2208,28 @@
           "message": "ADDED \"Separate noncertifying diagnostic\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 20
+      "durationMs": 13
     },
     {
       "id": "isolate-relationship-runtime-closure",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 19
+      "durationMs": 11
     },
     {
       "id": "k3s-fleet",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 19
+      "durationMs": 13
     },
     {
       "id": "k3s-platform",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 18
+      "durationMs": 13
     },
     {
       "id": "k3s-wbs-delivery",
@@ -2247,7 +2247,7 @@
           "message": "ADDED \"First-start certifies every effective tier startup template\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 18
+      "durationMs": 9
     },
     {
       "id": "keep-single-estimate-visible",
@@ -2260,7 +2260,7 @@
           "message": "Archive would refuse this delta: wbs-estimate-cell: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
         }
       ],
-      "durationMs": 15
+      "durationMs": 10
     },
     {
       "id": "limit-work-item-to-one-type",
@@ -2278,7 +2278,7 @@
           "message": "ADDED \"A work item carries at most one type\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 29
+      "durationMs": 25
     },
     {
       "id": "link-names-and-card",
@@ -2296,7 +2296,7 @@
           "message": "ADDED \"The links dropdown is read with the pointer on it\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 14
     },
     {
       "id": "links-card-takes-the-pointer",
@@ -2309,7 +2309,7 @@
           "message": "ADDED \"A card a reader acts on is reachable by a pointer\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 15
     },
     {
       "id": "list-search-and-paging",
@@ -2337,14 +2337,14 @@
           "message": "ADDED \"The whole-tree read is unchanged and steers to the pages\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 13
     },
     {
       "id": "live-plan-snapshot",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 12
+      "durationMs": 15
     },
     {
       "id": "live-plan-snapshot",
@@ -2385,7 +2385,7 @@
           "message": "ADDED \"Loss during an Elasticsearch outage is bounded and counted\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 16
+      "durationMs": 14
     },
     {
       "id": "markdown-work-item-names",
@@ -2398,14 +2398,14 @@
           "message": "ADDED \"A work item's name renders inline markdown\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 10
+      "durationMs": 8
     },
     {
       "id": "mcp-auth-failure-signout",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 9
     },
     {
       "id": "mcp-oauth-client-persistence",
@@ -2425,7 +2425,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 7
     },
     {
       "id": "mcp-refresh-failure-reporting",
@@ -2443,7 +2443,7 @@
           "message": "ADDED \"A tool-call refresh distinguishes refusal from failure\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 16
+      "durationMs": 13
     },
     {
       "id": "mcp-refresh-policy",
@@ -2457,14 +2457,14 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 8
     },
     {
       "id": "measured-rendering",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 7
     },
     {
       "id": "measures-vocabulary-and-size-templates",
@@ -2492,21 +2492,21 @@
           "message": "ADDED \"A project holds size templates applied as ordinary writes\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 32
+      "durationMs": 28
     },
     {
       "id": "migrate-di-bag",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 7
     },
     {
       "id": "migrate-report-libraries",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 7
     },
     {
       "id": "name-column-drag",
@@ -2524,14 +2524,14 @@
           "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: A column with a declared width can be dragged to another width\" - not found"
         }
       ],
-      "durationMs": 10
+      "durationMs": 9
     },
     {
       "id": "navigator-receipt-plan-consistency",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 7
     },
     {
       "id": "notes-done-by-the-marker",
@@ -2544,35 +2544,35 @@
           "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: The notes editor closes on Escape and on Done, and both save\" - not found"
         }
       ],
-      "durationMs": 9
+      "durationMs": 8
     },
     {
       "id": "notes-editor-done",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 7
     },
     {
       "id": "notes-preview-clears-the-marker-lane",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 12
     },
     {
       "id": "notes-preview-unify",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 12
+      "durationMs": 13
     },
     {
       "id": "optimization-neutral-port-imports",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 12
     },
     {
       "id": "organization-authoritative-dns",
@@ -2608,7 +2608,7 @@
           "message": "ADDED \"Proof scheduling owns cancellation and failures\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 11
+      "durationMs": 12
     },
     {
       "id": "organization-email-delivery",
@@ -2729,7 +2729,7 @@
           "message": "ADDED \"Super-admins can edit and remove company connections in the browser\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 22
+      "durationMs": 26
     },
     {
       "id": "organization-ownership-and-access",
@@ -2822,7 +2822,7 @@
           "message": "ADDED \"Organization selection owns the frontend resource lifetime\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 30
+      "durationMs": 36
     },
     {
       "id": "organization-ownership-preflight",
@@ -2840,35 +2840,35 @@
           "message": "ADDED \"Operator invocation is read-only and refuses untrusted inputs\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 5
+      "durationMs": 6
     },
     {
       "id": "organization-runtime-composition",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 4
+      "durationMs": 6
     },
     {
       "id": "otlp-mtls-canary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 6
+      "durationMs": 8
     },
     {
       "id": "pixels-shard-capacity",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 10
     },
     {
       "id": "plan-command-registry",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 9
     },
     {
       "id": "plan-command-registry",
@@ -2933,21 +2933,21 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 16
     },
     {
       "id": "pointed-row-render-cost",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 13
     },
     {
       "id": "polish-build-app-screens",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 13
     },
     {
       "id": "private-checkout-and-website-platform",
@@ -2960,7 +2960,7 @@
           "message": "ADDED \"Private companions are checked out under an ignored path\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 15
+      "durationMs": 19
     },
     {
       "id": "prod-deploy-readiness",
@@ -2973,14 +2973,14 @@
           "message": "ADDED \"The swap refuses an incomplete environment before any side effect\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 7
+      "durationMs": 10
     },
     {
       "id": "progress-receipt-authority",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 6
+      "durationMs": 9
     },
     {
       "id": "project-assignment-reads",
@@ -3015,21 +3015,21 @@
           "message": "ADDED \"The open picker never widens the page\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 6
+      "durationMs": 10
     },
     {
       "id": "project-rank-port-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 9
     },
     {
       "id": "promote-website-services-public",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 7
     },
     {
       "id": "prove-the-gateway-reaches-be-01",
@@ -3042,14 +3042,14 @@
           "message": "ADDED \"The smoke proves gw-01 can reach be-01\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 7
+      "durationMs": 6
     },
     {
       "id": "provider-agnostic-oidc-auth",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 8
     },
     {
       "id": "puni-website-funnel",
@@ -3092,7 +3092,7 @@
           "message": "ADDED \"Privacy lifecycle and aggregate observation\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 33
+      "durationMs": 34
     },
     {
       "id": "qemu-lab-start-wait",
@@ -3131,7 +3131,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 9
     },
     {
       "id": "readable-name-cells",
@@ -3145,7 +3145,7 @@
       "type": "spec",
       "valid": true,
       "issues": [],
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "id": "reference-cell-escape-and-hover",
@@ -3163,7 +3163,7 @@
           "message": "ADDED \"A reference cell says its whole set when it is pointed at\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 10
+      "durationMs": 11
     },
     {
       "id": "repo-namespacing",
@@ -3177,7 +3177,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 10
     },
     {
       "id": "restore-applied-migration-set",
@@ -3197,7 +3197,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 6
+      "durationMs": 7
     },
     {
       "id": "retired-schema-cleanup",
@@ -3210,7 +3210,7 @@
           "message": "ADDED \"Legacy schema elements survive forward migration, rollback, and restart\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 8
+      "durationMs": 9
     },
     {
       "id": "saved-plans",
@@ -3253,7 +3253,7 @@
           "message": "ADDED \"Who may save, read and delete a saved plan\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 9
+      "durationMs": 11
     },
     {
       "id": "saved-plans",
@@ -3300,7 +3300,7 @@
           "message": "ADDED \"Prometheus `/metrics` endpoints with gateway-specific custom metrics\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 54
+      "durationMs": 61
     },
     {
       "id": "scheduler-optimization",
@@ -3319,7 +3319,7 @@
           "message": "Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 1
+      "durationMs": 0
     },
     {
       "id": "scheduler-runtime-port",
@@ -3333,7 +3333,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 10
     },
     {
       "id": "service-taxonomy",
@@ -3346,7 +3346,7 @@
           "message": "ADDED \"Ratchet mode protects touched and adopted code\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 9
+      "durationMs": 10
     },
     {
       "id": "session-features",
@@ -3432,7 +3432,7 @@
           "message": "ADDED \"Browser writer presents sparse preservation refusals\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 10
+      "durationMs": 11
     },
     {
       "id": "share-people-across-projects",
@@ -3620,7 +3620,7 @@
           "message": "ADDED \"process-level shared recovery rehearsal before activation\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 26
+      "durationMs": 23
     },
     {
       "id": "share-the-plan",
@@ -3643,7 +3643,7 @@
           "message": "ADDED \"The CSV is RFC 4180 and safe to open in a spreadsheet\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 10
+      "durationMs": 8
     },
     {
       "id": "social-sign-in",
@@ -3663,7 +3663,7 @@
           "message": "ADDED \"Canonical step references sort in displayed step order\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 14
+      "durationMs": 16
     },
     {
       "id": "source-conformance-completion",
@@ -3688,28 +3688,28 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 8
     },
     {
       "id": "space-tree-port-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 12
     },
     {
       "id": "sqlite-verification-cronjob-lab",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 13
     },
     {
       "id": "stable-public-dev",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 13
     },
     {
       "id": "status-at-a-glance",
@@ -3737,14 +3737,14 @@
           "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row\" - not found"
         }
       ],
-      "durationMs": 7
+      "durationMs": 14
     },
     {
       "id": "status-polish",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 14
     },
     {
       "id": "step-node-attempts",
@@ -3782,7 +3782,7 @@
           "message": "ADDED \"The step cell card lists attempts and offers start, end and remove\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 32
+      "durationMs": 38
     },
     {
       "id": "step-node-readings",
@@ -3800,14 +3800,14 @@
           "message": "ADDED \"The step cell shows the reading as a corner glyph with a card\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 11
+      "durationMs": 14
     },
     {
       "id": "sticky-table-frame",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 11
+      "durationMs": 13
     },
     {
       "id": "store-port-and-unit-of-work",
@@ -3835,7 +3835,7 @@
           "message": "ADDED \"A source is certified by the kits for the ports it offers\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 13
     },
     {
       "id": "sub-day-gantt-axis",
@@ -3872,7 +3872,7 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 8
+      "durationMs": 9
     },
     {
       "id": "test-axes",
@@ -4055,7 +4055,7 @@
           "message": "ADDED \"Shared test evidence isolated Unit runner\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 10
+      "durationMs": 14
     },
     {
       "id": "toolchain-2026-09",
@@ -4069,14 +4069,14 @@
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 12
+      "durationMs": 13
     },
     {
       "id": "trusted-activation-relocation",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 12
+      "durationMs": 14
     },
     {
       "id": "trusted-boundary-creation-revision",
@@ -4089,14 +4089,14 @@
           "message": "ADDED \"A pilot boundary created after the freeze pins its baseline to its first commit\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 11
+      "durationMs": 14
     },
     {
       "id": "twilight-burokrat-consumer",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 9
     },
     {
       "id": "twilight-burokrat-kind-inventory",
@@ -4109,7 +4109,7 @@
           "message": "ADDED \"Kind resolution reads a candidate-held kind inventory\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 8
+      "durationMs": 10
     },
     {
       "id": "twilight-burokrat-kind-rules",
@@ -4132,35 +4132,35 @@
           "message": "ADDED \"Declaration extraction distinguishes non-emitting JSON inputs\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 7
+      "durationMs": 9
     },
     {
       "id": "twilight-burokrat-package",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 9
     },
     {
       "id": "twilight-burokrat-rule-model",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 9
     },
     {
       "id": "twilight-burokrat-short-command",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 11
     },
     {
       "id": "twilight-burokrat-templates",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 11
     },
     {
       "id": "twilight-control-plane",
@@ -4337,7 +4337,7 @@
           "message": "ADDED \"Plan resource units are carried without conversion\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 25
+      "durationMs": 27
     },
     {
       "id": "twilight-navigator-plan-reference",
@@ -4350,7 +4350,7 @@
           "message": "ADDED \"Navigator turns a progress receipt into a WBS command batch\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 16
+      "durationMs": 19
     },
     {
       "id": "twilight-review-hardening",
@@ -4363,7 +4363,7 @@
           "message": "ADDED \"Workflow variants are reproducible\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 8
+      "durationMs": 7
     },
     {
       "id": "twilight-sdlc-pilot",
@@ -4376,14 +4376,14 @@
           "message": "ADDED \"Opt-in artifact workflow\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 12
+      "durationMs": 15
     },
     {
       "id": "ui-review-gantt-detail",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 9
+      "durationMs": 7
     },
     {
       "id": "ui-review-gantt-directory",
@@ -4396,7 +4396,7 @@
           "message": "ADDED \"A lane stack writes one label\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 8
+      "durationMs": 5
     },
     {
       "id": "ui-review-header-settings",
@@ -4409,7 +4409,7 @@
           "message": "ADDED \"The project settings controls follow the app's control vocabulary\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 9
+      "durationMs": 13
     },
     {
       "id": "ui-review-header-toolbar",
@@ -4422,7 +4422,7 @@
           "message": "ADDED \"The app header keeps a readable picker at every width\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 8
+      "durationMs": 11
     },
     {
       "id": "ui-review-import-export",
@@ -4440,21 +4440,21 @@
           "message": "ADDED \"An imported plan is named apart and named in its toast\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 14
+      "durationMs": 19
     },
     {
       "id": "ui-review-settings-busy",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 12
+      "durationMs": 15
     },
     {
       "id": "ui-review-settings-flow",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 13
+      "durationMs": 14
     },
     {
       "id": "ui-review-sheet-picker",
@@ -4467,7 +4467,7 @@
           "message": "ADDED \"The project list shows every name whole\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 16
     },
     {
       "id": "ui-review-shell-a11y",
@@ -4480,7 +4480,7 @@
           "message": "ADDED \"The session gate names a refused session read\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 15
     },
     {
       "id": "ui-review-shell-faults",
@@ -4493,14 +4493,14 @@
           "message": "ADDED \"The session gate tells an outage from a refusal\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 14
+      "durationMs": 16
     },
     {
       "id": "ui-review-signin-gantt",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 14
+      "durationMs": 15
     },
     {
       "id": "ui-review-table-chips",
@@ -4513,7 +4513,7 @@
           "message": "ADDED \"A resting chip line shows whole chips and counts the rest\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 15
     },
     {
       "id": "ui-review-toolbar-compare",
@@ -4526,7 +4526,7 @@
           "message": "ADDED \"A saved-plan comparison is out of date only when one of its sides moved\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 14
     },
     {
       "id": "ui-review-toolbar-settings",
@@ -4544,7 +4544,7 @@
           "message": "ADDED \"The Saved plans popover reads like the Views panel\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 14
     },
     {
       "id": "ui-review-toolbar-signin",
@@ -4598,7 +4598,7 @@
           "message": "Archive would refuse this delta: scheduler-optimization MODIFIED failed for header \"### Requirement: Every duration crossing the solver boundary is computed by the caller\" - not found"
         }
       ],
-      "durationMs": 17
+      "durationMs": 20
     },
     {
       "id": "unified-reference-cell-ux",
@@ -4626,14 +4626,14 @@
           "message": "ADDED \"Reference-set editing has phone, theme and persistence parity\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 11
+      "durationMs": 12
     },
     {
       "id": "validate-navigator-plan-tasks",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 10
+      "durationMs": 13
     },
     {
       "id": "validate-navigator-progress-receipts",
@@ -4646,7 +4646,7 @@
           "message": "ADDED \"Strict consistency report\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 11
+      "durationMs": 9
     },
     {
       "id": "wbs-burokrat-evaluation",
@@ -4659,21 +4659,21 @@
           "message": "skip_specs is set in .openspec.yaml: change declares no spec-level behavior changes, zero deltas accepted"
         }
       ],
-      "durationMs": 5
+      "durationMs": 6
     },
     {
       "id": "wbs-cell-card-store-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 12
     },
     {
       "id": "wbs-column-resize-size-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 10
     },
     {
       "id": "wbs-create-agent-and-exhaustion-detail",
@@ -4691,7 +4691,7 @@
           "message": "Archive would refuse this delta: resource-occupancy: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
         }
       ],
-      "durationMs": 12
+      "durationMs": 16
     },
     {
       "id": "wbs-domain",
@@ -4799,28 +4799,28 @@
           "message": "Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 3
+      "durationMs": 1
     },
     {
       "id": "wbs-estimate-presentation-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 10
     },
     {
       "id": "wbs-hover-card-placement-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 6
+      "durationMs": 11
     },
     {
       "id": "wbs-keyboard-state-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 7
+      "durationMs": 9
     },
     {
       "id": "wbs-machine-credentials",
@@ -4908,7 +4908,7 @@
           "message": "Archive would refuse this delta: fleet-credentials: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
         }
       ],
-      "durationMs": 12
+      "durationMs": 14
     },
     {
       "id": "wbs-organization-limits",
@@ -4961,21 +4961,21 @@
           "message": "Archive would refuse this delta: resource-directory: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
         }
       ],
-      "durationMs": 15
+      "durationMs": 26
     },
     {
       "id": "wbs-plan-export-size-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 5
+      "durationMs": 8
     },
     {
       "id": "wbs-reference-set-presentation-boundary",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 5
+      "durationMs": 7
     },
     {
       "id": "wbs-resources",
@@ -5018,14 +5018,14 @@
           "message": "Archive would refuse this delta: plan-command-registry MODIFIED failed for header \"### Requirement: Steps, leaves and subtrees are claimed as one conditional act\" - not found"
         }
       ],
-      "durationMs": 19
+      "durationMs": 29
     },
     {
       "id": "wbs-scroll-smoothness",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 5
+      "durationMs": 6
     },
     {
       "id": "wbs-table-modules",
@@ -5070,28 +5070,28 @@
           "message": "ADDED \"One read answers which steps a team may claim\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 13
+      "durationMs": 19
     },
     {
       "id": "wbs100-dns-trusted-declarations",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 5
+      "durationMs": 9
     },
     {
       "id": "wbs100-mail-trusted-declarations",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 5
+      "durationMs": 13
     },
     {
       "id": "wbs120-yaml-trusted-declarations",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 6
+      "durationMs": 13
     },
     {
       "id": "website-abuse-guardrails",
@@ -5155,21 +5155,21 @@
           "message": "ADDED \"General request window over every route\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 27
+      "durationMs": 34
     },
     {
       "id": "website-ai-operations-figures",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 6
+      "durationMs": 7
     },
     {
       "id": "website-anonymous-draft-retention",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 5
+      "durationMs": 7
     },
     {
       "id": "website-funnel-counts",
@@ -5182,7 +5182,7 @@
           "message": "ADDED \"Funnel counts derived from stored rows\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 5
+      "durationMs": 7
     },
     {
       "id": "website-request-retention-lifecycle",
@@ -5220,7 +5220,7 @@
           "message": "ADDED \"Durable recovery of retention decisions\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 18
+      "durationMs": 22
     },
     {
       "id": "wiki-release",
@@ -5238,7 +5238,7 @@
           "message": "ADDED \"Provisioning refuses an archive the activation version does not name\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 16
+      "durationMs": 17
     },
     {
       "id": "work-item-deadline",
@@ -5326,7 +5326,7 @@
           "message": "ADDED \"Project deadline and Work item deadline are distinguished in copy\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 6
+      "durationMs": 18
     },
     {
       "id": "work-item-read-order",
@@ -5339,14 +5339,14 @@
           "message": "ADDED \"The work-item read answers in a stated order\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
         }
       ],
-      "durationMs": 15
+      "durationMs": 10
     },
     {
       "id": "workspace-gate-time-budget",
       "type": "change",
       "valid": true,
       "issues": [],
-      "durationMs": 14
+      "durationMs": 16
     }
   ],
   "summary": {
