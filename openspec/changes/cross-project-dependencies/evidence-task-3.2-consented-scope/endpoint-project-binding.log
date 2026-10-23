@@ -1,0 +1,130 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [82.81ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [3040.37ms]
+(pass) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [107.92ms]
+(pass) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [42.21ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [7.26ms]
+(pass) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3040.01ms]
+(pass) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [32.39ms]
+(pass) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [141.50ms]
+(pass) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [179.67ms]
+(pass) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [19.43ms]
+(pass) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [80.37ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [8.70ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [8.56ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [11.90ms]
+(pass) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [100.13ms]
+371 |     throw new Error('organization-bound parity session missing');
+372 |   const access = sessions['dany'];
+373 |   const before = await fixture('write-state', {});
+374 |   const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+375 |   expect(viaMcp.isError).toBe(true);
+376 |   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 409"
+Received: "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.\n{\"at\":1,\"kind\":\"addTypedDependency\",\"error\":\"not_found\"}"
+
+      at refuseCommands (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:376:23)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:812:17)
+(fail) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [392.82ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [1068.05ms]
+(pass) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [1140.20ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [1065.40ms]
+371 |     throw new Error('organization-bound parity session missing');
+372 |   const access = sessions['dany'];
+373 |   const before = await fixture('write-state', {});
+374 |   const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+375 |   expect(viaMcp.isError).toBe(true);
+376 |   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 400"
+Received: "postApiProjectsByIdCommands was refused: HTTP 409 self_node from POST /api/projects/{id}/commands.\n{\"at\":1,\"kind\":\"addTypedDependency\",\"error\":\"self_node\"}"
+
+      at refuseCommands (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:376:23)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1010:19)
+(fail) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [32.34ms]
+(pass) MCP organization delegation against a booted be-01 > consented HTTP and generated MCP commands commit active whole FS with the same authority [458.93ms]
+355 |     method: 'POST',
+356 |     headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+357 |     ...(operation === 'commands' ? { body: JSON.stringify(body) } : {}),
+358 |   });
+359 |   if (response.status !== 200)
+360 |     throw new Error(`${operation}: HTTP ${String(response.status)} ${await response.text()}`);
+                    ^
+error: commands: HTTP 404 {"at":0,"kind":"addTypedDependency","error":"not_found"}
+      at projectOperation (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:360:15)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1224:29)
+(fail) MCP organization delegation against a booted be-01 > HTTP consented active node SS/FF preserves scoped identity and connected read parity [116.70ms]
+355 |     method: 'POST',
+356 |     headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+357 |     ...(operation === 'commands' ? { body: JSON.stringify(body) } : {}),
+358 |   });
+359 |   if (response.status !== 200)
+360 |     throw new Error(`${operation}: HTTP ${String(response.status)} ${await response.text()}`);
+                    ^
+error: commands: HTTP 404 {"at":2,"kind":"addTypedDependency","error":"not_found"}
+      at projectOperation (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:360:15)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1266:27)
+(fail) MCP organization delegation against a booted be-01 > HTTP consented remote descendant-step FS resolves dotted batch refs without changing scope [116.45ms]
+338 |     const answer = await tool(
+339 |       access,
+340 |       `postApiProjectsById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
+341 |       { id: ids.launch, ...body },
+342 |     );
+343 |     expect({ error: answer.isError, text: answer.isError ? answer.text : '' }).toEqual({
+                                                                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": false,
+-   "text": "",
++   "error": true,
++   "text": 
++ "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.
++ {"at":0,"kind":"addTypedDependency","error":"not_found"}"
++ ,
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at projectOperation (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:343:80)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1224:29)
+(fail) MCP organization delegation against a booted be-01 > MCP consented active node SS/FF preserves scoped identity and connected read parity [122.69ms]
+338 |     const answer = await tool(
+339 |       access,
+340 |       `postApiProjectsById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
+341 |       { id: ids.launch, ...body },
+342 |     );
+343 |     expect({ error: answer.isError, text: answer.isError ? answer.text : '' }).toEqual({
+                                                                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": false,
+-   "text": "",
++   "error": true,
++   "text": 
++ "postApiProjectsByIdCommands was refused: HTTP 404 not_found from POST /api/projects/{id}/commands.
++ {"at":2,"kind":"addTypedDependency","error":"not_found"}"
++ ,
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at projectOperation (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:343:80)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1266:27)
+(fail) MCP organization delegation against a booted be-01 > MCP consented remote descendant-step FS resolves dotted batch refs without changing scope [101.54ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [4.41ms]
+
+ 20 pass
+ 6 fail
+ 414 expect() calls
+Ran 26 tests across 1 file. [18.00s]

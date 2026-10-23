@@ -1,0 +1,7 @@
+{
+  "fault": "mcp-step-serialization",
+  "path": "apps/wbs/mcp-01/src/wbs-client.ts",
+  "before": "JSON.stringify(body)",
+  "after": "JSON.stringify(body, (key, value) => key === \"stepId\" ? \"missing-step\" : value)",
+  "exitCode": 1
+}

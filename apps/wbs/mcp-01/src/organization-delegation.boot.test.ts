@@ -391,6 +391,67 @@ async function refuseCommands(
   expect(await fixture('write-state', {})).toEqual(before);
 }
 
+/** Checks durable endpoint and journal identity, then compares the two authenticated reads. */
+async function assertScopedRelationship(
+  access: string,
+  dependencyId: string,
+  predecessor: { projectId: string; scope: string; workItemId: string; stepId: string },
+  successor: { projectId: string; scope: string; workItemId: string; stepId: string },
+  type: string,
+  journalKind: 'add_typed_dependency' | 'batch' = 'add_typed_dependency',
+): Promise<void> {
+  const state = (await fixture('write-state', {})) as Record<string, unknown>[][];
+  const relationships = state[4];
+  const journal = state[7];
+  // Proof: dropping explicit endpoint project binding and substituting descendant-step
+  // with node each failed the new consented scoped cases in the booted OAuth suite.
+  expect(relationships.find((row) => row['id'] === dependencyId)).toMatchObject({
+    id: dependencyId,
+    predecessor_project_id: predecessor.projectId,
+    predecessor_work_item_id: predecessor.workItemId,
+    predecessor_scope: predecessor.scope,
+    predecessor_step_id: predecessor.stepId,
+    successor_project_id: successor.projectId,
+    successor_work_item_id: successor.workItemId,
+    successor_scope: successor.scope,
+    successor_step_id: successor.stepId,
+    type,
+  });
+  const recorded = journal.find(
+    (entry) => entry['project_id'] === ids.launch && JSON.stringify(entry).includes(dependencyId),
+  );
+  expect(recorded).toMatchObject({ project_id: ids.launch, user_id: 'u-dany', kind: journalKind });
+  if (recorded === undefined || typeof recorded['payload'] !== 'string')
+    throw new Error('scoped command journal missing');
+  expect(recorded['id']).toBeString();
+  const payload = JSON.parse(recorded['payload']) as {
+    forward: { do: string; dependency?: unknown; steps?: { do: string; dependency?: unknown }[] };
+  };
+  expect(journalKind === 'batch' ? payload.forward.steps?.at(-1) : payload.forward).toMatchObject({
+    do: 'add_typed_dependency',
+    dependency: { id: dependencyId, projectId: ids.launch, predecessor, successor, type },
+  });
+  const viaMcp = await tool(access, 'getApiProjectsByIdWork-items', { id: ids.launch });
+  // Proof: corrupting generated MCP stepId or projectId serialization failed these scoped reads/writes.
+  expect(viaMcp.isError).toBe(false);
+  const caller = await oauth.callerSessionFor(access);
+  const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, ['read']);
+  const direct = await fetch(`${beUrl}/api/projects/${ids.launch}/work-items`, {
+    headers: { authorization: `Bearer ${delegated}` },
+  });
+  expect(direct.status).toBe(200);
+  const reading = (await direct.json()) as { connectedDependencies: Record<string, unknown>[] };
+  expect(JSON.parse(viaMcp.text)).toEqual(reading);
+  expect(
+    reading.connectedDependencies.find((relationship) => relationship['id'] === dependencyId),
+  ).toMatchObject({
+    id: dependencyId,
+    type,
+    predecessor: { endpoint: predecessor },
+    successor: { endpoint: successor },
+  });
+}
+
 const projectNames = (text: string) =>
   (JSON.parse(text) as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
 
@@ -1150,6 +1211,138 @@ describe('MCP organization delegation against a booted be-01', () => {
       expect(await fixture('write-state', {})).toEqual(snapshot);
     }
   });
+
+  for (const transport of ['HTTP', 'MCP'] as const) {
+    test(`${transport} consented active node SS/FF preserves scoped identity and connected read parity`, async () => {
+      const access = sessions['dany'];
+      if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+      const created = await tool(access, 'postApiProjects', { name: `${transport} scoped remote` });
+      // Proof: raw upstream token in place of per-call bearerFor made this
+      // consented setup call answer no_active_organization.
+      expect(created.isError).toBe(false);
+      const projectId = (JSON.parse(created.text) as { project: { id: string } }).project.id;
+      const tree = await tool(access, 'getApiProjectsById', { id: projectId });
+      expect(tree.isError).toBe(false);
+      const stepId = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id;
+      if (stepId === undefined) throw new Error('remote project has no step');
+      const remote = await tool(access, 'postApiProjectsByIdCommands', {
+        id: projectId,
+        commands: [{ kind: 'createWorkItem', name: 'Remote scoped leaf' }],
+      });
+      expect(remote.isError).toBe(false);
+      const workItemId = (JSON.parse(remote.text) as { results: { id: string }[] }).results.at(
+        0,
+      )?.id;
+      if (workItemId === undefined) throw new Error('remote leaf not minted');
+      const local = await projectOperation(transport, 'commands', {
+        commands: [{ kind: 'createWorkItem', name: 'Local scoped leaf' }],
+      });
+      const successorId = local.results.at(0)?.id;
+      if (successorId === undefined) throw new Error('local leaf not minted');
+      for (const type of ['SS', 'FF'] as const) {
+        const predecessor = { projectId, scope: 'node', workItemId, stepId };
+        const successor = {
+          projectId: ids.launch,
+          scope: 'node',
+          workItemId: successorId,
+          stepId: ids.firstStep,
+        };
+        const added = await projectOperation(transport, 'commands', {
+          commands: [{ kind: 'addTypedDependency', predecessor, successor, type }],
+        });
+        const dependencyId = added.results.at(0)?.id;
+        if (dependencyId === undefined) throw new Error('scoped relationship not minted');
+        await assertScopedRelationship(access, dependencyId, predecessor, successor, type);
+        await projectOperation(transport, 'commands', {
+          commands: [{ kind: 'removeTypedDependency', dependencyId }],
+        });
+      }
+      // Proof: unconditional COMMIT left the valid patch durable; refuseCommands'
+      // full 13-table equality failed through the real mounted command path.
+      await refuseCommands(
+        [
+          {
+            kind: 'patchWorkItem',
+            workItemId: successorId,
+            patch: { name: 'Must roll back scoped batch' },
+          },
+          {
+            kind: 'addTypedDependency',
+            predecessor: { projectId, scope: 'descendant-step', workItemId, stepId },
+            successor: {
+              projectId: ids.launch,
+              scope: 'node',
+              workItemId: successorId,
+              stepId: ids.firstStep,
+            },
+            type: 'FS',
+          },
+        ],
+        409,
+        { error: 'not_a_parent', at: 1, kind: 'addTypedDependency' },
+      );
+    });
+
+    test(`${transport} consented remote descendant-step FS resolves dotted batch refs without changing scope`, async () => {
+      const access = sessions['dany'];
+      if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+      const created = await tool(access, 'postApiProjects', {
+        name: `${transport} descendant remote`,
+      });
+      expect(created.isError).toBe(false);
+      const projectId = (JSON.parse(created.text) as { project: { id: string } }).project.id;
+      const tree = await tool(access, 'getApiProjectsById', { id: projectId });
+      expect(tree.isError).toBe(false);
+      const stepId = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id;
+      if (stepId === undefined) throw new Error('remote project has no step');
+      const remote = await tool(access, 'postApiProjectsByIdCommands', {
+        id: projectId,
+        commands: [
+          { kind: 'createWorkItem', ref: 'REMOTE.080.39', name: 'Remote parent' },
+          { kind: 'createWorkItem', parentRef: 'REMOTE.080.39', name: 'Remote child' },
+        ],
+      });
+      expect(remote.isError).toBe(false);
+      const workItemId = (JSON.parse(remote.text) as { results: { id: string }[] }).results.at(
+        0,
+      )?.id;
+      if (workItemId === undefined) throw new Error('remote parent not minted');
+      const predecessor = { projectId, scope: 'descendant-step', workItemId, stepId };
+      const added = await projectOperation(transport, 'commands', {
+        commands: [
+          { kind: 'createWorkItem', ref: 'PUNI.080.39', name: 'Local parent' },
+          { kind: 'createWorkItem', parentRef: 'PUNI.080.39', name: 'Local child' },
+          {
+            kind: 'addTypedDependency',
+            predecessor,
+            successor: {
+              scope: 'descendant-step',
+              workItemRef: 'PUNI.080.39',
+              stepId: ids.firstStep,
+            },
+            type: 'FS',
+          },
+        ],
+      });
+      const successorId = added.results.at(0)?.id;
+      const dependencyId = added.results.at(2)?.id;
+      if (successorId === undefined || dependencyId === undefined)
+        throw new Error('dotted batch identities not minted');
+      await assertScopedRelationship(
+        access,
+        dependencyId,
+        predecessor,
+        {
+          projectId: ids.launch,
+          scope: 'descendant-step',
+          workItemId: successorId,
+          stepId: ids.firstStep,
+        },
+        'FS',
+        'batch',
+      );
+    });
+  }
 
   test("a removed member's session is refused on its next call and cannot refresh", async () => {
     const removed = await fetch(`${beUrl}/__fixture/remove-member`, {
