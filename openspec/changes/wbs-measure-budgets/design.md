@@ -296,6 +296,13 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   `{strict?, advisory?, mixedRateCards?, mixedAt?}`: the tightest strict budget of the chain,
   which the coordinator refuses on, and apart the tightest advisory or derived one, which it
   only reports. An advisory budget with less remaining never hides an exhausted strict one.
+- **D47 Refusal schemas compile once per status, not once per code.** mcp-01 compiles every HTTP
+  shape at boot inside a 512 Mi pod; `commandParserRefusal`'s 132 arms and the batch's 78 plain
+  arms each carried the whole command-kind enumeration, and slice 4's two kinds and codes pushed
+  the boot from about 521 MB (slice 3, already at the limit) past it (OOMKilled in the k3s
+  rehearsal). Each is now one object over the enumerated codes, typed as the per-code union it
+  validates; the wire shape and the validation are unchanged, the OpenAPI document lists the
+  codes as one enum. `contracts-boot-memory.test.ts` bounds the cost of loading every shape.
 
 ## Risks / Trade-offs
 

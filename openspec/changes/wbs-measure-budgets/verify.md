@@ -406,3 +406,28 @@ Rechecked after the fixes (fresh): the rows below.
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                         | 270 of 270                                                                                                                                                                                                                                                                    |
 
 No SQL changed, so migration lint was not rerun; be-01 was not rerun in full.
+
+### k3s rehearsal: mcp-01 OOMKilled (2026-10-23)
+
+CI `infra-check` / `k3s-rehearsal` failed on a5a130f15 and e09afa3bb: `wbs-mcp` `OOMKilled`,
+exit 137, limit 512Mi. Reproduced with the built mcp-01 images run under `--memory=512m`
+(gateway mode, RSA signing key, no be-01), cgroup `memory.peak` and `VmHWM`:
+
+| Image               | Peak (cgroup)              | VmHWM      | Ready | OOM kill |
+| ------------------- | -------------------------- | ---------- | ----- | -------- |
+| slice 3 (65c82254f) | 536 866 816 (at the limit) | 552 376 kB | 4.1 s | 0        |
+| slice 4 (e09afa3bb) | 536 870 912                | —          | never | 1        |
+| slice 4 with D47    | 401 059 840                | 420 556 kB | 2.4 s | 0        |
+
+Cause: arktype compiling 210 refusal arms that each repeat the 61-kind enumeration. Importing
+`command-parser-refusal.ts` alone took 528 MB RSS (149 MB before it); `work-item-shapes.ts`
+took another 120 MB. Loading every shape over arktype: 756 MB before, 370 MB after (laptop);
+parser collapse alone saves 314 MB, batch collapse 60 MB. Proofs: with the parser arms restored,
+`bounds the memory the contracts take to load` failed at 686 MB against its 500 MB bound; with
+the codes' enumeration made `'string'`, `admits a known code with its context and refuses an
+unknown code or kind` failed.
+
+Rechecked: contracts 496 pass, mcp-01 515 pass, core 1233 pass, be-01 OpenAPI and refusal
+suites (10 files) 423 pass; 13 projects typecheck; lint of contracts, core, be-01, mcp-01. The
+k3s rehearsal (`tool-deploy:test:k3s`, a k3d cluster with all four images) was not run locally:
+a second heavy agent shares the 30 GB laptop.
