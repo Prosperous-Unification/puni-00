@@ -81,3 +81,25 @@ The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` 
 - **AND** a capability that became active after construction permits otherwise valid semantic operations without reconstructing the service
 - **AND** constructor validation, local-command independence and exact derived incident-history replay without general authoring remain required
 - **AND** production composition remains explicitly inactive; this consumption hardening neither activates authoring nor advertises supported semantics
+
+## ADDED Requirements
+
+### Requirement: Prepared MCP document preserves generated command admission
+
+MCP startup SHALL read a required OpenAPI artifact generated from the same
+checkout during image/build or uncached source preparation. Startup SHALL NOT
+construct shared HTTP validators or import contracts/core runtime barrels.
+Command inputs, names and exclusion refusals SHALL match current declarations.
+
+#### Scenario: Prepared runtime starts without shared schema construction
+
+- **GIVEN** preparation emitted the current shared declarations beside the MCP runtime
+- **WHEN** the runtime derives its tool table while contracts/core runtime barrels are unavailable
+- **THEN** the generated commands, including external typed endpoints, retain their inputs and exclusions
+- **AND** startup succeeds without loading those barrels
+
+#### Scenario: Required startup artifact is unusable
+
+- **WHEN** the required sibling artifact is missing, unreadable, malformed JSON or cannot derive an unambiguous tool table
+- **THEN** MCP startup refuses before serving tools
+- **AND** it does not generate or substitute a document at runtime

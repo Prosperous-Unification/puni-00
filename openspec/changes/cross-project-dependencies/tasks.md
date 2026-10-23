@@ -702,3 +702,12 @@ Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.
 - [x] Add the dedicated `be --inspect-dependency-participants` early invocation under one selected deploy lock, refreshing retained managed backend/gateway evidence and the unfiltered Docker/network/process/full live Caddy topology twice under one bounded deadline. Return only a versioned blocked observation with explicit unresolved obligations; refuse source-run dev, unresolved ingress and changed evidence.
 - [x] Add focused production observer/census and real CLI refusal tests; watch independent source-run, network-member, alternate-ingress, PID-association, evidence-refresh and real-lock guard faults fail. Evidence and limits: [verify-compose-participants.md](verify-compose-participants.md).
 - [ ] Complete positive real-Docker/retained-proof CLI acceptance, independent review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open; this observation enables no activation, receipt, restart-authority control, MCP/client exclusion or continuous participant fencing.
+
+Task 3.2/11 bounded MCP startup correction (2026-10-23): generate the required
+same-checkout OpenAPI artifact before source/image/bundle startup; keep current
+command/exclusion parity and remove runtime contracts/core barrel reachability.
+Ordered TDD: default artifact missing/unreadable/malformed negatives; emitter
+acceptance and generated parity; poisoned-barrel startup negative; uncached
+preparation freshness and bounded 512 MiB startup observation. Evidence and
+remaining delivery limits: [MCP startup memory](verify-mcp-startup-memory.md).
+Parent 3.2, activation and Task 11 stay open.

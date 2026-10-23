@@ -1141,3 +1141,27 @@ Captured host main/directory identities are checked before and after each census
 parent directory identity and a complete directory receipt are required even if
 all current files are hardlinks. Host directory readback closes the census race.
 This continues to prove only the managed backend/gateway DB cohort.
+
+## MCP startup document preparation
+
+The Task 3.2/11 delivery correction keeps the generated HTTP/MCP command
+contract while moving its expensive schema construction out of server startup.
+The k3s MCP rollout repeatedly reported `OOMKilled` / exit 137 at 512 MiB;
+importing the HTTP descriptor registry eagerly compiles validators even when
+MCP only needs the resulting OpenAPI document. Increasing the limit or making
+Ajv lazy leaves that unnecessary runtime dependency in place.
+
+The existing backend `emit-openapi-cli.ts` emits the document from the same
+checkout during MCP image preparation and build. Source serve/tests require
+an uncached `prepare` target; the source artifact is ignored by Git. Bundles
+receive a sibling `openapi.json`; both source-running Dockerfiles generate in
+a separate stage and copy the artifact beside `src/main.ts`. Startup reads
+that required sibling and retains `toolsFromDocument` admission/exclusions.
+Missing, unreadable and malformed artifacts refuse startup. There is no
+runtime generator fallback or committed snapshot. Credential rules, trusted
+issuer URL checks and logging use leaf imports so startup reaches neither
+the contracts nor core runtime barrel. Contract/schema changes during an
+already running source watcher require another prepare/restart.
+
+This correction proves bounded startup and generated parity, not dependency
+activation, a final image build, cluster acceptance or Task 11 completion.

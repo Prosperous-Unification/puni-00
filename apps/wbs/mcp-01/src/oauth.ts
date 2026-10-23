@@ -20,7 +20,8 @@ import {
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
 } from '@wbs/auth';
-import { credentialRuleRefusal } from '@wbs/core';
+// Proof: restoring the core barrel failed the poisoned-barrel startup test.
+import { credentialRuleRefusal } from '@wbs/core/ports/credential-rules';
 import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';

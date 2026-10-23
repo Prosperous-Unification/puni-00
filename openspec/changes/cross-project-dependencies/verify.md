@@ -6894,3 +6894,12 @@ The bounded real agent-consent queued external-update packet, independent
 production-fault observations, restored runtime checks and remaining scope are in
 [the OAuth queue verification record](verify-4-2-oauth-queued-authority.md).
 Task 4.2 and production activation remain open.
+
+## Bounded Task 3.2/11 MCP startup memory correction (2026-10-23)
+
+Required same-checkout OpenAPI preparation replaces runtime HTTP schema
+construction; leaf imports sever startup's contracts/core barrel dependency.
+Watched file/refusal and poisoned-barrel negatives, generated command/exclusion
+parity, import RSS and the disposable 512 MiB probe are recorded in the
+[MCP startup memory packet](verify-mcp-startup-memory.md). This bounded source
+observation does not close parent transport delivery, activation or Task 11.

@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 
 import { readDocument, toolsFromDocument } from './openapi-tools';
 
-test('default MCP document is generated directly from the shared declarations', () => {
+test('prepared default MCP document equals the current shared declarations', () => {
   expect(readDocument()).toEqual(documentFromShapes(httpShapes));
   const tools = toolsFromDocument(readDocument());
   expect(tools.map((tool) => tool.name)).toContain('postApiProjectsByIdCommands');

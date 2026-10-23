@@ -276,8 +276,11 @@ MCP_AUTH_MODE=standalone \
 WBS_API_URL=https://dev.wbs.bulletpoints.club \
 AUTH_ISSUER_DISCOVERY_URL=https://idp.example/oauth2/default \
 AUTH_AUDIENCE=api://wbs AUTH_CLIENT_ID=wbs AUTH_CLIENT_SECRET=… \
-bun apps/wbs/mcp-01/src/main.ts
+bunx nx run wbs-mcp-01:serve
 ```
 
-The build bundles the shared HTTP descriptors; no separate OpenAPI file is needed. The server
-refuses to boot when the generated document cannot produce an unambiguous tool table.
+`prepare` emits `src/openapi.json` from the same checkout's shared HTTP descriptors before
+source serve and tests; build emits `dist/apps/wbs/mcp-01/openapi.json` beside the bundle.
+Both MCP Dockerfiles generate and copy that artifact beside the source entrypoint. No
+snapshot is committed. Startup reads the required sibling artifact without importing the
+HTTP validators, and refuses missing, unreadable, malformed or ambiguous documents.
