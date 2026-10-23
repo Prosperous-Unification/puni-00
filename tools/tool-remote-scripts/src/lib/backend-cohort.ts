@@ -27,7 +27,11 @@ import {
 } from './managed-cohort';
 import { verifyContainerNamespace } from './mount-audit';
 import { inspectExcludedSolverMembers, type SolverExclusion } from './solver-exclusion';
-import { inspectExcludedSourceMember, type SourceDevExclusion } from './source-dev-exclusion';
+import {
+  identifySourceAuditInventory,
+  inspectExcludedSourceMember,
+  type SourceDevExclusion,
+} from './source-dev-exclusion';
 
 interface DatabaseIdentity {
   path: string;
@@ -352,7 +356,11 @@ async function observeBackendCohort(
     // Proof: deleting this audit admits the unmanaged-writer mount and effects; its negative fails (exit 1).
     const image = backends.blue?.imageRef ?? backends.green?.imageRef;
     if (image === undefined) throw new Error('backend fence lost pinned audit image');
-    const inventory = identifyInventory(containers);
+    // Proof: backend-inventory-order omission fails the composed source mount-permutation regression.
+    const inventory =
+      source === undefined
+        ? identifyInventory(containers)
+        : await identifySourceAuditInventory(source.owner, layout, source.exclusion, containers);
     if (!performAudit && source !== undefined) {
       await inspectExcludedSourceMember(source.owner, layout, source.exclusion, containers);
       if (source.solver !== undefined)

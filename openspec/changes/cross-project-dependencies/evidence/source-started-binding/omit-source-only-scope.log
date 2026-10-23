@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+390 |             const masked = structuredClone(foreign);
+391 |             if (fault === 'mount-reordered') masked.Mounts.reverse();
+392 |             else if (fault === 'mount-field')
+393 |               Reflect.set(masked.Mounts[0], 'Propagation', 'rshared');
+394 |             else masked.Mounts = [];
+395 |             await rejects(
+                        ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /complete audit inventory/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:395:19
+      at withSourceDevExcluded (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:232:18)
+      at acquire (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at /tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24
+      at acquireLock (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source complete audit inventory refuses mount-reordered unrelated mounted member [143.97ms]
+
+ 0 pass
+ 34 filtered out
+ 1 fail
+Ran 1 test across 1 file. [190.00ms]

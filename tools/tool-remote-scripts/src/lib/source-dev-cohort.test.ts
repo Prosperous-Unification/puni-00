@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 
 import { sourceFixture } from '../fixtures/source-dev';
 import { envLayout } from './env';
+import { readFields } from './managed-cohort';
 import { decodeSourceDev, sourceDevIdentity } from './source-dev-cohort';
 
 for (const init of [null, false, true])
@@ -128,4 +129,21 @@ test('source omitted Init still refuses unfinished terminal lifecycle', () => {
   source.State.Pid = 0;
   source.State.Status = 'exited';
   expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('timestamp lifecycle');
+});
+
+test('source derived mounts preserve native fields and raw order while sorting targets', () => {
+  const source = sourceFixture();
+  source.Mounts.reverse();
+  Reflect.set(source.Mounts[0], 'Propagation', 'rprivate');
+  const before = structuredClone(source.Mounts);
+  const member = decodeSourceDev(source, envLayout('dev'));
+  expect(source.Mounts).toEqual(before);
+  expect(member.mounts).not.toBe(source.Mounts);
+  expect(member.mounts.map((mount) => readFields(mount)['Destination'])).toEqual([
+    '/data',
+    '/run/wbs-solver',
+    '/src',
+  ]);
+  expect(member.mounts).toContain(source.Mounts[0]);
+  expect(member.mounts.some((mount) => readFields(mount)['Propagation'] === 'rprivate')).toBe(true);
 });

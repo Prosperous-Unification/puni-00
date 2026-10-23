@@ -26,6 +26,26 @@ export interface SourceDevMember {
 }
 
 /**
+ * Docker mount array order is not identity. Derives a fresh destination-ordered array
+ * for the exact three source targets, retaining every native field and raw mount reference.
+ * Duplicate, missing and foreign targets refuse before any identity comparison.
+ */
+export function orderSourceMounts(raw: unknown): unknown[] {
+  if (!Array.isArray(raw)) throw new Error('source dev mounts missing');
+  const targets = raw.map((mount: unknown) => readString(readFields(mount)['Destination']));
+  // Proof: source-target fault admitted duplicate targets; decoder and startup negatives failed.
+  assertSame(['/data', '/run/wbs-solver', '/src'], [...targets].sort(), 'source dev mount targets');
+  // Proof: source-mount-order fault retained native ordering; source/composed permutation positives failed.
+  return raw
+    .map((mount: unknown) => mount)
+    .sort((left, right) =>
+      readString(readFields(left)['Destination']).localeCompare(
+        readString(readFields(right)['Destination']),
+      ),
+    );
+}
+
+/**
  * Fixed source contract admits native omitted/null/boolean Init because whole private PID
  * namespace extinction supplies exclusion. Omission remains absent in the captured host;
  * changing its presence or value is identity drift. Managed namespace scanners still require init:true.
@@ -85,8 +105,7 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout): SourceDevMembe
   if (host['NetworkMode'] !== layout.network || Object.keys(networks).length !== 1)
     throw new Error('source dev network differs');
   readIdentity(readFields(networks[layout.network])['NetworkID']);
-  const mounts: unknown = container['Mounts'];
-  if (!Array.isArray(mounts)) throw new Error('source dev mounts missing');
+  const mounts = orderSourceMounts(container['Mounts']);
   // Proof: replacing expected mounts with observed mounts admitted a foreign source; unsupported mount negative failed.
   assertSame(
     [...contract.mounts].sort((left, right) => left.target.localeCompare(right.target)),

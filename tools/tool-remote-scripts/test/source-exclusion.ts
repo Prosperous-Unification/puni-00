@@ -29,6 +29,7 @@ import {
 import { runSolverDrainAcceptance, type SolverDrainFixture } from './solver-drain';
 import { renderManagedParticipant, renderSourceTopology } from './source-exclusion-topology';
 import {
+  bindStartedSource,
   createFixtureDocker,
   type FixtureContainerPlan,
   parseFixtureInspection,
@@ -384,29 +385,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     );
     const sourcePlan = plans.find((plan) => plan.name === sourceName);
     requireProof(sourcePlan !== undefined, 'source physical plan absent');
-    const sourceConfig = structuredClone(sourceInitial['Config']);
-    const sourceHost = readFields(sourceInitial['HostConfig']);
-    const { RestartPolicy: _policy, ...fixedSourceHost } = sourceHost;
-    const sourceMounts = structuredClone(sourceInitial['Mounts']);
     const sourcePlanIndex = plans.indexOf(sourcePlan);
-    plans[sourcePlanIndex] = {
-      ...sourcePlan,
-      validate: (container) => {
-        const { RestartPolicy: _restart, ...host } = readFields(container['HostConfig']);
-        requireProof(
-          isDeepStrictEqual(container['Config'], sourceConfig) &&
-            isDeepStrictEqual(host, fixedSourceHost) &&
-            isDeepStrictEqual(container['Mounts'], sourceMounts) &&
-            readFields(readFields(container['NetworkSettings'])['Networks'])[
-              layouts.dev.network
-            ] !== undefined &&
-            readFields(
-              readFields(readFields(container['NetworkSettings'])['Networks'])[layouts.dev.network],
-            )['NetworkID'] === networkId,
-          'source physical coordinates changed',
-        );
-      },
-    };
     stage = 'fixture-managed-create';
     for (const tier of ['be', 'gw'] as const) {
       const image = pin(tier === 'be' ? 'BACKEND' : 'GATEWAY');
@@ -469,6 +448,14 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     await effect(['network', 'connect', devNetwork.id, edgeId], edgeId);
     stage = 'fixture-source-start';
     await start(sourceId);
+    const binding = bindStartedSource(sourceInitial, await actual(sourceId), {
+      ...sourcePlan,
+      token,
+      network: layouts.dev.network,
+      networkId,
+    });
+    plans[sourcePlanIndex] = { ...sourcePlan, validate: binding.validate };
+    await record('source-started-binding', binding.receipt);
     stage = 'fixture-edge-start';
     await start(edgeId);
     stage = 'fixture-tag-negative';

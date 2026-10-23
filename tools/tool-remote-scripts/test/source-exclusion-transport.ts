@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 
 import type { RunDocker } from '../src/lib/docker-deadline';
 import { EDGE_CONTAINER } from '../src/lib/env';
 import { readFields, readIdentity, readString } from '../src/lib/managed-cohort';
 import { solverInspectArgs } from '../src/lib/solver-cohort';
+import { orderSourceMounts } from '../src/lib/source-dev-cohort';
 
 export const SOURCE_FIXTURE_OWNER = 'puni.source-exclusion';
 export interface FixtureContainerPlan {
@@ -47,6 +49,161 @@ function parseIds(output: string): string[] {
   for (const id of ids) readIdentity(id);
   assertProof(new Set(ids).size === ids.length, 'fixture census duplicate identity');
   return ids;
+}
+export interface StartedSourceExpected {
+  name: string;
+  id: string;
+  imageRef: string;
+  imageId: string;
+  token: string;
+  network: string;
+  networkId: string;
+}
+/**
+ * Binds the first coherent running snapshot after the exact owned start. Only Docker's
+ * own false-to-null OomKillDisable transition is allowed across startup. Neither input
+ * is normalized. Created network IDs may be empty; first-running and later IDs
+ * must match the captured owned network. Mount arrays are derived destination sets.
+ * The returned validator pins the complete running host except the
+ * later intentional restart inhibition; receipts contain hashes and a closed class.
+ */
+export function bindStartedSource(
+  created: Record<string, unknown>,
+  started: Record<string, unknown>,
+  expected: StartedSourceExpected,
+) {
+  const zero = '0001-01-01T00:00:00Z';
+  for (const [container, running] of [
+    [created, false],
+    [started, true],
+  ] as const) {
+    const config = readFields(container['Config']);
+    const host = readFields(container['HostConfig']);
+    const state = readFields(container['State']);
+    const networks = readFields(readFields(container['NetworkSettings'])['Networks']);
+    const caps = host['CapAdd'];
+    const init = host['Init'];
+    const entrypoint = config['Entrypoint'];
+    const argv = [
+      ...(Array.isArray(entrypoint)
+        ? entrypoint.map((argument: unknown) => readString(argument))
+        : []),
+      'bun',
+      'run',
+      'dev',
+    ];
+    assertProof(
+      container['Id'] === expected.id &&
+        container['Name'] === `/${expected.name}` &&
+        container['Image'] === expected.imageId &&
+        config['Image'] === expected.imageRef &&
+        config['User'] === '1000:1000' &&
+        config['WorkingDir'] === '/src' &&
+        readFields(config['Labels'])[SOURCE_FIXTURE_OWNER] === expected.token &&
+        same(config['Cmd'], ['bun', 'run', 'dev']) &&
+        (entrypoint === null ||
+          (Array.isArray(entrypoint) &&
+            entrypoint.length > 0 &&
+            entrypoint.every(
+              (argument: unknown) => typeof argument === 'string' && argument.length > 0,
+            ))) &&
+        container['Path'] === argv[0] &&
+        same(container['Args'], argv.slice(1)) &&
+        (!Object.hasOwn(host, 'Init') || init === null || typeof init === 'boolean') &&
+        host['PidMode'] === '' &&
+        host['Privileged'] === false &&
+        (caps === null || (Array.isArray(caps) && caps.length === 0)) &&
+        host['NetworkMode'] === expected.network &&
+        Object.keys(networks).length === 1 &&
+        (readFields(networks[expected.network])['NetworkID'] === expected.networkId ||
+          (!running && readFields(networks[expected.network])['NetworkID'] === '')) &&
+        same(host['RestartPolicy'], { Name: 'unless-stopped', MaximumRetryCount: 0 }) &&
+        Array.isArray(container['Mounts']) &&
+        container['RestartCount'] === 0,
+      'source startup physical identity differs',
+    );
+    // Proof: startup-state omission let no-op start and zero-PID become a baseline; both negatives failed.
+    assertProof(
+      state['Running'] === running &&
+        state['Status'] === (running ? 'running' : 'created') &&
+        state['Paused'] === false &&
+        state['Restarting'] === false &&
+        state['Dead'] === false &&
+        state['OOMKilled'] === false &&
+        state['Error'] === '' &&
+        state['ExitCode'] === 0 &&
+        state['FinishedAt'] === zero &&
+        (running
+          ? typeof state['Pid'] === 'number' &&
+            Number.isInteger(state['Pid']) &&
+            state['Pid'] > 0 &&
+            typeof state['StartedAt'] === 'string' &&
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(state['StartedAt']) &&
+            Number.isFinite(Date.parse(state['StartedAt'])) &&
+            state['StartedAt'] !== zero
+          : state['Pid'] === 0 && state['StartedAt'] === zero),
+      'source startup lifecycle differs',
+    );
+  }
+  for (const field of ['Id', 'Name', 'Image', 'Path', 'Args', 'Config', 'RestartCount'])
+    assertProof(
+      same(created[field], started[field]),
+      'source startup physical coordinates changed',
+    );
+  assertProof(
+    same(orderSourceMounts(created['Mounts']), orderSourceMounts(started['Mounts'])),
+    'source startup mounts changed',
+  );
+  const createdHost = readFields(created['HostConfig']),
+    startedHost = readFields(started['HostConfig']);
+  const createdOom = createdHost['OomKillDisable'],
+    startedOom = startedHost['OomKillDisable'];
+  const explicitTransition =
+    Object.hasOwn(createdHost, 'OomKillDisable') &&
+    Object.hasOwn(startedHost, 'OomKillDisable') &&
+    createdOom === false &&
+    startedOom === null;
+  const comparisonHost = structuredClone(createdHost);
+  if (explicitTransition) comparisonHost['OomKillDisable'] = null;
+  // Proof: startup-allowance and startup-host faults fail native owner/tag and forbidden-transition regressions.
+  assertProof(
+    same(comparisonHost, startedHost) &&
+      (!Object.hasOwn(createdHost, 'OomKillDisable') ||
+        createdOom === null ||
+        typeof createdOom === 'boolean') &&
+      (!Object.hasOwn(startedHost, 'OomKillDisable') ||
+        startedOom === null ||
+        typeof startedOom === 'boolean'),
+    'source startup host changed',
+  );
+  const fixed = structuredClone(started);
+  const { RestartPolicy: _restart, ...fixedHost } = readFields(fixed['HostConfig']);
+  const digest = (value: unknown) =>
+    createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return {
+    receipt: {
+      transition: explicitTransition ? 'false-to-null' : 'unchanged',
+      createdHostSha256: digest(createdHost),
+      startedHostSha256: digest(startedHost),
+      configSha256: digest(started['Config']),
+      mountsSha256: digest(started['Mounts']),
+    },
+    validate: (container: Record<string, unknown>) => {
+      const { RestartPolicy: _policy, ...host } = readFields(container['HostConfig']);
+      const networks = readFields(readFields(container['NetworkSettings'])['Networks']);
+      // Proof: running-baseline fault omitted HostConfig pinning; later Oom drift transport negatives failed.
+      assertProof(
+        ['Id', 'Name', 'Image', 'Path', 'Args', 'Config', 'RestartCount'].every((field) =>
+          same(container[field], fixed[field]),
+        ) &&
+          same(orderSourceMounts(container['Mounts']), orderSourceMounts(fixed['Mounts'])) &&
+          same(host, fixedHost) &&
+          Object.keys(networks).length === 1 &&
+          readFields(networks[expected.network])['NetworkID'] === expected.networkId,
+        'source physical coordinates changed',
+      );
+    },
+  };
 }
 /**
  * One live label universe for every participant. Each call observes all labelled objects,

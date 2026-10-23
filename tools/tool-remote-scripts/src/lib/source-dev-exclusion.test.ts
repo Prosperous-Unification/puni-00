@@ -13,7 +13,7 @@ import {
   withSourceDevExcluded,
 } from './source-dev-exclusion';
 
-async function fixture() {
+async function fixture(reorder = false) {
   const root = scratchSync('source-dev-');
   await mkdir(`${root}/dev`);
   const layouts = {
@@ -33,7 +33,10 @@ async function fixture() {
   const docker = (args: string[]) => {
     commands.push(args);
     if (args[0] === 'ps') return Promise.resolve(inventory.map((member) => member.Id).join('\n'));
-    if (args[0] === 'inspect') return Promise.resolve(JSON.stringify(inventory));
+    if (args[0] === 'inspect') {
+      if (reorder) source.Mounts.reverse();
+      return Promise.resolve(JSON.stringify(inventory));
+    }
     if (args[0] === 'image')
       return Promise.resolve(
         args.includes('--format')
@@ -144,7 +147,7 @@ for (const fault of ['restart', 'stop', 'pid', 'image', 'entrypoint'])
     );
     expect(entered).toBe(false);
   });
-for (const fault of ['resume', 'config', 'bytes'])
+for (const fault of ['resume', 'config', 'bytes', 'native-mount'])
   test(`source final readback refuses ${fault}`, async () => {
     const f = await fixture();
     await rejects(
@@ -164,6 +167,8 @@ for (const fault of ['resume', 'config', 'bytes'])
                 f.source.State.Status = 'running';
               }
               if (fault === 'config') f.source.Config.User = '0';
+              if (fault === 'native-mount')
+                Reflect.set(f.source.Mounts[0], 'Propagation', 'rshared');
               if (fault === 'bytes')
                 await writeFile(
                   `${f.layouts.dev.stateDir}/dependency-source-dev-intent.json`,
@@ -363,7 +368,7 @@ test('source private evidence retains hashes without container environment bytes
         expect(await readFile(`${directory}/${name}`, 'utf8')).not.toContain('PRIVATE_SENTINEL');
 });
 
-for (const fault of ['omitted', 'mount-erased'] as const)
+for (const fault of ['omitted', 'mount-erased', 'mount-reordered', 'mount-field'] as const)
   test(`source complete audit inventory refuses ${fault} unrelated mounted member`, async () => {
     const f = await fixture();
     const foreign = structuredClone(f.source);
@@ -383,7 +388,10 @@ for (const fault of ['omitted', 'mount-erased'] as const)
           performance.now() + 10000,
           async (token) => {
             const masked = structuredClone(foreign);
-            masked.Mounts = [];
+            if (fault === 'mount-reordered') masked.Mounts.reverse();
+            else if (fault === 'mount-field')
+              Reflect.set(masked.Mounts[0], 'Propagation', 'rshared');
+            else masked.Mounts = [];
             await rejects(
               inspectExcludedSourceMember(
                 owner,
@@ -573,4 +581,29 @@ test('whole source exclusion accepts an already restarted source with historical
   expect(entered).toBe(true);
   expect(f.source.RestartCount).toBe(2);
   expect(f.source.State.Pid).toBe(0);
+});
+
+test('source mount order may vary on successive complete inventory observations', async () => {
+  const f = await fixture(true);
+  let entered = false;
+  await withDependencyOwner(
+    { sha: 'a'.repeat(40), layouts: [f.layouts.prod, f.layouts.dev] },
+    async (owner) =>
+      withSourceDevExcluded(
+        owner,
+        f.layouts,
+        'a'.repeat(40),
+        f.docker,
+        performance.now() + 10000,
+        async (exclusion) => {
+          const inventory = structuredClone(f.inventory);
+          expect(
+            await inspectExcludedSourceMember(owner, f.layouts.prod, exclusion, inventory),
+          ).toBe(inventory[0]);
+          entered = true;
+        },
+      ),
+    f.root,
+  );
+  expect(entered).toBe(true);
 });

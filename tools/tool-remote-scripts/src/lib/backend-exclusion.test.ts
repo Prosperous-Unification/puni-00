@@ -1023,6 +1023,11 @@ async function createSourceCompositionFixture(solverImage?: string, inert = fals
     if (args[0] === 'inspect' && (args[1] === edge.Id || args[1] === 'wbs-caddy-1'))
       return JSON.stringify([edge]);
     if (args[0] === 'stop' && args.at(-1) === source.Id) events.push('source');
+    if (args[0] === 'inspect') {
+      const firstMount = source.Mounts.shift();
+      if (firstMount === undefined) throw new Error('source fixture mount absent');
+      source.Mounts.push(firstMount);
+    }
     if (args[0] === 'inspect' && f.containers.includes(retained)) {
       const current: unknown = JSON.parse(await solver.ports.runDocker(['inspect', retained.Id]));
       if (!Array.isArray(current) || current.length !== 1)

@@ -914,3 +914,6 @@ public exposure, marker retirement, complete P2/P3, S4 and parent 10.2 remain op
 
 Independent rereview and separately authorized host acceptance remain open; these
 corrections add no P2b/P3 activation or exposure scope.
+
+- [x] X7d: Bind coherent native first-running source state across the narrow OomKillDisable transition; compare full-field source mount destination sets through native owner/backend audits (verify-source-started-binding.md).
+- [ ] X7e: Apply the same exact-source mount ordering to the subsequently integrated parked restoration monitor, with no post-expiry capability.

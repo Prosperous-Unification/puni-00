@@ -241,6 +241,32 @@ export async function withSourceDevExcluded<T>(
   }
 }
 
+function identifySourceInventory(
+  inventory: readonly unknown[],
+  source: unknown,
+  member: SourceDevMember,
+): unknown {
+  // Proof: source-inventory-order omission fails composed/source permutation positives;
+  // broad normalization of unrelated members fails reordered unrelated-inventory negatives.
+  // Only the validated exact raw source reference receives a derived mount ordering.
+  return identifyInventory(
+    inventory.map((raw) => (raw === source ? { ...readFields(raw), Mounts: member.mounts } : raw)),
+  );
+}
+
+/** Complete audit identity with mount ordering only for the live capability's exact raw source. */
+export async function identifySourceAuditInventory(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  token: SourceDevExclusion,
+  inventory: readonly unknown[],
+): Promise<unknown> {
+  const raw = await inspectExcludedSourceMember(owner, layout, token, inventory);
+  const scope = exclusions.get(token);
+  if (scope === undefined) throw new Error('source dev exclusion expired during inspection');
+  return identifySourceInventory(inventory, raw, decodeSourceDev(raw, scope.layouts.dev));
+}
+
 /**
  * Recognizes only the exact raw member of this same complete audit inventory, under the exact
  * live owner/layout/SHA and retained byte binding, then independently re-observes current exclusion.
@@ -259,9 +285,14 @@ export async function inspectExcludedSourceMember(
   await assertScope(scope);
   const current = await inspectInventory(scope);
   // Proof: omitting complete equality admitted an omitted unrelated writer and erased unrelated mounts; both complete-inventory negatives failed.
-  assertSame(identifyInventory(current), identifyInventory(inventory), 'complete audit inventory');
   const raw = findSource(inventory, scope.layouts.dev);
   const observed = await observeMember(scope, inventory);
+  const currentRaw = findSource(current, scope.layouts.dev);
+  assertSame(
+    identifySourceInventory(current, currentRaw, decodeSourceDev(currentRaw, scope.layouts.dev)),
+    identifySourceInventory(inventory, raw, observed),
+    'complete audit inventory',
+  );
   // Proof: retained-member equality omission admitted coherent caller finish/exit-code drift; both terminal-identity negatives failed.
   assertSame(scope.member, observed, 'source dev audit inventory member');
   assertSourceDevExcluded(observed);
