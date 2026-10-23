@@ -1,0 +1,77 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+121 | }
+122 | async function readPermission(started: boolean, canStart: boolean, canFinish = true) {
+123 |   const answer = await startable();
+124 |   expect(answer.status).toBe(200);
+125 |   const reading = answer.body as StartableWork;
+126 |   expect(reading.prerequisites.find((node) => node.workItemId === 'target-leaf')).toMatchObject({
+                                                                                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "canFinish": true,
+    "canStart": false,
+-   "started": true,
++   "finishBlockers": [],
++   "startBlockers": [
++     {
++       "provenance": "authored",
++       "relationshipId": "prerequisite",
++       "stepId": "0b3f00f4-1055-458b-9190-3d4d0056872d",
++       "type": "FS",
++       "workItemId": "predecessor-leaf",
++     },
++   ],
++   "started": false,
+    "stepId": "96a860df-ff4d-4772-a85b-178c4af731f9",
++   "workItemId": "target-leaf",
+  }
+
+- Expected  - 1
++ Received  + 12
+
+      at readPermission (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:126:83)
+      at async <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:189:16)
+(fail) isolated remote attempt-only continuation survives unmet prerequisites and claim replay [436.18ms]
+121 | }
+122 | async function readPermission(started: boolean, canStart: boolean, canFinish = true) {
+123 |   const answer = await startable();
+124 |   expect(answer.status).toBe(200);
+125 |   const reading = answer.body as StartableWork;
+126 |   expect(reading.prerequisites.find((node) => node.workItemId === 'target-leaf')).toMatchObject({
+                                                                                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "canFinish": true,
+    "canStart": false,
+-   "started": true,
++   "finishBlockers": [],
++   "startBlockers": [
++     {
++       "provenance": "authored",
++       "relationshipId": "prerequisite",
++       "stepId": "603245a7-2ebe-4d96-b12f-7a5480002d9b",
++       "type": "FS",
++       "workItemId": "predecessor-leaf",
++     },
++   ],
++   "started": false,
+    "stepId": "e51d73d8-67e5-4082-b33a-a484330a7897",
++   "workItemId": "target-leaf",
+  }
+
+- Expected  - 1
++ Received  + 12
+
+      at readPermission (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:126:83)
+      at async <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:189:16)
+(fail) shared remote attempt-only continuation survives unmet prerequisites and claim replay [304.38ms]
+
+ 0 pass
+ 22 filtered out
+ 2 fail
+ 22 expect() calls
+Ran 2 tests across 1 file. [3.93s]

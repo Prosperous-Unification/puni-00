@@ -6935,3 +6935,19 @@ Validation: the compatibility/import/export three-file Bun suite passed **33 tes
 0 failures**. Focused ESLint passed with its unavailable cached-project-graph rule
 reported explicitly in the packet; be-01 test-source TypeScript passed. Full host
 gate and the other unperformed checks are listed in the packet.
+
+## Task 6.3 bounded historical/manual observation acceptance — 2026-10-23
+
+The [historical/manual acceptance report](evidence/task-6-3-history/report.md)
+adds 24 mounted local/remote × isolated/shared cases separating attempt-only and
+statement-only continuation from new governed starts, preserving manual FS/SS/FF
+completion and actual correction through history, and restoring historical release
+ownership without manufacturing start evidence. Seven independently watched
+production faults fail the exact advertising, claim, replay, attempt-evidence and
+manual persistence assertions. All faults are restored; no runtime behavior or
+new eligibility guard changed. The restored three-file matrix passes 63 tests,
+1031 assertions; backend spec typecheck, scoped lint/format and scoped OpenSpec
+validation pass. Raw logs, commands, synthetic fixture limits and unrun checks are
+recorded in the report. Independent Astra review approved this bounded packet.
+Parent 6.3 remains unchecked; the integrated exact-SHA host gate and activation
+remain open.
