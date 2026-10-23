@@ -339,7 +339,7 @@ export const project = sqliteTable(
     /**
      * What a derived budget multiplies the pessimistic point by
      * (`wbs-measure-budgets` design D38), created by
-     * `20261023130000_add_work_item_budget` with a column CHECK keeping it
+     * `20261023170000_add_work_item_budget` with a column CHECK keeping it
      * above 0 and at most 1000. Defaulted to 1, which the outgoing release's
      * insert relies on.
      */
@@ -1140,7 +1140,7 @@ export const stepMeasure = sqliteTable(
     stepId: text('step_id')
       .notNull()
       .references(() => step.id),
-    // Nullable since `20261023110000_key_step_measure`: a fact on a defined
+    // Nullable since `20261023150000_key_step_measure`: a fact on a defined
     // measure has no legacy name and is keyed by `measureId` alone.
     metric: text('metric', { enum: MEASURE_METRICS }),
     /**
@@ -1155,7 +1155,7 @@ export const stepMeasure = sqliteTable(
     /**
      * What a money fact was priced with (`wbs-measure-budgets` D43), both or
      * neither: a column CHECK on `rate_card_digest` from
-     * `20261023130000_add_work_item_budget`. NULL on every other measure.
+     * `20261023170000_add_work_item_budget`. NULL on every other measure.
      */
     currency: text('currency'),
     rateCardDigest: text('rate_card_digest'),
@@ -1188,7 +1188,7 @@ export type StepMeasureRow = typeof stepMeasure.$inferSelect;
 
 /**
  * One step node's three-point estimate in one measure other than time
- * (`wbs-measure-budgets` D3), created by `20261023120000_add_measure_estimate`.
+ * (`wbs-measure-budgets` D3), created by `20261023160000_add_measure_estimate`.
  *
  * `measureKey` is the identity and `measureId` the reference, NULL while no
  * organization owns the project (design D19). A `tokens` row with
@@ -1234,7 +1234,7 @@ export const measureEstimate = sqliteTable(
 
 /**
  * One work item's stated budget in one measure (`wbs-measure-budgets` D5,
- * design D36), created by `20261023130000_add_work_item_budget`.
+ * design D36), created by `20261023170000_add_work_item_budget`.
  *
  * `measureKey` is the identity and `measureId` the reference, NULL while no
  * organization owns the project (design D30). Derived budgets are computed on
@@ -4039,7 +4039,7 @@ export const stepParallel = sqliteTable(
 /**
  * One organization's measure definitions (`wbs-measure-budgets` D1, D2), the
  * rows `MeasureDefinition` in `@wbs/domain` reads. Added by
- * `20261023100000_add_measure`, which seeds the five definitions for every
+ * `20261023140000_add_measure`, which seeds the five definitions for every
  * existing organization and, by its `organization_seed_measures` trigger, for
  * every organization inserted later; its `measure_shape_frozen` trigger keeps
  * `key`, `organization_id`, `kind`, `scale` and `derived` unchanged, and its

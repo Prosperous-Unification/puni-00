@@ -10,11 +10,11 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
-const MEASURE = '20261023100000_add_measure';
+const MEASURE = '20261023140000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
-const MEASURE_FACTS = '20261023110000_key_step_measure';
-const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
-const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
+const MEASURE_FACTS = '20261023150000_key_step_measure';
+const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const roots: string[] = [];
 

@@ -1,4 +1,4 @@
--- Reverses `20261023130000_add_work_item_budget`, refusing while anything the
+-- Reverses `20261023170000_add_work_item_budget`, refusing while anything the
 -- older schema cannot hold exists: a stated budget, a project budget factor
 -- other than 1, or a priced fact or trio (a non-NULL rate card digest).
 -- Dropping the table or the columns would discard each of them. Otherwise the

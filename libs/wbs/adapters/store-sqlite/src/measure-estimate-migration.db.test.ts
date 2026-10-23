@@ -10,9 +10,9 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const MIGRATION = '20261023120000_add_measure_estimate';
-const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
-const BASELINE = '20261023110000_key_step_measure';
+const MIGRATION = '20261023160000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const BASELINE = '20261023150000_key_step_measure';
 
 let dir: string;
 let path: string;

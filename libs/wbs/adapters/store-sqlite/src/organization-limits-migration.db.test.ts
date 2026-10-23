@@ -14,12 +14,12 @@ const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 /** The newer measure definitions, which reverse first over seeded rows alone. */
-const MEASURE = '20261023100000_add_measure';
+const MEASURE = '20261023140000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
-const MEASURE_FACTS = '20261023110000_key_step_measure';
+const MEASURE_FACTS = '20261023150000_key_step_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
-const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
-const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
+const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 
 let dir: string;
