@@ -70,21 +70,31 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
   it('loads rollback admission below the schema Job memory limit', () => {
+    // Proof: FORCE_COLOR=1 made numeric console.log output fail finite parsing (CI run 39935383258).
     const child = Bun.spawnSync({
       cmd: [
         'bun',
         '-e',
-        "await import('@wbs/store-sqlite/migrate-down'); console.log(process.resourceUsage().maxRSS);",
+        "await import('@wbs/store-sqlite/migrate-down'); process.stdout.write(String(process.resourceUsage().maxRSS));",
       ],
       cwd: BACKEND,
+      env: { ...process.env, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    expect(child.exitCode).toBe(0);
-    const peakKiB = Number(child.stdout.toString().trim());
-    expect(Number.isFinite(peakKiB)).toBe(true);
-    expect(peakKiB).toBeGreaterThan(0);
-    expect(peakKiB).toBeLessThan(384 * 1024);
+    const stdout = child.stdout.toString();
+    const diagnostic = JSON.stringify({
+      exitCode: child.exitCode,
+      signal: child.signalCode,
+      stdout,
+      stderr: child.stderr.toString(),
+    });
+    expect(child.exitCode, diagnostic).toBe(0);
+    const peakKiB = Number(stdout);
+    expect(Number.isFinite(peakKiB), diagnostic).toBe(true);
+    expect(peakKiB, diagnostic).toBeGreaterThan(0);
+    // Proof: restoring the contracts barrel import fails this actual rollback import budget.
+    expect(peakKiB, diagnostic).toBeLessThan(384 * 1024);
   }, 30_000);
 
   it('refuses a legacy --to-only candidate before taking a capture snapshot', () => {

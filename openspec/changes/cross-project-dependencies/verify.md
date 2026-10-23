@@ -6736,3 +6736,68 @@ failed as intended. Configured backend/MCP lint and typecheck passed. Astra High
 independently reran the focused suite with the same result and found no blocker.
 Production predicates and capability remain unchanged. Tasks 3.2/4.2,
 activation and exact-head gate remain open.
+
+## Forced-color rollback memory probe repair (2026-10-23)
+
+Infra-check run `39935383258` at PR #630 head `eb084872e` reached the rollback
+import budget but rejected its finite-number assertion despite child exit 0.
+The log did not retain raw child output. In an isolated Linux Bun 1.4.2 clone
+of that exact head, `FORCE_COLOR=1 bun test
+ tools/tool-deploy/src/k8s/execute-adapter.test.ts -t 'loads rollback admission'
+ --timeout=30000` reproduced the same assertion failure. Bun's numeric
+`console.log(process.resourceUsage().maxRSS)` emits ANSI color escapes with
+forced color; those bytes make `Number(stdout)` return `NaN`. A byte dump
+confirmed `1b 5b 30 6d 1b 5b 33 33 6d` before the numeric measurement. This
+explains the observed CI symptom; the original CI child's bytes are unavailable.
+
+The test now writes its measurement with `process.stdout.write(String(...))`,
+forces color in the child environment on every run, and attaches raw stdout,
+stderr, exit code and signal code to assertion failures. It retains Linux's
+`process.resourceUsage().maxRSS` KiB measurement, the actual rollback module
+import and the strict 393216 KiB boundary. No Kubernetes resource limit changed.
+The fixed forced-color test passed; a raw child sample exited 0 with stdout
+`32304` and empty stderr.
+
+Fresh fault proofs with this probe:
+
+- Replacing only the activation module's focused contracts import with the
+  contracts barrel failed the real rollback import budget: child exit 0,
+  stdout `862236`, empty stderr, expected less than `393216`. Restored the
+  production import immediately afterward.
+- Removing the fixture down script's ``CHECK (`allowed` = 1)`` failed the generated
+  backend-task regression: expected `CHECK constraint failed`, received
+  `resolved`. Restored the SQL guard; the existing test verifies the failed
+  attempt preserves schema and ledger, then the same capture recovers after
+  changing the control row.
+
+Checks in `/tmp/puni-ci-memory-probe`:
+
+- Frozen Bun install passed. Duplicate generated dependencies were subsequently
+  replaced with a symlink to the existing installed workspace dependency tree
+  to recover shared disk space.
+- `bunx tsc --build --force tools/tool-deploy/tsconfig.json` and
+  `bunx eslint tools/tool-deploy/src`: exit 0.
+- Configured `nx run tool-deploy:typecheck` and `nx run tool-deploy:lint`, each
+  with `--skip-nx-cache --output-style=stream`: exit 0. These used isolated
+  `NX_CACHE_DIRECTORY` and `NX_WORKSPACE_DATA_DIRECTORY`, `NX_DAEMON=false`,
+  `NX_ISOLATE_PLUGINS=false`, `NX_NATIVE_COMMAND_RUNNER=false` and a writable
+  `BUN_TMPDIR`. Earlier default-cache Nx invocations stalled and were interrupted;
+  the initial typecheck also rejected a diagnostic property typo, corrected
+  before the passing runs.
+- Prettier check for the changed test, `git diff --check` and
+  `bunx openspec validate cross-project-dependencies --json`: exit 0.
+
+The sandbox full Bun deploy suite was interrupted (exit 130) after local fake
+HTTP servers failed with `EPERM listen`; it did not establish a passing suite.
+The configured Nx deploy test target was then rerun with sandbox escalation
+using the same isolated cache settings. Its final result is recorded below.
+No h2/h4 host gate or new image-based Kubernetes rehearsal is claimed here;
+GitHub infra-check must establish the repaired PR's complete CI outcome.
+
+The unrestricted configured `nx run tool-deploy:test --skip-nx-cache
+--output-style=stream` completed with exit 0: **1367 passed, 0 failed, 4579
+assertions across 42 files**, 234.24 seconds. Nx's forced-color output remained
+active. This includes the actual rollback import budget and the generated
+backend-task SQL failure, schema/ledger preservation and same-capture recovery.
+The complete test log is `/tmp/puni-ci-memory-nx-test.log`; the watched fault
+logs are `/tmp/puni-ci-memory-{red,barrel-red,sql-red}.log`.
