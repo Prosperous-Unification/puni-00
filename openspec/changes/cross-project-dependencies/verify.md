@@ -6495,3 +6495,16 @@ Astra High rereview approved the correction. The reviewer ran 112 focused and
 293 adjacent regression tests, all passing. Integrated as `2c57b8206` and
 `d459c8fdf`. The configured Caddy test and exact-SHA host gate remain open;
 no marker lifecycle, process exclusion or activation is claimed.
+
+## Task 8.3 mounted connected-save capture refusal (2026-10-23)
+
+The [bounded packet](verify-mounted-save-refusal.md) covers absent, unreadable
+and contradictory required foreign evidence through production HTTP in isolated
+and shared mode. Actual foreign reads use the owned captured connection; all
+SQLite tables and every push remain unchanged on refusal, followed by a healthy
+restored save. Independent status-fallback, fact-agreement and persisted-code
+fallback mutations produced unsafe 201 in both modes; rollback and close
+removal faults broke owned transaction cleanup assertions. Restored focused
+suites passed 49 tests/554 assertions. Independent Astra High review approved
+with no blocking findings. Parent 8.3 and the integrated exact-SHA host gate
+remain open.

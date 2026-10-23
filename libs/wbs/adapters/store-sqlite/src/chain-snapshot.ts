@@ -373,6 +373,7 @@ export function createLivePlanStore(
       } catch (failure) {
         lifetime.expire();
         // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
+        // Proof: rollback removal recorded zero against one required rollback for unreadable foreign rows in both mounted save modes (mounted-save-refusal/owned-rollback.log).
         transaction.rollback();
         throw failure;
       }
@@ -380,6 +381,7 @@ export function createLivePlanStore(
       // Proof: omitting close failed all three owned lifecycle cases and the
       // mounted admission check saw one open snapshot at both launch handoffs.
       lifetime.expire();
+      // Proof: omitting close recorded zero against one required close in both mounted unreadable-row saves (mounted-save-refusal/owned-close.log).
       connection.close();
     }
   }

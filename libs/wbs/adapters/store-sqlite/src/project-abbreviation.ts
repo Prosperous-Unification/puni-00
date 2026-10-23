@@ -45,6 +45,7 @@ export function decodeProjectAbbreviation(stored: {
   readonly abbreviation: string | null;
 }): StoredProjectAbbreviation {
   // Proof: returning undefined here failed `storage read and write require a persisted row` (2026-10-22).
+  // Proof: defaulting the absent foreign address returned unsafe 201 in both mounted save modes (mounted-save-refusal/absent-abbreviation.log).
   if (stored.abbreviation === null || stored.namespace === null)
     throw new Error(`project ${stored.projectId} abbreviation is missing`);
   // Proof: disabling this guard returned bad.code in `storage read refuses malformed trusted code` (2026-10-22).

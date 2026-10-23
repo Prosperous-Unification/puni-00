@@ -643,4 +643,10 @@ Task 5.2 remains open for its broader writer audit, socket/browser acceptance an
 - [x] Reproduce retained intent admitting gateway-only/frontend-only/backend-only/mixed ordinary runs and direct executors; add a separate closed/versioned read-only gateway fence marker boundary before effects.
 - [x] Refuse missing/unreadable trusted state and malformed/unreadable/present intent; check under the existing deploy lock before observation/planning and separately before direct executor effects.
 - [x] Independently bypass both entry guards, root validation, retained refusal, read-error handling and grammar; observe named negatives fail, restore and record scoped checks in [admission evidence](verify-gateway-fence-admission.md).
-- [ ] Complete independent review, strict integrated OpenSpec validation and isolated exact-SHA host gate. Parent 10.1/10.2 remain open: this packet ships no marker writer/clearing, stop, physical gateway exclusion, activation or deployment; retained presence is only a conservative admission barrier.
+- [ ] Complete strict integrated OpenSpec validation and isolated exact-SHA host gate. Independent Astra High rereview approved the bounded packet; parent 10.1/10.2 remain open: this packet ships no marker writer/clearing, stop, physical gateway exclusion, activation or deployment; retained presence is only a conservative admission barrier.
+
+### Bounded task 8.3 mounted connected-save capture refusal (2026-10-23)
+
+- [x] Exercise mounted isolated/shared absence, unreadability and contradictory required foreign evidence on the actual captured read, including exact read-connection ownership, complete durable no-write and all-push no-publication assertions, and healthy restored saves.
+- [x] Watch independent missing-status fallback, fact-agreement, persisted abbreviation fallback, owned rollback and close removal failures; restore and record [bounded evidence](verify-mounted-save-refusal.md).
+- [ ] Complete integrated isolated exact-SHA host gate. Independent Astra High review approved the bounded packet; parent 8.3 remains open.

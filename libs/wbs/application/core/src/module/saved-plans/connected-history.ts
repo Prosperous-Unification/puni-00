@@ -36,7 +36,7 @@ export interface ConnectedHistoryCapture {
 }
 
 function requireCaptured<T>(value: T | undefined | null, name: string): T {
-  // Proof: bypassing required lookups failed missing-status and ready-candidate converter negatives (2026-10-22); mounted writer proof remains pending.
+  // Proof: defaulting absent foreign status to the target status returned unsafe 201 in both mounted save modes (evidence/mounted-save-refusal/missing-status.log).
   if (value == null) throw new Error(`missing connected history ${name}`);
   return value;
 }
@@ -44,7 +44,7 @@ function requireCaptured<T>(value: T | undefined | null, name: string): T {
 /** Historical labels and numbering must describe the same member facts that produced placement/readiness. */
 function validateCapturedFacts(captured: ConnectedRead): void {
   const requireFact = (metadata: unknown, read: unknown, path: string) => {
-    // Proof: removing this refusal failed all fourteen migrated foreign-fact negatives (thirteen accepted; parent mismatch threw an unmodeled error) in `saved-plan-connected.test.ts` (2026-10-22).
+    // Proof: removing this refusal admitted contradictory foreign names with 201 in both mounted save modes (evidence/mounted-save-refusal/contradictory-facts.log).
     if (metadata !== read) throw new SavedHistoryError('metadata_facts', path);
   };
   for (const member of captured.projection.capture.projects) {
