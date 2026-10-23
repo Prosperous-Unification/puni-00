@@ -1289,15 +1289,25 @@ export class DirectoryService {
   /**
    * {@link addPerson} through the caller's access. Under scoped access every
    * team must be the organization's; an existing person of that local name
-   * joins them, as the legacy add does, and a new one gets an opaque root.
+   * joins them, as the legacy add does, and keeps its own kind, as the plan
+   * import's does; a new one gets an opaque root.
+   *
+   * `kind` is a `string` for {@link PersonPatchInput}'s reason: `createPerson`
+   * carries it from a JSON body as `personKind`, and a kind outside
+   * {@link PERSON_KINDS} is `invalid_kind` before anything is read. A new
+   * agent passes the same cap `patchPerson` does, inside the batch's turn.
    */
   async addPersonWithin(
     actorId: string,
     name: string,
     teamIds: readonly string[],
     access: ResourceAccess,
-    kind?: PersonKind,
+    kind?: string,
   ): Promise<DirectoryOutcome<Person>> {
+    // Proof: with this check removed, `refuses a kind outside the set, writing
+    // nothing` (agent-person-limit.controller.db.test.ts) answered 500 from the
+    // person table's CHECK constraint instead of 400; watched 2026-10-23.
+    if (kind !== undefined && !holdsKind(kind)) return { ok: false, reason: 'invalid_kind' };
     if (this.opts.standaloneWrite !== undefined)
       return this.opts.standaloneWrite(
         { kind: 'add-person', teamIds, access },
@@ -1342,7 +1352,10 @@ export class DirectoryService {
     }
     // Proof: with this check removed, `refuses adding an agent at the cap,
     // creating and mapping nothing` (directory.resource.test.ts) created and
-    // mapped the agent; watched 2026-10-22.
+    // mapped the agent; watched 2026-10-22. With it bypassed again,
+    // `refuses the fifth agent created directly…` and `refuses a batch
+    // creating two agents…` (agent-person-limit.controller.db.test.ts) were
+    // applied through createPerson (18 pass, 2 fail); watched 2026-10-23.
     if (kind === 'agent') {
       const crossed = await this.refuseAgentPersons(scope, 1);
       if (crossed !== null) return { ok: false, reason: 'agent_person_limit', ...crossed };

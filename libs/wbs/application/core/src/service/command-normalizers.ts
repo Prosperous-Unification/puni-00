@@ -336,6 +336,7 @@ export const commandNormalizers = {
       ...normalizeNamed('createPerson', raw),
       teamIds: asOptionalIds(raw.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
       teamRefs: asOptionalIds(raw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
+      personKind: asOptionalText(raw.personKind, 'personKind'),
     }),
   patchPerson(raw: CommandInput<'patchPerson'>) {
     const patch = raw.patch;

@@ -271,6 +271,18 @@ export interface OccupancyRefusalHolder {
 }
 
 /**
+ * One resource `resources_exhausted` names: the units asked, the units free
+ * and who holds the rest. The refusal's own fields are its first short
+ * resource; `resources` lists every one in resource-id order.
+ */
+export interface ResourceShortageDetail {
+  resourceId: string;
+  asked: number;
+  free: number;
+  holders: OccupancyRefusalHolder[];
+}
+
+/**
  * Proof (type boundary only): making kind optional produces TS2578 for both the
  * runtime and global incomplete-command fixtures. Production binding is pending.
  */
@@ -401,12 +413,7 @@ export type CommandRefusalDetail = {
                         : C extends 'below_held_occupancy'
                           ? { resourceId: string; asked: number; held: number }
                           : C extends 'resources_exhausted'
-                            ? {
-                                resourceId: string;
-                                asked: number;
-                                free: number;
-                                holders: OccupancyRefusalHolder[];
-                              }
+                            ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
                             : C extends 'agent_person_limit'
                               ? LimitRefusalDetail
                               : C extends 'claim_limit'

@@ -90,6 +90,13 @@ const occupancyHolder = type({
   runId: 'string | null',
   workItemId: 'string',
 });
+/** One short resource of `resources_exhausted`: asked, free and its holders. */
+const resourceShortage = {
+  resourceId: 'string',
+  asked: 'number',
+  free: 'number',
+  holders: occupancyHolder.array(),
+} as const;
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
 // Proof: removing origin or weakening write scope reached malformed JSON,400 instead of403 in the mounted policy cases.
@@ -249,10 +256,8 @@ const batchRefusals = [
         type({
           ...context,
           error: "'resources_exhausted'",
-          resourceId: 'string',
-          asked: 'number',
-          free: 'number',
-          holders: occupancyHolder.array(),
+          ...resourceShortage,
+          resources: type(resourceShortage).array(),
         }),
         // An organization limit (`wbs-organization-limits` L9).
         // Proof: with this arm removed, the three directory refusals of

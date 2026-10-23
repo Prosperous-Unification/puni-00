@@ -77,6 +77,18 @@ function directory(username: string, commands: unknown[]): Promise<Answer> {
 
 const promote = (personId: string) => ({ kind: 'patchPerson', personId, patch: { kind: 'agent' } });
 
+const createAgent = (name: string) => ({ kind: 'createPerson', name, personKind: 'agent' });
+
+/** The kind of the organization's person of local name `name`, undefined when it holds none. */
+function kindByName(organizationId: string, name: string): string | undefined {
+  return h.sqlite
+    .query<{ kind: string }, [string, string]>(
+      `SELECT person.kind AS kind FROM person JOIN person_organization ON person_organization.resource_id = person.id
+       WHERE person_organization.organization_id = ? AND person_organization.name = ?`,
+    )
+    .get(organizationId, name)?.kind;
+}
+
 /** A plan document whose directory holds exactly `agents` agent people and no one else. */
 function documentWithAgents(agents: readonly string[]) {
   const base = planDocumentFixture();
@@ -291,6 +303,98 @@ describe('the agent person cap, activated', () => {
     expect((await directory('ada', [promote('kat')])).status).toBe(200);
   });
 
+  // Scenario: An agent created directly.
+  it('creates an agent directly with createPerson personKind agent', async () => {
+    capAgents('org-a', 8);
+
+    const created = await directory('ada', [createAgent('Scout')]);
+
+    expect(created).toMatchObject({
+      status: 200,
+      body: { results: [{ entity: { name: 'Scout', kind: 'agent' } }] },
+    });
+    expect(kindByName('org-a', 'Scout')).toBe('agent');
+    expect(agentCount('org-a')).toBe(1);
+  });
+
+  // Scenario: The fifth agent created directly.
+  // Proof: with `addPersonWithin`'s agent check bypassed, this case and the
+  // next were applied, A reading past its cap (18 pass, 2 fail); watched 2026-10-23.
+  it('refuses the fifth agent created directly under a cap of 4, writing nothing', async () => {
+    capAgents('org-a', 4);
+    for (const name of ['A1', 'A2', 'A3', 'A4'])
+      expect((await directory('ada', [createAgent(name)])).status).toBe(200);
+    const people = rowCount('person');
+
+    expect(await directory('ada', [createAgent('A5')])).toEqual({
+      status: 409,
+      body: {
+        at: 0,
+        kind: 'createPerson',
+        error: 'agent_person_limit',
+        cap: 4,
+        current: 4,
+        added: 1,
+      },
+    });
+    expect(rowCount('person')).toBe(people);
+    expect(kindByName('org-a', 'A5')).toBeUndefined();
+    expect(agentCount('org-a')).toBe(4);
+  });
+
+  it('refuses a batch creating two agents where one is free, writing neither', async () => {
+    capAgents('org-a', 8);
+    agentsIn('org-a', 'bot', 7);
+    const people = rowCount('person');
+
+    expect((await directory('ada', [createAgent('Ann'), createAgent('Bea')])).body).toEqual({
+      at: 1,
+      kind: 'createPerson',
+      error: 'agent_person_limit',
+      cap: 8,
+      current: 8,
+      added: 1,
+    });
+    expect(rowCount('person')).toBe(people);
+    expect(agentCount('org-a')).toBe(7);
+  });
+
+  it('creates a person by default, and a person kind explicitly, under a cap of 0', async () => {
+    capAgents('org-a', 0);
+
+    expect(
+      (
+        await directory('ada', [
+          { kind: 'createPerson', name: 'Kat' },
+          { kind: 'createPerson', name: 'Lee', personKind: 'person' },
+        ])
+      ).status,
+    ).toBe(200);
+    expect(kindByName('org-a', 'Kat')).toBe('person');
+    expect(kindByName('org-a', 'Lee')).toBe('person');
+  });
+
+  it('refuses a kind outside the set, writing nothing', async () => {
+    const people = rowCount('person');
+
+    expect(
+      await directory('ada', [{ kind: 'createPerson', name: 'Odd', personKind: 'robot' }]),
+    ).toMatchObject({ status: 400, body: { at: 0, kind: 'createPerson', error: 'invalid_kind' } });
+    expect(rowCount('person')).toBe(people);
+  });
+
+  it('joins a held name and keeps its kind, adding no agent at the cap', async () => {
+    capAgents('org-a', 1);
+    agentsIn('org-a', 'bot', 1);
+    personIn('org-a', 'kat', 'person');
+
+    expect(await directory('ada', [createAgent('kat')])).toMatchObject({
+      status: 200,
+      body: { results: [{ entity: { name: 'kat', kind: 'person' } }] },
+    });
+    expect(agentCount('org-a')).toBe(1);
+  });
+
   it('refuses an import of three agents at 6 of 8, writing nothing', async () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 6);
@@ -349,5 +453,10 @@ describe('the agent person cap under legacy access', () => {
     expect(
       (await h.call('ada', 'POST', '/api/projects/import', documentWithAgents(['Ann']))).status,
     ).toBe(201);
+    expect((await directory('ada', [createAgent('Scout')])).status).toBe(200);
+    expect(
+      h.sqlite.query<{ kind: string }, []>("SELECT kind FROM person WHERE name = 'Scout'").get()
+        ?.kind,
+    ).toBe('agent');
   });
 });
