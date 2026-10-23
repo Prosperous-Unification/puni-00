@@ -142,6 +142,28 @@ async function runAcceptance() {
     (await source.exited) === 0 && actualSha === sha,
     'source HEAD does not match GATEWAY_EXCLUSION_SHA',
   );
+  const sourceStatus = Bun.spawn(
+    [
+      'git',
+      'status',
+      '--porcelain=v1',
+      '--untracked-files=all',
+      '--',
+      'tools/tool-remote-scripts',
+      'tools/test',
+      'package.json',
+      'bun.lock',
+      'tsconfig.base.json',
+    ],
+    { stdout: 'pipe', stderr: 'inherit' },
+  );
+  const sourceChanges = (await new Response(sourceStatus.stdout).text()).trim();
+  assert((await sourceStatus.exited) === 0, 'cannot inspect relevant source changes');
+  const sourceProvenance = {
+    head: actualSha,
+    verified: sourceChanges === '',
+    changes: sourceChanges,
+  };
   const project = `gateway-proof-${randomUUID()}`;
   const root = await mkdtemp(join(tmpdir(), `${project}-`));
   assert(!resolve(reportPath).startsWith(`${root}/`), 'report must survive scratch cleanup');
@@ -164,18 +186,24 @@ async function runAcceptance() {
   const observations: unknown[] = [];
   const processes: { pid: string; start: string }[] = [];
   let networkId: string | undefined;
+  let pendingNetwork = false;
+  const containerNames = new Set<string>();
+  const pendingContainers = new Set<string>();
   let failure: unknown;
   const cleanupFailures: string[] = [];
   async function record(label: string, proof: unknown) {
     observations.push({ label, proof });
     await writeFile(
       reportFile,
-      `${JSON.stringify({ project, root, network, image, sha, observations, cleanupFailures }, null, 2)}\n`,
+      `${JSON.stringify({ project, root, network, image, sha, sourceProvenance, createdIds: ids, networkId, pendingNetwork, pendingContainers: [...pendingContainers], observations, cleanupFailures }, null, 2)}\n`,
       { mode: 0o600 },
     );
   }
   async function create(name: string, init: boolean, isProbe = true, networkName = network) {
     const nonce = randomUUID();
+    containerNames.add(name);
+    pendingContainers.add(name);
+    await record('creation-pending', { kind: 'container', name });
     const id = (
       await docker([
         'create',
@@ -184,6 +212,8 @@ async function runAcceptance() {
         name,
         '--label',
         `com.docker.compose.project=${project}`,
+        '--label',
+        `gateway-proof=${project}`,
         '--label',
         `com.docker.compose.service=${name}`,
         '--network',
@@ -215,8 +245,53 @@ async function runAcceptance() {
     ).trim();
     assert(/^[a-f0-9]{64}$/.test(id), 'create did not return full identity');
     ids.push(id);
+    pendingContainers.delete(name);
+    await record('creation-resolved', { kind: 'container', name, id });
     await docker(['start', id]);
     return { id, nonce };
+  }
+  async function listOwned(kind: 'container' | 'network') {
+    const inventory = (
+      await docker([
+        ...(kind === 'container' ? ['ps', '--all'] : ['network', 'ls']),
+        '--no-trunc',
+        '--filter',
+        `label=gateway-proof=${project}`,
+        '--format',
+        kind === 'container' ? '{{.ID}} {{.Names}}' : '{{.ID}} {{.Name}}',
+      ])
+    ).trim();
+    return inventory === ''
+      ? []
+      : inventory.split('\n').map((row) => {
+          const columns = row.split(' ');
+          assert(columns.length === 2, 'malformed owned resource inventory');
+          const [id, name] = columns;
+          assert(/^[a-f0-9]{64}$/.test(id), 'malformed owned resource identity');
+          assert(
+            kind === 'container' ? containerNames.has(name) : name === network,
+            'unexpected name carries disposable ownership label; cleanup refused',
+          );
+          return { id, name };
+        });
+  }
+  async function reconcileCreations() {
+    const containers = await listOwned('container');
+    for (const container of containers) {
+      if (!ids.includes(container.id)) ids.push(container.id);
+      pendingContainers.delete(container.name);
+    }
+    const networks = await listOwned('network');
+    assert(networks.length <= 1, 'duplicate disposable network ownership');
+    for (const discovered of networks) {
+      assert(
+        networkId === undefined || networkId === discovered.id,
+        'disposable network identity changed',
+      );
+      networkId = discovered.id;
+      pendingNetwork = false;
+    }
+    await record('creation-reconciliation', { containers, networks });
   }
   async function connect(id: string, nonce: string, role: Probe['role']) {
     const port = (
@@ -249,6 +324,8 @@ async function runAcceptance() {
       join(root, 'gateway-probe.ts'),
     );
     await docker(['image', 'inspect', image]);
+    pendingNetwork = true;
+    await record('creation-pending', { kind: 'network', name: network });
     networkId = (
       await docker([
         'network',
@@ -261,6 +338,8 @@ async function runAcceptance() {
       ])
     ).trim();
     assert(/^[a-f0-9]{64}$/.test(networkId), 'network create did not return full identity');
+    pendingNetwork = false;
+    await record('creation-resolved', { kind: 'network', name: network, id: networkId });
     const bystander = await create(`${project}-bystander`, true, false, 'none');
     const bystanderBefore = await docker([
       'inspect',
@@ -407,6 +486,20 @@ async function runAcceptance() {
     }
   } finally {
     for (const session of sessions) session.socket.close();
+    try {
+      // Proof: daemon-success/CLI-stall faults on network and container create are reconciled to full IDs before exact cleanup.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await reconcileCreations();
+        if (!pendingNetwork && pendingContainers.size === 0) break;
+        if (attempt < 4) await Bun.sleep(200);
+      }
+      assert(
+        !pendingNetwork && pendingContainers.size === 0,
+        'unresolved disposable creation; cleanup cannot claim completeness',
+      );
+    } catch (cause) {
+      cleanupFailures.push(`creation reconciliation: ${String(cause)}`);
+    }
     for (const id of ids) {
       try {
         await docker(['rm', '--force', id]);
@@ -421,6 +514,17 @@ async function runAcceptance() {
         cleanupFailures.push(`network ${networkId}: ${String(cause)}`);
       }
     }
+    try {
+      const remainingContainers = await listOwned('container');
+      const remainingNetworks = await listOwned('network');
+      assert(
+        remainingContainers.length === 0 && remainingNetworks.length === 0,
+        'owned disposable resources remain after cleanup',
+      );
+      await record('cleanup-inventory', { remainingContainers, remainingNetworks });
+    } catch (cause) {
+      cleanupFailures.push(`cleanup inventory: ${String(cause)}`);
+    }
     await record('cleanup', { ids, networkId, complete: cleanupFailures.length === 0 });
     if (failure === undefined && cleanupFailures.length === 0) await rm(root, { recursive: true });
   }
@@ -429,7 +533,9 @@ async function runAcceptance() {
       [...(failure === undefined ? [] : [failure]), ...cleanupFailures],
       `gateway acceptance failed; evidence: ${reportPath}; scratch: ${root}`,
     );
-  console.log(`PASS gateway physical exclusion; evidence: ${reportPath}`);
+  console.log(
+    `PASS gateway physical exclusion; source=${sourceProvenance.verified ? 'verified' : 'UNVERIFIED (dirty relevant source)'}; evidence: ${reportPath}`,
+  );
 }
 
 if (import.meta.main) await runAcceptance();
