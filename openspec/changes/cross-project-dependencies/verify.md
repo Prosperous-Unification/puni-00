@@ -6275,3 +6275,18 @@ Gateway upgrade prerequisite evidence is recorded in
 [verify-gateway-client-admission.md](verify-gateway-client-admission.md).
 Parent task 10.1 remains open; existing-socket/delivery fencing and activation are
 not established by this bounded packet.
+
+### 2026-10-23 bounded task 8.1 downloaded import and late rollback proof
+
+[The import slice 4 packet](verify-import-slice4.md) records six new mounted
+downloaded-artifact and after-event-write rollback cases. The configured
+three-file regression passed **66 tests, 750 assertions**; backend typecheck,
+changed-file lint and format passed. A concurrent broad lint attempt exhausted
+its 2 GiB Node heap without a code diagnostic. A serialized rerun with a 4 GiB
+heap passed `wbs-be-01:lint` uncached in 49.0 seconds. Astra High reviewed the
+exact two-file packet and independently reran the six new cases: **6 pass, 47
+assertions**. Four separate safety mutations failed as recorded. The packet
+found a pre-existing cycle-witness defect: a downstream authored edge can be
+reported as part of the cycle, misattributing the original import declaration.
+That defect, active external import, compatibility and the integrated host gate
+remain open; parent 8.1 is not complete.
