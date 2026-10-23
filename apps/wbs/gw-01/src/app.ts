@@ -1,4 +1,4 @@
-import { PROMETHEUS_CONTENT_TYPE, wsError } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, PROMETHEUS_CONTENT_TYPE, wsError } from '@wbs/contracts';
 import { createLogger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { systemTimers, type Timers } from '@wbs/runtime-portable';
 import { Elysia } from 'elysia';
@@ -6,11 +6,13 @@ import { Elysia } from 'elysia';
 import { internalController, type SocketLike } from './controller/internal.controller';
 import { createUnexpectedBackendFailureReporter } from './controller/unexpected-backend-failure';
 import { handleWsMessage, projectIdOf } from './controller/ws.controller';
+import { GATEWAY_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import {
   type ForwardedBrowserCredential,
   forwardedCookieHeader,
 } from './service/browser-access-client';
 import { ConnectionAccess } from './service/connection-access';
+import { admitDependencyUpgrade } from './service/dependency-admission';
 import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier, type TokenVerifier } from './service/jwt-auth';
@@ -163,6 +165,45 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
     fetchImpl,
     ...(opts.requests ?? { timers: systemTimers, attemptMs: 5000, overallMs: 15000 }),
   };
+  // Elysia invokes beforeHandle twice for one successful upgrade; memoize only that Request.
+  // Proof: caching across Requests admitted an ENABLED reconnect in dependency-admission.integration.test.ts.
+  const upgradeAdmissions = new WeakMap<Request, ReturnType<typeof admitDependencyUpgrade>>();
+  const checkUpgrade = async (
+    request: Request,
+    set: { status?: number | string; headers: Record<string, string | number | string[]> },
+  ) => {
+    set.headers['cache-control'] = 'no-store';
+    try {
+      let admission = upgradeAdmissions.get(request);
+      if (admission === undefined) {
+        admission = admitDependencyUpgrade(
+          requestOptions,
+          request.headers.get('sec-websocket-protocol'),
+          GATEWAY_DEPENDENCY_CAPABILITY,
+        );
+        upgradeAdmissions.set(request, admission);
+      }
+      const refusal = await admission;
+      // Proof: bypassing this refusal opened the ENABLED socket in dependency-admission.integration.test.ts.
+      if (refusal !== null) {
+        set.status = 409;
+        return refusal;
+      }
+      // This binary has no subprotocol implementation. Bun implicitly echoes
+      // offered protocols, so an unsupported offer must be refused before upgrade.
+      // Proof: without this refusal the disabled real socket negotiated v1 in dependency-admission.integration.test.ts.
+      if (request.headers.has('sec-websocket-protocol')) {
+        set.status = 409;
+        return { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS };
+      }
+      return undefined;
+    } catch (caught) {
+      logger.error({ err: caught }, 'dependency upgrade admission unavailable');
+      // Proof: returning undefined here opened failed/malformed/deadline upgrades in dependency-admission.integration.test.ts.
+      set.status = 503;
+      return { error: 'dependency_admission_unavailable' };
+    }
+  };
   const forwarder = new ForwardClient(requestOptions);
   /** Takes a connection out of a project roster after it left or lost that subscription. */
   const leaveProject = (connectionId: string, subscription: string): void => {
@@ -236,7 +277,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             // browser gate closes /ws as `missing token` and both peer-edit
             // cases fail after their PATCH returns 200. Watched 2026-08-24.
             auth[LOCAL_IDENTITY] = opts.localIdentity;
-            return undefined;
+            return checkUpgrade(request, set);
           }
           // There is deliberately no compatibility fallback to `query.token`.
           // URLs are copied into browser history, logs and pasted links; a
@@ -273,7 +314,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             accessCookie,
             organizationCookie: rawCookieValue(cookies, '__Host-wbs_organization'),
           };
-          return undefined;
+          return checkUpgrade(request, set);
         },
         async open(ws) {
           metrics.connectionOpened();

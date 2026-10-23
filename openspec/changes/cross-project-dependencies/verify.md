@@ -6270,3 +6270,8 @@ Prettier check. The separately mounted `GET /api/openapi.json` is now explicitly
 named as an immutable infrastructure exemption in its JSDoc/design/spec, and the
 mounted test requests it with a throwing authority callback alongside health and
 immutable capability; dependency admission is not invoked.
+
+Gateway upgrade prerequisite evidence is recorded in
+[verify-gateway-client-admission.md](verify-gateway-client-admission.md).
+Parent task 10.1 remains open; existing-socket/delivery fencing and activation are
+not established by this bounded packet.

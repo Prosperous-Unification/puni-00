@@ -35,6 +35,7 @@ import {
   rotateDomainProof,
   verifyDomainClaim,
 } from './domain-shapes';
+import { gatewayDependencyAdmission } from './gateway-dependency-http-shapes';
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
 import { dependencyCapability, health, metrics } from './infrastructure-shapes';
@@ -153,6 +154,7 @@ import {
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
 export const httpShapes = [
+  gatewayDependencyAdmission,
   health,
   metrics,
   // Proof: omitting this registration failed the mounted generated-client/OpenAPI capability test.

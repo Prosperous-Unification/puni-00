@@ -791,3 +791,27 @@ match the shared operation matrix.
 - **WHEN** a client requests the separately mounted `GET /api/openapi.json`
 - **THEN** it receives HTTP200 without inspecting dependency authority
 - **AND** this immutable schema observation is explicitly exempt from resource admission
+
+### Requirement: Gateway upgrades require fresh dependency compatibility admission
+
+Every authenticated WebSocket upgrade and reconnect SHALL ask the backend's secret-authenticated `POST /internal/gateway/dependency-admission` before joining presence, subscribing or replaying. The empty-body endpoint SHALL inspect current trusted authority through the same resource admission and return no-store 204 or the typed incompatibility 409, without a receipt or project information. The gateway SHALL forward the exact HTTP semantic claim only when both its immutable binary capability and an exact offered WebSocket subprotocol support v1. Transport, decoding and deadline failures SHALL refuse the upgrade. Until this binary implements subprotocol negotiation, any offered protocol SHALL be refused even under DISABLED authority, because native Bun upgrade implicitly echoes offered protocols. Legacy clients offering no protocol SHALL remain admitted under DISABLED authority.
+
+#### Scenario: Activation changes between socket upgrades
+
+- **GIVEN** a legacy socket admitted against valid DISABLED authority
+- **WHEN** authority becomes ENABLED before reconnect
+- **THEN** the gateway freshly asks the backend and refuses an incapable binary even if the client offers the exact v1 protocol
+- **AND** refusal creates no presence, subscription or replay
+
+#### Scenario: Semantic claims require both participants
+
+- **GIVEN** a gateway binary supports v1
+- **WHEN** a client offers only a substring, differently cased token or HTTP semantic header
+- **THEN** the gateway omits the semantic claim and ENABLED backend authority refuses the upgrade
+- **AND** only an exact offered protocol may be selected as the accepted WebSocket subprotocol
+
+#### Scenario: Admission transport cannot establish compatibility
+
+- **WHEN** the backend transport fails, exceeds its finite deadline or returns an invalid status or malformed typed refusal
+- **THEN** the gateway refuses before opening the socket
+- **AND** origin and credential refusals precede any backend admission request

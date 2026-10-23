@@ -3,7 +3,7 @@ import { systemTimers } from '@wbs/runtime-portable';
 import { parseOrThrow } from '@wbs/validation';
 import { expect, it } from 'bun:test';
 
-import { buildApp } from './app';
+import { buildApp } from './testing/app-fixture';
 import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const PROJECT_SUBSCRIPTION = 'project:00000000-0000-4000-8000-000000000001';

@@ -131,6 +131,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postApiSpacesByIdProjects',
       'postApiSpacesByIdProjectsByProjectIdMove',
       'postInternalForward',
+      'postInternalGatewayDependencyAdmission',
       'postInternalGatewayProjectAccess',
       'postInternalGatewayProjectBrowserAccess',
       'postInternalMcpOrganizations',

@@ -92,6 +92,7 @@ import { bearerContextRoutes } from './controller/bearer-context.routes';
 import type { BrowserSessionAuthority } from './controller/browser-session';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
+import { gatewayDependencyRoutes } from './controller/gateway-dependency.routes';
 import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
@@ -684,6 +685,7 @@ export function mountedEndpoints(
       organizations: opts.organizations,
     }),
     ...gatewayAccessRoutes(opts.projects, opts.organizations),
+    ...gatewayDependencyRoutes(),
     ...mcpDelegationRoutes(opts.mcpDelegation ?? REFUSE_MCP_DELEGATION),
   ] as const;
 }

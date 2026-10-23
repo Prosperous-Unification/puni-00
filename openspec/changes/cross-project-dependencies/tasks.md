@@ -570,3 +570,10 @@ Bounded 10.1 SCIM review correction (2026-10-23):
 - [x] Preserve the SCIM refusal/media contract and prove no provisioning, membership, audit, project, event or journal effect on refusal.
 - [x] Watch production composition-binding and service-guard removal admit enabled SCIM traffic; watch eager dependency inspection break missing-token authentication ordering.
 - [ ] Complete independent review/integrated host gate; parent 10.1 remains open.
+
+### Bounded task 10.1 gateway upgrade dependency admission (2026-10-23)
+
+- [x] Add the canonical empty-body secret-authenticated backend admission shape, no-store 204/typed409 and fresh existing authority inspection after identity.
+- [x] Require finite gateway transport admission after socket origin/credential authentication on every upgrade/reconnect; forward v1 only for the exact WS token and immutable binary support.
+- [x] Prove mounted SQLite→backend→real socket disabled preservation and enabled reconnect refusal; watch local support, exact token, outbound header, typed refusal and skipped/reused upgrade-check faults fail.
+- [ ] Complete independent review and integrated host gate. Parent 10.1 remains open: existing socket/delivery interval fencing, old process participant exclusion, client claim sending and activation remain outside this packet; binary advertisement stays empty.

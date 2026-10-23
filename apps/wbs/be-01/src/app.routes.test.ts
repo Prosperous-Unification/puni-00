@@ -288,6 +288,7 @@ const WRITE_SCOPE_OPERATIONS = [
 ] as const;
 const INTERNAL_OPERATIONS = [
   'postInternalForward',
+  'postInternalGatewayDependencyAdmission',
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
@@ -429,6 +430,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayDependencyAdmission',
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildApp } from './app';
+import { buildApp } from './testing/app-fixture';
 import { GRANT_EVERY_PROJECT } from './testing/project-access';
 
 const OPTS = {

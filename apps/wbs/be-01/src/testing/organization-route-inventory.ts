@@ -572,6 +572,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postInternalGatewayDependencyAdmission',
+    method: 'POST',
+    path: '/internal/gateway/dependency-admission',
+    kind: 'control',
+  },
+  {
     operationId: 'postInternalForward',
     method: 'POST',
     path: '/internal/forward',
