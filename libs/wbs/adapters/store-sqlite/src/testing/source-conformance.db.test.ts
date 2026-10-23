@@ -28,6 +28,7 @@ import {
   type FaultRun,
   type HistoryBatchFixture,
   isMeasureDefinitionCase,
+  isMeasureFactCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
@@ -39,6 +40,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedMeasureFactCase,
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
@@ -69,7 +71,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { DEFAULT_ESTIMATE_RULE, schedule } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, isLegacyMetric, schedule } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -384,7 +386,7 @@ async function openSqliteCase<Family extends ExistingFamily>(
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${organizationId}, ${DETERMINISTIC_SEED.ownerIds[0]}, 'member', 1)`,
       );
     }
-    if (isMeasureDefinitionCase(caseId)) {
+    if (isMeasureDefinitionCase(caseId) || isMeasureFactCase(caseId)) {
       // The organization trigger seeds each one's five definitions.
       const { legacy, other } = CONFORMANCE_MEASURE_ORGANIZATIONS;
       seeded.db.run(
@@ -393,6 +395,12 @@ async function openSqliteCase<Family extends ExistingFamily>(
       seeded.db.run(
         sql`INSERT INTO organization (id, name, created_at) VALUES (${other}, ${other}, 1)`,
       );
+    }
+    if (isMeasureFactCase(caseId)) {
+      seeded.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${DETERMINISTIC_SEED.projectIds[0]}, ${CONFORMANCE_MEASURE_ORGANIZATIONS.legacy})`,
+      );
+      await seedMeasureFactCase(seeded.stores, caseId, DETERMINISTIC_SEED);
     }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
@@ -1967,7 +1975,11 @@ const measureUnknownStepFault = defineFault({
         }
         source.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
         try {
-          source.db.insert(measureTable).values(measure).run();
+          if (!isLegacyMetric(measure.metric)) throw new Error('the fault writes legacy metrics');
+          source.db
+            .insert(measureTable)
+            .values({ ...measure, metric: measure.metric })
+            .run();
         } finally {
           source.db.run(sql.raw('PRAGMA foreign_keys = ON'));
         }
@@ -1989,7 +2001,8 @@ const measureUnknownStepFault = defineFault({
             })
             .from(measureTable)
             .where(eq(measureTable.stepId, 'no-such-step'));
-          return [...escaped, ...rows];
+          // The fault writes legacy rows, which always carry their name.
+          return [...escaped.map((row) => ({ ...row, metric: row.metric! })), ...rows];
         };
       }),
     });

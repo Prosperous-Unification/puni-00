@@ -1,13 +1,89 @@
 import type { MeasureStore, StepWriteOutcome, StoredMeasure, WriteStamp } from '@wbs/core';
-import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { isLegacyMetric, type MeasureDefinition, type MeasureMetric } from '@wbs/domain';
+import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
+import { listMeasuresIn } from './measure-definition';
 import { bumpWorkItems } from './revision';
-import { type MeasureMetric, step, stepMeasure, workItem } from './schema';
+import { measure, projectOrganization, step, stepMeasure, workItem } from './schema';
 import { writingStep } from './step-reference';
+
+/**
+ * A row's metric as every reader sees it (`wbs-measure-budgets` D4, design
+ * D18): the legacy name when the row has one, else its definition's key.
+ * Read through a left join on `measure`, so a row keyed to nothing and named
+ * nothing reads NULL, which `step_measure_addressed` makes unstorable.
+ */
+// Proof: with `metric` read alone, the SQLite certification's
+// `measures.set:defined-key` read a NULL metric for the gpu fact; watched 2026-10-23.
+const METRIC_OF_ROW = sql<string | null>`coalesce(${stepMeasure.metric}, ${measure.key})`;
+
+/**
+ * The id of the definition keyed `key` in the organization owning the work
+ * item's project, or null when no organization owns it or it defines no such
+ * key.
+ */
+function measureIdFor(db: SQLiteBunDatabase, workItemId: string, key: string): string | null {
+  return (
+    db
+      .select({ id: measure.id })
+      .from(workItem)
+      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        measure,
+        and(eq(measure.organizationId, projectOrganization.organizationId), eq(measure.key, key)),
+      )
+      .where(eq(workItem.id, workItemId))
+      .get()?.id ?? null
+  );
+}
+
+/**
+ * The stored columns of one fact: a legacy metric is written under its name
+ * alone, and `step_measure_keys_legacy_fact` keys it in the same statement,
+ * exactly as it keys the outgoing release's inserts; any other metric is a
+ * definition key, written as that definition's id with no name.
+ *
+ * @throws when a defined metric names no definition of the project's
+ * organization: the service decided the key against those same definitions
+ * inside this unit of work, so its absence is a caller fault, not a refusal.
+ */
+export function storedColumnsOf(
+  db: SQLiteBunDatabase,
+  toStore: Pick<StoredMeasure, 'workItemId' | 'metric'>,
+): { metric: MeasureMetric; measureId: null } | { metric: null; measureId: string } {
+  if (isLegacyMetric(toStore.metric)) return { metric: toStore.metric, measureId: null };
+  const measureId = measureIdFor(db, toStore.workItemId, toStore.metric);
+  // Proof: with this throw removed (a NULL id passed on), the SQLite
+  // certification's `measures.set:defined-key` met the CHECK
+  // `step_measure_addressed` instead of this message; watched 2026-10-23.
+  if (measureId === null)
+    throw new Error(
+      `measure ${toStore.metric} is not defined by the organization owning work item ${toStore.workItemId}`,
+    );
+  return { metric: null, measureId };
+}
+
+/**
+ * The condition naming one fact of one step node by its metric: the legacy
+ * name, or the definition the key names in the project's organization. A key
+ * naming no definition matches no row, so removing it changes nothing.
+ */
+export function factCondition(
+  db: SQLiteBunDatabase,
+  workItemId: string,
+  stepId: string,
+  metric: string,
+): SQL | undefined {
+  const pair = and(eq(stepMeasure.workItemId, workItemId), eq(stepMeasure.stepId, stepId));
+  if (isLegacyMetric(metric)) return and(pair, eq(stepMeasure.metric, metric));
+  const measureId = measureIdFor(db, workItemId, metric);
+  if (measureId === null) return undefined;
+  return and(pair, eq(stepMeasure.measureId, measureId));
+}
 
 /**
  * A measure is a **satellite** of the work item it is for, exactly as an
@@ -58,11 +134,12 @@ export class StepMeasureRepository implements MeasureStore {
         .select({
           workItemId: stepMeasure.workItemId,
           stepId: stepMeasure.stepId,
-          metric: stepMeasure.metric,
+          metric: METRIC_OF_ROW,
           value: stepMeasure.value,
           recordedAt: stepMeasure.recordedAt,
         })
         .from(stepMeasure)
+        .leftJoin(measure, eq(stepMeasure.measureId, measure.id))
         // Inner rather than left: `step_measure.step_id` is a foreign key, so a
         // measure whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step (task 6.3).
@@ -74,7 +151,9 @@ export class StepMeasureRepository implements MeasureStore {
         // same reason: `workItemId` is a foreign key.
         .innerJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
         .where(eq(workItem.projectId, projectId))
-        .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric)
+        .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, METRIC_OF_ROW)
+        .all()
+        .map((row) => ({ ...row, metric: metricOrThrow(row) }))
     );
   }
 
@@ -85,7 +164,8 @@ export class StepMeasureRepository implements MeasureStore {
       .select({
         workItemId: stepMeasure.workItemId,
         stepId: stepMeasure.stepId,
-        metric: stepMeasure.metric,
+        metric: METRIC_OF_ROW,
+        storedMetric: stepMeasure.metric,
         value: stepMeasure.value,
         recordedAt: stepMeasure.recordedAt,
         workItemProjectId: workItem.projectId,
@@ -93,6 +173,7 @@ export class StepMeasureRepository implements MeasureStore {
         stepPosition: step.position,
       })
       .from(stepMeasure)
+      .leftJoin(measure, eq(stepMeasure.measureId, measure.id))
       .leftJoin(step, eq(stepMeasure.stepId, step.id))
       .leftJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
       .where(
@@ -101,7 +182,7 @@ export class StepMeasureRepository implements MeasureStore {
           or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
         ),
       )
-      .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric);
+      .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, METRIC_OF_ROW);
     if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
       throw new Error('targeted measure has an invalid work-item reference');
     }
@@ -110,7 +191,15 @@ export class StepMeasureRepository implements MeasureStore {
       if (row.stepProjectId !== projectId || row.stepPosition === null) {
         throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid step reference`);
       }
-      if (!isMeasureMetric(row.metric)) {
+      // The column holds legacy names alone (`role_measure_metric`), so any
+      // other stored text bypassed the constraint.
+      // Proof: with the stored-metric test removed, `rejects malformed measure
+      // metrics after constraint-bypassing corruption` (targeted-readers.db.test.ts)
+      // resolved; watched 2026-10-23.
+      if (
+        typeof row.metric !== 'string' ||
+        (row.storedMetric !== null && !isLegacyMetric(row.storedMetric))
+      ) {
         throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid metric`);
       }
       if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < 0) {
@@ -120,13 +209,28 @@ export class StepMeasureRepository implements MeasureStore {
         throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
       }
     }
-    return admitted.map(({ workItemId, stepId, metric, value, recordedAt }) => ({
-      workItemId,
-      stepId,
-      metric,
-      value,
-      recordedAt,
+    return admitted.map((row) => ({
+      workItemId: row.workItemId,
+      stepId: row.stepId,
+      metric: metricOrThrow(row),
+      value: row.value,
+      recordedAt: row.recordedAt,
     }));
+  }
+
+  /**
+   * The definitions of the organization owning the project, through
+   * `project_organization`, or null when no organization owns it (a store
+   * from before organizations, or a legacy project no bridge has mapped).
+   */
+  async definitionsFor(projectId: string): Promise<MeasureDefinition[] | null> {
+    await Promise.resolve();
+    const owner = this.db
+      .select({ organizationId: projectOrganization.organizationId })
+      .from(projectOrganization)
+      .where(eq(projectOrganization.resourceId, projectId))
+      .get();
+    return owner === undefined ? null : listMeasuresIn(this.db, owner.organizationId);
   }
 
   async listPlacements(projectId: string, ids: readonly string[]) {
@@ -167,10 +271,17 @@ export class StepMeasureRepository implements MeasureStore {
       await this.gate.enter(async () => {
         await Promise.resolve();
         this.db.transaction((tx) => {
+          const columns = storedColumnsOf(tx, toSet);
+          // A legacy metric conflicts on its name, a defined one on its
+          // definition: the two unique indexes `step_measure_metric_key` and
+          // `step_measure_measure_key`, one per way a row is addressed.
           tx.insert(stepMeasure)
-            .values({ ...toSet, ...auditOnCreate(stamp) })
+            .values({ ...toSet, ...columns, ...auditOnCreate(stamp) })
             .onConflictDoUpdate({
-              target: [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.metric],
+              target:
+                columns.metric === null
+                  ? [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.measureId]
+                  : [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.metric],
               set: { value: toSet.value, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
             })
             .run();
@@ -183,7 +294,7 @@ export class StepMeasureRepository implements MeasureStore {
   async remove(
     workItemId: string,
     stepId: string,
-    metric: MeasureMetric,
+    metric: string,
     stamp: WriteStamp,
   ): Promise<void> {
     await this.gate.enter(async () => {
@@ -195,15 +306,8 @@ export class StepMeasureRepository implements MeasureStore {
       // for its two halves, with the third the discriminator adds.
       await Promise.resolve();
       this.db.transaction((tx) => {
-        tx.delete(stepMeasure)
-          .where(
-            and(
-              eq(stepMeasure.workItemId, workItemId),
-              eq(stepMeasure.stepId, stepId),
-              eq(stepMeasure.metric, metric),
-            ),
-          )
-          .run();
+        const named = factCondition(tx, workItemId, stepId, metric);
+        if (named !== undefined) tx.delete(stepMeasure).where(named).run();
         bumpWorkItems(tx, [workItemId], stamp);
       });
     });
@@ -241,6 +345,10 @@ export class StepMeasureRepository implements MeasureStore {
   }
 }
 
-function isMeasureMetric(metric: unknown): metric is MeasureMetric {
-  return metric === 'token_estimate' || metric === 'token_actual' || metric === 'hours_actual';
+function metricOrThrow(row: { workItemId: string; stepId: string; metric: string | null }): string {
+  // `step_measure_addressed` and the `measure_id` foreign key make a row with
+  // neither a name nor a definition unstorable; one here is drifted state.
+  if (row.metric === null)
+    throw new Error(`measure ${row.workItemId}/${row.stepId} names no metric and no definition`);
+  return row.metric;
 }

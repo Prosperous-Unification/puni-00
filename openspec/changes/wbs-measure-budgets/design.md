@@ -97,6 +97,42 @@ Assumptions added while implementing slice 1 (tasks 1.1, 1.2), each the reading 
 - **D17 One read.** `GET /api/measures` (MCP `getApiMeasures`); writes go through
   `POST /api/directory/commands`.
 
+Assumptions added while implementing slice 2 (tasks 1.3, 1.4), each the reading closest to D1–D8:
+
+- **D18 Legacy names stay the address for one release.** A tokens or hours fact keeps
+  `token_actual`/`hours_actual` on every surface blue and green share — the row read's
+  `measures`, the command journal, the export, saved plans — because the outgoing release
+  reads only those names; `tokens` and `hours` are accepted on input and normalized to them.
+  Every other definition is addressed by its key. `token_estimate` rows stay unkeyed (NULL
+  `measure_id`): keying them to `tokens` would collide with the tokens fact in the unique
+  index, and slice 3 replaces them. The three legacy names are refused as new keys
+  (`measure_key_taken`). `unknown_metric` is retired for `unknown_measure` (404, the work-item
+  command refusal convention); the contracts keep the old arm for the swap, like `frozen`.
+- **D19 A project no organization owns has no definitions.** Its facts are decided against the
+  seeded `tokens` and `hours` (and the derived `agent_minutes`, which its read shows) and
+  stored with a NULL `measure_id`;
+  `project_organization_keys_measure_facts` keys them in the statement that maps the project.
+- **D20 Agent minutes.** Per step node, the sum of end minus start over its ended attempts
+  (overlaps count twice), rounded half up to whole minutes once on the node's total;
+  `recordedAt` is the latest end. Read in the row's `measures` as `agent_minutes`, folded
+  like any measure, absent until an attempt ends.
+- **D21 No cascade yet.** `deleteMeasure` refuses `measure_in_use` while facts reference the
+  definition; a cascade would discard facts with no undo (D11). The `measure_id` foreign key,
+  without `ON DELETE`, is the backstop.
+- **D22 The export keeps its version's shape.** Until slice 7 bumps it, the document carries
+  legacy metrics only: facts in defined measures and the derived `agent_minutes` are left out,
+  so an export still imports. Saved plans capture the row read and do carry them.
+- **D23 The swap window.** The outgoing release cannot name a fact in a defined measure; its
+  targeted read of a work item holding one throws. None exists until the new release writes
+  one, so the window is accepted rather than guarded.
+- **D24 Undo across a deleted definition refuses.** Putting back a fact (or a deleted subtree's
+  facts) in a measure deleted since answers 409 with "that measure is no longer defined".
+- **D25 Integrity by construction.** `measure_id` is only ever resolved through the project's
+  own organization (store and triggers), so no ownership-conflict kind is added; conflict ids
+  use `coalesce(metric, measure_id)`.
+- **D26 Navigator unchanged.** `receipt-to-commands.ts` sends the legacy names, which stay
+  accepted for the release.
+
 ## Risks / Trade-offs
 
 - The schedule must not move: D2's property test is the guard, and the time trio stays in its

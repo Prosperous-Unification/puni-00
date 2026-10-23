@@ -531,7 +531,7 @@ export class ProjectRepository implements ProjectStore {
       stepRow(
         'step_measure',
         'step_measure_step',
-        "l.work_item_id || '/' || l.step_id || '/' || l.metric",
+        "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
       ),
       stepRow(
         'step_node_attempt',
@@ -643,7 +643,10 @@ export class ProjectRepository implements ProjectStore {
           ['estimate', "l.work_item_id || '/' || l.step_id"],
           ['actual', "l.work_item_id || '/' || l.step_id"],
           ['step_progress', "l.work_item_id || '/' || l.step_id"],
-          ['step_measure', "l.work_item_id || '/' || l.step_id || '/' || l.metric"],
+          [
+            'step_measure',
+            "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
+          ],
           ['step_node_attempt', "l.work_item_id || '/' || l.step_id || '/' || l.attempt_number"],
           ['assignment', "l.work_item_id || '/' || l.step_id || '/' || l.person_id"],
         ] as const

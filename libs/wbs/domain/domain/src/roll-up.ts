@@ -13,7 +13,6 @@ import type { ParentedRow } from './is-within';
 import { agree, type ProgressStatus, statusOf, UNKNOWN } from './progress';
 import type { StepNodeRef } from './step-node';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
-import type { MeasureMetric } from './stored-vocabularies';
 
 /** Three durations in days, summed or held directly. */
 export interface Days {
@@ -234,11 +233,15 @@ export function rollUpActuals(
  * A **recorded** zero is kept and summed, exactly as {@link rollUpActuals} keeps
  * one: "this cost nothing" is a statement somebody made, and it is not the same
  * fact as nobody having said.
+ *
+ * `metric` is any {@link StoredMeasure.metric}: a legacy name or a measure
+ * definition key (`wbs-measure-budgets` D4), so a defined measure and the
+ * derived `agent_minutes` fold exactly as tokens do, one per call.
  */
 export function rollUpMeasures(
   rows: readonly ParentedRow[],
   measures: readonly StoredMeasure[],
-  metric: MeasureMetric,
+  metric: string,
 ): Map<string, Map<string, number>> {
   const ownOf = new Map<string, Map<string, number>>();
   for (const held of measures) {

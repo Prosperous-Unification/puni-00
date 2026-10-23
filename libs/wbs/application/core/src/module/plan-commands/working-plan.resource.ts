@@ -222,25 +222,32 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
     refreshRows,
   );
-  const retainedMeasures: MeasureStore = createWorkingPlanValues(
-    () => scope.stores.measures,
-    {
-      all: async (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return measures.all();
+  const retainedMeasures: MeasureStore = {
+    ...createWorkingPlanValues(
+      () => scope.stores.measures,
+      {
+        all: async (requestedProjectId) => {
+          assertProject(requestedProjectId);
+          return measures.all();
+        },
+        byWorkItems: async (requestedProjectId, ids) => {
+          assertProject(requestedProjectId);
+          return byWorkItem(await measures.all(), ids);
+        },
+        placements: async (requestedProjectId, ids) => {
+          assertProject(requestedProjectId);
+          return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
+        },
       },
-      byWorkItems: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return byWorkItem(await measures.all(), ids);
-      },
-      placements: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
-      },
+      assertOpen,
+      refreshRows,
+    ),
+    // Definitions are directory state, not plan values: read through, never retained.
+    definitionsFor: async (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return await scope.stores.measures.definitionsFor(requestedProjectId);
     },
-    assertOpen,
-    refreshRows,
-  );
+  };
   const retainedProgress: StepProgressStore = createWorkingPlanValues(
     () => scope.stores.progress,
     {

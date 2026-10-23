@@ -1131,13 +1131,26 @@ export const stepMeasure = sqliteTable(
     stepId: text('step_id')
       .notNull()
       .references(() => step.id),
-    metric: text('metric', { enum: MEASURE_METRICS }).notNull(),
+    // Nullable since `20261023110000_key_step_measure`: a fact on a defined
+    // measure has no legacy name and is keyed by `measureId` alone.
+    metric: text('metric', { enum: MEASURE_METRICS }),
+    /**
+     * The definition a fact is in (`wbs-measure-budgets` D4): set by the store
+     * for a defined measure, and by the `step_measure_keys_legacy_fact` trigger
+     * for a `token_actual` or `hours_actual` row of a project an organization
+     * owns. NULL on a `token_estimate` row and on an unowned project's facts.
+     */
+    measureId: text('measure_id').references(() => measure.id),
     value: real('value').notNull(),
     recordedAt: integer('recorded_at').notNull(),
     ...auditColumns(),
   },
   (t) => [
-    primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
+    // The old primary key's three columns, still unique: the outgoing
+    // release's upsert names exactly this conflict target.
+    uniqueIndex('step_measure_metric_key').on(t.workItemId, t.stepId, t.metric),
+    uniqueIndex('step_measure_measure_key').on(t.workItemId, t.stepId, t.measureId),
+    index('step_measure_by_measure').on(t.measureId),
     // Declared here and created by `20260831120000_rename_role_to_step`, which is
     // the awkward half of that rename: the index was rebuilt under its new name
     // in SQL and never written back into this file, so the next
@@ -1151,6 +1164,7 @@ export const stepMeasure = sqliteTable(
       'role_measure_metric',
       sql`${t.metric} IN ('token_estimate', 'token_actual', 'hours_actual')`,
     ),
+    check('step_measure_addressed', sql`${t.metric} IS NOT NULL OR ${t.measureId} IS NOT NULL`),
   ],
 );
 

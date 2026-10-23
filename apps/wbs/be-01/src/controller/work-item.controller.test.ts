@@ -3296,6 +3296,33 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     ]);
   });
 
+  // Proof: with the `derived_measure`/`scale_mismatch` arm removed from
+  // work-item.routes.ts, this case answered 500; watched 2026-10-23.
+  it('answers 409 for a derived measure and for a fraction of an integer one, storing nothing', async () => {
+    const { token, send, measures, projectId, devId } = await setup();
+    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+
+    const derived = await command(send, token, projectId, {
+      kind: 'setMeasure',
+      workItemId: strip,
+      stepId: devId,
+      metric: 'agent_minutes',
+      value: 30,
+    });
+    const fraction = await command(send, token, projectId, {
+      kind: 'setMeasure',
+      workItemId: strip,
+      stepId: devId,
+      metric: 'tokens',
+      value: 1.5,
+    });
+
+    expect([derived.status, fraction.status]).toEqual([409, 409]);
+    expect(await derived.json()).toEqual({ error: 'derived_measure', at: 0, kind: 'setMeasure' });
+    expect(await fraction.json()).toEqual({ error: 'scale_mismatch', at: 0, kind: 'setMeasure' });
+    expect(await measures.listByProject(projectId)).toEqual([]);
+  });
+
   it('answers 404 for a unit it does not keep, on both verbs, and stores nothing', async () => {
     // The refusal this command pair has and the actuals' does not. 404 rather
     // than 400 — the step names a unit, and this release keeps no such unit;
@@ -3321,8 +3348,8 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
 
     expect([written.status, cleared.status]).toEqual([404, 404]);
-    expect(await written.json()).toEqual({ error: 'unknown_metric', at: 0, kind: 'setMeasure' });
-    expect(await cleared.json()).toEqual({ error: 'unknown_metric', at: 0, kind: 'clearMeasure' });
+    expect(await written.json()).toEqual({ error: 'unknown_measure', at: 0, kind: 'setMeasure' });
+    expect(await cleared.json()).toEqual({ error: 'unknown_measure', at: 0, kind: 'clearMeasure' });
     expect(await measures.listByProject(projectId)).toEqual([]);
   });
 

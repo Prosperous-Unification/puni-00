@@ -62,6 +62,7 @@ export const CASE_MANIFEST = {
     'directory.patchMeasure:scoped-key-frozen',
     'directory.patchMeasure:shape-frozen',
     'directory.removeMeasure:scoped',
+    'directory.usageOfMeasure:facts',
   ],
   organizationLimits: [
     'organizationLimits.readAgentPersonCap:organization-scope',
@@ -124,6 +125,7 @@ export const CASE_MANIFEST = {
     'measures.remove:metric-key',
     'measures.moveAll:all-metrics',
     'measures.set:unknown_step',
+    'measures.set:defined-key',
   ],
   progress: [
     'progress.listPlacements:source-order',

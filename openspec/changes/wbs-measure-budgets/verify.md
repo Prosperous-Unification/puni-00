@@ -93,3 +93,59 @@ Reruns after the review fixes: domain 1228 pass, contracts 495, store-memory 193
 and route tests 88 pass, each with 0 fail; `nx run-many -t typecheck,typecheck:module,lint` over
 the nine touched projects exit 0; check-indexes exit 0; `format:check --all` exit 0; openspec
 270 of 270.
+
+## Slice 2 — tasks 1.3 and 1.4 (2026-10-23)
+
+Worktree `feat/wbs-measure-keyed-facts`, stacked on slice 1 (13545ddbf). Laptop run, every Bun
+test under `env -u CLAUDECODE`; the h2puni gate was not run (slice PR into the plan branch).
+Assumptions D18–D26 in design.md. The migration test runs over a fixture shaped like dev data
+(owned and unowned projects, token estimates, token and hours facts with audit columns), not a
+copy of the dev store.
+
+### Commands and results
+
+| Command                                                                                                                                                                                                 | Result                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                             | exit 0 (new core test indexed in the plan-commands README)                                                                                                                                     |
+| `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-auth,wbs-gw-01,wbs-mcp-01,wbs-realtime,wbs-runtime-portable,wbs-conformance` | 12 tasks succeeded                                                                                                                                                                             |
+| `bunx nx run-many -t typecheck -p wbs-fe-01,wbs-be-01`                                                                                                                                                  | succeeded                                                                                                                                                                                      |
+| `bunx nx run-many -t lint -p wbs-domain,wbs-contracts,wbs-store-memory,wbs-conformance,wbs-store-sqlite,wbs-core,wbs-be-01,wbs-mcp-01,wbs-fe-01 --skip-nx-cache`                                        | succeeded                                                                                                                                                                                      |
+| `bunx nx run-many -t test -p wbs-domain,wbs-contracts,wbs-store-memory,wbs-conformance,wbs-core,wbs-mcp-01`                                                                                             | domain 1238, contracts 495, store-memory 193, core 1174 pass 0 fail; conformance 34/1 (inventory list, fixed, rerun 1/0), mcp-01 514/1 (10 s crypto timing case under load; rerun alone 515/0) |
+| store-sqlite `bun test` (full)                                                                                                                                                                          | 1847 pass, 0 fail (1848 tests)                                                                                                                                                                 |
+| `bunx nx run wbs-be-01:test --skip-nx-cache` (full)                                                                                                                                                     | 3304 pass, 3 skip, 0 fail                                                                                                                                                                      |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                | 270 of 270                                                                                                                                                                                     |
+
+Memory and SQLite each certify the two new cases `measures.set:defined-key` and
+`directory.usageOfMeasure:facts` (75 pass each). Twilight Navigator is unchanged (D26), so its
+targets were not run.
+
+### Failure proofs
+
+Each fault was injected into production code, the named test watched failing, and the code
+restored; the adjacent `Proof:` comments carry the same.
+
+| Guard                                                     | Fault injected                          | Test that observed it                                                                                                         | Result                      |
+| --------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| decideMeasureFact definition lookup                       | lookup matches any definition           | domain `refuses a key the organization does not define` (+4)                                                                  | 4 pass 5 fail               |
+| decideMeasureFact derived_measure                         | derived test removed                    | domain `refuses a fact, and a clear, on a derived measure`                                                                    | 8 pass 1 fail               |
+| decideMeasureFact scale_mismatch                          | integer test removed                    | domain `refuses a fraction on an integer-scale measure...` (+unowned case)                                                    | 7 pass 2 fail               |
+| agentMinutesOf ended only                                 | running-attempt skip removed            | domain `counts ended attempts only; a running one adds nothing`                                                               | 8 pass 1 fail               |
+| decideMeasureCreate legacy names                          | legacy-name test removed                | domain `refuses a key that is a legacy metric name`                                                                           | 13 pass 1 fail              |
+| export legacy metrics only                                | filter removed                          | core `exports legacy metrics only, leaving defined and derived measures out`                                                  | 78 pass 1 fail              |
+| WorkItemService.setMeasure decision                       | refusal skipped                         | core `refuses a fact in a measure the organization does not define, in a derived measure or in the wrong scale` (store threw) | 5 pass 1 fail               |
+| undo set_measure on a deleted definition                  | check skipped                           | core `refuses an undo that would put a fact back in a measure deleted since` (store threw)                                    | 5 pass 1 fail               |
+| undo restore_subtree on a deleted definition              | refusal removed                         | core `refuses an undo of a delete whose fact is in a measure deleted since` (store threw)                                     | 5 pass 1 fail               |
+| agent_minutes joins the row read                          | derived facts left out                  | core `reads agent minutes from ended attempts and rolls them up; a running attempt adds nothing`                              | 5 pass 1 fail               |
+| memory usageOfMeasure counts facts                        | answers zero                            | core `refuses deleting a definition that holds a fact, and deletes it once the fact is cleared`                               | 5 pass 1 fail               |
+| SQLite store throws on an undefined key                   | throw removed (NULL id passed on)       | SQLite certification `measures.set:defined-key` (CHECK message instead of the store's)                                        | 74 pass 1 fail (case named) |
+| SQLite usageOfMeasureIn counts facts                      | answers zero                            | SQLite certification `directory.usageOfMeasure:facts`                                                                         | case named                  |
+| SQLite read names a defined fact by its key               | coalesce replaced by `metric` alone     | SQLite certification `measures.set:defined-key`                                                                               | case named                  |
+| memory store throws on an undefined key                   | check removed                           | memory certification `measures.set:defined-key`                                                                               | case named                  |
+| memory usageOfMeasure counts facts                        | answers zero                            | memory certification `directory.usageOfMeasure:facts` (and core delete case)                                                  | case named                  |
+| migration back-fill                                       | back-fill CASE made `WHEN 0`            | migration `keys every existing token and hours fact...` (+ come-forward case)                                                 | 5 pass 2 fail               |
+| step_measure_keys_legacy_fact trigger                     | `WHEN 0`                                | migration `keys a fact the outgoing release inserts by metric alone, and takes its upsert`                                    | 6 pass 1 fail               |
+| project_organization_keys_measure_facts trigger           | UPDATE replaced by `SELECT 1`           | migration `keys an unowned project's facts when an organization takes it`                                                     | 6 pass 1 fail               |
+| step_measure_measure_key unique                           | index made plain                        | migration `holds one fact per definition and step node, and refuses a row naming nothing`                                     | 6 pass 1 fail               |
+| down.sql guard                                            | guard count replaced by a constant pass | migration `refuses rollback while a fact is on a defined measure, keeping it`                                                 | 6 pass 1 fail               |
+| SQLite targeted reader refuses a non-legacy stored metric | stored-metric test removed              | store-sqlite `rejects malformed measure metrics after constraint-bypassing corruption`                                        | 8 pass 1 fail               |
+| command endpoint 409 arm derived_measure/scale_mismatch   | arm removed from work-item.routes.ts    | be-01 `answers 409 for a derived measure and for a fraction of an integer one, storing nothing` (500, 500)                    | 0 pass 1 fail               |

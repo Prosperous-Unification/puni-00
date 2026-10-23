@@ -44,7 +44,13 @@ import {
 } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
-import { inMemoryMeasures, type MemoryMeasureTable, memoryMeasureTable } from './measure-fixture';
+import {
+  countFactsKeyedBy,
+  definitionsOfProject,
+  inMemoryMeasures,
+  type MemoryMeasureTable,
+  memoryMeasureTable,
+} from './measure-fixture';
 import {
   inMemoryWorkItems,
   type MemoryWorkItemTables,
@@ -303,6 +309,10 @@ export function bindStores(
     state.tables.directory,
     state.tables.users.byId,
   );
+  const measureOwnership = {
+    projectOrganization: state.tables.organizationLimits.projectOrganization,
+    definitions: state.tables.directory.measureDefinitions,
+  };
   const claimsOf = (personId: string) =>
     claimsTakenWith(state.tables.claims, personId).map(
       ({ workItemId, stepId, personId: holder }) => ({ workItemId, stepId, personId: holder }),
@@ -363,6 +373,21 @@ export function bindStores(
     },
     // Occupancies live in the source's claim table, out of the fixture's sight,
     // and refuse an unconfirmed removal and go with a confirmed one, as SQLite's do.
+    // Facts live in the source's measure table, out of the fixture's sight.
+    // Proof: answering zero here, `refuses deleting a definition that holds a
+    // fact, and deletes it once the fact is cleared`
+    // (measure-fact-command.test.ts in core) deleted it; watched 2026-10-23.
+    usageOfMeasure(organizationId, measureId) {
+      return Promise.resolve({
+        references: countFactsKeyedBy(
+          measureOwnership,
+          state.tables.measures.rows,
+          state.tables.workItems.byId,
+          organizationId,
+          measureId,
+        ),
+      });
+    },
     async usageOfResource(resourceId) {
       const usage = await fixtureDirectory.usageOfResource(resourceId);
       return {
@@ -509,7 +534,11 @@ export function bindStores(
   const projects = inMemoryProjects(users, state.tables.projects);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
-  const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
+  // The memory twin of `project_organization` joined to `measure`: the
+  // owning organization's definitions, or none for an unowned project.
+  const measures = inMemoryMeasures(workItems, state.tables.measures, steps, (projectId) =>
+    definitionsOfProject(measureOwnership, projectId),
+  );
   const progress = inMemoryProgress(workItems, state.tables.progress, steps);
   const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
   const blockages = inMemoryStepBlockages(

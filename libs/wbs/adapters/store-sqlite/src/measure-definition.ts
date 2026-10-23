@@ -1,11 +1,11 @@
 import type { MeasureAdded, MeasureRemoved, MeasureWritten, WriteStamp } from '@wbs/core';
-import type { MeasureDefinition } from '@wbs/domain';
-import { and, asc, eq } from 'drizzle-orm';
+import type { MeasureDefinition, MeasureUsage } from '@wbs/domain';
+import { and, asc, count, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
-import { measure, organization } from './schema';
+import { measure, organization, stepMeasure } from './schema';
 
 /** The columns a {@link MeasureDefinition} is read from, in its own field names. */
 const MEASURE_COLUMNS = {
@@ -139,4 +139,28 @@ export function deleteMeasure(
     .returning({ id: measure.id })
     .all();
   return removed.length === 0 ? { ok: false, reason: 'not_found' } : { ok: true };
+}
+
+/**
+ * What references one of the organization's definitions: the facts keyed by
+ * it (`step_measure.measure_id`, `wbs-measure-budgets` slice 2). Another
+ * organization's definition counts nothing.
+ *
+ * Proof: with this answering zero, the SQLite certification's
+ * `directory.usageOfMeasure:facts` failed (case named); watched 2026-10-23.
+ */
+export function usageOfMeasureIn(
+  db: SQLiteBunDatabase,
+  organizationId: string,
+  measureId: string,
+): MeasureUsage {
+  const facts = db
+    .select({ n: count() })
+    .from(stepMeasure)
+    .innerJoin(measure, eq(stepMeasure.measureId, measure.id))
+    .where(and(eq(measure.id, measureId), eq(measure.organizationId, organizationId)))
+    .get();
+  // An aggregate without GROUP BY always answers one row.
+  if (facts === undefined) throw new Error('count of measure facts answered no row');
+  return { references: facts.n };
 }

@@ -1,4 +1,4 @@
-import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
+import type { AllowancePercent, Days, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
 import type { Claim, ClaimOccupancy } from '../ports/claim-store';
@@ -61,8 +61,8 @@ export type CompensatingCommand =
    * `recordedAt` is **not** carried, for `set_actual`'s reason exactly: an undo
    * is somebody recording the figure again, now.
    */
-  | { do: 'set_measure'; workItemId: string; stepId: string; metric: MeasureMetric; value: number }
-  | { do: 'clear_measure'; workItemId: string; stepId: string; metric: MeasureMetric }
+  | { do: 'set_measure'; workItemId: string; stepId: string; metric: string; value: number }
+  | { do: 'clear_measure'; workItemId: string; stepId: string; metric: string }
   /**
    * Where the work has got to, as one of the two states a step may be **stored**
    * in. There is no `set_progress` carrying `unknown`: the way to say that

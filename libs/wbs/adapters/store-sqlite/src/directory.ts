@@ -50,6 +50,7 @@ import {
   legacyOrganizationOf,
   listMeasuresIn,
   updateMeasure,
+  usageOfMeasureIn,
 } from './measure-definition';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { bumpWorkItems } from './revision';
@@ -470,9 +471,9 @@ export class DirectoryRepository implements DirectoryStore {
     );
   }
 
-  /** Nothing references a definition yet (`wbs-measure-budgets` slice 1). */
-  usageOfMeasure(_organizationId: string, _measureId: string): Promise<MeasureUsage> {
-    return Promise.resolve({ references: 0 });
+  /** The facts keyed by the definition; see {@link usageOfMeasureIn}. */
+  usageOfMeasure(organizationId: string, measureId: string): Promise<MeasureUsage> {
+    return Promise.resolve(usageOfMeasureIn(this.db, organizationId, measureId));
   }
 
   async removeMeasure(

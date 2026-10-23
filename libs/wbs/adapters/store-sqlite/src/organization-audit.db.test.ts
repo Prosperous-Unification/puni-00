@@ -90,6 +90,7 @@ describe('the organization audit', () => {
 
   it('rolls back while nothing is recorded', () => {
     expect(rollbackTo(path, FOLDER, FREEZE)).toEqual([
+      '20261023110000_key_step_measure',
       '20261023100000_add_measure',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',

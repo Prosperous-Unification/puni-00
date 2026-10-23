@@ -7,10 +7,10 @@
 - [x] 1.2 Domain decision and commands `createMeasure`, `patchMeasure`, `deleteMeasure` with
       typed refusals — test: conformance suite over memory and SQLite; negative: remove the
       `schedulesWork` uniqueness check and two scheduling measures store.
-- [ ] 1.3 `step_measure.measure_id` with back-fill; `setMeasure` by key; `unknown_measure`,
+- [x] 1.3 `step_measure.measure_id` with back-fill; `setMeasure` by key; `unknown_measure`,
       `scale_mismatch`, `derived_measure` — test: existing facts read back unchanged over a copy
       of the dev store; negative: skip the back-fill and the legacy facts vanish from reads.
-- [ ] 1.4 `agent_minutes` derived from ended attempt spans — test: hand sum; negative: include
+- [x] 1.4 `agent_minutes` derived from ended attempt spans — test: hand sum; negative: include
       running attempts and the running-attempt case overcounts.
 
 ## 2. Estimates per measure

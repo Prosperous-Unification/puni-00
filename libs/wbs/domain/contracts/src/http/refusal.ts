@@ -149,6 +149,10 @@ export type CommandRefusalCode =
   | 'minutes_not_integer'
   | 'minutes_above_max'
   | 'rolled_up'
+  /** `setMeasure` or `clearMeasure` on a derived measure (`agent_minutes`). */
+  | 'derived_measure'
+  /** A fraction in a measure whose scale is `integer`. */
+  | 'scale_mismatch'
   | 'has_children'
   | 'ancestor'
   /** A typed dependency resolving a step node onto itself. */
@@ -161,7 +165,10 @@ export type CommandRefusalCode =
   | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
+  /** Retired by `wbs-measure-budgets` slice 2; an outgoing be-01 still answers it mid-swap. */
   | 'unknown_metric'
+  /** A metric naming no measure definition of the project's organization. */
+  | 'unknown_measure'
   | 'unknown_person'
   /** `patchPerson.accountId` naming no account that is a member of the person's organization. */
   | 'unknown_account'
