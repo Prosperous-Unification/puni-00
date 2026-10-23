@@ -250,8 +250,7 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-CTT 0.8.0 is published; the unified API additions are planned in issue #2 and must not be
-claimed as already available. CTT owns no durable journal, storage provider or agent SDK.
+CTT 0.11.0 is published (2026-10-23): completed-work seeds, `DEFER_READY`, `settle` and the id-keyed `summary()` landed in 0.9, `resolvePrerequisite`, `dependsOnComplete` and native ESM in 0.10; verified under Bun 1.4.2/1.4.4 and Node 24. Pin it exactly. CTT owns no durable journal, storage provider or agent SDK.
 
 ## Governance cutover
 
@@ -274,11 +273,11 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike              | Fallback                                                          |
-| -------------------------------------------------------- | ------------------ | ----------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                | Claude Agent SDK direct behind the same port                      |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                | plain tool calling for `plan`                                     |
-| Harness packages break between 1.0.x releases            | 0.3                | exact pins, one renovate lane, the port absorbs                   |
-| ACP attempts report no usage                             | modelled           | `Usage.unknown`, shown, never defaulted                           |
-| Concurrent or surviving owners                           | S7a recovery proof | fence ownership, inspect workers/effects; unresolved blocks retry |
-| Unified CTT deferral/summary not implemented             | issue #2           | complete S2 before coordinator admission                          |
+| Risk                                                     | Spike                                   | Fallback                                                          |
+| -------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                                     | Claude Agent SDK direct behind the same port                      |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                                     | plain tool calling for `plan`                                     |
+| Harness packages break between 1.0.x releases            | 0.3                                     | exact pins, one renovate lane, the port absorbs                   |
+| ACP attempts report no usage                             | modelled                                | `Usage.unknown`, shown, never defaulted                           |
+| Concurrent or surviving owners                           | S7a recovery proof                      | fence ownership, inspect workers/effects; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin 0.11.0 and a conformance test | the compatibility adapter absorbs                                 |
