@@ -1357,3 +1357,17 @@ Disposable actual-Caddy acceptance uses unique names/directories and fixture
 hostnames only. Mock Docker output proves boundary/retention behavior, never
 actual serving or restart persistence. Actual serving/reload/restart acceptance
 remains separately pending until observed under the canonical host lock.
+
+### Owner-bound solver drain (bounded S1/S2 prerequisite)
+
+The next callable slice stops the independently pinned host-wide supervisor only
+under a live owner covering both prod and dev. It observes fixed installed paths,
+strict effective systemd execution and the initial process/cgroup identity before
+publishing stop intent. Empty original cgroup and stopped unit readback precede
+canonical solver runtime lock acquisition. The lock encloses complete managed
+Docker cohort discovery, exact-ID stop/terminal evidence, the protected callback
+and final installed/unit/cohort readback. Terminal containers and deadline timers
+remain intact. Unknown authority, unreadable evidence, drift, owner loss or timeout
+refuse while retaining numbered durable evidence. This creates no writable CLI or
+activation grant. Old unguarded manual adoption and live authority inventory remain
+explicitly unproven; parent S1/S2/O4 and 10.2 stay open.

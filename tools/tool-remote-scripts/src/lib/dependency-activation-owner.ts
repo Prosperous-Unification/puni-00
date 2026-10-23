@@ -3,9 +3,15 @@ import { fenceDependencyIngress, inspectDependencyIngress } from './dependency-i
 import type { RunDocker } from './docker-deadline';
 import { type DockerExec, runDockerExec } from './docker-exec';
 import { edgeStateDirectory } from './edge-admission';
-import { type DependencyOwnerPlan, withDependencyOwner } from './edge-ownership';
+import {
+  type DependencyOwner,
+  type DependencyOwnerPlan,
+  withDependencyOwner,
+} from './edge-ownership';
 import { fenceGatewaysUnderOwner } from './gateway-exclusion';
 import { verifyContainerNamespace } from './mount-audit';
+import { withSolverDrainUnderOwner } from './solver-exclusion';
+import { SOLVER_EDGE_STATE, type SolverPins, type SolverPorts } from './solver-host';
 
 /**
  * First owner slice only. Retains all ownership and fence records on every exit.
@@ -83,5 +89,38 @@ export async function excludeIngressAndManagedDependencies(
     verifyContainerNamespace,
     edgeStateDirectory(),
     runDockerExec,
+  );
+}
+
+/** Explicit callable solver interval; callers must enclose all remaining protected work. */
+export async function excludeSolverUnderDependencyOwner<T>(
+  plan: DependencyOwnerPlan,
+  pins: SolverPins,
+  ports: SolverPorts,
+  deadline: number,
+  action: (owner: DependencyOwner) => Promise<T>,
+  directory = SOLVER_EDGE_STATE,
+): Promise<{ state: 'solver-drained'; activation: 'blocked'; value: T }> {
+  plan = structuredClone(plan);
+  if (directory !== ports.edgeState)
+    throw new Error('solver owner and adapter state namespace differ');
+  const prod = plan.layouts.find((layout) => layout.env === 'prod');
+  const dev = plan.layouts.find((layout) => layout.env === 'dev');
+  if (prod === undefined || dev === undefined)
+    throw new Error('solver owner requires prod and dev');
+  return withDependencyOwner(
+    plan,
+    async (owner) => {
+      const value = await withSolverDrainUnderOwner(
+        owner,
+        { prod, dev },
+        pins,
+        ports,
+        deadline,
+        () => action(owner),
+      );
+      return { state: 'solver-drained', activation: 'blocked', value };
+    },
+    directory,
   );
 }

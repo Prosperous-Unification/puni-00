@@ -841,3 +841,13 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
 - [x] I3b Complete independent source and actual-Caddy fixture review before host execution. Astra approved corrected Linux x64 source `f4aff3e8c` and the controlled h2 fixture; actual host acceptance and integrated gate remain I4.
 - [x] I4a Observe reviewed actual-Caddy host acceptance under the canonical heavy lock. Exact source `36f7871e4` passed selected 503, unrelated serving, restart persistence and exact fixture cleanup; [raw receipts](evidence/dependency-ingress/attempt-36f7871e4/README.md).
 - [ ] I4b Complete the integrated exact-SHA gate. Parent complete participant exclusion/activation stays open.
+
+### Bounded owner-bound solver drain callable
+
+- [x] D1 Prove both-environment live owner authority, independent closed tuple pins and bounded nofollow installed observations before any host effect.
+- [x] D2 Prove exact effective unit/process/cgroup binding, durable fixed-service stop intent, stopped unit and empty original cgroup before runtime lock acquisition.
+- [x] D3 Prove post-stop complete Docker identity discovery, exact-ID bounded termination, inert created acceptance and stable terminal membership through callback completion.
+- [x] D4 Wire an explicit composed owner callable preserving existing modes and blocked activation; record focused checks and independently watched production omissions. Live authority audit and actual disposable host acceptance remain separate authorized work.
+
+- [x] D5a Complete independent corrected-source review. Astra approved `94d4b3638`, with no remaining P1/P2/P3 findings.
+- [ ] D5b Complete separately reviewed disposable host runner/acceptance, live authority audit and integrated exact-SHA host gate. See [bounded source evidence and safe runner plan](verify-solver-drain.md). Parent S1/S2/O4 and 10.2 remain open.

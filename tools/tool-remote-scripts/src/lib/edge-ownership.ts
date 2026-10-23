@@ -10,6 +10,7 @@ import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
 import type { EnvLayout } from './env';
 import { assertInheritedLock, withCanonicalLock } from './lock';
 import { publishRecord, readRecord } from './managed-cohort';
+import type { RunSolverHost } from './solver-host';
 
 /** Reviewed managed-fence scope only; never a complete participant or activation proof. */
 export interface DependencyOwnerPlan {
@@ -416,4 +417,55 @@ export async function publishOwnedSiteFile(
   } finally {
     await directory.close();
   }
+}
+
+/** Durable host-wide boundary; both selected environments must remain owned before and after effects. */
+export function ownerHostCommand(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  runHost: RunSolverHost,
+): RunSolverHost {
+  return async (command, signal) => {
+    await assertDependencyOwner(owner, layouts.prod);
+    await assertDependencyOwner(owner, layouts.dev);
+    return ownerDocker(owner, layouts.prod, async (_args, boundedSignal) => {
+      await assertDependencyOwner(owner, layouts.dev);
+      const response = await runHost(command, boundedSignal);
+      await assertDependencyOwner(owner, layouts.dev);
+      return response;
+    })(['solver-host', command.kind], signal);
+  };
+}
+
+/** Retains solver observations as private numbered owner evidence; bytes from installed executables/config stay out. */
+export async function retainSolverRecord(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  label: 'installed' | 'stop' | 'drained' | 'complete',
+  record: object,
+): Promise<void> {
+  await assertDependencyOwner(owner, layouts.prod);
+  await assertDependencyOwner(owner, layouts.dev);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  const path = join(
+    ownership.directory,
+    `edge-owner-${String(++ownership.sequence).padStart(6, '0')}-solver-${label}.json`,
+  );
+  await publishRecord(path, `${JSON.stringify({ owner: ownership.publication, record })}\n`);
+  await assertDependencyOwner(owner, layouts.prod);
+  await assertDependencyOwner(owner, layouts.dev);
+}
+
+/** Binds an effective participant namespace to the directory actually holding this live owner's markers and locks. */
+export async function assertDependencyOwnerDirectory(
+  owner: DependencyOwner,
+  layout: EnvLayout,
+  directory: string,
+): Promise<void> {
+  await assertDependencyOwner(owner, layout);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  if (ownership.directory !== directory)
+    throw new Error('dependency owner state namespace differs from effective solver admission');
 }

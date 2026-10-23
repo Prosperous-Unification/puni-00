@@ -1,0 +1,23 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts -t stops creator, drains child --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts:
+182 |         if (
+183 |           terminal.phase !== 'terminal' ||
+184 |           terminal.exitCode !== Number(wait.trim()) ||
+185 |           solverIdentity(terminal) !== solverIdentity(original)
+186 |         )
+187 |           throw new Error('solver terminal drain evidence differs');
+                          ^
+error: solver terminal drain evidence differs
+      at <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.ts:187:21)
+      at async <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/edge-ownership.ts:213:27)
+      at async acquireLock (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) stops creator, drains child and holds actual runtime lock through callback and final readback [50.88ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+Ran 1 test across 1 file. [74.00ms]
+
+Exit: 1
