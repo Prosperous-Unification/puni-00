@@ -178,6 +178,8 @@ async function seeded(store: (typeof STORES)[number]) {
     { kind: 'setAssignee', workItemId: idOf('A'), stepId: review, personId: 'ada' },
     { kind: 'setAssignee', workItemId: idOf('D1'), stepId: review, personId: 'bob' },
     { kind: 'setAssignee', workItemId: idOf('C'), stepId: dev, personId: 'bob' },
+    // Review is already underway, so its claim continues work rather than starting out of order.
+    { kind: 'setProgress', workItemId: idOf('B'), stepId: review, state: 'in_progress' },
     {
       kind: 'claimWorkItem',
       workItemId: idOf('B'),
@@ -343,9 +345,15 @@ for (const store of STORES) {
   });
 
   describe(`claimWorkItem with assign on the ${store.name} store`, () => {
-    it('assigns the claimant to the steps it claims, and undo removes both', async () => {
-      const { runner, projectId, idOf, assignments, close } = await seeded(store);
+    it('assigns the claimant to the steps it claims, and undo restores prior assignments', async () => {
+      const { runner, projectId, review, idOf, assignments, close } = await seeded(store);
       try {
+        // Both steps can be held together when Review is already underway.
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'setProgress', workItemId: idOf('C'), stepId: review, state: 'in_progress' },
+          ]),
+        ).toMatchObject({ ok: true });
         expect(
           await runner.run(projectId, F, [
             { kind: 'claimWorkItem', workItemId: idOf('C'), personId: 'claire', assign: true },
