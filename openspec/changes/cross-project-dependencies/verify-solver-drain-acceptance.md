@@ -1,7 +1,8 @@
 # Disposable solver drain acceptance
 
-Status: implementation prepared for independent review. **No actual-host execution
-has occurred in this packet.** S1/S2/O4 and parent 10.2 remain open.
+Status: source independently reviewed; the first actual-host attempt refused
+before unit startup. A matching positive physical receipt is still required.
+S1/S2/O4 and parent 10.2 remain open.
 
 The opt-in `tool-remote-scripts:test:solver-drain` target requires
 `SOLVER_DRAIN_SHA`, `SOLVER_DRAIN_IMAGE` and `SOLVER_DRAIN_RECEIPT`. The SHA must
@@ -109,3 +110,39 @@ This is an execution template, not evidence of a completed host run. The runner
 refuses omitted inputs, dirty relevant source, absent tools/image and receipt
 replacement. It never queries the installed production service or performs a
 global solver census.
+
+## First host attempt and attended cleanup
+
+Exact source `fe4c3a93484033c7ca79e62c5ca60be7730bea7a` ran the real
+Nx target under the canonical host heavy lock and exited 1. Effective unit
+preflight refused before service startup because native `systemctl show` omitted
+three empty execution hooks. Adding `--all` did not restore those fields. The
+fixture's D-Bus service properties independently returned the exact typed empty
+array `{"type":"a(sasbttttuii)","data":[]}` for `ExecStartPre`,
+`ExecStartPost` and `ExecStop`. The shared strict producer correction is a
+separate source packet; missing properties are not accepted as empty defaults.
+
+The original private receipt records incomplete cleanup: the same strict
+preflight also refused the unit-stop step. Its two created containers were
+removed. An attended recovery under the canonical lock independently verified
+exact unit template bytes and canonical identity, the linked target, typed empty
+hooks, no drop-ins or jobs, inactive/dead state and zero main/control PIDs. Two
+unchanged native observations bracketed the absence of invocation-owned
+containers. Only that exact fixture unit link was then removed and the manager
+reloaded. Link and owned-container absence passed independent readback. Scratch
+files and the original failure receipt remain retained; the service was never
+started and no production service was changed.
+
+The original receipt SHA-256 is
+`92278d129d4cc46271fc193e060388ca451b1a619d0b00cd8710b28d1aed5e8a`.
+A distinct private cleanup-recovery receipt binds that hash. Cleanup recovery does
+not turn the failed physical attempt into a passing drain receipt.
+
+## Integrated source-exclusion verification
+
+After integrating the independently approved source/solver exclusion stack,
+exact `1d92f28859541121f4e7542cdf2d828cd6605786` passed the ten-file focused
+source/solver/backend/gateway/ingress/ownership/mount/privacy suite: **357 pass,
+0 fail, 3024 assertions**, 19.19 seconds. Local output is retained in
+`/tmp/puni-integrated-source-1d92f2885.log`. This does not establish physical
+source acceptance, compatible restoration, installed adoption or a full gate.
