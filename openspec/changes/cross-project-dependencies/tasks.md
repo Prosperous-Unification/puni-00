@@ -630,3 +630,9 @@ Task 5.2 bounded attempt-driven dependency invalidation (2026-10-23):
 - [x] Watch fingerprint omission and post-await lifetime-guard removal fail their production-path tests; record focused test, lint, typecheck and format evidence in `verify.md`.
 
 Task 5.2 remains open for its broader writer audit, socket/browser acceptance and exact-SHA host gate.
+
+## Task 10.1 bounded managed Compose gateway init prerequisite (2026-10-23)
+
+- [x] Watch rendered gateway service YAML fail without init in the production `tierComposeContext` and preview path; request `init: true` for future gateway services while retaining backend init and frontend omission. The current production tier set has no MCP tier; preview MCP init remains absent.
+- [x] Remove each gateway init branch independently and widen the production branch to all supported tiers; observe the rendered service assertions fail, restore and rerun green. Record scoped configured checks and limitations in [verify.md](verify.md#managed-compose-gateway-init-prerequisite-2026-10-23).
+- [ ] Complete independent review and isolated host gate on the integrated SHA. Parent 10.1/10.2 remain open: existing running container init, process topology, physical gateway quiescence, participant exclusion, activation and deployment are outside this packet.

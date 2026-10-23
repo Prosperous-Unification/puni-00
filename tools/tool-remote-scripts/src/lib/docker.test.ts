@@ -921,6 +921,30 @@ describe('tierComposeFile', () => {
 });
 
 describe('tierComposeContext', () => {
+  for (const environment of ['prod', 'dev'] as const) {
+    for (const color of ['blue', 'green'] as const) {
+      for (const [tier, init] of [
+        ['be', true],
+        ['gw', true],
+        ['fe', undefined],
+      ] as const) {
+        it(`renders init ${String(init)} for the ${environment} ${tier} ${color} service`, () => {
+          const context = tierComposeContext(
+            tier,
+            color,
+            `registry.test/wbs-${tier}-01@${DIGEST}`,
+            envLayout(environment),
+          );
+          const compose = Bun.YAML.parse(renderTemplate(tierComposeTmpl, context)) as {
+            services: Record<string, { init?: boolean }>;
+          };
+          expect(Object.keys(compose.services)).toEqual([context['CONTAINER']]);
+          expect(compose.services[context['CONTAINER']].init).toBe(init);
+        });
+      }
+    }
+  }
+
   it('uses the app name (be-01), not the short tier code, so the container name and the', () => {
     // existing per-app env file (/srv/wbs/be-01.env, per deploy.sh) line up.
     const ctx = tierComposeContext(

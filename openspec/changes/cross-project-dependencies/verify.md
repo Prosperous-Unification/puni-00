@@ -6411,3 +6411,48 @@ the source and correction. The integrated mounted suite passed 22 tests/732
 assertions, and configured backend/MCP typecheck and lint passed uncached.
 Production MCP semantic capability remains empty. Task 3.2 and the exact-head
 host/CI gates remain open.
+
+## Managed Compose gateway init prerequisite (2026-10-23)
+
+Based on `a9829e2ed`, implemented in the isolated `/tmp/puni-gateway-init` clone.
+The real swap renders `tier.compose.tmpl` through `tierComposeContext`; the separate
+`previewContext` is only a build/CLI preview. Both now request `init: true` for
+gateway services. Backend init remains true; frontend init remains absent. The
+current production `Tier` union contains only `be`, `gw`, `fe`, so this packet does
+not add MCP deployment support; preview MCP init remains absent.
+
+This is future configuration only. No existing container was inspected, recreated,
+paused, stopped or deployed. No claim establishes running gateway init, child-process
+signal behavior, process-tree verification, quiescence, participant exclusion or
+safe semantic activation. Parent 10.1/10.2 and the integrated host gate remain open.
+
+Commands ran locally on `pop-os`, with existing workspace dependencies exposed by
+an ignored `node_modules` symlink; no frozen installation or host-wide gate was run.
+
+- Baseline: `bun test tools/tool-compose/src/render.test.ts --preload ./tools/test/scratch/preload.ts` exited 0: 11 pass, 0 fail.
+- Red: `bun test tools/tool-compose/src/render.test.ts tools/tool-remote-scripts/src/lib/docker.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 --test-name-pattern 'renders init'` exited 1: 12 pass, 6 fail, 139 filtered. Both gateway preview colours and all four production gateway environment/colour combinations received absent init instead of true.
+- Restored green: the same targeted command exited 0: 18 pass, 0 fail, 139 filtered, 30 assertions. Parsed rendered YAML asserts the named service's init; production also asserts its sole service identity.
+- `bun test tools/tool-remote-scripts/src/lib/docker.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 --test-name-pattern tierComposeContext` exited 0: 21 pass, 0 fail, 119 filtered, 41 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-compose:test --skip-nx-cache` exited 0: 22 pass, 0 fail across two files, 50 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p tool-compose,tool-remote-scripts --skip-nx-cache` exited 0: all six requested targets and two build dependencies succeeded, cache skipped. An initial invocation without those environment flags emitted socket-denial diagnostics and returned 0 without target receipts; it is not counted as verification.
+- The unfiltered two-file Bun command was interrupted with exit 130 after it stalled following `assertTierEnvComplete against the release configuration > admits an env set that boots be under NODE_ENV=production`. Its synchronous configuration subprocess is not bounded by the Bun test timeout. This is an incomplete check, not a passing suite. Full `tool-remote-scripts:test` including its configured Caddy dependency was not run; focused coverage is limited to the changed renderer path.
+
+Observed production-path fault proofs (each fault was temporary, restored in a
+`finally` block, and followed by the restored green command above):
+
+| Injected fault                                                      | Observed assertion                                                                                     | Outcome            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------ |
+| Remove `tier === 'gw'` from production INIT selection               | `renders init true for the {prod,dev} gw {blue,green} service`: expected true, received undefined      | Exit 1; 4 failures |
+| Remove `container.startsWith('gw-01-')` from preview INIT selection | `renders init true for the gw-01-{blue,green} preview service`: expected true, received undefined      | Exit 1; 2 failures |
+| Replace production INIT selection with unconditional true           | `renders init undefined for the {prod,dev} fe {blue,green} service`: expected undefined, received true | Exit 1; 4 failures |
+
+Adjacent `Proof:` comments identify the watched gateway branch-removal failures.
+Final scoped receipts:
+
+- `bunx prettier --check` over the six changed renderer/test/task/verify files exited 0: all matched files use Prettier style.
+- `node_modules/.bin/openspec validate cross-project-dependencies --json` exited 0: one valid change, zero failed, with 18 existing long-requirement warnings in unchanged delta specs.
+- `git diff --check` exited 0.
+
+Astra High independently approved this bounded packet with no findings. Full
+repository checks, `openspec validate --all --json` and the integrated isolated
+host gate remain pending.
