@@ -13,7 +13,7 @@ function outcomeWords(variant: Variant): string {
     case 'boundary-infeasible':
       return `boundary infeasible; ${variant.evidence}; question ${variant.questionHash}`;
     case 'plan-infeasible':
-      return `whole plan infeasible; ${variant.items.map((bound) => `${bound.ownerWorkItemId} / ${bound.boundWorkItemId}: deadline offset ${String(bound.effectiveDeadlineOffset)}`).join('; ')}`;
+      return `whole plan infeasible; ${variant.items.map((bound) => `${bound.ownerWorkItemId} / ${bound.boundWorkItemId}: work item deadline offset ${String(bound.effectiveDeadlineOffset)}`).join('; ')}`;
     case 'pending':
       return 'pending at capture';
     case 'retrying':

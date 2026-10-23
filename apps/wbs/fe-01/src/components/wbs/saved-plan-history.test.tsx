@@ -205,7 +205,7 @@ it.each([
       state: 'plan-infeasible',
       items: [{ ownerWorkItemId: 'owner', boundWorkItemId: 'bound', effectiveDeadlineOffset: 4.5 }],
     },
-    'whole plan infeasible; owner / bound: deadline offset 4.5',
+    'whole plan infeasible; owner / bound: work item deadline offset 4.5',
   ],
 ])(
   'shows captured objective %j without changing a valid schedule or offering live retry',
