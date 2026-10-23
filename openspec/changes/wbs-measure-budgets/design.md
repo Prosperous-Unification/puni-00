@@ -292,6 +292,8 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
 - **D45 Known lags.** The headroom read has no route or MCP tool (slice 5); the row read shows
   a basis only when mixed (slice 5 reads, slice 6 panel); the export carries neither budgets
   nor bases (D22, slice 7); `findCrossReferences` does not follow `work_item_budget` (D34).
+  Slice 5 closed the route, the read's basis and the cross references (D48–D50); the export
+  and the panel remain.
 - **D46 Strict and advisory headroom apart (review S2-1).** Per key the headroom read answers
   `{strict?, advisory?, mixedRateCards?, mixedAt?}`: the tightest strict budget of the chain,
   which the coordinator refuses on, and apart the tightest advisory or derived one, which it
@@ -303,6 +305,42 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   rehearsal). Each is now one object over the enumerated codes, typed as the per-code union it
   validates; the wire shape and the validation are unchanged, the OpenAPI document lists the
   codes as one enum. `contracts-boot-memory.test.ts` bounds the cost of loading every shape.
+
+Assumptions added while implementing slice 5 (task 4.1), each the reading closest to D1–D8:
+
+- **D48 Trios cross like facts; budgets cannot.** `findCrossReferences` gains
+  `measure_estimate_step` (a trio of this project on another project's step) and follows
+  `measure_estimate` into the project under `incoming_step_row`; activation reconciliation gains
+  the same `measure_estimate_step` conflict. The row read shows trios and step removal cascades
+  them by step, so a trio naming a foreign step now fails the read, a batch and a step removal
+  closed exactly as a crossing fact does (D34's lag closed). `work_item_budget` needs no kind: it
+  names no step, its work item is the row it belongs to, and its `measure_id` is resolved only
+  through the project's organization (D25), so no budget can reach outside the project.
+- **D49 The row read names a priced basis; its budgets keep their bytes.** A row and money key
+  whose subtree's facts, or trios, all carry one basis reads `moneyBases: {key: {facts?,
+estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads; the panel is
+  slice 6). Facts and trios are named apart as `mixedRateCards` is (D44); a mixing kind is named
+  there instead, and a kind whose figures are all unpriced names nothing (its absence is the
+  answer, and a project with no priced figure skips the attachment entirely). `BudgetReading`
+  gains `spent` (the subtree's facts) for the headroom read; the row read strips it, so a row's
+  `budgets` answer the bytes they did in slice 4.
+- **D50 Headroom route.** `GET /api/projects/:id/budget-headroom` (MCP
+  `getApiProjectsByIdBudget-headroom`, derived from the shape like every tool) serves
+  `budgetHeadroomWithin` with an optional `team` query, admitted exactly as the startable read:
+  any role of the organization reads it (viewers included), a foreign or absent project is 404
+  `not_found`, a team the organization does not hold 404 `unknown_team`, a repeated or
+  undeclared query key 400 `invalid_query`. Each bounding budget carries `spent` beside `cap`,
+  `held`, `remaining`, `exceeded` and the bounding `workItemId`; the read is never refused for a
+  mix (D44, D46).
+- **D51 Refusal audit.** Every code slices 1–4 added is driven through HTTP on each route that
+  answers it (`measure-refusal.controller.db.test.ts`): directory codes on both batches, plan
+  codes on the project batch (the directory batch answers `project_required` first), parser codes
+  as 400, `bad_budget_factor` as 422 on the project patch. Two readings recorded: an empty
+  `measureId` is an id and answers 404 `not_found`, only a non-string reaches
+  `measureId_must_be_an_id`; a non-number `budgetFactor` is the patch's structural 422
+  `invalid_body`, as for every setting. Slice 4's review removed the batch 422 `invalid_budget`
+  arm, so this slice leaves it alone. The command descriptions now state units, scales and the
+  refusals of clears.
 
 ## Risks / Trade-offs
 

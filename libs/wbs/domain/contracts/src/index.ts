@@ -3,6 +3,7 @@ export * from './commands/definitions';
 export * from './errors';
 export * from './http/auth-oidc-shapes';
 export * from './http/auth-password-shapes';
+export * from './http/budget-headroom-shapes';
 export * from './http/calendar-marker-shapes';
 export * from './http/capacity-mode-shapes';
 export * from './http/client';

@@ -98,6 +98,7 @@ import {
   type Sibling,
   type Slice,
   sliceKey,
+  soleMoneyBasesOf,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
   type Span,
@@ -1999,18 +2000,21 @@ export class WorkItemService {
    * team's, each with the tightest budget among its work item and ancestors,
    * holds for running attempts of unknown usage taken off (design D39–D41).
    *
-   * Null for a project the caller cannot read. Never refused as a whole: a
-   * budget that a rate-card mix keeps from being read is named on its own
-   * step and key (design D44). No route serves it yet (slice 5).
+   * `teamId` narrows the steps to one team's allotment, as the startable
+   * read does. Null for a project the caller cannot read; `unknown_team` for
+   * a team the caller's organization does not hold. Never refused as a whole:
+   * a budget that a rate-card mix keeps from being read is named on its own
+   * step and key (design D44). Served by `GET /api/projects/:id/budget-headroom`
+   * (task 4.1).
    */
   async budgetHeadroomWithin(
     projectId: string,
     access: ResourceAccess,
-  ): Promise<BudgetHeadroom | null> {
-    const startable = await this.startableWithin(projectId, access, null);
+    teamId: string | null,
+  ): Promise<BudgetHeadroom | { readonly kind: 'unknown_team' } | null> {
+    const startable = await this.startableWithin(projectId, access, teamId);
     if (startable === null) return null;
-    // Proof (type boundary): `unknown_team` answers only a team that was named.
-    if ('kind' in startable) throw new Error('the headroom read named no team');
+    if ('kind' in startable) return startable;
     const rows = await this.opts.workItems.listByProject(projectId);
     const estimates = await this.opts.measureEstimates.listByProject(projectId);
     const budgets = await this.opts.budgets.listByProject(projectId);
@@ -2442,7 +2446,15 @@ export class WorkItemService {
     // budget, undoably` (budget-command.test.ts) read no `budgets`; watched 2026-10-23.
     return {
       ...tree,
-      workItems: withBudgets(estimated, readings, { facts: mixedFacts, estimates: mixedEstimates }),
+      workItems: withBudgets(
+        estimated,
+        readings,
+        { facts: mixedFacts, estimates: mixedEstimates },
+        {
+          facts: soleMoneyBasesOf(tree.workItems, pricedFactsOf(facts), moneyKeys),
+          estimates: soleMoneyBasesOf(tree.workItems, estimates, moneyKeys),
+        },
+      ),
     };
   }
 

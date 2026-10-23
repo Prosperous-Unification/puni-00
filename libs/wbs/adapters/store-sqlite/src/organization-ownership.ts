@@ -75,6 +75,7 @@ export const OWNERSHIP_CONFLICT_KINDS = [
   'actual_step',
   'step_progress_step',
   'step_measure_step',
+  'measure_estimate_step',
   'person_team',
   'team_service',
   'project_team_capacity',
@@ -193,6 +194,12 @@ const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   step_measure_step: buildWorkItemStepConflictSql(
     'step_measure',
     "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
+  ),
+  // Proof: with this query answering no row, `reports a measure_estimate_step
+  // conflict` (organization-reconciliation.db.test.ts) failed; watched 2026-10-23.
+  measure_estimate_step: buildWorkItemStepConflictSql(
+    'measure_estimate',
+    "l.work_item_id || '/' || l.step_id || '/' || l.measure_key",
   ),
   person_team: `SELECT pt.person_id || '/' || pt.service_team_id AS id FROM person_team AS pt
     WHERE ${buildCatalogOwnerSql('person', 'pt.person_id')} != ${buildCatalogOwnerSql('service_team', 'pt.service_team_id')}`,

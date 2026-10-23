@@ -232,6 +232,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdBudget-headroom',
+    method: 'GET',
+    path: '/api/projects/:id/budget-headroom',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdStartable',
     method: 'GET',
     path: '/api/projects/:id/startable',

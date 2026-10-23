@@ -104,6 +104,12 @@ export interface BudgetReading {
   cap: number;
   policy: BudgetPolicy;
   source: BudgetSource;
+  /**
+   * The subtree's facts in the key (design D39). The headroom read answers
+   * it; the row read leaves it out, so its `budgets` keep their bytes
+   * (`wbs-measure-budgets` D49).
+   */
+  spent: number;
   remaining: number;
   exceeded: boolean;
   held?: number;
@@ -265,6 +271,7 @@ function derivedReading(cap: number, spent: number): BudgetReading {
     cap,
     policy: 'advisory',
     source: 'derived',
+    spent,
     remaining: cap - spent,
     // Proof: with `>=` here, `reports a derived budget exceeded only once the
     // facts cross its cap` (budget.test.ts) read a derived cap spent to the
@@ -287,6 +294,7 @@ function statedReading(
     cap,
     policy,
     source: 'stated',
+    spent,
     remaining: cap - spent - (held ?? 0),
     // Proof: with `>=` here, `reports exceeded only once the facts cross the
     // cap` (budget.test.ts) read a budget spent to the cap exceeded; watched 2026-10-23.

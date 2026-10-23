@@ -18,11 +18,14 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-86 tools in all:
+87 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
   claimed);
+- the budget headroom read (`getApiProjectsByIdBudget-headroom`: per startable and claimed step,
+  the tightest budget per measure with what is spent, held and remaining, set with the `setBudget`
+  and `clearBudget` batch kinds);
 - the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and
   claims in a project);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the

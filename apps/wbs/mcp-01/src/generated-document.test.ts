@@ -120,6 +120,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiPeopleLoad',
     'getApiProjects',
     'getApiProjectsById',
+    'getApiProjectsByIdBudget-headroom',
     'getApiProjectsByIdCalendar-markers',
     'getApiProjectsByIdExport',
     'getApiProjectsByIdHistory',

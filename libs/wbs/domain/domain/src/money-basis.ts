@@ -94,6 +94,56 @@ export function mixedRateCardsOf(
   figures: readonly PricedFigure[],
   moneyKeys: ReadonlySet<string>,
 ): Map<string, Map<string, MixedRateCards>> {
+  const mixed = new Map<string, Map<string, MixedRateCards>>();
+  for (const [rowId, byKey] of basesByRow(rows, figures, moneyKeys)) {
+    for (const [key, held] of byKey) {
+      // Proof: with `> 2` here, `names the two bases a parent mixes, and
+      // leaves each leaf alone` (money-basis.test.ts) read the parent unmixed;
+      // watched 2026-10-23.
+      if (held.size < 2) continue;
+      const [first, second] = [...held.values()].sort(compareBases);
+      const found = mixed.get(rowId) ?? new Map<string, MixedRateCards>();
+      found.set(key, [first ?? null, second ?? null]);
+      mixed.set(rowId, found);
+    }
+  }
+  return mixed;
+}
+
+/**
+ * Every row whose subtree holds figures in one money key under exactly one
+ * basis, and that basis priced (`wbs-measure-budgets` D49): what the row
+ * read's sums in that key are in. The counterpart of {@link mixedRateCardsOf}
+ * over the same figures, one kind per call. A key whose figures are all
+ * unpriced is absent, as is a mixed one.
+ */
+export function soleMoneyBasesOf(
+  rows: readonly { readonly id: string; readonly parentId: string | null }[],
+  figures: readonly PricedFigure[],
+  moneyKeys: ReadonlySet<string>,
+): Map<string, Map<string, MoneyBasis>> {
+  const sole = new Map<string, Map<string, MoneyBasis>>();
+  for (const [rowId, byKey] of basesByRow(rows, figures, moneyKeys)) {
+    for (const [key, held] of byKey) {
+      const [basis] = [...held.values()];
+      // Proof: with the size test removed, `names the one basis a subtree is
+      // priced in, and none where it mixes or is unpriced` (money-basis.test.ts)
+      // named a basis on the mixed parent; watched 2026-10-23.
+      if (held.size !== 1 || basis === null) continue;
+      const found = sole.get(rowId) ?? new Map<string, MoneyBasis>();
+      found.set(key, basis);
+      sole.set(rowId, found);
+    }
+  }
+  return sole;
+}
+
+/** Per row and money key, every distinct basis its subtree's leaves hold, by identity. */
+function basesByRow(
+  rows: readonly { readonly id: string; readonly parentId: string | null }[],
+  figures: readonly PricedFigure[],
+  moneyKeys: ReadonlySet<string>,
+): Map<string, Map<string, Map<string, MoneyBasis | null>>> {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId] as const));
   const hasChildren = new Set(rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])));
   const basesOf = new Map<string, Map<string, Map<string, MoneyBasis | null>>>();
@@ -113,20 +163,7 @@ export function mixedRateCardsOf(
       at = parentOf.get(at);
     }
   }
-  const mixed = new Map<string, Map<string, MixedRateCards>>();
-  for (const [rowId, byKey] of basesOf) {
-    for (const [key, held] of byKey) {
-      // Proof: with `> 2` here, `names the two bases a parent mixes, and
-      // leaves each leaf alone` (money-basis.test.ts) read the parent unmixed;
-      // watched 2026-10-23.
-      if (held.size < 2) continue;
-      const [first, second] = [...held.values()].sort(compareBases);
-      const found = mixed.get(rowId) ?? new Map<string, MixedRateCards>();
-      found.set(key, [first ?? null, second ?? null]);
-      mixed.set(rowId, found);
-    }
-  }
-  return mixed;
+  return basesOf;
 }
 
 function compareBases(left: MoneyBasis | null, right: MoneyBasis | null): number {

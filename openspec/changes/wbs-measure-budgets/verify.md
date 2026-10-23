@@ -431,3 +431,58 @@ Rechecked: contracts 496 pass, mcp-01 515 pass, core 1233 pass, be-01 OpenAPI an
 suites (10 files) 423 pass; 13 projects typecheck; lint of contracts, core, be-01, mcp-01. The
 k3s rehearsal (`tool-deploy:test:k3s`, a k3d cluster with all four images) was not run locally:
 a second heavy agent shares the 30 GB laptop.
+
+## Slice 5 — task 4.1 (2026-10-23)
+
+Worktree `feat/wbs-measure-surface`, rebased onto slice 4's head e239e7198 (review fixes and
+the refusal-schema collapse). Laptop run, every Bun test under `env -u CLAUDECODE`; the h2puni
+gate was not run (slice PR into the plan branch). Assumptions D48–D51 in design.md. No new
+refusal code was added, so the enumerations of D47 are untouched.
+
+### Commands and results
+
+| Command                                                                                                                                                                                                                                     | Result                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                 | exit 0 (review debt only `store-memory/src/README.md`, 51 of 40, over before this slice)                                |
+| `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-auth,wbs-gw-01,wbs-mcp-01,wbs-realtime,wbs-runtime-portable,wbs-conformance,wbs-be-01,wbs-fe-01 --skip-nx-cache` | 13 projects succeeded                                                                                                   |
+| `bunx nx run-many -t lint -p wbs-domain,wbs-contracts,wbs-store-sqlite,wbs-core,wbs-be-01,wbs-mcp-01 --skip-nx-cache`                                                                                                                       | 6 projects succeeded                                                                                                    |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (full)                                                                                                                                                                                      | 920 pass, 0 fail                                                                                                        |
+| `bunx nx run-many -t test -p wbs-domain,wbs-contracts,wbs-store-memory,wbs-conformance,wbs-mcp-01,wbs-core --skip-nx-cache`                                                                                                                 | domain 1281, contracts 499, store-memory 193, conformance 35, mcp-01 515, core 1234 pass; 0 fail                        |
+| store-sqlite `bun test` (full)                                                                                                                                                                                                              | 1864 pass, 0 fail                                                                                                       |
+| `bunx nx run wbs-be-01:test --skip-nx-cache` (full)                                                                                                                                                                                         | 3318 pass, 3 skip, 0 fail                                                                                               |
+| contracts `bun test src/http/contracts-boot-memory.test.ts`                                                                                                                                                                                 | 2 pass; shape load measured 329–332 MB over three runs (bound 500; 361–365 MB with this slice stashed, so within noise) |
+| `bunx nx format:check --all`                                                                                                                                                                                                                | exit 0                                                                                                                  |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                                    | 270 of 270                                                                                                              |
+
+fe-01 was not changed (`kinds.json`, `vitest.node-suites.json` and the conformance inventory
+untouched); the generated document grows by one operation, which mcp-01's pinned list, README
+count (87) and be-01's route inventories carry.
+
+### Failure proofs
+
+Each fault was injected into production code (or the contract), the named test watched
+failing, and the code restored; the adjacent `Proof:` comments carry the same.
+
+| Guard                                                  | Fault injected                             | Test that observed it                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| headroom route repeated-key check                      | check removed                              | be-01 `refuses a repeated team and an undeclared key`                                                  |
+| headroom route resolves organization access            | legacy access in place of the resolved one | be-01 `refuses a stranger exactly as the startable read does` and the team case                        |
+| headroom route maps `unknown_team`                     | `not_found` answered instead               | be-01 `narrows to a team, and refuses one the caller's organization does not hold`                     |
+| headroom contract requires `spent` and `workItemId`    | both made optional                         | contracts `refuses a budget that names no bounding work item or no spend`                              |
+| batch contract arm (refusal table)                     | `scale_mismatch` arm renamed away          | be-01 `answers each code with its declared status and body, writing nothing` (three rows answered 500) |
+| row read strips `spent` from `budgets`                 | strip skipped                              | core `sets, replaces and clears a budget, undoably` (+3 row-read cases)                                |
+| row read attaches `moneyBases`                         | attachment skipped                         | core `names the one basis a row's cost sums are in, per kind, and none on a mixed parent`              |
+| `soleMoneyBasesOf` one-basis test                      | size test removed                          | domain `names the one basis a subtree is priced in, and none where it mixes or is unpriced`            |
+| `findCrossReferences` outgoing `measure_estimate_step` | arm removed                                | be-01 `fails the schedule read closed over a crossing measure_estimate_step` (200 where 500 was owed)  |
+| `findCrossReferences` incoming trio                    | `measure_estimate` entry removed           | be-01 `fails closed on a project another project reaches into, changing neither`                       |
+| activation conflict `measure_estimate_step`            | query made to answer no row                | store-sqlite `reports a measure_estimate_step conflict`                                                |
+
+Not proven at runtime: the route switch over the core's answers (`unknown_team`, `null`) is
+exhaustive by type, so removing an arm does not compile. `measureId_must_be_an_id` answers only a
+non-string id; an empty one is an id and answers 404 (D51).
+
+### Skipped or unverified
+
+- The h2puni gate and the k3s rehearsal were not run (second heavy agent on the laptop).
+- The MCP tool was checked through the generated document and mcp-01's suite, not called
+  against a live be-01.

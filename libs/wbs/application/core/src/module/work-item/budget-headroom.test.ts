@@ -13,6 +13,7 @@ const reading = (remaining: number): BudgetReading => ({
   cap: 100,
   policy: 'strict',
   source: 'stated',
+  spent: 100 - remaining,
   remaining,
   exceeded: false,
 });

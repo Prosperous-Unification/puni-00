@@ -118,6 +118,7 @@ describe('readBudgets', () => {
       cap: 1000,
       policy: 'strict',
       source: 'stated',
+      spent: 1200,
       remaining: -200,
       exceeded: true,
     });
@@ -147,6 +148,7 @@ describe('readBudgets', () => {
       cap: 500,
       policy: 'strict',
       source: 'stated',
+      spent: 0,
       remaining: 200,
       exceeded: false,
       held: 300,
@@ -191,6 +193,7 @@ describe('readBudgets', () => {
       cap: 450,
       policy: 'advisory',
       source: 'derived',
+      spent: 100,
       remaining: 350,
       exceeded: false,
     });
