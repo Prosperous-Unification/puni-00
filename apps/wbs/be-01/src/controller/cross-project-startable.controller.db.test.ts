@@ -1,6 +1,7 @@
 import { readdirSync, readlinkSync } from 'node:fs';
 
 import type { StartableWork } from '@wbs/core/module/work-item/startable';
+import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
@@ -12,9 +13,19 @@ let predecessor: string;
 let targetStep: string;
 let predecessorStep: string;
 let publications: string[];
+let observedAttemptProjects: Set<string>;
 beforeEach(async () => {
   publications = [];
+  observedAttemptProjects = new Set();
   harness = OrganizationHarness.openComposedWith({
+    openReadOnlyConnection: (path) =>
+      openReadOnlyConnection(path, {
+        logQuery(query, parameters) {
+          if (!query.includes('from "step_node_attempt"')) return;
+          for (const parameter of parameters)
+            if (typeof parameter === 'string') observedAttemptProjects.add(parameter);
+        },
+      }),
     pushFetch: (url) => {
       publications.push(url);
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
@@ -474,7 +485,7 @@ for (const mode of ['isolated', 'shared'] as const) {
     await assertAcceptedClaim();
   });
 
-  // Proof: omitting one expanded external predecessor pair falsely advertises and admits the target (task-6-3-admission/expanded-pair-fault.log).
+  // Proof: omitting one expanded external predecessor pair falsely advertises the target (task-6-3-admission/expanded-pair-fault.log).
   test(`${mode} whole remote predecessor requires every expanded leaf pair`, async () => {
     setMode(mode);
     harness.sqlite.run(
@@ -527,6 +538,74 @@ for (const mode of ['isolated', 'shared'] as const) {
     expect((await startable()).body).toMatchObject({
       leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep] }],
     });
+    await assertAcceptedClaim();
+  });
+}
+
+// Proof: disabling shared-person topology traversal makes all three mounted cases miss the peer's execution evidence (shared-bridge-fault.log).
+for (const type of ['FS', 'SS', 'FF'] as const) {
+  test(`shared-person bridge preserves remote ${type} governed admission and readiness`, async () => {
+    setMode('shared');
+    const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Shared peer' });
+    expect(created.status).toBe(200);
+    const peer = created.body as { project: { id: string }; steps: { id: string }[] };
+    const peerStep = peer.steps.at(0);
+    if (peerStep === undefined) throw new Error('shared peer step missing');
+    harness.sqlite.run(
+      "INSERT INTO work_item (id,project_id,position,name,readiness) VALUES ('shared-peer-leaf',?,0,'Shared peer leaf','ready')",
+      [peer.project.id],
+    );
+    for (const [workItemId, stepId] of [
+      ['target-leaf', targetStep],
+      ['shared-peer-leaf', peerStep.id],
+    ])
+      harness.sqlite.run(
+        "INSERT INTO assignment (work_item_id,step_id,person_id) VALUES (?,?,'executor')",
+        [workItemId, stepId],
+      );
+    harness.sqlite.run("UPDATE external_dependency SET type=? WHERE id='prerequisite'", [type]);
+    // B --authored prerequisite--> A --shared executor assignment-- C; C has no authored edges.
+    expect(
+      harness.sqlite
+        .query('SELECT predecessor_project_id,successor_project_id FROM external_dependency')
+        .all(),
+    ).toEqual([{ predecessor_project_id: predecessor, successor_project_id: target }]);
+    observedAttemptProjects.clear();
+    const answer = await startable();
+    expect(answer.status).toBe(200);
+    expect([...observedAttemptProjects].sort()).toEqual(
+      [target, predecessor, peer.project.id].sort(),
+    );
+    const reading = answer.body as StartableWork;
+    expect(
+      reading.prerequisites.find(
+        (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+      ),
+    ).toMatchObject({
+      started: false,
+      canStart: type === 'FF',
+      canFinish: type !== 'FF',
+    });
+    expect(reading.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual(
+      type === 'FF' ? [{ workItemId: 'target-leaf', stepIds: [targetStep] }] : [],
+    );
+    if (type !== 'FF') {
+      await assertRefusal(() => claim());
+      if (type === 'FS') recordCompletion();
+      else
+        harness.sqlite.run(
+          "INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('predecessor-leaf',?,1,1,2,'failed')",
+          [predecessorStep],
+        );
+      const released = await startable();
+      expect(released.status).toBe(200);
+      expect(
+        (released.body as StartableWork).leaves.map(({ workItemId, stepIds }) => ({
+          workItemId,
+          stepIds,
+        })),
+      ).toEqual([{ workItemId: 'target-leaf', stepIds: [targetStep] }]);
+    }
     await assertAcceptedClaim();
   });
 }

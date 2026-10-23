@@ -1,0 +1,69 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+571 |         .all(),
+572 |     ).toEqual([{ predecessor_project_id: predecessor, successor_project_id: target }]);
+573 |     observedAttemptProjects.clear();
+574 |     const answer = await startable();
+575 |     expect(answer.status).toBe(200);
+576 |     expect([...observedAttemptProjects].sort()).toEqual(
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "1b20a6bb-bb36-4331-b81c-ae3c7beb3ba2",
+    "42c3c28a-4a8a-4021-9e13-4649c216b898",
+    "ce331f51-9645-4286-b993-c86f72df3913",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:576:49)
+(fail) shared-person bridge preserves remote FS governed admission and readiness [378.54ms]
+571 |         .all(),
+572 |     ).toEqual([{ predecessor_project_id: predecessor, successor_project_id: target }]);
+573 |     observedAttemptProjects.clear();
+574 |     const answer = await startable();
+575 |     expect(answer.status).toBe(200);
+576 |     expect([...observedAttemptProjects].sort()).toEqual(
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  [
+    "04af3c10-6aed-41a9-8921-e91b364446b4",
+-   "1e1ba91b-b07b-4ee9-ad10-35612f8429f2",
+    "f6bfb2b9-20c0-4f0c-bd74-41293bf7c015",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:576:49)
+(fail) shared-person bridge preserves remote SS governed admission and readiness [257.72ms]
+571 |         .all(),
+572 |     ).toEqual([{ predecessor_project_id: predecessor, successor_project_id: target }]);
+573 |     observedAttemptProjects.clear();
+574 |     const answer = await startable();
+575 |     expect(answer.status).toBe(200);
+576 |     expect([...observedAttemptProjects].sort()).toEqual(
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  [
+    "152fb4dd-425c-40c7-920e-065150ed8cfb",
+-   "da7f0b90-b0da-4040-846d-f2a8dab69a33",
+    "f0296338-edcb-4a2a-9859-41617f30ee3b",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:576:49)
+(fail) shared-person bridge preserves remote FF governed admission and readiness [245.97ms]
+
+ 0 pass
+ 24 filtered out
+ 3 fail
+ 21 expect() calls
+Ran 3 tests across 1 file. [4.28s]

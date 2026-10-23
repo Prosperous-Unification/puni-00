@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
-255 | 
+255 |
 256 | async function assertRefusal(act: () => Promise<{ status: number; body: unknown }>) {
 257 |   const before = captureState();
 258 |   publications.length = 0;
@@ -16,7 +16,7 @@ Received: 200
       at assertRefusal (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:260:25)
       at async <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:363:22)
 (fail) isolated remote FS advertised permission matches governed claim [437.83ms]
-255 | 
+255 |
 256 | async function assertRefusal(act: () => Promise<{ status: number; body: unknown }>) {
 257 |   const before = captureState();
 258 |   publications.length = 0;
@@ -31,7 +31,7 @@ Received: 200
       at assertRefusal (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:260:25)
       at async <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:363:22)
 (fail) isolated remote SS advertised permission matches governed claim [331.46ms]
-255 | 
+255 |
 256 | async function assertRefusal(act: () => Promise<{ status: number; body: unknown }>) {
 257 |   const before = captureState();
 258 |   publications.length = 0;
@@ -46,7 +46,7 @@ Received: 200
       at assertRefusal (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:260:25)
       at async <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:363:22)
 (fail) shared remote FS advertised permission matches governed claim [329.23ms]
-255 | 
+255 |
 256 | async function assertRefusal(act: () => Promise<{ status: number; body: unknown }>) {
 257 |   const before = captureState();
 258 |   publications.length = 0;
