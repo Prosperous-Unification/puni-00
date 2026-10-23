@@ -10,7 +10,7 @@ graph with sessions as the unit of memory, on LangGraph 1.4.15 and ACP SDK 1.4.0
 current.
 
 Research on 2026-10-20 and 2026-10-21 (recorded in
-[ADR 0056](../../../docs/adr/0056-activities-run-on-the-ai-sdk-and-an-interpreter-coordinates.md))
+[ADR 0057](../../../docs/adr/0057-activities-run-on-the-ai-sdk-and-an-interpreter-coordinates.md))
 found the Vercel AI SDK 7 to be the one TypeScript layer with first-party adapters for API
 providers, coding-agent CLIs and ACP agents behind one stream shape, and found no durable
 graph engine in it. The website conversation already runs on `ai` with the OpenRouter
@@ -32,7 +32,7 @@ recovery and delivery order; other product assumptions remain proposed.
   changes deployment, not this port.
 - **A2 Runtime.** The AI SDK is the agent-integration layer and an interpreter over Dash's
   run store is the coordinator. LangGraph is retired when the interpreter passes the
-  prototype's tests. ADR 0056; amends the control-plane constraint line and Tasks 1 and 6.
+  prototype's tests. ADR 0057; amends the control-plane constraint line and Tasks 1 and 6.
 - **A3 Planning authority.** WBS be-01 is the planning store this layer reads and writes.
   The Backlog.md migration (control-plane M2, Tasks 9 and 10) is not a prerequisite and stays
   parked. ADR 0027 keeps its proposed status; its spike is not this change.
@@ -79,7 +79,7 @@ Dash does not import WBS app internals; the shared contracts package is the boun
 ## The port
 
 ```ts
-type ExecutorKind = "api-model" | "cli-harness" | "acp" | "tool" | "human";
+type ExecutorKind = 'api-model' | 'cli-harness' | 'acp' | 'tool' | 'human';
 
 interface ActivityExecutor {
   readonly kind: ExecutorKind;
@@ -95,13 +95,13 @@ interface ActivityExecutor {
 }
 
 type Usage =
-  | { kind: "measured"; inputTokens: number; outputTokens: number }
-  | { kind: "unknown"; reason: "acp-v1-no-usage" | "tool" | "human" };
+  | { kind: 'measured'; inputTokens: number; outputTokens: number }
+  | { kind: 'unknown'; reason: 'acp-v1-no-usage' | 'tool' | 'human' };
 
 interface TurnOutcome {
   text: string;
   usage: Usage;
-  finish: "end_turn" | "max_steps" | "refused" | "cancelled";
+  finish: 'end_turn' | 'max_steps' | 'refused' | 'cancelled';
 }
 ```
 
@@ -268,7 +268,7 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
   checkpointer proof becomes the run-store restart proof; Task 6 runs its first real ACP
   activity through this port.
 - `docs/twilight-structure/research/runtime-patterns.md` recommendation: superseded by
-  ADR 0056; the note stays as dated evidence.
+  ADR 0057; the note stays as dated evidence.
 - `docs/twilight-structure/names.md`: unchanged under A1; the Dash row gains "execution
   writes to WBS" when Dany confirms A1.
 

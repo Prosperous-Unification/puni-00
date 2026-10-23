@@ -47,7 +47,7 @@ None.
 
 ## Decisions Recorded
 
-[ADR 0056](../../../docs/adr/0056-activities-run-on-the-ai-sdk-and-an-interpreter-coordinates.md)
+[ADR 0057](../../../docs/adr/0057-activities-run-on-the-ai-sdk-and-an-interpreter-coordinates.md)
 and design.md record accepted API/storage/recovery refinements; other product assumptions
 remain proposed.
 

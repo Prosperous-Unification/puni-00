@@ -43,7 +43,7 @@ bridge port on the harness factory, not on `createSession`:
 ```ts
 const harness = createClaudeCode({
   port: 4123,
-  portEndpoint: { url: "ws://127.0.0.1:4123" },
+  portEndpoint: { url: 'ws://127.0.0.1:4123' },
 });
 const local = createLocalSandbox({ cwd, ports: [4123] });
 const net = await local.createSession();
