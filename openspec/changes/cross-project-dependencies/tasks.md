@@ -757,3 +757,10 @@ parent 5.2 remains unchecked pending the integrated host gate.
 
 This closes scheduling only. Parent 5.2/11.x, exact-head hosted browser completion,
 the canonical host gate and production activation remain open.
+
+### Bounded Task 10.2 installed-writer read-only inventory prerequisite
+
+- [x] Red/green strict reviewed source/build manifest and fixed prod/dev/shared capture membership, expected-versus-installed hashes, declared locations and pinned interpreter bytes.
+- [x] Add offline read-only CLI/Nx target, two complete artifact reads and manifest readback; always block activation with explicit authority/process/solver runtime limits.
+- [x] Add real CLI omission, malformed, mismatch, interpreter, unreadability and between-pass drift negatives; record watched production-check omissions in [verify-installed-writers.md](verify-installed-writers.md).
+- [ ] Effective live installed-authority collection/adoption, prior-holder drain, continuous exclusion and isolated exact-SHA integrated host gate. Independent Astra review approved the corrected bounded offline packet; parent 10.1/10.2 remain open.

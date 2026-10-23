@@ -127,6 +127,13 @@
       "options": {
         "command": "bun run tools/tool-remote-scripts/test/backend-exclusion.ts"
       }
+    },
+    "inspect-installed-writers": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/src/inspect-installed-writers.ts"
+      }
     }
   }
 }

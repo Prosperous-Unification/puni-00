@@ -1220,3 +1220,39 @@ This closes only installer source admission. It does not install host bytes,
 replace the durable poller, drain older executors, publish owner state, prove
 installed adoption, or authorize activation. The durable poller recovery recipe
 must likewise refuse retained owner state before replacing its recovery copies.
+
+### Read-only installed-writer file inventory prerequisite
+
+Problem: source admission does not establish the bytes of installed prod/dev
+writers or their launch/restart surfaces. Outcome: a versioned offline comparison
+of a separately reviewed manifest and explicitly supplied local captures. This
+packet cannot adopt writers, activate dependencies, stop processes, publish owner
+markers or establish complete host authority. No live collector is included.
+
+`inspect-installed-writers <reviewed-manifest.json> <capture-root>` strictly decodes
+v1 source/build commit identities, build identifier and fixed member set. Each
+member declares source/build origin, absolute claimed host location, independent
+expected digest, reviewed artifact path and installed capture path. Prod/dev
+swap and smoke, durable dev poller/helper and interpreter are required. Manual
+launcher/bootstrap/configure slots describe declared copies; they do not assert
+canonical installed host locations. Two required authority slots describe captured
+launch/restart configuration bytes, not effective host configuration. Reviewed
+hashes must predate and be independent of installed captures; this tool provides
+no discovery-to-expectation generator. Manifest provenance remains external review.
+
+All expected/captured files are bounded ordinary readable files under the supplied
+canonical root, without symlink paths; required observations are read twice.
+Missing, unreadable, malformed, aliased, incomplete, mismatching or observed
+changing evidence refuses with no inventory output. Interpreter substitution is
+an ordinary pinned-byte mismatch. The CLI additionally rereads the manifest and
+binds its exact raw-byte digest; the library digest binds normalized manifest fields.
+
+Every report says `activation: blocked` and `scope: local-supplied-capture`.
+Equal snapshots establish bounded captured-byte equality only. Unknowns explicitly
+include actual interpreter selection, running/prior processes, continuous exclusion,
+manual controllers, host capture attribution/freshness and effective cron/systemd/
+Docker launch/restart authority. Cron bytes do not prove installed crontab or no
+duplicate timer; systemd bytes do not prove loaded/drop-in/transient units/MainPID;
+Compose bytes do not prove Docker configuration/restart policy. Solver supervisor
+bundle/config/runtime/systemd and its installer admission are an unsupported known
+restart surface. Parent 10.1/10.2 remain open.

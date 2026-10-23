@@ -375,3 +375,14 @@ the requested commit. The dev backend recovered after a container restart, and
 `/health` reported `e8894d0`; that health response proves the running dev revision,
 not the interrupted gate's result. Use an isolated worktree for the replacement
 exact-SHA gate.
+
+### Read-only installed-writer inventory prerequisite
+
+Before claiming installed admission, follow the [prod/dev capture inventory
+procedure](runbook-prod-deploy.md#read-only-installed-writer-capture-inventory).
+It requires reviewed expectations independent of captured host bytes for both
+environments, including durable dev poller/helper and interpreter. Manual launcher
+copies and captured launch/restart configuration remain declared surfaces, with
+loaded cron/systemd/Docker authority and the solver supervisor unresolved. The
+offline command always returns blocked activation; it performs no installation,
+restart, prior-holder drain, owner publication or live host acceptance.

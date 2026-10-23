@@ -960,3 +960,51 @@ live `base.yml` and atomically renaming the sibling into place. Refused configur
 leaves the live file unchanged and retains the staged file for diagnosis; no
 staged candidate grants admission or activation. This does not install or prove
 adoption by any existing host writer.
+
+## Read-only installed-writer capture inventory
+
+This offline prerequisite compares captured files; it does not adopt installed
+writers. Prepare the reviewed manifest before collecting host bytes. Record its
+reviewed source commit (`sourceSha`), build commit (`buildSha`), build identifier
+(`buildId`) and v1 members. Derive each `sha256` from reviewed source or a reviewed
+build artifact, never the discovered installed copy. Record each member's
+`origin` (`source` or `build`), absolute declared `hostPath`, and distinct relative
+`reviewed` and `installed` capture paths. Keep review provenance with the manifest.
+The tool validates identities and equality, not the truth of that provenance.
+
+Required member names are `prod-swap`, `prod-smoke`, `dev-swap`, `dev-smoke`,
+`dev-poller`, `dev-loader`, `dev-interpreter`, `declared-manual-launcher`,
+`declared-bootstrap`, `declared-configure`, `shared-launch-authority`, and
+`shared-restart-authority`. Prod/dev swap+smoke live under each environment's
+`bin/`; derive durable poller/helper/interpreter locations from the dev recovery
+procedure. Manual/bootstrap/configure locations are explicitly declared copies,
+not assumed canonical host installations. Launch/restart members hold reviewed
+and captured configuration file bytes; if a required file/location has not been
+established, stop and record the unresolved inventory instead of inventing bytes.
+
+Copy reviewed artifacts and separately collected installed files beneath a local
+capture root. Use ordinary files, unique paths and no symlink components. Run:
+
+```sh
+bunx nx run tool-remote-scripts:inspect-installed-writers --args='/absolute/reviewed-manifest.json /absolute/capture-root'
+```
+
+The manifest shape is `{ "version": 1, "sourceSha": "<40 hex>", "buildSha":
+"<40 hex>", "buildId": "<reviewed build identifier>", "members": [{ "member":
+"prod-swap", "origin": "build", "hostPath": "/home/puni1/wbs/bin/swap.js",
+"reviewed": "reviewed/prod-swap.js", "installed": "captured/prod-swap.js",
+"sha256": "<64 hex>" }] }`; supply every required member, not only this example.
+
+Success means matching local supplied bytes and always prints `activation:
+blocked`. Preserve the JSON including exact reviewed-manifest byte digest and
+unknowns. Failure emits no inventory; investigate missing/unreadable/mismatching
+or changing captures and repeat with independent reviewed expectations. Nothing
+is published, installed, stopped or restarted by this command.
+
+Cron file equality cannot prove installed crontab/no duplicate timers; systemd
+unit equality cannot prove loaded units/drop-ins/transient units/MainPID; Compose
+equality cannot prove actual Docker configuration or restart policy. Solver
+supervisor runtime/bundle/config/systemd and installer shared-edge admission are
+explicitly unsupported restart surfaces. Captured equality proves neither actual
+interpreter selection nor absence of old/manual writers, live host attribution,
+process drain or continuous exclusion. Tasks 10.1/10.2 remain open.

@@ -1120,3 +1120,28 @@ SHALL NOT claim pairwise atomicity, host adoption, prior-holder drain or activat
 - **WHEN** a rename, installed-byte comparison or SSH transport fails during publication
 - **THEN** installation fails loudly with partial or uncertain publication guidance
 - **AND** success requires both installed comparisons while the canonical lock remains held
+
+### Requirement: Installed writer capture inventory is read-only and never adoption
+
+The system SHALL compare a strictly decoded reviewed source/build manifest with
+all required local captured writer artifacts and SHALL always block activation.
+
+#### Scenario: Complete equal captured inventory
+
+- **GIVEN** a separately reviewed v1 manifest declaring exact source/build commits, expected hashes and declared locations for every required prod/dev/shared slot
+- **WHEN** both complete read passes match every reviewed and installed artifact
+- **THEN** the CLI emits a versioned local supplied capture inventory binding the manifest and per-member digests
+- **AND** activation is blocked, with explicit unresolved effective authority, process, solver runtime and continuous exclusion obligations
+- **AND** no adoption receipt, participant proof, marker publication or process control occurs
+
+#### Scenario: Incomplete, malformed or substituted observations
+
+- **WHEN** a required member or environment is omitted, duplicated or aliased, the manifest is malformed or carries an activation field, or required bytes are absent, unreadable, nonregular, outside the capture root, symlinked or differ from their independently reviewed digest
+- **THEN** the CLI refuses without inventory output
+- **AND** substituted interpreter or authority configuration bytes receive the same refusal
+
+#### Scenario: Required evidence changes during inspection
+
+- **WHEN** a required artifact or the reviewed manifest changes during the two-pass inspection
+- **THEN** the CLI refuses without inventory output
+- **AND** equal local snapshots never establish host-wide quiescence, effective authority or live process drain
