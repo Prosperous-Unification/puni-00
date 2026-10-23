@@ -123,3 +123,17 @@ Correction control command:
 bun test apps/wbs/gw-01/src/dependency-admission.integration.test.ts apps/wbs/gw-01/src/service/dependency-admission.test.ts apps/wbs/gw-01/src/retained-admission.integration.test.ts apps/wbs/gw-01/src/retirement.integration.test.ts apps/wbs/gw-01/src/service/dependency-forwarding.test.ts
 NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache
 ```
+
+## Integrated transport verification
+
+At integrated commit `54736534d`, the five-file correction control above passed:
+17 tests, zero failures, 107 assertions in 5.38s. Output is retained at
+`/tmp/puni-v1-integrated-54736534d.log`. This includes raw wire rejection,
+explicit selection, retained delivery, retirement and downstream claim binding.
+
+The parent delta now records the implemented explicit dual-offer selection and
+HTTP-OWS refusal scenarios, selected-token propagation, independent gateway/MCP
+v1 advertisement, and gateway-before-browser rollout. The previous conditional
+reject-all-offers prerequisite and empty gateway/MCP scenario describe the
+superseded incapable implementation. Backend capability remains independently
+gated; a capability observation never flips DISABLED storage authority.

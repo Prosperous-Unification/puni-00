@@ -387,15 +387,16 @@ When activation may have committed or later writes cannot be excluded, recovery 
 
 The backend SHALL advertise immutable binary dependency support through a DB-free, argument-free executable. Empty semantics SHALL explicitly mean incapable; configuration SHALL NOT grant support. A runtime-capability boundary parser SHALL reject unknown protocols, versions, roles, semantics, duplicates and extra or missing fields. A separate inspection executable SHALL accept exactly `inspect`, require explicit nonempty `DB_PATH`, open only an existing database read-only and return its validated durable activation state and exact receipt. Missing, unreadable or malformed authority SHALL refuse rather than imply DISABLED. Inspection SHALL NOT migrate, create a database, activate authoring or start services.
 
-#### Scenario: Dormant binary observation without database configuration
+#### Scenario: Incapable binary observation without database configuration
 
+- **GIVEN** a backend binary without v1 semantic implementation
 - **WHEN** the backend capability executable runs without database configuration or migrations
 - **THEN** it reports backend protocol version 1 with empty semantics independent of activation environment values
 
-#### Scenario: Gateway and MCP binary observations remain incapable
+#### Scenario: Implemented gateway and MCP binary observations declare their own support
 
 - **WHEN** either the gateway or MCP dependency capability executable runs without application configuration, database access or migrations
-- **THEN** it emits exactly one version 1 `wbs-dependency-runtime` observation with its own `gateway` or `mcp` role and empty semantics
+- **THEN** it emits exactly one version 1 `wbs-dependency-runtime` observation with its own `gateway` or `mcp` role and exact `cross-project-dependencies-v1` semantics
 - **AND** its declaration and semantics array are frozen and activation environment values cannot grant support
 - **AND** it imports neither configuration nor application startup and leaves the working directory unchanged
 - **AND** any positional argument refuses with exit 1, a diagnostic and no stdout observation
@@ -411,13 +412,14 @@ The backend SHALL advertise immutable binary dependency support through a DB-fre
 - **AND** the existing backend pair transport retains its backend-only contract and independently invokes candidate and nonnull retained images even when equal, invoking only candidate on first installation
 - **AND** this primitive imports no configuration or application startup and grants no activation, authoring, participant exclusion, deployment tier expansion or recovery permission
 
-#### Scenario: Backend capability HTTP observation remains dormant
+#### Scenario: Backend capability HTTP observation does not activate dormant storage
 
+- **GIVEN** valid DISABLED storage authority
 - **WHEN** an unauthenticated client reads `GET /api/runtime/dependency-capability`
-- **THEN** the typed mounted endpoint returns exactly the immutable backend capability reported by the DB-free executable, with backend protocol version 1 and empty semantics
+- **THEN** the typed mounted endpoint returns exactly the immutable backend capability reported by the DB-free executable, with backend protocol version 1 and its declared semantics
 - **AND** shared endpoint shapes register its `getDependencyCapability` operation for generated clients and OpenAPI
 - **AND** migration readiness, stored activation and environment configuration cannot grant semantic support or affect the observation
-- **AND** reading capability does not grant authoring: an external batch still refuses and rolls back earlier commands, and ENABLED empty authority still refuses incapable startup
+- **AND** reading capability does not grant authoring: an external batch still refuses and rolls back earlier commands
 - **AND** the infrastructure policy admits the read without identity or origin requirements and rejects framed GET bodies with typed `invalid_body` 400
 
 #### Scenario: Enabled empty authority inspection
@@ -794,7 +796,7 @@ match the shared operation matrix.
 
 ### Requirement: Gateway upgrades require fresh dependency compatibility admission
 
-Every authenticated WebSocket upgrade and reconnect SHALL ask the backend's secret-authenticated `POST /internal/gateway/dependency-admission` before joining presence, subscribing or replaying. The empty-body endpoint SHALL inspect current trusted authority through the same resource admission and return no-store 204 or the typed incompatibility 409, without a receipt or project information. The gateway SHALL forward the exact HTTP semantic claim only when both its immutable binary capability and an exact offered WebSocket subprotocol support v1. Transport, decoding and deadline failures SHALL refuse the upgrade. Until this binary implements subprotocol negotiation, any offered protocol SHALL be refused even under DISABLED authority, because native Bun upgrade implicitly echoes offered protocols. Legacy clients offering no protocol SHALL remain admitted under DISABLED authority.
+Every authenticated WebSocket upgrade and reconnect with valid protocol negotiation SHALL ask the backend's secret-authenticated `POST /internal/gateway/dependency-admission` before presence, subscription or replay. The empty-body endpoint SHALL inspect current trusted authority and return no-store 204 or typed incompatibility 409 without receipt or project information. Transport, decoding and deadline failures SHALL refuse the upgrade.
 
 #### Scenario: Activation changes between socket upgrades
 
@@ -807,7 +809,7 @@ Every authenticated WebSocket upgrade and reconnect SHALL ask the backend's secr
 
 - **GIVEN** a gateway binary supports v1
 - **WHEN** a client offers only a substring, differently cased token or HTTP semantic header
-- **THEN** the gateway omits the semantic claim and ENABLED backend authority refuses the upgrade
+- **THEN** the gateway refuses the unsupported offer without a semantic claim or application effects
 - **AND** only an exact offered protocol may be selected as the accepted WebSocket subprotocol
 
 #### Scenario: Admission transport cannot establish compatibility
@@ -815,6 +817,35 @@ Every authenticated WebSocket upgrade and reconnect SHALL ask the backend's secr
 - **WHEN** the backend transport fails, exceeds its finite deadline or returns an invalid status or malformed typed refusal
 - **THEN** the gateway refuses before opening the socket
 - **AND** origin and credential refusals precede any backend admission request
+
+### Requirement: Gateway protocol selection is explicit and exact
+
+The browser SHALL offer `wbs.cross-project-dependencies.v1` and `wbs.legacy` on every connection. The gateway SHALL prefer offered v1 only with immutable v1 support; otherwise it SHALL select only explicitly offered legacy. An absent offer SHALL mean legacy. Only HTTP SP/HTAB may surround tokens; malformed, duplicate or unknown-only offers SHALL refuse. The response SHALL name exactly the selected offered token, never echo the raw list or retry with weaker claims after failure.
+
+#### Scenario: Legacy-first offer still selects supported v1
+
+- **GIVEN** a v1-capable gateway and an offer listing legacy before exact v1
+- **WHEN** the authenticated upgrade succeeds
+- **THEN** the response selects exact v1 and the socket retains that selection
+- **AND** Bun's implicit first-token echo cannot substitute for explicit selection
+
+#### Scenario: Invalid whitespace refuses before gateway work
+
+- **GIVEN** a raw upgrade with NBSP surrounding the v1 token and pipelined application frames
+- **WHEN** protocol negotiation inspects the header
+- **THEN** it responds 409 without backend requests, presence, project access, subscriptions, replay or forwarding
+- **AND** valid SP/HTAB surrounding exact tokens remains accepted
+
+### Requirement: Selected semantics follow every gateway request
+
+The gateway SHALL retain the selected protocol per admitted connection. Fresh retained-delivery admission, project authorization, forwarding and resume SHALL claim exact HTTP semantics only for that selected v1 token with immutable gateway support. Legacy SHALL omit the claim. Neither the original offer list nor server readiness SHALL grant support. Deployment SHALL introduce the negotiating gateway before browsers that offer protocols to historically reject-all gateways.
+
+#### Scenario: Legacy cannot inherit another connection's selected semantics
+
+- **GIVEN** v1 and legacy connections on a capable gateway
+- **WHEN** either connection authorizes a project, forwards, resumes or receives retained delivery
+- **THEN** only the v1 connection carries the exact backend semantic claim
+- **AND** ENABLED backend authority refuses legacy before application effects
 
 ### Requirement: Gateway application delivery is bounded and awaitable
 
