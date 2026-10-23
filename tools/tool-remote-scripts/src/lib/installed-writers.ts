@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type BigIntStats, constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { type FileHandle, lstat, open, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
 /** Fixed inventory slots; authority slots contain captured configuration bytes, never authority to act. */
@@ -158,6 +158,9 @@ export async function readWriterBytes(path: string, checkedIdentity?: string): P
  * Compares a separately reviewed source/build manifest with an offline installed-file capture.
  * Two complete passes detect observed drift, not atomic host quiescence. Unknown host launch,
  * restart and process authority always blocks activation, including perfectly matching bytes.
+ * Retains the capture-root descriptor across both passes and resolves every child through
+ * retained parent descriptors with nofollow opens. Linux /proc/self/fd is required;
+ * missing or inaccessible procfs throws without a pathname fallback.
  * Throws for incomplete, malformed, unreadable, changed or mismatching required evidence.
  */
 export async function inspectInstalledWriters(
@@ -167,79 +170,117 @@ export async function inspectInstalledWriters(
 ) {
   const manifest = parseManifest(value);
   const canonicalRoot = await realpath(root);
-  const identities = new Map<string, string>();
-  const inodePaths = new Map<string, string>();
-  async function readMember(path: string): Promise<string> {
-    // Proof: guard removal admitted traversal resolving to the unchanged captured file in the CLI.
+  const capture = await open(
+    canonicalRoot,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    const rootStat = await capture.stat({ bigint: true });
+    const rootIdentity = `${String(rootStat.dev)}:${String(rootStat.ino)}`;
+    const identities = new Map<string, string>();
+    const inodePaths = new Map<string, string>();
+    async function readMember(path: string): Promise<string> {
+      // Proof: guard removal admitted traversal resolving to the unchanged captured file in the CLI.
+      requireEvidence(
+        !isAbsolute(path) &&
+          path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..'),
+        'invalid relative observation path',
+      );
+      const resolved = resolve(canonicalRoot, path);
+      // Proof: guard removal admitted an identical-byte file through a symlink parent in the CLI.
+      requireEvidence(
+        resolved.startsWith(`${canonicalRoot}${sep}`) && (await realpath(resolved)) === resolved,
+        'observation path escapes root or uses symlink',
+      );
+      const parents: FileHandle[] = [];
+      try {
+        let parent = capture;
+        const segments = path.split('/');
+        for (const segment of segments.slice(0, -1)) {
+          // Linux procfs provides descriptor-relative traversal where Node/Bun expose no openat.
+          // Every parent remains open until the read completes; renaming cannot redirect it.
+          // Proof: the early parent-swap CLI fault emitted success with pathname traversal or parent O_NOFOLLOW omitted.
+          // Proof: pathname fallback admitted the CLI ENOENT/EACCES procfs dependency faults.
+          const directory = await open(
+            `/proc/self/fd/${String(parent.fd)}/${segment}`,
+            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+          );
+          parents.push(directory);
+          parent = directory;
+        }
+        const leaf = path.slice(path.lastIndexOf('/') + 1);
+        const anchored = `/proc/self/fd/${String(parent.fd)}/${leaf}`;
+        const before = await lstat(anchored, { bigint: true });
+        const inode = `${String(before.dev)}:${String(before.ino)}`;
+        // Proof: deleting inode alias refusal admitted the actual CLI reviewed/captured hardlink fault.
+        requireEvidence(
+          !inodePaths.has(inode) || inodePaths.get(inode) === resolved,
+          'aliased observation inode',
+        );
+        inodePaths.set(inode, resolved);
+        const identity = identifyFile(before);
+        const bytes = await read(anchored, identity);
+        const after = await lstat(anchored, { bigint: true });
+        const observed = identifyFile(after);
+        // Proof: same-byte inode replacement fails the real CLI inode-drift test.
+        requireEvidence(
+          identity === observed &&
+            (!identities.has(resolved) || identities.get(resolved) === identity),
+          'observation identity changed',
+        );
+        identities.set(resolved, identity);
+        return hashBytes(bytes);
+      } finally {
+        for (const parent of parents.reverse()) await parent.close();
+      }
+    }
+    const first = [];
+    for (const member of manifest.members) {
+      const reviewedSha256 = await readMember(member.reviewed);
+      const installedSha256 = await readMember(member.installed);
+      // Proof: reviewed-byte, installed-byte, interpreter and restart substitutions fail hash mismatch tests.
+      requireEvidence(
+        reviewedSha256 === member.sha256 && installedSha256 === member.sha256,
+        `hash mismatch: ${member.member}`,
+      );
+      first.push({ ...member, expectedSha256: member.sha256, reviewedSha256, installedSha256 });
+    }
+    for (const [index, member] of manifest.members.entries()) {
+      // Proof: injected second-pass drift fails `refuses changing observations between complete passes`.
+      requireEvidence(
+        (await readMember(member.reviewed)) === first[index]?.reviewedSha256 &&
+          (await readMember(member.installed)) === first[index]?.installedSha256,
+        'observation changed between passes',
+      );
+    }
+    const currentRoot = await lstat(canonicalRoot, { bigint: true });
+    // Proof: omitting root identity admission made the CLI retained-root replacement emit success.
     requireEvidence(
-      !isAbsolute(path) &&
-        path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..'),
-      'invalid relative observation path',
+      rootIdentity === `${String(currentRoot.dev)}:${String(currentRoot.ino)}`,
+      'capture root changed during observation',
     );
-    const resolved = resolve(canonicalRoot, path);
-    // Proof: guard removal admitted an identical-byte file through a symlink parent in the CLI.
-    requireEvidence(
-      resolved.startsWith(`${canonicalRoot}${sep}`) && (await realpath(resolved)) === resolved,
-      'observation path escapes root or uses symlink',
-    );
-    const before = await lstat(resolved, { bigint: true });
-    const inode = `${String(before.dev)}:${String(before.ino)}`;
-    // Proof: deleting inode alias refusal admitted the actual CLI reviewed/captured hardlink fault.
-    requireEvidence(
-      !inodePaths.has(inode) || inodePaths.get(inode) === resolved,
-      'aliased observation inode',
-    );
-    inodePaths.set(inode, resolved);
-    const identity = identifyFile(before);
-    const bytes = await read(resolved, identity);
-    const after = await lstat(resolved, { bigint: true });
-    const observed = identifyFile(after);
-    // Proof: same-byte inode replacement fails the real CLI inode-drift test.
-    requireEvidence(
-      identity === observed && (!identities.has(resolved) || identities.get(resolved) === identity),
-      'observation identity changed',
-    );
-    identities.set(resolved, identity);
-    return hashBytes(bytes);
+    return {
+      version: 1 as const,
+      kind: 'installed-writer-file-inventory' as const,
+      // Proof: an allowed-activation mutation failed both library and actual CLI success assertions.
+      activation: 'blocked' as const,
+      sourceSha: manifest.sourceSha,
+      buildSha: manifest.buildSha,
+      buildId: manifest.buildId,
+      scope: 'local-supplied-capture' as const,
+      manifestSha256: hashBytes(JSON.stringify(manifest)),
+      members: first,
+      unknowns: [
+        'Host solver supervisor bundle, config, runtime and systemd unit are unsupported restart surfaces; installer shared-edge admission is unverified',
+        'Cron bytes do not prove installed crontab or absence of duplicate timers; unit bytes do not prove loaded units, drop-ins, transient units or MainPID; Compose bytes do not prove Docker configuration/restart policy',
+        'Declared manual launcher/bootstrap/configure copies do not establish canonical installed locations',
+        'Capture freshness and host attribution are unverified',
+        'Effective cron/systemd/Docker/manual launch and restart authority is unverified',
+        'Prior and running executors, interpreter selection, process drain and continuous exclusion are unverified',
+        'No exclusive-store or complete host-authority claim',
+      ],
+    };
+  } finally {
+    await capture.close();
   }
-  const first = [];
-  for (const member of manifest.members) {
-    const reviewedSha256 = await readMember(member.reviewed);
-    const installedSha256 = await readMember(member.installed);
-    // Proof: reviewed-byte, installed-byte, interpreter and restart substitutions fail hash mismatch tests.
-    requireEvidence(
-      reviewedSha256 === member.sha256 && installedSha256 === member.sha256,
-      `hash mismatch: ${member.member}`,
-    );
-    first.push({ ...member, expectedSha256: member.sha256, reviewedSha256, installedSha256 });
-  }
-  for (const [index, member] of manifest.members.entries()) {
-    // Proof: injected second-pass drift fails `refuses changing observations between complete passes`.
-    requireEvidence(
-      (await readMember(member.reviewed)) === first[index]?.reviewedSha256 &&
-        (await readMember(member.installed)) === first[index]?.installedSha256,
-      'observation changed between passes',
-    );
-  }
-  return {
-    version: 1 as const,
-    kind: 'installed-writer-file-inventory' as const,
-    // Proof: an allowed-activation mutation failed both library and actual CLI success assertions.
-    activation: 'blocked' as const,
-    sourceSha: manifest.sourceSha,
-    buildSha: manifest.buildSha,
-    buildId: manifest.buildId,
-    scope: 'local-supplied-capture' as const,
-    manifestSha256: hashBytes(JSON.stringify(manifest)),
-    members: first,
-    unknowns: [
-      'Host solver supervisor bundle, config, runtime and systemd unit are unsupported restart surfaces; installer shared-edge admission is unverified',
-      'Cron bytes do not prove installed crontab or absence of duplicate timers; unit bytes do not prove loaded units, drop-ins, transient units or MainPID; Compose bytes do not prove Docker configuration/restart policy',
-      'Declared manual launcher/bootstrap/configure copies do not establish canonical installed locations',
-      'Capture freshness and host attribution are unverified',
-      'Effective cron/systemd/Docker/manual launch and restart authority is unverified',
-      'Prior and running executors, interpreter selection, process drain and continuous exclusion are unverified',
-      'No exclusive-store or complete host-authority claim',
-    ],
-  };
 }

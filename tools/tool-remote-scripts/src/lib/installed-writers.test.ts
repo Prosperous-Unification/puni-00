@@ -275,7 +275,7 @@ import { mock } from 'bun:test';
 import * as fs from 'node:fs/promises';
 const originalOpen = fs.open;
 mock.module('node:fs/promises', () => ({ ...fs, open: async (path, ...options) => {
-  if (path !== ${JSON.stringify(join(root, 'installed/prod-swap'))}) return originalOpen(path, ...options);
+  if (await fs.realpath(path) !== ${JSON.stringify(join(root, 'installed/prod-swap'))}) return originalOpen(path, ...options);
   await fs.rename(${JSON.stringify(join(root, 'installed'))}, ${JSON.stringify(join(root, 'parked'))});
   await fs.symlink(${JSON.stringify(outside)}, ${JSON.stringify(join(root, 'installed'))});
   try { return await originalOpen(path, ...options); }
@@ -289,7 +289,7 @@ mock.module('node:fs/promises', () => ({ ...fs, open: async (path, ...options) =
   const execution = await runCli(root, manifest, preload);
   expect(execution.exitCode).not.toBe(0);
   expect(execution.stdout).toBe('');
-  expect(execution.stderr).toContain('opened observation identity differs');
+  expect(execution.stderr).toContain('hash mismatch: prod-swap');
 });
 
 test('real CLI refuses a parent symlink spanning inner identity checks', async () => {
@@ -306,9 +306,11 @@ import { mock } from 'bun:test';
 import * as fs from 'node:fs/promises';
 const originalLstat = fs.lstat;
 let checks = 0;
+let observedPath;
 mock.module('node:fs/promises', () => ({ ...fs, lstat: async (path, ...options) => {
   const identity = await originalLstat(path, ...options);
-  if (path !== ${JSON.stringify(join(root, 'installed/prod-swap'))}) return identity;
+  if (path !== observedPath && await fs.realpath(path) !== ${JSON.stringify(join(root, 'installed/prod-swap'))}) return identity;
+  observedPath = path;
   checks++;
   if (checks % 4 === 1) {
     await fs.rename(${JSON.stringify(join(root, 'installed'))}, ${JSON.stringify(join(root, 'parked'))});
@@ -325,7 +327,7 @@ mock.module('node:fs/promises', () => ({ ...fs, lstat: async (path, ...options) 
   const execution = await runCli(root, manifest, preload);
   expect(execution.exitCode).not.toBe(0);
   expect(execution.stdout).toBe('');
-  expect(execution.stderr).toContain('opened observation identity differs');
+  expect(execution.stderr).toContain('hash mismatch: prod-swap');
 });
 
 test('real CLI accepts the actual Bun interpreter binary as separately captured bytes', async () => {
@@ -368,3 +370,109 @@ test('real CLI refuses matching artifacts larger than 128 MiB before reading the
   expect(execution.stdout).toBe('');
   expect(execution.stderr).toContain('bounded regular file');
 }, 10_000);
+
+test('real CLI refuses a parent swapped before the first identity check', async () => {
+  const { root, manifest } = await fixture();
+  const outside = await mkdtemp(join(tmpdir(), 'writer-outside-'));
+  roots.push(outside);
+  await writeFile(join(outside, 'prod-swap'), 'reviewed prod-swap');
+  await writeFile(join(root, 'installed/prod-swap'), 'unreviewed actual capture');
+  const preload = join(root, 'early-race.ts');
+  await writeFile(
+    preload,
+    `
+import { mock } from 'bun:test';
+import * as fs from 'node:fs/promises';
+const originalRealpath = fs.realpath;
+const originalLstat = fs.lstat;
+const target = ${JSON.stringify(join(root, 'installed/prod-swap'))};
+const parent = ${JSON.stringify(join(root, 'installed'))};
+const parked = ${JSON.stringify(join(root, 'parked'))};
+let checks = 0;
+let swapped = false;
+mock.module('node:fs/promises', () => ({ ...fs,
+  realpath: async (path, ...options) => {
+    const canonical = await originalRealpath(path, ...options);
+    if (path === target) {
+      await fs.rename(parent, parked);
+      await fs.symlink(${JSON.stringify(outside)}, parent);
+      swapped = true;
+      checks = 0;
+    }
+    return canonical;
+  },
+  lstat: async (path, ...options) => {
+    const identity = await originalLstat(path, ...options);
+    if (swapped && (path === target || String(path).endsWith('/prod-swap')) && ++checks === 4) {
+      await fs.unlink(parent);
+      await fs.rename(parked, parent);
+      swapped = false;
+    }
+    return identity;
+  }
+}));
+`,
+  );
+  const execution = await runCli(root, manifest, preload);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+});
+
+test.each(['ENOENT', 'EACCES'])(
+  'real CLI refuses unavailable descriptor traversal: %s',
+  async (code) => {
+    const { root, manifest } = await fixture();
+    const preload = join(root, 'procfs-fault.ts');
+    await writeFile(
+      preload,
+      `
+import { mock } from 'bun:test';
+import * as fs from 'node:fs/promises';
+const originalOpen = fs.open;
+mock.module('node:fs/promises', () => ({ ...fs, open: async (path, ...options) => {
+  if (String(path).startsWith('/proc/self/fd/')) throw new Error(${JSON.stringify(code)});
+  return originalOpen(path, ...options);
+} }));
+`,
+    );
+    const execution = await runCli(root, manifest, preload);
+    expect(execution.exitCode).not.toBe(0);
+    expect(execution.stdout).toBe('');
+    expect(execution.stderr).toContain(code);
+  },
+);
+
+test('real CLI refuses replacement of the retained capture root', async () => {
+  const { root, manifest } = await fixture();
+  const parked = `${root}-parked`;
+  const preload = join(root, 'root-race.ts');
+  await writeFile(
+    preload,
+    `
+import { mock } from 'bun:test';
+import * as fs from 'node:fs/promises';
+const originalOpen = fs.open;
+let reads = 0;
+mock.module('node:fs/promises', () => ({ ...fs, open: async (...args) => {
+  const file = await originalOpen(...args);
+  const originalRead = file.readFile.bind(file);
+  file.readFile = async (...options) => {
+    const bytes = await originalRead(...options);
+    if (++reads === ${String(WRITER_MEMBERS.length * 4 + 1)}) {
+      await fs.rename(${JSON.stringify(root)}, ${JSON.stringify(parked)});
+      await fs.symlink(${JSON.stringify(parked)}, ${JSON.stringify(root)});
+    }
+    return bytes;
+  };
+  return file;
+} }));
+`,
+  );
+  const execution = await runCli(root, manifest, preload);
+  const { unlink, rename } = await import('node:fs/promises');
+  await unlink(root);
+  await rename(parked, root);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+  expect(execution.stderr).toContain('capture root changed');
+});

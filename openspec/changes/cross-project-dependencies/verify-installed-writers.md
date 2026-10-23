@@ -151,3 +151,62 @@ Fresh correction checks:
 No broad test suite, build, host calls, installation/adoption or exact-SHA host
 gate was run for this correction. Independent Astra rereview remains pending;
 parent tasks 10.1/10.2 remain open.
+
+## Retained directory descriptor correction after 4119a1804
+
+Astra reproduced an earlier race: `realpath` first observes the local installed
+file, then the installed parent is parked and replaced with an outside symlink
+before the first `lstat`. The symlink remains through all four identity checks
+and the read, then is restored before the next pass. External expected bytes
+masked an unreviewed local capture. The actual CLI regression `real CLI refuses
+a parent swapped before the first identity check` was watched red against the
+previous implementation: **0 pass, 1 fail, 41 filtered**; the exit-code assertion
+received 0.
+
+The inventory now retains one capture-root directory descriptor for both passes.
+Every relative parent is opened beneath the retained parent through Linux
+`/proc/self/fd/<fd>/<segment>` with `O_DIRECTORY | O_NOFOLLOW`; all parent
+descriptors remain open until the leaf read finishes. Leaf reads, their path
+stats, opened-file identity admission and alias identities use that anchored
+parent. Renaming a parent cannot redirect the read. The leaf retains its
+`O_NOFOLLOW` reader and bounded ordinary-file admission. Root device/inode
+identity is compared with the retained descriptor's initial identity after both
+passes. Missing/inaccessible procfs is a required-dependency failure without
+pathname fallback.
+
+The prior late-open and inner-identity swap preloads now recognize descriptor
+paths, so they still perform real directory replacement. They refuse with the
+unreviewed local bytes' hash mismatch because the retained parent descriptor
+continues selecting the captured directory. Existing hardlink, comma-packed
+membership, real Bun interpreter and 128 MiB boundary tests remain.
+
+Watched production mutations, each restored before validation:
+
+- Bypass descriptor traversal and use the ordinary resolved pathname for the
+  leaf: the early-swap CLI and both unavailable-procfs CLI cases failed their
+  exit-code assertions, each receiving 0 (**0 pass, 3 fail, 42 filtered**).
+- Remove only parent-open `O_NOFOLLOW`: the early-swap CLI again emitted success
+  (**0 pass, 1 fail, 44 filtered**). The preload restores the outside symlink
+  after the fourth identity check for pathname and descriptor-path traversal.
+- Remove only retained-root identity admission: the actual CLI root-replacement
+  test emitted success (**0 pass, 1 fail, 44 filtered**). The fault renames the
+  capture root and substitutes a symlink after the final artifact read; it does
+  not replace the observer or the report.
+
+Fresh correction checks:
+
+- `bun test tools/tool-remote-scripts/src/lib/installed-writers.test.ts`:
+  **45 pass, 0 fail, 97 assertions** after all restorations.
+- `NX_DAEMON=false bunx nx run tool-remote-scripts:typecheck --skip-nx-cache`:
+  **exit 0**.
+- `NX_DAEMON=false bunx nx run tool-remote-scripts:lint --skip-nx-cache`:
+  **exit 0**. Both Nx commands used the existing in-process plugin fallback
+  after sandbox worker socket refusal.
+- `bunx --no-install openspec validate cross-project-dependencies --json`:
+  **exit 0**, one valid change; existing long-requirement warnings remain.
+- Changed-file Prettier and `git diff --check`: **exit 0**.
+
+No broad suite, build, exact-SHA host gate, host calls, installation/adoption,
+activation, push or integration was performed. The inventory still always
+reports blocked activation. Independent Astra rereview remains pending; parent
+10.1/10.2 and all effective installed-authority obligations remain open.
