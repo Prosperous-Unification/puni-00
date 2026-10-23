@@ -1,4 +1,5 @@
 import {
+  isSecretShaped,
   ORGANIZATION_AUDIT_ACTIONS,
   type OrganizationAuditAction,
   type OrganizationAuditDetail,
@@ -19,21 +20,11 @@ const SUBJECT_KINDS: readonly OrganizationAuditSubjectKind[] = [
   'provisioning_token',
   'scim_user',
   'session_policy',
+  'machine_credential',
+  'trusted_issuer',
+  'organization_limits',
+  'compute_provider',
 ];
-
-/**
- * A detail value that would leak what an audit row must never hold: a raw
- * provisioning token, a 64-hex digest, or a full upstream subject (two `|`).
- * A prefix such as `samlp|acme-saml|` is allowed; it is what the row names.
- */
-function isSecretShaped(value: string): boolean {
-  return (
-    value.startsWith('wbs_scim_') ||
-    /^[0-9a-f]{64}$/i.test(value) ||
-    /^[^|]+\|[^|]+\|.+$/.test(value) ||
-    /^[^|]+\|[^|]+$/.test(value)
-  );
-}
 
 /**
  * Appends one row to `tx`, so it commits or rolls back with the act it

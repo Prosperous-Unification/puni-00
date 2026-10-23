@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+144 |   expect(f.source.readFile(root + '/bom')).toBe('bom');
+145 |   expect(f.source.pathKind(root + '/missing')).toBe('absent');
+146 |   expect(f.source.readFile(root + '/missing')).toBeUndefined();
+147 |   expect(f.source.readFile(root)).toBeUndefined();
+148 |   expect(f.source.realpath(root + '/missing')).toBe(root + '/missing');
+149 |   expect(() => f.source.pathKind(root + '/plain/../dir')).toThrow('not a directory');
+                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "not a directory"
+
+Received function did not throw
+Received value: "directory"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:149:59)
+(fail) component walk resolves owned links and preserves file ancestor semantics [183.57ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [1150.00ms]

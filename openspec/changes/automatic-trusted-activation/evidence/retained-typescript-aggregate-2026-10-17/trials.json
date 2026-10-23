@@ -1,0 +1,72 @@
+[
+  {
+    "name": "aggregate-separator-fence",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (length >= limits.maximumExpandedPathBytes - bytes)",
+    "new": "if (false)",
+    "test": "expanded aggregate includes"
+  },
+  {
+    "name": "pattern-nul",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "value.includes('\\0') ||",
+    "new": "false ||",
+    "test": "pattern syntax admission precedes link copies"
+  },
+  {
+    "name": "pattern-backslash",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "value.includes('\\\\') ||",
+    "new": "false ||",
+    "test": "pattern syntax admission precedes link copies"
+  },
+  {
+    "name": "pattern-surrogate",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(value)",
+    "new": "false",
+    "test": "pattern syntax admission precedes link copies"
+  },
+  {
+    "name": "supplied-depth-integer",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "!Number.isSafeInteger(depth)",
+    "new": "false",
+    "test": "supplied enumeration depth refuses before link copies"
+  },
+  {
+    "name": "supplied-depth-lower",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "depth < 1",
+    "new": "false",
+    "test": "supplied enumeration depth refuses before link copies"
+  },
+  {
+    "name": "supplied-depth-upper",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "depth < 1 || depth > limits.maximumDirectoryDepth",
+    "new": "depth < 1 || false",
+    "test": "supplied enumeration depth refuses before link copies"
+  },
+  {
+    "name": "snapshot-count",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "index < count",
+    "new": "index < values.length",
+    "test": "captured extensions ignore"
+  },
+  {
+    "name": "caller-include-reread",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "capturedInclude.length > 0",
+    "new": "include.length > 0",
+    "test": "captured includes remain missing-only"
+  },
+  {
+    "name": "missing-index",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (value === undefined) throw new Error('source pattern missing');",
+    "new": "",
+    "test": "captured patterns refuse a missing indexed entry"
+  }
+]

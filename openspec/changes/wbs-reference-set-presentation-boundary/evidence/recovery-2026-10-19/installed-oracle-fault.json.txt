@@ -1,0 +1,9 @@
+{
+  "command": [
+    "python3",
+    "/tmp/wbs100-reference-installed-oracle-20261019.py",
+    "/tmp/wbs100-reference-installed-base-external-20261019.stdout",
+    "/tmp/wbs100-reference-installed-fault-20261019.stdout"
+  ],
+  "exitCode": 1
+}

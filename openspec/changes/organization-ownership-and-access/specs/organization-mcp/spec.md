@@ -2,7 +2,7 @@
 
 ### Requirement: MCP authorization binds one organization end to end
 
-mcp-01 SHALL require a user to select one current organization during OAuth consent. It SHALL bind the organization to the authorization code, grant, refresh family and access session. Changing organizations SHALL require fresh authorization. The credential or authenticated delegation reaching be-01 SHALL bind WBS user, organization, client, grant/family, granted scopes, audience and expiry; be-01 SHALL verify that binding, upstream identity where used, and current membership on every tool call. Client scopes SHALL only narrow membership permissions. Caller-supplied organization headers, tool arguments and upstream tokens without an accepted organization binding SHALL not confer access. A direct upstream-token path SHALL meet the same audience and binding contract or be refused.
+mcp-01 SHALL require a user to select one current organization during OAuth consent, or bind the only one a single-membership user has. It SHALL bind the organization to the authorization code, grant, refresh family and access session. Changing organizations SHALL require fresh authorization. The credential or authenticated delegation reaching be-01 SHALL bind WBS user, organization, client, grant/family, granted scopes, audience and expiry; be-01 SHALL verify that binding, upstream identity where used, and current membership on every tool call. Client scopes SHALL only narrow membership permissions. Caller-supplied organization headers, tool arguments and upstream tokens without an accepted organization binding SHALL not confer access. A direct upstream-token path SHALL meet the same audience and binding contract or be refused.
 
 #### Scenario: Binding lost during translation
 
@@ -59,6 +59,18 @@ The durable mcp-01 store SHALL have a versioned, paired migration that adds orga
 - **GIVEN** a pre-activation family and refresh token survive in the durable MCP store
 - **WHEN** isolation activates, mcp-01 restarts and the client refreshes
 - **THEN** refresh is refused and fresh organization-selecting authorization is required
+
+#### Scenario: Consent between the epoch advance and activation waits
+
+- **GIVEN** the MCP store has advanced its credential epoch and the WBS isolation marker is not yet committed
+- **WHEN** a user completes MCP consent
+- **THEN** the consent is refused as temporarily unavailable and no authorization code is issued
+
+#### Scenario: An advanced store refuses mcp-01 that cannot bind organizations
+
+- **GIVEN** the MCP store is at the advanced credential epoch
+- **WHEN** an mcp-01 process starts without organization authority, or with code that does not understand that epoch
+- **THEN** startup is refused before anything is served
 
 #### Scenario: Old code or direct token cannot bypass cutover
 

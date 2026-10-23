@@ -1,0 +1,6 @@
+
+ NX   JSON output created in /tmp
+
+/tmp/step-parallel-resolver-graph.json
+
+{"ceilingBytes": 805306368, "sampledPeakBytes": 276324352, "exitCode": 0}

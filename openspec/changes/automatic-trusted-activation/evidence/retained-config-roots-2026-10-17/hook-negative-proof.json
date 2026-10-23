@@ -1,0 +1,12 @@
+{
+  "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+  "fault": "Append syntactically invalid exported constant in the real staged test",
+  "originalSourceIdentity": "5dc7c9bdb2f63cd946d9c9e356d02b186490d0b57f87771976cfd95d6c0c0a82",
+  "restoredSourceIdentity": "5dc7c9bdb2f63cd946d9c9e356d02b186490d0b57f87771976cfd95d6c0c0a82",
+  "originalIndexIdentity": "33d9e2d0fe3cefbb313529f510376cf1f7c6924910b8fd7f98d0003ee7f40591",
+  "restoredIndexIdentity": "33d9e2d0fe3cefbb313529f510376cf1f7c6924910b8fd7f98d0003ee7f40591",
+  "originalTree": "239033ccf4650121fd97ec535f5af20e731708f4",
+  "restoredTree": "239033ccf4650121fd97ec535f5af20e731708f4",
+  "hookExitCode": 1,
+  "wrapperExitCode": 1
+}

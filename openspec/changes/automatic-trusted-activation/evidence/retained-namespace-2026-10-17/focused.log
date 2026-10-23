@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+(pass) retains sha1 exact tuples after source/store/runtime removal without content IO [93.83ms]
+(pass) retains sha256 exact tuples after source/store/runtime removal without content IO [87.38ms]
+(pass) rejects copied and false-empty owners before accessing either census [93.08ms]
+(pass) rejects candidate path "" [92.55ms]
+(pass) rejects candidate path "/a" [94.64ms]
+(pass) rejects candidate path "a/" [102.89ms]
+(pass) rejects candidate path "a//b" [107.20ms]
+(pass) rejects candidate path "." [96.60ms]
+(pass) rejects candidate path ".." [109.78ms]
+(pass) rejects candidate path "a/./b" [103.16ms]
+(pass) rejects candidate path "a/../b" [107.97ms]
+(pass) rejects candidate path "a\\b" [91.43ms]
+(pass) rejects candidate path "a\u0000b" [89.01ms]
+(pass) rejects candidate path "a\ud800b" [109.69ms]
+(pass) rejects candidate path ".git/config" [104.04ms]
+(pass) rejects candidate path "a/.git/x" [126.52ms]
+(pass) rejects candidate path "node_modules/a" [102.59ms]
+(pass) rejects candidate path "a/node_modules/x" [112.05ms]
+(pass) rejects unsupported candidate mode 160000 [99.52ms]
+(pass) rejects unsupported candidate mode 040000 [88.99ms]
+(pass) rejects unsupported candidate mode 100664 [85.33ms]
+(pass) rejects duplicate mounts and file or opaque symlink ancestors [109.60ms]
+(pass) rejects visible runtime .git paths but excludes programs and other dependencies [95.99ms]
+(pass) validates maximumEntries positive safe integer [103.81ms]
+(pass) validates maximumNodes positive safe integer [100.13ms]
+(pass) validates maximumPathBytes positive safe integer [89.05ms]
+(pass) validates maximumTotalPathBytes positive safe integer [102.18ms]
+(pass) counts all runtime entries before visibility filtering [98.28ms]
+(pass) counts root and every derived directory in node ceiling [104.96ms]
+(pass) caps source and virtual paths before UTF8 or concatenation allocation [83.80ms]
+(pass) caps aggregate retained node and source path fields exactly [67.61ms]
+(pass) snapshots each installed limit once [75.55ms]
+(pass) bounds code units before UTF8 measurement and bytes before grammar allocation [101.85ms]
+(pass) keeps programs outside compiler visibility even under node_modules [89.24ms]
+(pass) sorts by UTF8 bytes, preserves case and copies exact tuples [83.04ms]
+
+ 35 pass
+ 0 fail
+ 140 expect() calls
+Ran 35 tests across 1 file. [4.37s]

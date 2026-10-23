@@ -1,0 +1,13 @@
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts(275,27): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ ok: boolean; reason: string; nodes: { workItemId: string; stepId: string; }[]; }' is not assignable to parameter of type '{ ok: false; reason: "referenced_by_step_parallel"; nodes: readonly StepNodeRef[]; } | WorkItemOutcome<null>'.
+      Type '{ ok: boolean; reason: string; nodes: { workItemId: string; stepId: string; }[]; }' is not assignable to type '{ ok: false; reason: "referenced_by_step_parallel"; nodes: readonly StepNodeRef[]; }'.
+        Types of property 'ok' are incompatible.
+          Type 'boolean' is not assignable to type 'false'.
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts(278,27): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ ok: boolean; reason: string; nodes: { workItemId: string; stepId: string; }[]; }' is not assignable to parameter of type '{ ok: false; reason: "referenced_by_step_parallel"; nodes: readonly StepNodeRef[]; } | WorkItemOutcome<null>'.
+      Type '{ ok: boolean; reason: string; nodes: { workItemId: string; stepId: string; }[]; }' is not assignable to type '{ ok: false; reason: "referenced_by_step_parallel"; nodes: readonly StepNodeRef[]; }'.
+        Types of property 'ok' are incompatible.
+          Type 'boolean' is not assignable to type 'false'.
+{"ceilingBytes": 1342177280, "sampledPeakBytes": 942739456, "exitCode": 1}

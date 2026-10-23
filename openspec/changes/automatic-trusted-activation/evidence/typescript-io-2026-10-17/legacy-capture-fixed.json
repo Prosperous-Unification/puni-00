@@ -1,0 +1,8 @@
+{
+  "command": ["bun", "/tmp/capture-typescript-legacy.ts"],
+  "exitCode": 0,
+  "peakTreeRssBytes": 190156800,
+  "seconds": 0.687,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 60
+}

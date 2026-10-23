@@ -1,0 +1,210 @@
+[
+  {
+    "fault": "omit-rootdirs",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "f4367cd2135a8df3cc66b251eeae25abed60ae240a30940f178302c83bbd655a",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "refuses absolute outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 353764,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs refuses absolute outside before program with types empty [246.97ms]"
+    ]
+  },
+  {
+    "fault": "raw-only",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "da06144f626c37b3862a2c0dc5ba34c07364b048c43b5674bf95dd730c699c9c",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "refuses inherited outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 356024,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs refuses inherited outside before program with types empty [243.72ms]"
+    ]
+  },
+  {
+    "fault": "wrong-base",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "d993af33c3bc15d339a1b3f8d3bc0ba44b80abb6475eadc850dffa890306d33e",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "preserves normalized typeRoots then rootDirs",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 178096,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained configuration admission preserves normalized typeRoots then rootDirs without deduplication [17.77ms]"
+    ]
+  },
+  {
+    "fault": "discarded-inherited",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "ae45de5c2b7cb1cfa38ea57c54a4b131fb3a0a424777c945e78ed9a2768d303e",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "admits override discarded outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350840,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs admits override discarded outside [148.01ms]"
+    ]
+  },
+  {
+    "fault": "host-before-admission",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "e1eb5a9bb7f4b318e5a5d6c6b00463057024f6be0025929d93c386145477d58f",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "refuses absolute outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 351984,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs refuses absolute outside before program with types empty [164.17ms]"
+    ]
+  },
+  {
+    "fault": "types-empty-gating",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "ead3a192d3fe5440f8a04e4e96ec2c8b6a56485e2b4fc0b87bd03480eae7e972",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "refuses absolute outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 355124,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs refuses absolute outside before program with types empty [246.74ms]"
+    ]
+  },
+  {
+    "fault": "requires-existence",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "45a42152cbae6a6cbe91805224242dbd0b58eeeb525802ab7103eee6ea327bdc",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "admits missing",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348944,
+    "ceilingKiB": 921600,
+    "observedFailure": ["(fail) retained effective rootDirs admits missing [167.93ms]"]
+  },
+  {
+    "fault": "masked-source-route",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "a83a4461f09e2ce31691e64c0db573284f7013a9623469f10f8b64d6953a5f30",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "refuses absolute outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 357740,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs refuses absolute outside before program with types empty [239.47ms]"
+    ]
+  },
+  {
+    "fault": "omit-compiler-charge",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "d4c98d98f81a38c1e9461feeaad1de816eaec69dfe0070ac6c1abf1b2fc08b8e",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "charges repeated compiler admission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 359352,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs charges repeated compiler admission at exact fit [4185.82ms]"
+    ]
+  },
+  {
+    "fault": "mount-old-mode",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts",
+    "sourceIdentity": "7b41fed9a2d02bcfb6d36d18155d0971bc063b8694559eab092613dbd82afb58",
+    "injectedIdentity": "4402c549742ab955cc9d1b6276460d8a7188c2d532fce45f3475c661c85a8224",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "refuses absolute outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 358148,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs refuses absolute outside before program with types empty [222.44ms]"
+    ]
+  },
+  {
+    "fault": "omit-new-type-roots",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "d061969b4e8d43f64fb017de0326f74cedd324a560b2b2a3520f5bcb40b16074",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+    "pattern": "refuses absolute outside",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 356092,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective typeRoots refuses absolute outside before program with types empty [227.15ms]"
+    ]
+  },
+  {
+    "fault": "global-rootdirs",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "568e35abb0e6c02931f3f4d3bdc8d5504f08e59cc64d1883438e410100d49b32",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "previous retained type roots mode",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 176192,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) previous retained type roots mode preserves rootDirs as ordinary namespace probes [7.51ms]"
+    ]
+  },
+  {
+    "fault": "omit-mode-validation",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "sourceIdentity": "988782269168521ac5749d35a8668df45f00de7597f20bab080be8b31de1f12a",
+    "injectedIdentity": "fdc81a26c0f5b21ea5c25b0749c1c7b1983f4c62e0ca76c4b2e4aa6d9a3ce793",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+    "pattern": "configuration mode rejects unknown",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 178972,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) compiler configuration mode rejects unknown before source callbacks [0.69ms]"
+    ]
+  },
+  {
+    "fault": "deduplicate-rootdirs",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "5da7809e4fa92a84a08b3fa74151bc6c89bfbf676069e6607b80931829b6e592",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "pattern": "charges repeated compiler admission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 359268,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained effective rootDirs charges repeated compiler admission at exact fit [4184.84ms]"
+    ]
+  },
+  {
+    "fault": "reverse-order",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791",
+    "injectedIdentity": "b63bba16a2e880da2dd9f4d1ab0976e120770673263d7c1f9b76ad5d15e5846c",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "preserves normalized typeRoots then rootDirs",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 177756,
+    "ceilingKiB": 921600,
+    "observedFailure": [
+      "(fail) retained configuration admission preserves normalized typeRoots then rootDirs without deduplication [19.36ms]"
+    ]
+  }
+]

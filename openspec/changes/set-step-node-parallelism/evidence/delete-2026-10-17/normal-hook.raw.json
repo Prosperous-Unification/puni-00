@@ -1,0 +1,5 @@
+{
+  "rawSha256": "104ac9712b9c08879ef828a52fdc82ce8f9fef5e42cafe1090b74b06deffcf9b",
+  "normalization": "Display removes ANSI escapes and trailing line whitespace; rawTranscript preserves original bytes as UTF-8.",
+  "rawTranscript": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mpre-commit\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2503  doc-caps \u276f \n\n\u2503  format \u276f \nChecking formatting...\nAll matched files use Prettier code style!\n\n{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 955985920, \"killed\": true}\n"
+}

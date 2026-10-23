@@ -3,14 +3,17 @@ import type {
   CalendarMarkerStore,
   CapacityStore,
   Clock,
+  DemandStore,
   DirectoryStore,
   Person,
   PersonAdded,
   PlanEventStore,
   PriorityBandStore,
   ProjectStore,
+  ResourceCapacityStore,
   StepStore,
   WorkItemService,
+  WorkItemStore,
 } from '@wbs/core';
 import {
   CalendarMarkerService,
@@ -39,6 +42,11 @@ import { inMemoryStores } from '../in-memory-source';
 import { inMemoryPriorityBands } from '../priority-band-fixture';
 import { inMemoryProjects } from '../project-fixture';
 import { inMemoryEventLog } from '../replay-fixture';
+import {
+  inMemoryDemands,
+  inMemoryResourceCapacity,
+  memoryResourceTables,
+} from '../resource-fixture';
 import { inMemorySteps } from '../step-fixture';
 
 export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
@@ -76,12 +84,17 @@ export function testCapacityService(
   projects: ProjectStore = inMemoryProjects(),
   capacity: CapacityStore = inMemoryCapacity(),
   broadcast: Broadcaster = recordingBroadcaster(),
+  resourceCapacity: ResourceCapacityStore = inMemoryResourceCapacity(
+    memoryResourceTables(),
+    async (projectId) => (await projects.findById(projectId)) !== null,
+  ),
 ): CapacityService {
   return new CapacityService({
     admission: CREATOR_ADMISSION,
     clock: testClock,
     projects,
     capacity,
+    resourceCapacity,
     broadcast,
   });
 }
@@ -144,3 +157,25 @@ export async function personAdded(added: Promise<PersonAdded>): Promise<Person> 
 }
 
 export { labelledRow, workItemRow } from '@wbs/core/testing/work-item-fixture';
+
+/** An explicit empty memory sparse store for compositions that author no overrides. */
+export function testStepParallels() {
+  return inMemoryStores().stepParallels;
+}
+
+/**
+ * A demand store and a resource capacity store over one fresh table set that
+ * states nothing, for a work-item service fixture whose plan reads must level
+ * resources (`wbs-resources` R5) but whose cases state none. Every project is
+ * taken to exist, because these fixtures never write a capacity.
+ */
+export function testResourceStores(workItems: WorkItemStore): {
+  demands: DemandStore;
+  resourceCapacity: ResourceCapacityStore;
+} {
+  const tables = memoryResourceTables();
+  return {
+    demands: inMemoryDemands(tables, workItems),
+    resourceCapacity: inMemoryResourceCapacity(tables, () => Promise.resolve(true)),
+  };
+}

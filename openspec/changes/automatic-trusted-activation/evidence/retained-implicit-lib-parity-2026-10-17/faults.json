@@ -1,0 +1,165 @@
+[
+  {
+    "fault": "redirect-library-namespace",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 611860,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "esm-physical-library-read",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": "error: forbidden ambient route",
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 613556,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "ambient-library-substitution",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": "error: forbidden ambient route",
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 633936,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-indirect-census-entry",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 858864,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "wrong-indirect-identity",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 860508,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-source-byte-accounting",
+    "testPattern": "implicit compiler bounds exact source library observations",
+    "expectedTest": "retained implicit compiler bounds exact source library observations",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler bounds exact source library observations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 839708,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-compiler-byte-accounting",
+    "testPattern": "implicit compiler bounds exact compiler library observations",
+    "expectedTest": "retained implicit compiler bounds exact compiler library observations",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler bounds exact compiler library observations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 831816,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-envelope-accounting",
+    "testPattern": "implicit compiler bounds exact envelope library observations",
+    "expectedTest": "retained implicit compiler bounds exact envelope library observations",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler bounds exact envelope library observations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 827208,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "wrong-default-selection",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "retainedMountReached": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 638448,
+    "ceilingKiB": 921600
+  }
+]

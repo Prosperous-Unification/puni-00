@@ -10,6 +10,13 @@ export interface OrganizationScope {
   readonly organizationId: string;
   readonly userId: string;
   readonly role: OrganizationRole;
+  /**
+   * Present, and true, when the request acts through a delegation or a
+   * machine credential's direct context rather than as the user themself
+   * (`wbs-machine-credentials` A24): such a request never removes a machine
+   * credential, by route or by a person's cascade.
+   */
+  readonly delegated?: true;
 }
 
 /**
@@ -22,6 +29,19 @@ export interface OrganizationScope {
  */
 export function canWriteInOrganization(role: OrganizationRole): boolean {
   return role !== 'viewer';
+}
+
+/**
+ * Whether `role` may say which account acts as which person (`wbs-team-claims`
+ * D5): an admin or a super-admin. The same two roles may claim on behalf of a
+ * person bound to another account.
+ *
+ * Proof: answering `canWriteInOrganization(role)` here made `refuses a member
+ * binding a person to an account` in `person-account.controller.db.test.ts`
+ * answer 200 with the binding written (watched 2026-10-19).
+ */
+export function mayBindAccountInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
 }
 
 /**

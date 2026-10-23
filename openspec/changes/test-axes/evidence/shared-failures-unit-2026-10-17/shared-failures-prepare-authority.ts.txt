@@ -1,0 +1,38 @@
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readCandidate } from '/tmp/puni-shared-failures-unit-oct17/apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-candidate.ts';
+import {
+  hashBytes,
+  hashCanonical,
+} from '/tmp/puni-shared-failures-unit-oct17/apps/twilight-structure/twilight-burokrat/cli/src/evidence/content-manifest.ts';
+const root = '/tmp/puni-shared-failures-unit-oct17';
+const invocation = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
+  cwd: root,
+  stdout: 'pipe',
+  stderr: 'pipe',
+});
+if (invocation.exitCode !== 0) throw new Error(invocation.stderr.toString());
+const revision = invocation.stdout.toString().trim();
+const selected = readCandidate(root, { kind: 'committed', revision });
+const candidate = hashCanonical({
+  selection: selected.selection,
+  entries: selected.entries,
+  untracked: selected.untracked,
+});
+const external = '/tmp/shared-failures-real-unit-oct17';
+mkdirSync(external, { recursive: true });
+const bytes = readFileSync(root + '/tmp/junit/shared-failures.unit.xml');
+writeFileSync(external + '/report.xml', bytes);
+const authority = {
+  schemaVersion: 1,
+  revision,
+  candidate,
+  projectRoot: 'libs/shared/domain/failures',
+  projectManifest: {
+    path: 'libs/shared/domain/failures/project.json',
+    digest: hashBytes(readFileSync(root + '/libs/shared/domain/failures/project.json')),
+  },
+  target: 'test:unit:level',
+  junit: { path: external + '/report.xml', digest: hashBytes(bytes) },
+};
+writeFileSync(external + '/authority.json', JSON.stringify(authority, null, 2) + '\n');
+console.log(JSON.stringify(authority));

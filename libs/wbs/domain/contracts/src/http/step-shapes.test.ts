@@ -65,7 +65,7 @@ test('declares the full step response and each usage count and assumed-assignee 
     },
   });
   const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
-  // Context change joins in-use, typed dependency and cycle conflicts.
+  // Context and retained sparse policy join in-use, typed dependency and cycle conflicts.
   interface Variant {
     anyOf?: Variant[];
     properties?: Record<string, unknown>;
@@ -79,8 +79,24 @@ test('declares the full step response and each usage count and assumed-assignee 
     ['error'],
     ['error', 'inUse'],
     ['dependencyIds', 'error'],
+    ['error', 'nodes'],
     ['error'],
   ]);
+  // Proof: removing the sparse refusal or its node workItemId independently failed this test (2026-10-17).
+  expect(variants.at(4)).toMatchObject({
+    required: ['error', 'nodes'],
+    properties: {
+      error: { const: 'referenced_by_step_parallel' },
+      nodes: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['stepId', 'workItemId'],
+          properties: { stepId: { type: 'string' }, workItemId: { type: 'string' } },
+        },
+      },
+    },
+  });
   expect(variants.at(2)).toMatchObject({
     properties: {
       inUse: {

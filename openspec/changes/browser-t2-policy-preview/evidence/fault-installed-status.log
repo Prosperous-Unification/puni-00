@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+476 |     const source = await invokeCli(setup.argv);
+477 |     const installed = run();
+478 |     expect(source.exitCode, source.stderr).toBe(mode === 'observe' ? 0 : 1);
+479 |     expect(installed.exitCode, installed.stderr.toString()).toBe(source.exitCode);
+480 |     expect(installed.stdout.toString()).toBe(source.stdout);
+481 |     expect(installed.stderr.toString()).toBe('');
+                                              ^
+error: expect(received).toBe(expected)
+
+- ""
++ "Twilight Burokrat validator exited 1
++ "
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:481:41)
+(fail) [BROWSER-T2-POLICY-PREVIEW-012] source and installed previews retain identity and only citation refusals exit one [8453.97ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [9.46s]

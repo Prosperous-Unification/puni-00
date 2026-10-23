@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "--fix",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 736632,
+  "ceilingKiB": 921600
+}

@@ -17,7 +17,8 @@ _Avoid_: Twilight, the factory, as a product name
 
 **Twilight Structure**:
 The suite of tools the product runs on: Twilight Navigator, Twilight Dash and Twilight
-Burokrat. Short form twist. Until 2026-09-19 this term named the factory service itself.
+Burokrat. Short form twist; it named the factory service itself until
+[2026-09-19](names.md#what-changed).
 _Avoid_: Using it for the product or for the execution runtime
 
 **Twilight Navigator**:
@@ -31,9 +32,11 @@ environments. Short form twid.
 _Avoid_: Twilight Structure, control plane, as the tool's name
 
 **Twilight Burokrat**:
-The rules tool of the suite: it judges whether an artifact conforms, from a Git revision and
-recorded evidence alone, and holds templates and structure. Short form twib.
-_Avoid_: Tool Wiki, wiki CLI
+The rules tool of the suite, a reusable toolkit for module knowledge, review evidence and trusted
+repository admission that supports [Radical Modularity](../../CONTEXT.md#architecture): it judges
+whether an artifact conforms, from a Git revision and recorded evidence alone, and holds templates
+and structure. Short form twib.
+_Avoid_: Tool Wiki, tool-wiki, wiki CLI, LLM wiki (as the product name)
 
 **Personal phase**:
 The first product phase, intended for Dany's own use of the assistant and
@@ -61,7 +64,8 @@ _Avoid_: Dev-main, branch dev
 **Environment**:
 A stable, addressable deployment target with an owner, lifecycle and separately
 recorded desired and observed source or artifact.
-_Avoid_: Workspace, branch, URL
+_Avoid_: Workspace, branch, URL; not the WBS [Environment](../../CONTEXT.md#deployment), one
+`WBS_ENV` copy of the three tiers
 
 **Environment observation**:
 An adapter's attributed reading of the source or artifact actually served, health
@@ -212,7 +216,8 @@ _Avoid_: Scheduler, orchestrator, server
 **Worker**:
 An isolated process that performs one activity attempt with no access to
 control-plane credentials or policy writes.
-_Avoid_: Agent, sandbox
+_Avoid_: Agent, sandbox; not the assistant's [Worker](../assistant/CONTEXT.md#language), a
+recurring agent identity
 
 **Worker provisioner**:
 The trusted adapter that places an admitted attempt on registered execution
@@ -283,7 +288,7 @@ _Avoid_: Lock, session
 One atomic grant of claims to a session in the admission authority, numbered from
 one counter that never resets; its number fences every later write of that session.
 See **Lease**.
-_Avoid_: Attempt, version
+_Avoid_: Attempt, version; not the WBS optimization [Generation](../../CONTEXT.md#deployment)
 
 **Publication marker**:
 The immutable ref recording that one integration's Git transaction committed, so a
@@ -296,10 +301,11 @@ an absent store refuses instead.
 _Avoid_: Initialization on open, auto-create
 
 **Activation controller**:
-Twilight Dash's second authority: the service that observes ready candidates and drives each
-toolkit activation request through its review and check obligations, owning the observation
-store. It shares no store, lock or account with the admission authority.
-_Avoid_: Observer, Tool Wiki controller, activation daemon
+Twilight Dash's second authority: the service that observes ready candidates and coordinates each
+toolkit activation's independent review, checks, certification and publication for an exact
+candidate and its admission context, owning the observation store. It shares no store, lock or
+account with the admission authority.
+_Avoid_: Observer, Tool Wiki controller, activation daemon, self-certifier, approval bot
 
 **Observation tick**:
 One bounded, timer-started pass of the activation controller over the provider's ready
@@ -389,6 +395,16 @@ The run's attributable record of planned, reserved, and measured consumption,
 waits, human effort, serving choices, and profile epochs.
 _Avoid_: Usage, bill
 
+**Accepted outcome**:
+A unit of delivered work a client would pay for: today a first-parent merge into the
+default branch that names a pull request, later a WBS step stated done.
+_Avoid_: Merged PR, ticket, deliverable count
+
+**Usage attribution**:
+The stated rule by which measured harness usage is assigned to one accepted outcome or to
+an explicit unattributed remainder with its reason.
+_Avoid_: Cost allocation, chargeback, guess
+
 **Efficiency breakdown**:
 A reconciled explanation of an outcome's cost through its requests, attempts,
 model turns, token categories, tool context, and rates. It observes cost drivers
@@ -431,7 +447,8 @@ _Avoid_: Bug, regression
 **Organization**:
 The owning party for repositories, members, and policy floors; one is configured
 at bootstrap.
-_Avoid_: Tenant, account
+_Avoid_: Tenant, account; not the WBS [Organization](../../CONTEXT.md#organization-access), the
+access boundary for WBS projects
 
 **Installation operator**:
 The party responsible for maintaining and restoring a Twilight installation on

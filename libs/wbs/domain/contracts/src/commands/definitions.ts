@@ -54,6 +54,7 @@ const person = { 'personId?': 'string', 'personRef?': 'string' } as const;
 const tag = { 'tagId?': 'string', 'tagRef?': 'string' } as const;
 const service = { 'serviceId?': 'string', 'serviceRef?': 'string' } as const;
 const workItemType = { 'typeId?': 'string', 'typeRef?': 'string' } as const;
+const resource = { 'resourceId?': 'string', 'resourceRef?': 'string' } as const;
 // Proof: admitting frozenNumber failed nested structural validation and made its type fixture report TS2578.
 const workItemPatch = type({
   'name?': 'string',
@@ -99,7 +100,8 @@ export const commandDefinitions = {
   moveWorkItem: defineCommand('moveWorkItem', {
     schema: type({ kind: "'moveWorkItem'", ...target, ...placement }),
     scope: 'project',
-    description: 'Move a work item under a parent, after a sibling.',
+    description:
+      'Move a work item under a parent, after a sibling. Refused destination_claimed (names holders) when the parent is a leaf whose steps are claimed.',
   }),
   duplicateWorkItem: defineCommand('duplicateWorkItem', {
     schema: type({ kind: "'duplicateWorkItem'", ...target, ...reference }),
@@ -110,7 +112,7 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteWorkItem'", ...target, 'strategy?': "'cascade' | 'promote'" }),
     scope: 'project',
     description:
-      'Remove a work item. A parent needs a strategy: cascade its children or promote them.',
+      'Remove a work item. A parent needs a strategy: cascade its children or promote them. Deleting the only child hands its claims back up to the parent; refused children_claimed (names holders) when claims sit on more than one deleted row or on that parent too.',
   }),
   setEstimate: defineCommand('setEstimate', {
     schema: type({
@@ -225,6 +227,39 @@ export const commandDefinitions = {
     description:
       'Name who does one step of a work item, or null to unassign. Accepts stepNodeId in place of the work-item and step pair.',
   }),
+  assignSubtree: defineCommand('assignSubtree', {
+    schema: type({
+      kind: "'assignSubtree'",
+      ...target,
+      stepId: 'string',
+      'personId?': 'string | null',
+      'personRef?': 'string',
+    }),
+    scope: 'project',
+    description:
+      'Name who does one step on every leaf under a work item (the item itself when it is a leaf), or null to unassign them all. One undo restores each leaf’s previous assignee. Team labels and claims are not read. Refused unknown_step and unknown_person as for setAssignee.',
+  }),
+  claimWorkItem: defineCommand('claimWorkItem', {
+    schema: type({
+      kind: "'claimWorkItem'",
+      ...target,
+      ...person,
+      'steps?': 'string[]',
+      'runId?': 'string',
+      'parentClaim?': 'string',
+      'assign?': 'boolean',
+      'resources?': type({ resourceId: 'string', units: 'number' }).array(),
+    }),
+    scope: 'project',
+    description:
+      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched unless assign is true, which also makes the person the assignee of every step this claim writes (a subtree claim writes no step), undone with the claim; the result lists them as assignedStepIds. The first claim on a leaf holds the leaf’s declared resource demand, or resources [{ resourceId, units }] when given (each at least the declared units; may add a resource), against the project’s stated capacity minus what other leaves’ claims hold; an unstated capacity never refuses; a later claim on a held leaf holds the same units, or raises them to its resources (never below what the leaf holds), acquiring only the difference against the same free units; the last release frees them, and the result lists what was acquired. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, steps_on_subtree, resources_on_subtree, item_done, no_steps, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), below_declared_demand, below_held_occupancy, resources_exhausted (names the first short resource, asked, free and holders, and lists every short resource the same way in resources), inside_subtree_claim, overlaps_subtree_claim, and last claim_limit (names cap and current: the organization already holds its cap of bound claims, one per work item, person and run; a claim adding none, such as a further step under the same person and run, is never refused by it). A claim an agent takes for itself with its own credential carries a 15-minute lease: every committed batch of that agent renews it, postApiClaimsRenew renews it while idle, and the coordinator releases a claim whose lease ran out, or whose agent lost its last credential.',
+  }),
+  releaseWorkItem: defineCommand('releaseWorkItem', {
+    schema: type({ kind: "'releaseWorkItem'", ...target, ...person, 'steps?': 'string[]' }),
+    scope: 'project',
+    description:
+      'Release a person’s claims: on a leaf the named steps or every step; on a non-leaf the subtree claim and every claim delegated under it. Progress is untouched. Refused not_claimed_by when the person holds none, and person_not_bound or credential_not_for_person as for claimWorkItem.',
+  }),
   addDependency: defineCommand('addDependency', {
     schema: type({ kind: "'addDependency'", ...predecessor }),
     scope: 'project',
@@ -292,6 +327,18 @@ export const commandDefinitions = {
     scope: 'project',
     description: 'How many of a team may be at work at once on this project; null means unstated.',
   }),
+  setResourceCapacity: defineCommand('setResourceCapacity', {
+    schema: type({ kind: "'setResourceCapacity'", ...resource, units: 'number | null' }),
+    scope: 'project',
+    description:
+      'How many units of a resource this project’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity. Raising a statement so that the organization’s projects would state more units of this resource than its cap allows is refused capacity_limit, naming resourceId, cap, declared (the units its other projects state) and asked; the whole batch writes nothing. Clearing, restating or lowering never is.',
+  }),
+  setDemand: defineCommand('setDemand', {
+    schema: type({ kind: "'setDemand'", ...target, ...resource, units: 'number | null' }),
+    scope: 'project',
+    description:
+      'State the units of a resource one work item needs while any of its steps runs: a whole number from 1, exactly 1 on an exclusive resource (else exclusive_demand_is_one); null removes the demand. Not inherited down the tree. One undo.',
+  }),
   setStepAllowance: defineCommand('setStepAllowance', {
     schema: type({ kind: "'setStepAllowance'", stepId: 'string', allowancePercent: 'number' }),
     scope: 'project',
@@ -332,18 +379,27 @@ export const commandDefinitions = {
       ...named,
       'teamIds?': 'string[]',
       'teamRefs?': 'string[]',
+      // `kind` is the command's discriminator, so the person's kind has its own name.
+      'personKind?': 'string',
     }),
     scope: 'directory',
-    description: 'Add a person to the directory.',
+    description:
+      'Add a person to the directory. personKind is person (the default) or agent; any other value is refused invalid_kind. Adding an agent past the organization’s cap on agent persons is refused agent_person_limit, naming cap, current and added; the whole batch writes nothing. A name the organization already holds joins that person to the teams and keeps its own kind, which the answer names.',
   }),
   patchPerson: defineCommand('patchPerson', {
     schema: type({
       kind: "'patchPerson'",
       ...person,
-      patch: { 'name?': 'string', 'teamIds?': 'string[]', 'kind?': 'string' },
+      patch: {
+        'name?': 'string',
+        'teamIds?': 'string[]',
+        'kind?': 'string',
+        'accountId?': 'string | null',
+      },
     }),
     scope: 'directory',
-    description: 'Rename a person, change their teams or their kind.',
+    description:
+      'Rename a person, change their teams or their kind, or bind them to the account that may act as them (accountId; null unbinds; organization admins only). Making a person an agent past the organization’s cap on agent persons is refused agent_person_limit, naming cap, current and added; the whole batch writes nothing. Changing an agent back to a person, renaming or re-teaming never is.',
   }),
   deletePerson: defineCommand('deletePerson', {
     schema: type({ kind: "'deletePerson'", ...person, 'cascade?': 'boolean' }),
@@ -394,6 +450,38 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteWorkItemType'", ...workItemType, 'cascade?': 'boolean' }),
     scope: 'directory',
     description: 'Remove a work item type from the directory.',
+  }),
+  createResource: defineCommand('createResource', {
+    schema: type({
+      kind: "'createResource'",
+      ...named,
+      resourceKind: "'exclusive' | 'divisible'",
+      unitLabel: 'string',
+    }),
+    scope: 'directory',
+    description:
+      'Add a resource to the directory: a host’s RAM, a staging environment, agent slots. resourceKind is exclusive (identical units, demanded one at a time) or divisible (demanded k at a time) and never changes; unitLabel is shown beside every number of it. A name the directory already holds is refused taken.',
+  }),
+  patchResource: defineCommand('patchResource', {
+    schema: type({
+      kind: "'patchResource'",
+      ...resource,
+      patch: {
+        'name?': 'string',
+        'unitLabel?': 'string',
+        'resourceKind?': 'unknown',
+        'providerId?': 'string | null',
+      },
+    }),
+    scope: 'directory',
+    description:
+      'Rename a resource, change its unit label, or name the compute provider instance that fulfils it (providerId; null clears it). Its kind is immutable: a patch naming resourceKind is refused kind_is_immutable. A providerId naming no instance is refused unknown_provider, one of another organization provider_not_in_organization. The reference is shown beside capacity and never changes a schedule or a claim.',
+  }),
+  deleteResource: defineCommand('deleteResource', {
+    schema: type({ kind: "'deleteResource'", ...resource, 'cascade?': 'boolean' }),
+    scope: 'directory',
+    description:
+      'Remove a resource from the directory. Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
   }),
 } as const;
 

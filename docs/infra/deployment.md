@@ -1,6 +1,8 @@
 # WBS deployment on k3s
 
-Operator commands and what has been tested: [infrastructure operator guide](README.md).
+This doc covers the Kubernetes release transaction; the Compose-era blue/green deploy on h2puni
+is the [prod runbook](../runbook-prod-deploy.md). Operator commands and what has been tested:
+[infrastructure operator guide](README.md).
 
 The WBS release on k3s is one journaled transaction run by the coordinator in
 `tools/tool-deploy/src/k8s/`. Flux keeps reconciling the platform the whole time. Only the

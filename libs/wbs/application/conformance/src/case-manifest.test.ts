@@ -67,7 +67,9 @@ describe('the closed case manifest', () => {
       'projectRanks',
       'users',
       'directory',
+      'organizationLimits',
       'capacity',
+      'resourceCapacity',
       'priorityBands',
       'calendarMarkers',
       'eventLog',
@@ -80,6 +82,9 @@ describe('the closed case manifest', () => {
       'progress',
       'attempts',
       'blockages',
+      'stepParallels',
+      'claims',
+      'demands',
       'dependencies',
       'typedDependencies',
       'subtrees',
@@ -87,7 +92,16 @@ describe('the closed case manifest', () => {
       'savedPlans',
       'savedPlanCapture',
     ]);
+    expect(CASE_MANIFEST.stepParallels).toEqual(['stepParallels.set:sparse-replace-remove']);
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
+    expect(CASE_MANIFEST.claims).toEqual([
+      'claims.add:taken-stated-remove',
+      'claims.listStampedByProject:write-instant',
+      'claims.remove:delegated-cascade',
+      'claims.moveAll:in-place',
+      'claims.lease:write-renew-expire',
+      'claims.occupancy:hold-read-cascade',
+    ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],
       immediateBusy: ['history.batch:busy-does-not-wait'],

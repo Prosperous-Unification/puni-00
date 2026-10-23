@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+139 |     },
+140 |   );
+141 |   expect(f.source.pathKind(root + '/alias')).toBe('directory');
+142 |   expect(f.source.readFile(root + '/chained')).toBe('export {};');
+143 |   expect(f.source.realpath(root + '/alias/a.ts')).toBe(root + '/dir/a.ts');
+144 |   expect(f.source.readFile(root + '/bom')).toBe('bom');
+                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "bom"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:144:44)
+(fail) component walk resolves owned links and preserves file ancestor semantics [182.65ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1134.00ms]

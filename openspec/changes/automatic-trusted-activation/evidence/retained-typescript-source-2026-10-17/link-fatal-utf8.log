@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+456 | test('source rejects malformed owned link UTF8 before target expansion', () => {
+457 |   const f = setup();
+458 |   const bytes = Uint8Array.from([255]);
+459 |   const trap = spyOn(Uint8Array, 'from').mockImplementation(() => bytes);
+460 |   try {
+461 |     expect(() => f.source.pathKind(root + '/link')).toThrow();
+                                                          ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: "absent"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:461:53)
+(fail) source rejects malformed owned link UTF8 before target expansion [125.86ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1109.00ms]

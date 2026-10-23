@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+592 | test('root and prefix canonicalization retain candidate alias provenance', () => {
+593 |   const f = fromPaths(
+594 |     { 'dir/a.ts': 'a' },
+595 |     { 'aliases/link': '../dir', rootAlias: 'aliases/link/..' },
+596 |   );
+597 |   expect(() => f.source.readDirectory(root + '/rootAlias/.')).toThrow('symlink target invalid');
+                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "symlink target invalid"
+
+Received function did not throw
+Received value: [ "/__puni_review__/candidate/aliases/link/a.ts", "/__puni_review__/candidate/node_modules/pkg/index.d.ts" ]
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:597:63)
+(fail) root and prefix canonicalization retain candidate alias provenance [140.94ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1093.00ms]

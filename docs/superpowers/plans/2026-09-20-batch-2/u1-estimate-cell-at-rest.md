@@ -1019,7 +1019,7 @@ in this slice**, before the planner's first browser run (P1), because this slice
   - **Do not touch** `trioMetrics`, the `toEqual` comparison, either `boundingBox` comparison, or the
     `Expected: 858` proof comment at `estimates.tsx:446`. Both are unchanged claims.
 - [ ] **The expected red run.** Run the two-file oracle. Watched on 2026-09-20, before the
-      production edits of step 3b and with slice 2 already in:
+      production edits of step 2b and with slice 2 already in:
 
   ```text
   Tests  16 failed | 145 passed (161)
@@ -1039,11 +1039,11 @@ in this slice**, before the planner's first browser run (P1), because this slice
 
   The last row is the one an earlier draft of this packet left out and would have stopped on: the
   fake server in that test returns `4/5/6` (`plan-read-and-write.test.tsx:2809`), so PERT gives `5`
-  and the span still reads `· 5` until step 3b lands. **`leaves an unestimated folded cell empty` is
+  and the span still reads `· 5` until step 2b lands. **`leaves an unestimated folded cell empty` is
   not among the sixteen**: it is a regression test that passes before the change. A seventeenth
   failure, or a message outside those five, is a stop. Record the run verbatim in `verify.md`.
 
-#### Step 3b — the production edits
+#### Step 2b — the production edits
 
 - [ ] In `estimates.tsx`, replace
 
@@ -1941,7 +1941,7 @@ twelve are accepted; none was rejected.
 
 1. **The red-run whitelist omits a required failure** — FIXED, in slice 3a's red-run item. Verified
    and re-watched: `plan-read-and-write.test.tsx:2809` makes the fake server answer `4/5/6`, PERT
-   gives `5`, and the edited assertion fails on `expected '· 5' to be '5'` before step 3b. The full
+   gives `5`, and the edited assertion fails on `expected '· 5' to be '5'` before step 2b. The full
    run was captured this time and the whitelist is now a table of the **five** observed distinct
    messages with every failing test named against each — 7 + 5 + 2 + 1 + 1 = 16. The note to keep
    that test's title and any 110.1 scenario prefix verbatim sits at the edit itself.

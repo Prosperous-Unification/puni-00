@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+168 |       }
+169 |       expect(snapshot(sparseTable)).toEqual(before);
+                                          ^
+error: expect(received).toEqual(expected)
+
+@@ -188,27 +188,11 @@
+        "input_hash": "input",
+        "project_id": "target",
+        "updated_at": 20,
+      },
+    ],
+-   [
+-     {
+-       "admitted_deadline_at": 100,
+-       "attempt_token": "token",
+-       "budget_ms": 60,
+-       "cancel_requested_at": 20,
+-       "contract_version": "7+1.0.0",
+-       "generation": 1,
+-       "heartbeat_at": 1,
+-       "lifecycle": "running",
+-       "objective": "time",
+-       "owner_id": "worker",
+-       "pid": 4242,
+-       "project_id": "target",
+-       "started_at": 1,
+-     },
+-   ],
++   [],
+    [],
+    [
+      {
+        "budget_ms": 60,
+        "contract_version": "7+1.0.0",
+
+- Expected  - 17
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:169:37)
+(fail) expired-reclaim throws on zero sparse evidence and rolls back the graph and slot transaction [167.91ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [394.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 107511808, "exitCode": 1}

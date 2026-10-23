@@ -1864,8 +1864,11 @@ await import(${JSON.stringify(productionSnapshotter)});
     // Proof (2026-10-16): hosted run 38864988637 failed the stale 60-minute expectation
     // against the restored 90-minute workflow. Regressing that production value to 60
     // failed this focused test with `Expected: 90 · Received: 60`; restoring 90 passed.
+    // Proof (2026-10-20): run 39340424241 exposed the stale Twilight expectation.
+    // Restoring its production allowance to 50 failed this focused test with
+    // `Expected: 75 · Received: 50`; restoring the chosen 75 minutes passed.
     expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
-    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(50);
+    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(75);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
@@ -2164,10 +2167,9 @@ describe('package-backed admission bootstrap in the CI gate', () => {
     expect(admit).toContain('if [[ $activation_release != "$identity" ]]; then');
   });
 
-  test('the CI gate runs the packed package suite whenever Tool Wiki is in scope', () => {
-    // The ci.yml `gate_twilight` job owns this shape; only its scope and the two named steps
-    // are claimed. The job-level `if` is the scope; a step-level one would read the
-    // `gate_mode` job's outputs as a missing step's and skip the suite on every run.
+  test('the CI gate runs packed tests only for full scope or the selected Burokrat project', () => {
+    // The Twilight job can also select Dash alone. Both package steps use the validated
+    // gate_mode job's exact Burokrat membership; full scope keeps packaging required.
     const workflow = parseYaml(
       readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
     ) as {
@@ -2183,11 +2185,15 @@ describe('package-backed admission bootstrap in the CI gate', () => {
     );
     // Proof: deleting the suite step from ci.yml failed here on the undefined step.
     expect(job?.if).toBe("${{ needs.gate_mode.outputs.twilight == 'run' }}");
+    // Proof: removing either production package-step condition independently failed this test.
+    const packagingScope =
+      "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-burokrat') }}";
     expect(suite).toEqual({
       name: 'Twilight Burokrat packed package suite',
+      if: packagingScope,
       run: 'bunx nx run twilight-burokrat:test:package --skip-nx-cache --output-style=stream',
     });
-    expect(bubblewrap?.if).toBeUndefined();
+    expect(bubblewrap?.if).toBe(packagingScope);
     expect(steps.indexOf(bubblewrap ?? {})).toBeLessThan(steps.indexOf(suite ?? {}));
   });
 

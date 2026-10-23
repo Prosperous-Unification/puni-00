@@ -8,6 +8,9 @@ import {
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readPersonWork,
+  readProjectResources,
+  readStartableWork,
   redoProject,
   responseSchema,
   type SchemaShape,
@@ -25,6 +28,8 @@ import type {
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
+import type { Clock } from '../ports/clock';
+import type { CapacityReports } from '../ports/compute-providers';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
@@ -32,6 +37,7 @@ import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
 import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
+import { withProviderReadings } from './compute-provider.routes';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 import { BadLadder } from './priority-ladder-body';
@@ -259,6 +265,15 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // Proof: grouping this nodes-detail case with dependencyIds cases produced
+    // TS2322 in mounted scoped tsc; separation preserves exact mounted 409 nodes
+    // without losing reason/detail correlation (watched 2026-10-17).
+    case 'referenced_by_step_parallel':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
     case 'descendant_step_on_leaf':
     case 'node_on_parent':
       return {
@@ -277,6 +292,8 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_person':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_account':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_team':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_tag':
@@ -287,6 +304,17 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_system':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_resource':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_provider':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The instance exists but is another organization's; naming it leaks
+    // nothing the caller did not send (`compute-providers` P3).
+    case 'provider_not_in_organization':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // The resource's kind refuses the units whatever the plan holds.
+    case 'exclusive_demand_is_one':
+      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'schedule_not_ready':
@@ -349,6 +377,89 @@ function answerBatch(
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'nothing_to_change':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
+    // The caller may not act as the person, or under the parent claim, named.
+    case 'person_not_bound':
+    case 'credential_not_for_person':
+    case 'parent_claim_foreign':
+      return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
+    case 'parent_claim_unknown':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The plan's state stands in the way; the same claim succeeds once it moves.
+    case 'parent_claim_not_ancestor':
+    case 'steps_on_subtree':
+    case 'item_done':
+    case 'not_claimed_by':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'not_startable':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'step_done':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'already_claimed':
+    case 'destination_claimed':
+    case 'children_claimed':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'inside_subtree_claim':
+    case 'overlaps_subtree_claim':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    // The project's free units or the leaf's declared demand stand in the way
+    // (`wbs-resources` R3, R4); a subtree claim acquires nothing to ask for.
+    case 'resources_on_subtree':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'below_declared_demand':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'below_held_occupancy':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'resources_exhausted':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    // The organization's cap stands in the way, like a claim's holder does;
+    // the same command succeeds once an agent goes, a bound claim is released
+    // or another project states less (`wbs-organization-limits` L9).
+    case 'agent_person_limit':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'claim_limit':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'capacity_limit':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));
@@ -360,7 +471,13 @@ const personEntity = responseSchema(
 );
 // Proof: optional teamIds admitted a patchPerson without memberships,200 instead of500 in the mounted results case.
 const personWithTeamsEntity = responseSchema(
-  type({ id: 'string', name: 'string', kind: "'person' | 'agent'", teamIds: 'string[]' }),
+  type({
+    id: 'string',
+    name: 'string',
+    kind: "'person' | 'agent'",
+    teamIds: 'string[]',
+    accountId: 'string | null',
+  }),
 );
 
 /**
@@ -413,6 +530,10 @@ export function workItemRoutes(
   commands: PlanCommandRunner,
   digest: Digest,
   organizations: OrganizationAccess,
+  providers: {
+    readonly reports: Pick<CapacityReports, 'readingsOf'>;
+    readonly clock: Pick<Clock, 'now'>;
+  },
 ) {
   return [
     bind(
@@ -604,6 +725,65 @@ export function workItemRoutes(
             nextCursor: page.nextCursor,
             projectRevision: tree.projectRevision,
           },
+        };
+      },
+    ),
+    bind(
+      readStartableWork,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readStartableWork>> => {
+        // Proof: with this check removed, `refuses a repeated team and an
+        // undeclared key` (startable-organization.controller.db.test.ts)
+        // failed; watched 2026-10-19.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const startable = await workItems.startableWithin(
+          params.id,
+          resolved.access,
+          query.team ?? null,
+        );
+        if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
+        return { ok: true, status: 200, body: startable };
+      },
+    ),
+    bind(
+      readPersonWork,
+      async ({ params, principal }): Promise<HttpReply<typeof readPersonWork>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const work = await workItems.personWorkWithin(params.id, resolved.access, params.personId);
+        if (work === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in work) return { ok: false, status: 404, body: { error: work.kind } };
+        return { ok: true, status: 200, body: work };
+      },
+    ),
+    bind(
+      readProjectResources,
+      async ({ params, principal }): Promise<HttpReply<typeof readProjectResources>> => {
+        // Proof: reading without resolving access made `refuses an unbound session
+        // and a stranger alike` (resource-organization.controller.db.test.ts)
+        // answer 200; watched 2026-10-20.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const read = await workItems.resourcesWithin(params.id, resolved.access);
+        if (read === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // The provider columns are added after the planned read and never
+        // reach it (`compute-providers` P4).
+        // Proof: with this call replaced by the planned read alone, `sets,
+        // reads and clears the reference` in
+        // `compute-provider.controller.db.test.ts` read no providerId; watched
+        // 2026-10-22.
+        return {
+          ok: true,
+          status: 200,
+          body: await withProviderReadings(read, providers.reports, providers.clock.now()),
         };
       },
     ),

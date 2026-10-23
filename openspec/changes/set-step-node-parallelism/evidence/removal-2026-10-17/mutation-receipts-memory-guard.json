@@ -1,0 +1,77 @@
+[
+  {
+    "fault": "memory-guard",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-cascade",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-targetless",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-owner",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-project",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-leaf",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-range",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-duplicate",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-copy",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-order",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "legacy-wiring",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "source-wiring",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "service-mapping",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "route-mapping",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "authorization",
+    "failedTests": 1,
+    "exitCode": 1
+  }
+]

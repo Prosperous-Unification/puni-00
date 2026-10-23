@@ -39,6 +39,8 @@ const validatorCommands = new Set([
   // the validator's named usage refusal (installed-dispatch.test.ts).
   'inspect-performance-sources',
   'inspect-test-reports',
+  // Proof: omitting this route failed TEST-AXES-152's built executable smoke before named dispatch.
+  'inspect-bun-test-reports',
   // Proof: removing registration failed TEST-AXES-131's built installed Browser scenario dispatch.
   'inspect-browser-scenarios',
   'inspect-browser-source-levels',
@@ -58,6 +60,8 @@ const validatorCommands = new Set([
   'inspect-scenario-ledger',
   // Proof: removing registration failed TEST-AXES-139's real built installed dispatch.
   'inspect-browser-scenario-ledger',
+  // Proof: removal failed BROWSER-T2-POLICY-PREVIEW-012's real installed dispatch parity.
+  'inspect-browser-t2-policy',
   // Proof: registration removal failed TEST-AXES-143's built installed diagnostic parity.
   'inspect-browser-t2',
   // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
@@ -75,6 +79,7 @@ const validatorCommands = new Set([
 const help = `usage: twilight-burokrat <command> ...
 
 commands:
+  twilight-burokrat inspect-bun-test-reports <repository> <full-committed-sha> <external-report-authority>
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
@@ -91,6 +96,7 @@ commands:
   twilight-burokrat inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
+  twilight-burokrat inspect-browser-t2-policy <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> <external-proposed-policy> --now <UTC-instant>
   twilight-burokrat inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>
   twilight-burokrat inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>
   twilight-burokrat inspect-scenario-ledger <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability> <external-ledger-authority> --now <UTC instant>
@@ -138,6 +144,11 @@ function runValidator(argv: readonly string[], toolkitDirectory: string): void {
   );
   process.stdout.write(invocation.stdout);
   process.stderr.write(invocation.stderr);
+  // Proof: removing this passthrough failed BROWSER-T2-POLICY-PREVIEW-012's installed refusal stderr parity.
+  if (argv[0] === 'inspect-browser-t2-policy' && invocation.exitCode === 1) {
+    process.exitCode = 1;
+    return;
+  }
   if (invocation.exitCode !== 0) {
     throw new Error(`Twilight Burokrat validator exited ${String(invocation.exitCode)}`);
   }

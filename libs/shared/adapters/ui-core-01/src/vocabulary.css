@@ -1,0 +1,48 @@
+/*
+ * The token vocabulary, and nothing else: the shadcn names every kit assigns
+ * and every primitive reads, turned into Tailwind utilities.
+ *
+ * Every value here is a `var()` reference and `vocabulary.test.ts` refuses a
+ * literal. A kit's `theme.css` imports this file and assigns the referenced
+ * properties under `:root` and `.dark`; this file never knows a palette exists.
+ *
+ * `inline` is load-bearing: without it Tailwind copies each value into the
+ * generated utility, and `.dark` re-pointing `--card` would change nothing.
+ * With it the utility reads the custom property at use time, which is the
+ * whole mechanism a theme switch runs on.
+ *
+ * The two faces are kit tokens named `--font-body` and `--font-display`
+ * rather than `--font-sans`, because `--font-sans` is the Tailwind key this
+ * block defines and a key cannot reference itself. `font-sans` and
+ * `font-heading` are the utilities.
+ */
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-control-edge: var(--control-edge);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}

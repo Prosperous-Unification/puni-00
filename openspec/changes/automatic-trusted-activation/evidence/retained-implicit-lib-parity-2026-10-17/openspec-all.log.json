@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "@fission-ai/openspec@1.12.0", "validate", "--all", "--json"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 141112,
+  "ceilingKiB": 921600
+}

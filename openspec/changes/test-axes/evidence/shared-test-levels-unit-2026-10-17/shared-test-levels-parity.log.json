@@ -1,0 +1,17 @@
+{
+  "command": ["python3", "/tmp/shared-test-levels-parity.py"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 21000,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "git",
+      "ls-tree",
+      "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9",
+      "--",
+      "libs/shared/domain/test-levels/src/index.test.ts"
+    ],
+    ["python3", "/tmp/shared-test-levels-parity.py"]
+  ]
+}

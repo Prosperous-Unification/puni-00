@@ -1,0 +1,78 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+ 99 |         attempts.push(attempt);
+100 |         throw refusal;
+101 |       },
+102 |       io,
+103 |     ),
+104 |   ).toThrow(refusal);
+          ^
+error: expect(received).toThrow(expected)
+
+Expected message: "outside retained namespace"
+
+Received function did not throw
+Received value: {
+  resolvedModule: {
+    resolvedFileName: "/workspace/safe/value.ts",
+    originalPath: undefined,
+    extension: ".ts",
+    isExternalLibraryImport: false,
+    packageId: undefined,
+    resolvedUsingTsExtension: false,
+  },
+  failedLookupLocations: [
+    "/outside/value.ts", "/outside/value.tsx", "/outside/value.d.ts", "/outside/value.js",
+    "/outside/value.jsx", "/outside/value/package.json", "/outside/value/index.ts", "/outside/value/index.tsx",
+    "/outside/value/index.d.ts", "/outside/value/index.js", "/outside/value/index.jsx"
+  ],
+  affectingLocations: undefined,
+  resolutionDiagnostics: undefined,
+  alternateResult: undefined,
+}
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:104:5)
+(fail) first escaping wildcard attempt throws before candidate IO or safe fallback [467.57ms]
+231 |       () => {
+232 |         throw refusal;
+233 |       },
+234 |       events,
+235 |     ),
+236 |   ).toThrow(refusal);
+          ^
+error: expect(received).toThrow(expected)
+
+Expected message: "extension candidate refused"
+
+Received function did not throw
+Received value: {
+  resolvedModule: {
+    resolvedFileName: "/workspace/safe/value.ts",
+    originalPath: undefined,
+    extension: ".ts",
+    isExternalLibraryImport: false,
+    packageId: undefined,
+    resolvedUsingTsExtension: false,
+  },
+  failedLookupLocations: [
+    "/outside/value.ts", "/outside/value.ts", "/outside/value.tsx", "/outside/value.d.ts",
+    "/outside/value.js", "/outside/value.jsx", "/outside/value.ts.ts", "/outside/value.ts.tsx",
+    "/outside/value.ts.d.ts", "/outside/value.ts.js", "/outside/value.ts.jsx", "/outside/value.ts/package.json",
+    "/outside/value.ts/index.ts", "/outside/value.ts/index.tsx", "/outside/value.ts/index.d.ts",
+    "/outside/value.ts/index.js", "/outside/value.ts/index.jsx"
+  ],
+  affectingLocations: undefined,
+  resolutionDiagnostics: undefined,
+  alternateResult: undefined,
+}
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:236:5)
+(fail) explicit extension refusal prevents every file and directory probe [303.89ms]
+
+ 0 pass
+ 34 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [806.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 288231424, "exitCode": 1}

@@ -1,0 +1,75 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [605.94ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [480.73ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [7.66ms]
+(pass) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [7.29ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [54.92ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted maximum corruption before duplication [3.24ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted step corruption before duplication [1.74ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted project corruption before duplication [1.75ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted parent corruption before duplication [2.17ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted duplicate corruption before duplication [2.29ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [2.14ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.48ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.83ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.42ms]
+
+ 9 pass
+ 5 fail
+ 51 expect() calls
+Ran 14 tests across 2 files. [3.22s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 585404416, "exitCode": 1}

@@ -1,0 +1,142 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+(pass) rejects candidate path "" [121.95ms]
+(pass) rejects candidate path "/a" [96.78ms]
+(pass) rejects candidate path "a/" [100.92ms]
+(pass) rejects candidate path "a//b" [99.08ms]
+(pass) rejects candidate path "." [102.70ms]
+(pass) rejects candidate path ".." [108.36ms]
+(pass) rejects candidate path "a/./b" [104.27ms]
+(pass) rejects candidate path "a/../b" [84.24ms]
+(pass) rejects candidate path "a\\b" [97.88ms]
+(pass) rejects candidate path "a\u0000b" [100.50ms]
+(pass) rejects candidate path "a\ud800b" [87.57ms]
+(pass) rejects candidate path "a\udc00b" [78.73ms]
+319 | ])
+320 |   test(`rejects candidate path ${JSON.stringify(path)}`, () => {
+321 |     const f = fixture();
+322 |     const injected = injectEntries(f, [{ path, mode: '100644', blob: 'a'.repeat(40) }]);
+323 |     try {
+324 |       expect(() => createRetainedNamespace(injected.candidate, f.runtime, limits)).toThrow(
+                                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /namespace (path malformed|candidate path forbidden)/
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/.git",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: ".git/config",
+        mode: "100644",
+        blob: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      path: "/__puni_review__/candidate/.git/config",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:324:84)
+(fail) rejects candidate path ".git/config" [82.98ms]
+319 | ])
+320 |   test(`rejects candidate path ${JSON.stringify(path)}`, () => {
+321 |     const f = fixture();
+322 |     const injected = injectEntries(f, [{ path, mode: '100644', blob: 'a'.repeat(40) }]);
+323 |     try {
+324 |       expect(() => createRetainedNamespace(injected.candidate, f.runtime, limits)).toThrow(
+                                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /namespace (path malformed|candidate path forbidden)/
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/a",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/a/.git",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a/.git/x",
+        mode: "100644",
+        blob: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      path: "/__puni_review__/candidate/a/.git/x",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:324:84)
+(fail) rejects candidate path "a/.git/x" [89.18ms]
+(pass) rejects candidate path "node_modules/a" [77.97ms]
+(pass) rejects candidate path "a/node_modules/x" [71.93ms]
+
+ 14 pass
+ 26 filtered out
+ 2 fail
+ 16 expect() calls
+Ran 16 tests across 1 file. [2.47s]

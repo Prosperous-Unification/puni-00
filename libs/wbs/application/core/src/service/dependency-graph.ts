@@ -100,6 +100,8 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
     new Map(),
     new Map(),
     new Map(),
+    // The graph reads step order and endpoints only; no demand moves an edge.
+    new Map(),
   );
   const byLeaf = new Map<string, (typeof slices)[number][]>();
   for (const slice of slices) {

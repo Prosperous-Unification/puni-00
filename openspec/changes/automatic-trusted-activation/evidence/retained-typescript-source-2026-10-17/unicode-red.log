@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+640 |
+641 | test('directory basenames use installed sys Unicode string order', () => {
+642 |  const f = fromPaths({ '\uE000/a.ts':'a', '\u{10000}/b.ts':'b' });
+643 |  fs.rmSync(f.sourceRepository+'/.git',{recursive:true});
+644 |  expect(ts.sys.getDirectories(f.sourceRepository)).toEqual(['\u{10000}','\uE000']);
+645 |  expect(f.source.getDirectories(root)).toEqual(['node_modules','\u{10000}','\uE000']);
+                                             ^
+error: expect(received).toEqual(expected)
+
+  [
+    "node_modules",
+-   "𐀀",
+    "",
++   "𐀀",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:645:40)
+(fail) directory basenames use installed sys Unicode string order [138.02ms]
+
+ 0 pass
+ 65 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1114.00ms]

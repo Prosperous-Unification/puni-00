@@ -1,0 +1,216 @@
+[
+  {
+    "case": "hook-selected-path-coverage",
+    "exitCode": 0,
+    "argv": [
+      "/tmp/step-first-child-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/capacity-body.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/directory.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/step.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/undo.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/plan-commands.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/revision.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/step.service.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/undo.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/testing/organization-harness.ts"],
+      ["eslint", "libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/compose.ts"],
+      ["eslint", "libs/wbs/application/core/src/http/work-item.routes.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/check.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/contract.ts"],
+      [
+        "eslint",
+        "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts"
+      ],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/module.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/module.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"],
+      ["eslint", "libs/wbs/application/core/src/testing/harness.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/refusal.test.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/refusal.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/work-item-shapes.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-first",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/step-first-child-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-middle",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/step-first-child-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/capacity-body.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/directory.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/step.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/undo.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/plan-commands.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/revision.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/step.service.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/undo.db.test.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-last",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/step-first-child-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/capacity-body.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/directory.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/step.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/undo.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/plan-commands.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/revision.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/step.service.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/undo.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/testing/organization-harness.ts"],
+      ["eslint", "libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/compose.ts"],
+      ["eslint", "libs/wbs/application/core/src/http/work-item.routes.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/check.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/contract.ts"],
+      [
+        "eslint",
+        "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts"
+      ],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/module.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/module.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"],
+      ["eslint", "libs/wbs/application/core/src/testing/harness.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/refusal.test.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/refusal.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/work-item-shapes.ts"]
+    ]
+  },
+  {
+    "case": "hook-propagation-omitted",
+    "exitCode": 0,
+    "argv": [
+      "/tmp/step-first-child-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/capacity-body.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/directory.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/step.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/controller/undo.controller.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/plan-commands.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/revision.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/step.service.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/service/undo.db.test.ts"],
+      ["eslint", "apps/wbs/be-01/src/testing/organization-harness.ts"],
+      ["eslint", "libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/compose.ts"],
+      ["eslint", "libs/wbs/application/core/src/http/work-item.routes.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/check.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/contract.ts"],
+      [
+        "eslint",
+        "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts"
+      ],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/module.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/module.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"],
+      ["eslint", "libs/wbs/application/core/src/testing/harness.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/refusal.test.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/refusal.ts"],
+      ["eslint", "libs/wbs/domain/contracts/src/http/work-item-shapes.ts"]
+    ]
+  },
+  {
+    "case": "hook-empty-argv",
+    "exitCode": 64,
+    "argv": ["/tmp/step-first-child-20261017/.git/first-child-lint-staged.sh"],
+    "selectedLintArgv": []
+  },
+  {
+    "case": "hook-empty-guard-omitted",
+    "exitCode": 0,
+    "argv": ["/tmp/step-first-child-20261017/.git/first-child-lint-staged.sh"],
+    "selectedLintArgv": []
+  }
+]

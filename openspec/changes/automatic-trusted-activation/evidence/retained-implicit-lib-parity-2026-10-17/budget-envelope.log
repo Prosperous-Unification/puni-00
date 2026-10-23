@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained implicit compiler bounds exact envelope library observations [2988.43ms]
+
+ 1 pass
+ 41 filtered out
+ 0 fail
+ 349 expect() calls
+Ran 1 test across 1 file. [3.94s]

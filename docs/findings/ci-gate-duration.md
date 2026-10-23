@@ -47,17 +47,20 @@ The gate is now split into four jobs. `ci.yml` is the source of truth; the jobs 
 
 Each shard keeps `--parallel=2`, so the load on each runner is unchanged. No work was removed.
 The integrator and `tool-deploy`'s descriptor read the check named `gate`, and that check
-still exists. GitHub has no branch protection or ruleset that requires checks on `main`. The
-only ruleset covers release tags.
+still exists. Before 2026-10-23, GitHub had no branch protection or ruleset requiring
+checks on `main`; the only ruleset covered release tags. Since 2026-10-23, active
+ruleset `25730010` (main merge checks) requires a pull request and the `gate` and
+`pixels` verdicts from GitHub Actions on `main`, with zero required approvals,
+no bypass actors and no latest-base refresh requirement. Documentation-only
+changes retain the existing document checks and explicit runtime/browser skips.
 
 Proofs: `tools/tool-git-hooks/src/hooks/gate-workflow.test.ts` runs the production `gate`
 script with each shard result, and its `Proof:` comments record the faults that were watched
 failing.
 
-On 2026-10-12 the shard was renamed from `gate_tool_wiki` to `gate_twilight` and now also runs
-`twilight-dash`, which receives the activation controller (WBS a81d93a0). The workspace shard
-and `bin/h2puni-gate-steps.sh` exclude both projects. The measurements below predate that
-change and still name the shard Tool Wiki.
+Since the 2026-10-12 rename the shard also runs `twilight-dash`, which receives the activation
+controller (WBS a81d93a0). The workspace shard and `bin/h2puni-gate-steps.sh` exclude both
+projects. The measurements below predate the rename and still name the shard Tool Wiki.
 
 ## Measurements after the split
 
@@ -83,3 +86,25 @@ The Tool Wiki shard is now the critical path.
 - **Next step, if needed.** After the split, `twilight-burokrat:test` alone bounds the gate
   at about 26 minutes. Sharding that suite, or moving `wbs-fe-01:test` into its own job, is
   the next split.
+
+## Twilight allowance, 2026-10-20
+
+The current Twilight job keeps a finite 75-minute allowance. In PR584 run
+[39330836237](https://github.com/Prosperous-Unification/puni-00/actions/runs/39330836237),
+the Burokrat test task alone took 49m25s. That run failed assertions; it was not a
+timeout observation. The separately successful packed-package step in post-merge
+run [39330011791](https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791)
+took 4m45s. Together those observations exceed the former 50-minute allowance
+before setup and other work. They come from different runs and do not establish
+an exact required minimum. The chosen 75 minutes leaves bounded scheduling
+headroom while retaining every check, uncached execution and parallelism of two.
+The independent installed-survey 4 GiB/900-second resource guard is unchanged.
+
+Run [39340424241](https://github.com/Prosperous-Unification/puni-00/actions/runs/39340424241)
+then passed 2,346 Burokrat tests and failed only the stale assertion that still
+expected 50 minutes. Its main test task took 42m44s; the packed suite was skipped
+after the failure. The focused allowance test now expects 75. Temporarily
+restoring the production workflow to 50 made that test fail with
+`Expected: 75 · Received: 50`; restoring 75 passed. The raw focused outcomes and
+unchanged guard are retained in the
+[allowance evidence](../../openspec/changes/burokrat-serial-legacy-compiler/evidence/ci-allowance/README.md).

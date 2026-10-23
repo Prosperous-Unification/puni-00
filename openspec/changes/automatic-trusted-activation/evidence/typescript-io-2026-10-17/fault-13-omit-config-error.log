@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+120 |       workspace,
+121 |       { ...request, configPaths: ['src'] },
+122 |       source,
+123 |       limits,
+124 |     ),
+125 |   ).toThrow('TypeScript config unreadable: src');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript config unreadable: src"
+Received message: "TypeScript compiler failed: File '/candidate/node_modules/@typescript/old/lib/lib.es2025.full.d.ts' not found.\n  The file is in the program because:\n    Default library for target 'es2025'"
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:125:5)
+(fail) root config absent, directory and malformed stay distinct [65.26ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [606.00ms]

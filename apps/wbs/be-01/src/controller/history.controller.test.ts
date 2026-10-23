@@ -1,3 +1,4 @@
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -105,6 +106,7 @@ describe('one plan’s history, over HTTP', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(projects, events),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',

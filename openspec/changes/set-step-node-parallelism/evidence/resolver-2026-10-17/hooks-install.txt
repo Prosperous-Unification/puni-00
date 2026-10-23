@@ -1,0 +1,2 @@
+sync hooks: ✔️(prepare-commit-msg, commit-msg, pre-commit)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 72486912, "exitCode": 0}

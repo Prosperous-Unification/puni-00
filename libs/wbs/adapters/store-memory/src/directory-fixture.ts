@@ -13,6 +13,8 @@ import type {
   WorkItemType,
 } from '@wbs/core';
 
+import { type MemoryResourceTables, memoryResourceTables } from './resource-fixture';
+
 /** The empty usage, both halves present — what this fixture can honestly say. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   workItems: [],
@@ -21,6 +23,9 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   steps: [],
   people: [],
   members: [],
+  claims: [],
+  pinnedCredentials: 0,
+  machineCredentials: 0,
   capacityOf: new Map(),
 };
 
@@ -72,6 +77,28 @@ export interface MemoryDirectoryTables {
   readonly assignments: Map<string, Assignment>;
   /** Which organization owns each catalog entry, by entry id, as the side tables hold it. */
   readonly organizationOf: Map<string, string>;
+  /** `person.account_id`: the account bound to act as each bound person, by person id. */
+  readonly accountOf: Map<string, string>;
+  /**
+   * `organization_membership`, as far as binding needs it: the account ids
+   * that are members of each organization, by organization id. An owned person
+   * binds only to a member of its organization, as SQLite's `accountMayBind`.
+   */
+  readonly organizationMembers: Map<string, Set<string>>;
+  /**
+   * `external_identity.person_id`: the person each pinned credential may claim
+   * as, keyed by {@link credentialKey}. Nothing in this package writes it; a
+   * test that needs a pinned credential sets it, as `link-credential-cli.ts`
+   * is SQLite's only writer.
+   */
+  readonly credentialPins: Map<string, string>;
+  /** The resources and what plans state about them (`wbs-resources`). */
+  readonly resources: MemoryResourceTables;
+}
+
+/** The {@link MemoryDirectoryTables.credentialPins} key of one `(issuer, subject)`. */
+export function credentialKey(issuer: string, subject: string): string {
+  return JSON.stringify([issuer, subject]);
 }
 
 export function memoryDirectoryTables(): MemoryDirectoryTables {
@@ -92,12 +119,22 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     owned: new Map(),
     assignments: new Map(),
     organizationOf: new Map(),
+    accountOf: new Map(),
+    organizationMembers: new Map(),
+    credentialPins: new Map(),
+    resources: memoryResourceTables(),
   };
 }
 
+/**
+ * `accounts` are the account ids `patchPerson.accountId` may bind to; a
+ * directory built without them refuses every binding by throwing, because it
+ * cannot tell an unknown account from a known one.
+ */
 export function inMemoryDirectory(
   readProject?: (projectId: string) => Promise<readonly { id: string }[]>,
   tables: MemoryDirectoryTables = memoryDirectoryTables(),
+  accounts?: Pick<ReadonlyMap<string, unknown>, 'has'>,
 ): DirectoryStore {
   const {
     teams,
@@ -110,7 +147,14 @@ export function inMemoryDirectory(
     owned,
     assignments,
     organizationOf,
+    accountOf,
+    organizationMembers,
+    credentialPins,
+    resources: resourceTables,
   } = tables;
+  /** The {@link credentialKey}s of the credentials pinned to one person. */
+  const pinsOf = (personId: string) =>
+    [...credentialPins].filter(([, pinned]) => pinned === personId).map(([pair]) => pair);
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
   /**
@@ -161,8 +205,82 @@ export function inMemoryDirectory(
           (await store.listWorkItemTypes()).filter((each) => inOrganization(each.id)),
         externalSystems: async () =>
           (await store.listExternalSystems()).filter((each) => inOrganization(each.id)),
+        resources: async () =>
+          (await store.listResources()).filter((each) => inOrganization(each.id)),
       };
       return readers[catalog]();
+    },
+    listResources: () =>
+      Promise.resolve(
+        [...resourceTables.resources.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      ),
+    // Refused by name, as the repository is at its unique index: a resource
+    // create is not idempotent, because the row holding the name may carry
+    // another kind and unit.
+    addResource(toAdd, _stamp) {
+      const held = [...resourceTables.resources.values()].some((each) => each.name === toAdd.name);
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      resourceTables.resources.set(toAdd.id, { ...toAdd });
+      return Promise.resolve({ ok: true, resource: { ...toAdd } });
+    },
+    // The projects a demand sits in are not known to these Maps, which hold no
+    // work items; the bound source answers them (`memory-stores.ts`).
+    patchResource(resourceId, patch, _stamp) {
+      const found = resourceTables.resources.get(resourceId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const held =
+        patch.name !== undefined &&
+        [...resourceTables.resources.values()].some(
+          (each) => each.name === patch.name && each.id !== resourceId,
+        );
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      const patched = { ...found, ...patch };
+      resourceTables.resources.set(resourceId, patched);
+      const projectIds = [
+        ...new Set(
+          [...resourceTables.capacities.values()]
+            .filter((each) => each.resourceId === resourceId)
+            .map((each) => each.projectId),
+        ),
+      ].sort();
+      return Promise.resolve({ ok: true, resource: { ...patched }, projectIds });
+    },
+    // The memory twin holds no provider instance (compute providers are
+    // SQLite's alone), so every id is unknown and only clearing succeeds.
+    setResourceProvider(resourceId, providerId, _organizationId, _stamp) {
+      if (!resourceTables.resources.has(resourceId))
+        return Promise.resolve({ ok: false, reason: 'not_found' });
+      if (providerId !== null) return Promise.resolve({ ok: false, reason: 'unknown_provider' });
+      const projectIds = [
+        ...new Set(
+          [...resourceTables.capacities.values()]
+            .filter((each) => each.resourceId === resourceId)
+            .map((each) => each.projectId),
+        ),
+      ].sort();
+      return Promise.resolve({ ok: true, projectIds });
+    },
+    // The counts are the tables' own; the rows naming a demand's project are
+    // not, for `usageOfTag`'s reason, and the bound source answers them.
+    usageOfResource: (resourceId) => Promise.resolve(resourceUsageOf(resourceTables, resourceId)),
+    removeResource(resourceId, cascade, _stamp) {
+      if (!resourceTables.resources.has(resourceId))
+        return Promise.resolve({ ok: false, reason: 'not_found' });
+      const usage = resourceUsageOf(resourceTables, resourceId);
+      if (!cascade && (usage.demands.length > 0 || usage.capacities.length > 0))
+        return Promise.resolve({ ok: false, reason: 'in_use', usage });
+      for (const [key, each] of resourceTables.demands)
+        if (each.resourceId === resourceId) resourceTables.demands.delete(key);
+      for (const [key, each] of resourceTables.capacities)
+        if (each.resourceId === resourceId) resourceTables.capacities.delete(key);
+      resourceTables.resources.delete(resourceId);
+      return Promise.resolve({
+        ok: true,
+        removal: {
+          workItemIds: [...new Set(usage.demands.map((each) => each.workItemId))],
+          projectIds: [...new Set(usage.capacities.map((each) => each.projectId))].sort(),
+        },
+      });
     },
     listTeams: () =>
       Promise.resolve(
@@ -207,7 +325,10 @@ export function inMemoryDirectory(
         assignments: [],
         steps: [],
         people: [],
+        claims: [],
         members: [],
+        pinnedCredentials: 0,
+        machineCredentials: 0,
         capacityOf: new Map<string, number>(),
       }),
     // Seeded, as the migration seeds the real table: `systemOfUrl` can answer
@@ -261,7 +382,10 @@ export function inMemoryDirectory(
         assignments: [],
         steps: [],
         people: [],
+        claims: [],
         members: [],
+        pinnedCredentials: 0,
+        machineCredentials: 0,
         capacityOf: new Map<string, number>(),
       }),
     removeWorkItemType(typeId, _cascade, _stamp) {
@@ -345,6 +469,7 @@ export function inMemoryDirectory(
           .map((each): PersonWithTeams => ({
             ...each,
             teamIds: [...(memberships.get(each.id) ?? [])],
+            accountId: accountOf.get(each.id) ?? null,
           })),
       ),
     addPerson(toAdd, teamIds, _stamp) {
@@ -377,6 +502,23 @@ export function inMemoryDirectory(
       if (wanted?.some((each) => !teams.has(each)) === true) {
         return Promise.resolve({ ok: false, reason: 'unknown_team' });
       }
+      if (typeof patch.accountId === 'string') {
+        const owner = organizationOf.get(personId);
+        // An owned person binds to a member of its organization; an unowned one
+        // to any account, which only a directory built with accounts can tell.
+        // Proof: the membership read replaced with `true` made the conformance
+        // case `directory.patchPerson:owned-binding` bind the non-member
+        // (watched 2026-10-20).
+        if (owner !== undefined) {
+          if (organizationMembers.get(owner)?.has(patch.accountId) !== true)
+            return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        } else {
+          if (accounts === undefined)
+            return Promise.reject(new Error('this in-memory directory was built without accounts'));
+          if (!accounts.has(patch.accountId))
+            return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        }
+      }
       if (patch.name !== undefined) {
         const held = [...people.values()].some(
           (each) => each.name === patch.name && each.id !== personId,
@@ -391,13 +533,27 @@ export function inMemoryDirectory(
         people.set(personId, { ...current, kind: patch.kind });
       }
       if (wanted !== null) memberships.set(personId, new Set(wanted));
+      if (patch.accountId === null) accountOf.delete(personId);
+      if (typeof patch.accountId === 'string') accountOf.set(personId, patch.accountId);
       const patched = people.get(personId);
       if (patched === undefined) throw new Error(`person vanished mid-patch: ${personId}`);
       return Promise.resolve({
         ok: true,
-        person: { ...patched, teamIds: [...(memberships.get(personId) ?? [])] },
+        person: {
+          ...patched,
+          teamIds: [...(memberships.get(personId) ?? [])],
+          accountId: accountOf.get(personId) ?? null,
+        },
         projectIds: [],
       });
+    },
+    boundAccountOf(personId) {
+      if (!people.has(personId))
+        return Promise.reject(new Error(`no person "${personId}" to read the binding of`));
+      return Promise.resolve(accountOf.get(personId) ?? null);
+    },
+    credentialPinOf(issuer, subject) {
+      return Promise.resolve(credentialPins.get(credentialKey(issuer, subject)) ?? null);
     },
     // The four removal methods model only what an array can: a person or team
     // this fixture holds, and the rows it holds about them. **Nothing here
@@ -407,19 +563,38 @@ export function inMemoryDirectory(
     // so every behavioural claim about a removal is asserted against real
     // SQLite in `service/directory.service.test.ts`, the same call
     // `step-fixture.ts` makes for the same reason. That is also why every
-    // removal here names `cascade` and never reads it: with no usage to find,
-    // there is nothing for it to decide about.
-    usageOfPerson: () => Promise.resolve(NOTHING_POINTS_AT_IT),
+    // removal here but `removePerson` names `cascade` and never reads it: with
+    // no usage to find, there is nothing for it to decide about. A person's
+    // pinned credentials are the exception, because the pins are this
+    // fixture's own rows and name no project.
+    // The pins are this fixture's own rows, so it counts them as SQLite does.
+    usageOfPerson: (personId) =>
+      Promise.resolve({ ...NOTHING_POINTS_AT_IT, pinnedCredentials: pinsOf(personId).length }),
     usageOfTeam: (teamId) =>
       Promise.resolve({
         ...NOTHING_POINTS_AT_IT,
         members: [...people.values()].filter((each) => memberships.get(each.id)?.has(teamId)),
       }),
-    removePerson(personId, _cascade, _stamp) {
+    removePerson(personId, cascade, _stamp) {
       if (!people.has(personId)) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const pinned = pinsOf(personId);
+      // Proof: with this refusal removed, the memory certification's
+      // `directory.removePerson:pinned-credential` case removed the person
+      // unconfirmed; with the revoking loop below removed, the pin outlived its
+      // person (both watched 2026-10-20).
+      if (!cascade && pinned.length > 0)
+        return Promise.resolve({
+          ok: false,
+          reason: 'in_use',
+          usage: { ...NOTHING_POINTS_AT_IT, pinnedCredentials: pinned.length },
+        });
+      // Revoked with the person, as SQLite deletes the `external_identity` rows.
+      for (const each of pinned) credentialPins.delete(each);
       const held = [...assignments.values()].filter((each) => each.personId === personId);
       for (const each of held) assignments.delete(key(each.workItemId, each.stepId));
       memberships.delete(personId);
+      // The binding is a column of the removed row.
+      accountOf.delete(personId);
       people.delete(personId);
       return Promise.resolve({
         ok: true,
@@ -449,6 +624,15 @@ export function inMemoryDirectory(
         people: named.sort((left, right) => left.name.localeCompare(right.name)),
       };
     },
+    namesOf(catalog, ids) {
+      const held = catalog === 'people' ? people : teams;
+      return Promise.resolve(
+        [...new Set(ids)].flatMap((id) => {
+          const found = held.get(id);
+          return found === undefined ? [] : [{ id, name: found.name }];
+        }),
+      );
+    },
     assignmentsFor(workItemId) {
       return Promise.resolve(
         [...assignments.values()].filter((each) => each.workItemId === workItemId),
@@ -471,4 +655,21 @@ export function inMemoryDirectory(
     },
   };
   return store;
+}
+
+/** What names one resource in the memory tables; occupancies are 0 until claims hold units. */
+function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
+  return {
+    rows: NOTHING_POINTS_AT_IT,
+    demands: [...tables.demands.values()]
+      .filter((each) => each.resourceId === resourceId)
+      .sort((left, right) => left.workItemId.localeCompare(right.workItemId)),
+    capacities: [...tables.capacities.values()]
+      .filter((each) => each.resourceId === resourceId)
+      .map(({ projectId, units }) => ({ projectId, units }))
+      .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+    occupancies: 0,
+    // The memory twin holds no provider instance (`compute-providers` P3).
+    providerId: null,
+  };
 }

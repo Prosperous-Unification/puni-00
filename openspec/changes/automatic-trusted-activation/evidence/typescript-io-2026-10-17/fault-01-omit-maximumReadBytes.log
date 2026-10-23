@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+155 |     const messages: string[] = [];
+156 |     while (failure instanceof Error) {
+157 |       messages.push(failure.message);
+158 |       failure = failure.cause;
+159 |     }
+160 |     expect(messages.join(': ')).toContain(`TypeScript ${expected} limit exceeded`);
+                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "TypeScript read byte limit exceeded"
+Received: ""
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:160:33)
+(fail) compiler refuses maximumReadBytes before returning extraction [76.52ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [651.00ms]

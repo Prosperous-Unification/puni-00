@@ -1,0 +1,38 @@
+bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate wbs-burokrat-evaluation --strict --json
+{
+  "items": [
+    {
+      "id": "wbs-burokrat-evaluation",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "file",
+          "message": "skip_specs is set in .openspec.yaml: change declares no spec-level behavior changes, zero deltas accepted"
+        }
+      ],
+      "durationMs": 9
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/wbs-f7-aggregate-sol",
+    "source": "nearest"
+  }
+}
+max_rss_kib=75012 elapsed_seconds=0.13

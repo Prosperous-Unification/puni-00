@@ -1,0 +1,6 @@
+{
+  "command": ["git", "commit", "-m", "test(twilight-dash): prove retained implicit library parity"],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 790976,
+  "ceilingKiB": 921600
+}

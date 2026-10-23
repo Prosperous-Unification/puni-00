@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 361861120, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+165 |   );
+166 |   const diagnostics = projects.flatMap((project) => ts.getPreEmitDiagnostics(project.program));
+167 |   if (diagnostics.length > 0) {
+168 |     // Proof: removing this refusal made the `MissingType` fixture emit declarations and exit 0;
+169 |     // the production compiler-failure oracle expected exit 1.
+170 |     throw new Error(`TypeScript compiler failed: ${diagnostics.map(formatDiagnostic).join('; ')}`);
+                                                                                                       ^
+error: TypeScript compiler failed: Circular definition of import alias 'provider'.
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:170:98)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:193:23)
+(fail) retained literal paths resolves exact fallback with exact declarations and census [253.91ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1209.00ms]

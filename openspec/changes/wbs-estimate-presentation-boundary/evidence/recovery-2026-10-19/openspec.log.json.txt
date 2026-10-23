@@ -1,0 +1,32 @@
+{
+  "command": [
+    "bunx",
+    "@fission-ai/openspec@1.12.0",
+    "validate",
+    "wbs-estimate-presentation-boundary",
+    "--strict",
+    "--json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 102916,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bunx",
+      "@fission-ai/openspec@1.12.0",
+      "validate",
+      "wbs-estimate-presentation-boundary",
+      "--strict",
+      "--json"
+    ],
+    [
+      "node",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/.bin/openspec",
+      "validate",
+      "wbs-estimate-presentation-boundary",
+      "--strict",
+      "--json"
+    ]
+  ]
+}

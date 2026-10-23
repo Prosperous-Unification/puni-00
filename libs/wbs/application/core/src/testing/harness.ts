@@ -3,14 +3,21 @@ import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryCapacity } from '@wbs/store-memory/capacity-fixture';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
 import { inMemoryDependencies } from '@wbs/store-memory/dependency-fixture';
-import { inMemoryDirectory } from '@wbs/store-memory/directory-fixture';
+import { inMemoryDirectory, memoryDirectoryTables } from '@wbs/store-memory/directory-fixture';
 import { inMemoryEstimates } from '@wbs/store-memory/estimate-fixture';
 import { inMemoryMeasures } from '@wbs/store-memory/measure-fixture';
 import { inMemoryWorkItems } from '@wbs/store-memory/memory-work-item-fixture';
 import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
 import { inMemoryProgress } from '@wbs/store-memory/progress-fixture';
 import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
+import {
+  cascadeDemands,
+  inMemoryDemands,
+  inMemoryResourceCapacity,
+  memoryResourceTables,
+} from '@wbs/store-memory/resource-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
+import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
 import { inMemorySubtrees } from '@wbs/store-memory/subtree-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 
@@ -71,6 +78,7 @@ export interface InMemoryPlan {
       | 'progress'
       | 'attempts'
       | 'blockages'
+      | 'stepParallels'
       | 'dependencies'
       | 'typedDependencies'
       | 'directory'
@@ -78,17 +86,53 @@ export interface InMemoryPlan {
       | 'priorityBands'
       | 'journal'
       | 'subtrees'
+      | 'demands'
+      | 'resourceCapacity'
     >
   >;
 }
 
 export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}): InMemoryPlan {
+  // The demand and capacity stores read the directory's own resource tables, so
+  // a resource the directory declares is one they know; a caller's own directory
+  // holds tables this harness cannot see, and gets an empty catalog beside it.
+  const directoryTables = memoryDirectoryTables();
+  const resourceTables =
+    overrides.directory === undefined ? directoryTables.resources : memoryResourceTables();
   const directory =
     overrides.directory ??
-    inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
-      workItems.listByProject(projectId),
+    inMemoryDirectory(
+      (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
+      directoryTables,
     );
-  const workItems = overrides.workItems ?? inMemoryWorkItems(directory);
+  const rowsOnlyWorkItems = overrides.workItems ?? inMemoryWorkItems(directory);
+  // A removed row takes its demands, as `bindStores` and SQLite's cascade do:
+  // left behind, they would come back with the row on an undo that wrote none,
+  // and a test here would pass where production loses them.
+  // Proof: with this cascade removed, `takes a removed row's demands, so a row
+  // put back without them reads none` (harness.test.ts) read the demand back
+  // after the reinsert; watched 2026-10-20.
+  //
+  // A proxy, not a spread: an overriding store may be a class instance (the
+  // SQLite `WorkItemRepository` the scope tests pass), whose reads live on its
+  // prototype, which a spread drops.
+  // Proof: with the spread, the six scope tests in `assignment-scope`,
+  // `startable-scope` and `person-work-scope.db.test.ts` threw
+  // `this.opts.workItems.listByProject is not a function`; watched 2026-10-20.
+  const removeCascading: typeof rowsOnlyWorkItems.remove = async (ids, promoted, stamp) => {
+    await rowsOnlyWorkItems.remove(ids, promoted, stamp);
+    const removed = new Set(ids);
+    cascadeDemands(resourceTables, (workItemId) => removed.has(workItemId));
+  };
+  const workItems = new Proxy(rowsOnlyWorkItems, {
+    get(target, key) {
+      if (key === 'remove') return removeCascading;
+      const member: unknown = Reflect.get(target, key);
+      if (typeof member !== 'function') return member;
+      const bound: unknown = member.bind(target);
+      return bound;
+    },
+  });
   const estimates = overrides.estimates ?? inMemoryEstimates(workItems);
   const actuals = overrides.actuals ?? inMemoryActuals(workItems);
   const measures = overrides.measures ?? inMemoryMeasures(workItems);
@@ -110,7 +154,26 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
         return null;
       },
     });
+  const stepParallels =
+    overrides.stepParallels ??
+    inMemoryStepParallels(workItems, {
+      findById: async (stepId) => {
+        for (const project of await projects.list()) {
+          const step = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (step !== undefined) return step;
+        }
+        return null;
+      },
+    });
   const capacity = overrides.capacity ?? inMemoryCapacity();
+  const resourceCapacity =
+    overrides.resourceCapacity ??
+    inMemoryResourceCapacity(resourceTables, async (projectId) =>
+      (await projects.list()).some((each) => each.id === projectId),
+    );
+  const demands = overrides.demands ?? inMemoryDemands(resourceTables, workItems);
   const priorityBands = overrides.priorityBands ?? inMemoryPriorityBands();
   const journal = overrides.journal ?? inMemoryCommandJournal();
   const subtrees =
@@ -123,6 +186,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
       progress,
       dependencies,
       directory,
+      demands,
     });
   // `recordingBroadcaster` unless the caller brought one, and the return type
   // says which: a suite that passes its own gets it back as the type it passed,
@@ -139,6 +203,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     progress,
     attempts,
     blockages,
+    stepParallels,
     dependencies,
     typedDependencies,
     directory,
@@ -146,6 +211,8 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     priorityBands,
     journal,
     subtrees,
+    demands,
+    resourceCapacity,
   };
   return {
     // The caller's clock when it hands one, or the wall clock. `testClock` was
@@ -161,6 +228,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
       admission: overrides.admission ?? CREATOR_ADMISSION,
       clock: overrides.clock ?? testClock,
       ...stores,
+      ...(overrides.claims === undefined ? {} : { claims: overrides.claims }),
       broadcast,
       scheduler,
     }),

@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services.db.test.ts:
+(pass) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after after-capture [498.72ms]
+(pass) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after event-insert [399.73ms]
+(pass) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after after-capture [357.43ms]
+(pass) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after event-insert [324.34ms]
+
+ 4 pass
+ 134 filtered out
+ 0 fail
+ 36 expect() calls
+Ran 4 tests across 1 file. [4.68s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 596668416, "exitCode": 0}

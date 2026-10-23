@@ -117,11 +117,6 @@
       "excuses": ["legacy-root"]
     },
     {
-      "path": "docs/local-dev.md",
-      "reason": "historical measured path",
-      "excuses": ["legacy-root"]
-    },
-    {
       "path": "docs/plans/2026-08-07-table-ui-cleanup.md",
       "reason": "dated plan",
       "excuses": ["legacy-root", "nx-selector"]

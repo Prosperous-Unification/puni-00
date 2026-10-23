@@ -1,3 +1,4 @@
+import { NO_COMPUTE_PROVIDERS } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { expect, spyOn, test } from 'bun:test';
 
@@ -18,7 +19,10 @@ function fixture(readOnly = false) {
     uow: writes.uow,
     announcements: writes.announcements,
   });
-  const endpoints = workItemRoutes(plan.service, runner, nodeDigest, legacyOrganizationAccess);
+  const endpoints = workItemRoutes(plan.service, runner, nodeDigest, legacyOrganizationAccess, {
+    reports: NO_COMPUTE_PROVIDERS.reports,
+    clock: { now: () => 0 },
+  });
   const app = mountEndpoints(endpoints, {
     appOrigin: 'http://localhost',
     reportUnexpectedFailure: () => undefined,
@@ -241,6 +245,8 @@ test('mounted parsing preserves priority absence and null while defaulting assig
       { kind: 'setAssignee', stepId: 's', personId: null },
     ],
     { kind: 'legacy' },
+    // A password session carries no upstream pair, so nothing pins it.
+    null,
   );
 });
 

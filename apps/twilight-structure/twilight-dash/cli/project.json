@@ -6,6 +6,7 @@
   "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-dash"],
   "targets": {
     "test": {
+      "cache": false,
       "executor": "nx:run-commands",
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000",

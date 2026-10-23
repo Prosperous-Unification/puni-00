@@ -1,7 +1,7 @@
+import { Button } from '@ui/saas-01';
 import { type ClientReply, confirmEmailChallenge, createEmailChallenge } from '@wbs/contracts';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { Auth0Link } from './auth0-link';

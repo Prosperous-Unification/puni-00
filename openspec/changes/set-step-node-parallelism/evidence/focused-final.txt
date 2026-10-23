@@ -1,0 +1,75 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step-node-resources.controller.db.test.ts:
+{"level":"error","time":1792097451804,"service":"be-01","err":{"occurrence_id":"AE_0SMF02TRAFRJ1ZFGDHKBXV6E45","fingerprint":"fp1_598674781b2834c2041a28ee66d0817a","stack":["Error: Endpoint getApiProjectsByIdWork-items returned an undeclared success representation","    at renderReply (/tmp/puni-step-parallel-foundation-sol-20261015/apps/wbs/be-01/src/http/elysia/mount.ts:466:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) live node resources (isolated) > reads held leaf resources before page filtering with captured inherited capacity and single-read parity [1464.76ms]
+(pass) live node resources (isolated) > emits empty resources for a stepless leaf and no resources on parents [465.08ms]
+{"level":"error","time":1792097453510,"service":"be-01","err":{"occurrence_id":"AE_TVEFC570ENENTBKKRF6H2KPHEW","fingerprint":"fp1_598674781b2834c2041a28ee66d0817a","stack":["Error: Endpoint getApiProjectsByIdWork-items returned an undeclared success representation","    at renderReply (/tmp/puni-step-parallel-foundation-sol-20261015/apps/wbs/be-01/src/http/elysia/mount.ts:466:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) live node resources (shared) > reads held leaf resources before page filtering with captured inherited capacity and single-read parity [1199.14ms]
+(pass) live node resources (shared) > emits empty resources for a stepless leaf and no resources on parents [462.33ms]
+
+libs/wbs/domain/domain/src/node-resources.test.ts:
+(pass) node resources > reads inherited whole team sets, nullable unsized capacity and the narrowest width [0.30ms]
+(pass) node resources > distinguishes explicit and sole assumed assignment, with named width one [0.10ms]
+(pass) node resources > two assignments to the same person disable assumption [0.03ms]
+(pass) node resources > own teams replace ancestors and unsized teams do not create pools [0.07ms]
+(pass) node resources > own sized teams override narrower inherited capacity [0.07ms]
+(pass) node resources > does not widen stored parallelism to a larger team capacity [0.02ms]
+(pass) node resources > reads unstated teams and stepless leaves without inventing nodes [0.06ms]
+
+libs/wbs/application/conformance/src/case-manifest.test.ts:
+(pass) the closed case manifest > rejects a missing family [2.15ms]
+(pass) the closed case manifest > rejects a duplicated case [0.58ms]
+(pass) the closed case manifest > contains the complete source families and exact history mechanisms [0.08ms]
+
+libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts:
+(pass) store-sqlite sparse step parallelism > stores explicit equal-default facts, replaces one pair and removes only that pair [187.30ms]
+(pass) store-sqlite sparse step parallelism > orders mixed-case owner IDs identically to SQLite binary order [167.98ms]
+(pass) store-sqlite sparse step parallelism > rejects each invalid value without storing a fact [167.52ms]
+(pass) store-sqlite sparse step parallelism > rejects parent ownership, foreign steps, absent steps and absent owners independently [196.58ms]
+(pass) store-sqlite sparse step parallelism > commits sparse facts and rolls back replacements and removals with the surrounding batch [170.26ms]
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+(pass) sparse parallelism SQL contract > SQL rejects range/type 0 [216.53ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type 1001 [214.13ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type 1.5 [147.09ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type NULL [164.69ms]
+(pass) sparse parallelism SQL contract > SQL rejects duplicate pairs [208.25ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert owner reference [169.86ms]
+(pass) sparse parallelism SQL contract > SQL rejects update owner reference [165.62ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert step reference [148.72ms]
+(pass) sparse parallelism SQL contract > SQL rejects update step reference [153.00ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert project [142.45ms]
+(pass) sparse parallelism SQL contract > SQL rejects update project [159.43ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert leaf [135.02ms]
+(pass) sparse parallelism SQL contract > SQL rejects update leaf [143.88ms]
+(pass) sparse parallelism SQL contract > retains original creation audit and updates revisions atomically [158.12ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt owner without hiding the retained row [141.62ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt step without hiding the retained row [137.53ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt project without hiding the retained row [164.74ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt leaf without hiding the retained row [138.29ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt range without hiding the retained row [145.03ms]
+(pass) sparse parallelism SQL contract > down refuses retained facts and preserves table and applied ledger [138.63ms]
+(pass) sparse parallelism SQL contract > empty down and forward preserve existing work items [144.90ms]
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+(pass) memory parallelism corruption boundary > read refuses corrupt owner [5.42ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt step [0.41ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt project [0.15ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt leaf [0.40ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt range [0.15ms]
+(pass) memory parallelism corruption boundary > write refuses a missing owner with a trusted-reference error [0.33ms]
+(pass) memory parallelism corruption boundary > read refuses duplicate pairs rather than choosing one [0.47ms]
+(pass) memory parallelism corruption boundary > reads and writes detached values [0.53ms]
+
+libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts:
+(pass) store-memory sparse step parallelism > stores explicit equal-default facts, replaces one pair and removes only that pair [3.46ms]
+(pass) store-memory sparse step parallelism > orders mixed-case owner IDs identically to SQLite binary order [0.88ms]
+(pass) store-memory sparse step parallelism > rejects each invalid value without storing a fact [0.54ms]
+(pass) store-memory sparse step parallelism > rejects parent ownership, foreign steps, absent steps and absent owners independently [0.64ms]
+(pass) store-memory sparse step parallelism > commits sparse facts and rolls back replacements and removals with the surrounding batch [2.37ms]
+
+ 53 pass
+ 0 fail
+ 209 expect() calls
+Ran 53 tests across 7 files. [13.56s]

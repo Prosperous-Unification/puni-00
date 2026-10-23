@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+658 |         if (Array.isArray(field)) expect(Object.isFrozen(field)).toBe(true);
+659 |     return hash(policy);
+660 |   });
+661 |   try {
+662 |     const namespace = createRetainedNamespace(f.candidate, f.runtime, limits);
+663 |     expect(capturedBytes).toBe(expectedBytes);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: "{\"candidateForbiddenComponents\":[\".git\",\"node_modules\"],\"candidateModes\":[\"100644\",\"100755\",\"120000\"],\"candidatePrefix\":\"/__puni_review__/candidate\",\"caseSensitive\":true,\"conflicts\":\"reject-duplicate-mount-and-nondirectory-ancestor\",\"directories\":\"valid-prefixes-including-root\",\"kind\":\"retained-review-namespace-policy\",\"libraryDirectory\":\"/__puni_review__/candidate/node_modules/typescript/lib\",\"order\":\"utf8-byte-ascending\",\"pathGrammar\":\"well-formed-unicode-posix-relative-no-empty-dot-traversal-nul-backslash\",\"runtimeDependencyPrefix\":\"node_modules/\",\"runtimeForbiddenComponents\":[\".git\"],\"runtimeMountPrefix\":\"/__puni_review__/candidate\",\"schemaVersion\":1,\"symlinks\":\"opaque\",\"workingDirectory\":\"/__puni_review__/candidate\"}\n"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:663:27)
+(fail) binds emitted namespace pin to the exact canonical V1 recipe [109.26ms]
+
+ 0 pass
+ 43 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1065.00ms]

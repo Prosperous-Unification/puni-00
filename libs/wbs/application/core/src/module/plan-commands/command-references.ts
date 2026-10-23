@@ -96,9 +96,40 @@ export async function refuseForeignReferences(
     // `not_found`, the answer the capacity service gives a team nobody holds.
     if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
   }
+  // Proof: skipping this check made `refuses a foreign resource exactly as an
+  // absent one` (resource-organization.controller.db.test.ts) answer 200 to a
+  // clear naming B's resource from A's plan, where the closure check afterwards
+  // has nothing to see; watched 2026-10-20.
+  if (command.kind === 'setResourceCapacity' || command.kind === 'setDemand') {
+    const resourceId = context.required(command.resourceId, command.resourceRef);
+    const owned = await graph.directory.listWithin('resources', { kind: 'scoped', scope });
+    if (!owned.some((resource) => resource.id === resourceId))
+      context.refuse({ reason: 'unknown_resource' });
+  }
+  // Proof: skipping this check made `refuses a claim asking for a foreign
+  // resource exactly as an absent one` (resource-organization.controller.db.test.ts)
+  // tell B's resource from an absent one; watched 2026-10-20.
+  if (command.kind === 'claimWorkItem' && command.resources !== undefined) {
+    const owned = new Set(
+      (await graph.directory.listWithin('resources', { kind: 'scoped', scope })).map(
+        (resource) => resource.id,
+      ),
+    );
+    if (command.resources.some(({ resourceId }) => !owned.has(resourceId)))
+      context.refuse({ reason: 'unknown_resource' });
+  }
   // Proof: skipping the step check alone made the same test answer 200 instead
   // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
   // 2026-09-27.
+  if (
+    (command.kind === 'claimWorkItem' || command.kind === 'releaseWorkItem') &&
+    command.steps !== undefined
+  ) {
+    for (const stepId of command.steps) {
+      if (!(await graph.workItems.hasStepInProject(projectId, stepId)))
+        context.refuse({ reason: 'unknown_step' });
+    }
+  }
   if (
     'stepId' in command &&
     typeof command.stepId === 'string' &&
@@ -119,7 +150,16 @@ function directoryReferencesOf(
   command: PlanCommand,
   context: CommandContext,
 ): [DirectoryCatalog, readonly string[], PlainReason][] {
-  if (command.kind === 'setAssignee') {
+  // Proof: with `assignSubtree` dropped here and the batch's crossing check
+  // also skipping `assignment_person`, the `assignSubtree` row of `refuses a
+  // foreign service, team, tag, type, person and predecessor, all or none`
+  // (command-organization.controller.db.test.ts) answered 200 instead of 404;
+  // either guard alone keeps it 404 (two layers); watched 2026-10-20.
+  if (command.kind === 'setAssignee' || command.kind === 'assignSubtree') {
+    const person = context.id(command.personId, command.personRef);
+    return [['people', person === null ? [] : [person], 'unknown_person']];
+  }
+  if (command.kind === 'claimWorkItem' || command.kind === 'releaseWorkItem') {
     const person = context.id(command.personId, command.personRef);
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }
@@ -153,6 +193,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
     case 'assignment_step':
       return 'unknown_step';
     case 'assignment_person':
+    case 'claim_person':
     case 'step_node_attempt_person':
       return 'unknown_person';
     case 'work_item_tag':
@@ -168,6 +209,10 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
       return 'unknown_service';
     case 'work_item_external_ref':
       return 'unknown_system';
+    case 'project_resource_capacity':
+    case 'work_item_resource_demand':
+    case 'claim_occupancy_resource':
+      return 'unknown_resource';
     case 'work_item_parent':
     case 'dependency_endpoint':
     case 'incoming_step_row':

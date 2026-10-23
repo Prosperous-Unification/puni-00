@@ -1,0 +1,41 @@
+/*
+ * The PUNI brand constants: what every kit may draw its values from and no kit
+ * may redefine. Hex as the brand was decided, in `apps/website/fe-01`; a kit
+ * converts to oklch where it wants a lightness it can dial.
+ *
+ * The two faces are self-hosted variable fonts under the SIL Open Font License
+ * 1.1 (`fonts/*-OFL.txt`); `brand.test.ts` pins their digests to `fonts/README.md`.
+ */
+:root {
+  --brand-paper: #ffffff;
+  --brand-paper-2: #f5f5f3;
+  --brand-ink: #111113;
+  --brand-ink-2: #34343a;
+  --brand-muted: #5f5f67;
+  --brand-line: #e4e4e0;
+  --brand-line-strong: #8f8f88;
+  --brand-night: #0b0915;
+  --brand-night-2: #17141f;
+  --brand-on-night: #f4f2f7;
+  --brand-on-night-muted: #c4bdd0;
+  --brand-gold: #f6ae4c;
+  --brand-gold-ink: #8a520f;
+  --brand-focus: #a35d10;
+  --brand-font-display: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+  --brand-font-body: 'Geist', 'Helvetica Neue', Arial, sans-serif;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter Tight';
+  src: url('./fonts/InterTight-variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}

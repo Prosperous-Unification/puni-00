@@ -1,0 +1,18 @@
+{
+  "extends": "/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/tsconfig.lib.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["bun-types"],
+    "typeRoots": [
+      "/tmp/puni-project-drain-parallel-20261017/node_modules/@types",
+      "/tmp/puni-project-drain-parallel-20261017/node_modules"
+    ]
+  },
+  "files": [],
+  "include": [
+    "/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain.ts",
+    "/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts"
+  ],
+  "exclude": [],
+  "references": []
+}

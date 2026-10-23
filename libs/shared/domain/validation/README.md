@@ -28,13 +28,25 @@ difference between them, and it is the whole reason there are two.
 number (was a string)`, but a literal union or a regex **quotes what it got**
   — `MODE must be "dev" or "prod" (was "sekrit")`.
 - **So `defineConfig` uses `parseSecretsOrThrow`**, which names the path and
-  never the value. It went through the other one until 2026-09-02, and one
-  mistyped `LOG_LEVEL` printed every secret be-01 holds into the boot log.
+  never the value; [config's landmines](../../../wbs/adapters/config/README.md#landmines)
+  record the boot log that printed every secret be-01 holds before it did.
 - It used to open every message with `JSON.stringify(input)`, echoing the whole
   value back — for an HTTP body that is the caller's own data arriving twice.
 
 ## Test
 
 ```sh
-bunx nx run shared-validation:test
+bunx nx run shared-validation:test:unit:level
 ```
+
+The isolated Unit target selects `src/**/*.test.ts` with literal `./` operands,
+excluding database tests, and refuses an empty or failed selection. It clears
+`tmp/junit/shared-validation.unit.xml` before selection and writes a fresh JUnit
+report with the existing 10000ms timeout. The production test-level verifier
+audits the target inventory, complete source collection, level isolation and
+report path. Currently `src/core.test.ts` supplies three cases.
+
+`shared-validation:test` and `shared-validation:test:unit` retain their existing
+commands. Both are unreported legacy runners without isolated level evidence
+credit. This target's operational report does not establish trusted execution or
+scenario coverage.

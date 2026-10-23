@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/refusal.test.ts:
+(pass) the compiler enforces closed refusal codes, detail variants and command context [339.81ms]
+
+ 1 pass
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [353.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 226295808, "exitCode": 0}

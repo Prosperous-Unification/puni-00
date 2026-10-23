@@ -1,7 +1,8 @@
-import type { Step, StepRemoved, StepStore, StepUsageRows } from '@wbs/core';
-import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCode } from '@wbs/domain';
+import type { Step, StepRemoved, StepStore, StepUsageRows, WorkItemStore } from '@wbs/core';
+import { assertStepParallel, NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCode } from '@wbs/domain';
 
 import { type MemoryEstimateTable, memoryEstimateTable } from './estimate-fixture';
+import type { MemoryStepParallelTable } from './step-parallel-fixture';
 
 /**
  * A `Step` row carrying every field the schema requires.
@@ -32,14 +33,14 @@ export function stepRow(overrides: Partial<Step> = {}): Step {
  * because a fixture laxer than production lets a test pass against
  * behaviour that does not exist.
  *
- * **What it deliberately does not model** is everything the removal is: the
- * revisions, and the fact that the deletes and the bumps are one transaction.
+ * Sparse parallelism shares its source-owned table with this store and refuses
+ * removal for either cascade value, validating selected trusted facts first.
+ * Returned references are detached and ordered by their structured identities.
+ *
+ * **What it deliberately does not model** is removal revisions and SQL deletes.
  * An array has no statement to put them in, so claiming them here would be a
- * second implementation of the rule under test. `remove` therefore reports what
- * it took and nothing else, and every behavioural claim about a removal is
- * asserted against real SQLite in `repository/step.test.ts` and
- * `service/step.service.test.ts` — the same call `subtree-fixture.ts` makes,
- * for the same reason.
+ * second implementation of the rule under test. Successful `remove` reports
+ * what it took; SQLite removal tests own the revision and SQL atomicity claims.
  */
 export interface MemoryStepTable {
   readonly rows: Step[];
@@ -53,6 +54,7 @@ export function inMemorySteps(
   seed: readonly Step[] = [],
   table: MemoryStepTable = memoryStepTable(seed),
   estimates: MemoryEstimateTable = memoryEstimateTable(),
+  parallelism?: { readonly table: MemoryStepParallelTable; readonly workItems: WorkItemStore },
 ): StepStore & { readonly rows: Step[] } {
   const { rows } = table;
   /**
@@ -124,19 +126,52 @@ export function inMemorySteps(
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: [],
       });
     },
-    remove(projectId, stepId, _cascade, _stamp): Promise<StepRemoved> {
+    async remove(projectId, stepId, _cascade, _stamp): Promise<StepRemoved> {
       const found = rows.findIndex((each) => each.id === stepId && each.projectId === projectId);
-      // The one thing this can model of the real removal: a step that is not
-      // this project's, or is already gone, is `not_found` and writes nothing.
-      // The refusal-when-used branch is unreachable here because nothing can
-      // point at a step in an array with no estimates in it — which is also why
-      // `cascade` is named and never read: there is nothing pointing at the step
-      // for it to decide about.
-      if (found < 0) return Promise.resolve({ ok: false, reason: 'not_found' });
-      rows.splice(found, 1);
+      if (found < 0) return { ok: false, reason: 'not_found' };
+      const nodes: { workItemId: string; stepId: string }[] = [];
+      if (parallelism !== undefined) {
+        const seen = new Set<string>();
+        const owners = await parallelism.workItems.listByProject(projectId);
+        // Proof: targetless selection included a foreign-step fact and broke the exact-target test, 2026-10-17.
+        for (const parallel of parallelism.table.rows.filter((row) => row.stepId === stepId)) {
+          // Proof: range validation omitted; corrupt retained memory range test received a policy refusal, 2026-10-17.
+          assertStepParallel(parallel.maxParallel);
+          const owner = await parallelism.workItems.findById(parallel.workItemId);
+          // Proof: owner guard omitted; corrupt retained memory owner test received TypeError, 2026-10-17.
+          if (owner === null)
+            throw new Error('step parallelism has an invalid work-item reference');
+          // Proof: project guard omitted; corrupt retained memory project test received a policy refusal, 2026-10-17.
+          if (owner.projectId !== projectId) throw new Error('step parallelism project mismatch');
+          // Proof: leaf guard omitted; corrupt retained memory leaf test received a policy refusal, 2026-10-17.
+          if (owners.some((row) => row.parentId === owner.id))
+            throw new Error('step parallelism owner is not a leaf');
+          // Proof: duplicate guard omitted; corrupt retained memory duplicate test received a policy refusal, 2026-10-17.
+          if (seen.has(owner.id)) throw new Error('duplicate step parallelism');
+          seen.add(owner.id);
+          // Proof: retaining the fact object exposed maxParallel and broke detached-reference assertions, 2026-10-17.
+          nodes.push({ workItemId: parallel.workItemId, stepId: parallel.stepId });
+        }
+      }
+      // Proof: omitted guard and cascade-only guard deleted the step in retained memory tests, 2026-10-17.
+      if (nodes.length > 0)
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          // Proof: descending owner order broke the sorted detached-reference test, 2026-10-17.
+          nodes: nodes.sort((left, right) =>
+            left.workItemId < right.workItemId ? -1 : left.workItemId > right.workItemId ? 1 : 0,
+          ),
+        };
+      // Proof: using the pre-await index made both delayed-owner concurrency tests fail, 2026-10-17.
+      const current = rows.findIndex((row) => row.id === stepId && row.projectId === projectId);
+      // Proof: omitting this guard let the same-step loser remove a sibling and report success, 2026-10-17.
+      if (current < 0) return { ok: false, reason: 'not_found' };
+      rows.splice(current, 1);
       return Promise.resolve({
         ok: true,
         removal: {
@@ -146,6 +181,7 @@ export function inMemorySteps(
           blockages: 0,
           measures: 0,
           attempts: 0,
+          claims: 0,
           assignments: 0,
           workItemIds: [],
         },

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+    "--test-name-pattern",
+    "admits omitted ordinary probes"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 351936,
+  "ceilingKiB": 921600
+}

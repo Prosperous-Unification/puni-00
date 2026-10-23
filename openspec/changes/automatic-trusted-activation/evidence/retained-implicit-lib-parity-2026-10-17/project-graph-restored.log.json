@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "nx", "graph", "--file=/tmp/implicit-lib-project-graph.json"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 270588,
+  "ceilingKiB": 921600
+}

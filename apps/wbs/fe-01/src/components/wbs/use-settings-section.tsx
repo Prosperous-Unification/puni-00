@@ -1,6 +1,6 @@
+import { Button } from '@ui/saas-01';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 
 import { failureText } from './plan-refusal';

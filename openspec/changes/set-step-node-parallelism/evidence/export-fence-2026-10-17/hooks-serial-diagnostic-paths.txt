@@ -1,0 +1,16 @@
+apps/wbs/be-01/src/app.routes.test.ts
+apps/wbs/be-01/src/app.test.ts
+apps/wbs/be-01/src/app.ts
+apps/wbs/be-01/src/boot.ts
+apps/wbs/be-01/src/controller/auth.integration.test.ts
+apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts
+apps/wbs/be-01/src/controller/calendar-marker.controller.db.test.ts
+apps/wbs/be-01/src/controller/capacity-body.db.test.ts
+apps/wbs/be-01/src/controller/directory.controller.db.test.ts
+apps/wbs/be-01/src/controller/history.controller.test.ts
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts
+apps/wbs/be-01/src/controller/internal.integration.test.ts
+apps/wbs/be-01/src/controller/oidc-identity.controller.db.test.ts
+apps/wbs/be-01/src/controller/oidc.integration.test.ts
+apps/wbs/be-01/src/controller/priority-ladder-body.db.test.ts
+apps/wbs/be-01/src/controller/project.controller.test.ts

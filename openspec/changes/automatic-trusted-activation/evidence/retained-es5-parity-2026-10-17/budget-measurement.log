@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+{"rawLibraries":233412,"acquiredBytes":235702,"envelopeBytes":4779,"ledgerBytes":1974,"entryCount":11}
+(pass) retained ES5 compiler includes library observations in read and envelope budgets [2885.87ms]
+
+ 1 pass
+ 29 filtered out
+ 0 fail
+ 20 expect() calls
+Ran 1 test across 1 file. [5.66s]

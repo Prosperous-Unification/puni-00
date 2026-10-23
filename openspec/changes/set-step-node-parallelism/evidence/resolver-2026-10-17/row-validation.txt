@@ -1,0 +1,226 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/step-parallel.test.ts:
+(pass) resolveStepParallel > inherits Dev four while QA explicitly requests two [0.11ms]
+(pass) resolveStepParallel > retains explicit one when equal to the row default and after it becomes four [0.02ms]
+(pass) resolveStepParallel > refuses a fact belonging to another work item [0.04ms]
+(pass) resolveStepParallel > refuses a fact belonging to another step [0.02ms]
+31 |     expect(() => resolveStepParallel(dev, 4, { ...qa, maxParallel: 2 })).toThrow();
+32 |   });
+33 | 
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+                                                                      ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "inherited",
+  maxParallel: 0,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:36:66)
+(fail) resolveStepParallel > refuses inherited row maximum 0 [0.15ms]
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+37 |     });
+38 |     it(`refuses row maximum ${String(invalid)} despite a valid override`, () => {
+39 |       expect(() => resolveStepParallel(dev, invalid, { ...dev, maxParallel: 2 })).toThrow();
+                                                                                       ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:39:83)
+(fail) resolveStepParallel > refuses row maximum 0 despite a valid override [0.04ms]
+(pass) resolveStepParallel > refuses override maximum 0 [0.02ms]
+31 |     expect(() => resolveStepParallel(dev, 4, { ...qa, maxParallel: 2 })).toThrow();
+32 |   });
+33 | 
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+                                                                      ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "inherited",
+  maxParallel: 1001,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:36:66)
+(fail) resolveStepParallel > refuses inherited row maximum 1001 [0.02ms]
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+37 |     });
+38 |     it(`refuses row maximum ${String(invalid)} despite a valid override`, () => {
+39 |       expect(() => resolveStepParallel(dev, invalid, { ...dev, maxParallel: 2 })).toThrow();
+                                                                                       ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:39:83)
+(fail) resolveStepParallel > refuses row maximum 1001 despite a valid override [0.02ms]
+(pass) resolveStepParallel > refuses override maximum 1001
+31 |     expect(() => resolveStepParallel(dev, 4, { ...qa, maxParallel: 2 })).toThrow();
+32 |   });
+33 | 
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+                                                                      ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "inherited",
+  maxParallel: 1.5,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:36:66)
+(fail) resolveStepParallel > refuses inherited row maximum 1.5 [0.02ms]
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+37 |     });
+38 |     it(`refuses row maximum ${String(invalid)} despite a valid override`, () => {
+39 |       expect(() => resolveStepParallel(dev, invalid, { ...dev, maxParallel: 2 })).toThrow();
+                                                                                       ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:39:83)
+(fail) resolveStepParallel > refuses row maximum 1.5 despite a valid override [0.01ms]
+(pass) resolveStepParallel > refuses override maximum 1.5
+31 |     expect(() => resolveStepParallel(dev, 4, { ...qa, maxParallel: 2 })).toThrow();
+32 |   });
+33 | 
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+                                                                      ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "inherited",
+  maxParallel: NaN,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:36:66)
+(fail) resolveStepParallel > refuses inherited row maximum NaN [0.02ms]
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+37 |     });
+38 |     it(`refuses row maximum ${String(invalid)} despite a valid override`, () => {
+39 |       expect(() => resolveStepParallel(dev, invalid, { ...dev, maxParallel: 2 })).toThrow();
+                                                                                       ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:39:83)
+(fail) resolveStepParallel > refuses row maximum NaN despite a valid override [0.01ms]
+(pass) resolveStepParallel > refuses override maximum NaN
+31 |     expect(() => resolveStepParallel(dev, 4, { ...qa, maxParallel: 2 })).toThrow();
+32 |   });
+33 | 
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+                                                                      ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "inherited",
+  maxParallel: Infinity,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:36:66)
+(fail) resolveStepParallel > refuses inherited row maximum Infinity [0.01ms]
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+37 |     });
+38 |     it(`refuses row maximum ${String(invalid)} despite a valid override`, () => {
+39 |       expect(() => resolveStepParallel(dev, invalid, { ...dev, maxParallel: 2 })).toThrow();
+                                                                                       ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:39:83)
+(fail) resolveStepParallel > refuses row maximum Infinity despite a valid override [0.01ms]
+(pass) resolveStepParallel > refuses override maximum Infinity
+31 |     expect(() => resolveStepParallel(dev, 4, { ...qa, maxParallel: 2 })).toThrow();
+32 |   });
+33 | 
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+                                                                      ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "inherited",
+  maxParallel: -Infinity,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:36:66)
+(fail) resolveStepParallel > refuses inherited row maximum -Infinity [0.01ms]
+34 |   for (const invalid of [0, 1001, 1.5, NaN, Infinity, -Infinity]) {
+35 |     it(`refuses inherited row maximum ${String(invalid)}`, () => {
+36 |       expect(() => resolveStepParallel(dev, invalid, undefined)).toThrow();
+37 |     });
+38 |     it(`refuses row maximum ${String(invalid)} despite a valid override`, () => {
+39 |       expect(() => resolveStepParallel(dev, invalid, { ...dev, maxParallel: 2 })).toThrow();
+                                                                                       ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:39:83)
+(fail) resolveStepParallel > refuses row maximum -Infinity despite a valid override [0.01ms]
+(pass) resolveStepParallel > refuses override maximum -Infinity
+(pass) resolveStepParallel > accepts both inclusive bounds as inherited and explicit maxima [0.04ms]
+(pass) resolveStepParallel > detaches the resolved maximum from the supplied mutable fact [0.02ms]
+(pass) resolveStepParallel > composes with named-person, narrowest-pool and unsized-team resource rules [0.25ms]
+
+ 13 pass
+ 12 fail
+ 33 expect() calls
+Ran 25 tests across 1 file. [22.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 16572416, "exitCode": 1}

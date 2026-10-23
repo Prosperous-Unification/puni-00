@@ -3,7 +3,7 @@
 The shapes two tiers have to agree about, and the one place each is written.
 `runtime:isomorphic`: be-01 and gw-01 parse with it, fe-01 builds with it.
 
-## Four files
+## Files
 
 - **`ws.ts`** — the realtime vocabulary as **parsers**: `WsFrame` (a
   subscription's payload) and `WsControlFrame` (the nine control arms). What an
@@ -13,6 +13,22 @@ The shapes two tiers have to agree about, and the one place each is written.
   pulling arktype into the browser bundle.
 - **`internal.ts`** — the be-01 ↔ gw-01 forward and push envelopes.
 - **`errors.ts`** — the refusal codes both tiers name.
+- **`http/`** — every HTTP endpoint as an `EndpointShape` (method, path,
+  operation id, request policies, params, query, body and reply schemas), grouped
+  per resource in `*-shapes.ts` and catalogued as `httpShapes` in `shapes.ts`;
+  the typed client (`client.ts`, `client-fetch.ts`, `client-types.ts`,
+  `client-error.ts`); modeled HTTP refusals (`refusal.ts`); and `schema-shape.ts`,
+  the one wire declaration OpenAPI and MCP emission read.
+- **`commands/definitions.ts`** — `commandDefinitions`, the plan and directory
+  command catalogue the command batch parses against.
+- **`auth-methods.ts`** — the sign-in methods WBS offers as direct buttons.
+- **`oidc-identity.ts`** — the identity read from a verified upstream OIDC
+  credential, and the WBS scopes.
+- **`principal.ts`** — who a request is once a session token is believed; it
+  lives here because the command batch, replay, save and retention sweep admit
+  on it without being about authentication.
+- **`logger.ts`** — the logging surface application code and runtime adapters
+  share.
 
 ## Refusals
 
@@ -35,5 +51,5 @@ deployed separately and one of them is always newer.
 ## Test
 
 ```sh
-bunx nx run wbs-contracts:test # 12 cases, half of them the round trip
+bunx nx run wbs-contracts:test # the round trip is `the frames a builder writes` in ws.test.ts
 ```

@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -134,8 +136,11 @@ beforeEach(async () => {
     progress: progressStore,
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),
+    stepParallels: new StepParallelRepository(db, OPEN),
     directory,
     capacity: inMemoryCapacity(),
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: inMemoryPriorityBands(),
     dependencies,
     typedDependencies: new TypedDependencyRepository(db, OPEN),
@@ -242,7 +247,12 @@ describe('what a work item write moves', () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
 
-    const outcome = await workItems.move(cable, ownerId, { parentId: strip, afterId: null });
+    const outcome = await workItems.move(
+      cable,
+      ownerId,
+      { parentId: strip, afterId: null },
+      { kind: 'legacy' },
+    );
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(cable)).toBe(1);
@@ -312,7 +322,7 @@ describe('what a work item write moves', () => {
     const cable = await root('Cable', strip);
     const before = await revisionOf(sockets);
 
-    const outcome = await workItems.remove(strip, ownerId, 'promote');
+    const outcome = await workItems.remove(strip, ownerId, 'promote', { kind: 'legacy' });
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(sockets)).toBe(before + 1);
@@ -408,7 +418,7 @@ describe('what an estimate moves', () => {
     await workItems.setEstimate(sockets, ownerId, dev(), DAYS);
     const before = await revisionOf(strip);
 
-    const outcome = await workItems.remove(sockets, ownerId, 'cascade');
+    const outcome = await workItems.remove(sockets, ownerId, 'cascade', { kind: 'legacy' });
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(strip)).toBe(before + 1);
@@ -476,7 +486,7 @@ describe('what a dependency moves', () => {
     await workItems.addDependency(cable, ownerId, strip);
     const before = await revisionOf(cable);
 
-    const outcome = await workItems.remove(strip, ownerId, 'cascade');
+    const outcome = await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' });
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(cable)).toBe(before + 1);

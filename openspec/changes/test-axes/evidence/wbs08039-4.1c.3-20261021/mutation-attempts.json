@@ -1,0 +1,30 @@
+[
+  {
+    "name": "manual-auth",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.ts",
+    "search": "!isDiagnostic(observation)",
+    "replacement": "false",
+    "pattern": "substituted Manual authentication",
+    "occurrences": 2,
+    "exitCode": 0,
+    "signal": null,
+    "assertionFailed": false,
+    "restored": true,
+    "sourceSha256": "3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113",
+    "log": "mutation-manual-auth-wrong-seam.log"
+  },
+  {
+    "name": "arity",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "search": "if (args.length !== 9 || args[7] !== '--now')",
+    "replacement": "if (false)",
+    "pattern": "unsupported operands",
+    "occurrences": 2,
+    "exitCode": 0,
+    "signal": null,
+    "assertionFailed": false,
+    "restored": true,
+    "sourceSha256": "9b66f6e918b9ba09ee41a78c006ccdbd791f72f8430a5e28d3f5122cf18356e6",
+    "log": "mutation-arity-wrong-seam.log"
+  }
+]

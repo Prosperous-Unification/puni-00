@@ -230,6 +230,9 @@ const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
     'AUTH_METHODS',
     'APP_ORIGIN',
     'BROWSER_SESSION_AUTHORITY',
+    'ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS',
+    'ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS',
+    'ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE',
     // Proof: deleting these three entries made the production startGreen test
     // fail before Docker: outside the allowlist were SOLVER_BUDGET_MS,
     // SOLVER_SEARCH_WORKERS, SOLVER_MEMORY_LIMIT_MB; 0 passed, 1 failed.
@@ -318,6 +321,10 @@ const APP_ENV_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
   // durably revokes is the operator's explicit choice in this file.
   // Proof: dropping it here made `demands only keys the be release refuses to
   // boot without` fail (98 pass, 1 fail, 2026-10-11).
+  // be-01 has no default organization limits either: the caps a tenant
+  // without its own row holds are a deployment decision (wbs-organization-limits L7).
+  // Proof: dropping ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS here made `demands
+  // only keys the be release refuses to boot without` fail (127 pass, 1 fail); watched 2026-10-22.
   be: [
     'PORT',
     'LOG_LEVEL',
@@ -326,6 +333,9 @@ const APP_ENV_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
     'AUTH_MODE',
     'AUTH_METHODS',
     'BROWSER_SESSION_AUTHORITY',
+    'ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS',
+    'ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS',
+    'ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE',
   ],
   gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
   fe: [],
@@ -403,6 +413,9 @@ const atLeast32 = (value: string): string | null =>
 const INTEGER = /^(?:0|[1-9]\d*)$/;
 const positiveInteger = (value: string): string | null =>
   INTEGER.test(value) && Number(value) > 0 ? null : 'must be a positive integer';
+/** An organization limit: `ORGANIZATION_LIMIT_BOUNDS` in `@wbs/domain`, 0 to 1,000,000. */
+const organizationLimit = (value: string): string | null =>
+  INTEGER.test(value) && Number(value) <= 1_000_000 ? null : 'must be an integer from 0 to 1000000';
 
 /**
  * The value shapes the be-01 and gw-01 loaders enforce, as a reason or null.
@@ -430,6 +443,11 @@ const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | n
   SOLVER_BUDGET_MS: positiveInteger,
   SOLVER_SEARCH_WORKERS: positiveInteger,
   SOLVER_MEMORY_LIMIT_MB: positiveInteger,
+  // Proof: admitting every value made `refuses only value shapes the be release
+  // also refuses` fail on ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=1000001 (127 pass, 1 fail); watched 2026-10-22.
+  ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: organizationLimit,
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: organizationLimit,
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: organizationLimit,
   AUTH_REDIRECT_URI: (value) => {
     let url: URL;
     try {

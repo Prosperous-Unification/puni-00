@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "lexical outside query refuses"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 350648,
+  "ceilingKiB": 921600
+}

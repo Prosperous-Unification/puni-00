@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [602.80ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [486.52ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [6.34ms]
+(pass) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [7.32ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [57.98ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.38ms]
+(pass) throws on selected trusted step corruption before duplication [1.05ms]
+(pass) throws on selected trusted project corruption before duplication [0.92ms]
+(pass) throws on selected trusted parent corruption before duplication [2.87ms]
+(pass) throws on selected trusted duplicate corruption before duplication [1.24ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [1.73ms]
+(pass) throws when the required duplication sparse reader is absent before writes [0.87ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [2.94ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.38ms]
+
+ 14 pass
+ 0 fail
+ 67 expect() calls
+Ran 14 tests across 2 files. [3.16s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 583974912, "exitCode": 0}

@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) supplied enumeration depth refuses before link copies 0 [153.18ms]
+(pass) supplied enumeration depth refuses before link copies -1 [105.85ms]
+701 |     const f = setup();
+702 |     const trap = spyOn(Uint8Array, 'from').mockImplementation(() => {
+703 |       throw new Error('copy forbidden');
+704 |     });
+705 |     try {
+706 |       expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link'], depth)).toThrow(
+                                                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source enumeration depth invalid"
+Received message: "copy forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:706:87)
+(fail) supplied enumeration depth refuses before link copies 1.5 [114.37ms]
+701 |     const f = setup();
+702 |     const trap = spyOn(Uint8Array, 'from').mockImplementation(() => {
+703 |       throw new Error('copy forbidden');
+704 |     });
+705 |     try {
+706 |       expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link'], depth)).toThrow(
+                                                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source enumeration depth invalid"
+Received message: "copy forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:706:87)
+(fail) supplied enumeration depth refuses before link copies null [130.59ms]
+(pass) supplied enumeration depth refuses before link copies null [88.46ms]
+(pass) supplied enumeration depth refuses before link copies 31 [106.36ms]
+
+ 4 pass
+ 76 filtered out
+ 2 fail
+ 10 expect() calls
+Ran 6 tests across 1 file. [1.65s]

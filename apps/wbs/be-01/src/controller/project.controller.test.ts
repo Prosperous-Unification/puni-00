@@ -4,6 +4,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -115,6 +116,7 @@ function buildHarness(
     directory: testDirectoryService(plan.stores.directory),
     capacity: testCapacityService(projectStore, plan.stores.capacity),
     priorityBands: testPriorityBandService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(projectStore),
     projects,
     workItems,
@@ -277,7 +279,7 @@ describe('projects', () => {
       slices: unknown[];
     };
     expect(body.project).toMatchObject({ id: project.id, name: 'Export me' });
-    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 9 });
+    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 10 });
     expect(Number.isNaN(Date.parse(body.document.exportedAt))).toBe(false);
     expect(body.settings).toMatchObject({
       name: 'Export me',
@@ -1382,7 +1384,7 @@ it('rejects undeclared project patches at every nested boundary before calling t
 
 it('keeps opened write scope and write origin before malformed input', async () => {
   const h = buildHarness();
-  const identity = spyOn(h.auth, 'authenticate').mockResolvedValue({
+  const identity = spyOn(h.auth, 'authenticateOrRefuse').mockResolvedValue({
     id: 'reader',
     username: 'reader',
     scopes: ['read'],

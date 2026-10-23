@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.test.ts"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 154808320,
+  "seconds": 0.442,
+  "rssCeilingBytes": 629145600,
+  "deadlineSeconds": 60
+}

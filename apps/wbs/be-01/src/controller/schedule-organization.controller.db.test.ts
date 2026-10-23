@@ -129,6 +129,7 @@ function crossings(): Record<string, string> {
     step_node_attempt_person: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at, executor_person_id) VALUES ('w2-a', '${ownStep}', 1, 1, 'pe-b')`,
     assignment_step: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${foreignStep}', 'pe-a')`,
     assignment_person: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${ownStep}', 'pe-b')`,
+    claim_person: `INSERT INTO claim (id, work_item_id, step_id, person_id) VALUES ('c-x', 'w2-a', '${ownStep}', 'pe-b')`,
     work_item_tag: "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-a', 'tg-b')",
     work_item_team: "INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w-a', 'tm-b')",
     work_item_type:
@@ -439,7 +440,7 @@ describe('shared live projection', () => {
   });
 
   it('stores the selected ready optimized schedule without admitting live work', async () => {
-    const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.2.0');
+    const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.3.0');
     const capture = new SavedPlanCaptureRepository({
       openConnection: () => openConnection(h.databasePath()),
     });
@@ -468,14 +469,14 @@ describe('shared live projection', () => {
     const connection = openConnection(h.databasePath());
     try {
       const inputHash = scheduleInputHash(input);
-      const generation = allocateGeneration(connection.db, lower, '16+0.2.0', inputHash, 1);
+      const generation = allocateGeneration(connection.db, lower, '17+0.3.0', inputHash, 1);
       connection.db
         .insert(optimizedScheduleCache)
         .values({
           projectId: lower,
           inputHash,
           generation,
-          contractVersion: '16+0.2.0',
+          contractVersion: '17+0.3.0',
           budgetMs: 60000,
           objective: 'pri',
           status: 'ok',
@@ -517,7 +518,7 @@ describe('shared live projection', () => {
       }
     ).savedPlan.schedule;
     expect(stored.present).toBe(true);
-    expect(stored.algorithmId).toBe('optimized:16+0.2.0:pri:60000');
+    expect(stored.algorithmId).toBe('optimized:17+0.3.0:pri:60000');
     expect(
       (JSON.parse(stored.body.bytes) as { workItems: { 'lower-work': { earliestStart: number } } })
         .workItems['lower-work'].earliestStart,
@@ -535,7 +536,7 @@ describe('shared live projection', () => {
   it.each(['failed', 'corrupt'] as const)(
     'stores selected %s optimization as unavailable through installed capture',
     async (state) => {
-      const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.2.0');
+      const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.3.0');
       const capture = new SavedPlanCaptureRepository({
         openConnection: () => openConnection(h.databasePath()),
       });
@@ -551,14 +552,14 @@ describe('shared live projection', () => {
       );
       const connection = openConnection(h.databasePath());
       try {
-        const generation = allocateGeneration(connection.db, lower, '16+0.2.0', inputHash, 1);
+        const generation = allocateGeneration(connection.db, lower, '17+0.3.0', inputHash, 1);
         connection.db
           .insert(optimizedScheduleCache)
           .values({
             projectId: lower,
             inputHash,
             generation,
-            contractVersion: '16+0.2.0',
+            contractVersion: '17+0.3.0',
             budgetMs: 60000,
             objective: 'pri',
             status: state === 'failed' ? 'failed' : 'ok',
@@ -810,8 +811,8 @@ async function seedSharedPlans(
   return { higher, lower, higherStep, lowerStep };
 }
 
-function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.2.0'): void {
-  const contractVersion = `16+${solverVersion}`;
+function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.3.0'): void {
+  const contractVersion = `17+${solverVersion}`;
   h.sqlite.run(
     'INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
     [projectId, contractVersion, inputHash],
@@ -1010,7 +1011,7 @@ describe('shared displayed cache evidence', () => {
           launched.push(request);
           return new Promise<never>(() => undefined);
         },
-        '0.2.0',
+        '0.3.0',
       );
       h.sqlite.run('UPDATE project SET optimization_enabled = 1 WHERE id = ?', [lower]);
       if (reason === 'cycle')
@@ -1109,7 +1110,7 @@ describe('shared displayed cache evidence', () => {
         admittedOpenReads.push(openReads);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
       (dbPath) => {
         const connection = openReadOnlyConnection(dbPath);
         openReads += 1;
@@ -1150,7 +1151,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
     );
     const oldTree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
     const oldHash = (oldTree.body as { optimization: { inputHash: string } }).optimization
@@ -1209,7 +1210,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
     );
     const before = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
     const oldHash = (before.body as { optimization: { inputHash: string } }).optimization.inputHash;
@@ -1219,11 +1220,11 @@ describe('shared displayed cache evidence', () => {
     );
     const connection = openConnection(h.databasePath());
     try {
-      const generation = allocateGeneration(connection.db, lower, '16+0.2.0', oldHash, 1);
+      const generation = allocateGeneration(connection.db, lower, '17+0.3.0', oldHash, 1);
       expect(
         enqueueSolverRequest(connection.db, {
           projectId: lower,
-          contractVersion: '16+0.2.0',
+          contractVersion: '17+0.3.0',
           generation,
           objective: 'pri',
           budgetMs: 60_000,
@@ -1264,7 +1265,7 @@ describe('shared displayed cache evidence', () => {
         admittedOpenReads.push(openReads);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
       (dbPath) => {
         const connection = openReadOnlyConnection(dbPath);
         openReads += 1;
@@ -1303,7 +1304,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls the repository receiver.
     const original = WorkItemRepository.prototype.listByProject;
@@ -1352,7 +1353,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1382,7 +1383,7 @@ describe('shared displayed cache evidence', () => {
         true,
         undefined,
         undefined,
-        '0.2.0',
+        '0.3.0',
       );
       if (!shared) h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
       h.sqlite.run(
@@ -1443,7 +1444,7 @@ describe('shared displayed cache evidence', () => {
       const connection = openConnection(h.databasePath());
       try {
         const inputHash = scheduleInputHash(input);
-        const generation = allocateGeneration(connection.db, lower, '16+0.2.0', inputHash, 1);
+        const generation = allocateGeneration(connection.db, lower, '17+0.3.0', inputHash, 1);
         for (const objective of ['pri', 'time'] as const) {
           connection.db
             .insert(optimizedScheduleCache)
@@ -1451,7 +1452,7 @@ describe('shared displayed cache evidence', () => {
               projectId: lower,
               inputHash,
               generation,
-              contractVersion: '16+0.2.0',
+              contractVersion: '17+0.3.0',
               budgetMs: 60000,
               objective,
               status: 'ok',
@@ -1539,7 +1540,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1576,7 +1577,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.2.0',
+      '0.3.0',
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1641,14 +1642,14 @@ describe('shared displayed cache evidence', () => {
           const connection = openConnection(h.databasePath());
           try {
             const inputHash = scheduleInputHash(input);
-            const generation = allocateGeneration(connection.db, higher, '16+0.1.0', inputHash, 1);
+            const generation = allocateGeneration(connection.db, higher, '17+0.1.0', inputHash, 1);
             connection.db
               .insert(optimizedScheduleCache)
               .values({
                 projectId: higher,
                 inputHash,
                 generation,
-                contractVersion: '16+0.1.0',
+                contractVersion: '17+0.1.0',
                 budgetMs: 60000,
                 objective: 'pri',
                 status: 'ok',
@@ -1875,3 +1876,38 @@ describe('shared export observation', () => {
     },
   );
 });
+
+for (const initiallyPresent of [true, false]) {
+  it(`v9 sparse export uses its shared observation across concurrent change (${String(initiallyPresent)})`, async () => {
+    const { higher, lower, lowerStep } = await seedSharedPlans();
+    const insert = () =>
+      h.sqlite.run(
+        'INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES (?, ?, 1)',
+        ['lower-work', lowerStep],
+      );
+    if (initiallyPresent) insert();
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- invokes the repository method with its original receiver.
+    const list = WorkItemRepository.prototype.listByProject;
+    let changed = false;
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
+      async function (this: WorkItemRepository, projectId) {
+        const rows = await list.call(this, projectId);
+        if (!changed && projectId === higher) {
+          changed = true;
+          if (initiallyPresent)
+            h.sqlite.run('DELETE FROM step_parallel WHERE work_item_id = ?', ['lower-work']);
+          else insert();
+        }
+        return rows;
+      },
+    );
+    try {
+      const answer = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=json`);
+      expect(changed).toBe(true);
+      expect(answer.status).toBe(initiallyPresent ? 409 : 200);
+      if (initiallyPresent) expect(answer.body).toEqual({ error: 'unsupported_step_parallelism' });
+    } finally {
+      concurrent.mockRestore();
+    }
+  });
+}

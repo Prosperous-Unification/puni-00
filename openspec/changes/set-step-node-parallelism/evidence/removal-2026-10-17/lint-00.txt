@@ -1,0 +1,19 @@
+apps/wbs/be-01/src/controller/step-marker-organization.controller.db.test.ts
+
+<--- Last few GCs --->
+
+[22:0x7f9b000]     4942 ms: Mark-Compact 569.5 (578.3) -> 568.2 (584.1) MB, pooled: 0 MB, 332.28 / 0.00 ms  (average mu = 0.238, current mu = 0.090) allocation failure; scavenge might not succeed
+[22:0x7f9b000]     5093 ms: Mark-Compact (reduce) 571.0 (584.1) -> 570.6 (578.6) MB, pooled: 0 MB, 102.85 / 0.00 ms  (+ 0.1 ms in 35 steps since start of marking, biggest step 0.1 ms, walltime since start of marking 121 ms) (average mu = 0.267, current mu
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x757658 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc60e30  [node]
+ 3: 0xc60f1f  [node]
+ 4: 0xf047f5  [node]
+ 5: 0xf1615c  [node]
+ 6: 0xeeb613  [node]
+ 7: 0xec1120  [node]
+ 8: 0x13b8b08  [node]
+ 9: 0x1acd9b6  [node]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 853504000, "exitCode": 1}

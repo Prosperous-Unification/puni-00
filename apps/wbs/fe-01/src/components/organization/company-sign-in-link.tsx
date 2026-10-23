@@ -1,8 +1,8 @@
+import { Button } from '@ui/saas-01';
 import { startAuth0Link } from '@wbs/contracts';
 import { useId, useRef, useState } from 'react';
 
 import { authorizationTarget, startRefusal } from '@/components/onboarding/auth0-link';
-import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 const links = browserClient([startAuth0Link]);

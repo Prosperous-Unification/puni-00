@@ -31,8 +31,10 @@ import {
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, spyOn } from 'bun:test';
 
@@ -140,8 +142,11 @@ beforeEach(async () => {
     progress: new StepProgressRepository(db, OPEN),
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),
+    stepParallels: new StepParallelRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: bandStore,
     dependencies: dependencyStore,
     typedDependencies: new TypedDependencyRepository(db, OPEN),
@@ -174,6 +179,7 @@ beforeEach(async () => {
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({

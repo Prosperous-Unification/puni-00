@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+720 |     get() {
+721 |       include.length = 0;
+722 |       return 'missing/**/*.ts';
+723 |     },
+724 |   });
+725 |   expect(f.source.readDirectory(root, ['.ts'], undefined, include)).toEqual([]);
+                                                                          ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "/__puni_review__/candidate/exists.ts",
++   "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
++ ]
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:725:69)
+(fail) captured includes remain missing-only when caller getter truncates array [141.03ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1106.00ms]

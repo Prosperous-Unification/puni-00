@@ -1,0 +1,2 @@
+libs/wbs/application/core/src/service/saved-plan-input.test.ts
+{"ceilingBytes": 943718400, "sampledPeakBytes": 776278016, "exitCode": 0}

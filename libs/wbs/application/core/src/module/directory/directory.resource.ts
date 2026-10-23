@@ -1,4 +1,13 @@
-import { cleanName, type OrganizationScope, PERSON_KINDS, type PersonKind } from '@wbs/domain';
+import {
+  cleanName,
+  type LimitCrossed,
+  mayBindAccountInOrganization,
+  type OrganizationScope,
+  PERSON_KINDS,
+  type PersonKind,
+  refuseLimit,
+  type ResourceKind,
+} from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { DirectoryOutcome } from '../../ports/directory-outcome';
@@ -8,10 +17,14 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
+  MachineCredentialReach,
   NamedCatalog,
   Person,
   PersonPatch,
   PersonWithTeams,
+  Resource,
+  ResourcePatchInput,
+  ResourceUsageRows,
   ServiceTeam,
   TeamPatch,
   TeamWithServices,
@@ -22,16 +35,19 @@ import type {
   DirectoryWriteResolution,
 } from '../../ports/fanout-capture-store';
 import type { ResourceAccess } from '../../ports/organization-access';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
+  directoryUsageOfResource,
   directoryUsageOfService,
   directoryUsageOfTag,
   directoryUsageOfTeam,
   directoryUsageOfWorkItemType,
+  type ResourceUsageCounts,
 } from '../../service/directory-usage';
 
 export type { DirectoryOutcome, DirectoryRefusal } from '../../ports/directory-outcome';
@@ -57,6 +73,12 @@ export interface DirectoryServiceOptions {
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
+  /**
+   * The organization limits an agent person's creation consults
+   * (`wbs-organization-limits` L9). Absent from legacy fixture graphs and
+   * the memory source; a scoped acquisition without it throws.
+   */
+  organizationLimits?: OrganizationLimitGauge;
 }
 
 /**
@@ -70,6 +92,16 @@ export interface DirectoryServiceOptions {
  */
 function holdsKind(kind: string): kind is PersonKind {
   return (PERSON_KINDS as readonly string[]).includes(kind);
+}
+
+/** A person patch naming nothing to change: `nothing_to_change`. */
+function isEmptyPersonPatch(patch: PersonPatchInput): boolean {
+  return (
+    patch.name === undefined &&
+    patch.teamIds === undefined &&
+    patch.kind === undefined &&
+    patch.accountId === undefined
+  );
 }
 
 /**
@@ -93,8 +125,32 @@ export type PersonPatchInput = Omit<PersonPatch, 'kind'> & { kind?: string };
  */
 export type RemoveDirectoryOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'not_found' | 'forbidden' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+
+/**
+ * How a scoped person patch answered: `in_use` when it would unbind or rebind
+ * a person unrevoked machine credentials act through, with their count
+ * (`wbs-machine-credentials` A12).
+ */
+export type PersonPatchOutcome =
+  DirectoryOutcome<PersonWithTeams> | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+
+/**
+ * How a resource removal answered: `in_use` names the rows that lose a demand
+ * and counts the demands, capacities and occupancies (`wbs-resources` R8).
+ */
+export type RemoveResourceOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: DirectoryUsage; counts: ResourceUsageCounts };
+
+/** What a resource create names; the kind is fixed here and never patched. */
+export interface ResourceInput {
+  name: string;
+  kind: ResourceKind;
+  unitLabel: string;
+}
 
 /**
  * One **named vocabulary** of the directory — a tag, a work item type, a
@@ -301,8 +357,211 @@ export class DirectoryService {
       tags: () => this.listTags(),
       workItemTypes: () => this.listWorkItemTypes(),
       externalSystems: () => this.listExternalSystems(),
+      resources: () => this.listResources(),
     };
     return legacy[catalog]();
+  }
+
+  /** Every resource in the global directory, by name. */
+  listResources(): Promise<Resource[]> {
+    return this.opts.directory.listResources();
+  }
+
+  /**
+   * Resource writes run inside a command batch and nowhere else: no public
+   * standalone route writes one, so a standalone-built service reaching here is
+   * a composition fault, not a request.
+   *
+   * @throws when this service was built for standalone writes.
+   */
+  private refuseStandaloneResourceWrite(): void {
+    if (this.opts.standaloneWrite !== undefined)
+      throw new Error('resource writes run only inside a command batch');
+  }
+
+  /**
+   * Adds a resource through the caller's access, refusing a name the directory
+   * (legacy) or the organization (scoped) already holds as `taken` — never
+   * answering the existing row, whose kind and unit may differ from the ones
+   * asked for. Under scoped access the root takes an opaque name and the
+   * organization's side row carries the display name, as a team's does.
+   *
+   * Proof: with the memory store answering an existing name's row instead of
+   * refusing, `declares a host’s RAM, lists it, and refuses a second of one name
+   * as taken` (resource-command.test.ts) failed on `ok: true`; watched 2026-10-20.
+   */
+  async addResourceWithin(
+    actorId: string,
+    input: ResourceInput,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<Resource>> {
+    this.refuseStandaloneResourceWrite();
+    const clean = cleanName(input.name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const stamp = this.clock.stampFor(actorId);
+    const fields = { kind: input.kind, unitLabel: input.unitLabel };
+    if (access.kind === 'legacy') {
+      const added = await this.opts.directory.addResource(
+        { id: this.clock.newId(), name: clean, ...fields },
+        stamp,
+      );
+      return added.ok
+        ? { ok: true, value: added.resource }
+        : { ok: false, reason: 'taken', name: clean };
+    }
+    const organizationId = access.scope.organizationId;
+    const held = await this.opts.directory.listInOrganization('resources', organizationId);
+    if (held.some((entry) => entry.name === clean))
+      return { ok: false, reason: 'taken', name: clean };
+    for (let attempt = 0; attempt < OPAQUE_NAME_ATTEMPTS; attempt += 1) {
+      const id = this.clock.newId();
+      const added = await this.opts.directory.addResource({ id, name: id, ...fields }, stamp);
+      if (!added.ok) continue;
+      await this.opts.directory.mapInOrganization('resources', id, organizationId, clean);
+      return { ok: true, value: { id, name: clean, ...fields } };
+    }
+    throw new Error(`no free opaque resource name after ${String(OPAQUE_NAME_ATTEMPTS)} ids`);
+  }
+
+  /**
+   * Renames a resource, changes its unit label or sets its provider reference
+   * through the caller's access, announcing to every project whose demands or
+   * capacities name it. Under scoped access only the organization's own
+   * resource is found, and the name moves in the organization alone.
+   *
+   * The provider reference (`compute-providers` P3) is written first, so a
+   * refused instance leaves the name and label untouched as well:
+   * `unknown_provider` for an id no instance holds,
+   * `provider_not_in_organization` for another organization's.
+   */
+  async patchResourceWithin(
+    resourceId: string,
+    actorId: string,
+    patch: ResourcePatchInput,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<Resource>> {
+    this.refuseStandaloneResourceWrite();
+    if (patch.name === undefined && patch.unitLabel === undefined && patch.providerId === undefined)
+      return { ok: false, reason: 'nothing_to_change' };
+    const clean = patch.name === undefined ? undefined : cleanName(patch.name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const stamp = this.clock.stampFor(actorId);
+    if (access.kind === 'legacy') {
+      if (patch.providerId !== undefined) {
+        const referenced = await this.opts.directory.setResourceProvider(
+          resourceId,
+          patch.providerId,
+          null,
+          stamp,
+        );
+        if (!referenced.ok) return { ok: false, reason: referenced.reason };
+        await this.announce(referenced.projectIds);
+        if (clean === undefined && patch.unitLabel === undefined) {
+          const unchanged = (await this.opts.directory.listResources()).find(
+            (each) => each.id === resourceId,
+          );
+          if (unchanged === undefined)
+            throw new Error(`resource "${resourceId}" vanished mid-patch`);
+          return { ok: true, value: unchanged };
+        }
+      }
+      const written = await this.opts.directory.patchResource(
+        resourceId,
+        {
+          ...(clean === undefined ? {} : { name: clean }),
+          ...(patch.unitLabel === undefined ? {} : { unitLabel: patch.unitLabel }),
+        },
+        stamp,
+      );
+      if (!written.ok)
+        return written.reason === 'taken' && clean !== undefined
+          ? { ok: false, reason: 'taken', name: clean }
+          : { ok: false, reason: 'not_found' };
+      await this.announce(written.projectIds);
+      return { ok: true, value: written.resource };
+    }
+    const { scope } = access;
+    if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+      return { ok: false, reason: 'not_found' };
+    await this.refuseForeignReach('resources', resourceId, scope);
+    if (patch.providerId !== undefined) {
+      const referenced = await this.opts.directory.setResourceProvider(
+        resourceId,
+        patch.providerId,
+        scope.organizationId,
+        stamp,
+      );
+      if (!referenced.ok) return { ok: false, reason: referenced.reason };
+      await this.refuseForeignProjects(referenced.projectIds, scope);
+      await this.announce(referenced.projectIds);
+    }
+    if (clean !== undefined) {
+      const renamed = await this.renameLocal('resources', resourceId, clean, actorId, scope);
+      if (!renamed.ok) return renamed;
+    }
+    if (patch.unitLabel !== undefined) {
+      const written = await this.opts.directory.patchResource(
+        resourceId,
+        { unitLabel: patch.unitLabel },
+        stamp,
+      );
+      if (!written.ok) return { ok: false, reason: 'not_found' };
+      await this.refuseForeignProjects(written.projectIds, scope);
+      await this.announce(written.projectIds);
+    }
+    const resource = await this.ownEntry('resources', resourceId, scope);
+    if (resource === undefined) throw new Error(`resource "${resourceId}" vanished mid-patch`);
+    return { ok: true, value: resource };
+  }
+
+  /**
+   * Removes a resource through the caller's access, refusing an unconfirmed
+   * removal while any demand, capacity or occupancy names it — `in_use` with
+   * the rows and the counts. With `cascade` its demands and capacities go in the
+   * same transaction. Under scoped access a foreign resource is `not_found` and
+   * a foreign project naming it fails closed.
+   *
+   * The unconfirmed read is only a fast path; the store's own count inside its
+   * transaction decides.
+   *
+   * Proof: with both in-use checks answering "unused" (this service's and the
+   * memory store's), `refuses removing a demanded resource, naming 2 demands, 0
+   * capacities, 0 occupancies` (resource-command.test.ts) deleted the resource
+   * and both demands with it; watched 2026-10-20.
+   */
+  async removeResourceWithin(
+    resourceId: string,
+    actorId: string,
+    cascade: boolean,
+    access: ResourceAccess,
+  ): Promise<RemoveResourceOutcome> {
+    this.refuseStandaloneResourceWrite();
+    const scope = access.kind === 'scoped' ? access.scope : null;
+    if (scope !== null) {
+      if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+        return { ok: false, reason: 'not_found' };
+      await this.refuseForeignReach('resources', resourceId, scope);
+    }
+    const shown = async (rows: ResourceUsageRows) =>
+      directoryUsageOfResource(
+        scope === null ? rows : { ...rows, rows: await this.localUsage(rows.rows, scope) },
+      );
+    if (!cascade) {
+      const seen = await this.opts.directory.usageOfResource(resourceId);
+      if (isResourceInUse(seen)) return { ok: false, reason: 'in_use', ...(await shown(seen)) };
+    }
+    const removed = await this.opts.directory.removeResource(
+      resourceId,
+      cascade,
+      this.clock.stampFor(actorId),
+    );
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return { ok: false, reason: 'in_use', ...(await shown(removed.usage)) };
+    }
+    if (scope !== null) await this.refuseForeignProjects(removed.removal.projectIds, scope);
+    await this.announce(removed.removal.projectIds);
+    return { ok: true };
   }
 
   /** One organization's catalog, as {@link DirectoryStore.listInOrganization} reads it. */
@@ -584,15 +843,22 @@ export class DirectoryService {
    * directory that lacks something, so it is 400 and not the 404 an unknown
    * team gets. Dropping it silently would answer 200 to a caller that believes
    * it has just marked somebody an agent.
+   *
+   * **`accountId` is `forbidden` here**: binding an account to a person is an
+   * organization admin's act (`wbs-team-claims` D5), and legacy access has no
+   * organization, so nobody holds the role it needs. See
+   * {@link patchPersonWithin}.
    */
   async patchPerson(
     personId: string,
     actorId: string,
     patch: PersonPatchInput,
   ): Promise<DirectoryOutcome<PersonWithTeams>> {
-    if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
-      return { ok: false, reason: 'nothing_to_change' };
-    }
+    if (isEmptyPersonPatch(patch)) return { ok: false, reason: 'nothing_to_change' };
+    // Proof: skipping this made `refuses a binding under legacy access` in
+    // `directory.resource.test.ts` answer ok while dropping `accountId` unwritten
+    // (watched 2026-10-19).
+    if (patch.accountId !== undefined) return { ok: false, reason: 'forbidden' };
     if (patch.kind !== undefined && !holdsKind(patch.kind)) {
       return { ok: false, reason: 'invalid_kind' };
     }
@@ -608,6 +874,10 @@ export class DirectoryService {
       this.clock.stampFor(actorId),
     );
     if (!written.ok) {
+      // Only a binding or kind change of a person with machine credentials is
+      // refused in use, and legacy access precedes every credential.
+      if (written.reason === 'in_use')
+        throw new Error(`person "${personId}" legacy patch was refused in use`);
       // `clean` is defined on this branch — `taken` is the name index refusing,
       // and a patch that named no name cannot have reached it.
       if (written.reason === 'taken' && clean !== undefined) {
@@ -662,15 +932,20 @@ export class DirectoryService {
         await this.opts.directory.usageOfPerson(personId),
         personId,
       );
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.projects.length > 0 || seen.pinnedCredentials > 0)
+        return { ok: false, reason: 'in_use', usage: seen };
     }
+    // Legacy access exists only before activation, when no machine
+    // credential can have been created, so it reaches none.
     const removed = await this.opts.directory.removePerson(
       personId,
       cascade,
       this.clock.stampFor(actorId),
+      { kind: 'none' },
     );
     if (!removed.ok) {
-      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      if (removed.reason === 'not_found' || removed.reason === 'forbidden')
+        return { ok: false, reason: removed.reason };
       // The transaction's own usage, not the fast path's: it is the only one
       // that was still true at the moment the deletes would have run.
       return {
@@ -999,17 +1274,74 @@ export class DirectoryService {
   }
 
   /**
+   * Whether `added` more agent persons would cross the organization's cap,
+   * read through the caller's access (`wbs-organization-limits` L9): null
+   * when they fit, the cap and count when they do not. Legacy access has no
+   * organization to own a cap, so nothing is capped and nothing is read; that
+   * is the modeled optional case, not a default.
+   *
+   * Callers hold the write's transaction: the import asks once for every agent
+   * it would create before creating any.
+   *
+   * Proof: with legacy access answered as a cap of 0, `admits a promotion and
+   * an import with no organization to own a cap`
+   * (agent-person-limit.controller.db.test.ts) was refused; watched 2026-10-22.
+   *
+   * @throws when this graph was composed without organization limits.
+   */
+  refuseAgentPersonsWithin(access: ResourceAccess, added: number): Promise<LimitCrossed | null> {
+    if (access.kind === 'legacy') return Promise.resolve(null);
+    return this.refuseAgentPersons(access.scope, added);
+  }
+
+  /**
+   * {@link refuseAgentPersonsWithin} under scoped access: the count is read
+   * through the gauge of the stores this graph was built over, which is the
+   * batch's own transaction under its write turn (L10).
+   *
+   * Proof, each watched 2026-10-22 in agent-person-limit-race.db.test.ts:
+   * with the gauge answering the count it read first for every later batch
+   * (a count read outside the batch's turn), `lands exactly one, the other
+   * refused naming the winner in its count` landed both, 9 agents of 8; with
+   * the admitted catalog of a bound source built without the gauge, every
+   * activated case of agent-person-limit.controller.db.test.ts threw this
+   * method's composition error (3 pass, 9 fail).
+   *
+   * @throws when this graph was composed without organization limits.
+   */
+  private async refuseAgentPersons(
+    scope: OrganizationScope,
+    added: number,
+  ): Promise<LimitCrossed | null> {
+    const gauge = this.opts.organizationLimits;
+    if (gauge === undefined)
+      throw new Error('an agent person was added under scoped access without organization limits');
+    const reading = await gauge.readAgentPersonCap(scope.organizationId);
+    return refuseLimit({ cap: reading.cap, current: reading.current, added });
+  }
+
+  /**
    * {@link addPerson} through the caller's access. Under scoped access every
    * team must be the organization's; an existing person of that local name
-   * joins them, as the legacy add does, and a new one gets an opaque root.
+   * joins them, as the legacy add does, and keeps its own kind, as the plan
+   * import's does; a new one gets an opaque root.
+   *
+   * `kind` is a `string` for {@link PersonPatchInput}'s reason: `createPerson`
+   * carries it from a JSON body as `personKind`, and a kind outside
+   * {@link PERSON_KINDS} is `invalid_kind` before anything is read. A new
+   * agent passes the same cap `patchPerson` does, inside the batch's turn.
    */
   async addPersonWithin(
     actorId: string,
     name: string,
     teamIds: readonly string[],
     access: ResourceAccess,
-    kind?: PersonKind,
+    kind?: string,
   ): Promise<DirectoryOutcome<Person>> {
+    // Proof: with this check removed, `refuses a kind outside the set, writing
+    // nothing` (agent-person-limit.controller.db.test.ts) answered 500 from the
+    // person table's CHECK constraint instead of 400; watched 2026-10-23.
+    if (kind !== undefined && !holdsKind(kind)) return { ok: false, reason: 'invalid_kind' };
     if (this.opts.standaloneWrite !== undefined)
       return this.opts.standaloneWrite(
         { kind: 'add-person', teamIds, access },
@@ -1044,11 +1376,23 @@ export class DirectoryService {
         if (!written.ok) {
           if (written.reason === 'taken')
             throw new Error(`person "${existing.id}" link patch reported a taken name`);
+          if (written.reason === 'in_use')
+            throw new Error(`person "${existing.id}" link patch was refused in use`);
           // Proof: throwing here made the queued existing-person add test lose unknown_team.
           return { ok: false, reason: written.reason };
         }
       }
       return { ok: true, value: { id: existing.id, name: existing.name, kind: existing.kind } };
+    }
+    // Proof: with this check removed, `refuses adding an agent at the cap,
+    // creating and mapping nothing` (directory.resource.test.ts) created and
+    // mapped the agent; watched 2026-10-22. With it bypassed again,
+    // `refuses the fifth agent created directly…` and `refuses a batch
+    // creating two agents…` (agent-person-limit.controller.db.test.ts) were
+    // applied through createPerson (18 pass, 2 fail); watched 2026-10-23.
+    if (kind === 'agent') {
+      const crossed = await this.refuseAgentPersons(scope, 1);
+      if (crossed !== null) return { ok: false, reason: 'agent_person_limit', ...crossed };
     }
     let addedKind: Person['kind'] | undefined;
     // The root alone first: on a collision the legacy add answers the existing
@@ -1075,6 +1419,8 @@ export class DirectoryService {
       if (!joined.ok) {
         if (joined.reason === 'taken')
           throw new Error(`person "${id}" link patch reported a taken name`);
+        if (joined.reason === 'in_use')
+          throw new Error(`person "${id}" link patch was refused in use`);
         // Proof: throwing here made the queued new-person link test lose unknown_team.
         return { ok: false, reason: joined.reason };
       }
@@ -1086,13 +1432,19 @@ export class DirectoryService {
    * {@link patchPerson} through the caller's access. Under scoped access the
    * person and every team must be the organization's, the name moves only in
    * the organization, and the answer carries the local name.
+   *
+   * `accountId` binds the person to the account that may act as them, or
+   * unbinds them with null (`wbs-team-claims` D5). Only an admin or a
+   * super-admin of the active organization may send it; anyone else is
+   * `forbidden` before anything is read. The store refuses an account that is
+   * not a member of the person's organization as `unknown_account`.
    */
   async patchPersonWithin(
     personId: string,
     actorId: string,
     patch: PersonPatchInput,
     access: ResourceAccess,
-  ): Promise<DirectoryOutcome<PersonWithTeams>> {
+  ): Promise<PersonPatchOutcome> {
     if (this.opts.standaloneWrite !== undefined)
       return this.opts.standaloneWrite(
         { kind: 'patch-person', personId, teamIds: patch.teamIds, access },
@@ -1101,20 +1453,25 @@ export class DirectoryService {
         (value) => value.ok,
       );
     if (access.kind === 'legacy') return this.patchPerson(personId, actorId, patch);
-    if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
-      return { ok: false, reason: 'nothing_to_change' };
+    if (isEmptyPersonPatch(patch)) return { ok: false, reason: 'nothing_to_change' };
+    const { scope } = access;
+    // Proof: skipping this made `refuses a member binding a person to an
+    // account` in `person-account.controller.db.test.ts` answer 200 with the
+    // binding written (watched 2026-10-19).
+    if (patch.accountId !== undefined && !mayBindAccountInOrganization(scope.role)) {
+      return { ok: false, reason: 'forbidden' };
     }
     if (patch.kind !== undefined && !holdsKind(patch.kind)) {
       return { ok: false, reason: 'invalid_kind' };
     }
     const clean = patch.name === undefined ? undefined : cleanName(patch.name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const { scope } = access;
     // Proof: skipping this check made `answers a foreign entry exactly as an
     // absent one, changing nothing` in
     // `directory-command-organization.controller.db.test.ts` answer 500
     // instead of 404 for B's person; watched 2026-09-27.
-    if ((await this.ownEntry('people', personId, scope)) === undefined) {
+    const held = await this.ownEntry('people', personId, scope);
+    if (held === undefined) {
       return { ok: false, reason: 'not_found' };
     }
     await this.refuseForeignReach('people', personId, scope);
@@ -1126,22 +1483,46 @@ export class DirectoryService {
     if (patch.teamIds !== undefined && !(await this.ownsAll('teams', patch.teamIds, scope))) {
       return { ok: false, reason: 'unknown_team' };
     }
+    // Only a person becoming an agent acquires one; an agent staying one, a
+    // demotion, a rename or a re-team never consults the cap (L9).
+    // Proof, each watched 2026-10-22 in agent-person-limit.controller.db.test.ts:
+    // with `held.kind !== 'agent'` dropped, `renames an agent and re-teams it
+    // at the cap, restating its kind` was refused (11 pass, 1 fail); with the
+    // whole check removed, `refuses the ninth agent by patchPerson…`, `refuses
+    // a batch adding two agents where one is free…` and `keeps every agent
+    // above a lowered cap…` were applied (9 pass, 3 fail).
+    if (patch.kind === 'agent' && held.kind !== 'agent') {
+      const crossed = await this.refuseAgentPersons(scope, 1);
+      if (crossed !== null) return { ok: false, reason: 'agent_person_limit', ...crossed };
+    }
     if (clean !== undefined) {
       const renamed = await this.renameLocal('people', personId, clean, actorId, scope);
       if (!renamed.ok) return renamed;
     }
-    if (patch.teamIds !== undefined || patch.kind !== undefined) {
+    if (patch.teamIds !== undefined || patch.kind !== undefined || patch.accountId !== undefined) {
       const written = await this.opts.directory.patchPerson(
         personId,
         {
           ...(patch.teamIds === undefined ? {} : { teamIds: patch.teamIds }),
           ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+          ...(patch.accountId === undefined ? {} : { accountId: patch.accountId }),
         },
         this.clock.stampFor(actorId),
       );
       if (!written.ok) {
         if (written.reason === 'taken')
           throw new Error(`person "${personId}" patch unexpectedly reported a taken name`);
+        if (written.reason === 'in_use')
+          return {
+            ok: false,
+            reason: 'in_use',
+            usage: {
+              projects: [],
+              members: [],
+              pinnedCredentials: 0,
+              machineCredentials: written.machineCredentials,
+            },
+          };
         // Proof: throwing here made the queued person patch test lose unknown_team.
         return { ok: false, reason: written.reason };
       }
@@ -1161,7 +1542,7 @@ export class DirectoryService {
    * @throws when a foreign project names the entry: corrupt trusted state.
    */
   async removeWithin(
-    catalog: NamedCatalog,
+    catalog: Exclude<NamedCatalog, 'resources'>,
     id: string,
     actorId: string,
     cascade: boolean,
@@ -1178,7 +1559,12 @@ export class DirectoryService {
       people: {
         usageOf: (entry: string) => this.opts.directory.usageOfPerson(entry),
         remove: (entry: string, stamp: WriteStamp) =>
-          this.opts.directory.removePerson(entry, cascade, stamp),
+          this.opts.directory.removePerson(
+            entry,
+            cascade,
+            stamp,
+            access.kind === 'legacy' ? { kind: 'none' } : machineCredentialReachOf(access.scope),
+          ),
         usageIn: directoryUsageOfPerson,
         legacy: () => this.removePerson(id, actorId, cascade),
       },
@@ -1221,13 +1607,14 @@ export class DirectoryService {
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {
       const seen = await shown(await removal.usageOf(id));
-      if (seen.projects.length > 0 || seen.members.length > 0) {
+      if (seen.projects.length > 0 || seen.members.length > 0 || seen.pinnedCredentials > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }
     const removed = await removal.remove(id, this.clock.stampFor(actorId));
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      if (removed.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
       return { ok: false, reason: 'in_use', usage: await shown(removed.usage) };
     }
     // Proof: skipping this check made `fails closed on a directory entry a
@@ -1333,4 +1720,22 @@ export class DirectoryService {
       await this.opts.broadcast.publish(projectId, { type: 'directory_changed' });
     }
   }
+}
+
+/** Whether anything still names a resource: a demand, a stated capacity or an occupancy. */
+function isResourceInUse(rows: ResourceUsageRows): boolean {
+  return rows.demands.length > 0 || rows.capacities.length > 0 || rows.occupancies > 0;
+}
+
+/**
+ * The machine credentials a person removal through `scope` may revoke
+ * (`wbs-machine-credentials` A24): none through a delegation or a machine
+ * credential, every person's for an admin or super-admin, and for anyone else
+ * only a person bound to their own account. The store applies it inside the
+ * removal's transaction.
+ */
+export function machineCredentialReachOf(scope: OrganizationScope): MachineCredentialReach {
+  if (scope.delegated === true) return { kind: 'none' };
+  if (scope.role === 'admin' || scope.role === 'super_admin') return { kind: 'every' };
+  return { kind: 'own', accountId: scope.userId };
 }

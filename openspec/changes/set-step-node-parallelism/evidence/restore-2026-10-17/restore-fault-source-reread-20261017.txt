@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+{"level":"error","time":1792213727478,"service":"be-01","err":{"occurrence_id":"AE_E0F1JAKSSDFQFCQFMT4F7JM19J","fingerprint":"fp1_f8d69401e7045bd9ea38844503d333c6","stack":["Error: cannot reread historical duplicate source","    at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:285:50)","    at listByWorkItems (unknown)","    at applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6744:35)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+289 |       try {
+290 |         answer = await h.call('owner', 'POST', `/api/projects/${projectId}/redo`);
+291 |       } finally {
+292 |         sparseRead.mockRestore();
+293 |       }
+294 |       expect(answer.status).toBe(policy === 'source' ? 200 : 409);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:294:29)
+(fail) nonnull-parent redo-duplicate source policy uses historical source and current destination [377.49ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.32s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 576929792, "exitCode": 1}

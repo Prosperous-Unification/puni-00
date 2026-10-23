@@ -1,6 +1,6 @@
+import { Button } from '@ui/saas-01';
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import {
   Modal,
   ModalContent,
@@ -8,7 +8,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalTrigger,
-} from '@/components/ui/modal';
+} from '@/components/wbs/modal';
 import type { Recalled, Remembered } from '@/lib/remembered';
 import type { RememberedPreferences } from '@/modules/preferences/contract';
 import {
@@ -19,6 +19,7 @@ import {
 import { EstimatingPanel, type EstimatingPanelProps } from './estimating-panel';
 import { OptimizationSettingsPanel, type OptimizationSettingsProps } from './optimization-settings';
 import { PrioritiesPanel, type PrioritiesPanelProps } from './priorities-panel';
+import { ResourcesPanel, type ResourcesPanelProps } from './resources-panel';
 import { StepsPanel, type StepsPanelProps } from './steps-panel';
 import { TeamsPanel, type TeamsPanelProps } from './teams-panel';
 import { TimezonePanel, type TimezonePanelProps } from './timezone-panel';
@@ -30,7 +31,7 @@ import { SettingsIcon } from './toolbar-icons';
  * `project-config-modal` folded them into this one surface.
  */
 export type SettingsSection =
-  'teams' | 'priorities' | 'steps' | 'estimating' | 'optimization' | 'timezone';
+  'teams' | 'priorities' | 'steps' | 'estimating' | 'optimization' | 'timezone' | 'resources';
 
 const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'teams', label: 'Teams' },
@@ -39,6 +40,7 @@ const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'estimating', label: 'Estimating' },
   { id: 'optimization', label: 'Optimization' },
   { id: 'timezone', label: 'Timezone' },
+  { id: 'resources', label: 'Resources' },
 ];
 
 const FIRST_SECTION: SettingsSection = 'teams';
@@ -153,6 +155,12 @@ export interface ProjectSettingsModalProps {
    * reason.
    */
   timezone: SectionOwn<TimezonePanelProps>;
+  /**
+   * The resources the project declares, with each compute provider's report
+   * beside the declared number (`compute-providers` P7). Absent where the
+   * plan is drawn without an organization resources runtime.
+   */
+  resources?: Omit<ResourcesPanelProps, 'onDirtyChange' | 'onBusyChange' | 'shown'>;
 }
 
 /**
@@ -224,6 +232,7 @@ export function ProjectSettingsModal({
   estimating,
   optimization,
   timezone,
+  resources,
 }: ProjectSettingsModalProps) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState<SettingsSection>(FIRST_SECTION);
@@ -310,6 +319,7 @@ export function ProjectSettingsModal({
       estimating: busyReporterFor('estimating'),
       optimization: busyReporterFor('optimization'),
       timezone: busyReporterFor('timezone'),
+      resources: busyReporterFor('resources'),
     }),
     [busyReporterFor],
   );
@@ -321,6 +331,7 @@ export function ProjectSettingsModal({
       estimating: reporterFor('estimating'),
       optimization: reporterFor('optimization'),
       timezone: reporterFor('timezone'),
+      resources: reporterFor('resources'),
     }),
     [reporterFor],
   );
@@ -710,6 +721,24 @@ export function ProjectSettingsModal({
                 onDirtyChange={reporters.timezone}
                 onBusyChange={busyReporters.timezone}
               />
+            </div>
+            <div
+              role="tabpanel"
+              id={panelId('resources')}
+              aria-labelledby={tabId('resources')}
+              aria-busy={busySections.includes('resources')}
+              hidden={shown !== 'resources'}
+            >
+              {resources === undefined ? (
+                <p className="text-muted-foreground text-sm">Resources are not available here.</p>
+              ) : (
+                <ResourcesPanel
+                  {...resources}
+                  shown={shown === 'resources'}
+                  onDirtyChange={reporters.resources}
+                  onBusyChange={busyReporters.resources}
+                />
+              )}
             </div>
           </div>
         </div>

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+448 |           expect(() =>
+449 |             extractRetainedTypeScriptRelationships({
+450 |               ...f,
+451 |               [group]: { ...f[group], [name]: ceiling },
+452 |             }),
+453 |           ).toThrow('limit');
+                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "limit"
+Received message: "source admission reached"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:453:13)
+(fail) retained compiler validates every limit field before source admission [149.85ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1123.00ms]

@@ -1,0 +1,45 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "refuses inherited outside"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 356024,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-AKHNZp/store/.pending-wRerbB/git",
+      "cat-file",
+      "blob",
+      "5ff44ee42697fffe2f529dc8d094dda73174db62"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-AKHNZp/store/.pending-wRerbB/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-AKHNZp/source",
+      "7f1a1f328b9f8de5589f4f885eabd89d8356b8d8",
+      "7f1a1f328b9f8de5589f4f885eabd89d8356b8d8"
+    ],
+    ["/usr/bin/git", "-C", "/tmp/namespace-AKHNZp/source", "config", "user.name", "Test"],
+    ["/usr/lib/git-core/git", "unpack-objects", "-q", "--pack_header=2,17"],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "refuses inherited outside"
+    ]
+  ]
+}

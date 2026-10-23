@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+228 |     batchServices: (scope, broadcast) => servicesOver(scope.stores, { ...fixture.requirements, broadcast }),
+229 |   });
+230 |   expect(await runner.run('p', 'owner', [
+231 |     { kind: 'patchWorkItem', workItemId: 'moving', patch: { name: 'Must roll back' } },
+232 |     { kind: 'deleteWorkItem', workItemId: 'parent', strategy: 'cascade' },
+233 |   ])).toEqual({ ok: false, at: 1, kind: 'deleteWorkItem', reason: 'referenced_by_step_parallel', detail: { nodes: [{ workItemId: 'parent', stepId: 'dev' }] } });
+            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "at": 1,
+-   "detail": {
+-     "nodes": [
+-       {
+-         "stepId": "dev",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "kind": "deleteWorkItem",
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "index": 1,
++       "kind": "deleteWorkItem",
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 12
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:233:7)
+(fail) reads admitted sparse deletion evidence and rolls a preceding patch and journal back [34.54ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 502517760, "exitCode": 1}

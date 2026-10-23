@@ -1,0 +1,15 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+[error] apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts: SyntaxError: Variable declaration expected. (188:14)
+[error]   186 | });
+[error]   187 |
+[error] > 188 | export const = ;
+[error]       |              ^
+[error]   189 |
+Error occurred when checking code style in the above file.
+
+exit status 2

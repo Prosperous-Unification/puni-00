@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
-import { WbsRequestError } from '@/lib/wbs-api';
+import { type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
 
 import { createBusy } from './busy-store';
 import type { PlanWriteRefusal, PlanWriterHost } from './contract';
@@ -230,5 +230,82 @@ it.each([
   expect(recorded.rereads).toEqual([]);
   expect(recorded.refusals).toEqual([
     { sentence: 'Step blockage changes are not enabled on this server.' },
+  ]);
+});
+
+const sparseRefusals = [
+  {
+    kind: 'refusal',
+    operation: 'deleteApiProjectsByIdStepsByStepId',
+    refusal: {
+      error: 'referenced_by_step_parallel',
+      nodes: [{ workItemId: 'retained-row', stepId: 'retained-step' }],
+    },
+  },
+  {
+    kind: 'refusal',
+    operation: 'postApiProjectsByIdCommands',
+    refusal: {
+      error: 'referenced_by_step_parallel',
+      at: 0,
+      kind: 'duplicateWorkItem',
+      nodes: [{ workItemId: 'retained-row', stepId: 'retained-step' }],
+    },
+  },
+] satisfies WbsProblem[];
+
+it.each(sparseRefusals)(
+  'reports retained step parallelism from $operation without retry or reread',
+  async (problem) => {
+    const recorded = recordingHost();
+    const writer = createPlanWriter(recorded.host);
+    let requests = 0;
+    const outcome = await writer.run(async (write) => {
+      await write.perform(['tree'], () => {
+        requests += 1;
+        return Promise.reject(new WbsRequestError(problem));
+      });
+    });
+    expect(outcome).toBe('refused');
+    expect(requests).toBe(1);
+    expect(recorded.rereads).toEqual([]);
+    expect(recorded.busyChanges).toEqual([true, false]);
+    expect(recorded.refusals).toEqual([
+      {
+        sentence:
+          'That change cannot be made while the affected steps have individual parallelism overrides.',
+      },
+    ]);
+  },
+);
+
+it('rereads only a completed request before a sparse command refusal', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['directory'], () => Promise.resolve('created tag'));
+    await write.perform(['tree'], () =>
+      Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: {
+            error: 'referenced_by_step_parallel',
+            at: 1,
+            kind: 'duplicateWorkItem',
+            nodes: [{ workItemId: 'retained-row', stepId: 'retained-step' }],
+          },
+        }),
+      ),
+    );
+  });
+  expect(outcome).toBe('refused');
+  expect(recorded.rereads).toEqual([['directory']]);
+  expect(recorded.busyChanges).toEqual([true, false]);
+  expect(recorded.refusals).toEqual([
+    {
+      sentence:
+        'That change cannot be made while the affected steps have individual parallelism overrides.',
+    },
   ]);
 });

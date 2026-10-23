@@ -1,0 +1,8 @@
+{
+  "extends": "../../../../../apps/twilight-structure/twilight-dash/cli/tsconfig.spec.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "../../../../../apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts",
+    "../../../../../apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts"
+  ]
+}

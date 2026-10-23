@@ -2,7 +2,10 @@ import { describe, expect, it } from 'bun:test';
 
 import type { CaseId } from '../case-manifest';
 import { SOURCE_CONFORMANCE_CASES } from '../certification';
-import { sourceConformanceRegistrations } from '../source-conformance';
+import {
+  type SourceConformanceOpeners,
+  sourceConformanceRegistrations,
+} from '../source-conformance';
 
 describe('the migrated existing store kits', () => {
   it('preserves the original IDs and adds each completed family inventory', () => {
@@ -11,6 +14,7 @@ describe('the migrated existing store kits', () => {
       projects: unopened,
       users: unopened,
       capacity: unopened,
+      resourceCapacity: unopened,
       priorityBands: unopened,
       calendarMarkers: unopened,
       workItems: unopened,
@@ -21,6 +25,9 @@ describe('the migrated existing store kits', () => {
       progress: unopened,
       attempts: unopened,
       blockages: unopened,
+      stepParallels: unopened,
+      claims: unopened,
+      demands: unopened,
       dependencies: unopened,
       typedDependencies: unopened,
       directory: unopened,
@@ -31,7 +38,7 @@ describe('the migrated existing store kits', () => {
       savedPlans: unopened,
       savedPlanCapture: unopened,
       historyBatch: unopened,
-    };
+    } satisfies SourceConformanceOpeners;
     const memoryRegistrations = sourceConformanceRegistrations(
       { historyAdmission: 'independent-write' },
       openers,
@@ -50,12 +57,18 @@ describe('the migrated existing store kits', () => {
     // exactly those three IDs absent (`Expected - 3 / Received + 0`).
     // Proof: before savedPlanRegistrations joined the production catalog, this
     // failed with exactly the two Task 6.1 IDs absent (`Expected - 2 / Received + 0`).
+    // Proof: removing the production sparse registration failed this exact inventory (2026-10-17).
+    // Proof: with both claim IDs absent from SOURCE_CONFORMANCE_CASES, the implemented
+    // inventory below failed `Expected - 2 / Received + 0`; watched 2026-10-19.
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'livePlans.read:legacy-and-absence',
       'projects.create:steps',
       'projects.update:scope',
       'projects.recordOpen:reader-order',
       'projectRanks.orderIn:scoped-move',
+      'organizationLimits.readAgentPersonCap:organization-scope',
+      'organizationLimits.readConcurrentClaimCap:bound-triples',
+      'organizationLimits.readCapacityCap:per-resource-except-project',
       'users.create:unique-name',
       'users.find:identity',
       'users.resolveOidcIdentity:issuer-subject',
@@ -63,6 +76,8 @@ describe('the migrated existing store kits', () => {
       'capacity.set:project-team-key',
       'capacity.set:clear',
       'capacity.set:missing-reference',
+      'resourceCapacity.set:stated-zero-cleared',
+      'resourceCapacity.set:missing-reference',
       'priorityBands.listFor:defaults',
       'priorityBands.replace:whole-project',
       'priorityBands.replace:missing-project',
@@ -108,6 +123,15 @@ describe('the migrated existing store kits', () => {
       'attempts.moveAll:ownership',
       'attempts.moveAll:issued',
       'blockages.set:read-remove',
+      'stepParallels.set:sparse-replace-remove',
+      'claims.add:taken-stated-remove',
+      'claims.listStampedByProject:write-instant',
+      'claims.remove:delegated-cascade',
+      'claims.moveAll:in-place',
+      'claims.lease:write-renew-expire',
+      'claims.occupancy:hold-read-cascade',
+      'demands.set:replace-clear-scope',
+      'demands.set:missing-reference',
       'dependencies.listByWorkItems:incident-scope',
       'dependencies.add:idempotent-pair',
       'dependencies.remove:pair',
@@ -117,6 +141,15 @@ describe('the migrated existing store kits', () => {
       'directory.assign:unknown_person',
       'directory.assign:scope-replace-clear',
       'directory.patchTeam:atomic-refusal',
+      'directory.patchPerson:account-binding',
+      'directory.patchPerson:owned-binding',
+      'directory.credentialPinOf:unlinked',
+      'directory.removePerson:claims-in-use',
+      'directory.removePerson:delegated-claims',
+      'directory.removePerson:pinned-credential',
+      'directory.addResource:taken',
+      'directory.setResourceProvider:unknown-and-clear',
+      'directory.removeResource:in-use-cascade',
       'eventLog.recordEvent',
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',
@@ -128,6 +161,7 @@ describe('the migrated existing store kits', () => {
       'journal.append:history-atomic',
       'journal.append:account-redo-depth',
       'journal.flip:preconditions',
+      'journal.appendEvent:history-only',
       'savedPlans.write:bytes-and-bodies',
       'savedPlans.write:quota-refusal',
       'savedPlans.write:quota-window',
@@ -140,6 +174,7 @@ describe('the migrated existing store kits', () => {
     ]);
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.
+    // Proof: removing the independent sparse ID failed this equality (2026-10-17).
     const implementedCaseIds: CaseId[] = [...SOURCE_CONFORMANCE_CASES];
     expect(implementedCaseIds).toEqual([
       ...sqliteRegistrations.map(({ caseId }) => caseId),

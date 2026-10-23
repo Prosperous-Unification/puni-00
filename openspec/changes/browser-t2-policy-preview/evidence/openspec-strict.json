@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "id": "browser-t2-policy-preview",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/puni-browser-t2-policy-impl-sol-20261016",
+    "source": "nearest"
+  }
+}

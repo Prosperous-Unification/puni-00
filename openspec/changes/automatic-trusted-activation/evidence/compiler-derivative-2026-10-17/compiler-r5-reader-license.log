@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+24 |   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+25 | });
+26 | 
+27 | async function refusalOf(action: Promise<unknown>): Promise<string> {
+28 |   try { await action; } catch (cause) { return cause instanceof Error ? cause.message : String(cause); }
+29 |   throw new Error('expected artifact refusal');
+                 ^
+error: expected artifact refusal
+      at refusalOf (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:29:13)
+      at async <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:315:18)
+(fail) artifact reader refuses altered LICENSE.txt [81.87ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+Ran 1 test across 1 file. [110.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 115343360, "exitCode": 1}

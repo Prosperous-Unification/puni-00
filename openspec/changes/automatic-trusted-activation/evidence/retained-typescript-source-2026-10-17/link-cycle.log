@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+149 |   expect(() => f.source.pathKind(root + '/plain/../dir')).toThrow('not a directory');
+150 |   expect(() => f.source.pathKind(root + '/bad')).toThrow('not a directory');
+151 |   expect(f.source.pathKind(root + '/absent')).toBe('absent');
+152 |   expect(() => f.source.pathKind(root + '/escape')).toThrow('escapes');
+153 |   expect(() => f.source.pathKind(root + '/runtime')).toThrow('symlink target invalid');
+154 |   expect(() => f.source.pathKind(root + '/cycle')).toThrow('cycle');
+                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cycle"
+Received message: "source link ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:154:52)
+(fail) component walk resolves owned links and preserves file ancestor semantics [169.51ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [1113.00ms]

@@ -1,0 +1,11 @@
+{
+  "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+  "sourceIdentity": "a98b9418e73b8233e6121f6af0ee7dc4c058c25c691e2d7c736842ee1827f158",
+  "injectedIdentity": "e0db6e4587a18ea7853254e56b6a545150277ef9b80f7e6bc7d8b2dab92a22c7",
+  "restoredIdentity": "a98b9418e73b8233e6121f6af0ee7dc4c058c25c691e2d7c736842ee1827f158",
+  "injectedImport": "../../../../../wbs/be-01/src/config",
+  "expectedRule": "@nx/enforce-module-boundaries",
+  "faultExitCode": 1,
+  "restoredExitCode": 0,
+  "projectGraphPresent": true
+}

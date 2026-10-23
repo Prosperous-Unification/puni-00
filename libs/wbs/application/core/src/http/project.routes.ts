@@ -19,6 +19,7 @@ import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
+import type { StepParallelStore } from '../ports/step-parallel-store';
 import { isPaged, type PageQueryInput, pageQueryOf } from '../service/list-query';
 import { pageProjects, projectKeyOf } from '../service/project-page';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
@@ -145,9 +146,16 @@ export function projectRoutes(
   directory: DirectoryService,
   calendarMarkers: CalendarMarkerService,
   clock: Pick<Clock, 'now'>,
+  stepParallels: Pick<StepParallelStore, 'listByProject'>,
   optimizer?: OptimizationRetry,
 ) {
-  const { planDocuments } = installPlanDocument({ directory, markers: calendarMarkers, clock });
+  const { planDocuments } = installPlanDocument({
+    directory,
+    markers: calendarMarkers,
+    clock,
+    stepParallels,
+    resourceFacts: workItems,
+  });
   return [
     bind(
       createProject,
@@ -235,7 +243,11 @@ export function projectRoutes(
             return {
               ok: false,
               status: 409,
-              body: { error: exported.error, steps: exported.steps, command: exported.command },
+              body:
+                // Proof: wrong shared mapping failed mounted sparse409 (mutation-shared-mapping.txt, 2026-10-17).
+                exported.error === 'uncoded_steps'
+                  ? { error: exported.error, steps: exported.steps, command: exported.command }
+                  : { error: exported.error },
             };
           return {
             ok: true,
@@ -274,7 +286,11 @@ export function projectRoutes(
           return {
             ok: false,
             status: 409,
-            body: { error: exported.error, steps: exported.steps, command: exported.command },
+            body:
+              // Proof: wrong isolated mapping failed mounted sparse409 (mutation-isolated-mapping.txt, 2026-10-17).
+              exported.error === 'uncoded_steps'
+                ? { error: exported.error, steps: exported.steps, command: exported.command }
+                : { error: exported.error },
           };
         return {
           ok: true,

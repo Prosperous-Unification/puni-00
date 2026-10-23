@@ -3,8 +3,10 @@ import { readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
+import { type JUnitCase } from '@shared/test-evidence';
 import { classifyTestFile, type TestLevel as ClassifiedTestLevel } from '@shared/test-levels';
-import { SaxesParser } from 'saxes';
+
+export { type CaseOutcome, type JUnitCase, readJUnitReport } from '@shared/test-evidence';
 
 /** The workspace root, from this file's own location. */
 export const WORKSPACE = new URL('../../../', import.meta.url);
@@ -34,11 +36,50 @@ export interface LevelTarget {
 /**
  * The level targets adopted by the first increment of the test-axes change.
  *
- * Two projects, because they hold every test of the adopted capability. Adding a
- * row obliges that target to collect exactly the files {@link levelOf} puts at
- * its level.
+ * Each added project is audited for complete source collection. Adding a row
+ * obliges that target to collect exactly the files {@link levelOf} puts at its level.
  */
 export const LEVEL_TARGETS: readonly LevelTarget[] = [
+  // Proof: removing this registration failed shared-test-evidence's canonical Unit collection
+  // test with the production lookup's not-a-declared-level refusal (2026-10-19).
+  {
+    project: 'shared-test-evidence',
+    root: 'libs/shared/domain/test-evidence',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-test-evidence.unit.xml',
+    testRoots: ['src'],
+  },
+  // Proof: removing this registration failed shared-test-levels's canonical Unit collection test
+  // with the production lookup's not-a-declared-level refusal (2026-10-17).
+  {
+    project: 'shared-test-levels',
+    root: 'libs/shared/domain/test-levels',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-test-levels.unit.xml',
+    testRoots: ['src'],
+  },
+  // Proof: removing this registration failed shared-failures's canonical Unit collection test
+  // with the production lookup's not-a-declared-level refusal (2026-10-17).
+  {
+    project: 'shared-failures',
+    root: 'libs/shared/domain/failures',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-failures.unit.xml',
+    testRoots: ['src'],
+  },
+  // Proof: removing this registration failed shared-validation's canonical Unit collection test
+  // with the production lookup's not-a-declared-level refusal (2026-10-17).
+  {
+    project: 'shared-validation',
+    root: 'libs/shared/domain/validation',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-validation.unit.xml',
+    testRoots: ['src'],
+  },
   {
     project: 'wbs-store-sqlite',
     root: 'libs/wbs/adapters/store-sqlite',
@@ -255,6 +296,8 @@ export function assertBunLevelCollection(
     });
     // Proof: removing this guard made the CLI accept a SQLite API selector that
     // collects source-conformance.db.test.ts; the named CLI negative saw exit 0.
+    // Proof: removing this guard made shared-validation's API-in-Unit production audit
+    // exit zero; "refuses api files in the Unit collection" failed (2026-10-17).
     if (level !== target.level)
       throw new Error(
         `${label} is declared ${target.level} and collects ${path}, which is ${level}`,
@@ -305,6 +348,8 @@ export function assertBunReport(target: LevelTarget, command: string): void {
   // Proof: changing both clear and write paths to wrong.xml made the named CLI
   // report negative pass when this identity guard was disabled. Removing the
   // outfile-family count made the duplicate-output CLI negative fail.
+  // Proof: removing this identity guard made shared-validation's same-clear/write wrong.xml
+  // command pass "refuses a different report identity" without throwing (2026-10-17).
   if (
     parsed.flags.filter((flag) => flag === '--reporter=junit').length !== 1 ||
     parsed.flags.filter((flag) => flag.startsWith('--reporter-outfile=')).length !== 1 ||
@@ -462,6 +507,41 @@ export function assertFrontendLevelCollection(
   return [...all].sort();
 }
 
+/**
+ * Audit one covered project's Bun target inventory, actual selectors, report
+ * identities and complete source collection. Frontend phases are audited by
+ * {@link verifyDeclaredCollections} after this shared inventory boundary.
+ *
+ * @throws when a required target is absent, a selector admits another level or
+ * omits a source test, or the command envelope or report identity differs.
+ */
+export async function verifyBunProjectCollection(
+  root: string,
+  manifest: ProjectManifest,
+): Promise<void> {
+  await verifyTargetInventory(root, manifest);
+  const conformance = conformanceFilesIn(
+    manifest.targets['test:conformance']?.options?.command ?? '',
+  );
+  const bunFiles = new Set<string>();
+  for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
+    const command = assertLevelEnvelope(target, manifest);
+    assertBunReport(target, command);
+    for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
+  }
+  if (bunFiles.size > 0) {
+    for (const file of await testFilesUnder(root, 'src')) {
+      const canonical = `${root}/${file}`;
+      // Proof: omitting space-fixture.test.ts from the memory Unit selector made
+      // the production CLI pass when this complete-collection guard was removed.
+      // Proof: removing this guard made shared-validation's narrowed selector omit added.test.ts
+      // and exit zero; the complete Unit inventory test failed (2026-10-17).
+      if (!bunFiles.has(canonical))
+        throw new Error(`${manifest.name} level targets do not collect ${canonical}`);
+    }
+  }
+}
+
 /** Check every covered project and refuse omitted frontend source or root tests. */
 export async function verifyDeclaredCollections(
   overrides: ReadonlyMap<string, ProjectManifest> = new Map(),
@@ -474,25 +554,7 @@ export async function verifyDeclaredCollections(
   for (const root of roots) {
     const manifest = manifests.get(root);
     if (manifest === undefined) throw new Error(`${root} manifest is absent`);
-    await verifyTargetInventory(root, manifest);
-    const conformance = conformanceFilesIn(
-      manifest.targets['test:conformance']?.options?.command ?? '',
-    );
-    const bunFiles = new Set<string>();
-    for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
-      const command = assertLevelEnvelope(target, manifest);
-      assertBunReport(target, command);
-      for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
-    }
-    if (bunFiles.size > 0) {
-      for (const file of await testFilesUnder(root, 'src')) {
-        const canonical = `${root}/${file}`;
-        // Proof: omitting space-fixture.test.ts from the memory Unit selector made
-        // the production CLI pass when this complete-collection guard was removed.
-        if (!bunFiles.has(canonical))
-          throw new Error(`${manifest.name} level targets do not collect ${canonical}`);
-      }
-    }
+    await verifyBunProjectCollection(root, manifest);
     if (root === 'apps/wbs/fe-01') {
       const collected = new Set(
         FRONTEND_LEVEL_TARGETS.flatMap((target) =>
@@ -612,6 +674,8 @@ export async function verifyTargetInventory(
   )) {
     // Proof: removing this guard made the named missing-Conformance-target
     // inventory negative resolve with no refusal.
+    // Proof: removing this guard made shared-validation's missing-target inventory resolve;
+    // its required-target assertion failed (2026-10-17).
     if (manifest.targets[target.target] === undefined)
       throw new Error(`${target.project}:${target.target} is missing from project manifest`);
   }
@@ -783,6 +847,22 @@ export const AGGREGATE_TARGETS: readonly string[] = AGGREGATE_DECLARATIONS.map(
  * one of these three lists.
  */
 export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
+  'shared-test-evidence:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-test-evidence:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-test-levels:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-test-levels:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-failures:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-failures:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-validation:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-validation:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
   'wbs-store-sqlite:test:conformance':
     'Conformance level. Its exact command is pinned by workspace-targets.test.ts, so it cannot ' +
     'gain a JUnit report in this increment.',
@@ -1096,169 +1176,6 @@ export async function readSpec(capability: string): Promise<string> {
 }
 
 /* ─── slice D adds everything below this line ─────────────────────────────── */
-
-/** What one `<testcase>` of a JUnit report says happened. */
-export type CaseOutcome = 'passed' | 'skipped' | 'failed';
-
-/** One `<testcase>` of a JUnit report. */
-export interface JUnitCase {
-  readonly name: string;
-  /** The path the runner named the file with, relative to the run's working directory. */
-  readonly file: string;
-  readonly outcome: CaseOutcome;
-}
-
-/** The elements Bun writes inside a `<testcase>`, and what each one says happened. */
-const OUTCOME_ELEMENT = new Map<string, CaseOutcome>([
-  ['error', 'failed'],
-  ['failure', 'failed'],
-  ['skipped', 'skipped'],
-]);
-
-/**
- * Every test case of one JUnit report.
- *
- * Well-formedness is `saxes`'s job, not this reader's: a hand-written tokenizer
- * twice accepted malformed reports — a garbage declaration, a duplicate
- * attribute, an unterminated attribute value, a malformed comment, an unknown
- * entity, CDATA outside the root — and manufactured a passing citation from
- * each, and a coverage ledger that cannot fail is worse than none. `saxes`
- * parses XML 1.0 strictly and streaming; everything it reports through its
- * `error` event is refused here with its own message and position.
- *
- * What is left is the STRUCTURE of a Bun JUnit report, which no XML parser
- * knows: a `testsuites` root, `testcase` directly inside a `testsuite`, an
- * outcome element directly inside its `testcase` and nothing else there, and a
- * `name` and a `file` on every case. Namespaces are refused rather than
- * resolved — the parser runs with `xmlns: false`, so a prefix binds to nothing
- * and a qualified `x:failure` would otherwise read as an unknown element and
- * turn a failing case into a passing one.
- *
- * Its limits, stated: it trusts `saxes` for well-formedness and for entity
- * expansion; it does not validate the JUnit schema beyond the rules above, so an
- * unknown element outside a `testcase` is accepted; and a document with no XML
- * declaration at all is well-formed XML and is accepted.
- *
- * @throws when the document is not well-formed XML 1.0, has a root other than
- * `testsuites`, carries a doctype, a CDATA section or a processing instruction,
- * uses a qualified name or an `xmlns` attribute, puts a `testcase` outside a
- * `testsuite`, puts an outcome element outside a `testcase`, puts any other
- * element inside a `testcase`, holds a `testcase` with no `name` or no `file`,
- * or holds no test case at all.
- */
-export function readJUnitReport(xml: string): readonly JUnitCase[] {
-  const parser = new SaxesParser({ xmlns: false, fileName: 'the JUnit report' });
-  const cases: JUnitCase[] = [];
-  /** The element names still open, outermost first. */
-  const open: string[] = [];
-  let malformed: Error | undefined;
-
-  parser.on('error', (cause) => {
-    malformed ??= cause;
-  });
-  // Proof (D-4): replacing this handler with a no-op failed "refuses a document type declaration"
-  // because the report returned one passing case instead of throwing (2026-09-20).
-  parser.on('doctype', () => {
-    throw parser.makeError('has a document type declaration');
-  });
-  // Proof (D-5): replacing this handler with a no-op failed "refuses a CDATA section" because
-  // the report did not throw; the outside-root CDATA case failed too (2026-09-20).
-  parser.on('cdata', () => {
-    throw parser.makeError('has a CDATA section');
-  });
-  // Proof (D-6): replacing this handler with a no-op failed "refuses a processing instruction
-  // after the declaration" because the report returned one passing case (2026-09-20).
-  parser.on('processinginstruction', (instruction) => {
-    throw parser.makeError(`has a processing instruction <?${instruction.target}?>`);
-  });
-  parser.on('opentag', (tag) => {
-    // Proof (D-7): deleting this guard failed "refuses a namespaced element name" with the later
-    // unsupported-element refusal instead of the qualified-name refusal (2026-09-20).
-    if (tag.name.includes(':')) {
-      throw parser.makeError(`has a qualified element name <${tag.name}>`);
-    }
-    // A Map and not `tag.attributes[…]`: `noUncheckedIndexedAccess` is off, so an
-    // index read types as `string` and the absent-attribute tests below would be
-    // `no-unnecessary-condition` lint errors rather than the guards they are.
-    const attributes = new Map(Object.entries(tag.attributes));
-    for (const attribute of attributes.keys()) {
-      // Proof (D-8): deleting this guard failed "refuses an xmlns attribute" because the report
-      // returned one passing case instead of throwing (2026-09-20).
-      if (attribute === 'xmlns') {
-        throw parser.makeError(`has an xmlns attribute on <${tag.name}>`);
-      }
-      // Proof (D-9): deleting this guard failed "refuses a namespaced attribute name" because the
-      // report returned one passing case instead of throwing (2026-09-20).
-      if (attribute.includes(':')) {
-        throw parser.makeError(`has a qualified attribute name ${attribute} on <${tag.name}>`);
-      }
-    }
-    const parent = open.at(-1);
-    // Proof (D-10): deleting this guard failed "refuses a report whose root is not testsuites"
-    // with the later testcase-parent refusal instead of the root refusal (2026-09-20).
-    if (parent === undefined && tag.name !== 'testsuites') {
-      throw parser.makeError(`root is <${tag.name}>, not <testsuites>`);
-    }
-    // Proof (D-11): deleting this guard failed "refuses a testcase whose parent is not a
-    // testsuite" because the report returned one passing case; the nested testcase failed too
-    // (2026-09-20).
-    if (tag.name === 'testcase' && parent !== 'testsuite') {
-      throw parser.makeError(
-        `holds a <testcase> inside <${parent ?? 'nothing'}>, not inside <testsuite>`,
-      );
-    }
-    // Proof (D-12): deleting this guard failed "refuses an outcome element outside a testcase"
-    // with the later no-testcase refusal instead of the parent refusal (2026-09-20).
-    if (OUTCOME_ELEMENT.has(tag.name) && parent !== 'testcase') {
-      throw parser.makeError(
-        `holds a <${tag.name}> inside <${parent ?? 'nothing'}>, not inside <testcase>`,
-      );
-    }
-    // Proof (D-13): deleting this guard failed both "refuses an unsupported element inside a
-    // testcase" and "refuses a testcase hidden inside an outcome element" because each report
-    // returned a passing case instead of throwing (2026-09-20).
-    if (open.includes('testcase') && !OUTCOME_ELEMENT.has(tag.name)) {
-      throw parser.makeError(`holds an unsupported <${tag.name}> inside a <testcase>`);
-    }
-    if (tag.name === 'testcase') {
-      const title = attributes.get('name');
-      // Proof (D-14): deleting this guard failed "refuses a testcase that names no test" with a
-      // returned case whose name was undefined (2026-09-20).
-      if (title === undefined) throw parser.makeError('holds a <testcase> with no name');
-      const file = attributes.get('file');
-      // Proof (D-15): deleting this guard failed "refuses a testcase that names no file" with a
-      // returned case whose file was undefined (2026-09-20).
-      if (file === undefined) throw parser.makeError('holds a <testcase> with no file');
-      cases.push({ name: title, file, outcome: 'passed' });
-    }
-    // The owner is the case last pushed: an outcome element's parent is a
-    // `testcase` (checked above) and `testcase` elements cannot nest, so the
-    // enclosing case is the most recent one.
-    const outcome = OUTCOME_ELEMENT.get(tag.name);
-    // Proof (D-2): deleting this assignment failed the real-Bun-report case because its skipped
-    // and failed cases were returned as passed; both coverage-outcome cases failed too
-    // (2026-09-20).
-    if (outcome !== undefined) cases[cases.length - 1] = { ...cases[cases.length - 1], outcome };
-    open.push(tag.name);
-  });
-  // Proof (D-17): replacing this handler with a no-op failed the passing-citation case because a
-  // later testcase appeared inside the still-open prior testcase; four other cases failed too
-  // (2026-09-20).
-  parser.on('closetag', () => {
-    open.pop();
-  });
-
-  parser.write(xml).close();
-  // Proof (D-3): deleting this rethrow failed the second-root case because one passing case was
-  // returned; nineteen other malformed-document cases failed too (2026-09-20).
-  if (malformed !== undefined) throw malformed;
-  // Proof (D-16): deleting this guard failed "refuses a report that holds no testcase" because
-  // the reader returned an empty array (2026-09-20).
-  // Proof (E-4): an otherwise valid API report with no testcase made the coverage command refuse
-  // it with `the JUnit report:1:0: holds no testcase` (2026-09-20).
-  if (cases.length === 0) throw parser.makeError('holds no testcase');
-  return cases;
-}
 
 /**
  * The scenario identifiers cited by a test that ran **and passed**.

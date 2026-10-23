@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ResourceScope } from '@/lib/organization-context';
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
@@ -40,10 +42,82 @@ function stubPage(routes: Parameters<typeof stubServer>[0]) {
 }
 
 function renderPage() {
-  render(<OrganizationPage nav={<nav />} account={<span />} />);
+  render(<OrganizationPage nav={<nav />} account={<span />} userId="u1" />);
 }
 
 describe('organization page', () => {
+  it('composes the limits panel for an admin', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/limits': [
+        () =>
+          answer(200, {
+            source: 'default',
+            limits: {
+              maxAgentPersons: 8,
+              maxConcurrentClaims: 200,
+              maxCapacityUnitsPerResource: 64,
+            },
+            usage: { agentPersons: 7, concurrentClaims: 12, capacityUnits: [] },
+          }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <OrganizationPage nav={<nav />} account={<span />} userId="u1" />
+      </OrganizationResourcesProvider>,
+    );
+    const panel = await screen.findByRole('region', { name: 'Organization limits' });
+    expect(await within(panel).findByText('7 of 8')).toBeDefined();
+  });
+
+  it('composes the compute providers panel for an admin', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/compute-providers': [
+        () =>
+          answer(200, {
+            computeProviders: [
+              {
+                id: 'cp-1',
+                kind: 'ssh_host',
+                name: 'h4claw',
+                locator: 'puni1@h4claw',
+                createdAt: NOW,
+                createdBy: 'u1',
+                resources: 2,
+              },
+            ],
+          }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <OrganizationPage nav={<nav />} account={<span />} userId="u1" />
+      </OrganizationResourcesProvider>,
+    );
+    const panel = await screen.findByRole('region', { name: 'Compute providers' });
+    expect(await within(panel).findByText('puni1@h4claw')).toBeDefined();
+  });
+
   it('composes company sign-in setup on the organization page', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
@@ -360,4 +434,131 @@ it('withdraws an issued provisioning secret with the organization page', async (
   await screen.findByText('You no longer have access to this organization.');
   expect(screen.queryByDisplayValue('page-secret')).toBeNull();
   expect(screen.queryByRole('region', { name: 'Provisioning tokens' })).toBeNull();
+});
+
+describe('machine credentials on the organization page', () => {
+  const active: ResourceScope = {
+    organization: { kind: 'active', organizationId: 'org-a' },
+    isCurrent: () => true,
+    refuse: () => undefined,
+  };
+  function renderActive() {
+    render(
+      <OrganizationResourcesProvider scope={active}>
+        <OrganizationPage nav={<nav />} account={<span />} userId="u1" />
+      </OrganizationResourcesProvider>,
+    );
+  }
+  function stubActive(role: string, organizationId = 'org-a') {
+    return stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [() => answer(200, { organizationId, name: 'Acme', role })],
+      'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
+      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/people': [() => answer(200, { people: [] })],
+    });
+  }
+  const credentialReads = (sent: { route: string }[]) =>
+    sent.filter(
+      (request) =>
+        request.route.includes('machine-credentials') || request.route.includes('trusted-issuers'),
+    );
+
+  it('renders no credentials panel for a viewer and sends no credentials request', async () => {
+    const sent = stubActive('viewer');
+    renderActive();
+    await screen.findByRole('region', { name: 'Provisioning tokens' });
+    await waitFor(() => {
+      expect(sent.some((request) => request.route === 'GET /api/organization/active')).toBe(true);
+    });
+    await screen.findByText('No provisioning tokens.');
+    expect(screen.queryByRole('region', { name: 'Machine credentials' })).toBeNull();
+    expect(screen.queryByText('Loading machine credentials…')).toBeNull();
+    expect(credentialReads(sent)).toEqual([]);
+  });
+
+  it('composes the panel for a member without the trusted issuers section', async () => {
+    const sent = stubActive('member');
+    renderActive();
+    const region = await screen.findByRole('region', { name: 'Machine credentials' });
+    await within(region).findByText(
+      'No live credentials for agents bound to your account. Credentials of other members’ agents are not listed for you.',
+    );
+    expect(within(region).queryByRole('region', { name: 'Trusted issuers' })).toBeNull();
+    expect(credentialReads(sent).map((request) => request.route)).toEqual([
+      'GET /api/organization/machine-credentials',
+    ]);
+  });
+
+  it('composes the panel and the trusted issuers section for an admin', async () => {
+    stubActive('admin');
+    renderActive();
+    const region = await screen.findByRole('region', { name: 'Machine credentials' });
+    expect(await within(region).findByRole('region', { name: 'Trusted issuers' })).toBeDefined();
+    await within(region).findByText('No trusted issuers yet.');
+  });
+
+  it("reads the caller's role once for every slot that draws by it", async () => {
+    const sent = stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
+      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/people': [() => answer(200, { people: [] })],
+      'GET /api/organization/limits': [
+        () =>
+          answer(200, {
+            source: 'default',
+            limits: {
+              maxAgentPersons: 8,
+              maxConcurrentClaims: 200,
+              maxCapacityUnitsPerResource: 64,
+            },
+            usage: { agentPersons: 7, concurrentClaims: 12, capacityUnits: [] },
+          }),
+      ],
+    });
+    renderActive();
+    expect(await screen.findByRole('region', { name: 'Machine credentials' })).toBeDefined();
+    const limits = await screen.findByRole('region', { name: 'Organization limits' });
+    await within(limits).findByText('7 of 8');
+    expect(sent.filter((request) => request.route === 'GET /api/organization/active')).toHaveLength(
+      1,
+    );
+  });
+
+  it('gives the page up when the active organization is another one', async () => {
+    const sent = stubActive('admin', 'org-b');
+    renderActive();
+    expect(await screen.findByText('This session has no organization.')).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Machine credentials' })).toBeNull();
+    expect(credentialReads(sent)).toEqual([]);
+  });
+
+  it('renders a role read failure with retry', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(503, {}),
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'member' }),
+      ],
+      'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
+      'GET /api/people': [() => answer(200, { people: [] })],
+    });
+    renderActive();
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry machine credentials' }));
+    expect(await screen.findByRole('region', { name: 'Machine credentials' })).toBeDefined();
+  });
+
+  it('sends no role read in a deployment without organizations', async () => {
+    const sent = stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+    });
+    renderPage();
+    await screen.findByText('No provisioning tokens.');
+    expect(sent.some((request) => request.route === 'GET /api/organization/active')).toBe(false);
+    expect(screen.queryByRole('region', { name: 'Machine credentials' })).toBeNull();
+  });
 });

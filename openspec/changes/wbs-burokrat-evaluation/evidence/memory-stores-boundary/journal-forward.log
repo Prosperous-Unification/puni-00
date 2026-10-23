@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:
+5093 | 
+5094 |   it('runs every Task 5.1 journal case through the staged memory source', async () => {
+5095 |     const caseIds = ['journal.append:history-atomic', 'journal.append:account-redo-depth'] as const;
+5096 |     const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+5097 |     const failure = report.cases.find(({ status }) => status === 'failed');
+5098 |     if (failure?.status === 'failed') throw new Error(failure.failure);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:5098:49)
+(fail) memory existing source conformance > runs every Task 5.1 journal case through the staged memory source [40.48ms]
+
+ 0 pass
+ 73 filtered out
+ 1 fail
+ 35 expect() calls
+Ran 1 test across 1 file. [1.70s]

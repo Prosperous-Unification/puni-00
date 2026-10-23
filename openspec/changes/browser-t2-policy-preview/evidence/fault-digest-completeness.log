@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+ 95 |   expect(observed.authentication).toEqual({ kind: 'absent' });
+ 96 |   expect(observed.certifies).toBe(false);
+ 97 |   for (const key of ['allowed', 'accepted', 'covered', 'passed', 'receipt'])
+ 98 |     expect(observed).not.toHaveProperty(key);
+ 99 |   const { observationDigest, ...payload } = observed;
+100 |   expect(observationDigest).toBe(hashCanonical(payload));
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "483cc6238cc6688c451f7d05f519916ddc45e3a3885367a032ac79abddd910d6"
+Received: "80b5216839abc913e6846493a05a5d9248aabadae4932371be2a1c95673714bd"
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:100:29)
+(fail) [BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1421.29ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 24 expect() calls
+Ran 1 test across 1 file. [2.41s]

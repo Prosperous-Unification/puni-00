@@ -9,6 +9,7 @@ import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
+import { ClaimRepository } from './claim';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
@@ -43,6 +44,7 @@ let measures: StepMeasureRepository;
 let attempts: StepNodeAttemptRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
+let claims: ClaimRepository;
 let projectId: string;
 let otherProjectId: string;
 let devId: string;
@@ -101,6 +103,7 @@ beforeEach(async () => {
   attempts = new StepNodeAttemptRepository(db, OPEN);
   directory = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
+  claims = new ClaimRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
   await new UserRepository(db, OPEN).create(
@@ -670,6 +673,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: [{ workItemId: 'strip', stepId: qaId, personId: ada.id }],
       },
     });
@@ -744,6 +748,7 @@ describe('StepRepository', () => {
       blockages: 0,
       measures: 0,
       attempts: 0,
+      claims: 0,
       assignments: [],
     });
     expect(refused).toEqual({
@@ -756,6 +761,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: [],
       },
     });
@@ -792,6 +798,7 @@ describe('StepRepository', () => {
       blockages: 0,
       measures: 0,
       attempts: 0,
+      claims: 0,
       assignments: [],
     });
     expect(refused).toEqual({
@@ -804,6 +811,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: [],
       },
     });
@@ -842,6 +850,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: 0,
         workItemIds: ['strip'],
       },
@@ -874,7 +883,15 @@ describe('StepRepository', () => {
     const counted = await steps.usageOf(projectId, qaId);
     const refused = await steps.remove(projectId, qaId, false, wrote());
 
-    const usage = { estimates: 0, actuals: 0, progress: 0, blockages: 0, measures: 0, attempts: 2 };
+    const usage = {
+      estimates: 0,
+      actuals: 0,
+      progress: 0,
+      blockages: 0,
+      measures: 0,
+      attempts: 2,
+      claims: 0,
+    };
     expect(counted).toEqual({ ...usage, assignments: [] });
     expect(refused).toEqual({ ok: false, reason: 'in_use', usage: { ...usage, assignments: [] } });
     expect(await steps.findById(qaId)).not.toBeNull();
@@ -890,6 +907,41 @@ describe('StepRepository', () => {
     expect(await steps.findById(qaId)).toBeNull();
     expect(await attempts.listByProject(projectId)).toEqual([]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
+  });
+
+  it('counts the claims, refusing an unconfirmed removal of a claimed step, and a confirmed one releases them', async () => {
+    await directory.addPerson({ id: 'claire', name: 'claire', kind: 'agent' }, [], wrote());
+    const held = {
+      id: 'claim-qa',
+      workItemId: 'strip',
+      stepId: qaId,
+      personId: 'claire',
+      runId: null,
+      parentClaimId: null,
+      accountId: ownerId,
+    };
+    expect(await claims.add([held], [], wrote(), [])).toBe('written');
+    const usage = {
+      estimates: 0,
+      actuals: 0,
+      progress: 0,
+      blockages: 0,
+      measures: 0,
+      attempts: 0,
+      claims: 1,
+    };
+    expect(await steps.usageOf(projectId, qaId)).toEqual({ ...usage, assignments: [] });
+    expect(await steps.remove(projectId, qaId, false, wrote())).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: { ...usage, assignments: [] },
+    });
+    expect(await claims.listByProject(projectId)).toEqual([held]);
+    expect(await steps.remove(projectId, qaId, true, wrote())).toEqual({
+      ok: true,
+      removal: { ...usage, assignments: 0, workItemIds: ['strip'] },
+    });
+    expect(await claims.listByProject(projectId)).toEqual([]);
   });
 
   it('counts the figures that are not days, and refuses an unconfirmed removal of a step that holds only those', async () => {
@@ -935,6 +987,7 @@ describe('StepRepository', () => {
       blockages: 0,
       measures: 2,
       attempts: 0,
+      claims: 0,
       assignments: [],
     });
     expect(refused).toEqual({
@@ -947,6 +1000,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 2,
         attempts: 0,
+        claims: 0,
         assignments: [],
       },
     });
@@ -1007,6 +1061,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 2,
         attempts: 0,
+        claims: 0,
         assignments: 0,
         workItemIds: ['strip'],
       },
@@ -1039,6 +1094,7 @@ describe('StepRepository', () => {
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: 0,
         workItemIds: ['strip'],
       },

@@ -1,0 +1,46 @@
+{
+  "format": {
+    "receipt.json": {
+      "path": "/tmp/wbs100-final-surveys-format-20261020.receipt.json",
+      "sha256": "d5704744e63283b82c815bd7004819af1e6d1c36e8cdea65bab6ca7574e73412",
+      "bytes": 670,
+      "utf8": "{\n  \"command\": [\n    \"bunx\",\n    \"prettier\",\n    \"--check\",\n    \"openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/README.md\",\n    \"openspec/changes/burokrat-serial-legacy-compiler/verify.md\",\n    \"openspec/changes/wbs-reference-set-presentation-boundary/recovery.md\",\n    \"openspec/changes/wbs-estimate-presentation-boundary/recovery.md\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 137908,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.356,\n  \"availableBeforeKiB\": 23839732,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+    },
+    "stdout": {
+      "path": "/tmp/wbs100-final-surveys-format-20261020.stdout",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "bytes": 66,
+      "utf8": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    "stderr": {
+      "path": "/tmp/wbs100-final-surveys-format-20261020.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "utf8": ""
+    }
+  },
+  "strictOpenSpec": {
+    "receipt.json": {
+      "path": "/tmp/wbs100-final-surveys-openspec-20261020.receipt.json",
+      "sha256": "74de83e27a8887b13b65705732c563b962dcc583dd3a7094e7ad8cf1b7ac278d",
+      "bytes": 509,
+      "utf8": "{\n  \"command\": [\n    \"env\",\n    \"BUN_TMPDIR=/tmp\",\n    \"OPENSPEC_TELEMETRY=0\",\n    \"bunx\",\n    \"@fission-ai/openspec@1.12.0\",\n    \"validate\",\n    \"burokrat-serial-legacy-compiler\",\n    \"--strict\",\n    \"--json\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 107180,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.254,\n  \"availableBeforeKiB\": 23840972,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+    },
+    "stdout": {
+      "path": "/tmp/wbs100-final-surveys-openspec-20261020.stdout",
+      "sha256": "98a8460da01cd308e1f69b402634ddabb69f59ead5278bd852e9f4310884a2c9",
+      "bytes": 522,
+      "utf8": "{\n  \"items\": [\n    {\n      \"id\": \"burokrat-serial-legacy-compiler\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    "stderr": {
+      "path": "/tmp/wbs100-final-surveys-openspec-20261020.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "utf8": ""
+    }
+  },
+  "productionSourceUnchanged": {
+    "typescript-serial.ts": "235d673581a729b1a27ba6590a3d29d825b7d71afa729c0ed711a11c5bfeb636",
+    "typescript-declarations.ts": "dd3e78def5353e717f1bd947288b3a06f63530f41dd807a435f77bbf8a21bc77"
+  }
+}

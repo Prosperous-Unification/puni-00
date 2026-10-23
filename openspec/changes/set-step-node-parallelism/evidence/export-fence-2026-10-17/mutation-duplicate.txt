@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+(pass) v9 refuses corrupt captured sparse evidence: missing collection [0.50ms]
+(pass) v9 refuses corrupt captured sparse evidence: null collection [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: object collection
+(pass) v9 refuses corrupt captured sparse evidence: array row [0.12ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing maximum [0.04ms]
+(pass) v9 refuses corrupt captured sparse evidence: string maximum
+(pass) v9 refuses corrupt captured sparse evidence: null row
+(pass) v9 refuses corrupt captured sparse evidence: numeric owner
+(pass) v9 refuses corrupt captured sparse evidence: numeric step [0.01ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing owner [0.05ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing step [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: fraction [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: zero
+(pass) v9 refuses corrupt captured sparse evidence: too large
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /duplicate step parallelism/
+
+Received function did not throw
+Received value: {
+  ok: false,
+  error: "unsupported_step_parallelism",
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: duplicate [0.25ms]
+
+ 14 pass
+ 58 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 15 tests across 1 file. [1.78s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 510316544, "exitCode": 1}

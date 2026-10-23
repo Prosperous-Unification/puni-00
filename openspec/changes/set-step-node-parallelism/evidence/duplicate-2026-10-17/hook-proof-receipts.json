@@ -1,0 +1,91 @@
+[
+  {
+    "case": "hook-selected-coverage",
+    "argv": [
+      "/tmp/puni-duplicate-owner-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "exitCode": 0,
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-first",
+    "argv": [
+      "/tmp/puni-duplicate-owner-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "exitCode": 1,
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-middle",
+    "argv": [
+      "/tmp/puni-duplicate-owner-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "exitCode": 1,
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-last",
+    "argv": [
+      "/tmp/puni-duplicate-owner-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "exitCode": 1,
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]
+    ]
+  },
+  {
+    "case": "hook-propagation-omitted",
+    "argv": [
+      "/tmp/puni-duplicate-owner-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "exitCode": 0,
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]
+    ]
+  },
+  {
+    "case": "hook-empty-argv",
+    "argv": ["/tmp/puni-duplicate-owner-20261017/.git/duplicate-lint-staged.sh"],
+    "exitCode": 64,
+    "selectedLintArgv": []
+  },
+  {
+    "case": "hook-empty-guard-omitted",
+    "argv": ["/tmp/puni-duplicate-owner-20261017/.git/duplicate-lint-staged.sh"],
+    "exitCode": 0,
+    "selectedLintArgv": []
+  }
+]

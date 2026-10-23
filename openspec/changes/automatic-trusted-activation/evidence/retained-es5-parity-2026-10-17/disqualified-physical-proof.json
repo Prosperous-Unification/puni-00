@@ -1,0 +1,6 @@
+{
+  "fault": "require-based physical dependency",
+  "acceptedProof": false,
+  "reason": "require(node:fs) bypassed the ESM spy; ENOENT is not the required intercepted forbidden ambient route sentinel",
+  "log": "disqualified-require-physical-library-dependence.log"
+}

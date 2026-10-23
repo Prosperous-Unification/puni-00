@@ -1,0 +1,40 @@
+{
+  "command": [
+    "bun",
+    "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "inspect-bun-test-reports",
+    ".",
+    "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9",
+    "/tmp/shared-test-levels-real-unit-oct17/authority.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 625028,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+      "inspect-bun-test-reports",
+      ".",
+      "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9",
+      "/tmp/shared-test-levels-real-unit-oct17/authority.json"
+    ],
+    [
+      "git",
+      "-C",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17",
+      "cat-file",
+      "--batch"
+    ],
+    [
+      "git",
+      "-C",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17",
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9^{commit}"
+    ]
+  ]
+}

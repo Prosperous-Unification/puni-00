@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "2ddfe3faca17e79ad5ddd5168cdb29c5cf8e22b4ad809704f91237472df3fe6b",
+    "bytes": 541,
+    "text": "{\n  \"command\": [\n    \"bun\",\n    \"test\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\",\n    \"--test-name-pattern\",\n    \"extracts supported vendor relationships and public declarations outside the checkout\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 1,\n  \"peakProcessTreeKiB\": 1144276,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 4.518,\n  \"availableBeforeKiB\": 22905056,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "6043908c8d26d62698476b88f737f39d5d3e91008d4155a81730902f5a37479c",
+    "bytes": 28,
+    "text": "bun test v1.4.2 (744846f84)\n"
+  },
+  "stderr": {
+    "sha256": "1c1888e0481da53e770688cd955e1680de606488c344bc88313319d6ca8d512a",
+    "bytes": 953,
+    "text": "\napps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:\n344 |     const extracted = invokeWithoutWorkspace(\n345 |       executable,\n346 |       ['extract-relationships', 'committed', repository, revision, request],\n347 |       consumer,\n348 |     );\n349 |     expect(extracted.exitCode, extracted.stderr.toString()).toBe(0);\n                                                                  ^\nerror: TypeScript import unresolved: src/codec.d.ts -> 'dns-packet'\nTwilight Burokrat validator exited 1\n\n\nExpected: 0\nReceived: 1\n\n      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:349:61)\n(fail) packed Twilight Burokrat installation > extracts supported vendor relationships and public declarations outside the checkout [3908.54ms]\n\n 0 pass\n 9 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [4.49s]\n"
+  }
+}

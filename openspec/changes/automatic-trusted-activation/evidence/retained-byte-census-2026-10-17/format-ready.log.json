@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bunx",
+    "prettier",
+    "--write",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "openspec/changes/automatic-trusted-activation/verify.md"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 321372,
+  "ceilingKiB": 921600
+}

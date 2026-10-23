@@ -1,0 +1,50 @@
+{
+  "name": "shared-ui-core-01",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/adapters/ui-core-01/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:ui", "runtime:browser", "ring:adapter", "product:shared"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/adapters/ui-core-01/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/adapters/ui-core-01/src --cache --cache-location .nx/eslintcache-shared-ui-core-01"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
+        "cwd": "libs/shared/adapters/ui-core-01"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
+        "cwd": "libs/shared/adapters/ui-core-01"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/ui-core-01/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/ui-core-01/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/out-tsc"]
+    }
+  }
+}

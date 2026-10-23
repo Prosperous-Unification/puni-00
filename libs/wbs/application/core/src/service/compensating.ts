@@ -89,6 +89,10 @@ const COMMANDS = [
   'clear_progress',
   ...STEP_BLOCKAGE_REPLAY_KINDS,
   'assign',
+  'set_demand',
+  'add_claims',
+  'remove_claims',
+  'move_claims',
   'restore_attempt',
   'remove_attempt',
   'add_dependency',
@@ -147,6 +151,34 @@ export function readCommand(value: unknown): CompensatingCommand {
       !blockedTime(value.replacementBlockedAt)
     )
       throw new Error('a journal blockage replacement is malformed');
+  }
+  if (named === 'set_demand') {
+    const units: unknown = 'units' in value ? value.units : undefined;
+    // Proof: with this check removed, `refuses a malformed demand replay` in
+    // compensating.test.ts read a demand of 0 units back; watched 2026-10-20.
+    if (
+      !('workItemId' in value) ||
+      typeof value.workItemId !== 'string' ||
+      !('resourceId' in value) ||
+      typeof value.resourceId !== 'string' ||
+      !(units === null || (typeof units === 'number' && Number.isSafeInteger(units) && units >= 1))
+    )
+      throw new Error('a journal demand replay is malformed');
+  }
+  if (named === 'restore_subtree' && 'demands' in value) {
+    // Proof: with this call removed, `refuses a malformed restored demand` in
+    // compensating.test.ts did not throw; watched 2026-10-20.
+    readRestoredDemands(value);
+  }
+  if (named === 'add_claims' || named === 'remove_claims') {
+    // Proof: with this call removed, `refuses a malformed claim replay` in
+    // compensating.test.ts did not throw; watched 2026-10-19.
+    readClaimReplay(value, named === 'add_claims' ? 'stated' : 'cleared');
+  }
+  if (named === 'move_claims') {
+    // Proof: with this call removed, `refuses a malformed claim move` in
+    // compensating.test.ts did not throw; watched 2026-10-20.
+    readClaimMove(value);
   }
   if (named === 'move' && 'expectedProgress' in value) {
     // Proof: removing this boundary admitted a mounted guarded move with no destination; watched 2026-10-14.
@@ -400,6 +432,10 @@ export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
         workItemId,
         stepId,
       }));
+    case 'add_claims':
+      return command.stated.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
+    case 'remove_claims':
+      return command.cleared.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
     case 'delete_subtree':
       // Proof: omitting these writes failed exact delete progress attribution; watched 2026-10-14.
       return command.setProgress.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
@@ -433,10 +469,20 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_progress':
     case 'replace_blockage':
     case 'assign':
+    case 'set_demand':
     case 'remove_attempt':
       // Proof: omitting assignment owners made the SQLite assignment-only redo
       // conflict test fail at `Expected: 409, Received: 200`; watched 2026-09-27.
       return [command.workItemId];
+    case 'add_claims':
+    case 'remove_claims':
+      // Proof: returning [] here made `refuses a redo of a claim after the leaf
+      // moved on` (claim-race.db.test.ts) apply the redo; watched 2026-10-19.
+      return [...new Set(command.claims.map(({ workItemId }) => workItemId))];
+    case 'move_claims':
+      // Redundant today: the one writer, a first child's create, names both
+      // ids in its touched set already, so no production negative can fail here.
+      return [command.fromWorkItemId, command.toWorkItemId];
     case 'restore_attempt':
       return [command.attempt.workItemId];
     case 'add_dependency':
@@ -531,6 +577,7 @@ export interface CompensatingReferences {
   tags: string[];
   types: string[];
   systems: string[];
+  resources: string[];
 }
 
 /** {@link CompensatingReferences} of one command. */
@@ -545,6 +592,7 @@ export function referencesOf(command: CompensatingCommand): CompensatingReferenc
     tags: [],
     types: [],
     systems: [],
+    resources: [],
   };
   collectReferences(command, found);
   return found;
@@ -606,6 +654,31 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     case 'assign':
       onStep(command);
       if (command.personId !== null) found.people.push(command.personId);
+      return;
+    case 'set_demand':
+      rows(command.workItemId);
+      found.resources.push(command.resourceId);
+      return;
+    case 'add_claims':
+    case 'remove_claims':
+      for (const each of command.claims) {
+        rows(each.workItemId);
+        if (each.stepId !== null) found.steps.push(each.stepId);
+        found.people.push(each.personId);
+      }
+      [...('stated' in command ? command.stated : command.cleared)].forEach(onStep);
+      // Proof: with this line removed, `reads both directions back and names
+      // their rows, steps, people and progress` (compensating.test.ts) read no
+      // resource off the occupancy; watched 2026-10-20.
+      if (command.do === 'add_claims')
+        found.resources.push(...(command.occupancy ?? []).map(({ resourceId }) => resourceId));
+      return;
+    case 'move_claims':
+      rows(command.fromWorkItemId, command.toWorkItemId);
+      for (const each of command.claims) {
+        if (each.stepId !== null) found.steps.push(each.stepId);
+        found.people.push(each.personId);
+      }
       return;
     case 'restore_attempt':
       attempted(command.attempt);
@@ -670,6 +743,12 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         onStep(assignment);
         found.people.push(assignment.personId);
       }
+      // Proof: with this loop removed, `names the resources a restore's demands
+      // name` (compensating.test.ts) read no resource; watched 2026-10-20.
+      for (const demand of command.demands ?? []) {
+        rows(demand.workItemId);
+        found.resources.push(demand.resourceId);
+      }
       for (const edge of [...command.internalDependencies, ...command.externalDependencies]) {
         rows(edge.predecessorId, edge.successorId);
         found.projects.push(edge.projectId);
@@ -710,6 +789,20 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'assign':
     case 'remove_attempt':
       return { workItemId: command.workItemId, stepId: command.stepId };
+    case 'set_demand':
+      return { workItemId: command.workItemId, stepId: null };
+    case 'add_claims':
+    case 'remove_claims': {
+      // One claim command addresses one work item; several steps of it name none.
+      const first = command.claims.at(0);
+      return {
+        workItemId: first?.workItemId ?? null,
+        stepId: command.claims.length === 1 ? (first?.stepId ?? null) : null,
+      };
+    }
+    case 'move_claims':
+      // Part of a first child's create or its undo; the work item the claims land on.
+      return { workItemId: command.toWorkItemId, stepId: null };
     case 'restore_attempt':
       return { workItemId: command.attempt.workItemId, stepId: command.attempt.stepId };
     case 'patch':
@@ -767,4 +860,153 @@ export function quoteName(name: string): string {
   const trimmed = name.trim();
   if (trimmed === '') return 'an unnamed work item';
   return `“${trimmed.length > 40 ? `${trimmed.slice(0, 39)}…` : trimmed}”`;
+}
+
+/**
+ * Checks a stored claim replay: every claim whole, and every progress key a
+ * pair of strings. A claim with a missing field would otherwise be inserted as
+ * a row nobody wrote.
+ *
+ * @throws for any malformed claim or key.
+ */
+/**
+ * A restore's `demands`: each a whole number of units from 1 on a resource, on
+ * one of the rows the restore writes. A demand on any other row would be
+ * written onto work the entry does not put back.
+ */
+function readRestoredDemands(value: object): void {
+  const demands: unknown = Reflect.get(value, 'demands');
+  const rows: unknown = Reflect.get(value, 'rows');
+  if (!Array.isArray(demands) || !Array.isArray(rows))
+    throw new Error('a journal restore holds demands that are not a list');
+  const listedRows: readonly unknown[] = rows;
+  const owners = new Set<unknown>();
+  for (const row of listedRows)
+    if (typeof row === 'object' && row !== null && 'id' in row) owners.add(row.id);
+  const listed: readonly unknown[] = demands;
+  for (const demand of listed) {
+    const units: unknown =
+      typeof demand === 'object' && demand !== null ? Reflect.get(demand, 'units') : undefined;
+    if (
+      typeof demand !== 'object' ||
+      demand === null ||
+      !('workItemId' in demand) ||
+      typeof demand.workItemId !== 'string' ||
+      !owners.has(demand.workItemId) ||
+      !('resourceId' in demand) ||
+      typeof demand.resourceId !== 'string' ||
+      demand.resourceId.length === 0 ||
+      typeof units !== 'number' ||
+      !Number.isSafeInteger(units) ||
+      units < 1
+    )
+      throw new Error('a journal restore holds a malformed demand');
+  }
+}
+
+function readClaimMove(value: object): void {
+  const text = (field: unknown): field is string => typeof field === 'string' && field.length > 0;
+  if (
+    !('fromWorkItemId' in value) ||
+    !text(value.fromWorkItemId) ||
+    !('toWorkItemId' in value) ||
+    !text(value.toWorkItemId)
+  )
+    throw new Error('a journal claim move names no work items');
+  const from = value.fromWorkItemId;
+  const claims = readClaims(value);
+  if (claims.some((each) => Reflect.get(each, 'workItemId') !== from))
+    throw new Error('a journal claim move holds a claim of another work item');
+}
+
+function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
+  const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
+  const claims = readClaims(value);
+  const pairs: unknown = keys in value ? Reflect.get(value, keys) : undefined;
+  if (!Array.isArray(pairs)) throw new Error(`a journal claim replay has no ${keys} progress`);
+  const listed: readonly unknown[] = pairs;
+  for (const pair of listed) {
+    if (
+      typeof pair !== 'object' ||
+      pair === null ||
+      !('workItemId' in pair) ||
+      !text(pair.workItemId) ||
+      !('stepId' in pair) ||
+      !text(pair.stepId)
+    )
+      throw new Error('a journal claim replay holds a malformed progress key');
+  }
+  if (keys === 'cleared') return;
+  if ('leased' in value) {
+    const leased: unknown = value.leased;
+    const carried = new Set<unknown>(claims.map((each): unknown => Reflect.get(each, 'id')));
+    // Proof: with this check answering early, `refuses a claim replay whose
+    // leased list is malformed or names a claim it does not carry`
+    // (compensating.test.ts) did not throw (38 pass, 1 fail); watched 2026-10-23.
+    if (!Array.isArray(leased) || leased.some((id: unknown) => !carried.has(id)))
+      throw new Error('a journal claim replay holds a malformed leased list');
+  }
+  // Absent `occupancy` is the shape written before `20261020130000_add_claim_occupancy`
+  // (a claim of claims slice 1, a release's undo, or an outgoing colour mid-swap):
+  // those claims held nothing, so the replay re-adds them holding nothing.
+  // Proof: with absence refused, `reads a claim replay written before occupancy
+  // as holding nothing` (compensating.test.ts) threw, and `undoes a release and
+  // redoes a claim journalled before claim occupancy` (claim-race.db.test.ts)
+  // failed its undo; watched 2026-10-20.
+  if (!('occupancy' in value)) return;
+  const occupancy: unknown = value.occupancy;
+  // Proof: with this check answering early, `refuses a claim replay whose
+  // occupancy is malformed or names a claim it does not carry`
+  // (compensating.test.ts) did not throw; watched 2026-10-20.
+  if (!Array.isArray(occupancy)) throw new Error('a journal claim replay has no occupancy list');
+  const ids = new Set<unknown>(claims.map((each): unknown => Reflect.get(each, 'id')));
+  const rows: readonly unknown[] = occupancy;
+  for (const row of rows) {
+    if (
+      typeof row !== 'object' ||
+      row === null ||
+      !('claimId' in row) ||
+      !ids.has(row.claimId) ||
+      !('resourceId' in row) ||
+      !text(row.resourceId) ||
+      !('units' in row) ||
+      typeof row.units !== 'number' ||
+      !Number.isSafeInteger(row.units) ||
+      row.units < 1
+    )
+      throw new Error('a journal claim replay holds a malformed occupancy');
+  }
+}
+
+/** The non-empty `claims` of a stored claim command, each claim checked field by field. */
+function readClaims(value: object): readonly object[] {
+  const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
+  const nullableText = (field: unknown): boolean => field === null || text(field);
+  if (!('claims' in value) || !Array.isArray(value.claims) || value.claims.length === 0)
+    throw new Error('a journal claim replay has no claims');
+  const claims: readonly unknown[] = value.claims;
+  const checked: object[] = [];
+  for (const each of claims) {
+    if (
+      typeof each !== 'object' ||
+      each === null ||
+      !('id' in each) ||
+      !text(each.id) ||
+      !('workItemId' in each) ||
+      !text(each.workItemId) ||
+      !('stepId' in each) ||
+      !nullableText(each.stepId) ||
+      !('personId' in each) ||
+      !text(each.personId) ||
+      !('runId' in each) ||
+      !nullableText(each.runId) ||
+      !('parentClaimId' in each) ||
+      !nullableText(each.parentClaimId) ||
+      !('accountId' in each) ||
+      !text(each.accountId)
+    )
+      throw new Error('a journal claim replay holds a malformed claim');
+    checked.push(each);
+  }
+  return checked;
 }

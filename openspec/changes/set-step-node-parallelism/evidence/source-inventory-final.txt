@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts:
+(pass) SQLite existing source conformance > certifies the sparse step parallelism source inventory [541.28ms]
+
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:
+(pass) memory existing source conformance > certifies the sparse step parallelism source inventory [14.17ms]
+
+ 2 pass
+ 148 filtered out
+ 0 fail
+ 32 expect() calls
+Ran 2 tests across 2 files. [6.13s]

@@ -1,0 +1,18 @@
+{
+  "command": [
+    "bun",
+    "node_modules/typescript/bin/tsc6",
+    "-p",
+    ".estimate-recovery-scope.tsconfig.json",
+    "--noEmit"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 1754248,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 6.835,
+  "availableBeforeKiB": 23828060,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

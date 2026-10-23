@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/step-parallel.test.ts:
+(pass) resolveStepParallel > inherits Dev four while QA explicitly requests two [0.11ms]
+(pass) resolveStepParallel > retains explicit one when equal to the row default and after it becomes four [0.02ms]
+22 |   });
+23 | 
+24 |   it('refuses a fact belonging to another work item', () => {
+25 |     expect(() =>
+26 |       resolveStepParallel(dev, 4, { ...dev, workItemId: 'foreign', maxParallel: 2 }),
+27 |     ).toThrow();
+           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  kind: "explicit",
+  maxParallel: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:27:7)
+(fail) resolveStepParallel > refuses a fact belonging to another work item [0.16ms]
+(pass) resolveStepParallel > refuses a fact belonging to another step [0.03ms]
+(pass) resolveStepParallel > refuses inherited row maximum 0 [0.01ms]
+(pass) resolveStepParallel > refuses row maximum 0 despite a valid override [0.01ms]
+(pass) resolveStepParallel > refuses override maximum 0 [0.02ms]
+(pass) resolveStepParallel > refuses inherited row maximum 1001
+(pass) resolveStepParallel > refuses row maximum 1001 despite a valid override
+(pass) resolveStepParallel > refuses override maximum 1001
+(pass) resolveStepParallel > refuses inherited row maximum 1.5
+(pass) resolveStepParallel > refuses row maximum 1.5 despite a valid override
+(pass) resolveStepParallel > refuses override maximum 1.5
+(pass) resolveStepParallel > refuses inherited row maximum NaN
+(pass) resolveStepParallel > refuses row maximum NaN despite a valid override
+(pass) resolveStepParallel > refuses override maximum NaN
+(pass) resolveStepParallel > refuses inherited row maximum Infinity
+(pass) resolveStepParallel > refuses row maximum Infinity despite a valid override
+(pass) resolveStepParallel > refuses override maximum Infinity
+(pass) resolveStepParallel > refuses inherited row maximum -Infinity
+(pass) resolveStepParallel > refuses row maximum -Infinity despite a valid override
+(pass) resolveStepParallel > refuses override maximum -Infinity
+(pass) resolveStepParallel > accepts both inclusive bounds as inherited and explicit maxima [0.03ms]
+(pass) resolveStepParallel > detaches the resolved maximum from the supplied mutable fact [0.02ms]
+(pass) resolveStepParallel > composes with named-person, narrowest-pool and unsized-team resource rules [0.22ms]
+
+1 tests failed:
+(fail) resolveStepParallel > refuses a fact belonging to another work item [0.16ms]
+
+ 24 pass
+ 1 fail
+ 33 expect() calls
+Ran 25 tests across 1 file. [19.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 23912448, "exitCode": 1}

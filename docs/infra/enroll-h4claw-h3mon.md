@@ -2,11 +2,80 @@
 
 The ordered operator commands that make h4claw the platform k3s server and join h3mon as its
 observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). On 2026-09-27 step 2 ran, step 3
-ran without the provider snapshots (so no whole-host restore point exists), and step 4 bootstrapped
-h4claw but stopped before copying the join tokens; step 5 onward has not run. Each step needs
-Dany's authorization of this exact procedure; the real-host record, the QEMU rehearsal and its
-limits are in
+ran without the provider snapshots (no whole-host restore point was recorded then), and step 4 bootstrapped
+h4claw but stopped before copying the join tokens. At that point step 5 onward had not run; that
+execution record and its limits remain in
 [the enroll-existing-hosts verification](../../openspec/changes/enroll-existing-hosts/verify.md).
+Each step needs Dany's authorization of this exact procedure.
+
+A read-only inventory on 2026-10-17 (`ssh h4claw sudo k3s kubectl get node h3mon ...`,
+`get kustomizations -n flux-system`, and direct h3mon host checks) observed h4claw and h3mon
+Ready on v1.36.4+k3s1. h3mon's Node was created on 2026-10-06, carries the observability
+capability label, has no enrollment taint, and reports the same machine ID and private address as
+the desired fleet and Ansible inventory. The 4 GiB `/swap.puni` is active and persistent. Flux is
+installed: `target`, `controllers`, `storage`, `policy` and `secrets` are Ready; `platform` is
+stalled on the registry Deployment, and later observability stages are not Ready. These
+observations establish that the live state advanced beyond the September record. They do not
+verify the intervening Ansible runs, their idempotency, the original enrollment validation run,
+provider snapshots, or a post-enrollment reboot; those remain unverified.
+
+The 2026-10-17 probe measured only 5,771 MiB `MemAvailable`, while the repository's production
+observability graph requests 5,830 MiB on h3mon (including its 128 MiB unrequested-DaemonSet
+allowance), so activation correctly stopped. Dany resized and rebooted h3mon on 2026-10-19.
+After boot it had 15,602 MiB total and 14,170 MiB available, and Kubernetes reported 13.6 GiB
+allocatable. The 5,830 MiB graph therefore has 8,340 MiB of host headroom while the legacy
+services coexist; the resize resolves the memory admission failure without reducing the 2 GiB
+Elasticsearch heap. The graph is still not activated: all six externally provided platform
+Secrets are absent, the registry Pod is Pending, and Flux keeps `observability` dependency
+blocked. Credentials must come from the documented operator inputs; do not fabricate them.
+Swap is not a substitute for pod memory: pods cannot swap.
+
+### h4claw reconciliation on 2026-10-17 (WBS 50.10)
+
+Lane C reconciled the live server against the recorded procedure before making any host change.
+No enrollment apply was needed: h4claw was already the reproducibly managed k3s server created by
+the authorized 2026-09-27 run. The current read-only evidence was:
+
+```text
+$ ssh h4claw 'systemctl is-active k3s; k3s --version | head -1'
+active
+k3s version v1.36.4+k3s1 (4dedb15b)
+
+$ ssh h4claw 'sudo k3s kubectl get nodes -o wide'
+NAME     STATUS   ROLES                AGE   VERSION        INTERNAL-IP
+h3mon    Ready    <none>               10d   v1.36.4+k3s1   10.1.0.2
+h4claw   Ready    control-plane,etcd   19d   v1.36.4+k3s1   10.1.0.4
+
+$ ssh h4claw 'curl --fail --output /dev/null --write-out "%{http_code}\n" http://127.0.0.1:3000/'
+200
+$ ssh h4claw 'sudo docker ps --format "{{.Names}}|{{.Status}}|{{.Ports}}"'
+openhands-app|Up 3 weeks|127.0.0.1:3000->3000/tcp
+```
+
+The OpenHands check returned 200 both before and after this reconciliation; no container was
+stopped or changed. `enp7s0` still owns `10.1.0.4/32`, Docker and
+`puni-k3s-firewall.service` are active, the `inet puni_k3s` table exists, and the node has the
+`control-plane`, `etcd`, `product`, and `ingress` labels with no enrollment taint. The host is
+8 CPUs, 15,602 MiB RAM, and 132 GiB free on `/`; the older evolution plan's 4 CPU / 8 GB row is
+stale.
+
+The procedure's h4claw steps reconcile as follows:
+
+| Step                      | Verdict                                                          | Evidence and limit                                                                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1, controller             | Recorded, not rerun                                              | The reviewed Ansible source remains on `main`; the controller checkout and secret inputs were not inspected.                                                                                                        |
+| 2, preflight              | Satisfied by the 2026-09-27 record; current invariants rechecked | The recorded passes were `ok=27 changed=0`, then `ok=28 changed=0`; current address, preserved listener/container, OS, capacity, and machine placement still match.                                                 |
+| 3, backup                 | Partial                                                          | `/root/pre-k3s-etc.tgz` exists with timestamp `2026-09-27T18:46:59Z`; the recorded Docker inventory exists in the execution record. No Hetzner snapshot was taken, and no later provider snapshot was verified.     |
+| 4, bootstrap              | Satisfied                                                        | The recorded apply was `ok=47 changed=29`, its second run was `ok=38 changed=0`, and after-enrollment preflight was `ok=26 changed=0`. Current k3s and node output above prove the resulting server is still Ready. |
+| 5, join/validation        | Live result satisfied; intervening run evidence incomplete       | h3mon is now Ready and both nodes have no enrollment taint, but this reconciliation did not recover the later Ansible join/validation summaries.                                                                    |
+| 6, h3mon memory           | Not part of WBS 50.10 and not rerun                              | No conclusion from this h4claw-only reconciliation.                                                                                                                                                                 |
+| 7, Flux                   | Partially satisfied                                              | The same-day inventory found `target`, `controllers`, `storage`, `policy`, and `secrets` Ready; `platform` remained blocked on registry Secrets.                                                                    |
+| 8, reboot/data comparison | Not verified                                                     | The current node is healthy, but that does not prove the prescribed one-at-a-time reboot and before/after Victoria/Grafana comparison.                                                                              |
+
+The off-host negative control used h1claw's public route to h4claw. TCP/22 on the same public
+address succeeded, while TCP/6443 timed out (`nc -zvw5`, exit 1). The local API control on
+h4claw (`127.0.0.1:6443`) succeeded. Thus the API was not reachable from that public-internet
+vantage; this is a reachability observation, not a claim about every possible source address.
 
 Placement is `infra/fleet/desired.yaml`; host variables are
 `infra/ansible/inventory/production-existing-hosts.yml`.
@@ -17,7 +86,7 @@ From the read-only probe of 2026-09-27:
 
 - **h4claw** (8 cores, 15 GiB, private 10.1.0.4) is the single platform server with `product` and
   `ingress`.
-- **h3mon** (4 cores, 7.6 GiB, private 10.1.0.2) is an agent with `observability` only. Its
+- **h3mon** (8 cores, 15.6 GiB after the 2026-10-19 resize, private 10.1.0.2) is an agent with `observability` only. Its
   Docker-run Victoria, Grafana and MLflow stay outside k3s and keep running.
 - **h2puni** (private 10.1.0.3) stays outside k3s. It is live production, the build box, the
   registry and the host-wide gate; a join would share its memory and firewall with k3s before
@@ -26,9 +95,10 @@ From the read-only probe of 2026-09-27:
   not build or run workloads.
 - The workers cluster has no host yet; it stays `bootstrap: required` with no nodes.
 
-A machine ID written `operator-input:<host> /etc/machine-id` in `desired.yaml` (and `unread` in
-the inventory) has not been read yet; every `tool-fleet` operation on that node refuses, and the
-base role refuses `unread`.
+An unresolved machine ID written `operator-input:<host> /etc/machine-id` in `desired.yaml` (and
+`unread` in the inventory) means the host has not been read yet; every `tool-fleet` operation on
+that node refuses, and the base role refuses `unread`. Both production-existing-host entries now
+contain the machine IDs captured by the 2026-09-27 preflight.
 
 ## What changes on each host
 
@@ -39,7 +109,8 @@ base role refuses `unread`.
 
 Pods never swap; host services may. The budget test
 `tools/tool-fleet/src/observability-budget.test.ts` fits every pinned workload and DaemonSet in
-h3mon's allocatable memory.
+h3mon's allocatable memory, but does not include the preserved Docker services. The live-headroom
+check above is an additional admission gate while those services coexist.
 
 ## Operator inputs
 
@@ -233,6 +304,15 @@ then rerun step 6.
 Rerun step 5's after-enrollment preflight for both hosts after a reboot of each, one at a time
 (`sudo systemctl reboot`), and compare Grafana dashboards and a Victoria query with the step 3
 snapshot.
+
+The 2026-10-19 resize reboot supplies h3mon's post-change persistence check. The host booted at
+09:08:29 UTC; `/swap.puni` activated at 09:08:35 from its `/etc/fstab` entry, Docker at 09:08:43,
+and k3s-agent at 09:08:39. VictoriaMetrics, VictoriaLogs, VictoriaTraces, Grafana and MLflow all
+returned 200 after that boot; the OTel HTTP receiver returned its expected 404 at `/`, proving
+the listener answered. The same services had passed before the resize in the 2026-10-17
+reconciliation. This proves the service and swap portions of step 8 for h3mon, but does not
+retroactively prove the unrecovered enrollment playbook run or a Grafana-dashboard/Victoria-data
+comparison against the September snapshot.
 
 ## Rollback
 

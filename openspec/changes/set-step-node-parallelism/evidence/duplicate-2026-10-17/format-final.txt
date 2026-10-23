@@ -1,0 +1,8 @@
+openspec/changes/set-step-node-parallelism/verify.md 182ms
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/hook-proof-receipts.json 14ms
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/hook-real-staged-lint-negative.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/hook-real-staged-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/hook-wrapper-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/mutation-receipts.json 7ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/mutations.json 2ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 132259840, "exitCode": 0}

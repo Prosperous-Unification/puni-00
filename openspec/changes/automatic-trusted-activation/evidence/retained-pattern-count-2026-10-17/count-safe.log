@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+756 |   const copy = spyOn(Uint8Array, 'from').mockImplementation(() => { throw new Error('copy reached'); });
+757 |   try {
+758 |     for (const count of [NaN, undefined, 1.5, -1, Infinity]) {
+759 |       const patterns = new Proxy(['**/*'], { get(target, name, receiver) { if (name === 'length') return count; if (name === '0') throw new Error('indexed pattern reached'); const selected: unknown = Reflect.get(target, name, receiver); return selected; } });
+760 |       for (const position of ['extensions', 'exclude', 'include']) {
+761 |         expect(() => f.source.readDirectory(root, position === 'extensions' ? patterns : ['.ts'], position === 'exclude' ? patterns : undefined, position === 'include' ? patterns : undefined)).toThrow('source pattern count invalid');
+                                                                                                                                                                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source pattern count invalid"
+Received message: "copy reached"
+
+      at <anonymous> (/tmp/puni-retained-pattern-count-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:761:194)
+(fail) captured pattern arrays refuse noninteger proxy lengths before any link copies [125.38ms]
+
+ 0 pass
+ 82 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1080.00ms]

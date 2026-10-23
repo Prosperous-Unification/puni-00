@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -137,8 +139,11 @@ beforeEach(async () => {
     progress: progressStore,
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),
+    stepParallels: new StepParallelRepository(db, OPEN),
     directory: directoryStore,
     capacity: inMemoryCapacity(),
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: inMemoryPriorityBands(),
     dependencies: dependencyStore,
     typedDependencies: new TypedDependencyRepository(db, OPEN),
@@ -627,7 +632,7 @@ describe('undoing each kind of change', () => {
     const cable = await root('Cable', strip);
     const test = await root('Test', cable);
 
-    await workItems.move(test, ownerId, { parentId: strip, afterId: null });
+    await workItems.move(test, ownerId, { parentId: strip, afterId: null }, { kind: 'legacy' });
     expect(await namesByPosition(strip)).toEqual(['Test']);
 
     expect(expectDone(await undone())).toBe('move “Test”');
@@ -706,7 +711,7 @@ describe('undoing each kind of change', () => {
     await workItems.assign(switches, ownerId, dev(), alice);
     await workItems.addDependency(switches, ownerId, sockets);
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await rows()).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -742,7 +747,7 @@ describe('undoing each kind of change', () => {
     await workItems.patch(strip, ownerId, { teamIds: [...stripTeams].reverse() });
     await workItems.patch(sockets, ownerId, { teamIds: [...socketTeams].reverse() });
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await rows()).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -775,7 +780,7 @@ describe('undoing each kind of change', () => {
     const sockets = await child(strip, 'Sockets');
     expect((await workItems.patch(sockets, ownerId, { deadline: '2026-03-31' })).ok).toBe(true);
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await rows()).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -803,7 +808,7 @@ describe('undoing each kind of change', () => {
         .ok,
     ).toBe(true);
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await rows()).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -869,7 +874,7 @@ describe('undoing each kind of change', () => {
       wrote(),
     );
     await workItems.patch(strip, ownerId, { serviceTeamId: backend.id });
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
 
     const entry = await nextUndoable();
     if (entry === null) throw new Error('delete wrote no journal entry');
@@ -906,7 +911,7 @@ describe('undoing each kind of change', () => {
     await workItems.setActual(sockets, ownerId, dev(), 8);
     await workItems.setActual(switches, ownerId, dev(), 3);
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await actualStore.listByProject(projectId)).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -943,7 +948,7 @@ describe('undoing each kind of change', () => {
     await workItems.setProgress(sockets, ownerId, dev(), 'done');
     await workItems.setProgress(switches, ownerId, dev(), 'in_progress');
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await progressStore.listByProject(projectId)).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -976,7 +981,7 @@ describe('undoing each kind of change', () => {
     await workItems.setMeasure(sockets, ownerId, dev(), 'hours_actual', 3);
     await workItems.setMeasure(switches, ownerId, dev(), 'token_estimate', 12_000);
 
-    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     expect(await measureStore.listByProject(projectId)).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -1020,7 +1025,7 @@ describe('undoing each kind of change', () => {
     const sockets = await child(strip, 'Sockets');
     await workItems.setProgress(sockets, ownerId, dev(), 'done');
 
-    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect((await workItems.remove(sockets, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     expect(
       (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
         workItemId,
@@ -1047,7 +1052,7 @@ describe('undoing each kind of change', () => {
     const sockets = await child(strip, 'Sockets');
     await workItems.setActual(sockets, ownerId, dev(), 5);
 
-    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect((await workItems.remove(sockets, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     expect(
       (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
         workItemId,
@@ -1096,7 +1101,7 @@ describe('undoing each kind of change', () => {
     const sockets = await child(strip, 'Sockets');
     await workItems.setEstimate(sockets, ownerId, dev(), DAYS);
 
-    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect((await workItems.remove(sockets, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     // The parent has no children left, so it took the figures back.
     expect(await estimateStore.listByProject(projectId)).toEqual([
       { workItemId: strip, stepId: dev(), ...DAYS },
@@ -1115,7 +1120,7 @@ describe('undoing each kind of change', () => {
     const switches = await child(strip, 'Switches', sockets);
     const cable = await root('Cable', strip);
 
-    expect((await workItems.remove(strip, ownerId, 'promote')).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, 'promote', { kind: 'legacy' })).ok).toBe(true);
     expect(await namesByPosition(null)).toEqual(['Sockets', 'Switches', 'Cable']);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -1196,7 +1201,7 @@ describe('a replay never resurrects a directory row that has gone', () => {
     const alice = await person('Alice');
     await workItems.assign(strip, ownerId, dev(), alice);
     expect(expectDone(await undone())).toBe('assign “Strip”');
-    await directoryStore.removePerson(alice, true, wrote());
+    await directoryStore.removePerson(alice, true, wrote(), { kind: 'every' });
 
     const outcome = await workItems.redo(projectId, ownerId);
 
@@ -1300,7 +1305,7 @@ describe('an undo refuses when what it touched has moved', () => {
   it('refuses a move once the moved row has been edited', async () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
-    await workItems.move(cable, ownerId, { parentId: strip, afterId: null });
+    await workItems.move(cable, ownerId, { parentId: strip, afterId: null }, { kind: 'legacy' });
     await workItems.patch(cable, strangerId, { name: 'Cable in' });
 
     expectStale(await undone());
@@ -1312,10 +1317,10 @@ describe('an undo refuses when what it touched has moved', () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
     const test = await root('Test', cable);
-    await workItems.move(test, ownerId, { parentId: strip, afterId: null });
+    await workItems.move(test, ownerId, { parentId: strip, afterId: null }, { kind: 'legacy' });
     // `cable` is what `test` used to sit after. Nothing about `test` moved, so
     // the revisions all still hold — the placement is what cannot be honoured.
-    expect((await workItems.remove(cable, strangerId, null)).ok).toBe(true);
+    expect((await workItems.remove(cable, strangerId, null, { kind: 'legacy' })).ok).toBe(true);
 
     const detail = expectStale(await undone());
 
@@ -1329,7 +1334,7 @@ describe('an undo refuses when what it touched has moved', () => {
 
   it('refuses to undo a delete when the branch has been recreated at its ids', async () => {
     const strip = await root('Strip');
-    expect((await workItems.remove(strip, ownerId, null)).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     // Nothing recreates an id in this product, so this is arranged by hand: it
     // is the state the refusal exists for, and the alternative to refusing is
     // writing over a row somebody else is using.
@@ -1564,7 +1569,7 @@ describe('restoring the edges that left the branch', () => {
     const cable = await root('Cable', strip);
     await workItems.addDependency(cable, ownerId, strip);
 
-    expect((await workItems.remove(strip, ownerId, null)).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     expect(await edges()).toEqual([]);
 
     const outcome = await undone();
@@ -1587,9 +1592,9 @@ describe('restoring the edges that left the branch', () => {
     const cable = await root('Cable', strip);
     await workItems.addDependency(cable, ownerId, strip);
 
-    expect((await workItems.remove(strip, ownerId, null)).ok).toBe(true);
+    expect((await workItems.remove(strip, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     // Somebody else takes the far end away entirely.
-    expect((await workItems.remove(cable, strangerId, null)).ok).toBe(true);
+    expect((await workItems.remove(cable, strangerId, null, { kind: 'legacy' })).ok).toBe(true);
 
     const outcome = await undone();
     expect(expectDone(outcome)).toBe('delete “Strip”');
@@ -1827,7 +1832,7 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     const bug = await typeNamed('Bug');
     const spike = await typeNamed('Spike');
     await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
-    expect((await workItems.remove(id, ownerId, 'cascade')).ok).toBe(true);
+    expect((await workItems.remove(id, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     await directoryStore.removeWorkItemType(bug, true, wrote());
 
     expectDone(await undone());

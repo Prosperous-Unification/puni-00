@@ -7,6 +7,8 @@ import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
 import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
+import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
+import { testResourceStores } from '@wbs/store-memory/testing/service-fixtures';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -634,6 +636,7 @@ describe('every plan schedules identically across the migration', () => {
     const measures = inMemoryMeasures(workItems);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
+    const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
@@ -646,12 +649,14 @@ describe('every plan schedules identically across the migration', () => {
       progress,
       attempts: inMemoryAttempts(workItems),
       blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
+      stepParallels: inMemoryStepParallels(workItems, inMemorySteps()),
       dependencies,
       typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
       }),
+      ...resourceStores,
       priorityBands: inMemoryPriorityBands(),
       subtrees: inMemorySubtrees({
         workItems,
@@ -661,6 +666,7 @@ describe('every plan schedules identically across the migration', () => {
         progress,
         dependencies,
         directory,
+        demands: resourceStores.demands,
       }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),

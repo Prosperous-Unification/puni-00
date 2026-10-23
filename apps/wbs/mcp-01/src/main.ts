@@ -1,6 +1,11 @@
+import { createFailureRedaction, reportFailure } from '@shared/failures';
 import type { TokenVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/contracts';
-import { createLogger, type CreateLoggerOptions } from '@wbs/observability';
+import {
+  createLogger,
+  type CreateLoggerOptions,
+  registerReportedFailure,
+} from '@wbs/observability';
 
 import { loadConfig, type McpConfig } from './config';
 import { type McpOAuthHandler, startHttpServer } from './http';
@@ -13,7 +18,16 @@ import type { FetchLike } from './wbs-client';
 interface ApplicationOAuth extends McpOAuthHandler, TokenVerifier {
   endSession(mcpSessionId: string): void | Promise<void>;
   refreshSession(mcpSessionId: string): Promise<string>;
+  bearerFor(
+    mcpSessionId: string | null,
+    upstreamToken: string,
+    scopes: readonly string[],
+  ): Promise<string>;
+  reportEndedConsents(): Promise<number>;
 }
+
+/** How often ended consent families are reported to be-01 (`McpOAuthServer.reportEndedConsents`). */
+export const CONSENT_END_REPORT_INTERVAL_MS = 60_000;
 
 interface HttpStartup {
   readonly port?: number;
@@ -24,9 +38,10 @@ export interface McpApplicationDeps {
   readonly readDocument: () => OpenApiDocument;
   readonly toolsFromDocument: typeof toolsFromDocument;
   readonly mcpOAuthFromEnv: (
-    config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
+    config: McpConfig,
     env: Readonly<Record<string, string | undefined>>,
     routeEvidence?: (evidence: OAuthRouteEvidence) => void,
+    fetchImpl?: FetchLike,
   ) => ApplicationOAuth;
   readonly startHttpServer: (
     makeServer: () => ReturnType<typeof createServer>,
@@ -37,6 +52,12 @@ export interface McpApplicationDeps {
   ) => HttpStartup;
   readonly createLogger: (options: CreateLoggerOptions) => Logger;
   readonly fetchImpl?: FetchLike;
+  /** Runs `sweep` every {@link CONSENT_END_REPORT_INTERVAL_MS}; a test drives it by hand. */
+  readonly scheduleConsentEndReports?: (sweep: () => Promise<void>) => void;
+}
+
+function everyConsentEndInterval(sweep: () => Promise<void>): void {
+  setInterval(() => void sweep(), CONSENT_END_REPORT_INTERVAL_MS).unref();
 }
 
 const productionDeps: McpApplicationDeps = {
@@ -55,16 +76,50 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
 } {
   const config = deps.loadConfig();
   const tools = deps.toolsFromDocument(deps.readDocument());
-  const secrets = [config.WBS_BASIC_AUTH].filter(
+  const secrets = [config.WBS_BASIC_AUTH, config.INTERNAL_AUTH_SECRET].filter(
     (secret): secret is string => secret !== undefined && secret.length > 0,
   );
   const logger = deps.createLogger({ service: 'mcp-01', secrets });
   // Proof: on 2026-09-21, passing `[]` here exposed the owned Basic credential in the production
   // diagnostic line while the public MCP envelope remained generic.
   const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
-  const oauth = deps.mcpOAuthFromEnv(config, process.env, (evidence) => {
-    logger.info({ event: 'mcp_oauth_route', ...evidence }, 'MCP OAuth route');
-  });
+  const oauth = deps.mcpOAuthFromEnv(
+    config,
+    process.env,
+    (evidence) => {
+      logger.info({ event: 'mcp_oauth_route', ...evidence }, 'MCP OAuth route');
+    },
+    deps.fetchImpl,
+  );
+  // The mcp-01 → be-01 half of consent revocation (`wbs-machine-credentials` A20, _End_). An
+  // unreachable be-01 is modeled inside the sweep (the ends stay durable for the next one); any
+  // other failure is reported loudly here, once per sweep, and the store keeps every unreported
+  // end, so the next sweep tries again rather than losing it. One sweep at a time.
+  // Proof: 2026-10-22, building this policy with `[]` made `schedules the consent end report and
+  // reports its failure` (main.test.ts) find `boundary-secret` in the failure line.
+  const redactSweepFailure = createFailureRedaction(secrets);
+  let sweeping = false;
+  const sweepConsentEnds = async (): Promise<void> => {
+    if (sweeping) return;
+    sweeping = true;
+    try {
+      await oauth.reportEndedConsents();
+    } catch (cause) {
+      logger.error(
+        { err: registerReportedFailure(reportFailure(cause, { redact: redactSweepFailure })) },
+        'MCP consent end report failed',
+      );
+    } finally {
+      sweeping = false;
+    }
+  };
+  // Proof: 2026-10-22, not scheduling this sweep made `schedules the consent end report and
+  // reports its failure` (main.test.ts) find no sweep to run.
+  (deps.scheduleConsentEndReports ?? everyConsentEndInterval)(sweepConsentEnds);
+  // Ends left by the previous process (an epoch advance, expiries while stopped) reach be-01 at
+  // start, not a minute later. Its failures are handled inside, as the interval's are.
+  // Proof: 2026-10-22, without this call `sweeps once at startup` (main.test.ts) saw no report.
+  void sweepConsentEnds();
   const verifier =
     config.MCP_AUTH_MODE === 'standalone'
       ? oauth
@@ -80,6 +135,8 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
         reportUnexpectedToolFailure,
         endSession: (sessionId) => oauth.endSession(sessionId),
         refreshSession: (sessionId) => oauth.refreshSession(sessionId),
+        bearerFor: (sessionId, upstreamToken, scopes) =>
+          oauth.bearerFor(sessionId, upstreamToken, scopes),
       }),
     config,
     verifier,
@@ -91,6 +148,7 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     {
       tool_count: tools.length,
       wbs_api_url: config.WBS_API_URL,
+      organization_delegation: config.INTERNAL_AUTH_SECRET === undefined ? 'off' : 'on',
       port: http.port,
       path: '/mcp',
     },

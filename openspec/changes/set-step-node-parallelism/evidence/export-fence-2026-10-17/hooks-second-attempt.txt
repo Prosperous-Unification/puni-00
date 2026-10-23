@@ -1,0 +1,45 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  private-nesting ❯
+
+┃  plaintext-secrets ❯
+
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+<--- Last few GCs --->
+
+[86:0x38d2e000]    28816 ms: Scavenge (interleaved) 1520.6 (1540.9) -> 1519.0 (1561.1) MB, pooled: 0 MB, 14.75 / 0.00 ms  (average mu = 0.503, current mu = 0.372) allocation failure;
+[86:0x38d2e000]    29184 ms: Mark-Compact (reduce) 1533.0 (1561.4) -> 1524.7 (1538.9) MB, pooled: 0 MB, 313.43 / 0.00 ms  (+ 8.0 ms in 216 steps since start of marking, biggest step 5.0 ms, walltime since start of marking 368 ms) (average mu = 0.418, curr
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x757658 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc60e30  [node]
+ 3: 0xc60f1f  [node]
+ 4: 0xf047f5  [node]
+ 5: 0xf1615c  [node]
+ 6: 0xeeb613  [node]
+ 7: 0xec1120  [node]
+ 8: 0x13b8a18  [node]
+ 9: 0x1acd9b6  [node]
+
+exit status 1
+  ────────────────────────────────────
+summary: (done in 29.43 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ private-nesting (0.03 seconds)
+✓ plaintext-secrets (0.03 seconds)
+✓ format (3.45 seconds)
+✗ lint (29.40 seconds)
+{"ceilingBytes": 2306867200, "sampledPeakBytes": 1913868288, "exitCode": 1}

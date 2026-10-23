@@ -166,7 +166,7 @@ describe('the version-1 to version-2 upgrade — step allowances', () => {
   });
 
   it('writes version 2 with each step’s allowance', () => {
-    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(7);
+    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(8);
     const body = JSON.parse(bytes) as { steps: { allowancePercent: unknown }[] };
     for (const step of body.steps) expect(typeof step.allowancePercent).toBe('number');
   });
@@ -278,7 +278,7 @@ it('upgrades version-5 steps to historical workdays without changing the source 
   };
   const source = JSON.stringify(previous);
   const current = normalisePlanInputForward(previous, 5);
-  expect(current.schemaVersion).toBe(7);
+  expect(current.schemaVersion).toBe(8);
   expect(current.steps.every((step) => step.estimateUnit === 'workdays')).toBe(true);
   expect(JSON.stringify(previous)).toBe(source);
   for (const steps of [null, [null], [2], [{}]]) {

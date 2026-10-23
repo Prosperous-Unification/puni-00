@@ -1,0 +1,18 @@
+{
+  "command": [
+    "bunx",
+    "prettier",
+    "--write",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+    "openspec/changes/automatic-trusted-activation/design.md",
+    "openspec/changes/automatic-trusted-activation/tasks.md",
+    "openspec/changes/automatic-trusted-activation/specs/automatic-trusted-activation/spec.md"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 313400,
+  "ceilingKiB": 921600
+}

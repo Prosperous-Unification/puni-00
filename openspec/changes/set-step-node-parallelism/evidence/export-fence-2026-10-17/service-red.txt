@@ -1,0 +1,641 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+1051 |     stepParallels: { listByProject: (projectId) => {
+1052 |       if (projectId !== PROJECT.id) throw new Error('wrong sparse project');
+1053 |       return Promise.resolve([parallel]);
+1054 |     } },
+1055 |   });
+1056 |   expect(await writer.export(PROJECT, TREE, LEGACY_ACCESS)).toEqual({
+                                                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": "unsupported_step_parallelism",
+-   "ok": false,
++   "ok": true,
++   "value": {
++     "assignedPeople": [
++       {
++         "id": "person-used",
++         "name": "Kat",
++       },
++     ],
++     "calendarMarkers": [
++       {
++         "color": null,
++         "date": "2026-09-17",
++         "id": "marker-1",
++         "name": "Launch",
++       },
++     ],
++     "capacity": [
++       {
++         "size": 4,
++         "teamId": "team-capacity",
++       },
++     ],
++     "depReach": "anchor-slice",
++     "directory": {
++       "externalSystems": [
++         {
++           "id": "system-used",
++           "name": "Tracker",
++         },
++       ],
++       "people": [
++         {
++           "id": "person-used",
++           "kind": "agent",
++           "name": "Kat",
++           "teamIds": [
++             "team-membership",
++           ],
++         },
++       ],
++       "services": [
++         {
++           "id": "service-direct",
++           "name": "Delivery",
++         },
++         {
++           "id": "service-owned",
++           "name": "Billing API",
++         },
++       ],
++       "tags": [
++         {
++           "id": "tag-used",
++           "name": "Release",
++         },
++       ],
++       "teams": [
++         {
++           "id": "team-capacity",
++           "name": "Capacity only",
++           "serviceIds": [],
++         },
++         {
++           "id": "team-direct",
++           "name": "Direct label",
++           "serviceIds": [],
++         },
++         {
++           "id": "team-membership",
++           "name": "Billing",
++           "serviceIds": [
++             "service-owned",
++           ],
++         },
++       ],
++       "types": [
++         {
++           "id": "type-used",
++           "name": "Milestone",
++         },
++       ],
++     },
++     "document": {
++       "exportedAt": "1970-01-01T00:00:00.000Z",
++       "format": "wbs-plan",
++       "version": 9,
++     },
++     "estimateMethod": "realistic",
++     "estimateRounding": "round",
++     "optimization": {
++       "budgetMs": 60000,
++       "contractVersion": "7+test",
++       "displayed": "time",
++       "enabled": true,
++       "engine": "optimized",
++       "finishDays": {
++         "fast": 5,
++         "pri": 4,
++         "time": 3,
++       },
++       "generation": 4,
++       "inputHash": "input-hash",
++       "objective": "time",
++       "sameOrderAsFast": {
++         "pri": false,
++         "time": false,
++       },
++       "variants": {
++         "pri": {
++           "proof": "proven",
++           "state": "ready",
++         },
++         "time": {
++           "proof": "proven",
++           "state": "ready",
++         },
++       },
++     },
++     "pertWeights": {
++       "optimistic": 2,
++       "pessimistic": 2,
++       "realistic": 5,
++     },
++     "priorityBands": [
++       {
++         "defaultValue": 1,
++         "label": "Urgent",
++         "startsAt": 1,
++       },
++       {
++         "defaultValue": 2,
++         "label": "High",
++         "startsAt": 2,
++       },
++       {
++         "defaultValue": 3,
++         "label": "Medium",
++         "startsAt": 3,
++       },
++       {
++         "defaultValue": 4,
++         "label": "Low",
++         "startsAt": 4,
++       },
++       {
++         "defaultValue": 5,
++         "label": "Someday",
++         "startsAt": 5,
++       },
++     ],
++     "project": {
++       "createdAt": 1000,
++       "depReach": "anchor-slice",
++       "estimateMethod": "realistic",
++       "estimateRounding": "round",
++       "id": "project-1",
++       "name": "Release plan",
++       "optimizationEnabled": true,
++       "ownerId": "owner-1",
++       "pertWeights": {
++         "optimistic": 2,
++         "pessimistic": 2,
++         "realistic": 5,
++       },
++       "restricted": true,
++       "revision": 7,
++       "scheduleEngine": "optimized",
++       "scheduleObjective": "time",
++       "solutionRef": {
++         "slug": "release-plan",
++         "url": "https://example.test/release-plan",
++       },
++       "startDate": "2026-09-14",
++       "timezone": "Europe/Kyiv",
++     },
++     "projectRevision": 7,
++     "scheduleError": null,
++     "seq": 19,
++     "settings": {
++       "depReach": "anchor-slice",
++       "estimateMethod": "realistic",
++       "estimateRounding": "round",
++       "name": "Release plan",
++       "optimizationEnabled": true,
++       "pertWeights": {
++         "optimistic": 2,
++         "pessimistic": 2,
++         "realistic": 5,
++       },
++       "restricted": true,
++       "scheduleEngine": "optimized",
++       "scheduleObjective": "time",
++       "solutionRef": {
++         "slug": "release-plan",
++         "url": "https://example.test/release-plan",
++       },
++       "startDate": "2026-09-14",
++       "timezone": "Europe/Kyiv",
++     },
++     "slices": [
++       {
++         "boundBy": "capacity",
++         "capacityPredecessorIds": [],
++         "capacityTeamId": "team-membership",
++         "critical": true,
++         "duration": 2,
++         "earliestFinish": 2,
++         "earliestStart": 0,
++         "effort": 2,
++         "estimated": true,
++         "float": 0,
++         "id": "slice-1",
++         "lateBy": null,
++         "latestFinish": 2,
++         "latestStart": 0,
++         "personId": "person-used",
++         "resourcePredecessorId": null,
++         "stepId": "step-1",
++         "width": 1,
++         "workItemId": "row-1",
++       },
++     ],
++     "startDate": "2026-09-14",
++     "stepBlockages": [],
++     "stepNodes": [
++       {
++         "id": "sn1.row-1.step-1",
++         "reference": "1.s1-build",
++         "stepId": "step-1",
++         "workItemId": "row-1",
++       },
++     ],
++     "steps": [
++       {
++         "allowancePercent": 30,
++         "code": "build",
++         "estimateUnit": "workdays",
++         "id": "step-1",
++         "name": "Build",
++         "position": 10,
++         "projectId": "project-1",
++       },
++     ],
++     "teamCapacities": [
++       {
++         "serviceTeamId": "team-capacity",
++         "size": 4,
++       },
++     ],
++     "typedDependencies": [],
++     "waitingForCapacity": 1,
++     "waitingForPerson": 0,
++     "workItems": [
++       {
++         "actuals": {
++           "step-1": 1,
++         },
++         "assignees": {
++           "step-1": "person-used",
++         },
++         "charged": {},
++         "dates": {
++           "endsOn": "2026-09-15",
++           "startsOn": "2026-09-14",
++         },
++         "deadline": "2026-09-18",
++         "dependsOn": [],
++         "doesEveryStep": null,
++         "estimates": {
++           "step-1": {
++             "optimistic": 1,
++             "pessimistic": 3,
++             "realistic": 2,
++           },
++         },
++         "externalRefs": [
++           {
++             "id": "ref-1",
++             "name": "ISSUE-1",
++             "systemId": "system-used",
++             "url": "https://example.test/issues/1",
++           },
++         ],
++         "factEnd": null,
++         "factStart": null,
++         "finalDays": {
++           "step-1": 2,
++         },
++         "finalTotal": 2,
++         "frozenNumber": "1",
++         "hold": null,
++         "id": "row-1",
++         "maxParallel": 2,
++         "measures": {
++           "hours": {
++             "step-1": 4,
++           },
++         },
++         "name": "Ship",
++         "notes": "Keep the deadline",
++         "number": "1",
++         "parentId": null,
++         "position": 10,
++         "priority": 2,
++         "progress": {
++           "step-1": "in_progress",
++         },
++         "projectId": "project-1",
++         "readiness": null,
++         "revision": 3,
++         "rolledUp": false,
++         "schedule": {
++           "critical": true,
++           "duration": 2,
++           "earliestFinish": 2,
++           "earliestStart": 0,
++           "estimated": true,
++           "float": 0,
++           "latestFinish": 2,
++           "latestStart": 0,
++         },
++         "serviceId": "service-direct",
++         "serviceIds": [],
++         "serviceTeamId": "team-direct",
++         "startNoEarlierThan": "2026-09-14",
++         "startNoEarlierThanReason": "Release window",
++         "status": "in_progress",
++         "tagIds": [
++           "tag-used",
++         ],
++         "teamIds": [],
++         "typeIds": [
++           "type-used",
++         ],
++       },
++     ],
++   },
+  }
+
+- Expected  - 2
++ Received  + 337
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1056:61)
+(fail) v9 refuses authored sparse parallelism on direct and captured JSON exports [4.00ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /without step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: missing collection [0.30ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /without step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: null collection [0.06ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /without step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: object collection [0.04ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /malformed step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: null row [0.06ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /malformed step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: numeric owner [0.05ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /malformed step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: numeric step [0.04ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /unknown work item/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: missing owner [0.05ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /unknown step/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: missing step [0.05ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /integer from 1 to 1000/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: fraction [0.05ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /integer from 1 to 1000/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: zero [0.04ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /integer from 1 to 1000/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: too large [0.04ms]
+1079 |   test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+1080 |     const reads = {
+1081 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1082 |       markers: [], stepParallels: sparse,
+1083 |     };
+1084 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /duplicate step parallelism/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1084:75)
+(fail) v9 refuses corrupt captured sparse evidence: duplicate [0.05ms]
+1091 |     directory: directory(),
+1092 |     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
+1093 |     clock: { now: () => 0 },
+1094 |     stepParallels: { listByProject: () => Promise.reject(failure) },
+1095 |   });
+1096 |   expect(writer.export(PROJECT, TREE, LEGACY_ACCESS)).rejects.toBe(failure);
+                                                                     ^
+error: expect(received).rejects.toBe(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1096:63)
+(fail) v9 direct export propagates unreadable sparse state [0.23ms]
+1098 |
+1099 | test('v9 refuses construction without its sparse read capability', () => {
+1100 |   expect(() => new PlanDocumentService({
+1101 |     directory: directory(), markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
+1102 |     clock: { now: () => 0 },
+1103 |   } as never)).toThrow(/step parallelism reader/);
+                      ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /step parallelism reader/
+
+Received function did not throw
+Received value: PlanDocumentService {
+  options: {
+    directory: {
+      listTeams: [Function: listTeams],
+      listPeople: [Function: listPeople],
+      listTags: [Function: listTags],
+      listServices: [Function: listServices],
+      listWorkItemTypes: [Function: listWorkItemTypes],
+      listExternalSystems: [Function: listExternalSystems],
+      listInOrganization: [Function: listInOrganization],
+    },
+    markers: {
+      list: [Function: list],
+    },
+    clock: {
+      now: [Function: now],
+    },
+  },
+  export: [AsyncFunction: export],
+  exportCaptured: [Function: exportCaptured],
+  readDocumentReads: [AsyncFunction: readDocumentReads],
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1103:16)
+(fail) v9 refuses construction without its sparse read capability [0.11ms]
+1112 |     const tree = structuredClone(TREE);
+1113 |     mutate(tree);
+1114 |     expect(() => service().exportCaptured(PROJECT, tree, {
+1115 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1116 |       markers: [], stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+1117 |     })).toThrow(message);
+               ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /foreign work item/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1117:9)
+(fail) v9 refuses sparse ownership corruption: foreign owner [0.25ms]
+1112 |     const tree = structuredClone(TREE);
+1113 |     mutate(tree);
+1114 |     expect(() => service().exportCaptured(PROJECT, tree, {
+1115 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1116 |       markers: [], stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+1117 |     })).toThrow(message);
+               ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /foreign step/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1117:9)
+(fail) v9 refuses sparse ownership corruption: foreign step [0.24ms]
+1112 |     const tree = structuredClone(TREE);
+1113 |     mutate(tree);
+1114 |     expect(() => service().exportCaptured(PROJECT, tree, {
+1115 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1116 |       markers: [], stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+1117 |     })).toThrow(message);
+               ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /parent work item/
+Received message: "person \"person-used\" is missing from the directory"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1117:9)
+(fail) v9 refuses sparse ownership corruption: parent owner [0.18ms]
+769 | ): T[] {
+770 |   const byId = indexed(kind, rows);
+771 |   // Proof: skipping this guard made the mounted missing-tag export return 200
+772 |   // instead of 500 while its work item still named tag "tag-used".
+773 |   for (const id of ids) {
+774 |     if (!byId.has(id)) throw new Error(`${kind} "${id}" is missing from the directory`);
+                                                                                            ^
+error: person "person-used" is missing from the directory
+      at requireRows (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts:774:87)
+      at referencedDirectory (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts:804:18)
+      at buildDocument (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts:226:19)
+      at exportCaptured (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts:154:14)
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1128:20)
+(fail) v9 sparse pair identities never alias at colons [0.24ms]
+
+ 0 pass
+ 49 filtered out
+ 19 fail
+ 17 expect() calls
+Ran 19 tests across 1 file. [1.75s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 508964864, "exitCode": 1}

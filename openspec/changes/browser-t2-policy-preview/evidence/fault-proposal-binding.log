@@ -1,0 +1,99 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:286:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual revision [1315.58ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:286:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual candidate [1281.10ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:286:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual capability [1305.29ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:286:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual evaluatedAt [1285.44ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:286:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual rulePolicyDigest [1274.02ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:286:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual browserT2ObservationDigest [1257.57ms]
+
+ 0 pass
+ 80 filtered out
+ 6 fail
+ 6 expect() calls
+Ran 6 tests across 1 file. [8.71s]

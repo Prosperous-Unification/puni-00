@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+220 |     readReviewRuntime(
+221 |       capture((c) => {
+222 |         c.files[0].byteLength = Number.MAX_SAFE_INTEGER + 1;
+223 |       }),
+224 |     ),
+225 |   ).toThrow('length');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "length"
+Received message: "runtime owned byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:225:5)
+(fail) rejects unsafe lengths, path prefix conflicts and noncanonical root aliases [8.05ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [925.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 330244096, "exitCode": 1}

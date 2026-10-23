@@ -6,6 +6,10 @@ import refreshFamilyDown from '../drizzle/20260921090000_mcp_refresh_family/down
 import refreshFamilyUp from '../drizzle/20260921090000_mcp_refresh_family/migration.sql' with { type: 'text' };
 import credentialBindingDown from '../drizzle/20260927120000_mcp_credential_binding/down.sql' with { type: 'text' };
 import credentialBindingUp from '../drizzle/20260927120000_mcp_credential_binding/migration.sql' with { type: 'text' };
+import clientDown from '../drizzle/20261021120000_mcp_client/down.sql' with { type: 'text' };
+import clientUp from '../drizzle/20261021120000_mcp_client/migration.sql' with { type: 'text' };
+import familyPersonDown from '../drizzle/20261022130000_mcp_family_person/down.sql' with { type: 'text' };
+import familyPersonUp from '../drizzle/20261022130000_mcp_family_person/migration.sql' with { type: 'text' };
 
 /**
  * One paired migration of the durable MCP store. `preflightDown` runs inside the rollback's
@@ -21,8 +25,22 @@ export interface McpStoreMigration {
 /** A store whose schema, ledger or epoch this code cannot trust; startup and rollback stop. */
 export class McpStoreRefused extends Error {}
 
-/** The newest credential epoch this organization-unaware release understands. */
-export const SUPPORTED_CREDENTIAL_EPOCH = 0;
+/**
+ * The epoch an activated store holds once `credential-epoch-cli.ts` has revoked every
+ * pre-activation credential. At this epoch every family and session must be bound to an
+ * organization (the binding migration's CHECK), so mcp-01 needs organization authority.
+ */
+export const ACTIVATED_CREDENTIAL_EPOCH = 1;
+
+/**
+ * The newest credential epoch this release understands. A store opens at 0 (pre-activation:
+ * unbound legacy and bound issuance) or 1 (activated, organization-aware); a newer epoch
+ * refuses startup. The durable epoch is one value, not a set: a family or session is used only
+ * while its own epoch equals the store's, so an epoch advance retires every older credential
+ * in every process at its next read, and a credential above the store's cannot exist (the
+ * insert trigger and the immutable binding refuse it) and is refused if it is ever read.
+ */
+export const SUPPORTED_CREDENTIAL_EPOCH = ACTIVATED_CREDENTIAL_EPOCH;
 
 const BASELINE = '20260921090000_mcp_refresh_family';
 const LEDGER = `CREATE TABLE mcp_migration (
@@ -65,6 +83,32 @@ function preflightCredentialBindingDown(db: Database, now: number): void {
     );
 }
 
+/**
+ * Refuses the family-person migration's reversal while it would lose something: a family that
+ * names a person and whose end be-01 has not acknowledged (a live one would act as its human
+ * once the columns are gone; an ended one would leave its credential live), or a pending consent
+ * whose credential be-01 may hold.
+ */
+function preflightFamilyPersonDown(db: Database): void {
+  const unreported = db
+    .query<{ n: number }, []>(
+      `SELECT COUNT(*) AS n FROM mcp_family
+        WHERE credential_id IS NOT NULL AND consent_ended_reported_at IS NULL`,
+    )
+    .get()?.n;
+  const pending = db
+    .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM mcp_consent_pending')
+    .get()?.n;
+  // Proof: 2026-10-22, with this refusal removed `refuses to roll back while a family names a
+  // person` and `refuses to roll back while a consent is pending` (store-migrations.test.ts)
+  // rolled back.
+  if (unreported !== 0 || pending !== 0)
+    throw new McpStoreRefused(
+      `MCP store rollback refused: ${String(unreported)} families acting as a person and ` +
+        `${String(pending)} pending consents must end and be reported to be-01 first`,
+    );
+}
+
 /** The ordered, bundled manifest; history on disk must be an exact prefix of it. */
 export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
   { name: BASELINE, up: refreshFamilyUp, down: refreshFamilyDown },
@@ -73,6 +117,13 @@ export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
     up: credentialBindingUp,
     down: credentialBindingDown,
     preflightDown: preflightCredentialBindingDown,
+  },
+  { name: '20261021120000_mcp_client', up: clientUp, down: clientDown },
+  {
+    name: '20261022130000_mcp_family_person',
+    up: familyPersonUp,
+    down: familyPersonDown,
+    preflightDown: preflightFamilyPersonDown,
   },
 ];
 
@@ -237,6 +288,27 @@ export function migrateMcpStore(
 }
 
 /**
+ * Refuses a store that is not exactly this release's: no ledger, an edited or unknown history,
+ * a schema that differs from it, or a migration not yet applied. Operator tools that must not
+ * migrate (`credential-epoch-cli.ts`) call this instead of {@link migrateMcpStore}.
+ *
+ * @throws {McpStoreRefused} when the store is not at this release's newest migration.
+ */
+export function assertMcpStoreCurrent(
+  db: Database,
+  migrations: readonly McpStoreMigration[] = MCP_STORE_MIGRATIONS,
+): void {
+  if (!hasLedger(db)) throw new McpStoreRefused('MCP store has no migration ledger');
+  const applied = verifiedHistory(db, migrations).length;
+  assertSchemaMatchesHistory(db, migrations, applied);
+  if (applied !== migrations.length)
+    throw new McpStoreRefused(
+      `MCP store has applied ${String(applied)} of ${String(migrations.length)} migrations; ` +
+        'start this release of mcp-01 once to migrate it',
+    );
+}
+
+/**
  * Reverses every migration after `to`, newest first, under one IMMEDIATE transaction: history
  * and checksums are verified, each migration's preflight runs before its `down`, and ledger
  * removal commits with the reversal. Callers must fence mcp-01 startup while this runs.
@@ -289,8 +361,8 @@ export function readCredentialEpoch(db: Database): number {
     throw new McpStoreRefused('MCP credential epoch is unreadable', { cause });
   }
   const row = rows.at(0);
-  // Proof: 2026-09-27, dropping this throw made `refuses startup on a malformed value without
-  // reseeding` fail with the unsupported-epoch message for epoch 'zero' instead.
+  // Proof: 2026-10-21, dropping this throw made `refuses startup on a malformed value without
+  // reseeding` open the store at epoch 'zero', and the missing-row case fail with a TypeError.
   if (
     rows.length !== 1 ||
     row?.singleton !== 1 ||

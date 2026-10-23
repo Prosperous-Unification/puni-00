@@ -1,0 +1,178 @@
+{
+  "diagnosticOnly": true,
+  "receipt": {
+    "command": [
+      "/tmp/wbs100-mail-gc-diagnostic-20261020/node_modules/.bin/twib",
+      "check",
+      "committed",
+      "/home/df/wd/puni/puni-00",
+      "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "/tmp/wbs100-reference-consumer-20261019/policy.json"
+    ],
+    "cwd": "/home/df/wd/puni/puni-00",
+    "exitCode": -9,
+    "peakProcessTreeKiB": 4196076,
+    "ceilingKiB": 4194304,
+    "timeoutSeconds": 900,
+    "seconds": 63.457,
+    "availableBeforeKiB": 23425412,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": "rss_limit"
+  },
+  "traceSha256": "282846c5d6e7f1235b5629e51dca797274fa2af4ef95ae053bf1478fcacd69f9",
+  "traceRows": 4053,
+  "gatewayCollection": {
+    "before": {
+      "time": 1792447273873,
+      "pid": 16,
+      "event": "gateway-extra-gc:before",
+      "phase": "diagnostics",
+      "config": "apps/wbs/gw-01/tsconfig.lib.json",
+      "rss": 3125850112,
+      "heapTotal": 1537074176,
+      "heapUsed": 1067357981,
+      "external": 264201934,
+      "arrayBuffers": 112190489
+    },
+    "after": {
+      "time": 1792447274012,
+      "pid": 16,
+      "event": "gateway-extra-gc:after",
+      "phase": "diagnostics",
+      "config": "apps/wbs/gw-01/tsconfig.lib.json",
+      "rss": 2886254592,
+      "heapTotal": 408689664,
+      "heapUsed": 428864073,
+      "external": 221979257,
+      "arrayBuffers": 105220632
+    },
+    "rssReductionBytes": 239595520,
+    "reportedHeapUsedReductionBytes": 638493908
+  },
+  "gatewayOutcome": [
+    {
+      "time": 1792447273724,
+      "pid": 16,
+      "event": "construct:return",
+      "phase": "diagnostics",
+      "config": "apps/wbs/gw-01/tsconfig.lib.json",
+      "rss": 3120648192,
+      "heapTotal": 1533975552,
+      "heapUsed": 1067357981,
+      "external": 260280718,
+      "arrayBuffers": 108269273,
+      "sources": 1345
+    },
+    {
+      "time": 1792447281260,
+      "pid": 16,
+      "event": "diagnostics:return",
+      "phase": "diagnostics",
+      "config": "apps/wbs/gw-01/tsconfig.lib.json",
+      "rss": 2756427776,
+      "heapTotal": 1811165184,
+      "heapUsed": 1298058092,
+      "external": 239995324,
+      "arrayBuffers": 105510874,
+      "diagnostics": 0
+    },
+    {
+      "time": 1792447281493,
+      "pid": 16,
+      "event": "after-existing-gc",
+      "phase": "diagnostics",
+      "config": "apps/wbs/gw-01/tsconfig.lib.json",
+      "rss": 2636976128,
+      "heapTotal": 1252405248,
+      "heapUsed": 944188716,
+      "external": 250703900,
+      "arrayBuffers": 105220632
+    }
+  ],
+  "mcpMilestones": [
+    {
+      "time": 1792447281493,
+      "pid": 16,
+      "event": "helper:start",
+      "phase": "diagnostics",
+      "config": "apps/wbs/mcp-01/tsconfig.lib.json",
+      "rss": 2636976128,
+      "heapTotal": 1252405248,
+      "heapUsed": 944188716,
+      "external": 250703900,
+      "arrayBuffers": 105220632
+    },
+    {
+      "time": 1792447282009,
+      "pid": 16,
+      "event": "construct:return",
+      "phase": "diagnostics",
+      "config": "apps/wbs/mcp-01/tsconfig.lib.json",
+      "rss": 2672164864,
+      "heapTotal": 1383873536,
+      "heapUsed": 944188716,
+      "external": 254134597,
+      "arrayBuffers": 108651329,
+      "sources": 1184
+    },
+    {
+      "time": 1792447282259,
+      "pid": 16,
+      "event": "collect-imports:return",
+      "phase": "diagnostics",
+      "config": "apps/wbs/mcp-01/tsconfig.lib.json",
+      "rss": 2683285504,
+      "heapTotal": 1422331904,
+      "heapUsed": 944188716,
+      "external": 258003397,
+      "arrayBuffers": 112520129,
+      "imports": 1550
+    },
+    {
+      "time": 1792447282259,
+      "pid": 16,
+      "event": "diagnostics:start",
+      "phase": "diagnostics",
+      "config": "apps/wbs/mcp-01/tsconfig.lib.json",
+      "rss": 2683285504,
+      "heapTotal": 1422331904,
+      "heapUsed": 944188716,
+      "external": 258003397,
+      "arrayBuffers": 112520129
+    }
+  ],
+  "lastTrace": {
+    "time": 1792447288461,
+    "pid": 16,
+    "event": "semantic-file:start",
+    "phase": "diagnostics",
+    "config": "apps/wbs/mcp-01/tsconfig.lib.json",
+    "rss": 3885506560,
+    "heapTotal": 2819641344,
+    "heapUsed": 1387999131,
+    "external": 280599685,
+    "arrayBuffers": 112520129,
+    "path": "/tmp/tool-wiki-candidate-z5mhkV/apps/wbs/mcp-01/src/session-store.ts"
+  },
+  "maxRecordedValidatorRss": {
+    "time": 1792447288461,
+    "pid": 16,
+    "event": "semantic-file:return",
+    "phase": "diagnostics",
+    "config": "apps/wbs/mcp-01/tsconfig.lib.json",
+    "rss": 3885506560,
+    "heapTotal": 2819641344,
+    "heapUsed": 1387999131,
+    "external": 280599685,
+    "arrayBuffers": 112520129,
+    "path": "/tmp/tool-wiki-candidate-z5mhkV/apps/wbs/mcp-01/src/store-migrations.ts",
+    "diagnostics": 0
+  },
+  "limitations": [
+    "Memory stats remain coarse runtime estimates, not live-object census.",
+    "Guard process-tree and trace validator RSS maxima are not simultaneous.",
+    "The one-variable probe establishes reclaimability at gateway boundary and progression through zero-error gateway diagnostics, not a full fix: MCP still hits the same cap.",
+    "No emission/public phases reached; no scope or policy weakening."
+  ],
+  "originalConsumerAndFirstDiagnosticPreserved": true
+}

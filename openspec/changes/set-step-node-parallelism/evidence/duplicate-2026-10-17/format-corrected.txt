@@ -1,0 +1,5 @@
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts 161ms
+openspec/changes/set-step-node-parallelism/verify.md 165ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/mutation-receipts.json 8ms
+openspec/changes/set-step-node-parallelism/evidence/duplicate-2026-10-17/mutations.json 3ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 208543744, "exitCode": 0}

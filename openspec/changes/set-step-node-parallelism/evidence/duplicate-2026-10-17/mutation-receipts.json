@@ -1,0 +1,201 @@
+[
+  {
+    "fault": "alias",
+    "exitCode": 1,
+    "sampledPeakBytes": 571334656,
+    "observed": [
+      "(fail) copies detached exact refusal nodes and allows duplication when cleared [0.95ms]"
+    ]
+  },
+  {
+    "fault": "broad-scope",
+    "exitCode": 1,
+    "sampledPeakBytes": 574332928,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [537.01ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [434.45ms]",
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [5.28ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [2.72ms]",
+      "(fail) duplicates an empty selection while unrelated and foreign policies keep their owners [1.25ms]"
+    ]
+  },
+  {
+    "fault": "catch-default",
+    "exitCode": 1,
+    "sampledPeakBytes": 585404416,
+    "observed": [
+      "(fail) throws on selected trusted maximum corruption before duplication [3.24ms]",
+      "(fail) throws on selected trusted step corruption before duplication [1.74ms]",
+      "(fail) throws on selected trusted project corruption before duplication [1.75ms]",
+      "(fail) throws on selected trusted parent corruption before duplication [2.17ms]",
+      "(fail) throws on selected trusted duplicate corruption before duplication [2.29ms]"
+    ]
+  },
+  {
+    "fault": "early-reader",
+    "exitCode": 1,
+    "sampledPeakBytes": 575225856,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [523.51ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [431.69ms]",
+      "(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [1.05ms]"
+    ]
+  },
+  {
+    "fault": "early-size",
+    "exitCode": 1,
+    "sampledPeakBytes": 577351680,
+    "observed": [
+      "(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [35.50ms]"
+    ]
+  },
+  {
+    "fault": "early-stamp",
+    "exitCode": 1,
+    "sampledPeakBytes": 586276864,
+    "observed": [
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [8.54ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [2.78ms]",
+      "(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [59.63ms]",
+      "(fail) throws on selected trusted maximum corruption before duplication [1.83ms]",
+      "(fail) throws on selected trusted step corruption before duplication [1.02ms]",
+      "(fail) throws on selected trusted project corruption before duplication [0.89ms]",
+      "(fail) throws on selected trusted parent corruption before duplication [0.97ms]",
+      "(fail) throws on selected trusted duplicate corruption before duplication [1.13ms]",
+      "(fail) throws when the required duplication sparse reader is absent before writes [0.99ms]"
+    ]
+  },
+  {
+    "fault": "late-ids",
+    "exitCode": 1,
+    "sampledPeakBytes": 583790592,
+    "observed": [
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [7.97ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [2.70ms]",
+      "(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [57.29ms]",
+      "(fail) throws on selected trusted maximum corruption before duplication [2.00ms]",
+      "(fail) throws on selected trusted step corruption before duplication [1.46ms]",
+      "(fail) throws on selected trusted project corruption before duplication [1.45ms]",
+      "(fail) throws on selected trusted parent corruption before duplication [1.70ms]",
+      "(fail) throws on selected trusted duplicate corruption before duplication [1.60ms]",
+      "(fail) throws when the required duplication sparse reader is absent before writes [1.14ms]"
+    ]
+  },
+  {
+    "fault": "late-writes",
+    "exitCode": 1,
+    "sampledPeakBytes": 581189632,
+    "observed": [
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [12.06ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [5.00ms]",
+      "(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [65.34ms]",
+      "(fail) throws on selected trusted maximum corruption before duplication [3.03ms]",
+      "(fail) throws on selected trusted step corruption before duplication [2.67ms]",
+      "(fail) throws on selected trusted project corruption before duplication [2.38ms]",
+      "(fail) throws on selected trusted parent corruption before duplication [2.77ms]",
+      "(fail) throws on selected trusted duplicate corruption before duplication [2.79ms]",
+      "(fail) throws when the required duplication sparse reader is absent before writes [2.51ms]"
+    ]
+  },
+  {
+    "fault": "leaves-only",
+    "exitCode": 1,
+    "sampledPeakBytes": 573657088,
+    "observed": ["(fail) throws on selected trusted parent corruption before duplication [2.34ms]"]
+  },
+  {
+    "fault": "lost-detail",
+    "exitCode": 1,
+    "sampledPeakBytes": 638550016,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [518.71ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [444.74ms]",
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [5.20ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [1.74ms]",
+      "(fail) copies detached exact refusal nodes and allows duplication when cleared [0.66ms]",
+      "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.27ms]"
+    ]
+  },
+  {
+    "fault": "omitted",
+    "exitCode": 1,
+    "sampledPeakBytes": 637984768,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [587.99ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [531.39ms]",
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [10.43ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [3.92ms]",
+      "(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [2.42ms]",
+      "(fail) throws on selected trusted maximum corruption before duplication [2.14ms]",
+      "(fail) throws on selected trusted step corruption before duplication [1.86ms]",
+      "(fail) throws on selected trusted project corruption before duplication [1.80ms]",
+      "(fail) throws on selected trusted parent corruption before duplication [2.34ms]",
+      "(fail) throws on selected trusted duplicate corruption before duplication [2.04ms]",
+      "(fail) copies detached exact refusal nodes and allows duplication when cleared [1.86ms]",
+      "(fail) throws when the required duplication sparse reader is absent before writes [2.27ms]",
+      "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [7.84ms]"
+    ]
+  },
+  {
+    "fault": "optional-default",
+    "exitCode": 1,
+    "sampledPeakBytes": 582803456,
+    "observed": [
+      "(fail) throws when the required duplication sparse reader is absent before writes [1.98ms]"
+    ]
+  },
+  {
+    "fault": "public-scope",
+    "exitCode": 1,
+    "sampledPeakBytes": 498307072,
+    "observed": [
+      "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [33.29ms]"
+    ]
+  },
+  {
+    "fault": "reversed-order",
+    "exitCode": 1,
+    "sampledPeakBytes": 582819840,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [500.85ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [433.76ms]",
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [4.46ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [1.78ms]"
+    ]
+  },
+  {
+    "fault": "root-only",
+    "exitCode": 1,
+    "sampledPeakBytes": 572731392,
+    "observed": [
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [5.18ms]"
+    ]
+  },
+  {
+    "fault": "shared-detail",
+    "exitCode": 1,
+    "sampledPeakBytes": 582496256,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [541.04ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [431.26ms]",
+      "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.00ms]"
+    ]
+  },
+  {
+    "fault": "wrong-project",
+    "exitCode": 1,
+    "sampledPeakBytes": 581763072,
+    "observed": [
+      "(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [528.32ms]",
+      "(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [456.32ms]",
+      "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [13.74ms]",
+      "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [4.42ms]",
+      "(fail) throws on selected trusted maximum corruption before duplication [2.43ms]",
+      "(fail) throws on selected trusted step corruption before duplication [2.29ms]",
+      "(fail) throws on selected trusted project corruption before duplication [2.27ms]",
+      "(fail) throws on selected trusted parent corruption before duplication [2.70ms]",
+      "(fail) throws on selected trusted duplicate corruption before duplication [2.53ms]",
+      "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.85ms]"
+    ]
+  }
+]

@@ -195,7 +195,7 @@ test('mounted malformed priority names workItems[3].priority', async () => {
 
 test('mounted unknown version precedes version-specific validation', async () => {
   const supplied = documentBody();
-  Reflect.set(supplied.document, 'version', 10);
+  Reflect.set(supplied.document, 'version', 11);
   Reflect.set(supplied.workItems[3] ?? {}, 'priority', 'high');
   const response = await mounted().handle(
     new Request('https://backend.example/api/projects/import', {

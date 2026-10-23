@@ -647,6 +647,82 @@ describe('entry classification production CLI', () => {
     },
   );
 
+  test.each(['policy.json', 'bootstrap-policy.json'])(
+    'classifies OpenSpec codec review scripts without absorbing runtime source with %s',
+    async (policyName) => {
+      const repository = createRepository();
+      const reviewPath =
+        'openspec/changes/organization-authoritative-dns/codec-review/reproduce.mjs';
+      const sourcePath = 'apps/wbs/be-01/src/runtime/codec.mjs';
+      write(repository, reviewPath, 'throw new Error("classification must never execute me");\n');
+      write(repository, sourcePath, 'export const codec = true;\n');
+      const revision = commitAll(repository);
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../../..', 'docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as { classificationPolicy: object };
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, trustedPolicy.classificationPolicy),
+      );
+
+      // Proof: without each policy's source exclusion for openspec, this production CLI
+      // refused reproduce.mjs with `matched 2 classification rules` (0/1 in both copies).
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified = JSON.parse(standardOutput(invocation)) as {
+        entries: { path: string; classification: { contentClass: string } }[];
+      };
+      expect(
+        classified.entries.map(({ path, classification }) => [path, classification.contentClass]),
+      ).toEqual([
+        [sourcePath, 'source'],
+        [reviewPath, 'openspec'],
+      ]);
+    },
+  );
+
+  test.each(['policy.json', 'bootstrap-policy.json'])(
+    'refuses an injected OpenSpec/source overlap with %s',
+    async (policyName) => {
+      const repository = createRepository();
+      const path = 'openspec/changes/organization-authoritative-dns/codec-review/reproduce.mjs';
+      write(repository, path, 'export const review = true;\n');
+      const revision = commitAll(repository);
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../../..', 'docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as {
+        classificationPolicy: {
+          contentRules: { contentClass: string; exclude: { kind: string; value: string }[] }[];
+        };
+      };
+      const sourceRule = trustedPolicy.classificationPolicy.contentRules.find(
+        ({ contentClass }) => contentClass === 'source',
+      );
+      if (sourceRule === undefined) throw new Error('trusted source rule missing');
+      sourceRule.exclude = sourceRule.exclude.filter(
+        (selector) => selector.kind !== 'prefix' || selector.value !== 'openspec',
+      );
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, trustedPolicy.classificationPolicy),
+      );
+
+      // Proof: weakening production's multiple-match refusal to >2 made both policy
+      // negatives exit 0 and accept the injected overlap as openspec (expected 1, received 0).
+      expect(invocation.exitCode, output(invocation)).toBe(1);
+      expect(output(invocation)).toContain(
+        `ordinary content ${path} matched 2 classification rules`,
+      );
+    },
+  );
+
   test('refuses an ordinary path that matches no selector', async () => {
     const repository = createRepository();
     write(repository, 'unknown.zzz', 'unknown\n');

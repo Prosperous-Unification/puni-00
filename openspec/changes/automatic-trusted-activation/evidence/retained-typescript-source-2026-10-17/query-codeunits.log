@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+534 |   const f = setup({ maximumPathBytes: root.length });
+535 |   const trap = spyOn(Buffer, 'byteLength').mockImplementation(() => {
+536 |     throw new Error('scan forbidden');
+537 |   });
+538 |   try {
+539 |     expect(() => f.source.pathKind(root + '/too-long')).toThrow('source path ceiling');
+                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source path ceiling"
+Received message: "scan forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:539:57)
+(fail) query codeunit bound precedes UTF8 scanning [127.57ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1083.00ms]

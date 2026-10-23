@@ -1,0 +1,37 @@
+from pathlib import Path
+import json,subprocess,os,sys
+root=Path('/tmp/puni-literal-paths-sol-20261017')
+evidence=root/'openspec/changes/automatic-trusted-activation/evidence/retained-literal-paths-2026-10-17'
+compiler='apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler'
+activation='apps/twilight-structure/twilight-dash/cli/src/activation/'
+change='openspec/changes/automatic-trusted-activation/'
+files=[compiler+'.ts',compiler+'.test.ts',compiler.replace('-compiler','-literal-paths')+'.test.fixture.ts',activation+'review-typescript-literal-paths.test.ts']
+checks=[
+ ('red-corrected-compiler',['bun','test',compiler+'.test.ts','-t','retained literal paths']),
+ ('red-corrected-outside',['bun','test',activation+'review-typescript-literal-paths.test.ts','-t','refuses .* before host']),
+ ('green-compiler',['bun','test',compiler+'.test.ts']),
+ *[(f'green-{label}',['bun','test',activation+'review-typescript-literal-paths.test.ts','-t',pattern]) for label,pattern in [('outside','refuses .* before host'),('inside','admits'),('aliases','resolves'),('replay','replays'),('cutoff','second project'),('long','bounds long'),('compiler-budget','charges shared compiler'),('source-budget','charges shared source'),('step-budget','charges shared steps')]],
+ ('green-final-literal',['bun','test',activation+'review-typescript-literal-paths.test.ts']),
+ ('green-final-baseurl',['bun','test',activation+'review-typescript-base-url.test.ts']),
+ ('green-final-rootdirs',['bun','test',activation+'review-typescript-config-roots.test.ts']),
+ ('green-final-typeroots',['bun','test',activation+'review-typescript-roots.test.ts']),
+ ('green-final-core',['bun','test',compiler.replace('-compiler','-core')+'.test.ts']),
+ ('format',['bunx','--no-install','prettier','--write',*files,*[change+name+'.md' for name in ['design','tasks','verify']],change+'specs/automatic-trusted-activation/spec.md',*[str(path.relative_to(root)) for path in evidence.glob('*.json')]]),
+ ('openspec-status',['bunx','--no-install','@fission-ai/openspec@1.12.0','status','--change','automatic-trusted-activation','--json']),
+ ('openspec-apply',['bunx','--no-install','@fission-ai/openspec@1.12.0','instructions','apply','--change','automatic-trusted-activation','--json']),
+ ('openspec-validate',['bunx','--no-install','@fission-ai/openspec@1.12.0','validate','automatic-trusted-activation','--strict','--json']),
+ ('type-focused',['bunx','--no-install','tsc','--project',str((evidence/'focused-tests.tsconfig.json').relative_to(root)),'--noEmit','--incremental','false']),
+ ('type-dash-lib',['bunx','--no-install','tsc','--project','apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json','--noEmit','--incremental','false']),
+ *[(f'lint-{n}',['bunx','--no-install','eslint',path]) for n,path in enumerate(files)],
+ ('nx-graph',['bunx','--no-install','nx','graph','--file=/tmp/literal-paths-project-graph.json']),
+ ('hook-install',['bunx','--no-install','lefthook','install']),('hook-effective-config',['bunx','--no-install','lefthook','dump']),
+]
+for name,command in checks:
+ if sys.argv[1:] and name not in sys.argv[1:]: continue
+ invocation=subprocess.run(['python3','/tmp/runtime-rss-guard.py',*command],cwd=root,capture_output=True,text=True,env=dict(os.environ,RUNTIME_CLOSURE_RSS_MIB='900',NX_DAEMON='false',NX_ISOLATE_PLUGINS='false',NODE_OPTIONS='--max-old-space-size=640'))
+ transcript=invocation.stdout+invocation.stderr
+ (evidence/(name+'.log')).write_text(transcript)
+ receipt=json.loads(next(line for line in transcript.splitlines() if line.startswith('{"ceilingBytes"')))
+ (evidence/(name+'.receipt.json')).write_text(json.dumps({'command':command,**receipt},indent=2)+'\n')
+ print(name,json.dumps(receipt),flush=True)
+ if invocation.returncode!=0 and not name.startswith('red-'): raise RuntimeError('check failed '+name+'\n'+transcript)

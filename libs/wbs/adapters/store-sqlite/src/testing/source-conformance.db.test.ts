@@ -12,8 +12,10 @@ import {
   type CaseFixture,
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
+  CLAIM_IN_USE,
   createFaultControl,
   defineFault,
+  DELEGATED_CLAIMS,
   DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
   type ExistingStoreOpeners,
@@ -24,7 +26,10 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  LIMITS_FIXTURE,
   observePlanInput,
+  OWNED_BINDING,
+  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -32,6 +37,8 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedOrganizationLimits,
+  seedResourceCase,
   seedSavedPlanCapture,
   sourceConformanceRegistrations,
   type SourceDeclaration,
@@ -67,6 +74,7 @@ import { asc, eq, sql } from 'drizzle-orm';
 
 import type { SqliteLateWriteEvidence } from '../late-write-seam';
 import { runMigrations } from '../migrate';
+import { OrganizationLimitGaugeRepository } from '../organization-limits';
 import { SavedPlanCaptureRepository } from '../saved-plan-capture';
 import {
   actual as actualTable,
@@ -356,6 +364,42 @@ async function openSqliteCase<Family extends ExistingFamily>(
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
+    if (caseId === 'directory.patchPerson:owned-binding') {
+      const added = await seeded.stores.directory.addPerson(
+        { id: OWNED_BINDING.personId, name: 'Owned person' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the owned person was refused');
+      const { personId, organizationId } = OWNED_BINDING;
+      seeded.db.run(
+        sql`INSERT INTO organization (id, name, created_at) VALUES (${organizationId}, ${organizationId}, 1)`,
+      );
+      seeded.db.run(
+        sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${personId}, ${organizationId}, 'Owned person')`,
+      );
+      seeded.db.run(
+        sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${organizationId}, ${DETERMINISTIC_SEED.ownerIds[0]}, 'member', 1)`,
+      );
+    }
+    if (caseId === 'directory.removePerson:claims-in-use')
+      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
+    if (caseId === 'directory.removePerson:delegated-claims')
+      await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
+    if (caseId === 'directory.removePerson:pinned-credential') {
+      const { personId, issuer, subject } = PINNED_CREDENTIAL;
+      const added = await seeded.stores.directory.addPerson(
+        { id: personId, name: 'Pinned person', kind: 'agent' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the pinned person was refused');
+      // The row `link-credential-cli.ts` writes, its only writer.
+      seeded.db.run(
+        sql`INSERT INTO external_identity (id, user_id, issuer, subject, person_id, created_at) VALUES ('pinned-credential', ${DETERMINISTIC_SEED.ownerIds[0]}, ${issuer}, ${subject}, ${personId}, 1)`,
+      );
+    }
+    await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
   });
   if (family === 'subtrees') {
     return {
@@ -638,6 +682,7 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
           name: 'Unassigned member',
           kind: 'person',
           teamIds: ['team-a'],
+          accountId: null,
         },
         projectIds: [],
       },
@@ -652,9 +697,10 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
         name: 'Unassigned member',
         kind: 'person',
         teamIds: ['team-a'],
+        accountId: null,
       },
-      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
-      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'], accountId: null },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'], accountId: null },
     ],
   });
   return change;
@@ -717,6 +763,48 @@ async function seedSubtreeRecords(source: SqliteSource): Promise<void> {
     await source.stores.dependencies.add(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
 }
 
+/**
+ * The gauge the scopes a unit of work admits carry, over the seeded source's
+ * own connection: the public catalog carries none (L10).
+ */
+async function openSqliteLimitsCase(
+  caseId: CaseId,
+): Promise<CaseFixture<TransactionalStores['organizationLimits']>> {
+  const { source, directory } = await seedSqliteSource(openSqliteSource, (seeded) =>
+    seedOrganizationLimits(seeded.stores, {
+      organization: (id) => {
+        seeded.db.run(
+          sql`INSERT INTO organization (id, name, created_at) VALUES (${id}, ${id}, 1)`,
+        );
+      },
+      ownPerson: (personId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${personId}, ${organizationId}, ${personId})`,
+        );
+      },
+      ownProject: (projectId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${organizationId})`,
+        );
+      },
+      ownResource: (resourceId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${resourceId})`,
+        );
+      },
+      setCaps: (organizationId, caps) => {
+        seeded.db.run(
+          sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES (${organizationId}, ${caps.maxAgentPersons}, ${caps.maxConcurrentClaims}, ${caps.maxCapacityUnitsPerResource}, 1)`,
+        );
+      },
+    }),
+  );
+  return {
+    ...sqliteFixture(source, directory, 'organizationLimits', caseId),
+    port: new OrganizationLimitGaugeRepository(source.db, LIMITS_FIXTURE.defaults),
+  };
+}
+
 const openers: ExistingStoreOpeners = {
   livePlans: async (caseId) => {
     const { source, directory } = await seedSqliteSource();
@@ -757,8 +845,10 @@ const openers: ExistingStoreOpeners = {
     }
     return sqliteFixture(source, directory, 'projectRanks', caseId);
   },
+  organizationLimits: openSqliteLimitsCase,
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
+  resourceCapacity: (caseId) => openSqliteCase('resourceCapacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
   calendarMarkers: (caseId) => openSqliteCase('calendarMarkers', caseId),
   workItems: (caseId) => openSqliteCase('workItems', caseId),
@@ -769,6 +859,9 @@ const openers: ExistingStoreOpeners = {
   progress: (caseId) => openSqliteCase('progress', caseId),
   attempts: (caseId) => openSqliteCase('attempts', caseId),
   blockages: (caseId) => openSqliteCase('blockages', caseId),
+  stepParallels: (caseId) => openSqliteCase('stepParallels', caseId),
+  claims: (caseId) => openSqliteCase('claims', caseId),
+  demands: (caseId) => openSqliteCase('demands', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
   typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -796,6 +889,11 @@ const declaration: SourceDeclaration = {
         return openers.livePlans(caseId);
       },
     },
+    organizationLimits: {
+      kind: 'offered',
+      gaps: [],
+      open: openSqliteLimitsCase,
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     projectRanks: {
       kind: 'offered',
@@ -808,6 +906,7 @@ const declaration: SourceDeclaration = {
     },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: { kind: 'offered', gaps: [], open: openers.capacity },
+    resourceCapacity: { kind: 'offered', gaps: [], open: openers.resourceCapacity },
     priorityBands: { kind: 'offered', gaps: [], open: openers.priorityBands },
     calendarMarkers: { kind: 'offered', gaps: [], open: openers.calendarMarkers },
     workItems: { kind: 'offered', gaps: [], open: openers.workItems },
@@ -818,6 +917,9 @@ const declaration: SourceDeclaration = {
     progress: { kind: 'offered', gaps: [], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
+    stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    claims: { kind: 'offered', gaps: [], open: openers.claims },
+    demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -905,11 +1007,15 @@ function emptyMissingCapture(): PlanInputReads {
     actuals: [],
     progress: [],
     stepBlockages: [],
+    stepParallels: [],
     measures: [],
     dependencies: [],
     typedDependencies: [],
     assignments: [],
     capacity: new Map(),
+    demands: [],
+    resourceCapacities: [],
+    resources: [],
     priorityBands: [],
     people: [],
     teams: [],
@@ -4699,6 +4805,7 @@ async function proveFault(
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
+        resourceCapacity: (caseId) => takeFixture('resourceCapacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         workItems: (caseId) => takeFixture('workItems', caseId),
@@ -4709,6 +4816,9 @@ async function proveFault(
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
+        stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        claims: (caseId) => takeFixture('claims', caseId),
+        demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -6176,6 +6286,13 @@ describe('SQLite existing source conformance', () => {
       'cleanup failed: injected cleanup failure after actual steps.add',
     );
     expect(existsSync(directory)).toBe(false);
+  });
+
+  it('certifies the sparse step parallelism source inventory', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['stepParallels.set:sparse-replace-remove'],
+    });
+    expect(report.cases.map(({ status }) => status)).toEqual(['passed']);
   });
 
   it('certifies the persisted blockage port', async () => {

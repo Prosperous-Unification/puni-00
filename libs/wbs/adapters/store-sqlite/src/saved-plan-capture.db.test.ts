@@ -24,6 +24,7 @@ import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { person, project, step, tag, workItem, workItemTag } from './schema';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
+import { StepParallelRepository } from './step-parallel';
 import { nodeDigest } from './testing/node-digest';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 import { TypedDependencyRepository } from './typed-dependency';
@@ -227,6 +228,31 @@ describe('capturing a project’s plan input', () => {
       seen.close();
     }
   };
+
+  it('captures sparse parallel facts on the SQLite snapshot before concurrent clear', async () => {
+    const writing = openConnection(path);
+    try {
+      const facts = new StepParallelRepository(writing.db, OPEN);
+      const fact = { workItemId: 'wi-1', stepId: 'st-1', maxParallel: 1 };
+      await facts.set(fact, wrote);
+      const port = new SavedPlanCaptureRepository(
+        { openConnection: () => openConnection(path) },
+        {
+          async afterFirstRead() {
+            await facts.remove(fact.workItemId, fact.stepId, wrote);
+          },
+        },
+      );
+      const captured = await port.readPlanInput('p1');
+      expect(captured?.stepParallels).toEqual([fact]);
+      if (captured === null) throw new Error('capture missing');
+      expect(canonicalisePlanInput(planInputRowsOf(captured)).stepParallels).toEqual([fact]);
+      expect((await capture().readPlanInput('p1'))?.stepParallels).toEqual([]);
+      expect(captured.stepParallels).toEqual([fact]);
+    } finally {
+      writing.close();
+    }
+  });
 
   it('captures direct blockage on the same SQLite snapshot before a concurrent clear', async () => {
     const writing = openConnection(path);

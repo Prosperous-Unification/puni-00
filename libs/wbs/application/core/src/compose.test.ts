@@ -19,6 +19,7 @@ import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
+import { NO_MACHINE_CREDENTIALS } from './ports/machine-credentials';
 import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
@@ -150,7 +151,7 @@ test('stored outcome and downstream recipient retain their sequences while react
     generation: 1,
     inputHash: 'captured-input',
     objective: 'pri' as const,
-    contractVersion: '7+0.2.0',
+    contractVersion: '7+0.3.0',
     budgetMs: 60_000,
     failureReason: 'internal-error' as const,
   };
@@ -229,6 +230,7 @@ test('accountless composition has no auth capability', () => {
       verify: () => Promise.resolve(null),
     },
     enterprise: NO_PROVEN_CONNECTIONS,
+    machineCredentials: NO_MACHINE_CREDENTIALS,
   };
   // Proof: relaxing the accountless runtime exclusion made core:typecheck fail
   // with TS2578 at this directive; the mismatched composition then compiled.
@@ -258,6 +260,7 @@ test('accountful composition exposes auth when its source and runtime both offer
         verify: () => Promise.resolve(null),
       },
       enterprise: NO_PROVEN_CONNECTIONS,
+      machineCredentials: NO_MACHINE_CREDENTIALS,
     },
     shared: fixtureShared,
   });

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+    "--test-name-pattern",
+    "omitted typeRoots wildcard types discover"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 357264,
+  "ceilingKiB": 921600
+}

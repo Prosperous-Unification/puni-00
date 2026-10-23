@@ -1,8 +1,8 @@
+import { Button } from '@ui/saas-01';
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { InvitationAcceptance } from '@/components/onboarding/invitation-acceptance';
-import { Button } from '@/components/ui/button';
 import { useFeatureReachable } from '@/lib/session-features';
 import { useRetirementJoin } from '@/runtime/application-services-context';
 import { createOrganizationOwner, type OrganizationRoutes } from '@/runtime/organization-owner';

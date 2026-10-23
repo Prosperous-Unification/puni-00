@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+86 |   ['valid candidate link', ['alias'], undefined, { alias: 'types' }],
+87 |   ['omitted ordinary probes', undefined, undefined, {}],
+88 | ] as const) test(`retained effective typeRoots admits ${label}`, () => {
+89 |   const captured = setup(roots === undefined ? undefined : [...roots], { inherited: inherited === undefined ? undefined : [...inherited], links: { ...links } });
+90 |   const extracted = extractRetainedTypeScriptRelationships(captured);
+91 |   expect(extracted.runtimeTrust).toBe('unverified');
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: "unverified"
+Received: "verified"
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:91:34)
+(fail) retained effective typeRoots admits existing [216.10ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1163.00ms]

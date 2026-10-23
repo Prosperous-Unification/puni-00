@@ -260,8 +260,13 @@ async function exportDocument(
   if (timezone === null) throw new Error(`imported project has no timezone: ${projectId}`);
   const exported = await new PlanDocumentService({
     directory: source.stores.directory,
+    stepParallels: source.stores.stepParallels,
     markers: graph.calendarMarkers,
     clock,
+    resourceFacts: {
+      resourceCapacitiesOf: (id) => source.stores.resourceCapacity.listFor(id),
+      demandsOf: (id) => source.stores.demands.listByProject(id),
+    },
   }).export({ ...project, timezone }, tree, LEGACY_ACCESS);
   if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
   return exported.value;
@@ -529,6 +534,7 @@ export function importServiceSourceContract(
           name: 'Kat',
           kind: 'agent',
           teamIds: [team.id],
+          accountId: null,
         });
       } finally {
         await source.close();
@@ -627,7 +633,7 @@ export function importServiceSourceContract(
         ];
 
         const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`valid import refused: ${JSON.stringify(imported)}`);
         const project = await source.stores.projects.findById(imported.projectId);
         const steps = await source.stores.projects.stepsOf(imported.projectId);
         const teams = await source.stores.directory.listTeams();
@@ -824,6 +830,7 @@ export function importServiceSourceContract(
             actuals: [],
             progress: [],
             measures: [],
+            demands: [],
             assignments: [],
             dependencies: [],
             removedEstimates: [],
@@ -836,7 +843,7 @@ export function importServiceSourceContract(
         const originals = await source.stores.workItems.listByProject('source-project');
 
         const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`valid import refused: ${JSON.stringify(imported)}`);
         const [rows, steps, estimates, actuals, progress, measures, dependencies, assigned] =
           await Promise.all([
             source.stores.workItems.listByProject(imported.projectId),
@@ -1080,7 +1087,7 @@ export function importServiceSourceContract(
         row.progress = { 'step-1': 'done' };
         document.stepBlockages = [{ workItemId: row.id, stepId: 'step-1', blockedAt: -17 }];
         const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
         const exported = await exportDocument(source, imported.projectId);
         expect(exported.stepBlockages).toHaveLength(1);
         expect(exported.stepBlockages[0]?.blockedAt).toBe(-17);
@@ -1269,7 +1276,7 @@ export function importServiceSourceContract(
           ACTOR,
           LEGACY_ACCESS,
         );
-        if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`valid import refused: ${JSON.stringify(imported)}`);
 
         expect(subscriberReads).toEqual([['Billing']]);
         expect(
@@ -1369,10 +1376,10 @@ export function importServiceSourceContract(
             ACTOR,
             LEGACY_ACCESS,
           );
-          if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+          if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(9);
+          expect(exported.document.version).toBe(10);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1415,7 +1422,7 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
         const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
         const exported = await exportDocument(source, imported.projectId);
         const build = exported.workItems.find(({ name }) => name === 'Build release');
         const verify = exported.workItems.find(({ name }) => name === 'Verify release');
@@ -1428,7 +1435,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(9);
+        expect(exported.document.version).toBe(10);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1470,7 +1477,7 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
         const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
         const exported = await exportDocument(source, imported.projectId);
         expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
           readiness: 'ready',
@@ -1501,7 +1508,7 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
         const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
 
         const graph = servicesOver(source.stores, {
           admission: CREATOR_ADMISSION,
@@ -1526,7 +1533,7 @@ export function importServiceSourceContract(
         expect(again.ok).toBe(true);
         if (!again.ok) return;
         const reimported = await importService(source).import(again.value, ACTOR, LEGACY_ACCESS);
-        if (!reimported.ok) throw new Error(`re-import refused at ${reimported.path}`);
+        if (!reimported.ok) throw new Error(`re-import refused: ${JSON.stringify(reimported)}`);
         const reread = await graph.workItems.tree(reimported.projectId);
         if (reread === null || 'kind' in reread) throw new Error('re-imported project has no tree');
         expect(reread.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
@@ -1622,7 +1629,7 @@ export function importServiceSourceContract(
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
         const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
         expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
           1,
         );
@@ -1679,8 +1686,7 @@ export function importServiceSourceContract(
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
         const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
-        if (!imported.ok)
-          throw new Error(`import refused at ${imported.path}: ${String(imported.detail)}`);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
         expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
           2,
         );
@@ -1809,12 +1815,115 @@ export function importServiceSourceContract(
       }
     });
 
+    it('round-trips resources, their capacities and demands (wbs-resources)', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 10;
+        file.directory.resources = [
+          { id: 'res-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+          { id: 'res-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        ];
+        file.resourceCapacities = [
+          { resourceId: 'res-ram', units: 32 },
+          { resourceId: 'res-stage', units: 0 },
+        ];
+        // The parent's demand travels as stated and charges nothing: demands are not inherited.
+        file.demands = [
+          { workItemId: 'row-1', resourceId: 'res-ram', units: 2 },
+          { workItemId: 'row-build', resourceId: 'res-ram', units: 4 },
+          { workItemId: 'row-verify', resourceId: 'res-stage', units: 1 },
+        ];
+        const imported = await importService(source).import(file, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
+        const exported = await exportDocument(source, imported.projectId);
+        const resourceName = new Map(
+          exported.directory.resources.map(({ id, name }) => [id, name]),
+        );
+        const rowName = new Map(exported.workItems.map(({ id, name }) => [id, name]));
+        expect(exported.document.version).toBe(10);
+        expect(
+          exported.directory.resources.map(({ name, kind, unitLabel }) => ({
+            name,
+            kind,
+            unitLabel,
+          })),
+        ).toEqual([
+          { name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+          { name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        ]);
+        expect(
+          exported.resourceCapacities
+            .map(({ resourceId, units }) => ({ resource: resourceName.get(resourceId), units }))
+            .sort((left, right) => String(left.resource).localeCompare(String(right.resource))),
+        ).toEqual([
+          { resource: 'h2puni ram', units: 32 },
+          { resource: 'staging', units: 0 },
+        ]);
+        expect(
+          exported.demands
+            .map(({ workItemId, resourceId, units }) => ({
+              row: rowName.get(workItemId),
+              resource: resourceName.get(resourceId),
+              units,
+            }))
+            .sort((left, right) => String(left.row).localeCompare(String(right.row))),
+        ).toEqual([
+          { row: 'Build release', resource: 'h2puni ram', units: 4 },
+          { row: 'Release', resource: 'h2puni ram', units: 2 },
+          { row: 'Verify release', resource: 'staging', units: 1 },
+        ]);
+        // A second import of the export reuses both resources by name.
+        const again = await importService(source).import(
+          await exportProject(source, imported.projectId),
+          ACTOR,
+          LEGACY_ACCESS,
+        );
+        if (!again.ok) throw new Error(`re-import refused: ${JSON.stringify(again)}`);
+        expect((await source.stores.directory.listResources()).map(({ name }) => name)).toEqual([
+          'h2puni ram',
+          'staging',
+        ]);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a resource the directory holds under another kind, writing no project', async () => {
+      const source = await ownedSource();
+      try {
+        await source.stores.directory.addResource(
+          { id: 'held-stage', name: 'staging', kind: 'divisible', unitLabel: 'env' },
+          STAMP,
+        );
+        const before = await source.stores.projects.list();
+        const file = roundTripFixture();
+        file.document.version = 10;
+        file.directory.resources = [
+          { id: 'res-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        ];
+        file.demands = [{ workItemId: 'row-verify', resourceId: 'res-stage', units: 1 }];
+
+        const refused = await importService(source).import(file, ACTOR, LEGACY_ACCESS);
+
+        expect(refused).toEqual({
+          ok: false,
+          code: 'source_refused',
+          path: 'directory.resources[0].kind',
+          detail: 'kind_is_immutable',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
     it('round trips every authored input while storing leaf values only', async () => {
       const source = await ownedSource();
       try {
         const service = importService(source);
         const seeded = await service.import(roundTripFixture(), ACTOR, LEGACY_ACCESS);
-        if (!seeded.ok) throw new Error(`round-trip seed refused at ${seeded.path}`);
+        if (!seeded.ok) throw new Error(`round-trip seed refused: ${JSON.stringify(seeded)}`);
         const exported = await exportProject(source, seeded.projectId);
         const directoryBefore = {
           teams: await source.stores.directory.listTeams(),
@@ -1826,7 +1935,8 @@ export function importServiceSourceContract(
         };
 
         const restored = await service.import(exported, ACTOR, LEGACY_ACCESS);
-        if (!restored.ok) throw new Error(`round-trip restore refused at ${restored.path}`);
+        if (!restored.ok)
+          throw new Error(`round-trip restore refused: ${JSON.stringify(restored)}`);
         expect(restored.solutionRef).toBe('left-off');
         const reexported = await exportProject(source, restored.projectId);
         expect({

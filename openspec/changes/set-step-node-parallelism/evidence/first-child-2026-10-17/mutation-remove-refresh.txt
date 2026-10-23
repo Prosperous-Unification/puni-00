@@ -1,0 +1,99 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+74 |             const stamp = { at: 1, by: owner.ownerId };
+75 |             await working.stores.workItems.listByProject(projectId);
+76 |             const beforeOwner = await working.stores.workItems.findById('parent');
+77 |             if (beforeOwner === null) throw new Error('borrowed parent is missing');
+78 |             await sparse.remove('parent', first.id, stamp);
+79 |             expect(await working.stores.workItems.listByProject(projectId)).toEqual(
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "deadline": null,
+      "externalRefs": [],
+      "factEnd": null,
+      "factStart": null,
+      "frozenNumber": null,
+      "hold": "on_hold",
+      "id": "parent",
+      "maxParallel": 1,
+      "name": "Parent",
+      "notes": "",
+      "parentId": null,
+      "position": 1,
+      "priority": null,
+      "projectId": "4e558a53-3b64-4648-909c-8360351066fd",
+      "readiness": "ready",
+-     "revision": 1,
++     "revision": 0,
+      "serviceId": null,
+      "serviceIds": [],
+      "serviceTeamId": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "tagIds": [],
+      "teamIds": [],
+      "typeIds": [],
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:79:77)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [499.47ms]
+74 |             const stamp = { at: 1, by: owner.ownerId };
+75 |             await working.stores.workItems.listByProject(projectId);
+76 |             const beforeOwner = await working.stores.workItems.findById('parent');
+77 |             if (beforeOwner === null) throw new Error('borrowed parent is missing');
+78 |             await sparse.remove('parent', first.id, stamp);
+79 |             expect(await working.stores.workItems.listByProject(projectId)).toEqual(
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "deadline": null,
+      "externalRefs": [],
+      "factEnd": null,
+      "factStart": null,
+      "frozenNumber": null,
+      "hold": "on_hold",
+      "id": "parent",
+      "maxParallel": 1,
+      "name": "Parent",
+      "notes": "",
+      "parentId": null,
+      "position": 1,
+      "priority": null,
+      "projectId": "748e3ea8-8c4c-440c-a3ea-37d309eeb2b6",
+      "readiness": "ready",
+-     "revision": 1,
++     "revision": 0,
+      "serviceId": null,
+      "serviceIds": [],
+      "serviceTeamId": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "tagIds": [],
+      "teamIds": [],
+      "typeIds": [],
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:79:77)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [447.29ms]
+
+ 0 pass
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [2.94s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 641327104, "exitCode": 1}

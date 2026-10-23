@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
+import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 const ISSUER = 'https://idp.test';
@@ -407,6 +408,43 @@ describe('session policy', () => {
     expect((await select(token, 'org-a')).status).toBe(403);
     h.sqlite.run("DELETE FROM organization_session_policy WHERE organization_id = 'org-a'");
     expect((await select(token, 'org-a')).status).toBe(200);
+  });
+});
+
+/**
+ * A machine credential has no human sign-in to judge (`wbs-machine-credentials`
+ * A10): enforced SSO and the session policy admit its API key, which acts as
+ * its person's bound account in its own organization.
+ */
+describe('machine credentials', () => {
+  async function miaKey(): Promise<string> {
+    addAgentPerson(h.sqlite, 'mia-agent', 'org-a', h.userId('mia'));
+    const { key } = await issueApiKey(h.sqlite, {
+      organizationId: 'org-a',
+      personId: 'mia-agent',
+      issuedBy: h.userId('mia'),
+    });
+    return key;
+  }
+
+  const projects = (key: string) =>
+    h.request('/api/projects', { headers: { authorization: `Bearer ${key}` } });
+
+  it('admits a machine key under enforced SSO', async () => {
+    enforce();
+    const key = await miaKey();
+    expect((await select(await upstream(SOCIAL), 'org-a')).status).toBe(403);
+    expect((await projects(key)).status).toBe(200);
+  });
+
+  it('admits a machine key under a session policy', async () => {
+    const key = await miaKey();
+    h.sqlite.run(
+      'INSERT INTO organization_session_policy (organization_id, max_session_seconds, reauthenticate_after_seconds, created_at) VALUES (?, ?, ?, 1)',
+      ['org-a', 300, 300],
+    );
+    clock += 3_600_000;
+    expect((await projects(key)).status).toBe(200);
   });
 });
 

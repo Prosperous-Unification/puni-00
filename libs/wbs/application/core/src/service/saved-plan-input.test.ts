@@ -98,6 +98,7 @@ const reads = {
   ],
   estimates: [{ workItemId: 'w1', stepId: 's1', optimistic: 1, realistic: 2, pessimistic: 5 }],
   stepBlockages: [],
+  stepParallels: [],
   actuals: [{ workItemId: 'w1', stepId: 's2', days: 3, recordedAt: 1_756_000_100 }],
   progress: [{ workItemId: 'w1', stepId: 's2', state: 'done', statedAt: 1_756_000_200 }],
   measures: [
@@ -107,6 +108,9 @@ const reads = {
   typedDependencies: [],
   assignments: [{ workItemId: 'w1', stepId: 's1', personId: 'per-1' }],
   capacity: new Map([['team-2', 3]]),
+  demands: [],
+  resourceCapacities: [],
+  resources: [],
   priorityBands: [{ startsAt: 1, label: 'Critical', defaultValue: 10 }],
   people: [
     { id: 'per-1', name: 'Ada', teamIds: ['team-1'] },
@@ -183,6 +187,7 @@ describe('planInputRowsOf', () => {
       actuals: [],
       progress: [],
       stepBlockages: [],
+      stepParallels: [],
       measures: [],
       dependencies: [],
       assignments: [],
@@ -234,6 +239,7 @@ describe('planInputRowsOf', () => {
       actuals: [],
       progress: [],
       stepBlockages: [],
+      stepParallels: [],
       measures: [],
       dependencies: [{ predecessorId: 'A', successorId: 'B' }],
       assignments: [],
@@ -266,6 +272,7 @@ describe('planInputRowsOf', () => {
       actuals: [],
       progress: [],
       stepBlockages: [],
+      stepParallels: [],
       measures: [],
       dependencies: [],
       assignments: [],
@@ -464,6 +471,7 @@ it('captures direct blockage while canonical schedule input and full Fast schedu
       hold: null,
     })),
     stepBlockages: [],
+    stepParallels: [],
   } as unknown as PlanInputReads;
   const blocked = {
     ...plain,
@@ -494,4 +502,16 @@ it('drops live node resources before canonical saved-plan persistence and hashin
   expect(projected).toEqual(baseline);
   for (const row of projected.workItems) expect(row).not.toHaveProperty('nodeResources');
   expect(canonicalisePlanInput(projected)).toEqual(canonicalisePlanInput(baseline));
+});
+
+it('preserves sparse explicit parallel policy through the authored capture fold', () => {
+  const fact = { workItemId: 'w1', stepId: 's1', maxParallel: 1 };
+  const captured = { ...reads, stepParallels: [fact] };
+  const folded = planInputRowsOf(captured);
+  expect(folded.stepParallels).toEqual([fact]);
+  fact.maxParallel = 8;
+  expect(folded.stepParallels).toEqual([{ workItemId: 'w1', stepId: 's1', maxParallel: 1 }]);
+  expect(canonicalisePlanInput(folded).stepParallels).toEqual([
+    { workItemId: 'w1', stepId: 's1', maxParallel: 1 },
+  ]);
 });

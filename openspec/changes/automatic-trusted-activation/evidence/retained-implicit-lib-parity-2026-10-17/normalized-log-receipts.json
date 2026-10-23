@@ -1,0 +1,58 @@
+[
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/lint-test.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/lint-test.log",
+    "rawSha256": "0528ba0076d7f0c06ad387c1cea079bf5cd9f96e7bfd8222997832a299ad3f66",
+    "normalizedSha256": "c46160e3d5bd4ad415f121eb77a5344d1ede9a074061e0f4116afbabaa6e62aa",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/lint-fixture.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/lint-fixture.log",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalizedSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/lint-test-restored.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/lint-test-restored.log",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalizedSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/project-graph-restored.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/project-graph-restored.log",
+    "rawSha256": "1736ec7a67e88a0dc686fdca3724668109d66d9e84ed592899e7cd4dbe5397e0",
+    "normalizedSha256": "509ba86c8d8b2758d5034069b94cc216e706a9d6dacb64070493ca8bb4643d42",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/focused-typecheck.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/focused-typecheck.log",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalizedSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/project-graph.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/project-graph.log",
+    "rawSha256": "1bfe11ccb849cfe57da5a0c7d9171123419c872baf8d2ebbd90e1462827e2079",
+    "normalizedSha256": "dd79c3727947af2136d75a35974980935458c3619335fabee5a5295ea6d5ab03",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/final-typecheck.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/final-typecheck.log",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalizedSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  },
+  {
+    "path": "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/normal-hook-format-refusal.log",
+    "rawPath": "/tmp/implicit-lib-parity-raw-evidence-20261017/normal-hook-format-refusal.log",
+    "rawSha256": "8c944ec364eccb4334c7d0258db3ffab0f41b988eba0bdb1627bd257f2116c3f",
+    "normalizedSha256": "9e46acaead62e8831cdf74787c57148bbf2d5700c68d777cb5dba353aa4edd6e",
+    "transformation": "Strip line-end spaces/tabs/CR and keep one final LF."
+  }
+]

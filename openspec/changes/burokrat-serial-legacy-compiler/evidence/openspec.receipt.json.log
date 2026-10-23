@@ -1,0 +1,22 @@
+{
+  "command": [
+    "env",
+    "BUN_TMPDIR=/tmp",
+    "OPENSPEC_TELEMETRY=0",
+    "bunx",
+    "@fission-ai/openspec@1.12.0",
+    "validate",
+    "burokrat-serial-legacy-compiler",
+    "--strict",
+    "--json"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 107380,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 0.254,
+  "availableBeforeKiB": 22903524,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

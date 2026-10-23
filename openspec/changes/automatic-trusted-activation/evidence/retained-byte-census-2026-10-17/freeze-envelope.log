@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [350.00ms]
+846 |         identity: hashBytes('a.ts'),
+847 |         byteLength: 4,
+848 |       },
+849 |     ],
+850 |   });
+851 |   expect(Object.isFrozen(census)).toBe(true);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:851:35)
+(fail) byte census records raw candidate package BOM and probe symlink acquisitions only [136.72ms]
+
+ 1 pass
+ 91 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 2 tests across 1 file. [1434.00ms]

@@ -1,3 +1,4 @@
+import type { Demand, Resource, ResourceCapacity } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { CalendarMarker } from './calendar-marker-store';
@@ -8,6 +9,7 @@ import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
 import type { StoredStepBlockage } from './step-blockage-store';
 import type { StoredAttempt } from './step-node-attempt-store';
+import type { StoredStepParallel } from './step-parallel-store';
 import type { Step } from './step-store';
 import type { LabelledWorkItem } from './work-item-values';
 
@@ -88,8 +90,9 @@ export type LivePlanRead =
       readonly seq: number;
     };
 
-/** Catalog and marker values needed only for a structured export's referenced closure. */
+/** Private structured-export evidence: directory closure, markers and unsupported sparse facts. */
 export interface PlanDocumentReads {
+  readonly stepParallels: readonly StoredStepParallel[];
   readonly directory: {
     readonly teams: DirectoryCatalogRows['teams'];
     readonly people: DirectoryCatalogRows['people'];
@@ -99,6 +102,16 @@ export interface PlanDocumentReads {
     readonly externalSystems: DirectoryCatalogRows['externalSystems'];
   };
   readonly markers: readonly CalendarMarker[];
+  /**
+   * The resource facts the document carries (`wbs-resources`): the resources
+   * the caller's directory holds, from which the export takes the closure its
+   * capacities and demands name, and the project's capacities and demands.
+   */
+  readonly resources: {
+    readonly resources: readonly Resource[];
+    readonly capacities: readonly ResourceCapacity[];
+    readonly demands: readonly Demand[];
+  };
 }
 
 /** Export-purpose evidence is private to core callers, never part of the public tree payload. */

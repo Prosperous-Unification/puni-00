@@ -1,0 +1,19 @@
+{
+  "totals": {
+    "items": 212,
+    "passed": 212,
+    "failed": 0
+  },
+  "byType": {
+    "change": {
+      "items": 194,
+      "passed": 194,
+      "failed": 0
+    },
+    "spec": {
+      "items": 18,
+      "passed": 18,
+      "failed": 0
+    }
+  }
+}

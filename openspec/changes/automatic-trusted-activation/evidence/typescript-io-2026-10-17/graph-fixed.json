@@ -1,0 +1,8 @@
+{
+  "command": ["bun", "node_modules/.bin/nx", "show", "project", "twilight-burokrat", "--json"],
+  "exitCode": 0,
+  "peakTreeRssBytes": 264126464,
+  "seconds": 0.733,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 300
+}

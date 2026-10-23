@@ -1,0 +1,196 @@
+{
+  "count": 19,
+  "defaultCapMiB": 900,
+  "sourceRestoredByRecipeFinally": true,
+  "mutations": [
+    {
+      "fault": "early-typed",
+      "exit": 1,
+      "sampledPeakBytes": 107642880,
+      "assertionFailures": [
+        "(fail) typed-dependency-refusal keeps existing precedence before unreadable sparse evidence [161.83ms]"
+      ],
+      "receipt": "project-drain-fault-early-typed-20261017.txt"
+    },
+    {
+      "fault": "early-waiting",
+      "exit": 1,
+      "sampledPeakBytes": 108785664,
+      "assertionFailures": [
+        "(fail) waiting keeps existing precedence before unreadable sparse evidence [181.10ms]"
+      ],
+      "receipt": "project-drain-fault-early-waiting-20261017.txt"
+    },
+    {
+      "fault": "inner-owner",
+      "exit": 1,
+      "sampledPeakBytes": 108728320,
+      "assertionFailures": [
+        "(fail) finish throws on missing-owner sparse evidence and rolls back the graph and slot transaction [131.99ms]"
+      ],
+      "receipt": "project-drain-fault-inner-owner-20261017.txt"
+    },
+    {
+      "fault": "inner-step",
+      "exit": 1,
+      "sampledPeakBytes": 107950080,
+      "assertionFailures": [
+        "(fail) finish throws on missing-step sparse evidence and rolls back the graph and slot transaction [143.12ms]"
+      ],
+      "receipt": "project-drain-fault-inner-step-20261017.txt"
+    },
+    {
+      "fault": "late-cleanup",
+      "exit": 1,
+      "sampledPeakBytes": 107433984,
+      "assertionFailures": [
+        "(fail) finish throws on cleanup-order sparse evidence and rolls back the graph and slot transaction [135.88ms]"
+      ],
+      "receipt": "project-drain-fault-late-cleanup-20261017.txt"
+    },
+    {
+      "fault": "omit",
+      "exit": 1,
+      "sampledPeakBytes": 133173248,
+      "assertionFailures": [
+        "(fail) finish throws on target-owner-foreign-step sparse evidence and rolls back the graph and slot transaction [138.41ms]",
+        "(fail) finish throws on foreign-owner-target-step sparse evidence and rolls back the graph and slot transaction [103.97ms]",
+        "(fail) finish throws on missing-owner sparse evidence and rolls back the graph and slot transaction [98.70ms]",
+        "(fail) finish throws on missing-step sparse evidence and rolls back the graph and slot transaction [94.76ms]",
+        "(fail) finish throws on parent sparse evidence and rolls back the graph and slot transaction [93.30ms]",
+        "(fail) finish throws on zero sparse evidence and rolls back the graph and slot transaction [89.37ms]",
+        "(fail) finish throws on fraction sparse evidence and rolls back the graph and slot transaction [88.54ms]",
+        "(fail) finish throws on too-large sparse evidence and rolls back the graph and slot transaction [113.41ms]",
+        "(fail) finish throws on absent sparse evidence and rolls back the graph and slot transaction [115.94ms]",
+        "(fail) finish throws on unreadable sparse evidence and rolls back the graph and slot transaction [116.14ms]",
+        "(fail) finish throws on cleanup-order sparse evidence and rolls back the graph and slot transaction [109.61ms]"
+      ],
+      "receipt": "project-drain-fault-omit-20261017.txt"
+    },
+    {
+      "fault": "omit-leaf",
+      "exit": 1,
+      "sampledPeakBytes": 108388352,
+      "assertionFailures": [
+        "(fail) finish throws on parent sparse evidence and rolls back the graph and slot transaction [147.94ms]"
+      ],
+      "receipt": "project-drain-fault-omit-leaf-20261017.txt"
+    },
+    {
+      "fault": "omit-owner-project",
+      "exit": 1,
+      "sampledPeakBytes": 108552192,
+      "assertionFailures": [
+        "(fail) finish throws on foreign-owner-target-step sparse evidence and rolls back the graph and slot transaction [156.73ms]"
+      ],
+      "receipt": "project-drain-fault-omit-owner-project-20261017.txt"
+    },
+    {
+      "fault": "omit-owner-reference",
+      "exit": 1,
+      "sampledPeakBytes": 109166592,
+      "assertionFailures": [
+        "(fail) finish throws on missing-owner sparse evidence and rolls back the graph and slot transaction [131.58ms]"
+      ],
+      "receipt": "project-drain-fault-omit-owner-reference-20261017.txt"
+    },
+    {
+      "fault": "omit-range",
+      "exit": 1,
+      "sampledPeakBytes": 117530624,
+      "assertionFailures": [
+        "(fail) finish throws on zero sparse evidence and rolls back the graph and slot transaction [136.08ms]",
+        "(fail) finish throws on fraction sparse evidence and rolls back the graph and slot transaction [118.12ms]",
+        "(fail) finish throws on too-large sparse evidence and rolls back the graph and slot transaction [110.94ms]"
+      ],
+      "receipt": "project-drain-fault-omit-range-20261017.txt"
+    },
+    {
+      "fault": "omit-step-project",
+      "exit": 1,
+      "sampledPeakBytes": 108802048,
+      "assertionFailures": [
+        "(fail) finish throws on target-owner-foreign-step sparse evidence and rolls back the graph and slot transaction [151.76ms]"
+      ],
+      "receipt": "project-drain-fault-omit-step-project-20261017.txt"
+    },
+    {
+      "fault": "omit-step-reference",
+      "exit": 1,
+      "sampledPeakBytes": 109428736,
+      "assertionFailures": [
+        "(fail) finish throws on missing-step sparse evidence and rolls back the graph and slot transaction [129.02ms]"
+      ],
+      "receipt": "project-drain-fault-omit-step-reference-20261017.txt"
+    },
+    {
+      "fault": "outer-commit",
+      "exit": 1,
+      "sampledPeakBytes": 604082176,
+      "assertionFailures": [
+        "(fail) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after after-capture [271.94ms]",
+        "(fail) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after event-insert [230.29ms]",
+        "(fail) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after after-capture [215.96ms]",
+        "(fail) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after event-insert [242.68ms]"
+      ],
+      "receipt": "project-drain-fault-outer-commit-20261017.txt"
+    },
+    {
+      "fault": "overbroad",
+      "exit": 1,
+      "sampledPeakBytes": 108003328,
+      "assertionFailures": [
+        "(fail) finish keeps nonincident corrupt bystander policy byte-equal without validating it [154.22ms]"
+      ],
+      "receipt": "project-drain-fault-overbroad-20261017.txt"
+    },
+    {
+      "fault": "owner-only",
+      "exit": 1,
+      "sampledPeakBytes": 113516544,
+      "assertionFailures": [
+        "(fail) finish throws on foreign-owner-target-step sparse evidence and rolls back the graph and slot transaction [127.21ms]",
+        "(fail) finish throws on missing-owner sparse evidence and rolls back the graph and slot transaction [104.59ms]"
+      ],
+      "receipt": "project-drain-fault-owner-only-20261017.txt"
+    },
+    {
+      "fault": "reclaim-commit",
+      "exit": 1,
+      "sampledPeakBytes": 107511808,
+      "assertionFailures": [
+        "(fail) expired-reclaim throws on zero sparse evidence and rolls back the graph and slot transaction [167.91ms]"
+      ],
+      "receipt": "project-drain-fault-reclaim-commit-20261017.txt"
+    },
+    {
+      "fault": "release-commit",
+      "exit": 1,
+      "sampledPeakBytes": 109383680,
+      "assertionFailures": [
+        "(fail) last-release throws on zero sparse evidence and rolls back the graph and slot transaction [160.77ms]"
+      ],
+      "receipt": "project-drain-fault-release-commit-20261017.txt"
+    },
+    {
+      "fault": "required-read-default",
+      "exit": 1,
+      "sampledPeakBytes": 114475008,
+      "assertionFailures": [
+        "(fail) finish throws on absent sparse evidence and rolls back the graph and slot transaction [151.08ms]",
+        "(fail) finish throws on unreadable sparse evidence and rolls back the graph and slot transaction [134.73ms]"
+      ],
+      "receipt": "project-drain-fault-required-read-default-20261017.txt"
+    },
+    {
+      "fault": "step-only",
+      "exit": 1,
+      "sampledPeakBytes": 112713728,
+      "assertionFailures": [
+        "(fail) finish throws on target-owner-foreign-step sparse evidence and rolls back the graph and slot transaction [130.57ms]",
+        "(fail) finish throws on missing-step sparse evidence and rolls back the graph and slot transaction [93.26ms]"
+      ],
+      "receipt": "project-drain-fault-step-only-20261017.txt"
+    }
+  ]
+}

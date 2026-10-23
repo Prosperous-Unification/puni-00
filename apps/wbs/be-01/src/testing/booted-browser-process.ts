@@ -7,10 +7,14 @@ import { openSqliteSource } from '@wbs/store-sqlite';
 
 import { type AppOptions, buildApp } from '../app';
 import { bootBe01, type BootOptions, type RunningBe } from '../boot';
+import type { DelegationKeys } from '../config';
 import type { OidcRouteOptions } from '../controller/oidc-options';
 import { openDatabase } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
+import type { DnsTransport } from '../runtime/authoritative-dns/resolver';
+import type { EmailDeliveryConfig } from '../runtime/email-delivery-config';
 import { TEST_JWT_KEY } from './auth-fixture';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -45,6 +49,9 @@ export class BootedBrowserProcess {
     browserSessionAuthority: BootOptions['browserSessionAuthority'],
     oidc?: OidcRouteOptions,
     appOrigin = BOOTED_ORIGIN,
+    dns?: { readonly resolvers?: readonly string[]; readonly transport?: DnsTransport },
+    emailDelivery?: EmailDeliveryConfig,
+    delegationKeys?: DelegationKeys,
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
@@ -60,11 +67,16 @@ export class BootedBrowserProcess {
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: BOOTED_INTERNAL_SECRET,
         browserSessionAuthority,
+        organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+        emailDelivery,
+        delegationKeys,
         oidc,
         commitDir: dir,
+        organizationDnsResolvers: dns?.resolvers,
       },
       {
         openSource: openSqliteSource,
+        dnsTransport: dns?.transport,
         makeApp: (options) => {
           const app = buildApp(options);
           // No socket was opened, so there is no server for Elysia to stop.
@@ -85,6 +97,11 @@ export class BootedBrowserProcess {
       composed.options,
       openDatabase(dbPath),
     );
+  }
+
+  /** The migrated file the booted app serves, for a CLI run as a separate process. */
+  databasePath(): string {
+    return join(this.dir, 'test.db');
   }
 
   async close(): Promise<void> {

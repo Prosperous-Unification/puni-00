@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 611876864, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+274 |           lower = ceiling + 1;
+275 |         }
+276 |         Bun.gc(true);
+277 |       }
+278 |       expect(attempt(lower).runtimeTrust).toBe('unverified');
+279 |       expect(() => attempt(lower - 1)).toThrow(/probe|step/);
+                                             ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /probe|step/
+Received message: "retained TypeScript limit maximumSteps invalid"
+
+      at minimum (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:279:40)
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:282:18)
+(fail) retained literal paths charges shared steps admission at exact fit [2304.65ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.26s]

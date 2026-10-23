@@ -12,8 +12,11 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import { readPreconditions } from '@wbs/core/service/compensating';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint, RelationshipType } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -116,6 +119,7 @@ beforeEach(() => {
     }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     projects: new ProjectService({
       clock: testClock,
@@ -142,10 +146,13 @@ beforeEach(() => {
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
+      stepParallels: new StepParallelRepository(db, OPEN),
       dependencies,
       typedDependencies: typed,
       directory,
       capacity: inMemoryCapacity(),
+      demands: new DemandRepository(db, OPEN),
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db, OPEN),
       journal,

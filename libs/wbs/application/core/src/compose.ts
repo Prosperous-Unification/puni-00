@@ -1,6 +1,9 @@
 import type { AuthenticatedUser, Logger } from '@wbs/contracts';
 
-import type { AuthService } from './module/authentication/authentication.feature';
+import type {
+  AuthService,
+  TrustedIssuerVerification,
+} from './module/authentication/authentication.feature';
 import { installAuthentication } from './module/authentication/check';
 import type { LoginThrottle } from './module/authentication/login-throttle';
 import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
@@ -11,6 +14,11 @@ import { installDirectory } from './module/directory/check';
 import { standaloneDirectoryService } from './module/directory/standalone-directory';
 import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
+import {
+  CLAIM_LEASE_SWEEP_INTERVAL_MS,
+  CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK,
+  ClaimLeaseSweep,
+} from './module/plan-commands/claim-lease-sweep';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
 import { installPlanEvent } from './module/plan-event/check';
 import { installPlanHistory } from './module/plan-history/check';
@@ -31,6 +39,7 @@ import type { Clock } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
+import type { MachineCredentials } from './ports/machine-credentials';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
@@ -66,6 +75,13 @@ export interface AccountRuntime {
   readonly tokens: TokenCodec;
   /** Which enterprise connections are proven, for enterprise email trust (D4). */
   readonly enterprise: Pick<EnterpriseConnections, 'provenFor'>;
+  /** What `wbs_mk_` API keys are verified against (`wbs-machine-credentials` A13). */
+  readonly machineCredentials: MachineCredentials;
+  /**
+   * How trusted issuers' JWTs are verified (`wbs-machine-credentials` A13
+   * step 3); absent, the OIDC machine source is off.
+   */
+  readonly trustedIssuers?: TrustedIssuerVerification;
   readonly oidc?: OidcVerifier;
   readonly passwordSessions?: boolean;
   readonly localIdentity?: AuthenticatedUser;
@@ -125,6 +141,13 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       clock,
       projects: stores.projects,
       capacity: stores.capacity,
+      resourceCapacity: stores.resourceCapacity,
+      // Proof: with this spread removed, every activated statement case of
+      // capacity-limit.controller.db.test.ts threw the capacity service's
+      // composition error (2 pass, 10 fail); watched 2026-10-22.
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
       broadcast,
       admission,
     }).capacity,
@@ -151,17 +174,31 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       dependencyGraph,
       beforeRemove: shared.beforeStepRemoval,
     }).steps,
-    directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
+    directory: installDirectory({
+      clock,
+      directory: stores.directory,
+      broadcast,
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
+    }).directory,
     workItems: installWorkItem({
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,
       workItems: stores.workItems,
+      stepParallels: stores.stepParallels,
       projects: stores.projects,
       estimates: stores.estimates,
       actuals: stores.actuals,
       measures: stores.measures,
       progress: stores.progress,
       blockages: stores.blockages,
+      claims: stores.claims,
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
+      demands: stores.demands,
+      resourceCapacity: stores.resourceCapacity,
       attempts: stores.attempts,
       dependencies: stores.dependencies,
       typedDependencies: stores.typedDependencies,
@@ -212,6 +249,12 @@ interface CommonServices extends WritingServices {
    * second, stateless `PlanCommandRunner` over the same values (task 7.4).
    */
   readonly commands: PlanCommandRunner;
+  /**
+   * The coordinator that releases claims nobody renewed (`wbs-claim-leases`
+   * L7), over {@link commands}: started and stopped by the process root, as
+   * {@link retention} is.
+   */
+  readonly claimLeases: ClaimLeaseSweep;
 }
 
 export type AccountlessServices = CommonServices;
@@ -357,6 +400,13 @@ export function composeServices(
     newId: () => runtime.clock.newId(),
     now: () => Math.floor(runtime.clock.now() / 1_000),
   });
+  const commands = installPlanCommands({
+    batchServices: batch,
+    publicServices,
+    uow: source.uow,
+    announcements,
+    committedFanout,
+  }).commands;
   const common: CommonServices = {
     ...publicServices,
     clock: runtime.clock,
@@ -381,13 +431,22 @@ export function composeServices(
       // wrapper made the mounted import hit its bounded nested-owner refusal.
       batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
-    commands: installPlanCommands({
-      batchServices: batch,
-      publicServices,
-      uow: source.uow,
-      announcements,
-      committedFanout,
-    }).commands,
+    commands,
+    claimLeases: new ClaimLeaseSweep({
+      runner: commands,
+      projectsWithExpiredLeases: (at, limit) =>
+        source.stores.claims.projectsWithExpiredLeases(at, limit),
+      now: () => runtime.clock.now(),
+      intervals: runtime.intervals,
+      intervalMs: CLAIM_LEASE_SWEEP_INTERVAL_MS,
+      projectsPerTick: CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK,
+      onSweep: (released) => {
+        shared.logger.info({ released }, 'expired claim leases released');
+      },
+      onError: (error, projectId) => {
+        shared.logger.error({ err: error, projectId }, 'claim lease sweep failed');
+      },
+    }),
     history: installPlanHistory({
       projects: publicServices.projects,
       planEvents,
@@ -430,6 +489,8 @@ export function composeServices(
       tokens: runtime.tokens,
       clock: runtime.clock,
       enterprise: runtime.enterprise,
+      machineCredentials: runtime.machineCredentials,
+      ...(runtime.trustedIssuers === undefined ? {} : { trustedIssuers: runtime.trustedIssuers }),
       ...(runtime.oidc === undefined ? {} : { oidc: runtime.oidc }),
       ...(runtime.passwordSessions === undefined
         ? {}

@@ -1,0 +1,8 @@
+libs/wbs/domain/domain/src/step-parallel.ts 96ms (unchanged)
+libs/wbs/domain/domain/src/step-parallel.test.ts 30ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 37ms (unchanged)
+openspec/changes/set-step-node-parallelism/design.md 16ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 28ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 26ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/mutation-receipts.json 6ms (unchanged)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 153210880, "exitCode": 0}

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "exclude coordinates|wildcard dot components"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 347124,
+  "ceilingKiB": 921600
+}

@@ -1,0 +1,2 @@
+rule policy resolves inside selected candidate: /home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-survey/recovery-full-policy.json.txt
+Twilight Burokrat validator exited 1

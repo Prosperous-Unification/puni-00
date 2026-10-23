@@ -2,13 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { subscribeToProject } from '@/lib/project-stream';
-import type {
-  DirectoryApi,
-  DirectoryUsage,
-  DirectoryWrite,
-  PersonPatch,
-  PersonView,
-  TeamView,
+import {
+  type DirectoryApi,
+  type DirectoryUsage,
+  type DirectoryWrite,
+  type PersonPatch,
+  type PersonView,
+  type TeamView,
+  WbsRequestError,
 } from '@/lib/wbs-api';
 import { DirectoryPageOverClient } from '@/testing/directory-page-over-client';
 import { personView } from '@/testing/views';
@@ -432,6 +433,20 @@ describe('the directory page', () => {
     expect(screen.getByText('load of p1')).toBeDefined();
   });
 
+  itDom("draws each person's machine credentials under their row", async () => {
+    render(
+      <DirectoryPageOverClient
+        api={fakeDirectory([KAT], [PLATFORM])}
+        nav={null}
+        account={null}
+        credentialsOf={(person) => <span>{`credentials of ${person.id} (${person.kind})`}</span>}
+      />,
+    );
+    await drawn('Kat');
+    // Proof: 2026-10-22, dropping `credentialsOf?.(person)` from the row failed this case.
+    expect(screen.getByText('credentials of p1 (person)')).toBeDefined();
+  });
+
   itDom('carries the navigation and the account, and no project controls', async () => {
     pageWith(fakeDirectory([], []));
     await waitFor(() => {
@@ -614,6 +629,33 @@ describe('a person or an agent', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeDefined();
     });
+    expect(screen.getByLabelText('Kind of Kat')).toHaveValue('person');
+  });
+
+  itDom('names the organization’s agent-person cap with the refusal’s own numbers', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refusePatchWith(
+      new WbsRequestError({
+        kind: 'refusal',
+        operation: 'postApiDirectoryCommands',
+        refusal: {
+          error: 'agent_person_limit',
+          at: 0,
+          kind: 'patchPerson',
+          cap: 8,
+          current: 8,
+          added: 1,
+        },
+      }),
+    );
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.change(screen.getByLabelText('Kind of Kat'), { target: { value: 'agent' } });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Organization limit: 8 of 8 agent persons; adding 1 would exceed the cap. Nothing was changed.',
+    );
     expect(screen.getByLabelText('Kind of Kat')).toHaveValue('person');
   });
 });
@@ -945,6 +987,18 @@ describe('removing from the directory', () => {
     expect(dialog.textContent).toContain('would lose a membership');
     expect(within(dialog).getByText('Kat')).toBeDefined();
     expect(within(dialog).getByText('Ada')).toBeDefined();
+  });
+
+  itDom('names the fleet credentials a pinned person’s removal revokes', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refuseRemovalWith({ projects: [], members: [], pinnedCredentials: 2 });
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('2 fleet credentials pinned to Kat are revoked.');
   });
 
   itDom('sends the cascade only from the confirmation', async () => {

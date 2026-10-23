@@ -33,9 +33,9 @@ plan is 409.
   asserted** at open in `repository/db.ts`, and an ESLint rule bans importing
   `bun:sqlite` anywhere else under `src/` — the pragmas are per connection, so a
   direct `new Database()` silently loses them.
-- **A migration must be additive and must ship a `down.sql`.** Blue and green
-  share one file mid-swap; the lint refuses the obvious destructive statements
-  and the judgement is yours.
+- **A migration must be additive and must ship a `down.sql`**
+  ([migrations](../../../AGENTS.md#migrations)); the lint refuses the obvious
+  destructive statements and the judgement is yours.
 - **`ALTER TABLE … RENAME` rewrites other tables' `REFERENCES` only with
   `foreign_keys` on**, and that pragma is decided per pending migration
   (`pendingNeedingForeignKeysOff`), not per run.

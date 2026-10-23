@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+118 |     });
+119 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+120 |     const roots: string[] = [];
+121 |     system.admitTypeRoot = (path) => { roots.push(path); };
+122 |     parseProject(workspace, 'tsconfig.json', system, 'retained-type-roots');
+123 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "/candidate/configs/types",
++   "/candidate/types",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:123:19)
+(fail) retained admission observes only parser effective roots at the declaring config base [16.54ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [549.00ms]

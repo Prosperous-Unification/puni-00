@@ -18,6 +18,11 @@ export const McpConfig = type({
   // `user:pass`. The password may contain colons, the user may not — which is
   // also how an `Authorization: Basic` credential splits.
   'WBS_BASIC_AUTH?': /^[^:\s]+:.+$/,
+  // be-01's own INTERNAL_AUTH_SECRET. Present, mcp-01 binds consents to an
+  // organization after activation and calls be-01 with signed delegations;
+  // absent, it keeps forwarding the upstream token, which be-01 refuses for
+  // organization resources once activated.
+  'INTERNAL_AUTH_SECRET?': 'string>=32',
 });
 export type McpConfig = typeof McpConfig.infer;
 
@@ -27,6 +32,7 @@ const NAMES = [
   'MCP_PUBLIC_URL',
   'MCP_TRUSTED_GATEWAY',
   'WBS_BASIC_AUTH',
+  'INTERNAL_AUTH_SECRET',
 ] as const;
 
 const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
@@ -36,6 +42,7 @@ const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
     'the canonical public MCP resource URL, e.g. https://dev.wbs.bulletpoints.club/mcp',
   MCP_TRUSTED_GATEWAY: 'the exact value true when gateway mode terminates token verification',
   WBS_BASIC_AUTH: 'user:pass for the deployment’s basic auth, or unset',
+  INTERNAL_AUTH_SECRET: "be-01's INTERNAL_AUTH_SECRET, at least 32 characters, or unset",
 };
 
 /**

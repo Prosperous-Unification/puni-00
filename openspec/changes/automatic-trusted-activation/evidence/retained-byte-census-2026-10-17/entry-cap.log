@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+891 |   exact.readFile(`${root}/a.ts`);
+892 |   const copy = spyOn(f.candidate, 'read').mockImplementation(() => {
+893 |     throw new Error('copy sentinel');
+894 |   });
+895 |   try {
+896 |     expect(() => exact.readFile(`${root}/src/b.ts`)).toThrow('read entry ceiling');
+                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "read entry ceiling"
+Received message: "source read ledger byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:896:54)
+(fail) byte census exact ceilings precede owner copies and repeated tuples do not grow [119.54ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1013.00ms]

@@ -23,6 +23,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       workItemStore: DiBag.createProvider(() => requirements.workItems, {
         factoryReturnKind: 'sync-value',
       }),
+      stepParallelStore: DiBag.createProvider(() => requirements.stepParallels, {
+        factoryReturnKind: 'sync-value',
+      }),
       projectStore: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),
@@ -42,6 +45,18 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
         factoryReturnKind: 'sync-value',
       }),
       blockageStore: DiBag.createProvider(() => requirements.blockages, {
+        factoryReturnKind: 'sync-value',
+      }),
+      claimStore: DiBag.createProvider(() => requirements.claims, {
+        factoryReturnKind: 'sync-value',
+      }),
+      organizationLimits: DiBag.createProvider(() => requirements.organizationLimits ?? null, {
+        factoryReturnKind: 'sync-value',
+      }),
+      demandStore: DiBag.createProvider(() => requirements.demands, {
+        factoryReturnKind: 'sync-value',
+      }),
+      resourceCapacityStore: DiBag.createProvider(() => requirements.resourceCapacity, {
         factoryReturnKind: 'sync-value',
       }),
       directoryStore: DiBag.createProvider(() => requirements.directory, {

@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+(pass) retained effective typeRoots refuses ancestor escape before program with types empty [180.71ms]
+
+ 1 pass
+ 16 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1134.00ms]

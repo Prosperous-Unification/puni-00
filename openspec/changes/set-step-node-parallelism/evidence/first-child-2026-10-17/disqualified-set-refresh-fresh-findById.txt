@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+(pass) first-child sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [571.01ms]
+(pass) first-child sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [474.62ms]
+
+ 2 pass
+ 0 fail
+ 42 expect() calls
+Ran 2 tests across 1 file. [3.03s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 637902848, "exitCode": 0}

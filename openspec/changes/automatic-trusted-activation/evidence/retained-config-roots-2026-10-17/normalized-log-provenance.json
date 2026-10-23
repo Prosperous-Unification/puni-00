@@ -1,0 +1,51 @@
+[
+  {
+    "path": "lint-4.log",
+    "rawIdentity": "549c6f93ecded4c905645bbf382f59632ac554e466015d5dbb94414c69245740",
+    "rawUtf8": "warning No cached ProjectGraph is available. The rule will be skipped.\n          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx\n          @nx/enforce-module-boundaries\n\n/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts\n  8:1  warning  Unused eslint-disable directive (no problems were reported from '@nx/enforce-module-boundaries')\n\n\u2716 1 problem (0 errors, 1 warning)\n  0 errors and 1 warning potentially fixable with the `--fix` option.\n\n",
+    "displayIdentity": "d287129cec931356b540d71dd0e853de330623758ca4f1922940c3709413b63f",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  },
+  {
+    "path": "fault-global-rootdirs.log",
+    "rawIdentity": "2afeab4ff63c201c8efd0748212719d8703d82840f4eb7c1d5380b611668771f",
+    "rawUtf8": "bun test v1.4.2 (744846f84)\n\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:\n157 | });\n158 | \n159 | test('previous retained type roots mode preserves rootDirs as ordinary namespace probes', () => {\n160 |   const { source } = fixture({ 'tsconfig.json': JSON.stringify({ compilerOptions: { noLib: true, types: [], rootDirs: ['/outside/generated'] }, files: ['globals.d.ts', 'src/index.ts'] }) });\n161 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });\n162 |   system.admitConfigurationRoot = () => { throw new Error('unexpected explicit admission'); };\n                                                                                               ^\nerror: unexpected explicit admission\n      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:162:90)\n      at parseProject (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:244:62)\n      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:164:12)\n(fail) previous retained type roots mode preserves rootDirs as ordinary namespace probes [7.51ms]\n\n 0 pass\n 10 filtered out\n 1 fail\nRan 1 test across 1 file. [546.00ms]\n",
+    "displayIdentity": "0659dd1cb0ec9ad43873880679095e33e18f0cc81a277c956bde7461136365d3",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  },
+  {
+    "path": "nx-graph.log",
+    "rawIdentity": "23bce2c05f10668c55f7ef740814f1b1d1f31fdedea79442c93f23e801f342cf",
+    "rawUtf8": "\n NX   JSON output created in /tmp\n\n/tmp/config-roots-project-graph.json\n\n",
+    "displayIdentity": "5851906102d1c20e9ec92345f2e3634e41bc5b33020d396594a68a58e1846b87",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  },
+  {
+    "path": "lint-boundary-fault.log",
+    "rawIdentity": "642297e444ee2b5c1a398d84e42704b6f9c8c9e6b21fa0c7d6533c9f697dbe8c",
+    "rawUtf8": "\n/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts\n  1:1  error  Projects cannot be imported by a relative or absolute path, and must begin with a npm scope  @nx/enforce-module-boundaries\n  1:1  error  Run autofix to sort these imports!                                                           simple-import-sort/imports\n\n\u2716 2 problems (2 errors, 0 warnings)\n  1 error and 0 warnings potentially fixable with the `--fix` option.\n\n",
+    "displayIdentity": "d6e2ab22bdcc1a5e02a071a64fd697c3219e9f7e1ac02b33f10c24a019e357ce",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  },
+  {
+    "path": "hook-negative.log",
+    "rawIdentity": "d7e0a0c95ec6137035b8be4fe92944d76bca3d49ccb25879135315abac23f6b2",
+    "rawUtf8": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mpre-commit\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2502  doc-caps (skip) no matching staged files\n\u2503  format \u276f \nChecking formatting...\n[error] apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts: SyntaxError: Variable declaration expected. (188:14)\n[error]   186 | });\n[error]   187 |\n[error] > 188 | export const = ;\n[error]       |              ^\n[error]   189 |\nError occurred when checking code style in the above file.\n\nexit status 2\n\u2503  lint \u276f \n\n/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts\n  188:13  error  Parsing error: Variable declaration expected\n\n\u2716 1 problem (1 error, 0 warnings)\n\n\nexit status 1\n\u2502  migration-lint (skip) no files for inspection\n\u2503  plaintext-secrets \u276f \n\n\u2503  private-nesting \u276f \n\n\u2503  tool-wiki \u276f \n{\"schemaVersion\":1,\"status\":\"inactive\",\"certified\":false,\"reason\":\"external activation root is not provisioned\"}\n\n\u2502  website-migration-lint (skip) no files for inspection\n\u001b[38;2;56;56;56m  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u001b[m\nsummary: (done in 7.34 seconds)\n\u2713 plaintext-secrets (0.02 seconds)\n\u2713 private-nesting (0.03 seconds)\n\u2713 tool-wiki (0.00 seconds)\n\u2717 format (2.09 seconds)\n\u2717 lint (5.16 seconds)\n",
+    "displayIdentity": "1a0aa92deaff1c2ff8e3d43a3ce3b10c2e93a759eb7f5c9735076526318b1f49",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  },
+  {
+    "path": "hook-negative-cap900.log",
+    "rawIdentity": "0861a89a08672a417bf43fbe9dc7931dd1b3fcadbfdd63789f72f00800b84fcf",
+    "rawUtf8": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mpre-commit\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2502  doc-caps (skip) no matching staged files\n\u2503  format \u276f \nChecking formatting...\n[error] apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts: SyntaxError: Variable declaration expected. (188:14)\n[error]   186 | });\n[error]   187 |\n[error] > 188 | export const = ;\n[error]       |              ^\n[error]   189 |\nError occurred when checking code style in the above file.\n\nexit status 2\n",
+    "displayIdentity": "62c36023b0ff177f4363a44857b7bb0b1bae83f4546674283679afa3a52530a6",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  },
+  {
+    "path": "hook-positive.log",
+    "rawIdentity": "616d9c172635989b250828b708362608cb517381c4d24da8f3d5c8fd9d588ce7",
+    "rawUtf8": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mpre-commit\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2502  doc-caps (skip) no matching staged files\n\u2503  format \u276f \nChecking formatting...\nAll matched files use Prettier code style!\n\n\u2503  lint \u276f \n\n\u2502  migration-lint (skip) no files for inspection\n\u2503  plaintext-secrets \u276f \n\n\u2503  private-nesting \u276f \n\n\u2503  tool-wiki \u276f \n{\"schemaVersion\":1,\"status\":\"inactive\",\"certified\":false,\"reason\":\"external activation root is not provisioned\"}\n\n\u2502  website-migration-lint (skip) no files for inspection\n\u001b[38;2;56;56;56m  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u001b[m\nsummary: (done in 7.40 seconds)\n\u2713 format (2.07 seconds)\n\u2713 lint (5.20 seconds)\n\u2713 plaintext-secrets (0.03 seconds)\n\u2713 private-nesting (0.04 seconds)\n\u2713 tool-wiki (0.00 seconds)\n",
+    "displayIdentity": "a014892064201ef22ad4f5377a4a672ee294fe2e65792614173ce952e7c4d896",
+    "normalization": "Remove trailing line whitespace and final empty lines; keep one terminal newline."
+  }
+]

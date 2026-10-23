@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/shared-failures-parity.py", line 21, in <module>
+    assert c['caseId']==sha(canonical({'project':c['project'],'target':c['target'],'file':c['file'],'titlePath':c['titlePath']}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

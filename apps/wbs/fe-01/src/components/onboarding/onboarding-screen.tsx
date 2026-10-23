@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import {
   type ClientReply,
   createOnboardingOrganization,
@@ -7,7 +8,6 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 
 import { MembershipChoices } from '@/components/organization/membership-choices';
-import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 import { useFeatureReachable } from '@/lib/session-features';
 

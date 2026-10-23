@@ -40,6 +40,7 @@ import {
   solverQueue,
   solverSlot,
 } from './schema';
+import { StepParallelRepository } from './step-parallel';
 import { nodeDigest } from './testing/node-digest';
 import { openSpaceDatabase } from './testing/space-database';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
@@ -135,7 +136,7 @@ function snapshots(
         return 'org-a';
       },
       now: Date.now,
-      optimization: { contractVersion: '16+0.2.0', budgetMs: 1000, now: () => 100 },
+      optimization: { contractVersion: '17+0.3.0', budgetMs: 1000, now: () => 100 },
       schedulerOf: (readCaptured) =>
         createScheduler(
           (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
@@ -532,14 +533,14 @@ describe('the chain snapshot', () => {
         const connection = openConnection(path);
         try {
           const inputHash = scheduleInputHash(input);
-          const generation = allocateGeneration(connection.db, 'a1', '16+0.2.0', inputHash, 1);
+          const generation = allocateGeneration(connection.db, 'a1', '17+0.3.0', inputHash, 1);
           connection.db
             .insert(optimizedScheduleCache)
             .values({
               projectId: 'a1',
               inputHash,
               generation,
-              contractVersion: '16+0.2.0',
+              contractVersion: '17+0.3.0',
               budgetMs: 1000,
               objective: 'pri',
               status: 'ok',
@@ -593,10 +594,10 @@ describe('the chain snapshot', () => {
     const connection = openConnection(path);
     try {
       const db = connection.db;
-      const generation = allocateGeneration(db, 'a3', '16+0.2.0', h1, 1);
+      const generation = allocateGeneration(db, 'a3', '17+0.3.0', h1, 1);
       const admission = reserveSolverSlot(db, {
         projectId: 'a3',
-        contractVersion: '16+0.2.0',
+        contractVersion: '17+0.3.0',
         generation,
         objective: 'pri',
         budgetMs: 1000,
@@ -613,7 +614,7 @@ describe('the chain snapshot', () => {
       expect(second.scheduled.fast.slices.get(sliceKey('a3', 'a3-s0'))?.earliestStart).not.toBe(
         first.scheduled.fast.slices.get(sliceKey('a3', 'a3-s0'))?.earliestStart,
       );
-      expect(readGeneration(db, 'a3', '16+0.2.0')).toMatchObject({ generation, inputHash: h1 });
+      expect(readGeneration(db, 'a3', '17+0.3.0')).toMatchObject({ generation, inputHash: h1 });
       const state = () => ({
         generations: db.select().from(optimizationGeneration).all(),
         cache: db.select().from(optimizedScheduleCache).all(),
@@ -631,7 +632,7 @@ describe('the chain snapshot', () => {
       const outcome = {
         claim: {
           projectId: 'a3',
-          contractVersion: '16+0.2.0',
+          contractVersion: '17+0.3.0',
           generation,
           objective: 'pri' as const,
           budgetMs: 1000,
@@ -665,7 +666,7 @@ describe('the chain snapshot', () => {
         generation,
         inputHash: h1,
         objective: 'pri',
-        contractVersion: '16+0.2.0',
+        contractVersion: '17+0.3.0',
         budgetMs: 1000,
       });
       expect(storeOptimizedOutcomeAndRecord(db, events, outcome).result).toBe('already-recorded');
@@ -673,9 +674,9 @@ describe('the chain snapshot', () => {
       expect(afterPublication.cache.map((row) => row.inputHash)).toEqual([h1]);
       expect(afterPublication.events).toHaveLength(1);
       expect(await events.rangeSince('project:a3', -1)).toEqual([published.recorded]);
-      expect(readGeneration(db, 'a3', '16+0.2.0')).toMatchObject({ generation, inputHash: h1 });
+      expect(readGeneration(db, 'a3', '17+0.3.0')).toMatchObject({ generation, inputHash: h1 });
       const lookup = capturedOptimizationReaderOf(db, {
-        contractVersion: '16+0.2.0',
+        contractVersion: '17+0.3.0',
         budgetMs: 1000,
         now: () => 100,
       });
@@ -912,6 +913,49 @@ describe('detached live snapshot guards', () => {
     const moved = await target();
     expect(moved.basis).not.toBe(before.basis);
     expect(moved.inputHash).not.toBe(before.inputHash);
+  });
+  it('copies sparse adapter rows into private export evidence', async () => {
+    write(
+      "INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES ('a2', 'a2-s0', 1)",
+    );
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- invokes the real repository with its original receiver.
+    const list = StepParallelRepository.prototype.listByProject;
+    const retained: Awaited<ReturnType<typeof list>>[] = [];
+    const borrowing = spyOn(StepParallelRepository.prototype, 'listByProject').mockImplementation(
+      async function (this: StepParallelRepository, projectId) {
+        const rows = await list.call(this, projectId);
+        retained.push(rows);
+        return rows;
+      },
+    );
+    try {
+      const observed = await livePlans().readExport('a2', access);
+      if (observed.kind !== 'shared') throw new Error('shared export observation unavailable');
+      for (const rows of retained) for (const fact of rows) fact.maxParallel = 1000;
+      expect(observed.document.stepParallels).toEqual([
+        { workItemId: 'a2', stepId: 'a2-s0', maxParallel: 1 },
+      ]);
+    } finally {
+      borrowing.mockRestore();
+    }
+  });
+  it('detaches sparse export evidence before closing its owned snapshot', async () => {
+    write(
+      "INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES ('a2', 'a2-s0', 1)",
+    );
+    const observed = await livePlans().readExport('a2', access);
+    expect(closed).toBe(1);
+    if (observed.kind !== 'shared') throw new Error('shared export observation unavailable');
+    expect(observed.document.stepParallels).toEqual([
+      { workItemId: 'a2', stepId: 'a2-s0', maxParallel: 1 },
+    ]);
+    write("DELETE FROM step_parallel WHERE work_item_id = 'a2'");
+    expect(observed.document.stepParallels).toEqual([
+      { workItemId: 'a2', stepId: 'a2-s0', maxParallel: 1 },
+    ]);
+    const cleared = await livePlans().readExport('a2', access);
+    if (cleared.kind !== 'shared') throw new Error('shared export observation unavailable');
+    expect(cleared.document.stepParallels).toEqual([]);
   });
   it('closes its owned connection after successful detached projection', async () => {
     expect((await livePlans().read('a3', access)).kind).toBe('shared');

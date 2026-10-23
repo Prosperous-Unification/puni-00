@@ -1895,3 +1895,441 @@ private-nesting. Tool Wiki reported inactive/uncertified without an external act
 Separate typecheck and broader suites were not run for this policy/test-budget repair; exact-head
 CI and canonical host gate remain required. Independent Astra high review of the exact source
 diff found no outstanding P0–P3 findings. Normal commit hooks remain enabled, with no bypass.
+
+## Source and merge reconciliation — 2026-10-19
+
+Read-only source inspection used `origin/main` at
+`3e8d0742154e90a606b23d305dd6e424bb9c7d06`. GitHub reports
+[PR #565](https://github.com/Prosperous-Unification/puni-00/pull/565) merged
+on 2026-10-17 as `53dfef620fa8f065dbddb9a2d9184c3469829475`.
+`git merge-base --is-ancestor <commit> <main-sha>` exited 0 separately for that
+merge and each source checkpoint below:
+
+| Merged checkpoint                                                                                    | Current source evidence                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DNS adapter `0f6f8f279`, classification repair `5bc9c2b55`, terminal recursive negatives `e9fbd7675` | `bootBe01` binds configured `AuthoritativeDnsResolver`; the resolver requires supported terminal discovery evidence. Open PR #562 still points at the older adapter head, already in main. |
+| Retained-proof scheduling `05fb0b0ba`                                                                | `bootBe01` owns configured proof scheduling and its disposal; both entrypoints use the failure supervisor.                                                                                 |
+| Verification SMTP successor `17f83ffde`                                                              | `bootBe01` binds `createEmailDelivery`; its dispatcher admits verification only and refuses invitation/join purposes.                                                                      |
+| Ownership preflight `a0ed2adf9`                                                                      | The read-only `organization-ownership-preflight-cli.ts` and snapshot report are present.                                                                                                   |
+
+Earlier “unpublished”, “binding absent” and “scheduler unwired” annotations
+describe their recorded checkpoints, not current main. Preserve their historical
+commands, failures and proof limits. Source presence and merge ancestry do not
+prove live configuration or activation; this reconciliation did not rerun CI,
+canonical h2 gating, application tests, builds or live operations.
+
+WBS010.5.4 (`cb49f5ad-c547-4e44-af06-d8ba795b9348`) remains in progress.
+DNS resolver/egress authority, disposable-domain acceptance, live scheduler
+observation, SMTP relay/sender/CA authority and inbox evidence remain operator
+obligations. Invitation delivery requires a separate reviewed release under the
+[eligibility prerequisite](../organization-email-delivery/invitation-eligibility.md).
+Organization/browser activation, complete inventory, gateway/MCP cutover and
+attended acceptance remain open. No acceptance checkbox is changed.
+
+Documentation checks: the ancestry checks also passed against the PR #565 merge
+itself. Pinned OpenSpec 1.12.0 `validate <change> --strict --json` passed all six
+affected changes with no issues; changed-file Prettier and `git diff --check`
+passed. Existing installed dependencies supplied formatting/hooks; no frozen
+install or application verification was performed for this documentation slice.
+
+## Activation CLI — 2026-10-20
+
+Task 7.1A, branch `feat/organization-activation-cli` from `origin/main` `a82d6fa9b`.
+`apps/wbs/be-01/src/organization-activation-cli.ts` is a thin shell over
+`activateLegacyOrganization` (`libs/wbs/adapters/store-sqlite/src/organization-legacy-activation.ts`),
+which reuses `readOrganizationActivation`, `OrganizationOwnershipRepository.backfillLegacyOwnership`
+(nested as a savepoint), `backfillExternalIdentities` and the preflight's three reconciliation
+queries inside one `BEGIN IMMEDIATE`. The preflight's own `preflightOrganizationOwnership` opens a
+`BEGIN DEFERRED` and cannot nest, so its three repository queries are called directly. Without
+`--apply` the transaction is rehearsed and rolled back. No migration.
+
+Reconciliation runs after the backfill because before it every event stream resolves to no mapped
+project and every root is unmapped. Refusals are typed and exit 3 (activated), 4 (organization
+exists), 5 (super-admin not exactly one user) or 6 (reconciliation); a broken marker, a half legacy
+solution or identity pair and usage errors throw (exit 1).
+
+Fixture: migrated disposable SQLite with three users (one with a legacy Auth0 pair), three
+projects (one with a legacy solution pair), two people, two teams, a service, a tag, a type, an
+external system, two saved plans, work items, a dependency, links, capacity and an event stream.
+
+| Command                                                                                                                                                                                        | Result                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/organization-activation-cli.db.test.ts apps/wbs/be-01/src/organization-activation.boot.db.test.ts`                                              | 20 pass, 0 fail, 108 expect() calls |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts`                         | 69 pass, 0 fail                     |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts` | 19 pass, 0 fail                     |
+| `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                        | succeeded                           |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                       | 258/258 passed                      |
+
+The rehearsal leaves every written table, the marker and the main database file byte for byte
+unchanged. The apply maps each root kind's full row count, grants one `super_admin` and two
+`member` rows, moves one solution pair and copies one identity. The booted test runs the CLI as a
+separate process against the file `bootBe01` serves (`BROWSER_SESSION_AUTHORITY=enabled`), with no
+restart. Afterwards the super-admin and a member each select their one membership and list both
+legacy projects, a Bearer-only request and a stranger registered after activation get
+`403 no_active_organization`, and under `disabled` the super-admin gets the same 403.
+
+R5 faults, each watched failing and restored:
+
+- Marker check removed: `refuses a second apply before touching the store` exited 4
+  (`organization_exists`) instead of 3; `refuses an activated marker even when no organization
+exists` reached the marker's no-revert trigger (exit 1).
+- Reconciliation check removed: `refuses and rolls back over a root planted after the backfill`
+  (bridge trigger dropped, tag inserted by a planted membership trigger) and `refuses an event
+stream that resolves to no project` both exited 0 and committed the marker.
+- Rehearsal committed: `rehearses without --apply` observed the identity, mappings and cleared
+  legacy solution pair.
+- Booted test run without `--apply`: the memberships read answered 403, not 200.
+
+Not verified: the CLI has not run on dev or prod. Drain/fence of old processes, the MCP epoch,
+trusted policy state and the release fence for `project_solution` remain 7.1B.
+
+### Review round 1 (PR #582 at `419f8fe4`)
+
+The queued gate on `419f8fe4` was cancelled before it started.
+
+- S2-1: Deleting a project through the production drain (`beginOptimizationDrain` and
+  `finishOptimizationDrain`) leaves its event stream behind. `organization-legacy-activation.db.test.ts`
+  shows activation refusing it as an `event_stream` conflict. `--prune-retained-streams` (only
+  with `--apply`) deletes, in the same transaction, the `event_sequencer`/`event_log` rows of
+  `project:<id>` streams whose project row is gone, and lists them in `prunedStreams`.
+  Faults:
+  - With the `NOT EXISTS` project guard removed, both the store test and the CLI's
+    `prunes a deleted project's retained stream only with --apply` also pruned the live
+    project's stream.
+  - With the without-`--apply` usage clause removed, both prune CLI tests exited 0.
+- S3-1: The plan prints `members` as `{id, username, role}` by id, `externalIdentities` as
+  `{userId, issuer, subject}`, and `solutionLinks` as `{projectId, slug, url}`. The dry-run test
+  pins the plan's keys and lists. A mounted parity test shows that a `member` reads a
+  restricted project it does not own and is refused its edit with the same 403 body before
+  and after activation. Fault: granting `super_admin` instead of `member` made that edit answer
+  200 and rename the project.
+- S2-2, S2-3, S3-2: `docs/runbook-organization-activation.md` now has:
+  - a Bearer and MCP loss statement naming tasks 2.5 and 6.4–6.6;
+  - a step 0 that stops on `BROWSER_SESSION_AUTHORITY=disabled`, with what `enabled` changes
+    before activation;
+  - preflight and selection preview run on the backup before the dry run.
+- S4: the `OrganizationRepository.addMember` JSDoc is corrected, and the `c` callback is renamed.
+
+| Command                                                                                                                                                                                                                                                  | Result                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/organization-activation-cli.db.test.ts apps/wbs/be-01/src/organization-activation.boot.db.test.ts`                                                                                                        | 23 pass, 0 fail, 136 expect() calls |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/organization-legacy-activation.db.test.ts src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts src/organization-records.db.test.ts` | 104 pass, 0 fail                    |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts`                                                           | 19 pass, 0 fail                     |
+| `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                                                                                  | succeeded                           |
+
+### Gate on `fde00049` and the stderr fix
+
+`h2puni gate: running on fde00049a830335f74097ea2f554b447ba60fe27` ended `GATE_EXIT=1`. The
+only failed task was `wbs-be-01:test`, which had 7 failures. All of them were refusal cases
+in `organization-activation-cli.db.test.ts`, each failing with
+`JSON Parse error: Unrecognized token '\x1b'`. Under Nx, `FORCE_COLOR` is set, and Bun's
+`console.error` wraps its output in `\x1b[0m\x1b[31m`. The local raw stderr of a refusal,
+captured with `od -c`, began `033 [ 0 m 033 [ 3 1 m {` even with `FORCE_COLOR` empty. The CLI
+now writes each refusal as one raw JSON line through `process.stderr.write`, and the plan
+through `process.stdout.write`. The test runs the CLI with `FORCE_COLOR=1` and requires
+stderr to be exactly one JSON object line. Fault: restoring `console.error` failed the same
+7 tests locally, with 13 passing. Fixed run: the CLI and boot files gave 23 pass, 0 fail,
+154 expect() calls.
+
+## MCP delegation (2.5, 6.4, 6.6)
+
+2026-10-21, branch `feat/mcp-organization-delegation`. be-01 issues single-use
+`wbs-be-01/via-mcp-01` delegations to mcp-01 through three internal routes and, with a key
+pair configured, boot composes the live verifier. mcp-01 binds each consent after activation
+to one organization and calls be-01 only with delegations for that binding. Design:
+`design.md`, "HTTP, gateway and MCP enforcement"; operator view:
+`docs/auth-integration.md`, "MCP organization delegation".
+
+### Observed R5 faults
+
+Each fault was injected into production code, the named test was run and failed, and the
+code was restored (`fault.py`-style exact replacement, then the same test passing again).
+
+| Check (file)                                                       | Injected fault                                                                 | Failing test and observation                                                                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Marker before listing (`runtime/mcp-delegation.ts`)                | Answer an empty `listed` for the inactive marker                               | `lists nothing and issues nothing before activation`: received `activated`                                                                                         |
+| Bound user still owns the token (`runtime/mcp-delegation.ts`)      | Drop the `principal.id !== request.userId` refusal                             | `refuses a token that now maps to another account`: 200 instead of 403 `binding_changed`                                                                           |
+| Organization access at issue (`runtime/mcp-delegation.ts`)         | Drop the refusal of a failed resolution                                        | `refuses a delegation the organization's credential rules refuse`: issued under a session policy                                                                   |
+| Scope narrowing (`runtime/mcp-delegation.ts`)                      | Request the grant's scopes unnarrowed; separately drop the empty refusal       | `narrows scopes to the token and refuses none in common` failed both ways (signer refusal; `not_a_member` instead of `insufficient_scope`)                         |
+| Upstream expiry (`runtime/mcp-delegation.ts`)                      | Drop `expiresAt <= now()`; separately drop the numeric `exp` check             | `mcp-delegation.test.ts`: answered `refused` (`not_a_member`) instead of `unauthenticated`; threw `Invalid setExpirationTime input`                                |
+| Upstream identity only (`runtime/mcp-delegation.ts`)               | Admit any authentication kind                                                  | `refuses an unlinked token, a native session and an expired upstream token`: the native session was not refused                                                    |
+| Authority pair mapping (`runtime/mcp-delegation.ts`)               | Drop the mapped-user comparison                                                | `denies a family whose upstream pair maps to another account`: admitted                                                                                            |
+| Authority membership (`runtime/mcp-delegation.ts`)                 | Admit with empty facts when not a member                                       | `denies a removed member's family and refuses its next delegation`: admitted                                                                                       |
+| Organization from the body (`controller/mcp-delegation.routes.ts`) | Take `x-wbs-organization` before the body (trust a caller header)              | `issues an MCP delegation only for the bound organization`: issuance for org-b refused, test failed                                                                |
+| Live verifier with keys (`boot.ts`)                                | Wire `REFUSE_DELEGATIONS` when keys are configured                             | `lists, issues and verifies an MCP delegation only after activation` and every issuing test: 401 instead of 200                                                    |
+| Bound family uses a delegation (`oauth.ts` `bearerFor`)            | Forward the upstream token for every family (drop the organization delegation) | `organization-delegation.boot.test.ts`: `a session bound at consent lists projects and runs a command batch` and two later tests answered `no_active_organization` |
+| Retry keeps the delegation (`server.ts`)                           | Forward `refreshedToken` itself on the retry                                   | `keeps the signed delegation through an upstream refresh retry`: tool error instead of the list                                                                    |
+| Binding reaches the family (`oauth.ts` token exchange)             | Drop `binding` from `createFamily`                                             | `binds the consent's organization through code, family and session` and three more unit tests                                                                      |
+| No membership, no code (`oauth.ts` callback)                       | Drop the refusal for `refused` or zero memberships                             | `refuses consent for a user with no current membership`: redirected with a code                                                                                    |
+| Selection cookie (`oauth.ts` `selectOrganization`)                 | Drop the cookie comparison                                                     | `refuses a selection posted without its browser cookie`: 302 instead of 400                                                                                        |
+| Selection list (`oauth.ts` `selectOrganization`)                   | Bind the posted organization unchecked                                         | `refuses a forged organization in the selection`: code issued                                                                                                      |
+| Removed member's family (`oauth.ts` `bearerFor`)                   | Keep the family on `membership_ended`                                          | `ends a removed member's session`: the session still resolved                                                                                                      |
+| Authority denial (`organization-authority.ts`)                     | Answer admitted for be-01's `denied`                                           | `a removed member's session is refused on its next call and cannot refresh`: 200 instead of 401                                                                    |
+
+One check was removed rather than kept: refusing a token that declares itself a delegation
+before authenticating it as upstream. No fault in it could be observed, because a WBS
+delegation verifies neither as an upstream nor as a session token and is refused as
+`unauthenticated` anyway (`refuses a delegation presented as the upstream token`).
+
+`boot.db.test.ts`'s configured-key case is renamed `... and keeps generic issuance inactive`:
+it now asserts the live verifier and `mcpDelegation` are composed. The generic
+`RunningBe.delegationIssuer` stays refusing, and the signed delegation it sends before
+activation is still refused with 401. The table row above under Slice 25 that names the old
+test describes the earlier composition.
+
+### Commands and results
+
+| Command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Result                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test ./src/mcp-delegation.boot.db.test.ts ./src/runtime/mcp-delegation.test.ts ./src/app.routes.test.ts ./src/boot.db.test.ts ./src/runtime/delegation-issuer.test.ts ./src/controller/delegation.controller.db.test.ts ./src/controller/bearer-context.controller.db.test.ts ./src/organization-activation.boot.db.test.ts ./src/controller/organization-context.controller.db.test.ts ./src/test-tiers.test.ts ./src/module-boundaries.test.ts` | 100 pass, 0 fail, 1793 expect() calls |
+| `cd apps/wbs/mcp-01 && env -u CLAUDECODE bun test` (includes `organization-delegation.boot.test.ts`, which boots be-01 in its own process)                                                                                                                                                                                                                                                                                                                                                    | 443 pass, 0 fail, 1932 expect() calls |
+| `cd libs/wbs/domain/contracts && env -u CLAUDECODE bun test ./src/http`                                                                                                                                                                                                                                                                                                                                                                                                                       | 133 pass, 0 fail                      |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test ./src/organization-credential-rules.db.test.ts`                                                                                                                                                                                                                                                                                                                                                                              | 3 pass, 0 fail                        |
+| `bunx tsc -p <config> --noEmit` for be-01 lib and spec, core, auth, store-sqlite and contracts; `bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json`                                                                                                                                                                                                                                                                                                                                      | each exit 0, no output                |
+
+The booted proof (`apps/wbs/mcp-01/src/organization-delegation.boot.test.ts`) runs mcp-01's
+OAuth front, tool surface and authority client over real HTTP against
+`apps/wbs/be-01/src/testing/mcp-delegation-backend.ts`, which is `bootBe01`'s composition
+activated by `organization-activation-cli.ts`. In order:
+
+1. Before activation an MCP session creates and lists a project exactly as before.
+2. After activation the pre-activation session is refused with `no_active_organization`.
+3. A new consent binds the one membership; the session lists the legacy project and runs a
+   two-command batch.
+4. Another organization's member creates a project; the first session reads it as 404, and an
+   `organizationId` tool argument is refused as undeclared.
+5. A raw upstream Bearer is refused through mcp-01 and directly at be-01.
+6. An upstream token that expires under mcp-01 is refreshed once and the call succeeds with a
+   new delegation.
+7. A removed member's next request answers 401, and its refresh answers `invalid_grant`.
+
+### Review fixes (Fable, 2026-10-21)
+
+No S1 or S2. Fixed:
+
+- S3-2: a be-01 401 counts as the user's token being refused only for `unauthenticated` or
+  `unknown_identity`. A Basic-gate or proxy 401 is now a deployment defect and no longer ends
+  sessions. Fault: the old deny-list made `reads each modeled delegation refusal and throws on
+the rest` read a Basic challenge as `upstream_rejected`.
+- S3-3: new negatives, each watched failing under its fault:
+  - `refuses a cookie beside the upstream token and a malformed body` failed with the cookie
+    refusal, the delegation body check or the authority body check removed.
+  - `lists nothing and issues nothing before activation` now seeds a pre-activation membership.
+    It failed with the authority marker check removed (admitted) and with the issue refusal
+    removed (403 `no_active_organization`).
+  - `answers delegation_inactive after activation without a key pair` failed with the list
+    no-key check removed (memberships listed) and with the issue refusal removed (signing
+    `TypeError`).
+  - `refuses to forward for a bound family when no organization authority is installed`
+    resolved `forwarded` with the throw replaced.
+  - `ends a removed member's session` resolved with the missing-session `UpstreamRejected`
+    replaced by forwarding.
+- S3-4: `wbs-mcp-01` declares `implicitDependencies: ["wbs-be-01"]`, so a be-01-only change
+  reruns the booted pair under `nx affected`.
+- S3-1 and S4: the auth-integration and verify statements on enforced SSO now say the SSO pair
+  is admitted. Proof wording, stale JSDoc in `oauth.ts` and `refresh-authority.ts`, and the
+  superseded Slice 27 sentence are corrected. `issue` reads the clock once for the expiry check
+  and the signer. The spec sentence now admits the implicit single membership.
+
+Not taken:
+
+- S4-4: narrowing each delegation to the tool's required scope. Some routes may check
+  `editor` inside the handler; this needs a route audit first.
+- The 3 s real sleep in the booted refresh-retry test.
+
+### What 6.5 still needs
+
+Answered by "MCP credential epoch (6.5)" below, including the activation CLI's check of the MCP
+epoch (its review fixes).
+
+- An epoch-advance operation: one MCP-store transaction that raises `mcp_credential_epoch`
+  and revokes every epoch-0 family and session, with a durable acknowledgment the activation
+  CLI waits for before committing the WBS marker. Today the CLI does not check it.
+- Proof that every organization-unaware mcp-01 process has drained and is fenced from restart
+  before that advance (deploy executor evidence, 7.1B).
+- mcp-01 that runs at the new epoch: `SUPPORTED_CREDENTIAL_EPOCH` and `readFamilyAuthority`
+  still accept only epoch 0, so this release cannot start after an advance. This change binds
+  families at epoch 0, which the store CHECK allows.
+- A durable epoch read before code exchange, tool calls and refresh in every process, and an
+  epoch stamp on in-memory consents, codes and selections so that old ones are refused at
+  exchange.
+- The pre-activation down-migration preflight that refuses while new-format credentials live.
+
+Until then, sessions consented before activation are refused by be-01 rather than revoked.
+
+### Not done here
+
+- Deployment wiring: no dev or prod environment, k8s overlay or `.env` sets mcp-01's
+  `INTERNAL_AUTH_SECRET` or be-01's delegation key pair yet. Without them mcp-01 keeps
+  forwarding and be-01 answers `delegation_inactive` after activation.
+- Gateway signed-bearer issuance (rest of 2.5). An organization enforcing SSO admits only a
+  delegation whose upstream subject carries its connection; a session policy refuses every MCP
+  delegation, because no trusted grant-lifecycle evidence exists.
+
+## MCP credential epoch (6.5)
+
+2026-10-21, branch `feat/mcp-credential-epoch`, stacked on PR #622 (`555ab9c8d`). Operator view:
+`docs/runbook-organization-activation.md`, step 2b; `apps/wbs/mcp-01/README.md`, "Credential
+epoch".
+
+Model: the store holds one durable epoch, 0 (pre-activation) or 1 (activated). mcp-01 opens
+either and refuses a newer one. A session read (`familyForSession`) and both refresh reads
+(`prepareRefresh`, `consumeRefresh`) compare the family's epoch with the durable row in the
+same query, so an older credential reads as absent or `invalid`. That is the existing refusal
+that makes a client reauthorize: 401 on a tool call, `invalid_grant` at the token endpoint. A
+code carries the epoch it was issued at and is refused at exchange once the store has moved
+on. At epoch 1 an unbound consent answers `temporarily_unavailable`, because be-01 is not yet
+activated, and mcp-01 refuses to start without organization authority.
+`readFamilyAuthority` refuses an epoch above `SUPPORTED_CREDENTIAL_EPOCH` (now 1) and an
+unbound family above 0. `matchesRefreshAuthority` is unchanged: it still requires the reader
+to echo the family's own epoch.
+
+`credential-epoch-cli.ts` (over `advanceCredentialEpoch`) opens the existing store with
+`locking_mode = EXCLUSIVE` and `busy_timeout = 0`. It refuses unless the store is WAL, is
+exactly this release's schema and holds epoch 0 or 1. Then, in one IMMEDIATE transaction, it
+revokes every unrevoked epoch-0 family, deletes every epoch-0 session and sets epoch 1. The
+dry run rolls the same transaction back. Writer guard: on a WAL store every open connection
+holds a shared lock while it is open, idle or not, so the CLI's first lock fails with
+`SQLITE_BUSY` (exit 3) while any process has the store open. This was observed between two
+local processes and within one process. It was not observed across Docker containers.
+
+### Observed R5 faults
+
+Each fault was an exact text replacement in production code. The named test was run under
+`env -u CLAUDECODE bun test <file> --test-name-pattern <name>`, then the file was restored. All
+runs were on 2026-10-21; the run was repeated after formatting and gave the same results.
+
+| Check (file)                                                    | Injected fault                                                | Failing test and observation                                                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session read at the durable epoch (`session-store.ts`)          | Drop `AND f.credential_epoch = (durable)`                     | `refuses an older-epoch session at every use`: `callerSessionFor` resolved                                                                  |
+| Refresh preparation at the durable epoch (`session-store.ts`)   | Drop the epoch clause in `prepareRefresh`                     | `refuses an older-epoch refresh before any provider work`: provider refresh called once                                                     |
+| Refresh consumption at the durable epoch (`session-store.ts`)   | Drop the epoch clause in `consumeRefresh`                     | `refuses a refresh whose epoch advanced during the provider refresh`: threw the session trigger's `SQLiteError` instead of 400              |
+| Code epoch at exchange (`oauth.ts` `token`)                     | Drop `grant.credentialEpoch !== store epoch`                  | `refuses a code issued before the epoch advanced`: 200 instead of 400                                                                       |
+| Unbound consent at epoch 1 (`oauth.ts` `callback`)              | Never refuse                                                  | `refuses an unbound consent between the epoch advance and activation`: redirected with a code, no `error`                                   |
+| Start at epoch 1 needs organizations (`oauth.ts` constructor)   | Never refuse                                                  | `refuses to start at the activated epoch without organization authority`: constructed                                                       |
+| Newer epoch unsupported (`oauth.ts` `readFamilyAuthority`)      | Drop the `> SUPPORTED_CREDENTIAL_EPOCH` test                  | `refuses a corrupt epoch-2 bound family read …`: upstream token returned                                                                    |
+| Unbound above 0 unsupported (`oauth.ts` `readFamilyAuthority`)  | Answer `legacy` for every unbound family                      | `refuses a corrupt epoch-1 unbound family read …`: upstream token returned                                                                  |
+| Store opens at most epoch 1 (`session-store.ts` constructor)    | Never refuse                                                  | `refuses startup on a unsupported epoch without reseeding` (now epoch 2): opened                                                            |
+| Writer guard (`credential-epoch.ts`)                            | Drop `PRAGMA locking_mode = EXCLUSIVE`                        | `refuses while this process has the store open…`: advanced; `refuses while an mcp-01 process has the store open`: CLI exited 0 instead of 3 |
+| WAL required (`credential-epoch.ts`)                            | Never refuse                                                  | `refuses a store that is not in WAL mode`: advanced                                                                                         |
+| Store is this release's (`credential-epoch.ts`)                 | Skip `assertMcpStoreCurrent`                                  | `refuses a store this release has not migrated`: advanced a two-migration store                                                             |
+| Unknown epoch (`credential-epoch.ts`)                           | Never refuse                                                  | `refuses an epoch it does not know`: trigger error `cannot decrease` instead of `McpStoreRefused`                                           |
+| Family revocation (`credential-epoch.ts`)                       | `UPDATE … WHERE 0`                                            | `revokes every pre-activation family and session` and the CLI's `dry-runs, applies once…`: counts and state differ                          |
+| Session removal (`credential-epoch.ts`)                         | `DELETE … WHERE 0`                                            | the same two tests                                                                                                                          |
+| No-op at epoch 1 (`credential-epoch.ts`)                        | Never take the `already_activated` branch                     | the same two tests: `epoch 1 is not 0 or 1`, CLI exit 1                                                                                     |
+| Codes stay in their process (`oauth.ts` `grants`)               | One module-level map shared by every server                   | `forgets a code issued before a store reopen at the same epoch`: 200 instead of 400                                                         |
+| Malformed epoch (`store-migrations.ts` `readCredentialEpoch`)   | Drop the throw (existing check, proof rewritten)              | `refuses startup on a malformed value…`: opened at epoch `'zero'`; the missing-row case failed with a `TypeError`                           |
+| Session trigger (`migration.sql`, `mcp_session_family_binding`) | `WHEN 0 AND …` (existing check; its test now inserts raw SQL) | `refuses to refresh a family issued before the epoch advanced`: the stale insert succeeded                                                  |
+
+One fault did not fail its test, as expected. With both the family revocation and the session
+deletion removed, the Red case `refuses access and refresh after the epoch advance, and an old
+code after a reopen` still passed. The per-use epoch comparison refuses those credentials on
+its own. So the CLI's revocation is proven by the state tests above, not by the access
+refusals. It stays because the spec requires that revocation, and a revoked row is refused even by
+a reader that skips the epoch comparison.
+
+`preflightCredentialBindingDown` is unchanged; `MCP store rollback > refuses at an advanced
+epoch` passes. Epoch 1 has no `down`: the epoch triggers refuse a decrease, and the only way
+back is the store backup taken before step 2b.
+
+### Commands and results
+
+| Command                                                              | Result                                                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------- |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:test --skip-nx-cache`      | 478 pass, 0 fail, 2113 expect() calls (baseline 460 pass) |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:typecheck --skip-nx-cache` | success                                                   |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:lint --skip-nx-cache`      | success                                                   |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:build --skip-nx-cache`     | success, 1034 modules bundled                             |
+| `bunx openspec validate --all --json`                                | 266 items, 266 passed, 0 failed                           |
+
+### Not done or not observed
+
+- No dev or prod run. Dev's live counts of families and sessions to revoke are unknown until
+  the dry run there.
+- The guard across containers (`docker run` beside a stopped or running `wbs-dev-src`) is
+  inferred from the shared host bind mount, not observed.
+- The activation CLI did not read the MCP epoch in the first revision; the review fixes below
+  add it.
+- Pending consents and organization selections carry no epoch. A selection that started at
+  epoch 0 and completes after the advance issues a bound code at epoch 1. Only a
+  pre-activation consent crossing the advance is refused.
+- mcp-01 still creates an absent store at epoch 0 (task 1.6's exception, `migrateMcpStore`).
+  A store file deleted after the advance would come back at epoch 0 and issue unbound
+  sessions, which an activated be-01 refuses with `no_active_organization`. Withdrawing the
+  exception is not part of this change.
+- The workspace gate (`bin/h2puni-gate.sh`) was not run; only `wbs-mcp-01` targets ran
+  locally (laptop RAM cap).
+
+### Review (Fable, PR #624) and fixes — 2026-10-22
+
+Verdict: merge after fixes. Fixed on the same branch:
+
+- **S2-1:** `organization-activation-cli.ts` now requires `--mcp-store` and reads it through
+  `readMcpEpochReadiness` (`apps/wbs/be-01/src/mcp-credential-epoch.ts`). be-01 cannot import
+  mcp-01, which depends on it. The reader is therefore a read-only query that mirrors mcp-01's
+  epoch validation and epoch-migration name. It returns the typed refusal
+  `mcp_epoch_not_advanced` (exit 7) for an absent store (`absent`), a store without the epoch
+  migration (`unmigrated`) and epoch 0 (`epoch_0`). It throws (exit 1) when the store cannot
+  be opened or the epoch is malformed.
+  - `--apply` refuses before opening the WBS database. The dry run prints its plan and then
+    the refusal.
+  - "Fully migrated" means the store holds the epoch migration. The epoch CLI already refuses
+    any store that is not at its own release's newest migration.
+  - The callers now pass an epoch-1 fixture store (`testing/mcp-store-fixture.ts`): the boot
+    tests, the swarm rehearsal and mcp-01's booted backend. Dev was activated on 2026-10-21,
+    before this check existed.
+- **S2-2:** the comment at the CLI revocation states the non-proof.
+- **S3-1:** without organization authority, the callback now refuses with
+  `temporarily_unavailable` at epoch 1 before issuing a code. Before, a process started at
+  epoch 0 issued an unbound code and failed the exchange on the store CHECK (500).
+- **S3-2:** the guard's wording now says "has read or written the store through a still-open
+  connection". A connection that was opened but never used holds no lock.
+  `McpSessionStore`'s constructor always runs statements, so a running mcp-01 is always seen.
+- **S3-3:** the runbook says devsync may `docker restart` the container during step 2b, that
+  this is safe (the CLI exits 3), and what to do. The epoch step is renumbered 2b and placed
+  before the activation dry run, because that dry run now reports the refusal.
+
+Recorded, not changed:
+
+- **S3-4:** this branch is coupled to #622. The epoch CLI's current-schema check expects the
+  three migrations including `20261021120000_mcp_client`, and the code uses #622's
+  `McpOAuthServer` and `protocolError`. Rebase after #622 merges, and rerun the mcp-01
+  targets.
+- **S3-5:** some `Proof:` comments name only the test, not its file. The table above names
+  the file for each.
+
+New faults observed, each restored afterwards:
+
+| Check (file)                                                  | Injected fault                       | Failing test and observation                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Absent store (`be-01 mcp-credential-epoch.ts`)                | Drop the `existsSync` branch         | `refuses an absent MCP store, writing nothing`: exit 1 (SQLite open error) instead of 7                          |
+| Epoch migration present (`be-01 mcp-credential-epoch.ts`)     | Never refuse `unmigrated`            | `refuses an MCP store without the epoch migration`: exit 1 instead of 7                                          |
+| Malformed epoch (`be-01 mcp-credential-epoch.ts`)             | Drop the throw                       | `throws on a malformed MCP epoch, writing nothing`: exit 0, activated                                            |
+| Epoch 0 refused (`be-01 mcp-credential-epoch.ts`)             | Compare with -1                      | `refuses activation while the MCP epoch is 0, writing nothing` and `rehearses while the MCP epoch is 0…`: exit 0 |
+| Apply waits (`organization-activation-cli.ts`)                | Never refuse before applying         | `refuses activation while the MCP epoch is 0, writing nothing`: stdout `mode: applied`                           |
+| Rehearsal reports (`organization-activation-cli.ts`)          | Drop the post-plan refusal           | `rehearses while the MCP epoch is 0, then reports the refusal`: exit 0                                           |
+| `--mcp-store` required (`organization-activation-cli.ts`)     | Drop `mcpStore === undefined`        | `refuses without --mcp-store before opening the database`: exit 7 (`absent`) instead of the usage error          |
+| No unbound code at epoch 1 without organizations (`oauth.ts`) | Move the refusal back below `return` | `refuses consent without organization authority once another writer advanced the epoch`: code issued             |
+
+Fresh results after the review fixes (2026-10-22):
+
+| Command                                                                                                                                              | Result                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                                                      | 479 pass, 0 fail, 2116 expect() calls                                  |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:{typecheck,lint,build} --skip-nx-cache`                                                                    | each success; build bundled 1034 modules                               |
+| `env -u CLAUDECODE bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                       | 3082 pass, 3 skip, 0 fail, 63300 expect() calls, 3085 tests, 211 files |
+| `env -u CLAUDECODE bunx nx run wbs-be-01:{typecheck,lint} --skip-nx-cache`                                                                           | each success                                                           |
+| `cd apps/wbs/mcp-01 && env -u CLAUDECODE bun test src/organization-delegation.boot.test.ts` (boots be-01's activation through the new `--mcp-store`) | 7 pass, 0 fail                                                         |
+| `bunx openspec validate --all --json`                                                                                                                | 266 items, 266 passed                                                  |
+
+Still not run: dev, prod, `bin/h2puni-gate.sh`, and any workspace-wide target.
+
+### Gate of record for PR #624 (h4claw) — 2026-10-22
+
+- `bin/h2puni-gate.sh 42fb0311c41b0188ae7ef5837e254096b9f5ed39` on h4claw (`~/gate-42fb0311.log`; the head is the review-fixed branch with main d504c9eae merged in): first Nx pass 49 projects + 9 dependents in 45m 22s, twilight pass 2 projects in 50m 27s, `solver-image-smoke` 3m 35s, `GATE_EXIT=0` at 02:02:21 UTC.
+- CI on 42fb0311c: one `gate twilight` run failed `[TEST-AXES-146] real malformed absent and unreadable committed index refuse` (a Burokrat test over throwaway git repositories); the same suite passed on h4claw in the gate above and on main d504c9eae, so the job was rerun as a flake.
+- Not observed live: the epoch CLI on dev (runbook step 2b) runs after this merge; its revocation counts will be recorded then.
+
+### Epoch advance on dev — 2026-10-22 02:56 UTC
+
+Runbook step 2b run on h2puni after main 1d143e932 reached dev: `docker stop wbs-dev-src`; store copied to `mcp-session.pre-epoch-20261022.sqlite{,-wal,-shm}` (modes kept, 644 on dev); one-off `wbs-dev-src:1` container, dry run `{"outcome":"planned","from":0,"to":1,"revokedFamilies":6,"removedSessions":2}`, `--apply` → `advanced` with the same counts, rerun → `{"outcome":"already_activated","epoch":1}`; `docker start`; read-only check afterwards: epoch 1, 6 of 6 families revoked, 0 sessions, 0 registered clients; be-01 and mcp-01 answer 401 inside the container. Observed consequence: every dev MCP client (including the coordinator's own wbs-dev MCP) had to re-authenticate. Not observed: the cross-container lock guard (the container was stopped, so no writer existed).

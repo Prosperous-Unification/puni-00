@@ -1,0 +1,40 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+sync hooks: ✔️(prepare-commit-msg, pre-commit, commit-msg)
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts
+  367:11  error  Unnecessary conditional, the types have no overlap  @typescript-eslint/no-unnecessary-condition
+
+✖ 1 problem (1 error, 0 warnings)
+
+
+exit status 1
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 8.97 seconds)
+✓ format (1.52 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.04 seconds)
+✓ tool-wiki (0.00 seconds)
+✗ lint (7.39 seconds)

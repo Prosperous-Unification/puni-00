@@ -1,14 +1,15 @@
 import { createHash, generateKeyPairSync, type KeyObject, randomBytes } from 'node:crypto';
-import { existsSync, mkdtempSync, rmdirSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmdirSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
+import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler, mcpHttpResponse } from './http';
-import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
+import { mcpOAuthFromEnv, McpOAuthServer, type OAuthRouteEvidence } from './oauth';
 import type { DerivedTool } from './openapi-tools';
 import type { McpRefreshAuthority, McpRefreshAuthorityReader } from './refresh-authority';
 import { createServer } from './server';
@@ -83,7 +84,7 @@ function fixture(
     authorizationCalls,
     exchangeCalls,
     routeEvidence,
-    oauth: new InMemoryMcpOAuth(CONFIG, provider, {
+    oauth: new McpOAuthServer(CONFIG, provider, {
       groupsClaim: 'wbs_groups',
       groupPrefix: 'dev',
       now: () => now,
@@ -107,7 +108,7 @@ function fixture(
   };
 }
 
-async function register(oauth: InMemoryMcpOAuth): Promise<string> {
+async function register(oauth: McpOAuthServer): Promise<string> {
   const response = await oauth.response(
     new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/register', {
       body: JSON.stringify({ redirect_uris: [CALLBACK], token_endpoint_auth_method: 'none' }),
@@ -122,7 +123,7 @@ async function register(oauth: InMemoryMcpOAuth): Promise<string> {
 }
 
 async function registrationResponse(
-  oauth: InMemoryMcpOAuth,
+  oauth: McpOAuthServer,
   redirectUris: readonly unknown[],
   source = '203.0.113.1',
 ): Promise<Response> {
@@ -164,7 +165,7 @@ function browserCookie(previous: string | undefined, response: Response): string
   return pair;
 }
 
-function pendingMaps(oauth: InMemoryMcpOAuth): {
+function pendingMaps(oauth: McpOAuthServer): {
   contexts: Map<string, unknown>;
   records: Map<string, unknown>;
 } {
@@ -180,16 +181,16 @@ function pendingMaps(oauth: InMemoryMcpOAuth): {
   return { contexts: pending.contexts, records: pending.transactions.records };
 }
 
-function transactionCount(oauth: InMemoryMcpOAuth): number {
+function transactionCount(oauth: McpOAuthServer): number {
   return pendingMaps(oauth).contexts.size;
 }
 
-function grantCount(oauth: InMemoryMcpOAuth): number {
+function grantCount(oauth: McpOAuthServer): number {
   return (oauth as unknown as { grants: Map<string, unknown> }).grants.size;
 }
 
 async function completedAuthorization(
-  oauth: InMemoryMcpOAuth,
+  oauth: McpOAuthServer,
   verifier: string,
   registeredClientId?: string,
 ): Promise<{ callback: Request; clientId: string; response: Response }> {
@@ -208,7 +209,7 @@ async function completedAuthorization(
   return { callback, clientId, response };
 }
 
-async function authorizationCode(oauth: InMemoryMcpOAuth, verifier: string): Promise<string> {
+async function authorizationCode(oauth: McpOAuthServer, verifier: string): Promise<string> {
   const { response } = await completedAuthorization(oauth, verifier);
   return (
     new URL(response.headers.get('location') ?? 'https://invalid').searchParams.get('code') ?? ''
@@ -216,7 +217,7 @@ async function authorizationCode(oauth: InMemoryMcpOAuth, verifier: string): Pro
 }
 
 async function tokenResponse(
-  oauth: InMemoryMcpOAuth,
+  oauth: McpOAuthServer,
   clientId: string,
   code: string,
   verifier: string,
@@ -238,7 +239,7 @@ async function tokenResponse(
   return response;
 }
 
-async function promoteClient(oauth: InMemoryMcpOAuth, source: string): Promise<string> {
+async function promoteClient(oauth: McpOAuthServer, source: string): Promise<string> {
   const registration = await registrationResponse(oauth, [CALLBACK], source);
   expect(registration.status).toBe(201);
   const clientId = ((await registration.json()) as { client_id: string }).client_id;
@@ -274,7 +275,7 @@ async function promoteClient(oauth: InMemoryMcpOAuth, source: string): Promise<s
   return clientId;
 }
 
-describe('InMemoryMcpOAuth', () => {
+describe('McpOAuthServer', () => {
   // Proof: serializing request bodies or query strings here exposes credentials;
   // these records retain only bounded grant classifications and the route path.
   it('records OAuth route evidence without request secrets', async () => {
@@ -1816,8 +1817,12 @@ describe('InMemoryMcpOAuth', () => {
     }
   });
 
-  for (const bound of [false, true]) {
-    it(`refuses a corrupt nonzero-epoch ${bound ? 'bound' : 'unbound'} family read before returning a fresh token`, async () => {
+  for (const [epoch, bound] of [
+    [2, true],
+    [2, false],
+    [1, false],
+  ] as const) {
+    it(`refuses a corrupt epoch-${String(epoch)} ${bound ? 'bound' : 'unbound'} family read before returning a fresh token`, async () => {
       class UnsupportedStore extends McpSessionStore {
         override family(...args: Parameters<McpSessionStore['family']>) {
           const family = super.family(...args);
@@ -1825,7 +1830,7 @@ describe('InMemoryMcpOAuth', () => {
             ? null
             : {
                 ...family,
-                credentialEpoch: 1,
+                credentialEpoch: epoch,
                 binding: bound
                   ? { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' }
                   : undefined,
@@ -1837,7 +1842,7 @@ describe('InMemoryMcpOAuth', () => {
             ? null
             : {
                 ...family,
-                credentialEpoch: 1,
+                credentialEpoch: epoch,
                 binding: bound
                   ? { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' }
                   : undefined,
@@ -2552,7 +2557,7 @@ describe('OAuth client redirects', () => {
   });
 
   async function registeredClient(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     redirectUris: readonly string[],
   ): Promise<string> {
     const registration = await registrationResponse(oauth, redirectUris);
@@ -2561,7 +2566,7 @@ describe('OAuth client redirects', () => {
   }
 
   async function codeFor(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     clientId: string,
     redirectUri: string,
     verifier: string,
@@ -2583,7 +2588,7 @@ describe('OAuth client redirects', () => {
   }
 
   function exchange(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     clientId: string,
     code: string,
     verifier: string,
@@ -2701,7 +2706,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
 
   /** Signs in with `scope` (omitted when undefined) and returns the issued token body. */
   async function signIn(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     scope: string | undefined,
   ): Promise<{ access_token: string; refresh_token: string; scope: string }> {
     const clientId = await register(oauth);
@@ -2741,7 +2746,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     locations: { id: 'path' },
   };
 
-  function endpoint(oauth: InMemoryMcpOAuth, be01Calls: string[]) {
+  function endpoint(oauth: McpOAuthServer, be01Calls: string[]) {
     return mcpFetchHandler(
       () =>
         createServer({
@@ -2863,7 +2868,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
   };
 
   function refresh(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     refreshToken: string,
     scope?: string,
   ): Promise<Response | undefined> {
@@ -2881,7 +2886,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     );
   }
 
-  function revoke(oauth: InMemoryMcpOAuth, token: string): Promise<Response | undefined> {
+  function revoke(oauth: McpOAuthServer, token: string): Promise<Response | undefined> {
     return oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
         body: new URLSearchParams({ token }),
@@ -3041,5 +3046,193 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     store.close();
 
     expect(refresh(oauth, tokens.refresh_token)).rejects.toThrow();
+  });
+});
+
+describe('registered clients across a restart', () => {
+  const INVALID_CLIENT = {
+    error: 'invalid_client',
+    error_description:
+      'client_id is not registered or has expired; register the client again and restart authorization',
+  };
+
+  /**
+   * A handler over one store file that `restart` closes and reopens, as each mcp-01 start opens
+   * MCP_STORE_PATH. Every start shares one clock, and ids are prefixed per start so a new
+   * process cannot reissue an id the store already holds.
+   */
+  function restartable(limits: Parameters<typeof fixture>[0] = {}) {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-oauth-clients-'));
+    const path = join(root, 'sessions.sqlite');
+    const key = Buffer.alloc(32, 13);
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    let store = new McpSessionStore(path, [key]);
+    let elapsed = 0;
+    let starts = 0;
+    const start = () => {
+      starts += 1;
+      let issued = 0;
+      const prefix = `start-${String(starts)}`;
+      const handler = fixture({
+        ...limits,
+        signingKeys,
+        store,
+        random: () => {
+          issued += 1;
+          return `${prefix}-${String(issued)}`;
+        },
+      });
+      handler.advance(elapsed);
+      return handler;
+    };
+    let current = start();
+    return {
+      get oauth() {
+        return current.oauth;
+      },
+      restart: () => {
+        store.close();
+        store = new McpSessionStore(path, [key]);
+        current = start();
+      },
+      advance: (milliseconds: number) => {
+        elapsed += milliseconds;
+        current.advance(milliseconds);
+      },
+      close: () => {
+        store.close();
+        rmSync(root, { recursive: true, force: true });
+      },
+    };
+  }
+
+  it('authorizes and exchanges a code for a client registered before the restart', async () => {
+    const server = restartable();
+    const clientId = await register(server.oauth);
+    server.restart();
+
+    const verifier = 'v'.repeat(43);
+    const { response } = await completedAuthorization(server.oauth, verifier, clientId);
+    expect(response.status).toBe(302);
+    const code = new URL(response.headers.get('location') ?? '').searchParams.get('code');
+    expect((await tokenResponse(server.oauth, clientId, code ?? '', verifier)).status).toBe(200);
+    server.close();
+  });
+
+  it('answers invalid_client with a re-register hint for an unknown client_id', async () => {
+    const { oauth } = fixture();
+    const response = await oauth.response(new Request(authorizeUrl('never-registered')));
+
+    expect(response?.status).toBe(400);
+    expect(response?.headers.get('location')).toBeNull();
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+  });
+
+  it('answers invalid_client once an unproven client expires across a restart', async () => {
+    const server = restartable({ clientTtlMs: 1_000 });
+    const clientId = await register(server.oauth);
+    server.restart();
+    server.advance(1_001);
+
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    server.close();
+  });
+
+  it('keeps the request error for a malformed authorization of a registered client', async () => {
+    const { oauth } = fixture();
+    const clientId = await register(oauth);
+    const url = authorizeUrl(clientId);
+    url.searchParams.set('response_type', 'token');
+
+    const response = await oauth.response(new Request(url));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual({ error: 'invalid_request' });
+  });
+
+  it('counts clients registered before the restart against the global and source limits', async () => {
+    const global = restartable({ clientLimit: 1 });
+    await register(global.oauth);
+    global.restart();
+    expect((await registrationResponse(global.oauth, [CALLBACK], '203.0.113.9')).status).toBe(429);
+    global.close();
+
+    const perSource = restartable({ clientLimit: 3, clientSourceLimit: 1 });
+    expect((await registrationResponse(perSource.oauth, [CALLBACK], '203.0.113.1')).status).toBe(
+      201,
+    );
+    perSource.restart();
+    expect((await registrationResponse(perSource.oauth, [CALLBACK], '203.0.113.1')).status).toBe(
+      429,
+    );
+    expect((await registrationResponse(perSource.oauth, [CALLBACK], '203.0.113.2')).status).toBe(
+      201,
+    );
+    perSource.close();
+  });
+
+  it('keeps a promoted client proven and counted across the restart', async () => {
+    const server = restartable({
+      clientLimit: 4,
+      clientSourceLimit: 2,
+      provenClientSourceLimit: 1,
+    });
+    const proven = await promoteClient(server.oauth, '203.0.113.1');
+    server.restart();
+    server.advance(600_001);
+
+    expect((await server.oauth.response(new Request(authorizeUrl(proven))))?.status).toBe(302);
+    expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.1')).status).toBe(429);
+    expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.2')).status).toBe(201);
+    server.close();
+  });
+
+  it('refuses a stored redirect that is no longer on the allowlist', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-oauth-unlisted-'));
+    const path = join(root, 'sessions.sqlite');
+    const store = new McpSessionStore(path, [Buffer.alloc(32, 17)]);
+    const { oauth } = fixture({ store });
+    const clientId = await register(oauth);
+    const removed = 'https://removed.example/callback';
+    const planted = new Database(path, { strict: true });
+    planted
+      .query('UPDATE mcp_client SET redirect_uris = ? WHERE client_id = ?')
+      .run(JSON.stringify([CALLBACK, removed]), clientId);
+    planted.close();
+
+    const refused = await oauth.response(new Request(authorizeUrl(clientId, removed)));
+    expect(refused?.status).toBe(400);
+    expect(await refused?.json()).toEqual({ error: 'invalid_request' });
+    expect((await oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('deletes an expired client from the store when the next request sweeps', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { advance, oauth } = fixture({ clientTtlMs: 1_000, store });
+    await register(oauth);
+    advance(1_001);
+    await register(oauth);
+
+    expect(store.clientsFromSource('unknown', 0).map(({ clientId }) => clientId)).toEqual([
+      'random-2',
+    ]);
+    store.close();
+  });
+
+  it('keeps the absolute unproven lifetime an authorization extension stored before the restart', async () => {
+    const server = restartable();
+    const clientId = await register(server.oauth);
+    server.advance(400_000);
+    expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+    server.restart();
+    server.advance(200_000);
+    expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+    server.advance(600_001);
+    const expired = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(await expired?.json()).toEqual(INVALID_CLIENT);
+    server.close();
   });
 });

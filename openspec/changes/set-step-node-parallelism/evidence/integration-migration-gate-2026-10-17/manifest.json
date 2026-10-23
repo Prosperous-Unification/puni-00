@@ -1,0 +1,358 @@
+{
+  "base": "9f77237ff354915561aa2d7b8c45b015a6bd0fa8",
+  "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+  "guard": "RUNTIME_CLOSURE_RSS_MIB=<cap> python /tmp/runtime-rss-guard.py <command>",
+  "commands": [
+    {
+      "command": "bun test libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts --test-name-pattern \"pairs every migration on disk with a down script\"",
+      "capMiB": 900,
+      "receipts": [
+        "integration-rollback-single-diagnostic.log",
+        "integration-migration-inventory-omitted.log"
+      ]
+    },
+    {
+      "command": "bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts --test-name-pattern \"removes modes and ranks together then permits guarded downgrade\"",
+      "capMiB": 900,
+      "receipts": [
+        "integration-rollback-shared-diagnostic.log",
+        "integration-migration-selection-omitted.log"
+      ]
+    },
+    {
+      "command": "bun test libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts --test-name-pattern \"pairs every migration on disk|removes modes and ranks together then permits guarded downgrade|empty down and forward preserve existing work items|down refuses retained facts\"",
+      "capMiB": 900,
+      "receipts": ["integration-migration-focused-green.log"]
+    },
+    {
+      "argvPrefix": ["bun", "test"],
+      "pathManifest": "integration-migration-sqlite-selected.json",
+      "argvSuffix": ["--timeout=10000"],
+      "capMiB": 900,
+      "receipts": ["integration-migration-sqlite-all.log"]
+    },
+    {
+      "argvPrefix": ["bun", "test"],
+      "pathManifest": "integration-migration-sqlite-green-selected.json",
+      "argvSuffix": ["--timeout=10000"],
+      "capMiB": 900,
+      "receipts": ["integration-migration-sqlite-green.log"]
+    },
+    {
+      "command": "bun test libs/wbs/adapters/store-sqlite/src/browser-auth-lifecycle.db.test.ts --test-name-pattern \"rollback removes both empty lifecycle tables\"",
+      "capMiB": 900,
+      "receipts": ["integration-browser-rollback-green.log"]
+    },
+    {
+      "command": "bun test apps/wbs/be-01/src/migration-cli.db.test.ts --test-name-pattern \"restores an older newly introduced migration after a newer shared-people baseline\" --timeout=60000",
+      "capMiB": 900,
+      "receipts": ["integration-migration-cli-green.log"]
+    },
+    {
+      "command": "bunx tsc --project libs/wbs/adapters/store-sqlite/tsconfig.spec.json --noEmit --incremental false",
+      "capMiB": 1400,
+      "receipts": [
+        "integration-sqlite-spec-typecheck-red.log",
+        "integration-sqlite-spec-typecheck-green.log"
+      ]
+    },
+    {
+      "command": "bunx tsc --project libs/wbs/adapters/store-sqlite/tsconfig.lib.json --noEmit --incremental false",
+      "capMiB": [1400, 1800],
+      "receipts": [
+        "integration-sqlite-lib-typecheck-green.log",
+        "integration-sqlite-lib-typecheck-1800.log"
+      ]
+    },
+    {
+      "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/be-01",
+      "capMiB": 900,
+      "receipts": ["integration-backend-full-after-migration.log"]
+    },
+    {
+      "command": "bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern \"every routed current document|every current document that trips\" --timeout=60000",
+      "capMiB": 900,
+      "receipts": ["integration-doc-routing-red.log", "integration-doc-routing-green.log"]
+    },
+    {
+      "command": "bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts --timeout=60000",
+      "capMiB": [900, 1400],
+      "receipts": [
+        "integration-namespacing-full-file.log",
+        "integration-namespacing-full-file-1400.log"
+      ]
+    },
+    {
+      "command": "bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern \"^(?!the production index checker)\" --timeout=60000",
+      "capMiB": 900,
+      "receipts": ["integration-namespacing-split.log"]
+    },
+    {
+      "command": "bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern \"^the production index checker\" --timeout=60000",
+      "capMiB": [1400, 1800, 1800, 1800],
+      "receipts": [
+        "integration-namespacing-index-1400.log",
+        "integration-namespacing-index-1800.log",
+        "integration-namespacing-index-green.log",
+        "integration-namespacing-index-final-green.log"
+      ]
+    },
+    {
+      "command": "bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate set-step-node-parallelism --strict",
+      "capMiB": 900,
+      "receipts": ["integration-migration-openspec.log"]
+    }
+  ],
+  "changedFileHashes": {
+    "AGENTS.md": "896bde447fc44b0465651cfc845dce91506bc2d9f65545a5b9f4344e516e886f",
+    "apps/wbs/be-01/src/migration-cli.db.test.ts": "9153892b99bce540630f80d9f47cbe55a4a3b60ae2f95d51b07cb507d086a034",
+    "docs/runbook-dev-deploy.md": "b476e8a26a9fbc95f6a3918e9e0af7f24b6b8faeeeecf13803338baf42f88f9d",
+    "libs/wbs/adapters/store-memory/src/README.md": "72efb82f01274062027d8d010bc31b26829a60cd0cbb0225170fa0c1985ffd95",
+    "libs/wbs/adapters/store-sqlite/src/browser-auth-lifecycle.db.test.ts": "297877e26be8e9ede96e99c1c0824074893f4766af3eb242edcbf7ba0dbc3ddd",
+    "libs/wbs/adapters/store-sqlite/src/calendar-marker-migration.db.test.ts": "75fbc86bdcf9beadc1a99ff0588f3b92c6bf66c2b707b2c99555c9cbc4a69c8f",
+    "libs/wbs/adapters/store-sqlite/src/delegation-use.db.test.ts": "56f621d45e77cd91fbcda41b2fa767884b723e8a637d069b3d0f0d89bef4246c",
+    "libs/wbs/adapters/store-sqlite/src/email-challenge-migration.db.test.ts": "3b06286229ed31ad27f1c818e681dfdf47af395014a050655fbc854b135bc52d",
+    "libs/wbs/adapters/store-sqlite/src/email-verification-migration.db.test.ts": "6a524732e596dece3f6e1a61074c9065b4ccc64430897ae015e4763ea408ebb7",
+    "libs/wbs/adapters/store-sqlite/src/enterprise-sso-migration.db.test.ts": "50fa528d4667295345855272753844bcf7d108a3eccd176f5b6450c157557eb3",
+    "libs/wbs/adapters/store-sqlite/src/identity-migration.db.test.ts": "184ece564e2762038613bddf0399e1be56bc93c3430489e70b5068b300c651ca",
+    "libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts": "473d6554280fbc16ad020d3d21ce6b0191efc7b04385d1ffc19700b0fd482d3e",
+    "libs/wbs/adapters/store-sqlite/src/migrate.db.test.ts": "1a0e5028abddff8fc33c05c73625e6d8fe094dee73099eb736ec801feec4ba26",
+    "libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.db.test.ts": "f0b1e58406aed082eebc91dea1d5a101365a98827b85b26e78003d0bd6d48ea3",
+    "libs/wbs/adapters/store-sqlite/src/organization-activation.db.test.ts": "b057175ead9c415292b8d5b49944d9cb83fae359c44fbb19184ae91dc485534d",
+    "libs/wbs/adapters/store-sqlite/src/organization-audit.db.test.ts": "92a11a4c85d0f9dad259dbc70749931ac5efa088eb28020816907611ad0cfd98",
+    "libs/wbs/adapters/store-sqlite/src/organization-bridge.db.test.ts": "a1c684d38f8550fe71b9f90f01aa1cd1875857c474c6320cc8173d0943d4d393",
+    "libs/wbs/adapters/store-sqlite/src/organization-ownership-freeze.db.test.ts": "18a777e8f4afc1689fdb8a75fbc136668abf8322368a9681a8c8c6aedbf2252d",
+    "libs/wbs/adapters/store-sqlite/src/organization-ownership.db.test.ts": "da9eedff121743ab43e0b1a33e7fc828b9c6cd57f488f05945ac20d132091510",
+    "libs/wbs/adapters/store-sqlite/src/organization-records.db.test.ts": "3d983d27d70ca07a32b30321af27d9749f460e75216f018047f5ccebdcc92dfa",
+    "libs/wbs/adapters/store-sqlite/src/project-rank.db.test.ts": "01347323c3e58c2a36b884789aab4a1cc728b5010b834d503362e7cbcb2c9bc7",
+    "libs/wbs/adapters/store-sqlite/src/project-settings.db.test.ts": "6cf7366ff76d3868ec0d1858fe5e869508471166fc03526826ef1529c7776739",
+    "libs/wbs/adapters/store-sqlite/src/project-solution.db.test.ts": "8719d5517f3bc0044ba2120308a6ca6e8d963f19eb59d0bbceaba993eef73ab1",
+    "libs/wbs/adapters/store-sqlite/src/project.db.test.ts": "4b17ff9f12bccd7a74b15b0d0653a898e2554b96672599e30a1a1b90b2e68bad",
+    "libs/wbs/adapters/store-sqlite/src/saved-plan-created-by-id.db.test.ts": "a9b96e18478864bdafd6a828f44122340677f366df8f69612f06ab57c2b2bf05",
+    "libs/wbs/adapters/store-sqlite/src/saved-plan-migration.db.test.ts": "6f5ee68dac4d15c6fd374e483824a90481a98833d2b79b252de3e46fe4a1ac7e",
+    "libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts": "02177375b92a7849b286e05bf3c33c86350432547b64e34685ca975a342530fd",
+    "libs/wbs/adapters/store-sqlite/src/shared-people-mode.db.test.ts": "da368c91cb704baec909cb3de9ef3af63608778c4f38b7ce644add7392bfa20d",
+    "libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts": "b0679ab5d34641776e6b0cb8764f85040e9e2579d208a5bff1237d149a71d2f7",
+    "libs/wbs/adapters/store-sqlite/src/space-rollback.db.test.ts": "be6a86d6be8cc6cc04427432e89c0b3bc1d820a8716a8981726bc49326613b9c",
+    "libs/wbs/adapters/store-sqlite/src/space.db.test.ts": "de918c1b5a8f1eee059d0b7efa7b3fd6b4a052ce090941deba5e1b52d4ea1ea5",
+    "libs/wbs/adapters/store-sqlite/src/step-code-migration.db.test.ts": "a538f0508141a93223646f1a8d0ac40a508dec86360b86612e2f77cca45f878b",
+    "libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts": "6e8853a25bad6f053f2968f3b5edff5cadccaaf2e4a009e91ebab71b34b21395",
+    "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts": "a70db6c60bbb31052b05aa7a5b72940dee7a98811f6814c76968e04eda385fe9",
+    "libs/wbs/application/core/src/module/work-item/README.md": "ccb083accf8494bd9fa51859ad1caa0f6d878a7fab1fc34731af58419f97d390",
+    "openspec/changes/set-step-node-parallelism/tasks.md": "c9f4a61c881089d8aba0f1c57b35bac81e2dd653978782c8bec029a1fcd830b0",
+    "openspec/changes/set-step-node-parallelism/verify.md": "8cdd51bf393af053fc50d6d5ac13ee57c3d1fd9bcd526f3b5e131e6d71146832",
+    "tools/tool-devsync/feasibility/source-memory-relay/README.md": "c2241b0ff45d42d0ff687b98114f68bba5a797d7d517203f4aeabd66de2115e8"
+  },
+  "artifacts": [
+    {
+      "path": "integration-migration-expectation-catalog.json.gz",
+      "rawBytes": 17096,
+      "rawSha256": "88d2be8ca6a34dffdf5b559971f9123ba87bcf3f2b29947452d64870fbf7fd3a",
+      "gzipBytes": 1439,
+      "gzipSha256": "b3a6a5d48d1e04448ecd31e07c15aa3fa196035ff4822cfa487ee5d55675f212"
+    },
+    {
+      "path": "integration-rollback-single-diagnostic.log.gz",
+      "rawBytes": 1253,
+      "rawSha256": "022be1390bbef16b1070ec81dde298740f3d58cdc2cb96bb263c6018a5611828",
+      "gzipBytes": 632,
+      "gzipSha256": "649724f36fdf90589f1d39cceda347db0423e8dc0cfeef2b377e2d18c3e77851"
+    },
+    {
+      "path": "integration-rollback-shared-diagnostic.log.gz",
+      "rawBytes": 1677,
+      "rawSha256": "9a3f006b3989b1d3d78ce2bebcb771b824b7d417e19807341141ff95677e3381",
+      "gzipBytes": 800,
+      "gzipSha256": "e265aa9636423d70520da917cf2d6ff77c52fcc106b7c105ccd274f191e94f91"
+    },
+    {
+      "path": "integration-migration-focused-green.log.gz",
+      "rawBytes": 810,
+      "rawSha256": "220f5d0bec8f24d533843c709c029517f1343fdc87bcbc2ffdba03803a32e6e7",
+      "gzipBytes": 467,
+      "gzipSha256": "f3d5323f6bebf891051dd914f671bc27df05cef2e006b69aeec098a7dbed3278"
+    },
+    {
+      "path": "integration-migration-inventory-omitted.log.gz",
+      "rawBytes": 1253,
+      "rawSha256": "27863f6c86a3b39ada39490fe554bcdb9467d68ecc0f24ef4ea649b7b6e14795",
+      "gzipBytes": 632,
+      "gzipSha256": "8b087d9c7f7e78390dfec5b2158285eb4cf67486f57c357e06a5cce3e8cc8b81"
+    },
+    {
+      "path": "integration-migration-selection-omitted.log.gz",
+      "rawBytes": 1677,
+      "rawSha256": "97c58d63055746d2f2abb6ad41454b1b25787260e3ee509a2abd2a2bb904b9dd",
+      "gzipBytes": 798,
+      "gzipSha256": "f1cc6bede8c6fde68a130c2fc31012a7500b379175d4531abbc59e877b3aaafb"
+    },
+    {
+      "path": "integration-migration-sqlite-selected.json.gz",
+      "rawBytes": 2061,
+      "rawSha256": "a55e4f42a53fa1ad52d54cee523b0b1ea1079706d0c3b761e684f5952cacb458",
+      "gzipBytes": 332,
+      "gzipSha256": "6611f8b2c93be87573583838a92b8826ffd410a2a1a9c99abe2e4fe9f1a0b2f4"
+    },
+    {
+      "path": "integration-migration-sqlite-all.log.gz",
+      "rawBytes": 62709,
+      "rawSha256": "64b834677c7324968dd2901458694c8cb471878b6f6f75837a3507156a1a2405",
+      "gzipBytes": 13557,
+      "gzipSha256": "ed69f8683ceee04b6a20f1e2fd37e8af3e9c9942f3193464cb13a8204130e9e5"
+    },
+    {
+      "path": "integration-migration-sqlite-green-selected.json.gz",
+      "rawBytes": 2052,
+      "rawSha256": "c87b5fc02e41436128694ee21189cb32c399e8f49d0a74cce88fedbb4fbe9b31",
+      "gzipBytes": 324,
+      "gzipSha256": "b9d1cf755901eee02b0758ca1be8e1f7cf6d0155f99bba14ccca9a94b24ec860"
+    },
+    {
+      "path": "integration-migration-sqlite-green.log.gz",
+      "rawBytes": 58875,
+      "rawSha256": "246f8765a6f9b417eb485d31a42cd1a063582e0ea6e1428e72fef7ada771ce55",
+      "gzipBytes": 12358,
+      "gzipSha256": "580bb70b5855402f73dc2a63f61428e5828dc14b96b5bdea8b19b5c2a691b6e4"
+    },
+    {
+      "path": "integration-browser-rollback-green.log.gz",
+      "rawBytes": 357,
+      "rawSha256": "e296a1d8277d7f0061451a610e638e950c8190786d1a3c618522904e58ecefb2",
+      "gzipBytes": 284,
+      "gzipSha256": "fe55e1f8451f274a5b9b9f522806316d8b62f871592c1bc0a4b7788e779bdfa9"
+    },
+    {
+      "path": "integration-migration-cli-green.log.gz",
+      "rawBytes": 369,
+      "rawSha256": "4956456081ecfaa229f12ee47701d79189161fffad19abba5bf34c7085c4d2b3",
+      "gzipBytes": 286,
+      "gzipSha256": "bb4379e1d90074175db0bacbba718db73c1b54a699b36918b18f40add7781f6e"
+    },
+    {
+      "path": "integration-sqlite-spec-typecheck-red.log.gz",
+      "rawBytes": 1354,
+      "rawSha256": "2eb5c5a4ab78bdb93bbb80d8be3d81c3ec61b0b6755abdfab10bc247d54f0ba7",
+      "gzipBytes": 405,
+      "gzipSha256": "7caddb9749d569ac3cdf3913060baee45dcff83c7fa98cd7c3af6a0a854acc4d"
+    },
+    {
+      "path": "integration-sqlite-spec-typecheck-green.log.gz",
+      "rawBytes": 76,
+      "rawSha256": "f5b29efa9a93d26096f4831f105ea5a4dc500e3b07579cafcb53171623ff5a2c",
+      "gzipBytes": 84,
+      "gzipSha256": "48aa5ff97de68a3755a04b8f8162f67b3624dcc26cc928941138f5199ce16d5e"
+    },
+    {
+      "path": "integration-sqlite-lib-typecheck-green.log.gz",
+      "rawBytes": 77,
+      "rawSha256": "eb2f8aa26819c87c0246fb6109ea7b99825916a427ba446e984bd2dbd356766a",
+      "gzipBytes": 85,
+      "gzipSha256": "75191c3c842a2c024a503ec3d1d5164665a399cd730c4e52fbd2deeb3d8670a9"
+    },
+    {
+      "path": "integration-sqlite-lib-typecheck-1800.log.gz",
+      "rawBytes": 76,
+      "rawSha256": "0eab1c3a7eb2e709290acf67ffa89588b25a4dae2d6bc75aab3a8eb2c13db512",
+      "gzipBytes": 85,
+      "gzipSha256": "da494b20745bcf745b0f286aa7e12475e8020f66e5114191dce5277ae39fa2c7"
+    },
+    {
+      "path": "integration-backend-full-after-migration.log.gz",
+      "rawBytes": 17478,
+      "rawSha256": "9098b4bac44f32d3f326e3a84a8029ec8036e47b40a5cd0f4810b97338cc6a18",
+      "gzipBytes": 3839,
+      "gzipSha256": "694044fa7997aa3b76deb682a744bf615b730b9b238ac3739c51706bc3fc0009"
+    },
+    {
+      "path": "integration-doc-routing-red.log.gz",
+      "rawBytes": 2217,
+      "rawSha256": "8f28a2eb714b389251c91a4143889e6baeaeb9a11523a78e875560a2afdc0885",
+      "gzipBytes": 890,
+      "gzipSha256": "cf5bb43df6d5f4b1d2540663a676e7ab59faf653ce13ecb22bb91a9eeeef4feb"
+    },
+    {
+      "path": "integration-doc-routing-green.log.gz",
+      "rawBytes": 431,
+      "rawSha256": "ac24378d920c70ec683dae1bcab4d089daf64431676ecf277829bce1ba316dc3",
+      "gzipBytes": 312,
+      "gzipSha256": "79de0fea778182d998fde138b557df128780b162c26ac9db38699545e78f3299"
+    },
+    {
+      "path": "integration-namespacing-full-file.log.gz",
+      "rawBytes": 321,
+      "rawSha256": "61d8170fb955141d2bb18e1c8f5bbd0da2ee21c973ddc8e260e462af826efcfe",
+      "gzipBytes": 252,
+      "gzipSha256": "f54ddb1e174cd8dcc5a90ad1f862609bf8a4b45b8a1603cae960c22c2adc2c2d"
+    },
+    {
+      "path": "integration-namespacing-full-file-1400.log.gz",
+      "rawBytes": 323,
+      "rawSha256": "ae933af054abee50a8de8debb12323daaf892fe3c4f155b9f200a155e6d5a3ab",
+      "gzipBytes": 252,
+      "gzipSha256": "eb2f56e2cafbb60f0aeda9152a9c3bd20b2fca00ad5f06fef73d5f25ef8fee55"
+    },
+    {
+      "path": "integration-namespacing-split.log.gz",
+      "rawBytes": 1393,
+      "rawSha256": "69abbf5c9b838bc1fd4f70f0b1429311c6e065ed236185f1ba5f14c6b14e9a85",
+      "gzipBytes": 726,
+      "gzipSha256": "2e500d7ea144fc2ba6639dfafd2a00589d0784af73efef4ce8f9cb4175e984a0"
+    },
+    {
+      "path": "integration-namespacing-index-1400.log.gz",
+      "rawBytes": 163,
+      "rawSha256": "121d31339fca7d62043f44f5da9129d0624af2f245b34e2158c3e93b35cf470e",
+      "gzipBytes": 156,
+      "gzipSha256": "4841a5bfe4ae1d7c03d07232ab40257cc5f562c3c8184b70453fb408ebafc6f5"
+    },
+    {
+      "path": "integration-namespacing-index-1800.log.gz",
+      "rawBytes": 1112,
+      "rawSha256": "435c7242f273eca4a1d3c075392087ec2a6460fccec1c15209ff54ddfe645994",
+      "gzipBytes": 646,
+      "gzipSha256": "b900b3cd57aa5b2a6ef5e4c7502f62ae031187c73098990a2824a23f9dd26eca"
+    },
+    {
+      "path": "integration-namespacing-index-green.log.gz",
+      "rawBytes": 1131,
+      "rawSha256": "de2455294fffb3ae86cffd2c56e5c1dcb6f93bc012c16da4a679108c43f38202",
+      "gzipBytes": 650,
+      "gzipSha256": "54b73e3262ef621a0ea4bc2046cabd1f2f186950982437285473b89597c304df"
+    },
+    {
+      "path": "integration-namespacing-index-final-green.log.gz",
+      "rawBytes": 340,
+      "rawSha256": "c597926ef47a32512abe2511a45dae0c7e1f8165dcfb5b515e1a7b6c88f51504",
+      "gzipBytes": 276,
+      "gzipSha256": "dfda5a23aeb52c879efbce9e192c603d23bd773907f43bc62420122e0662d35a"
+    },
+    {
+      "path": "integration-migration-openspec.log.gz",
+      "rawBytes": 117,
+      "rawSha256": "9d00d2e28850f80364a7c775e26b86f63421e9e62cc2626994b338949b799ff3",
+      "gzipBytes": 127,
+      "gzipSha256": "22c3c074f6696c4dbfdc5f9f97456d06b11b4b397348d75d2bdc1c07e07abb63"
+    },
+    {
+      "path": "h2-gate-poller-reflog-oct17.txt.gz",
+      "rawBytes": 497,
+      "rawSha256": "bd83fbd4be7910e5eac3578cc8d45b1c538269d32d0aecf25f4b5365b74047cc",
+      "gzipBytes": 244,
+      "gzipSha256": "70a3089295bfdd15ca396c95b61ff2c96a690b8811a0f39ebdc4f4631a308124"
+    }
+  ],
+  "proofFaults": {
+    "reader": "Filter newest sparse migration out of readMigrationFolders return; exact folder inventory fails.",
+    "selection": "Filter newest sparse migration out of migrationsToRollback selection; exact shared rollback prefix fails.",
+    "restoration": "Both production files restored byte-for-byte in finally; no production diff."
+  },
+  "limits": [
+    "Full backend sandbox/socket failures then guard kill; no full-backend completion.",
+    "First SQLite traversal514pass/4fail includes3 stale schema expectations plus unrelated child-stdin EPERM.",
+    "Lib1400 cap kill;1800retry green.",
+    "Whole namespacing900/1400 and isolated1400 cap killed;14+1 cases qualify split.",
+    "Three unidentified host tool-devsync failures not claimed fixed.",
+    "Normal containing-commit hooks and final identity external."
+  ]
+}

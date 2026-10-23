@@ -5,6 +5,7 @@ import { loadConfig } from './config';
 import { oidcRouteOptionsFromEnv } from './controller/oidc-options';
 import { installSolverLauncher } from './module/solver-launcher/check';
 import { installSolverSupervisor } from './module/solver-supervisor/check';
+import { superviseBe } from './runtime/be-supervisor';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
@@ -36,6 +37,11 @@ try {
     gwUrl: cfg.GW_URL,
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
     browserSessionAuthority: cfg.BROWSER_SESSION_AUTHORITY,
+    organizationDefaultLimits: cfg.organizationDefaultLimits,
+    // Proof: omitting each of these three organization bindings separately failed the entrypoint disposal marker oracle.
+    organizationDnsResolvers: cfg.organizationDnsResolvers,
+    organizationDomainProofScheduling: cfg.ORGANIZATION_DOMAIN_PROOF_SCHEDULING,
+    emailDelivery: cfg.emailDelivery,
     delegationKeys: cfg.delegationKeys,
     oidc: cfg.AUTH_MODE === 'oidc' ? oidcRouteOptionsFromEnv(process.env) : undefined,
     localIdentity:
@@ -63,17 +69,18 @@ try {
 // Stops accepting, waits for a retention sweep in flight, closes the file. The
 // default SIGTERM would kill the process mid-DELETE against a file the other
 // deployment colour is also using.
+// Proof: removing this binding made the entrypoint subprocess exit 0 on a
+// latched worker failure instead of joining disposal and exiting 1.
+const supervisor = superviseBe(running, {
+  exit: (code) => {
+    process.exit(code);
+  },
+  report: (cause) => {
+    logger.error({ err: cause }, 'be-01 background or disposal failure');
+  },
+});
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
-    void running.stop().then(
-      () => {
-        logger.info({ signal }, 'be-01 stopped');
-        process.exit(0);
-      },
-      (err: unknown) => {
-        logger.error({ err, signal }, 'be-01 did not stop cleanly');
-        process.exit(1);
-      },
-    );
+    void supervisor.stop();
   });
 }

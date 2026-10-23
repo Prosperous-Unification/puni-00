@@ -1,0 +1,182 @@
+[
+  {
+    "path": "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-00.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/capacity-body.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-01.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/directory.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-02.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+    "exitCode": 1,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-03.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-04.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-05.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-06.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-07.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-08.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/controller/undo.controller.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-09.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-10.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/plan-commands.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-11.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-12.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/revision.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-13.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-14.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-15.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/step.service.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-16.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-17.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/service/undo.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-18.txt"
+  },
+  {
+    "path": "apps/wbs/be-01/src/testing/organization-harness.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-19.txt"
+  },
+  {
+    "path": "libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-20.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/compose.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-21.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/http/work-item.routes.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-22.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-23.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-24.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-25.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/check.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-26.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/contract.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-27.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+    "exitCode": 1,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-28.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/module.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-29.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/module.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-30.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-31.txt"
+  },
+  {
+    "path": "libs/wbs/application/core/src/testing/harness.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-32.txt"
+  },
+  {
+    "path": "libs/wbs/domain/contracts/src/http/refusal.test.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-33.txt"
+  },
+  {
+    "path": "libs/wbs/domain/contracts/src/http/refusal.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-34.txt"
+  },
+  {
+    "path": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-35.txt"
+  }
+]

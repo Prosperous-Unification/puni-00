@@ -1,0 +1,44 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+<--- Last few GCs --->
+
+[137:0x2aff8000]     3850 ms: Mark-Compact 378.7 (386.2) -> 377.2 (390.7) MB, pooled: 0 MB, 275.69 / 0.00 ms  (average mu = 0.263, current mu = 0.069) allocation failure; scavenge might not succeed
+[137:0x2aff8000]     3966 ms: Mark-Compact (reduce) 381.6 (390.7) -> 380.0 (386.2) MB, pooled: 0 MB, 78.21 / 0.00 ms  (+ 0.4 ms in 62 steps since start of marking, biggest step 0.2 ms, walltime since start of marking 93 ms) (average mu = 0.282, current mu
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x757658 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc60e30  [node]
+ 3: 0xc60f1f  [node]
+ 4: 0xf047f5  [node]
+ 5: 0xf1615c  [node]
+ 6: 0xeeb613  [node]
+ 7: 0xec1120  [node]
+ 8: 0x13b8a18  [node]
+ 9: 0x1acd9b6  [node]
+
+exit status 1
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+  ────────────────────────────────────
+summary: (done in 6.24 seconds)
+✓ format (2.01 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.02 seconds)
+✓ tool-wiki (0.00 seconds)
+✗ lint (4.13 seconds)

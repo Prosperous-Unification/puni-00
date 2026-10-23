@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-source-levels.test.ts:
+(pass) [TEST-AXES-144] joins real case ownership to full levels without promotion [1033.51ms]
+(pass) [TEST-AXES-145] snapshot digest mode report and markers must agree [24090.04ms]
+(pass) [TEST-AXES-145] case-ID bijection rejects missing extra duplicate substituted and mismatched tuples [22711.29ms]
+(pass) [TEST-AXES-146] real malformed absent and unreadable committed index refuse [867.91ms]
+(pass) [TEST-AXES-146] final real publication read refuses physical corruption and resealed drift [5554.14ms]
+(pass) [TEST-AXES-147] isolated failed and skipped cases stay diagnostic and stable [2278.14ms]
+(pass) [TEST-AXES-147] wrong-level exits one and retains real owners and classifications [1461.30ms]
+(pass) [TEST-AXES-147] exact selection and operands are required [1253.17ms]
+(pass) [TEST-AXES-144] real index review debt survives complete ownership and level binding [593.71ms]
+(pass) [TEST-AXES-147] built executable matches source isolation wrong-level and usage [9246.51ms]
+(pass) [TEST-AXES-147] diagnostic certification requires literal false [4070.50ms]
+
+ 11 pass
+ 0 fail
+ 229 expect() calls
+Ran 11 tests across 1 file. [73.93s]

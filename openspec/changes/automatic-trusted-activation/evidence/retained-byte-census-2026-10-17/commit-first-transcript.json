@@ -1,0 +1,7 @@
+{
+  "rawPath": "/tmp/puni-retained-byte-census-commit-20261017.log",
+  "rawSha256": "250b666f321a858619a4c07e1d7ba3022f21707982c9f05ebbffaa0664ef5b57",
+  "presentationPath": "openspec/changes/automatic-trusted-activation/evidence/retained-byte-census-2026-10-17/commit-first.log",
+  "presentationSha256": "9350b79a332e4917676906a02a3811ea38b331fd5e9aee7b5e1edc6abbfcd2ea",
+  "normalization": "Only trailing ASCII spaces and tabs removed per LF-delimited line; all LF bytes preserved."
+}

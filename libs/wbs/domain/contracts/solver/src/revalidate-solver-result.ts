@@ -361,6 +361,19 @@ export const revalidateSolverResult = (
         );
       }
     }
+    // Wire 4's invariant (10), re-checked here for invariant (4)'s reason: a
+    // demand on a resource with no capacity is a constraint nobody can check.
+    // Proof: with this loop iterating nothing, `refuses a request whose demand
+    // names a resource with no capacity` was accepted — the overload sweep
+    // compared against `undefined` and found none; watched 2026-10-20.
+    for (const { resourceId } of slice.demands) {
+      if (!Object.hasOwn(request.resources, resourceId)) {
+        return refuse(
+          'malformed-request',
+          `slice ${JSON.stringify(slice.key)} demands resource ${JSON.stringify(resourceId)}, which has no capacity`,
+        );
+      }
+    }
   }
   for (const [workItemKey, peers] of workItems) {
     // Proof: deleting this group comparison admits an all-zero work item whose
@@ -562,6 +575,37 @@ export const revalidateSolverResult = (
       return refuse(
         'pool-overcapacity',
         `pool ${JSON.stringify(poolId)} carries ${String(overload.load)} of ${String(capacity)} at unit ${String(overload.at)}`,
+      );
+    }
+  }
+
+  // Model clause 4 for resources (`wbs-resources` R5): each demanded resource
+  // is one cumulative, every member counted at its own units. A resource is a
+  // pool, so an overload is `pool-overcapacity` naming the resource.
+  // Proof: with this loop iterating nothing, `refuses a response that runs two
+  // staging demanders at once` and `counts each demander at its own units of a
+  // divisible resource` (revalidate-solver-result.test.ts) accepted the
+  // overload (50 pass / 2 fail); watched 2026-10-20.
+  const byResource = groupBy(placements, (placement) =>
+    placement.slice.demands.map(({ resourceId }) => resourceId),
+  );
+  for (const [resourceId, members] of byResource) {
+    const capacity = request.resources[resourceId];
+    const overload = overloadAt(
+      members,
+      (placement) => {
+        const demand = placement.slice.demands.find((each) => each.resourceId === resourceId);
+        // Grouped by these very demands, so a member without one is this
+        // function's own bug.
+        if (demand === undefined) throw new Error(`no demand on ${resourceId} in its own group`);
+        return demand.units;
+      },
+      capacity,
+    );
+    if (overload !== null) {
+      return refuse(
+        'pool-overcapacity',
+        `resource ${JSON.stringify(resourceId)} carries ${String(overload.load)} of ${String(capacity)} at unit ${String(overload.at)}`,
       );
     }
   }

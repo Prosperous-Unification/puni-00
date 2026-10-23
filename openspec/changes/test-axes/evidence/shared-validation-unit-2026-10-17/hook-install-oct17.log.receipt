@@ -1,0 +1,31 @@
+{
+  "command": [
+    "bun",
+    "run",
+    "tools/tool-git-hooks/src/install.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 86848,
+  "ceilingKiB": 1310720,
+  "observedArgv": [
+    [
+      "/home/df/.bun/bin/bunx",
+      "lefthook",
+      "install"
+    ],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/lefthook-linux-x64/bin/lefthook",
+      "install"
+    ],
+    [
+      "bun",
+      "run",
+      "tools/tool-git-hooks/src/install.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/lefthook",
+      "install"
+    ]
+  ]
+}

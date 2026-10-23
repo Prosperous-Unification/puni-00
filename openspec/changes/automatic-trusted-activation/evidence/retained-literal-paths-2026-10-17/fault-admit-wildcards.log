@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 365772800, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+254 |       // Proof: path-empty-component omission loses `direct malformed or outside` (named RED in final fault ledger).
+255 |       path.includes('//') ||
+256 |       // Proof: path-outside omission loses `direct malformed or outside` (named RED in final fault ledger).
+257 |       (path !== root && !path.startsWith(`${root}/`))
+258 |     )
+259 |       throw new Error('source path outside or malformed');
+                                                              ^
+error: source path outside or malformed
+      at assertQuery (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:259:57)
+      at resolvePath (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:283:22)
+      at pathKind (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:510:24)
+      at admitConfigurationRoot (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:105:14)
+      at admitLiteralPaths (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:240:14)
+      at parseProject (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:314:5)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:124:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:178:23)
+(fail) retained literal paths admits wildcard substitution untouched [195.58ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1169.00ms]

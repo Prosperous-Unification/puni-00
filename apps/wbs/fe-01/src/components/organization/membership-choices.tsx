@@ -1,7 +1,7 @@
+import { Button } from '@ui/saas-01';
 import { type ClientReply, listOrganizationMemberships } from '@wbs/contracts';
 import { useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 import { cn } from '@/lib/utils';
 

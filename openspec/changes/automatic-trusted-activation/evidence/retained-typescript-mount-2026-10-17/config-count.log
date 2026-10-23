@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+273 |     extractRetainedTypeScriptRelationships({
+274 |       ...f,
+275 |       request: { ...f.request, configPaths: poison },
+276 |       requestLimits: { ...requestLimits, maximumConfigPaths: 1 },
+277 |     }),
+278 |   ).toThrow('request count');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request count"
+Received message: "path copied before count bound"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:278:5)
+(fail) retained compiler bounds and captures fixed request lengths before indexed getters [255.58ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1219.00ms]

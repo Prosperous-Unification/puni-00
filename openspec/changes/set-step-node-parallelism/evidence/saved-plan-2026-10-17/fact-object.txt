@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 25645056, "exitCode": 1}
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [2.22ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.16ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.29ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [3.54ms]
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.96ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.16ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.06ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+129 |     ['missing maximum', [{ workItemId: 'w2', stepId: 's1' }]],
+130 |   ] as const) {
+131 |     it(`refuses ${name} parallel facts at capture`, () => {
+132 |       expect(() =>
+133 |         canonicalisePlanInput({ ...planFixtureRows, stepParallels: facts } as never),
+134 |       ).toThrow(
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism fact is malformed"
+Received message: "fact is not an Object. (evaluating '\"workItemId\" in fact')"
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:134:9)
+(fail) saved sparse step parallelism > refuses null fact parallel facts at capture [0.61ms]
+141 |       expect(() =>
+142 |         normalisePlanInputForward(
+143 |           { ...planFixtureRows, schemaVersion: 8, stepParallels: facts },
+144 |           8,
+145 |         ),
+146 |       ).toThrow(
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism fact is malformed"
+Received message: "fact is not an Object. (evaluating '\"workItemId\" in fact')"
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:146:9)
+(fail) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.18ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture [0.06ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read [0.02ms]
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read [0.01ms]
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read [0.01ms]
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.13ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts [0.02ms]
+
+2 tests failed:
+(fail) saved sparse step parallelism > refuses null fact parallel facts at capture [0.61ms]
+(fail) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.18ms]
+
+ 31 pass
+ 2 fail
+ 47 expect() calls
+Ran 33 tests across 1 file. [30.00ms]

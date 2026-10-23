@@ -1,9 +1,10 @@
+import { rejects } from 'node:assert/strict';
 import { chmod, link, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { ROOT } from './lib/docker';
 import { planSwap } from './lib/reconcile';
@@ -687,7 +688,7 @@ function backendPreparation(
       events.push('read');
       if (path.endsWith('/be-01.env'))
         return Promise.resolve(
-          'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\n',
+          'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\nORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50\nORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200\nORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000\n',
         );
       if (path === oidcPath)
         return Promise.resolve(
@@ -1185,8 +1186,9 @@ for (const fault of ['none', 'id', 'image', 'entrypoint'] as const) {
     const commands: string[][] = [];
     const candidate = await prepareBackend('be', 'green', image, '/fixture/be.phase', {
       ...prepared,
-      runDocker: async (args) => {
+      runDocker: async (args, signal) => {
         commands.push(args);
+        if (signal?.aborted) throw new Error('observed maintenance abort');
         if (args[0] !== 'inspect') return prepared.runDocker(args);
         if (args[2] === '{{.Id}}') return maintenanceId;
         return JSON.stringify({
@@ -1224,6 +1226,12 @@ for (const fault of ['none', 'id', 'image', 'entrypoint'] as const) {
         maintenanceId,
         maintenanceId,
       ]);
+      const controller = new AbortController();
+      controller.abort();
+      await refuses(
+        candidate.verifyMaintenance(maintenanceId, controller.signal),
+        'observed maintenance abort',
+      );
     } else await refuses(candidate.startMaintenance(), 'maintenance');
     expect(commands.some((args) => args[0] === 'exec')).toBe(false);
   });
@@ -1580,4 +1588,382 @@ for (const vocabulary of storedVocabularies) {
       }
     });
   }
+}
+
+async function assertRefusal(pending: Promise<unknown>, message = '') {
+  await rejects(pending, new RegExp(message));
+}
+
+async function activationFixture(fault = '') {
+  const f = await fixture();
+  let enterStall: () => void = () => {
+    throw new Error('stall signal is not initialized');
+  };
+  const stalled = new Promise<void>((resolve) => {
+    enterStall = resolve;
+  });
+  const original = f.io.sh;
+  let attempted = false;
+  let maintenanceStarted = false;
+  let receipt: unknown;
+  let capabilityProbes = 0;
+  const verify = f.io.prepareBackend;
+  if (verify === undefined) throw new Error('fixture missing preparation');
+  f.io.prepareBackend = async (...args) => {
+    const prepared = await verify(...args);
+    const previous = prepared.verifyMaintenance;
+    prepared.verifyMaintenance = (identity, signal) => {
+      if (attempted && fault === 'maintenance-stall') {
+        signal?.addEventListener('abort', () => f.events.push('aborted'));
+        enterStall();
+        return new Promise<string>(() => undefined).then(() => undefined);
+      }
+      if (maintenanceStarted && fault === 'maintenance-drift')
+        return Promise.reject(new Error('activation maintenance drift'));
+      return previous(identity);
+    };
+    return prepared;
+  };
+  f.io.resolveMount = (path) => {
+    if (attempted && fault === 'resolve-stall') {
+      enterStall();
+      return new Promise<string>(() => undefined);
+    }
+    return Promise.resolve(
+      maintenanceStarted && fault === 'database-drift' && path.endsWith('/wbs.db')
+        ? '/replaced/wbs.db'
+        : path,
+    );
+  };
+  const namespaceProof = f.io.namespaceProof;
+  if (namespaceProof === undefined) throw new Error('fixture missing namespace proof');
+  f.io.namespaceProof = (...args) => {
+    if (attempted && fault === 'namespace-stall') {
+      enterStall();
+      return new Promise<void>(() => undefined);
+    }
+    return namespaceProof(...args);
+  };
+  f.io.sh = async (args, signal) => {
+    const stall = () => {
+      signal?.addEventListener('abort', () => f.events.push('aborted'));
+      enterStall();
+      return new Promise<string>(() => undefined);
+    };
+    if (attempted && fault === 'stopped-stall' && args[0] === 'inspect' && args[3] === outgoingId)
+      return stall();
+    if (args[0] === 'ps' && maintenanceStarted)
+      return fault === 'writer-drift' ? outgoingId : `${outgoingId}\n${maintenanceId}`;
+    if (args[0] === 'inspect' && args[1] === outgoingId && args[2] === maintenanceId) {
+      const observed = JSON.parse(await original(['inspect', outgoingId])) as Record<
+        string,
+        unknown
+      >[];
+      return JSON.stringify([
+        ...observed,
+        {
+          ...observed[0],
+          Id: maintenanceId,
+          Name: '/be-01-green',
+          Image: `sha256:${'c'.repeat(64)}`,
+          Config: { Image: image, Env: ['DB_PATH=/data/wbs.db'] },
+        },
+      ]);
+    }
+    if (
+      maintenanceStarted &&
+      fault === 'rollback-running' &&
+      args[0] === 'inspect' &&
+      args[3] === outgoingId
+    ) {
+      const observed = JSON.parse(await original(args)) as { State: { Running: boolean } };
+      observed.State.Running = true;
+      return JSON.stringify(observed);
+    }
+    if (
+      maintenanceStarted &&
+      fault === 'rollback-drift' &&
+      args[0] === 'inspect' &&
+      args[1] === '--type'
+    ) {
+      const observed = JSON.parse(await original(args)) as [
+        { Config: { Image: string }; Image: string },
+      ];
+      observed[0].Config.Image = image;
+      observed[0].Image = `sha256:${'c'.repeat(64)}`;
+      return JSON.stringify(observed);
+    }
+    if (args.includes('src/migrate-cli.ts')) maintenanceStarted = true;
+    if (args[0] === 'run' && args.includes('src/step-blockage-replay-kinds-cli.ts')) {
+      capabilityProbes += 1;
+      if (fault === 'capability-stall' && capabilityProbes >= 1) return stall();
+      const incapable =
+        (fault === 'candidate-incapable' && args.includes(image)) ||
+        (fault === 'rollback-incapable' && args.includes(previousImage));
+      return incapable ? '[]' : '["step_blockage_activation_v1"]';
+    }
+    if (args[0] === 'run' && args.includes('src/step-blockage-activation-cli.ts')) {
+      if (fault === 'inspect-stall') return stall();
+      if (fault === 'missing-receipt-migration')
+        throw new Error('missing step blockage receipt migration');
+      return '{"state":"DISABLED","receipt":null}';
+    }
+    if (args[0] === 'exec' && args.includes('-e')) {
+      receipt = (
+        JSON.parse(await readFile(join(f.root, 'be-writer-activation.json'), 'utf8')) as {
+          receipt: unknown;
+        }
+      ).receipt;
+      return '';
+    }
+    if (args.includes('activate')) {
+      attempted = true;
+      expect(await readFile(join(f.root, 'be-writer-activation.json'), 'utf8')).toContain(
+        previousImage,
+      );
+      if (fault === 'activate-stall') return stall();
+      if (fault === 'commit-uncertain') throw new Error('transport lost after commit');
+      return JSON.stringify({ state: 'ENABLED', receipt });
+    }
+    if (args[0] === 'exec' && args.includes('src/step-blockage-activation-cli.ts')) {
+      if (fault === 'readback-stall') return stall();
+      if (fault === 'readback-unavailable') throw new Error('readback unavailable');
+      return JSON.stringify({
+        state: 'ENABLED',
+        receipt: fault === 'readback-mismatch' ? {} : receipt,
+      });
+    }
+    return original(args);
+  };
+  return { ...f, stalled, attempted: () => attempted };
+}
+
+for (const fault of ['candidate-incapable', 'rollback-incapable', 'missing-receipt-migration']) {
+  test(`explicit activation refuses ${fault} before maintenance or intent`, async () => {
+    const f = await activationFixture(fault);
+    await assertRefusal(execute(f.plan, image, 'release', f.io, true));
+    expect(f.attempted()).toBe(false);
+    expect(f.events).not.toContain('maintenance');
+    expect(f.events).not.toContain('start');
+    await assertRefusal(readFile(join(f.root, 'be-writer-activation.json')), 'ENOENT');
+  });
+}
+for (const fault of [
+  'maintenance-drift',
+  'rollback-running',
+  'rollback-drift',
+  'database-drift',
+  'writer-drift',
+  'commit-uncertain',
+  'readback-unavailable',
+  'readback-mismatch',
+]) {
+  test(`explicit activation retains barriers and prevents exposure on ${fault}`, async () => {
+    const f = await activationFixture(fault);
+    const refusal: Record<string, string> = {
+      'maintenance-drift': 'activation maintenance drift',
+      'rollback-running': 'not proven stopped',
+      'rollback-drift': 'activation rollback image association changed',
+      'database-drift': 'activation database identity changed',
+      'writer-drift': 'activation writer inventory changed',
+      'commit-uncertain': 'transport lost after commit',
+      'readback-unavailable': 'readback unavailable',
+      'readback-mismatch': 'activation committed readback differs',
+    };
+    await assertRefusal(execute(f.plan, image, 'release', f.io, true), refusal[fault]);
+    expect(f.isBlueRunning()).toBe(false);
+    expect(f.events).not.toContain('start');
+    expect(f.events).not.toContain('alias');
+    for (const boundary of ['stop', 'maintenance', 'migration'])
+      expect(await readFile(join(f.root, `be-writer-${boundary}.json`), 'utf8')).toContain(image);
+    if (['commit-uncertain', 'readback-unavailable', 'readback-mismatch'].includes(fault)) {
+      expect(f.attempted()).toBe(true);
+      expect(await readFile(join(f.root, 'be-writer-activation.json'), 'utf8')).toContain(image);
+    } else expect(f.attempted()).toBe(false);
+    await assertRefusal(execute(f.plan, image, 'release', f.io), 'explicit recovery');
+  });
+}
+test('explicit activation exposes the application only after exact separate committed readback', async () => {
+  const f = await activationFixture();
+  await execute(f.plan, image, 'release', f.io, true);
+  expect(f.attempted()).toBe(true);
+  expect(f.events).toContain('start');
+  expect(await readFile(join(f.root, 'be-writer-exposure.json'), 'utf8')).toContain(image);
+});
+
+test('committed activation clears all five barriers after application exposure', async () => {
+  const f = await activationFixture();
+  f.plan.steps.push('commit');
+  await execute(f.plan, image, 'release', f.io, true);
+  await assertNoWriterBarrier(f.root);
+  expect(f.events).toContain('start');
+});
+
+test('activation refuses a non-backend plan before preflight', async () => {
+  const f = await activationFixture();
+  await assertRefusal(
+    execute({ ...f.plan, tier: 'gw' }, image, 'release', f.io, true),
+    'activation requires only be',
+  );
+  expect(f.events).toEqual([]);
+});
+
+/** Control only the deadline clock; fixture filesystem work keeps its real asynchronous IO. */
+function controlActivationClock() {
+  let now = 0;
+  const setTimer = globalThis.setTimeout;
+  const clearTimer = globalThis.clearTimeout;
+  const scheduled = new Map<ReturnType<typeof setTimeout>, { at: number; fire: () => void }>();
+  const clock = spyOn(performance, 'now').mockImplementation(() => now);
+  // Bun uses object tokens here; the unused DOM overload declares a numeric return.
+  const timer = spyOn(globalThis, 'setTimeout').mockImplementation(
+    Object.assign(
+      (callback: unknown, milliseconds = 0, ...args: unknown[]) => {
+        if (typeof callback !== 'function') throw new Error('deadline requires a callback');
+        const token = setTimer(() => undefined, 2_147_483_647);
+        scheduled.set(token, {
+          at: now + milliseconds,
+          fire: () => {
+            Reflect.apply(callback, undefined, args);
+          },
+        });
+        return token;
+      },
+      { __promisify__: setTimer.__promisify__ },
+    ) as typeof setTimeout,
+  );
+  const cancellation = spyOn(globalThis, 'clearTimeout').mockImplementation((token) => {
+    Reflect.apply(clearTimer, globalThis, [token]);
+    for (const pending of scheduled.keys()) {
+      if (pending === token) scheduled.delete(pending);
+    }
+  });
+  return {
+    elapse: (milliseconds: number) => {
+      now += milliseconds;
+    },
+    advance: async (at: number) => {
+      now = at;
+      let fired = 0;
+      for (;;) {
+        const due = [...scheduled.entries()]
+          .filter(([, pending]) => pending.at <= now)
+          .sort(([, left], [, right]) => left.at - right.at)
+          .at(0);
+        if (due === undefined) break;
+        if (fired >= 100) throw new Error('deadline clock did not converge');
+        fired += 1;
+        const [token, pending] = due;
+        scheduled.delete(token);
+        clearTimer(token);
+        pending.fire();
+        // A real event-loop turn lets promise continuations cancel another due timer.
+        await new Promise<void>((resolve) => {
+          setTimer(resolve, 0);
+        });
+      }
+      await new Promise<void>((resolve) => {
+        setTimer(resolve, 0);
+      });
+    },
+    deadlines: () => [...scheduled.values()].map((pending) => pending.at),
+    restore: () => {
+      cancellation.mockRestore();
+      timer.mockRestore();
+      clock.mockRestore();
+      for (const token of scheduled.keys()) clearTimer(token);
+    },
+  };
+}
+
+for (const fault of [
+  'capability-stall',
+  'inspect-stall',
+  'activate-stall',
+  'readback-stall',
+  'maintenance-stall',
+  'stopped-stall',
+  'resolve-stall',
+  'namespace-stall',
+]) {
+  test.serial(
+    `activation total budget bounds production caller ${fault} and retains uncertainty`,
+    async () => {
+      const f = await activationFixture(fault);
+      f.io.activationBudgetMs = 30;
+      const setTimer = globalThis.setTimeout;
+      const clearTimer = globalThis.clearTimeout;
+      let watchdogToken: ReturnType<typeof setTimeout> | undefined;
+      const watchdog = new Promise<never>((_, reject) => {
+        watchdogToken = setTimer(() => {
+          reject(new Error('activation deadline did not settle'));
+        }, 4000);
+      });
+      const clock = controlActivationClock();
+      try {
+        if (fault === 'inspect-stall') {
+          const runDocker = f.io.sh;
+          let consumed = false;
+          f.io.sh = async (args, signal) => {
+            const output = await runDocker(args, signal);
+            if (
+              !consumed &&
+              signal !== undefined &&
+              args.includes('src/step-blockage-replay-kinds-cli.ts')
+            ) {
+              consumed = true;
+              clock.elapse(10);
+            }
+            return output;
+          };
+        }
+        let settled = false;
+        const refusal = assertRefusal(
+          execute(f.plan, image, 'release', f.io, true),
+          'deadline exceeded',
+        ).then(() => {
+          settled = true;
+        });
+        await Promise.race([
+          f.stalled,
+          refusal.then(() => {
+            throw new Error('activation refused before the named stall');
+          }),
+          watchdog,
+        ]);
+        // Stall entry happens inside the runner, before runDockerBefore registers its timer.
+        await Promise.resolve();
+        // Proof: resetting preparation deadlines per call failed here after the 10ms capability.
+        expect(clock.deadlines().length).toBeGreaterThan(0);
+        expect(clock.deadlines().every((deadline) => deadline === 30)).toBe(true);
+        await clock.advance(29);
+        expect(settled).toBe(false);
+        expect(f.events).not.toContain('aborted');
+        // Proof: suppressing the production timer callback hit the independent 4s watchdog.
+        await clock.advance(30);
+        await Promise.race([refusal, watchdog]);
+      } finally {
+        clock.restore();
+        clearTimer(watchdogToken);
+      }
+      expect(f.events).not.toContain('start');
+      expect(f.events).not.toContain('alias');
+      // Proof: suppressing abort or removing preparation signal forwarding lost this event.
+      if (fault !== 'resolve-stall' && fault !== 'namespace-stall')
+        expect(f.events).toContain('aborted');
+      expect(f.isBlueRunning()).toBe(false);
+      expect(await readFile(join(f.root, 'be-writer-stop.json'), 'utf8')).toContain(image);
+      if (fault === 'capability-stall' || fault === 'inspect-stall') {
+        await assertRefusal(readFile(join(f.root, 'be-writer-activation.json')), 'ENOENT');
+        expect(f.attempted()).toBe(false);
+      } else {
+        for (const boundary of ['maintenance', 'migration', 'activation'])
+          expect(await readFile(join(f.root, `be-writer-${boundary}.json`), 'utf8')).toContain(
+            image,
+          );
+      }
+      await assertRefusal(execute(f.plan, image, 'release', f.io), 'explicit recovery');
+    },
+    5000,
+  );
 }

@@ -1,0 +1,225 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+{"level":"error","time":1792213051934,"service":"be-01","err":{"occurrence_id":"AE_AFPMZ5JRH641NAG0SGVGT1ERTQ","fingerprint":"fp1_b85ab2e0d568fe708a97193461fa1cf3","stack":["Error: Working plan for 2b6bf00e-b2e3-4254-9a14-117838ca4eb0 cannot read project foreign","    at assertProject (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:44:17)","    at listByWorkItems (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:532:9)","    at duplicate (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:3302:53)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/command-bindings.ts:266:25)","    at async applyAll (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:645:26)","    at async collect (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6894:28)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:399:53)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/composition.ts:101:32)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+122 |                   { kind: 'duplicateWorkItem', ...duplication },
+123 |                 ],
+124 |               }
+125 |             : { commands: [{ kind: 'duplicateWorkItem', ...duplication }] },
+126 |         );
+127 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": {
+-     "at": 0,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "duplicateWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "fd390247-1b91-4c9b-b137-05cc585ba6ab",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "83a2e2d8-5078-4e3a-bbab-85489bdffd51",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 16
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:127:24)
+(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [528.32ms]
+{"level":"error","time":1792213052391,"service":"be-01","err":{"occurrence_id":"AE_MVPKDMFRVG7666TH2M7TBYMNBT","fingerprint":"fp1_b85ab2e0d568fe708a97193461fa1cf3","stack":["Error: Working plan for 49bc3f15-f0ca-4ba6-957b-d2ae9ce68bb6 cannot read project foreign","    at assertProject (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:44:17)","    at listByWorkItems (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:532:9)","    at duplicate (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:3302:53)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/command-bindings.ts:266:25)","    at async applyAll (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:645:26)","    at async collect (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6894:28)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:399:53)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/composition.ts:101:32)","    at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+122 |                   { kind: 'duplicateWorkItem', ...duplication },
+123 |                 ],
+124 |               }
+125 |             : { commands: [{ kind: 'duplicateWorkItem', ...duplication }] },
+126 |         );
+127 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": {
+-     "at": 1,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "duplicateWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "cd455457-5112-46aa-aa0c-6ce7f168e603",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "d030bbf3-3a10-4b14-9270-31f765b9fd97",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 16
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:127:24)
+(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [456.32ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+128 |         { workItemId: 'moving', stepId: 'dev', maxParallel: 2 },
+129 |         stamp,
+130 |       );
+131 |       const before = await fixture.snapshot();
+132 |       const { workItems } = installWorkItem(fixture.requirements);
+133 |       expect(await workItems.duplicate('parent', 'owner')).toEqual({
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": {
++     "id": "new-1",
++   },
+  }
+
+- Expected  - 12
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:133:60)
+(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [13.74ms]
+128 |         { workItemId: 'moving', stepId: 'dev', maxParallel: 2 },
+129 |         stamp,
+130 |       );
+131 |       const before = await fixture.snapshot();
+132 |       const { workItems } = installWorkItem(fixture.requirements);
+133 |       expect(await workItems.duplicate('parent', 'owner')).toEqual({
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "leaf",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "leaf",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": {
++     "id": "new-1",
++   },
+  }
+
+- Expected  - 12
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:133:60)
+(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [4.42ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [52.15ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted maximum corruption before duplication [2.43ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted step corruption before duplication [2.29ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted project corruption before duplication [2.27ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted parent corruption before duplication [2.70ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted duplicate corruption before duplication [2.53ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [2.45ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.45ms]
+39 |     if (isClosed) throw new Error(`Working plan for ${projectId} is closed`);
+40 |   };
+41 |   const assertProject = (requestedProjectId: string): void => {
+42 |     assertOpen();
+43 |     if (requestedProjectId !== projectId) {
+44 |       throw new Error(`Working plan for ${projectId} cannot read project ${requestedProjectId}`);
+                     ^
+error: Working plan for p cannot read project foreign
+      at assertProject (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:44:17)
+      at listByWorkItems (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:532:9)
+      at duplicate (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:3302:53)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/command-bindings.ts:266:25)
+      at async applyAll (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:645:26)
+      at async collect (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6894:28)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:399:53)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/plan-commands/composition.ts:101:32)
+(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.85ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.52ms]
+
+ 4 pass
+ 10 fail
+ 31 expect() calls
+Ran 14 tests across 2 files. [3.27s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 581763072, "exitCode": 1}

@@ -1,4 +1,5 @@
 import type { AuthenticatedUser, DelegationAudience, WbsScope } from '@wbs/contracts';
+import { admitMachineCredential, MACHINE_SCOPES, type MachineCredentialRecord } from '@wbs/domain';
 import { decodeProtectedHeader, errors, jwtVerify } from 'jose';
 
 /** The `typ` a WBS-signed delegation token declares; nothing else is one. */
@@ -37,6 +38,13 @@ export type DelegationVerifier = (
   token: string,
   audience: DelegationAudience,
 ) => Promise<DelegationOutcome>;
+
+/**
+ * The machine credential with this id, as `MachineCredentials.findById` reads
+ * it: what a consent delegation (`wbs-machine-credentials` A13 step 4) is
+ * admitted against at every use.
+ */
+export type ConsentCredentialOf = (credentialId: string) => Promise<MachineCredentialRecord | null>;
 
 /** Resolves after one verified use commits; false means a replay. */
 export type ConsumeDelegation = (
@@ -80,6 +88,11 @@ export const REFUSE_DELEGATIONS: DelegationVerifier = (token) =>
  * contexts instead name `identity_kind: first_party`, omit upstream claims,
  * resolve the current local account and remain reusable until their capped
  * expiry. Current membership is checked by OrganizationAccess on each use.
+ * An MCP delegation naming a consent credential and its person
+ * (`wbs-machine-credentials` A13 step 4, A20) is admitted only while
+ * `consentCredentialOf` reads that credential live, for this family, this
+ * organization and this person, still bound to this account; it then acts as
+ * that person with scopes at most `read` and `write`.
  *
  * @throws anything other than a JOSE refusal or a malformed claim, such as an
  * unusable key or a failing identity lookup: unknown, not a refusal.
@@ -90,6 +103,7 @@ export function delegationVerifier(
   consume: ConsumeDelegation,
   now: () => number = Date.now,
   localUserOf?: LocalUserOf,
+  consentCredentialOf?: ConsentCredentialOf,
 ): DelegationVerifier {
   return async (token, audience) => {
     if (!declaresDelegation(token)) return { kind: 'not_delegation' };
@@ -144,6 +158,27 @@ export function delegationVerifier(
     // with a native identity and fixed audience` verify a token when local
     // lookup returned bob for ada.
     if (mapped?.id !== claims.userId) return { kind: 'refused' };
+    if (claims.kind === 'upstream' && claims.consent !== undefined) {
+      if (consentCredentialOf === undefined)
+        throw new Error('a consent delegation was presented but consent credentials are not wired');
+      const admission = admitMachineCredential(
+        { kind: 'mcp_consent', familyId: claims.grant },
+        await consentCredentialOf(claims.consent.credentialId),
+        now(),
+      );
+      // Proof: with this refusal skipped, `refuses a delegation issued before
+      // its credential was revoked` in `mcp-delegation.boot.db.test.ts`
+      // answered 200, and `admits a consent delegation as its agent, capped to
+      // read and write` in `delegation-issuer.test.ts` verified the refused
+      // cases; watched 2026-10-22.
+      if (
+        admission.kind !== 'admitted' ||
+        admission.actor.accountId !== claims.userId ||
+        admission.actor.organizationId !== claims.organizationId ||
+        admission.actor.personId !== claims.consent.personId
+      )
+        return { kind: 'refused' };
+    }
     // Proof (2026-09-28): removing this await made `consumes an MCP delegation
     // once even when the project is missing` answer 404 twice. The store's
     // conflict mutation separately failed the two-connection race test.
@@ -157,17 +192,34 @@ export function delegationVerifier(
       principal: {
         id: mapped.id,
         username: mapped.username,
-        scopes: claims.scopes,
+        // Proof: with this filter removed, `admits a consent delegation as its
+        // agent, capped to read and write` in `delegation-issuer.test.ts`
+        // answered read write editor; watched 2026-10-22.
+        scopes:
+          claims.kind === 'upstream' && claims.consent !== undefined
+            ? claims.scopes.filter((scope) =>
+                (MACHINE_SCOPES as readonly WbsScope[]).includes(scope),
+              )
+            : claims.scopes,
         // A direct context carries no authentication facts: the credential
         // rules refuse it in an organization that enforces SSO or a session
         // policy, failing closed.
         ...(claims.kind === 'upstream'
           ? {
-              authentication: {
-                kind: 'upstream' as const,
-                issuer: claims.upstream.issuer,
-                subject: claims.upstream.subject,
-              },
+              authentication:
+                claims.consent === undefined
+                  ? {
+                      kind: 'upstream' as const,
+                      issuer: claims.upstream.issuer,
+                      subject: claims.upstream.subject,
+                    }
+                  : {
+                      kind: 'consent' as const,
+                      issuer: claims.upstream.issuer,
+                      subject: claims.upstream.subject,
+                      credentialId: claims.consent.credentialId,
+                      personId: claims.consent.personId,
+                    },
             }
           : {}),
         delegation:
@@ -199,6 +251,8 @@ type DelegationClaims =
       readonly client: string;
       readonly grant: string;
       readonly upstream: { readonly issuer: string; readonly subject: string };
+      /** The consent credential and agent person an MCP delegation acts as (A20). */
+      readonly consent?: { readonly credentialId: string; readonly personId: string };
     });
 
 /** The claims a verified delegation must carry, or null when one is missing or malformed. */
@@ -213,6 +267,8 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
     upstream_iss,
     upstream_sub,
     identity_kind,
+    credential_id,
+    person_id,
     iat,
     exp,
   } = payload;
@@ -255,7 +311,9 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
       // Proof (2026-09-28): removing this predicate made `refuses signed
       // first-party tokens carrying upstream identity claims` verify the token.
       upstream_iss !== undefined ||
-      upstream_sub !== undefined
+      upstream_sub !== undefined ||
+      credential_id !== undefined ||
+      person_id !== undefined
     )
       return null;
     return { ...shared, kind: 'first_party' };
@@ -266,12 +324,25 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
   if (!isFilled(client) || !isFilled(grant) || !isFilled(upstream_iss) || !isFilled(upstream_sub))
     return null;
   if (payload['aud'] === 'wbs-be-01/direct') return null;
+  // Both or neither: a person without its credential would pin nothing that
+  // could be revoked, and a credential without its person nothing to act as.
+  // Proof: with this check removed, `refuses a consent delegation that names a
+  // person without its credential` in `delegation-issuer.test.ts` verified
+  // both halves as the human's own delegation; watched 2026-10-22.
+  if (
+    (credential_id !== undefined || person_id !== undefined) &&
+    !(isFilled(credential_id) && isFilled(person_id))
+  )
+    return null;
   return {
     ...shared,
     kind: 'upstream',
     client,
     grant,
     upstream: { issuer: upstream_iss, subject: upstream_sub },
+    ...(isFilled(credential_id) && isFilled(person_id)
+      ? { consent: { credentialId: credential_id, personId: person_id } }
+      : {}),
   };
 }
 

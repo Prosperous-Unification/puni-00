@@ -1,0 +1,102 @@
+/*
+ * The SaaS kit's theme: a value for every vocabulary token, in two palettes.
+ *
+ * These are the values WBS was tuned on through its UI review, moved here
+ * verbatim so the move changes no pixel; `theme.test.ts` pins them. The kit
+ * takes the brand gold in a later change with its own by-eye review.
+ *
+ * `color-scheme` is declared beside the tokens, on the same two selectors, and
+ * nowhere else: it is what the platform reads for scrollbars, pickers, carets
+ * and the `ButtonFace` a bare `<button>` paints itself.
+ *
+ * `--font-body` is `sans-serif` on purpose: the WBS table's column widths were
+ * measured against the browser's generic face, and the cells inherit the face
+ * `<main>` is given. Changing it is a geometry change, not a palette one.
+ *
+ * The `--layer-*` order is one ordering rather than numbers that happen to
+ * agree: a modal, a portalled card over it, the card's wait ring, and the toast
+ * stack above everything. The modal reads `--layer-modal`; a host app's toasts
+ * and cards read the rest. All of them are portalled to `<body>`, so the
+ * z-index is the whole answer: at one shared `z-50` WBS's sheet, later in the
+ * document, painted over a refusal raised while it was open (UI review
+ * F-085). A toast is what happened, so it is above whatever surface the reader
+ * was on; a card for a control on a sheet has to be drawn over that sheet, or
+ * nobody reads it (F-131).
+ */
+@import '../../ui-core-01/src/vocabulary.css';
+
+:root {
+  color-scheme: light;
+
+  --radius: 0.5rem;
+  --font-body: sans-serif;
+  --font-display: sans-serif;
+
+  --layer-modal: 50;
+  --layer-card: 55;
+  --layer-card-ring: 56;
+  --layer-toast: 60;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.129 0.042 264.695);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.129 0.042 264.695);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.129 0.042 264.695);
+  --primary: oklch(0.208 0.042 265.755);
+  --primary-foreground: oklch(0.984 0.003 247.858);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.554 0.046 257.417);
+  --accent: oklch(0.968 0.007 247.896);
+  --accent-foreground: oklch(0.208 0.042 265.755);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(0.929 0.013 255.508);
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.704 0.04 256.788);
+  /*
+   * The edge of every control box — an `outline` button, a text box, a select,
+   * a disclosure's summary: the slate of `--muted-foreground` a few steps
+   * lighter, so the boundary that is the control's only cue clears 3:1 on the
+   * page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
+   * `--accent`; WCAG 1.4.11). Text boxes and selects drew `--input`, a 1.2:1
+   * hairline, after buttons moved off it, so one toolbar row drew two edge
+   * weights (WBS UI review F-124, then F-152 and F-137). `--input` stays in the
+   * vocabulary for registry components, but no kit control draws it. A
+   * surface's edge — a card, a popover, a divider — is `--border`.
+   *
+   * Proof: with the `outline` variant back on `border-input`, WBS's
+   * `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed on
+   * `Continue with SSO: outside · Expected: >= 3 · Received: 1.22…` (light) and
+   * `1.28…` (dark). Watched 2026-10-16.
+   */
+  --control-edge: oklch(0.62 0.03 257);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.129 0.042 264.695);
+  --foreground: oklch(0.984 0.003 247.858);
+  --card: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.984 0.003 247.858);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+  --primary: oklch(0.929 0.013 255.508);
+  --primary-foreground: oklch(0.208 0.042 265.755);
+  --secondary: oklch(0.279 0.041 260.031);
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);
+  --accent: oklch(0.279 0.041 260.031);
+  --accent-foreground: oklch(0.984 0.003 247.858);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.551 0.027 264.364);
+  /* 4.17:1 on the card, 4.71:1 on the page, 3.43:1 on the hover fill. */
+  --control-edge: oklch(0.58 0.03 257);
+}

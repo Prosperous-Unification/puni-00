@@ -144,7 +144,7 @@ describe('the plan’s history, as commands are recorded', () => {
     const second = await add('Fit the felt');
     await service.patch(first, OWNER, { name: 'Strip the old roof' });
     await service.addDependency(second, OWNER, first);
-    await service.remove(second, OWNER, 'cascade');
+    await service.remove(second, OWNER, 'cascade', { kind: 'legacy' });
 
     expect(journal.events.map((each) => each.kind)).toEqual([
       'create',

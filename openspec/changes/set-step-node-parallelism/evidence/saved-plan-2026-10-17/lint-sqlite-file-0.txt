@@ -1,0 +1,2 @@
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts
+{"ceilingBytes": 943718400, "sampledPeakBytes": 856260608, "exitCode": 0}

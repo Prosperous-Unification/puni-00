@@ -111,6 +111,7 @@ export function evaluateSolverOutcome(
       input.typed,
       response.offsets,
       input.elsewhere,
+      input.resourceCapacities,
     );
     const deadlines = revalidateOptimizedDeadlines(request, optimized);
     if (!deadlines.ok) {

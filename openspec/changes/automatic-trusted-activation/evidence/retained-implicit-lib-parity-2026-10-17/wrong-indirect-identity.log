@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+745 | function expectLibraries(
+746 |   extracted: ReturnType<typeof extractRetainedTypeScriptRelationships>,
+747 |   libraries: Record<string, string>,
+748 | ) {
+749 |   // Proof: library entry suppression/raw identity substitution/bypassed retained reads fail the exact library tuple assertion.
+750 |   expect(extracted.byteReads.entries.filter((entry) => entry.path.includes('/lib/'))).toEqual(
+                                                                                            ^
+error: expect(received).toEqual(expected)
+
+@@ -398,11 +398,11 @@
+      "path": "node_modules/typescript/lib/lib.es2021.weakref.d.ts",
+      "revision": null,
+    },
+    {
+      "byteLength": 3161,
+-     "identity": "2c1afac30a01772cd2a9a298a7ce7706b5892e447bb46bdbeef720f7b5da77ad",
++     "identity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "namespace": "runtime",
+      "path": "node_modules/typescript/lib/lib.es2015.promise.d.ts",
+      "revision": null,
+    },
+    {
+
+- Expected  - 1
++ Received  + 1
+
+      at expectLibraries (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:750:87)
+      at <anonymous> (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:289:11)
+(fail) retained compiler implicit sha1 matches legacy after all capture roots disappear [2000.28ms]
+
+ 0 pass
+ 41 filtered out
+ 1 fail
+ 113 expect() calls
+Ran 1 test across 1 file. [2.95s]

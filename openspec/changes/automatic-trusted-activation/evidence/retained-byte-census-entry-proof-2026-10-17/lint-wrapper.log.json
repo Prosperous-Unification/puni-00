@@ -1,0 +1,9 @@
+{
+  "command": [
+    "python3",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-byte-census-entry-proof-2026-10-17/lint-wrapper.py"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 31288,
+  "ceilingKiB": 921600
+}

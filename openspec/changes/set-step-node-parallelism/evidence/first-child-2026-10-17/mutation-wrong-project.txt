@@ -1,0 +1,248 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:
+58 |       }
+59 |       await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+60 |       await stores.stepParallels.set({ workItemId: 'sibling', stepId: 'qa', maxParallel: 2 }, stamp);
+61 |       const before = await fixture.snapshot();
+62 |       const { workItems } = installWorkItem(requirements);
+63 |       expect(await workItems.create('p', 'owner', create)).toEqual({
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
++   "ok": true,
++   "stepNodeMapping": [
+      {
+-       "stepId": "dev",
+-       "workItemId": "parent",
++       "from": "sn1.parent.dev",
++       "to": "sn1.new-1.dev",
++     },
++     {
++       "from": "sn1.parent.qa",
++       "to": "sn1.new-1.qa",
+      },
+    ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "value": {
++     "deadline": null,
++     "factEnd": null,
++     "factStart": null,
++     "frozenNumber": null,
++     "hold": "on_hold",
++     "id": "new-1",
++     "maxParallel": 1,
++     "name": "Child",
++     "notes": "",
++     "parentId": "parent",
++     "position": 10,
++     "priority": 50,
++     "projectId": "p",
++     "readiness": "ready",
++     "revision": 0,
++     "serviceId": null,
++     "serviceTeamId": null,
++     "startNoEarlierThan": null,
++     "startNoEarlierThanReason": null,
++   },
+  }
+
+- Expected  - 5
++ Received  + 29
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:63:60)
+(fail) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [25.38ms]
+58 |       }
+59 |       await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+60 |       await stores.stepParallels.set({ workItemId: 'sibling', stepId: 'qa', maxParallel: 2 }, stamp);
+61 |       const before = await fixture.snapshot();
+62 |       const { workItems } = installWorkItem(requirements);
+63 |       expect(await workItems.create('p', 'owner', create)).toEqual({
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
++   "ok": true,
++   "stepNodeMapping": [
+      {
+-       "stepId": "dev",
+-       "workItemId": "parent",
++       "from": "sn1.parent.dev",
++       "to": "sn1.new-1.dev",
+      },
+      {
+-       "stepId": "qa",
+-       "workItemId": "parent",
++       "from": "sn1.parent.qa",
++       "to": "sn1.new-1.qa",
+      },
+    ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "value": {
++     "deadline": null,
++     "factEnd": null,
++     "factStart": null,
++     "frozenNumber": null,
++     "hold": "on_hold",
++     "id": "new-1",
++     "maxParallel": 1,
++     "name": "Child",
++     "notes": "",
++     "parentId": "parent",
++     "position": 10,
++     "priority": 50,
++     "projectId": "p",
++     "readiness": "ready",
++     "revision": 0,
++     "serviceId": null,
++     "serviceTeamId": null,
++     "startNoEarlierThan": null,
++     "startNoEarlierThanReason": null,
++   },
+  }
+
+- Expected  - 7
++ Received  + 27
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:63:60)
+(fail) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [3.39ms]
+(pass) first-child sparse step parallel preservation > checks authorization and parent membership before a poisoned reader [1.36ms]
+(pass) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [6.62ms]
+39 |     if (isClosed) throw new Error(`Working plan for ${projectId} is closed`);
+40 |   };
+41 |   const assertProject = (requestedProjectId: string): void => {
+42 |     assertOpen();
+43 |     if (requestedProjectId !== projectId) {
+44 |       throw new Error(`Working plan for ${projectId} cannot read project ${requestedProjectId}`);
+                     ^
+error: Working plan for p cannot read project foreign
+      at assertProject (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:44:17)
+      at listByWorkItems (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts:523:9)
+      at create (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2344:55)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/plan-commands/command-bindings.ts:216:25)
+      at async applyAll (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:638:26)
+      at async collect (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6783:28)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:392:53)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/plan-commands/composition.ts:101:32)
+(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [9.25ms]
+(pass) confines borrowed sparse reads to their project and open working-plan scope [0.57ms]
+157 |     table.rows.push({ workItemId: 'parent', stepId: fault === 'step' ? 'missing' : fault === 'project' ? 'foreign-step' : 'dev', maxParallel: fault === 'maximum' ? 1001 : 1 });
+158 |     if (fault === 'duplicate') table.rows.push({ ...table.rows[0]! });
+159 |     const sparse = inMemoryStepParallels(stores.workItems, stores.steps, table);
+160 |     const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: sparse });
+161 |     const before = await fixture.snapshot();
+162 |     await expect(workItems.create('p', 'owner', create)).rejects.toThrow();
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:162:66)
+(fail) throws on trusted maximum corruption without creating or clearing statements [2.45ms]
+157 |     table.rows.push({ workItemId: 'parent', stepId: fault === 'step' ? 'missing' : fault === 'project' ? 'foreign-step' : 'dev', maxParallel: fault === 'maximum' ? 1001 : 1 });
+158 |     if (fault === 'duplicate') table.rows.push({ ...table.rows[0]! });
+159 |     const sparse = inMemoryStepParallels(stores.workItems, stores.steps, table);
+160 |     const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: sparse });
+161 |     const before = await fixture.snapshot();
+162 |     await expect(workItems.create('p', 'owner', create)).rejects.toThrow();
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:162:66)
+(fail) throws on trusted step corruption without creating or clearing statements [1.90ms]
+157 |     table.rows.push({ workItemId: 'parent', stepId: fault === 'step' ? 'missing' : fault === 'project' ? 'foreign-step' : 'dev', maxParallel: fault === 'maximum' ? 1001 : 1 });
+158 |     if (fault === 'duplicate') table.rows.push({ ...table.rows[0]! });
+159 |     const sparse = inMemoryStepParallels(stores.workItems, stores.steps, table);
+160 |     const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: sparse });
+161 |     const before = await fixture.snapshot();
+162 |     await expect(workItems.create('p', 'owner', create)).rejects.toThrow();
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:162:66)
+(fail) throws on trusted project corruption without creating or clearing statements [1.67ms]
+158 |     if (fault === 'duplicate') table.rows.push({ ...table.rows[0]! });
+159 |     const sparse = inMemoryStepParallels(stores.workItems, stores.steps, table);
+160 |     const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: sparse });
+161 |     const before = await fixture.snapshot();
+162 |     await expect(workItems.create('p', 'owner', create)).rejects.toThrow();
+163 |     expect(await fixture.snapshot()).toEqual(before);
+                                           ^
+error: expect(received).toEqual(expected)
+
+@@ -50,10 +50,36 @@
+        "startNoEarlierThanReason": null,
+        "tagIds": [],
+        "teamIds": [],
+        "typeIds": [],
+      },
++     {
++       "deadline": null,
++       "externalRefs": [],
++       "factEnd": null,
++       "factStart": null,
++       "frozenNumber": null,
++       "hold": null,
++       "id": "new-1",
++       "maxParallel": 1,
++       "name": "Child",
++       "notes": "",
++       "parentId": "parent",
++       "position": 5,
++       "priority": 50,
++       "projectId": "p",
++       "readiness": null,
++       "revision": 0,
++       "serviceId": null,
++       "serviceIds": [],
++       "serviceTeamId": null,
++       "startNoEarlierThan": null,
++       "startNoEarlierThanReason": null,
++       "tagIds": [],
++       "teamIds": [],
++       "typeIds": [],
++     },
+    ],
+    {
+      "createdAt": 1,
+      "depReach": "whole-item",
+      "estimateMethod": "pert",
+
+- Expected  - 0
++ Received  + 26
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:163:38)
+(fail) throws on trusted parent corruption without creating or clearing statements [1.85ms]
+157 |     table.rows.push({ workItemId: 'parent', stepId: fault === 'step' ? 'missing' : fault === 'project' ? 'foreign-step' : 'dev', maxParallel: fault === 'maximum' ? 1001 : 1 });
+158 |     if (fault === 'duplicate') table.rows.push({ ...table.rows[0]! });
+159 |     const sparse = inMemoryStepParallels(stores.workItems, stores.steps, table);
+160 |     const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: sparse });
+161 |     const before = await fixture.snapshot();
+162 |     await expect(workItems.create('p', 'owner', create)).rejects.toThrow();
+                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:162:66)
+(fail) throws on trusted duplicate corruption without creating or clearing statements [1.61ms]
+(pass) copies exact node references and allows create after clearing the final fact [1.64ms]
+
+ 4 pass
+ 8 fail
+ 23 expect() calls
+Ran 12 tests across 1 file. [2.00s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 496164864, "exitCode": 1}

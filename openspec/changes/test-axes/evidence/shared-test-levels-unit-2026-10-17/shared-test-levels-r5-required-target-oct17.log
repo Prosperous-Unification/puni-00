@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-test-levels-level.test.ts:
+127 |     ).toContain('unknown test target declaration shared-test-levels:test:unknown');
+128 |     const targets = { ...manifest.targets };
+129 |     delete targets['test:unit:level'];
+130 |     expect(
+131 |       String(await rejectionOf(verifyTargetInventory(ROOT, { ...manifest, targets }))),
+132 |     ).toContain(`${QUALIFIED} is missing from project manifest`);
+            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "shared-test-levels:test:unit:level is missing from project manifest"
+Received: "undefined"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/shared-test-levels-level.test.ts:132:7)
+(fail) shared-test-levels isolated Unit level > refuses unknown and missing target declarations through the production inventory [1.01ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [139.00ms]

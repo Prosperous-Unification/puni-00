@@ -1,0 +1,1343 @@
+[
+  {
+    "name": "metadata-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "if (identities === undefined) throw new Error('owned retained candidate source required');",
+    "new": "if (false) throw new Error('owned retained candidate source required');",
+    "test": "owned file identity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "owned file identity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 340872,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) owned file identity authenticates tuple without consuming candidate reads [141.50ms]"
+    ]
+  },
+  {
+    "name": "namespace-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.ts",
+    "old": "if (provenance === undefined) throw new Error('owned retained namespace required');",
+    "new": "if (false) throw new Error('owned retained namespace required');",
+    "test": "source owners",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source owners"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347864,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source owners precede census and provenance joins candidate and runtime [126.50ms]"
+    ]
+  },
+  {
+    "name": "candidate-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "if (provenance === undefined) throw new Error('owned retained candidate source required');",
+    "new": "if (false) throw new Error('owned retained candidate source required');",
+    "test": "source owners",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source owners"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347332,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source owners precede census and provenance joins candidate and runtime [150.63ms]"
+    ]
+  },
+  {
+    "name": "runtime-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts",
+    "old": "if (provenance === undefined) throw new Error('owned review runtime required');",
+    "new": "if (false) throw new Error('owned review runtime required');",
+    "test": "source owners",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source owners"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347996,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source owners precede census and provenance joins candidate and runtime [137.84ms]"
+    ]
+  },
+  {
+    "name": "source-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (provenance === undefined) throw new Error('owned retained TypeScript source required');",
+    "new": "if (false) throw new Error('owned retained TypeScript source required');",
+    "test": "source owners",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source owners"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 359592,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source owners precede census and provenance joins candidate and runtime [220.37ms]"
+    ]
+  },
+  {
+    "name": "join-snapshotIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.snapshotIdentity !== candidateProof.snapshotIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field snapshotIdentity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source joins independent namespace identity field snapshotIdentity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344568,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source joins independent namespace identity field snapshotIdentity [169.90ms]"
+    ]
+  },
+  {
+    "name": "join-classificationPolicyIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.classificationPolicyIdentity !== candidateProof.classificationPolicyIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field classificationPolicyIdentity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source joins independent namespace identity field classificationPolicyIdentity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349568,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source joins independent namespace identity field classificationPolicyIdentity [165.57ms]"
+    ]
+  },
+  {
+    "name": "join-runtimeClosureIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.runtimeClosureIdentity !== runtimeProof.runtimeClosureIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field runtimeClosureIdentity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source joins independent namespace identity field runtimeClosureIdentity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 341876,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source joins independent namespace identity field runtimeClosureIdentity [110.50ms]"
+    ]
+  },
+  {
+    "name": "join-resolutionPolicyIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.resolutionPolicyIdentity !== runtimeProof.resolutionPolicyIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field resolutionPolicyIdentity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source joins independent namespace identity field resolutionPolicyIdentity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346396,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source joins independent namespace identity field resolutionPolicyIdentity [125.55ms]"
+    ]
+  },
+  {
+    "name": "node-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "namespace.nodes.length > limits.maximumNodes",
+    "new": "false",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 433904,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [829.15ms]"
+    ]
+  },
+  {
+    "name": "limit-grammar",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "!Number.isSafeInteger(ceiling) || ceiling < 1",
+    "new": "false",
+    "test": "explicit positive finite",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "explicit positive finite"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347348,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) explicit positive finite source ceiling required: maximumNodes [138.52ms]",
+      "(fail) explicit positive finite source ceiling required: maximumProbes [103.30ms]",
+      "(fail) explicit positive finite source ceiling required: maximumSteps [113.68ms]",
+      "(fail) explicit positive finite source ceiling required: maximumReads [116.78ms]",
+      "(fail) explicit positive finite source ceiling required: maximumReadBytes [115.40ms]",
+      "(fail) explicit positive finite source ceiling required: maximumPathBytes [109.66ms]",
+      "(fail) explicit positive finite source ceiling required: maximumTargetBytes [102.91ms]",
+      "(fail) explicit positive finite source ceiling required: maximumExpandedPathBytes [113.89ms]",
+      "(fail) explicit positive finite source ceiling required: maximumLinkExpansions [111.66ms]",
+      "(fail) explicit positive finite source ceiling required: maximumDirectoryDepth [121.60ms]",
+      "(fail) explicit positive finite source ceiling required: maximumPatterns [101.57ms]",
+      "(fail) explicit positive finite source ceiling required: maximumPatternBytes [111.87ms]",
+      "(fail) explicit positive finite source ceiling required: maximumEnumeratedEntries [117.98ms]",
+      "(fail) explicit positive finite source ceiling required: maximumReturnedPathBytes [90.98ms]"
+    ]
+  },
+  {
+    "name": "limit-snapshot",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "maximumReads: installedLimits.maximumReads,",
+    "new": "get maximumReads() { return installedLimits.maximumReads; },",
+    "test": "source snapshots",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source snapshots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 343720,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) source snapshots limit getters once [137.26ms]"]
+  },
+  {
+    "name": "read-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "reads >= limits.maximumReads",
+    "new": "false",
+    "test": "reserves raw",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "reserves raw"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 360892,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) reserves raw candidate and runtime bytes before any copy [205.89ms]"]
+  },
+  {
+    "name": "read-byte-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "identity.byteLength > limits.maximumReadBytes - readBytes",
+    "new": "false",
+    "test": "byte reserve precedes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "byte reserve precedes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345432,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) byte reserve precedes the candidate allocation boundary [142.62ms]"]
+  },
+  {
+    "name": "measure-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "text.length > ceiling || Buffer.byteLength(text) > ceiling",
+    "new": "false",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 372356,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [329.53ms]"
+    ]
+  },
+  {
+    "name": "path-utf8-bytes",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": " || Buffer.byteLength(text) > ceiling",
+    "new": "",
+    "test": "source query counts UTF8",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source query counts UTF8"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346732,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) source query counts UTF8 bytes and repeated output bytes [118.95ms]"]
+  },
+  {
+    "name": "path-grammar",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "path.includes('\\0') ||",
+    "new": "false ||",
+    "test": "direct malformed or outside",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "direct malformed or outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347268,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) direct malformed or outside query refuses before reads: /__puni_review__/candidate/a\u0000b [92.20ms]"
+    ]
+  },
+  {
+    "name": "path-unicode",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(path)",
+    "new": "false",
+    "test": "direct malformed or outside",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "direct malformed or outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348884,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) direct malformed or outside query refuses before reads: /__puni_review__/candidate/\ufffd [127.34ms]"
+    ]
+  },
+  {
+    "name": "path-backslash",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "path.includes('\\\\') ||",
+    "new": "false ||",
+    "test": "direct malformed or outside",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "direct malformed or outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347400,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) direct malformed or outside query refuses before reads: /__puni_review__/candidate/a\\b [141.63ms]"
+    ]
+  },
+  {
+    "name": "path-empty-component",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "path.includes('//') ||",
+    "new": "false ||",
+    "test": "direct malformed or outside",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "direct malformed or outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347616,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) direct malformed or outside query refuses before reads: /__puni_review__/candidate/a//b [132.39ms]"
+    ]
+  },
+  {
+    "name": "path-outside",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "(path !== root && !path.startsWith(`${root}/`))",
+    "new": "false",
+    "test": "direct malformed or outside",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "direct malformed or outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 352564,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) direct malformed or outside query refuses before reads: /etc/passwd [116.29ms]",
+      "(fail) direct malformed or outside query refuses before reads: /__puni_review__/candidate-x/a [105.72ms]"
+    ]
+  },
+  {
+    "name": "path-traversal",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (depth < 0) throw new Error('source path escapes candidate');",
+    "new": "if (false) throw new Error('source path escapes candidate');",
+    "test": "lexical outside query refuses",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lexical outside query refuses"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350648,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lexical outside query refuses before a selected link can allocate [140.81ms]"
+    ]
+  },
+  {
+    "name": "probe-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "probes >= limits.maximumProbes",
+    "new": "false",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345476,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [149.54ms]"
+    ]
+  },
+  {
+    "name": "step-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "steps >= limits.maximumSteps",
+    "new": "false",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 360608,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [244.35ms]"
+    ]
+  },
+  {
+    "name": "depth-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (depth > limits.maximumDirectoryDepth)\n          throw new Error('source directory depth ceiling exceeded');",
+    "new": "if (false)\n          throw new Error('source directory depth ceiling exceeded');",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 394992,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [656.45ms]"
+    ]
+  },
+  {
+    "name": "runtime-link-mount",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "links > 0 && node.path.split('/').includes('node_modules')",
+    "new": "false",
+    "test": "candidate link expansion",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "candidate link expansion"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346376,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) candidate link expansion cannot mount runtime through a root alias [122.60ms]"
+    ]
+  },
+  {
+    "name": "link-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "links >= limits.maximumLinkExpansions",
+    "new": "false",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 409924,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [593.67ms]"
+    ]
+  },
+  {
+    "name": "link-cycle",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "seen.has(state)",
+    "new": "false",
+    "test": "component walk resolves",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "component walk resolves"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345896,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) component walk resolves owned links and preserves file ancestor semantics [169.51ms]"
+    ]
+  },
+  {
+    "name": "target-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "identity.byteLength > limits.maximumTargetBytes",
+    "new": "false",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 388728,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [381.15ms]"
+    ]
+  },
+  {
+    "name": "link-fatal-utf8",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "{ fatal: true, ignoreBOM: true }",
+    "new": "{ fatal: false, ignoreBOM: true }",
+    "test": "source rejects malformed owned link",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source rejects malformed owned link"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 341776,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source rejects malformed owned link UTF8 before target expansion [125.86ms]"
+    ]
+  },
+  {
+    "name": "link-bom",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "ignoreBOM: true",
+    "new": "ignoreBOM: false",
+    "test": "component walk resolves",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "component walk resolves"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350368,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) component walk resolves owned links and preserves file ancestor semantics [182.65ms]"
+    ]
+  },
+  {
+    "name": "target-empty",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target === ''",
+    "new": "false",
+    "test": "source rejects broken owned link decoder",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source rejects broken owned link decoder"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347676,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) source rejects broken owned link decoder input \"\" [129.81ms]"]
+  },
+  {
+    "name": "target-absolute",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target.startsWith('/')",
+    "new": "false",
+    "test": "source rejects broken owned link decoder",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source rejects broken owned link decoder"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344556,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source rejects broken owned link decoder input \"/outside\" [101.76ms]"
+    ]
+  },
+  {
+    "name": "target-nul",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target.includes('\\0')",
+    "new": "false",
+    "test": "source rejects broken owned link decoder",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source rejects broken owned link decoder"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347508,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source rejects broken owned link decoder input \"nul\\u0000target\" [104.39ms]"
+    ]
+  },
+  {
+    "name": "target-backslash",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target.includes('\\\\')",
+    "new": "false",
+    "test": "source rejects broken owned link decoder",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source rejects broken owned link decoder"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348644,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source rejects broken owned link decoder input \"\\\\target\" [113.19ms]"
+    ]
+  },
+  {
+    "name": "target-runtime-component",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "component === 'node_modules' || component === '.git'",
+    "new": "false",
+    "test": "candidate link target policy",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "candidate link target policy"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 356068,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) candidate link target policy rejects missing dependency and git namespaces [127.83ms]"
+    ]
+  },
+  {
+    "name": "expand-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "measure(target, limits.maximumExpandedPathBytes, 'expanded path')",
+    "new": "Buffer.byteLength(target)",
+    "test": "lifetime probes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "lifetime probes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 395056,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) lifetime probes steps path targets expansions and depth are bounded [522.85ms]"
+    ]
+  },
+  {
+    "name": "ancestor-file",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-current-path.ts",
+    "old": "node.kind === 'file' && remaining.length > 0",
+    "new": "false",
+    "test": "component walk resolves",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "component walk resolves"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347184,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) component walk resolves owned links and preserves file ancestor semantics [183.57ms]"
+    ]
+  },
+  {
+    "name": "ancestor-escape",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-current-path.ts",
+    "old": "if (resolved.pop() === undefined) ports.reject('escape', requestedPath);",
+    "new": "resolved.pop();",
+    "test": "component walk resolves",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "component walk resolves"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350936,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) component walk resolves owned links and preserves file ancestor semantics [197.06ms]"
+    ]
+  },
+  {
+    "name": "pattern-count",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "values.length > limits.maximumPatterns - patterns",
+    "new": "false",
+    "test": "enumeration patterns",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "enumeration patterns"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347292,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) enumeration patterns entries and path outputs have finite explicit budgets [142.77ms]"
+    ]
+  },
+  {
+    "name": "pattern-byte",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "length > limits.maximumPatternBytes - patternBytes",
+    "new": "false",
+    "test": "pattern byte budget counts",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "pattern byte budget counts"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 352004,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) pattern byte budget counts separately fitting lifetime calls [130.81ms]"
+    ]
+  },
+  {
+    "name": "enumeration-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "enumerated >= limits.maximumEnumeratedEntries",
+    "new": "false",
+    "test": "enumeration patterns",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "enumeration patterns"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 374028,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) enumeration patterns entries and path outputs have finite explicit budgets [328.32ms]"
+    ]
+  },
+  {
+    "name": "returned-total",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "length > limits.maximumReturnedPathBytes - returnedBytes",
+    "new": "false",
+    "test": "source query counts UTF8",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source query counts UTF8"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 364596,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) source query counts UTF8 bytes and repeated output bytes [193.23ms]"]
+  },
+  {
+    "name": "file-fatal-utf8",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "new TextDecoder('utf-8', { fatal: true }).decode(readNode(node))",
+    "new": "new TextDecoder('utf-8', { fatal: false }).decode(readNode(node))",
+    "test": "fatal UTF8 for files",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "fatal UTF8 for files"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347420,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) fatal UTF8 for files and exact BOM link target bytes [123.46ms]"]
+  },
+  {
+    "name": "source-freeze",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "const source: TypeScriptSource = Object.freeze({",
+    "new": "const source: TypeScriptSource = ({",
+    "test": "source owners",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "source owners"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 362188,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) source owners precede census and provenance joins candidate and runtime [246.37ms]"
+    ]
+  },
+  {
+    "name": "no-fallback",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "new TextDecoder('utf-8', { fatal: true }).decode(readNode(node))",
+    "new": "ts.sys.readFile(path)",
+    "test": "all direct methods survive",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "all direct methods survive"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 357996,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) all direct methods survive removed roots and intercepted ambient ports [140.31ms]"
+    ]
+  },
+  {
+    "name": "matcher-signature",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "runtime.matchFiles.length !== 9",
+    "new": "false",
+    "test": "matcher boundary",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "matcher boundary"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 683324,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) matcher boundary arity negative runs in an isolated module registry [1118.54ms]"
+    ]
+  },
+  {
+    "name": "cwd-output",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "return returnPath(root);",
+    "new": "return root;",
+    "test": "cwd shares",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "cwd shares"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346744,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) cwd shares the lifetime returned-path budget [127.45ms]"]
+  },
+  {
+    "name": "query-codeunits",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "text.length > ceiling || ",
+    "new": "",
+    "test": "query codeunit bound",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "query codeunit bound"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 357272,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) query codeunit bound precedes UTF8 scanning [127.57ms]"]
+  },
+  {
+    "name": "child-utf8-bytes",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "Buffer.byteLength(name) + 1 > limits.maximumPathBytes - Buffer.byteLength(path)",
+    "new": "false",
+    "test": "enumeration child UTF8",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "enumeration child UTF8"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350876,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) enumeration child UTF8 bytes are bounded before path construction [146.23ms]"
+    ]
+  },
+  {
+    "name": "root-walk",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "      const resolved = resolvePath(path);",
+    "new": "      const resolved = resolvePath(posix.normalize(path));",
+    "test": "enumeration root walks",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "enumeration root walks"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349932,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) enumeration root walks file ancestors and alias parents before matcher normalization [160.79ms]"
+    ]
+  },
+  {
+    "name": "root-miss",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (resolved.node?.kind !== 'directory') return [];",
+    "new": "if (false) return [];",
+    "test": "missing enumeration ancestor",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "missing enumeration ancestor"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346036,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) missing enumeration ancestor cannot normalize into a selected directory [145.02ms]"
+    ]
+  },
+  {
+    "name": "literal-prefix-walk",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "const resolved = resolvePath(query);",
+    "new": "const resolved = {path:query,node:nodes.get(query),crossedCandidateLink:false};",
+    "test": "literal.*prefix",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "literal.*prefix"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344112,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) literal include prefix admits owned aliases and refuses file ancestors [139.23ms]",
+      "(fail) literal exclude prefix admits owned aliases and refuses file ancestors [125.60ms]"
+    ]
+  },
+  {
+    "name": "all-missing-includes",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (include !== undefined && include.length > 0 && selectedInclude?.length === 0) return [];",
+    "new": "if (false) return [];",
+    "test": "missing includes preserve",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "missing includes preserve"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 353432,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) missing includes preserve valid matches and ordering without widening empty includes [127.76ms]"
+    ]
+  },
+  {
+    "name": "root-alias-provenance",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (resolved.crossedCandidateLink) context.candidateOnlyRoot = true;",
+    "new": "if (false) context.candidateOnlyRoot = true;",
+    "test": "root and prefix canonicalization",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "root and prefix canonicalization"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347568,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) root and prefix canonicalization retain candidate alias provenance [138.28ms]"
+    ]
+  },
+  {
+    "name": "prefix-alias-provenance",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "resolved.crossedCandidateLink && resolved.path === root",
+    "new": "false",
+    "test": "root and prefix canonicalization",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "root and prefix canonicalization"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344648,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) root and prefix canonicalization retain candidate alias provenance [154.63ms]"
+    ]
+  },
+  {
+    "name": "entries-alias-provenance",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "(resolved.crossedCandidateLink || candidateOnlyRoot) &&\n        child.path.split('/').includes('node_modules')",
+    "new": "false",
+    "test": "root and prefix canonicalization",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "root and prefix canonicalization"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 354244,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) root and prefix canonicalization retain candidate alias provenance [140.94ms]"
+    ]
+  },
+  {
+    "name": "matcher-version",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "runtime.version !== '6.0.3'",
+    "new": "false",
+    "test": "matcher boundary version",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "matcher boundary version"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 681644,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) matcher boundary version negative runs in an isolated module registry [1127.34ms]"
+    ]
+  },
+  {
+    "name": "pattern-dot-grammar",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "value.split('/').some((component) => component === '.' || component === '..')",
+    "new": "false",
+    "test": "pattern dot components",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "pattern dot components"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 353732,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) pattern dot components and later outside patterns refuse before link reads [133.78ms]"
+    ]
+  },
+  {
+    "name": "metadata-freeze",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "return Object.freeze({ rawIdentity: identity.rawIdentity, byteLength: identity.byteLength });",
+    "new": "return { rawIdentity: identity.rawIdentity, byteLength: identity.byteLength };",
+    "test": "owned file identity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "owned file identity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349440,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) owned file identity authenticates tuple without consuming candidate reads [139.85ms]"
+    ]
+  },
+  {
+    "name": "directory-string-order",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "return entries(path, false).directories.sort();",
+    "new": "return entries(path, false).directories;",
+    "test": "directory basenames use",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "directory basenames use"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345496,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) directory basenames use installed sys Unicode string order [142.97ms]"
+    ]
+  },
+  {
+    "name": "metadata-tuple",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "identity?.blob !== blob",
+    "new": "false",
+    "test": "owned file identity",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "owned file identity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 341740,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) owned file identity authenticates tuple without consuming candidate reads [126.29ms]"
+    ]
+  },
+  {
+    "name": "no-cwd-fallback",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "return returnPath(root);",
+    "new": "return process.cwd();",
+    "test": "all direct methods survive",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "all direct methods survive"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349052,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) all direct methods survive removed roots and intercepted ambient ports [138.57ms]"
+    ]
+  },
+  {
+    "name": "pattern-drive-root",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "/^[A-Za-z]:/u.test(value)",
+    "new": "false",
+    "test": "drive-rooted matcher",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "drive-rooted matcher"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348148,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) drive-rooted matcher patterns refuse before literal link reads [142.46ms]"
+    ]
+  }
+]

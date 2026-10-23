@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 788036,
+  "ceilingKiB": 921600
+}

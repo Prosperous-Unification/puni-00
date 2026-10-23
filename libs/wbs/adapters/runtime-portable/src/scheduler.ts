@@ -9,10 +9,13 @@ import type {
   Scheduler,
   ScheduleRead,
 } from '@wbs/core';
-import { type Elsewhere, SOLVER_OBJECTIVES } from '@wbs/domain';
+import { type Elsewhere, type PoolSizes, SOLVER_OBJECTIVES } from '@wbs/domain';
 
 /** A canonical input with no bookings elsewhere states none. */
 const NOWHERE: Elsewhere = new Map();
+
+/** A canonical input stating no resource capacity states none. */
+const NO_CAPACITIES: PoolSizes = new Map();
 
 /** Builds the synchronous scheduler view over installed runtime adapters. */
 export function createScheduler(
@@ -74,6 +77,10 @@ function readSchedule(
     // Proof: `NOWHERE` here made `hands the bookings elsewhere to Fast` in
     // scheduler.test.ts see an empty map; watched 2026-09-29.
     ask.input.elsewhere ?? NOWHERE,
+    // The tenth: stated resource capacities, absent for every plan stating none.
+    // Proof: `NO_CAPACITIES` here made `hands the resource capacities to Fast`
+    // in scheduler.test.ts see an empty map; watched 2026-10-20.
+    ask.input.resourceCapacities ?? NO_CAPACITIES,
   );
   if (optimized === undefined) {
     const scheduled = { kind: 'scheduled' as const, fast: fastSchedule, optimization: null };

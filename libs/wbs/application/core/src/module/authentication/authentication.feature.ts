@@ -3,12 +3,18 @@ import {
   type AuthenticatedUser,
   type AuthMethodId,
   authMethodOfSubject,
+  type CredentialAuthentication,
   type OidcIdentity,
+  type WbsScope,
 } from '@wbs/contracts';
+import { admitMachineCredential, type MachineActor, type OrganizationRole } from '@wbs/domain';
 
 import type { User } from '../../ports/account-values';
+import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
+import type { TrustedIssuerTokens } from '../../ports/trusted-issuers';
+import { digestMachineSecret, type MachineKey, parseMachineKey } from '../../service/machine-key';
 import type { AccountResource } from './account.resource';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
@@ -60,7 +66,43 @@ export interface AuthServiceOptions {
    * silently reaching for a global. Watched 2026-09-08.
    */
   passwords: PasswordHasher;
+  /**
+   * How `wbs_mk_` API keys are verified (`wbs-machine-credentials` A13, A22):
+   * the credentials and the clock that judges secret expiry and last use.
+   * Optional only for fixtures that never present a key: a well-formed key
+   * reaching a service without it throws, never falls through to another
+   * verifier.
+   */
+  machineKeys?: MachineKeyVerification;
+  /**
+   * How JWTs of organizations' trusted issuers are verified
+   * (`wbs-machine-credentials` A13 step 3, A16): the OIDC machine source.
+   * Absent, the source is off and every JWT keeps the configured-issuer path
+   * (fixtures only; `boot.ts` wires it). Requires {@link machineKeys}, whose
+   * credentials and clock it reads.
+   */
+  trustedIssuers?: TrustedIssuerVerification;
 }
+
+/** What {@link AuthServiceOptions.machineKeys} reads. */
+export interface MachineKeyVerification {
+  readonly credentials: MachineCredentials;
+  readonly now: () => number;
+}
+
+/** What {@link AuthServiceOptions.trustedIssuers} reads. */
+export interface TrustedIssuerVerification {
+  readonly tokens: TrustedIssuerTokens;
+  /**
+   * The Issuer Identifier of the deployment's configured human sign-in
+   * issuer, null when the deployment configures none. A token of it never
+   * reaches a trusted issuer (A13 step 2).
+   */
+  readonly configuredIssuer: () => Promise<string | null>;
+}
+
+/** What {@link AuthService.authenticateOrRefuse} answers besides a principal. */
+export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
 
 export type { AuthenticatedUser } from '@wbs/contracts';
 
@@ -185,8 +227,49 @@ export class AuthService {
    * (controller/oidc.integration.test.ts).
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
+    const outcome = await this.authenticateOrRefuse(token);
+    return outcome === 'unknown_identity' || outcome === 'invalid_token' ? null : outcome;
+  }
+
+  /**
+   * {@link authenticate}, telling a verified token nobody is linked to
+   * (`unknown_identity`) apart from an absent or invalid one (null).
+   *
+   * **A token without a groups claim never mints an account** (`wbs-team-claims`
+   * D6b): it is a machine credential, which reaches only an account a host
+   * operator linked it to with `link-credential-cli.ts`, and it is read through
+   * the existing mapping alone, so it writes nothing (no email refresh either).
+   * Its scopes come from the linked account's memberships
+   * ({@link scopesOfRoles}); the per-organization role checks then apply as for
+   * any session of that account. A token with the claim keeps the login path.
+   *
+   * **A token with the `wbs_mk_` prefix is an API key and nothing else**
+   * (`wbs-machine-credentials` A13, A22): it is parsed once and never handed
+   * to a JWT verifier. It answers `unknown_identity` when it does not parse,
+   * before any read, and when no live credential admits it.
+   *
+   * **A JWT whose `iss` is not the configured issuer is a trusted issuer's or
+   * nobody's** (`wbs-machine-credentials` A13 steps 3 and 5), once
+   * {@link AuthServiceOptions.trustedIssuers} is wired: see
+   * {@link authenticateTrustedIssuerToken}. It never falls back to another
+   * verifier, and a token of the configured issuer never reaches it.
+   */
+  async authenticateOrRefuse(
+    token: string | null,
+  ): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
+    const machineKey = parseMachineKey(token);
+    if (machineKey === 'malformed') return 'unknown_identity';
+    // Proof: with this branch removed, the key fell through to the OIDC
+    // verifier and `routes an API key to its credential and never to the JWT
+    // verifier` in `machine-credential.controller.db.test.ts` failed, with 16
+    // more cases of that file; watched 2026-10-22.
+    if (machineKey !== null) return this.authenticateMachineKey(machineKey);
+    if (this.opts.trustedIssuers !== undefined) {
+      const trusted = await this.authenticateTrustedIssuerToken(token, this.opts.trustedIssuers);
+      if (trusted !== 'configured_path') return trusted;
+    }
     if (this.opts.oidc !== undefined) {
       const identity = await this.opts.oidc.verify(token);
       if (identity === null) {
@@ -194,6 +277,21 @@ export class AuthService {
         // literal fallback test authenticate the legacy account instead of null
         // (auth-service-null-password.test.ts).
         if (this.opts.passwordSessions !== true) return null;
+      } else if (!identity.groupsClaimed) {
+        // Proof: resolving this through `resolveOidcIdentity` made `refuses an
+        // unlinked machine token as unknown_identity, minting no account` in
+        // `fleet-credential.controller.db.test.ts` mint a second account and
+        // answer 403 instead of 401 (watched 2026-10-20), and made `leaves the
+        // owner's email alone under a groups-less token carrying an email`
+        // write the token's address over Dany's (watched 2026-10-20).
+        const linked = await this.readExistingOidcIdentity(identity);
+        if (linked === null) return 'unknown_identity';
+        return {
+          id: linked.id,
+          username: linked.username,
+          scopes: scopesOfRoles(await this.opts.account.membershipRolesOf(linked.id)),
+          authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
+        };
       } else {
         const user = await this.resolveOidcIdentity(identity);
         if (user === null) return null;
@@ -244,6 +342,145 @@ export class AuthService {
     return this.opts.account.readExistingIdentity(identity);
   }
 
+  /**
+   * One API key: its credential read by id, its secret's digest compared with
+   * that credential's secrets by {@link admitMachineCredential}, the admitted
+   * actor's account read for its username, and the use recorded (coarsely);
+   * `unknown_identity` when the credential was removed before the record.
+   *
+   * @throws when machine credentials are not wired, when the bound account
+   * does not exist (the foreign key makes that corrupt state), and on every
+   * store failure, the last-use write included.
+   */
+  private async authenticateMachineKey(
+    key: MachineKey,
+  ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    const machines = this.opts.machineKeys;
+    // Proof: answering unknown_identity here made `throws on a well-formed key
+    // when machine credentials are not wired` (machine-key.test.ts) resolve;
+    // watched 2026-10-22.
+    if (machines === undefined)
+      throw new Error('an API key was presented but machine credentials are not wired');
+    const digest = await digestMachineSecret(key.secret);
+    const now = machines.now();
+    const admission = admitMachineCredential(
+      { kind: 'api_key', digest },
+      await machines.credentials.findById(key.credentialId),
+      now,
+    );
+    if (admission.kind === 'refused') return admission.refusal;
+    const account = await this.opts.account.readAccount(admission.actor.accountId);
+    // Proof: answering unknown_identity here made `throws when the admitted
+    // credential's account does not exist` (machine-key.test.ts) resolve;
+    // watched 2026-10-22.
+    if (account === null)
+      throw new Error(
+        `machine credential ${admission.actor.credentialId} acts as a missing account`,
+      );
+    // Proof: with this rejection caught and dropped, `fails as a server error
+    // when its last use cannot be recorded` in
+    // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
+    // A removal committed since admission: the 401 the next request gets.
+    // Proof: with `'absent'` answered as a principal, `refuses
+    // unknown_identity when its credential is removed before the use is
+    // recorded` (machine-key.test.ts) admitted; watched 2026-10-23.
+    if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
+      return 'unknown_identity';
+    return machinePrincipalOf(admission.actor, account.username);
+  }
+
+  /**
+   * One JWT of a trusted issuer (`wbs-machine-credentials` A13 steps 2, 3
+   * and 5, A25), in this order:
+   *
+   * 1. No JWT, no string `iss`, or the configured issuer's `iss`: the
+   *    configured path (`configured_path`), with no trusted-issuer read.
+   * 2. No organization trusts the `iss`: `invalid_token`, with no key set
+   *    fetched.
+   * 3. The registration is selected by `(iss, aud)`: exactly one of the URL's
+   *    registrations must have its audience among the token's `aud` values;
+   *    none, or more than one, is `invalid_token` with no fetch.
+   * 4. The credential is read by that registration and the `sub`, within the
+   *    registration's own organization; the token is verified against the
+   *    registration's key set with the credential's own audience, or else the
+   *    registration's (a credential's audience narrows: its token carries
+   *    both). Any failure, an unfetchable key set included, is
+   *    `invalid_token`.
+   * 5. Verified with no credential: `unknown_identity`; with one, the same
+   *    {@link admitMachineCredential} decision and {@link machinePrincipalOf}
+   *    principal as an API key, its last use recorded (`unknown_identity`
+   *    when the credential was removed before the record).
+   *
+   * @throws when machine credentials are not wired, when the admitted
+   * credential's account does not exist, and on every store failure.
+   */
+  private async authenticateTrustedIssuerToken(
+    token: string,
+    trusted: TrustedIssuerVerification,
+  ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
+    const claims = trusted.tokens.peek(token);
+    if (claims === null) return 'configured_path';
+    // Proof: with this comparison removed, `never consults trusted issuers
+    // for a configured-issuer token without groups` in
+    // `oidc-credential.controller.db.test.ts` admitted the credential a
+    // planted trusted issuer of the configured URL holds; watched 2026-10-22.
+    if (claims.issuer === (await trusted.configuredIssuer())) return 'configured_path';
+    const machines = this.opts.machineKeys;
+    if (machines === undefined)
+      throw new Error('trusted issuers are wired but machine credentials are not');
+    const registrations = await machines.credentials.trustedRegistrationsOf(claims.issuer);
+    // Proof: with this refusal answering `configured_path` instead (a
+    // stranger `iss` let through to the configured verifier), `refuses a
+    // stranger issuer invalid_token without fetching any key set` in
+    // `oidc-credential.controller.db.test.ts` answered 401 unauthenticated;
+    // watched 2026-10-22.
+    if (registrations.length === 0) return 'invalid_token';
+    const selected = registrations.filter((each) => claims.audiences.includes(each.audience));
+    const registration = selected.at(0);
+    // Proof: with the `length > 1` half removed, `refuses a token naming two
+    // organizations' audiences` in `oidc-credential.controller.db.test.ts`
+    // admitted it as the first organization's; watched 2026-10-22.
+    if (registration === undefined || selected.length > 1) return 'invalid_token';
+    const pair =
+      claims.subject === null
+        ? null
+        : await machines.credentials.findOidcCredential(registration.id, claims.subject);
+    const verdict = await trusted.tokens.verify(token, {
+      issuer: claims.issuer,
+      jwksUri: registration.jwksUri,
+      // Proof: answering the registration's audience alone made `refuses a
+      // wrong audience, the credential audience winning over the default`
+      // (oidc-credential.controller.db.test.ts) admit a token without the
+      // credential's own audience; watched 2026-10-22.
+      audience: pair?.audience ?? registration.audience,
+    });
+    // Proof: with only `key_set_unavailable` refused here (an `invalid`
+    // verdict admitted), `refuses a token signed by another key` and `refuses
+    // a wrong audience, the credential audience winning over the default` in
+    // `oidc-credential.controller.db.test.ts` answered 200; watched
+    // 2026-10-22.
+    if (verdict.kind !== 'verified') return 'invalid_token';
+    if (verdict.subject !== claims.subject)
+      throw new Error('a verified token changed its subject between peek and verify');
+    if (pair === null) return 'unknown_identity';
+    const now = machines.now();
+    const admission = admitMachineCredential(
+      { kind: 'oidc', trustedIssuerId: registration.id },
+      pair.credential,
+      now,
+    );
+    if (admission.kind === 'refused') return admission.refusal;
+    const account = await this.opts.account.readAccount(admission.actor.accountId);
+    if (account === null)
+      throw new Error(
+        `machine credential ${admission.actor.credentialId} acts as a missing account`,
+      );
+    // As on the API-key path: a removal committed since admission.
+    if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
+      return 'unknown_identity';
+    return machinePrincipalOf(admission.actor, account.username);
+  }
+
   private async issue(user: User): Promise<SignedIn> {
     const token = await this.opts.tokens.sign(
       { subject: user.id, username: user.username },
@@ -251,6 +488,83 @@ export class AuthService {
     );
     return { token, user: { id: user.id, username: user.username } };
   }
+}
+
+/**
+ * The principal an admitted machine credential acts as
+ * (`wbs-machine-credentials` A12): **the account its person is bound to**,
+ * with exactly the credential's capped scopes (`read`, `write`; never
+ * `editor`, whatever role that account holds), bound to the credential's
+ * organization as a direct context so `resolve` never answers
+ * `no_active_organization` for it and every organization administration
+ * route refuses it `insufficient_scope` as it refuses a delegation, and
+ * pinned to the credential's person for the claim rules. In its organization
+ * it holds at most `member` ({@link organizationRoleOf}, A23), so it never
+ * gains the bound account's administration.
+ *
+ * The one place the acting account is decided, with
+ * {@link organizationRoleOf} beside it: A12 is the assumption most likely to
+ * be overruled (a machine account per credential is the recorded
+ * alternative), and that change belongs here alone.
+ */
+export function machinePrincipalOf(actor: MachineActor, username: string): AuthenticatedUser {
+  return {
+    id: actor.accountId,
+    username,
+    scopes: actor.scopes,
+    // Proof: without this context, `admits a live key to its organization's
+    // projects only` in `machine-credential.controller.db.test.ts` answered
+    // 403 no_active_organization; watched 2026-10-22.
+    delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
+    authentication: { kind: 'machine', credentialId: actor.credentialId, personId: actor.personId },
+  };
+}
+
+/**
+ * The organization role a principal acts with, from its membership's stored
+ * role (`wbs-machine-credentials` A23): a machine credential, and an MCP
+ * consent delegation acting as an agent person (A20), is a `member` of its
+ * organization whatever role the bound account holds — never `admin` or
+ * `super_admin`, so no claim-admin bypass, no person binding, no member or
+ * settings administration — and a `viewer` account's machine stays a viewer.
+ * Every other principal keeps its stored role. `resolve` applies it to the
+ * scope it answers.
+ *
+ * Proof: answering the stored role for a machine made `refuses patchPerson to
+ * an admin-bound key`, `refuses an admin-bound key a person bound to another
+ * account` and `gives a super-admin-bound key no claim-admin bypass`
+ * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22.
+ * Proof: with `consent` left out, `a consent session's tool call claims as
+ * its agent, never with the human's reach` (mcp-01
+ * `organization-delegation.boot.test.ts`) answered the claim for the unbound
+ * `loose` `credential_not_for_person` (the super-admin bypass passed it on)
+ * instead of `person_not_bound`; watched 2026-10-22.
+ */
+export function organizationRoleOf(
+  role: OrganizationRole,
+  authentication: CredentialAuthentication | undefined,
+): OrganizationRole {
+  if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent') return role;
+  return role === 'viewer' ? 'viewer' : 'member';
+}
+
+/**
+ * The scopes a linked machine token without a groups claim carries
+ * (`wbs-team-claims` D6b): the strongest of its account's organization roles.
+ * `viewer` reads, `member` reads and writes, `admin` and `super_admin` edit;
+ * no membership grants nothing.
+ *
+ * Proof: answering [] for every role made `scopes a linked token without
+ * groups from its account's membership: a member`
+ * (`fleet-credential.controller.db.test.ts`) answer the member's read 403
+ * insufficient_scope (watched 2026-10-20).
+ */
+export function scopesOfRoles(roles: readonly OrganizationRole[]): WbsScope[] {
+  if (roles.some((role) => role === 'admin' || role === 'super_admin'))
+    return ['read', 'write', 'editor'];
+  if (roles.includes('member')) return ['read', 'write'];
+  if (roles.includes('viewer')) return ['read'];
+  return [];
 }
 
 /**

@@ -1,0 +1,21 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+<--- Last few GCs --->
+
+[22:0x14fc9000]     4065 ms: Scavenge (interleaved) 376.0 (384.6) -> 375.2 (389.4) MB, pooled: 0 MB, 2.52 / 0.00 ms  (average mu = 0.709, current mu = 0.525) allocation failure; 
+[22:0x14fc9000]     4167 ms: Mark-Compact (reduce) 379.1 (389.9) -> 376.0 (385.1) MB, pooled: 0 MB, 80.26 / 0.00 ms  (+ 0.1 ms in 56 steps since start of marking, biggest step 0.0 ms, walltime since start of marking 93 ms) (average mu = 0.586, current mu 
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x757658 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc60e30  [node]
+ 3: 0xc60f1f  [node]
+ 4: 0xf047f5  [node]
+ 5: 0xf1615c  [node]
+ 6: 0xeeb613  [node]
+ 7: 0xec1120  [node]
+ 8: 0x13b8a18  [node]
+ 9: 0x1acd9b6  [node]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 632774656, "exitCode": 1}

@@ -25,6 +25,42 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationTrusted-issuersById',
+    method: 'DELETE',
+    path: '/api/organization/trusted-issuers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'deleteApiOrganizationCompute-providersById',
+    method: 'DELETE',
+    path: '/api/organization/compute-providers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'patchApiOrganizationCompute-providersById',
+    method: 'PATCH',
+    path: '/api/organization/compute-providers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationCompute-providers',
+    method: 'POST',
+    path: '/api/organization/compute-providers',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+    method: 'PUT',
+    path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'deleteApiOrganizationMachine-credentialsById',
+    method: 'DELETE',
+    path: '/api/organization/machine-credentials/:id',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationProvisioningTokensById',
     method: 'DELETE',
     path: '/api/organization/provisioning-tokens/:id',
@@ -108,6 +144,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiOrganizationLimits',
+    method: 'GET',
+    path: '/api/organization/limits',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiOrganizationMembers',
     method: 'GET',
     path: '/api/organization/members',
@@ -123,6 +165,24 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationProject-rank',
     method: 'GET',
     path: '/api/organization/project-rank',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationTrusted-issuers',
+    method: 'GET',
+    path: '/api/organization/trusted-issuers',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationCompute-providers',
+    method: 'GET',
+    path: '/api/organization/compute-providers',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationMachine-credentials',
+    method: 'GET',
+    path: '/api/organization/machine-credentials',
     kind: 'read',
   },
   {
@@ -172,6 +232,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdPeopleByPersonIdWork',
+    method: 'GET',
+    path: '/api/projects/:id/people/:personId/work',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdSaved-plans',
     method: 'GET',
     path: '/api/projects/:id/saved-plans',
@@ -181,6 +247,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiProjectsByIdSaved-plansCompare',
     method: 'GET',
     path: '/api/projects/:id/saved-plans/compare',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResources',
+    method: 'GET',
+    path: '/api/projects/:id/resources',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdStartable',
+    method: 'GET',
+    path: '/api/projects/:id/startable',
     kind: 'read',
   },
   {
@@ -305,6 +383,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   {
+    operationId: 'postApiClaimsRenew',
+    method: 'POST',
+    path: '/api/claims/renew',
+    kind: 'mutation',
+  },
+  {
     operationId: 'postApiDirectoryCommands',
     method: 'POST',
     path: '/api/directory/commands',
@@ -386,6 +470,24 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postApiOrganizationProjectsByIdRank',
     method: 'POST',
     path: '/api/organization/projects/:id/rank',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationTrusted-issuers',
+    method: 'POST',
+    path: '/api/organization/trusted-issuers',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationMachine-credentials',
+    method: 'POST',
+    path: '/api/organization/machine-credentials',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationMachine-credentialsByIdRotate',
+    method: 'POST',
+    path: '/api/organization/machine-credentials/:id/rotate',
     kind: 'mutation',
   },
   {
@@ -500,6 +602,36 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   { operationId: 'postInternalResume', method: 'POST', path: '/internal/resume', kind: 'control' },
+  {
+    operationId: 'postInternalMcpAuthority',
+    method: 'POST',
+    path: '/internal/mcp/authority',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpCredentials',
+    method: 'POST',
+    path: '/internal/mcp/credentials',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpCredentialsEnded',
+    method: 'POST',
+    path: '/internal/mcp/credentials/ended',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpDelegation',
+    method: 'POST',
+    path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpOrganizations',
+    method: 'POST',
+    path: '/internal/mcp/organizations',
+    kind: 'control',
+  },
   {
     operationId: 'putApiOrganizationSession-policy',
     method: 'PUT',

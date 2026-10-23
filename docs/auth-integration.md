@@ -111,7 +111,8 @@ proxy: `/api/*` goes to be-01, `/ws*` to gw-01, and everything else to fe-01.
 
 Drive the flow through fe-01, not directly through the callback:
 
-1. Open the HTTPS WBS origin and choose **Continue with Okta**.
+1. Open the HTTPS WBS origin and choose the SSO button (**Continue with Okta** at the
+   2026-08-24 verification, **Continue with SSO** today).
 2. Sign in at Keycloak and confirm the browser returns to `/` with no token in
    JavaScript storage.
 3. Confirm `GET /api/projects` returns 200 with the HttpOnly cookie and a
@@ -191,9 +192,9 @@ check the emitted group values before chasing a write bug.
 
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in
-`/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The prior
-Okta values are retained only in `oidc-dev.env.okta.bak` until the trial expires
-on 2026-09-22; delete that backup after the expiry.
+`/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The Okta
+trial expired on 2026-09-22 and its backup was deleted on 2026-10-22; only the
+[historical Okta mapping](#historical-okta-mapping) remains.
 
 Prod's swap reads its provider settings from `/home/puni1/wbs/oidc.env` (mode
 600), with the same five-key allowlist. No prod tenant or client is configured
@@ -236,7 +237,14 @@ there, added once a connection is seen displaying that exact URI. Unproven clien
 expire after 10 minutes of DCR inactivity. Starting authorization can extend an
 unproven client only to an absolute 20-minute lifetime, and a new flow is
 refused with 429 when that ceiling cannot cover the browser and code-exchange
-window; a successful exchange promotes the client to 24 hours. Registration is
+window; a successful exchange promotes the client to 24 hours. Registered
+clients live in the MCP store (`MCP_STORE_PATH`), so restarts and deploys keep
+them and their lifetimes; authorization with an unknown or expired `client_id`
+answers `400 invalid_client` to the browser with an `error_description` asking
+for a new registration (automatic re-registration by clients is unobserved),
+while other malformed authorization requests stay `invalid_request`. A stored
+client's redirect is re-checked against `HOSTED_REDIRECTS` and the loopback
+rule at every authorization, so removing a callback takes effect at deploy. Registration is
 capped at 20 unproven and 100 proven clients per forwarding source plus 1,000
 globally; pending authorization is capped at five per client and 1,000 globally;
 unredeemed grants and live sessions are each capped at 1,000 globally. New
@@ -272,6 +280,55 @@ Cut over in this order:
 7. If validation, reload, or any probe fails, restore the Caddy backup, reload,
    move the marker out of the state path, verify the original app/API/WS routes,
    and remove the added Auth0 callback.
+
+### MCP organization delegation
+
+After organization activation be-01 refuses a raw upstream Bearer for
+organization resources (`403 no_active_organization`): it binds no
+organization. mcp-01 therefore binds every consent to one organization and
+calls be-01 with a WBS-signed delegation instead
+(`openspec/changes/organization-ownership-and-access`, tasks 2.5, 6.4, 6.6).
+
+- mcp-01 needs be-01's `INTERNAL_AUTH_SECRET` in its own environment, and be-01
+  needs the dedicated RSA pair `WBS_DELEGATION_SIGNING_KEY` (PKCS#8 PEM) and
+  `WBS_DELEGATION_VERIFY_KEY` (SPKI PEM). Without the secret mcp-01 keeps
+  forwarding the upstream token; without the pair be-01 answers
+  `403 delegation_inactive` after activation, and consent fails. Before
+  activation access is unchanged, but consent now asks be-01 once (so a
+  first-time user's account is resolved at consent, and a be-01 outage fails
+  the consent rather than the first tool call).
+- Consent asks be-01 (`POST /internal/mcp/organizations`, service secret plus
+  the user's upstream token) for the user's admitted memberships. One is bound
+  implicitly; several show a choice page. The organization, local user and
+  upstream issuer are stored on the code, refresh family and session. Changing
+  organization means connecting again.
+- Each tool call asks `POST /internal/mcp/delegation` for a single-use,
+  at most five-minute `wbs-be-01/via-mcp-01` token naming that user,
+  organization, OAuth client, family and narrowed scopes, bound to the
+  upstream pair; be-01 rechecks membership and credential rules when it issues
+  and again when the token is used. On a be-01 401 mcp-01 refreshes upstream
+  and asks again; it never forwards the raw token for a bound session.
+- Every MCP request rereads the family's authority
+  (`POST /internal/mcp/authority`); a removed member is refused with 401 and
+  cannot refresh. An organization enforcing SSO admits only a delegation whose
+  upstream subject carries that connection; one with a session policy refuses
+  every MCP delegation until trusted grant-lifecycle evidence exists.
+- Sessions consented before activation stay unbound and are refused after it
+  (task 6.5 will revoke them at the cutover).
+- A consent may act as one of the signed-in account's agent persons instead
+  (`openspec/changes/wbs-machine-credentials`, design A20): the organizations
+  answer lists each membership's `agents`, `POST /internal/mcp/credentials`
+  mints the `mcp_consent` machine credential before the code is issued, the
+  delegation then names `credentialId` and is pinned to the agent with `read`
+  and `write` and `member` reach, and `POST /internal/mcp/credentials/ended`
+  (service secret only) is how mcp-01 reports a family it ended so be-01
+  revokes the credential. mcp-01's README, "Consent as an agent person", has
+  the flow.
+- Deploy order: be-01 before mcp-01. This mcp-01 refuses an organizations
+  answer without `agents` (its parser requires it) and calls the two new
+  credential routes, so during a swap the be-01 serving it must already be
+  this release; an mcp-01 started against an older be-01 fails every consent
+  after activation as a deployment defect.
 
 ## Sign-in methods
 
@@ -310,35 +367,60 @@ adds the new method from that session (`POST /api/auth/link/auth0` with a
 `method`). One WBS user may hold several verified `(issuer, subject)` pairs; the
 rules are in `openspec/changes/social-sign-in/design.md`.
 
-## Historical Okta mapping
+## Fleet credentials
 
-No code change is needed to reproduce the prior Okta configuration. Its mapping
-was:
+A fleet (an agent harness such as Claire's) calls be-01 with an Auth0
+machine-to-machine access token for the WBS audience. Such a token carries no
+`wbs_groups` claim: the groups Action runs only at login. be-01 treats any
+verified token **without** that claim as a machine credential
+(`openspec/changes/wbs-team-claims/design.md` D6, D6b):
 
-```dotenv
-NODE_ENV=development
-AUTH_MODE=oidc
-BROWSER_SESSION_AUTHORITY=disabled
-AUTH_ISSUER_DISCOVERY_URL=https://<okta-org>/oauth2/<authorization-server-id>
-AUTH_CLIENT_ID=<WBS OIDC client id>
-AUTH_CLIENT_SECRET=<WBS OIDC client secret>
-AUTH_REDIRECT_URI=https://dev.wbs.bulletpoints.club/api/auth/okta/callback
-AUTH_SCOPE=openid profile email offline_access
-AUTH_AUDIENCE=<access-token audience configured on that authorization server>
-AUTH_GROUPS_CLAIM=wbs_groups
+- It acts only as the account a host operator linked its `(issuer, subject)`
+  to, and it never creates or changes an account (no email refresh either).
+- Its scopes come from that account's organization roles: `viewer` reads,
+  `member` reads and writes, `admin` and `super_admin` also edit. The
+  per-organization role checks then apply as for any session of the account.
+- An unlinked token is refused `401 unknown_identity`, and no account is
+  minted. A token that carries the claim keeps the browser login path.
+
+Link a credential with `link-credential-cli.ts`, inside the live be-01
+container like the other host CLIs ([prod runbook](runbook-prod-deploy.md#fleet-credential-links)):
+
+```sh
+docker exec be-01-<colour> bun run src/link-credential-cli.ts \
+  --issuer=https://<tenant>/ --subject=<client id>@clients \
+  --account=<account id or username> [--person=<agent person id>]
+docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
+  --issuer=https://<tenant>/ --subject=<client id>@clients
 ```
 
-In Okta, configure the same exact redirect URI, Authorization Code + refresh
-token grants, PKCE, the audience used by `AUTH_AUDIENCE`, and a groups claim
-named `wbs_groups` in both ID and access tokens. Group values must retain the
-environment prefix; production uses `prod:wbs:*`, development uses
-`dev:wbs:*`. Do not use the org authorization server if it cannot mint the
-custom audience and groups claim required by WBS.
+- `--issuer` is the exact token issuer, trailing slash included; an Auth0
+  machine-to-machine `sub` is `<client id>@clients`.
+- `--person` pins the credential to one agent person, which must already be
+  bound to the same account (`patchPerson` with `accountId`, an organization
+  admin's act). A pinned credential claims only as that person or under its
+  claims; anything else is `credential_not_for_person`.
+- The CLI writes one `external_identity` row and prints it. It refuses before
+  organization activation (logins do not read `external_identity` yet), an
+  unknown or ambiguous account, a pair already linked, an account's own sign-in
+  pair, and a person bound to another account or to none.
+- `--unlink` deletes the row: the next token for the pair is
+  `401 unknown_identity`, and the account's other credentials keep working.
+- Removing a person a credential is pinned to is refused `in_use` naming the
+  count; the confirmed removal revokes (deletes) those credentials with the
+  person rather than unpinning them.
 
-The archived dev values live only in
-`/home/puni1/wbs-dev/oidc-dev.env.okta.bak` on the deployment host (mode 600)
-until 2026-09-22. Never copy them into the repository, logs, tests, or issue
-text.
+## Historical Okta mapping
+
+Okta used the same contract with no code change. Its block differed from the Auth0 one above only
+in `AUTH_ISSUER_DISCOVERY_URL=https://<okta-org>/oauth2/<authorization-server-id>`,
+`AUTH_AUDIENCE=<access-token audience configured on that authorization server>`, its own client ID
+and secret, and no `AUTH_METHODS`. Do not use the org authorization server if it cannot mint the
+custom audience and the `wbs_groups` claim (in both ID and access tokens) that WBS requires.
+Group values keep the environment prefix: `prod:wbs:*` in production, `dev:wbs:*` in development.
+
+The archived dev values were deleted from the deployment host on 2026-10-22 after the
+trial expired; no copy exists in the repository, logs, tests or issue text.
 
 ## Local bypass
 

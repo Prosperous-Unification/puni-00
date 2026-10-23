@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+(pass) rejects physical root Unicode aliases before filesystem probes [7.77ms]
+
+ 1 pass
+ 26 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [845.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 344862720, "exitCode": 0}

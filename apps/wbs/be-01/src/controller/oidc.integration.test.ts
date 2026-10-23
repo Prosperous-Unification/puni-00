@@ -5,6 +5,7 @@ import {
   InMemoryTokenStore,
   OidcCallbackRefused,
 } from '@wbs/auth';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 import { errors } from 'jose';
 
@@ -159,6 +160,7 @@ function fixture(
     now: tick,
     random: () => random.shift() ?? 'extra-random',
     redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: {
       verify: (token: string) =>
         token.includes('.')
@@ -190,6 +192,7 @@ function fixture(
     capacity: testCapacityService(),
     directory: testDirectoryService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(),

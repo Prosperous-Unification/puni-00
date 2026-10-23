@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "pattern syntax admission precedes link copies"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 349744,
+  "ceilingKiB": 921600
+}

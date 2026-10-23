@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+361 |   f.input.runtimeClosureIdentity = hashCanonical(f.closure);
+362 |   f.input.limits.maximumOwnedBytes = 16384;
+363 |   f.input.limits.maximumBytes = 16384;
+364 |   const alloc = spyOn(Buffer, 'alloc');
+365 |   try {
+366 |     expect(() => readReviewRuntime(f.input)).toThrow('unreadable');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "unreadable"
+Received message: "runtime read byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:366:46)
+(fail) non-regular files refuse before allocating their content [7.92ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [933.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 344936448, "exitCode": 1}

@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+567 |         : f.source.readDirectory(root, ['.ts'], [pattern], ['**/*']);
+568 |     expect(() => read('plain/../dir/**/*')).toThrow('not a directory');
+569 |     const selected = read('alias/../**/*');
+570 |     if (kind === 'include')
+571 |       expect(selected).toEqual([root + '/dir/a.ts', root + '/dir/nested/b.ts']);
+572 |     else expect(selected).toEqual([root + '/z.ts', root + '/alias/b.ts']);
+                                ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/__puni_review__/candidate/z.ts",
+-   "/__puni_review__/candidate/alias/b.ts",
+- ]
++ []
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:572:27)
+(fail) literal exclude prefix walks file ancestors and effective alias parents [166.48ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1153.00ms]

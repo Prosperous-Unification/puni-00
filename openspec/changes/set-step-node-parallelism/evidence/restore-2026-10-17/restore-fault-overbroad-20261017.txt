@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+170 |         if (policy === 'captured-blockage') expect(removedBlockages).toEqual([]);
+171 |         expect(appliedNames).toEqual(
+172 |           policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch'],
+173 |         );
+174 |         if (policy === 'empty' || policy === 'unrelated' || policy === 'root') {
+175 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:175:33)
+(fail) redo-create unrelated sparse policy preserves replay atomicity and history policy [485.53ms]
+170 |         if (policy === 'captured-blockage') expect(removedBlockages).toEqual([]);
+171 |         expect(appliedNames).toEqual(
+172 |           policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch'],
+173 |         );
+174 |         if (policy === 'empty' || policy === 'unrelated' || policy === 'root') {
+175 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:175:33)
+(fail) undo-delete unrelated sparse policy preserves replay atomicity and history policy [355.33ms]
+
+ 0 pass
+ 21 filtered out
+ 2 fail
+ 13 expect() calls
+Ran 2 tests across 1 file. [3.07s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 582672384, "exitCode": 1}

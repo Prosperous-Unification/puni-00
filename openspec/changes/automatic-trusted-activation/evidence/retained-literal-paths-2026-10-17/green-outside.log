@@ -1,0 +1,16 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 357928960, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+(pass) retained literal paths refuses absolute outside before host and owner [170.73ms]
+(pass) retained literal paths refuses relative outside before host and owner [159.77ms]
+(pass) retained literal paths refuses inherited outside before host and owner [161.94ms]
+(pass) retained literal paths refuses wildcard key fixed outside before host and owner [155.90ms]
+(pass) retained literal paths refuses ancestor escape before host and owner [133.07ms]
+(pass) retained literal paths refuses absent descendant escape before host and owner [175.22ms]
+
+ 6 pass
+ 16 filtered out
+ 0 fail
+ 24 expect() calls
+Ran 6 tests across 1 file. [1.90s]

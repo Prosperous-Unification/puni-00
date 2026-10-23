@@ -1,0 +1,77 @@
+[
+  {
+    "check": "type-work-item-authorized",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/work-item/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "explicitPmAuthorization": true,
+    "freshAvailableMiB": 19143,
+    "capMiB": 1280,
+    "ceilingBytes": 1342177280,
+    "sampledPeakBytes": 942739456,
+    "exitCode": 1
+  },
+  {
+    "check": "type-work-item-authorized-fixed",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/work-item/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "explicitPmAuthorization": true,
+    "freshAvailableMiB": 19193,
+    "capMiB": 1280,
+    "ceilingBytes": 1342177280,
+    "sampledPeakBytes": 932929536,
+    "exitCode": 0
+  },
+  {
+    "check": "type-plan-commands-authorized",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/plan-commands/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "explicitPmAuthorization": true,
+    "freshAvailableMiB": 19228,
+    "capMiB": 1280,
+    "ceilingBytes": 1342177280,
+    "sampledPeakBytes": 959811584,
+    "exitCode": 0
+  },
+  {
+    "check": "lint-mounted-authorized",
+    "argv": [
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts"
+    ],
+    "explicitPmAuthorization": true,
+    "freshAvailableMiB": 19066,
+    "capMiB": 1280,
+    "ceilingBytes": 1342177280,
+    "sampledPeakBytes": 985821184,
+    "exitCode": 0
+  },
+  {
+    "check": "normal-hook-authorized",
+    "argv": ["bunx", "lefthook", "run", "pre-commit", "--force"],
+    "explicitPmAuthorization": true,
+    "freshAvailableMiB": 19086,
+    "capMiB": 1280,
+    "ceilingBytes": 1342177280,
+    "sampledPeakBytes": 1075503104,
+    "exitCode": 0
+  }
+]

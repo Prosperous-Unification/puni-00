@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+180 |         const snapshot = () => tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+181 |         const before = snapshot();
+182 |         expect(h.sqlite.query('SELECT id FROM command_journal WHERE project_id = ?').all(projectId)).toHaveLength(1);
+183 |         const answer = await h.call('owner','POST',`/api/projects/${projectId}/${replay}`);
+184 |         if (policy === 'unrelated') {
+185 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:185:33)
+(fail) undo preserves unrelated policy [344.05ms]
+180 |         const snapshot = () => tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+181 |         const before = snapshot();
+182 |         expect(h.sqlite.query('SELECT id FROM command_journal WHERE project_id = ?').all(projectId)).toHaveLength(1);
+183 |         const answer = await h.call('owner','POST',`/api/projects/${projectId}/${replay}`);
+184 |         if (policy === 'unrelated') {
+185 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:185:33)
+(fail) redo preserves unrelated policy [255.82ms]
+
+ 0 pass
+ 6 filtered out
+ 2 fail
+ 11 expect() calls
+Ran 2 tests across 1 file. [2.56s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 640237568, "exitCode": 1}

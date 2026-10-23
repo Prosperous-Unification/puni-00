@@ -547,11 +547,47 @@ historical selectors. All objects, parser work and documents SHALL obey installe
 - **THEN** refuse before any outside read; legitimate absent probes inside the closed namespace
   remain modeled absence and complete read observations bind the actual selected bytes
 
+#### Scenario: Static Nx target authority survives retained replay
+
+- **WHEN** retained declaration evaluation selects an explicit Nx target after source checkout
+  and retained storage removal following capability open
+- **THEN** the installed composition derives the project census and target configuration from
+  owned candidate bytes through the shared static selector core, preserves legacy shallow defaults
+  and implicit dependencies, executes no candidate code, and refuses copied candidate authority
+  or entry/read/byte/output overflow before returning declaration facts
+
 #### Scenario: All documents survive retained replay
 
 - **WHEN** the producer is reopened after its original checkout and acquired Git store are gone
 - **THEN** all eleven documents, exact bindings, exhaustive obligations and source projections
   recompute from retained bytes; corrupt input or stale ownership commits no partial selection
+
+### Requirement: Shared bounded TypeScript compiler IO prerequisite
+
+The shared source entrypoint SHALL derive the existing TypeScript selectors and extractor
+identities through explicit IO ports. Config parsing, referenced-project enumeration, compiler
+source reads, default libraries and resolution SHALL use those ports without ambient filesystem,
+Git, subprocess, environment or candidate-code execution. The legacy filesystem wrapper SHALL
+retain its existing selectors, identities and absent/directory/malformed diagnostic distinctions.
+The source entrypoint SHALL snapshot and validate every finite limit before IO, count repeated
+probes, UTF-8 reads, enumerated paths and output observations before accumulation, and bound the
+complete canonical returned envelope including identities and empty selector arrays.
+This prerequisite SHALL NOT establish retained replay, runtime-closure authentication or protected
+authority; those remain part of the complete retained-content extraction requirement.
+
+#### Scenario: Referenced wildcard config and supplied compiler library
+
+- **WHEN** source-owned config bytes select a wildcard project reference and supplied default libraries
+- **THEN** extraction derives real selectors with every IO route delegated to the source, even when
+  ambient filesystem, TypeScript system, environment, write and execution routes throw
+
+#### Scenario: Invalid or exceeded source execution limit
+
+- **WHEN** a required limit is absent, nonfinite, fractional or negative, or repeated
+  probes/reads/enumeration/output exceed their original snapshotted ceiling
+- **THEN** extraction refuses without returning relationships; exact final output size succeeds and
+  one byte less refuses, including an extraction whose selector families are all empty; caller
+  policy changes during IO do not replace the original ceiling or bypass an exceeded cap
 
 ### Requirement: Derived artifact dependency semantics
 
@@ -1141,3 +1177,506 @@ end-to-end execution, not a design packet or mocked provider.
 
 - **WHEN** only design or simulated provider evidence exists
 - **THEN** WBS 030.6 remains incomplete and the bootstrap prerequisite remains explicit
+
+### Requirement: Bounded declared runtime admission
+
+The system SHALL admit only exact independently pinned canonical closed `ReviewRuntimeClosureV1`
+bytes with a nonempty program inventory, unique UTF-8-byte-sorted canonical relative virtual
+file paths, no file-ancestor conflicts, exact roles, safe lengths and raw SHA-256 file identities.
+It SHALL capture every declared file through regular, readable, non-symlinked leaves and
+ancestors outside the candidate, reconcile stable file metadata, and close every descriptor
+before publishing an immutable capability. Read and cleanup failures SHALL preserve both causes
+and publish no partial capability. Positive safe-integer installed limits SHALL bound manifest
+bytes, entries, path bytes, filesystem probes, content reads/read bytes, retained content bytes
+and lifetime content allocations before their corresponding work or allocation.
+
+#### Scenario: Declared runtime capture succeeds
+
+- **WHEN** canonical independently pinned closure bytes and every declared installed file satisfy
+  all identity, path, readability, stability, separation and resource checks
+- **THEN** the frozen exact-object capability returns fresh owned bytes only for the complete
+  declared path/role/identity/length tuple, unaffected by caller or later ambient mutation
+
+#### Scenario: A dependency or runtime admission fence is invalid
+
+- **WHEN** a declared file is missing, unreadable, substituted, symlinked at any ancestor or leaf,
+  overlaps the candidate, differs in exact bytes or length, changes during capture, or a closure
+  schema, canonical pin, path or resource constraint fails
+- **THEN** admission refuses without publishing a partial capability, including after cleanup failure
+
+#### Scenario: Extra installed files or copied methods request authority
+
+- **WHEN** an extra installed file, unknown or altered tuple, or copied capability method is offered
+- **THEN** it confers no read, discovery, enumeration, resolution or fallback authority and refuses
+  before any filesystem IO; post-capture legitimate reads use owned bytes exclusively
+- **AND** this admission prerequisite authenticates only the declared bytes; transitive completeness,
+  protected installation ownership and executing compiler/runtime identity remain separate obligations
+
+#### Scenario: Configured bootstrap getters change across accesses
+
+- **WHEN** configured roots, closure bytes, expected identity or installed limits use changing getters
+- **THEN** admission snapshots each top-level operand once before checks, copies the captured
+  limits, bounds and copies the captured byte reference, and publishes only the captured expected pin
+
+#### Scenario: A physical root contains malformed Unicode
+
+- **WHEN** a configured physical root would change under UTF-8 encoding, including a lone surrogate
+  that aliases a replacement-character directory
+- **THEN** admission rejects before realpath/open/read, independently of path-library normalization,
+  and checks physical root byte ceilings before round-trip allocation
+
+### Requirement: Bounded retained namespace metadata
+
+The system SHALL build a deeply frozen metadata-only virtual namespace from exact owned
+retained candidate and declared runtime capabilities. Both provenance lookups SHALL precede
+inspection of either census. Exact-owner namespace provenance SHALL bind candidate and runtime
+identities, independently hashed canonical `namespacePolicyIdentity`, the opaque unjoined
+closure `resolutionPolicyIdentity`, and `runtimeTrust: 'unverified'`.
+
+#### Scenario: Owned metadata is indexed after acquisition roots disappear
+
+- **WHEN** exact owned candidate and runtime capabilities survive removal of their source,
+  retained store and runtime roots
+- **THEN** namespace creation uses metadata exclusively, emits byte-sorted directories and
+  exact candidate regular/symlink and runtime file tuples, and performs no content, filesystem,
+  Git, compiler, parsing, environment, history, glob or symlink-resolution access
+- **AND** all published metadata is immutable and has no content-read API
+
+#### Scenario: V1 virtual paths select compiler-visible metadata
+
+- **WHEN** a candidate path `p` or runtime dependency path beginning `node_modules/` is indexed
+- **THEN** its virtual path is `/__puni_review__/candidate/p`; runtime programs and other runtime
+  entries are not compiler-visible
+- **AND** the namespace is case-sensitive, its working directory is `/__puni_review__/candidate`,
+  and its configured library directory is `/__puni_review__/candidate/node_modules/typescript/lib`
+  without asserting directory existence
+
+#### Scenario: Copied owners or invalid trusted metadata request a namespace
+
+- **WHEN** either capability is copied or supplies a false-empty census, or metadata contains
+  malformed Unicode, NUL, backslash, empty/dot/traversal/noncanonical path components,
+  candidate `.git`/`node_modules`, unsupported modes/Gitlinks, visible runtime `.git`, duplicate
+  mounts, or file/symlink ancestors
+- **THEN** construction refuses before publishing a namespace; symlinks never resolve
+
+#### Scenario: Namespace bounds exceed their installed ceilings
+
+- **WHEN** any installed limit is not a positive safe integer, candidate plus all declared
+  runtime entries exceed `maximumEntries` before filtering, emitted nodes including root exceed
+  `maximumNodes`, any source/virtual path exceeds `maximumPathBytes`, or retained node and source
+  tuple path fields exceed `maximumTotalPathBytes`
+- **THEN** construction refuses before corresponding accumulation, path concatenation or UTF-8
+  buffer allocation; each limit is captured once with no defaults
+- **AND** this index supplies no compiler mount or claim of runtime completeness or authentication
+
+#### Scenario: Namespace recipe identity is independently bound to exact V1 bytes
+
+- **WHEN** an owned namespace is constructed under the fixed V1 recipe
+- **THEN** its namespace policy identity equals the independently computed SHA-256 of the exact
+  canonical recipe bytes, including key order and terminal LF
+- **AND** the constructor hashes the private frozen recipe once after ownership and limit
+  validation; replacing the published pin or omitting a recipe field fails the independent oracle
+
+### Requirement: Direct retained TypeScript source admission
+
+The system SHALL expose the complete TypeScript source interface over exact owned retained
+namespace, candidate and runtime capabilities, joining their snapshot/classification and runtime
+closure/resolution identities before inspecting the namespace census. The source and its
+exact-owner provenance SHALL remain frozen and retain unverified runtime trust.
+
+#### Scenario: Direct methods read an owned virtual namespace after physical removal
+
+- **GIVEN** an admitted retained namespace and candidate/runtime bytes whose source, store and
+  runtime roots have been removed
+- **WHEN** direct path-kind, read, directory listing, recursive matching, realpath and cwd methods run
+- **THEN** only owned metadata and content are consulted; intercepted filesystem, Git, ambient
+  environment and `ts.sys` ports cannot supply reads or enumeration
+- **AND** the source is case sensitive, uses the fixed candidate cwd and configured library directory,
+  and returns modeled in-namespace misses while refusing outside/malformed direct queries before reads
+
+#### Scenario: Current symlinks route through retained components
+
+- **WHEN** selected candidate links occur at leaf or ancestor components
+- **THEN** the shared retained component walk preserves exact BOM target bytes, follows candidate-only
+  links, refuses cycles/escapes and file ancestors before parent normalization, and never mounts a
+  declared runtime file through a candidate alias
+- **AND** reads decode fatal UTF-8; regular file BOMs are stripped, while runtime files are direct
+  declared entries and candidate file reads require complete private path/blob/raw identity tuples
+
+#### Scenario: Enumeration follows the installed pure TypeScript matcher
+
+- **WHEN** direct enumeration supplies extensions, include/exclude patterns or a depth
+- **THEN** ordering, matching and depth behavior match the pinned installed `ts.sys` on equivalent
+  small fixtures, and immediate directory listing returns basenames
+- **AND** production uses only the pinned pure matcher with a checked runtime shape and owned
+  metadata callbacks; changed matcher shape refuses without a filesystem fallback
+
+#### Scenario: Any source resource ceiling is exceeded
+
+- **WHEN** explicit positive safe integer ceilings for nodes, lifetime probes/steps/reads/raw bytes,
+  query/target/expanded path bytes, link expansions, directory depth, lifetime pattern count/bytes,
+  enumerated entries or returned path bytes would be exceeded
+- **THEN** the source throws before the bounded copy or accumulation; candidate raw byte length
+  comes from private exact-owner metadata and is reserved before candidate.read copies content
+- **AND** limits are captured once; copied owners, foreign provenance and changing limit getters
+  cannot replace the admitted source authority
+
+#### Scenario: Pattern normalization could erase a file ancestor or candidate alias
+
+- **WHEN** any include/exclude pattern contains a `.` or `..` path component, either before
+  or after a wildcard
+- **THEN** direct source admission refuses the pattern before any content read or matcher call
+- **AND** all supplied patterns receive syntax admission before literal-prefix resolution;
+  ordinary admitted literal prefixes still walk files and candidate aliases component-wise
+- **AND** all-missing include prefixes return no matches rather than passing an unrestricted
+  empty include array to the matcher; valid mixed includes retain their order
+- **AND** query-root normalization retains candidate alias provenance and cannot expose
+  runtime entries after canonical spelling; cwd output and trailing-separator listing remain bounded
+
+The direct e2 interface deliberately does not claim full tsconfig-pattern compatibility or
+compiler mounting. Dot components in direct query roots continue through the component walk.
+
+Drive-rooted patterns are outside the fixed POSIX namespace and SHALL refuse during pattern
+syntax admission, before any literal-prefix read or matcher invocation.
+
+#### Scenario: Expanded paths fit individually but exceed their combined byte ceiling
+
+- **WHEN** a candidate link expansion has individually fitting target, resolved components
+  and remaining components but their sum including one separator per component exceeds the limit
+- **THEN** the source refuses the expansion before continuing its component walk
+- **AND** an expansion equal to the byte limit remains admitted
+
+#### Scenario: Caller pattern getters change their arrays during capture
+
+- **WHEN** a supplied pattern or extension array getter appends or removes entries
+- **THEN** the source captures its length once, reserves that count before copying, and reads
+  exactly those indexed entries; appended entries do not enter the matcher and missing entries refuse
+- **AND** missing-only includes remain no-match even if the caller truncates its original array
+- **AND** malformed pattern syntax and invalid supplied enumeration depth refuse before link reads
+
+### Requirement: Retained TypeScript compiler mounting
+
+The system SHALL provide an additive retained compiler entrypoint that constructs its source
+internally from the exact owned namespace, candidate and runtime. Its workspace and provenance
+SHALL come from the fixed retained namespace recipe and exact newly constructed source owner.
+Caller workspace, extractor labels and supplied sources SHALL confer no authority. The returned
+extraction SHALL explicitly retain unverified runtime trust.
+
+#### Scenario: Retained compiler replays after physical capture roots disappear
+
+- **GIVEN** a small captured candidate with noLib globals, wildcard config discovery, relative
+  imports/reexports, path aliases and a declared runtime package plus compiler package metadata
+- **WHEN** source, object store and runtime roots are removed before retained extraction
+- **THEN** SHA-1 and SHA-256 captures produce the same complete imports, reverse edges, public
+  declarations, configuration identities and compiler identity as the preserved legacy producer
+- **AND** intercepted filesystem, Git, environment, cwd and ts.sys routes cannot supply access
+
+#### Scenario: Explicit retained ES5 standard libraries preserve legacy extraction
+
+- **GIVEN** a candidate selecting `lib: ['es5'], types: []` with no inherited noLib setting or
+  handwritten globals, and exact pinned installed ES5/decorators/decorators.legacy raw bytes
+  declared at namespace V1 `node_modules/typescript/lib/<basename>` paths
+- **WHEN** the preserved legacy producer receives byte-identical libraries at its existing
+  `@typescript/old/lib` paths, then physical capture roots disappear before retained extraction
+- **THEN** SHA-1 and SHA-256 captures preserve complete legacy relationships, public declarations,
+  configuration identities and compiler identity under intercepted ambient IO routes
+- **AND** actual standard-library types appear in public exports; the census library subset is
+  exactly the three selected raw identities/lengths, excluding an extra declared unused library
+- **AND** each absent required library refuses without ambient fallback, physical mutation after
+  capture has no effect, and valid changed captured library bytes change census identity even
+  when the extracted relationships stay equal
+- **AND** source/compiler read budgets, census bounds and whole-envelope bytes include library
+  observations, with exact-fit success and one-byte-short refusal
+
+#### Scenario: Pinned implicit default libraries preserve legacy extraction
+
+- **GIVEN** captured candidate configs omit target/lib/noLib and handwritten globals, with
+  TypeScript 6.0.3's actual lib.es2025.full.d.ts recursive closure captured byte-identically
+  at the legacy @typescript/old/lib and retained namespace V1 typescript/lib locations
+- **WHEN** each SHA-1/SHA-256 replay runs after physical capture roots disappear under
+  invoked filesystem/Git/environment/cwd/ts.sys traps
+- **THEN** complete legacy relationships, declarations, configuration and compiler identities
+  match; public exports include real Document and ES5 types
+- **AND** the library census is exactly 82 raw identity/length tuples totaling 2936611 bytes,
+  matching fixed closure membership and parsed directives, excluding a declared unused library
+- **AND** absent root, direct DOM and transitive promise libraries refuse without ambient
+  fallback; physical mutation after capture cannot change retained extraction, while changed
+  valid captured indirect bytes change their census identity
+- **AND** finite source/compiler/census/envelope ceilings pass at equality and refuse one unit
+  below; each selected proof runs in a fresh serial process under a 900 MiB operational guard
+
+#### Scenario: Request admission precedes source construction
+
+- **WHEN** retained extraction receives config and public entrypoint arrays and explicit limits
+- **THEN** it captures each top-level group once and captures finite integer ceilings before
+  source callbacks; source ceilings are positive and compiler/request ceilings are nonnegative
+- **AND** it bounds nonempty array counts before indexed reads, captures each fixed length and
+  path once, bounds each path's code units and UTF-8 bytes plus aggregate bytes before copying,
+  and refuses missing entries, duplicates and noncanonical relative paths
+- **AND** candidate selections refuse drive prefixes, lone surrogates and .git/node_modules
+  components before compiler normalization; runtime package and extends resolution remain
+  governed by the existing shared core and retained source
+
+#### Scenario: Retained compiler refuses uncertain or oversized extraction
+
+- **WHEN** config parsing, selected config/public entrypoint/import resolution, compiler
+  diagnostics or a source/compiler resource ceiling fails
+- **THEN** retained extraction throws rather than emitting a successful relationship envelope
+- **AND** an independent finite final ceiling measures canonical bytes of the whole returned
+  envelope including provenance and runtimeTrust; exact equality passes and one byte less refuses
+
+This mount supplies no compiler read manifest, freeze, runtime authentication, general
+config-generated escape policy or synchronous compiler CPU/heap bound. The noLib parity proof
+makes no implicit default-library breadth claim: legacy uses @typescript/old/lib while namespace V1 uses
+typescript/lib, and installed wrapper metadata can differ from the executing compiler.
+
+### Requirement: Effective retained TypeScript typeRoots admission
+
+Retained extraction SHALL admit each effective parser-normalized root-project `typeRoots`
+through its retained source after successful configuration parsing and before compiler program
+construction. Every explicit root SHALL consume the compiler probe budget and existing source
+path, probe and traversal budgets even when `types` is empty or roots repeat. Admission SHALL
+allow absent paths inside the retained namespace and SHALL refuse lexical or symlink escapes,
+including escapes through existing ancestors of absent descendants.
+
+#### Scenario: Effective roots follow parser inheritance and override semantics
+
+- **WHEN** a root project inherits `typeRoots` from another configuration
+- **THEN** admission uses the paths resolved relative to the declaring configuration
+- **AND** an explicit root override replaces discarded inherited roots before admission
+- **AND** effective outside roots refuse before program construction even with `types:[]`
+
+#### Scenario: Compatible ordinary compiler probes remain absent outside the namespace
+
+- **WHEN** typeRoots is omitted or the compiler probes default roots, package metadata,
+  modules or ancestor directories outside its namespace
+- **THEN** ordinary probes preserve their existing absent behavior
+- **AND** generic source and legacy wrapper calls default to compatible configuration behavior
+- **AND** unknown configuration modes refuse before source callbacks
+
+#### Scenario: Pinned TypeScript default type discovery remains compatible
+
+- **WHEN** both typeRoots and types are omitted under the pinned TypeScript 6 compiler
+- **THEN** extraction preserves its existing absence of automatic ambient type discovery
+- **WHEN** typeRoots is omitted and types contains the wildcard '*'
+- **THEN** visible declared @types packages are discovered through default type-root searches
+- **AND** ancestor searches outside the namespace remain absent probes
+
+#### Scenario: Retained root admission uses owned bytes after capture roots disappear
+
+- **WHEN** a SHA-1 or SHA-256 retained candidate uses existing, absent or valid linked roots
+  after its original physical capture roots have been removed
+- **THEN** extraction succeeds from retained bytes with the same canonical identities and census
+- **AND** runtime trust remains unverified and failed admission publishes no successful envelope
+
+This prerequisite does not admit nested project-reference configs, raw discarded spellings,
+general configuration paths, a full compiler manifest or authenticated runtime authority.
+
+### Requirement: Retained source byte-read census
+
+The retained TypeScript source SHALL record every successful raw acquisition through its owned
+read boundary as a tuple `{namespace, path, revision:null, identity, byteLength}`. Candidate paths
+and raw identities SHALL come from private retained metadata; runtime paths and identities SHALL
+come from exact closure tuples. The census SHALL preserve unverified runtime trust.
+
+#### Scenario: Byte acquisition differs from metadata and declared availability
+
+- **WHEN** a file, package metadata or link is acquired, including a link reached by probing
+  or enumeration
+- **THEN** the successful acquisition enters the census with raw bytes counted before decoding,
+  including BOM bytes
+- **AND** metadata-only probes, misses, failed owner copies and unused declared runtime files
+  are absent; aliases deduplicate exact final-file tuples while distinct link paths remain
+
+#### Scenario: Exact canonical census bounds precede owner copies
+
+- **WHEN** a new tuple would exceed explicit positive safe integer `maximumReadEntries` or
+  `maximumReadLedgerBytes`
+- **THEN** the source throws before copying bytes or inserting the tuple
+- **AND** the canonical byte ceiling includes wrapper, final LF, entries and commas; equality
+  passes and a one-byte shortage refuses; repeat tuples still consume existing execution budgets
+- **AND** complete canonical tuple encodings deduplicate exact tuples and sort by UTF-8 bytes
+
+#### Scenario: Only an exact owned source can seal its final byte census
+
+- **WHEN** `sealRetainedTypeScriptReads` receives the exact admitted source
+- **THEN** it returns its cached deeply frozen census and bars all subsequent source operations
+- **AND** copied sources and accessor traps confer no authority
+- **AND** the compiler mount seals only after successful core extraction and counts the census
+  inside its complete-envelope ceiling; failed core extraction leaves the source open
+
+This narrow census supplies no CompilerReadManifestV1, runtime authentication/completeness,
+implicit default-library breadth or freeze integration and does not change namespace V1.
+
+### Requirement: Exact-owner successful retained TypeScript extraction
+
+The retained compiler SHALL return an opaque deeply readonly extraction with the same enumerable
+canonical envelope and unverified runtime trust. A private exact-object binding SHALL cache a
+deeply frozen copied request and namespace provenance. No public constructor or registration
+capability SHALL exist.
+
+#### Scenario: Only the exact successful envelope exposes its cached provenance
+
+- **WHEN** the extraction provenance accessor receives an exact successful extraction
+- **THEN** repeated calls return the same deeply frozen private binding
+- **AND** plain objects, primitives, spreads, JSON copies, inherited shapes and proxies refuse
+  without reading their properties or performing IO
+
+#### Scenario: Success freezes snapshots and publication follows every boundary
+
+- **WHEN** retained extraction validates and copies request paths
+- **THEN** copied arrays and their wrapper freeze before callbacks while caller inputs remain mutable
+- **AND** successful core extraction, census sealing and the complete-envelope ceiling precede
+  iterative deep freeze and exact-object registration
+- **AND** nested relationship, extractor, provenance and census mutations cannot change canonical bytes
+- **AND** compiler failure, a one-byte-short cap or a freeze exception publishes no owned envelope
+
+### Requirement: Exact-owner retained candidate review provenance
+
+A successfully opened public retained candidate SHALL own a private cached readonly frozen
+record containing exactly `requestIdentity`, `snapshotIdentity` and `historyManifestIdentity`.
+The record SHALL bind the detached validated activation request and exact verified retained pins.
+
+#### Scenario: Public candidate provenance preserves complete and legacy history semantics
+
+- **WHEN** a SHA-1 or SHA-256 public candidate passes all request, snapshot, history and final
+  held-owner checks
+- **THEN** its accessor returns the exact request and snapshot identities plus the verified
+  history manifest pin, including a nonnull pin for complete empty history
+- **AND** legacy head-only capture returns null even when supplied an irrelevant history pin
+- **AND** closed raw validation precedes copying declared fields; the copied request passes
+  canonical validation before use, without cloning undeclared getters or buffers
+- **AND** caller request mutation after validation cannot change the binding or freeze the caller
+
+#### Scenario: Only the exact public candidate exposes its cached record
+
+- **WHEN** the provenance accessor receives an exact successfully opened public candidate
+- **THEN** repeated calls return the same frozen three-scalar record without property reads,
+  IO, rehashing or parser-budget use, even after the original repository and retained store disappear
+- **AND** primitives, plain/spread/JSON copies, inherited shapes, getter poison and proxies refuse
+  without reading their properties
+- **AND** internal phase-one views, wrong raw pins, repinned malformed or noncanonical history,
+  history/request binding mismatches and final held-owner failure publish no binding
+
+### Requirement: Effective retained TypeScript rootDirs admission
+
+Retained activation SHALL select the closed `retained-config-roots` configuration mode. After
+successful parsing and before constructing each requested root project's compiler host, that
+mode SHALL sequentially admit every effective parser-normalized typeRoots entry followed by
+every effective rootDirs entry through the retained source. Each entry SHALL charge the same
+existing compiler probe and source traversal budgets, with no deduplication within or across
+options. The existing compatible default and retained-type-roots mode SHALL preserve their
+prior behavior, and unknown modes SHALL refuse before source callbacks.
+
+#### Scenario: Unused outside rootDirs refuse before the rejected project's host
+
+- **WHEN** an effective rootDirs entry is outside the retained namespace, directly, by inherited
+  configuration or through symlink ancestors of existing or absent paths
+- **THEN** extraction refuses before constructing that project's compiler host
+- **AND** it publishes no successful extraction envelope or owner even with types empty
+- **AND** an earlier valid root project may already have constructed its own compiler host
+
+#### Scenario: Effective rootDirs preserve parser semantics and admissible absence
+
+- **WHEN** rootDirs values are inherited, overridden, repeated or normalized
+- **THEN** admission uses only effective parser paths at the declaring configuration base
+- **AND** inside existing, absent and valid linked roots are admitted
+- **AND** discarded inherited outside values are not admitted
+- **AND** long paths and exact-fit/one-less compiler, source and traversal budgets remain bounded
+
+#### Scenario: RootDirs fallback resolves from retained bytes after physical removal
+
+- **WHEN** src/index.ts imports a provider found through rootDirs in generated/provider.ts
+- **THEN** extraction emits the exact declaration closure and raw-byte census
+- **AND** SHA-1 and SHA-256 retained replay after physical capture roots disappear preserves the
+  canonical envelope and census, including acquired link bytes, without ambient filesystem IO
+- **AND** runtimeTrust remains unverified and generic outside compiler probes remain absent
+
+This prerequisite does not establish nested project-reference config policy, general configuration
+admission, a complete compiler manifest, runtime authentication or parent 2.1d.1.3 completion.
+
+### Requirement: Retained effective root-project baseUrl admission
+
+Retained TypeScript extraction SHALL admit a defined effective root-project baseUrl through its
+owned source after successful config parsing and before constructing that project's compiler host.
+The pinned parser SHALL supply declaring-config normalization and effective override semantics.
+Outside roots and symlink ancestor escapes SHALL refuse even when unused or followed by absent
+descendants. Inside absent roots SHALL remain valid. Admission SHALL charge the existing shared
+compiler probe and source traversal budgets and preserve raw symlink byte census entries.
+
+#### Scenario: Inherited outside base replaced inside
+
+- **WHEN** a root project replaces an inherited outside baseUrl with an inside baseUrl
+- **THEN** extraction admits only the effective inside root and preserves bare import resolution
+
+#### Scenario: Unused outside root refuses before host
+
+- **WHEN** an effective baseUrl is outside the candidate even with types empty and no bare imports
+- **THEN** extraction refuses before that project's host and publishes no extraction owner
+
+#### Scenario: Omitted roots and narrower modes remain compatible
+
+- **WHEN** baseUrl is omitted or a caller selects compatible or retained-type-roots mode
+- **THEN** no new explicit baseUrl admission is invented and ordinary package/default misses remain absent
+
+#### Scenario: Replay uses retained bytes
+
+- **WHEN** SHA-1 or SHA-256 captured roots are removed and ambient filesystem ports throw
+- **THEN** replay produces the same canonical relationships and byte census
+
+### Requirement: Retained effective literal TypeScript paths admission
+
+Retained-config-roots extraction SHALL admit every effective paths substitution containing no
+asterisk after effective baseUrl and before its project host, independent of key shape or usage.
+Admission SHALL use the pinned compiler pure-path normalization with effective baseUrl when
+defined, otherwise parser-owned declaring pathsBasePath. Malformed mappings, nested arrays,
+strings, required origin or pinned helper shape SHALL refuse before host construction.
+
+#### Scenario: Unused literal substitutions escape
+
+- **WHEN** an unused absolute, relative or inherited literal target escapes lexically or through
+  a symlink ancestor, including missing descendants and fixed targets under wildcard keys
+- **THEN** extraction refuses before the rejected project host, census seal or successful owner
+
+#### Scenario: Effective mappings preserve compiler behavior
+
+- **WHEN** mappings are inherited, replaced including an empty map, normalized, repeated or use
+  an effective baseUrl override or parser configDir expansion
+- **THEN** only effective literals are admitted in existing key and substitution order
+- **AND** options, duplicates, fallback order and admissible absence remain intact
+- **AND** wildcard-bearing substitutions and compatible or retained-type-roots modes gain no
+  explicit literal admission
+
+#### Scenario: Retained literal aliases replay and remain bounded
+
+- **WHEN** exact or fixed wildcard aliases resolve declarations, including ordered fallbacks
+- **THEN** declarations, import targets, raw file/link census and unverified trust remain exact
+- **AND** SHA-1 and SHA-256 extraction replays after physical capture roots disappear
+- **AND** repeated targets consume shared compiler probes, source probes and traversal steps at
+  exact-fit and one-less limits
+
+### Requirement: Pinned compiler paths attempt observation prerequisite
+
+An explicitly built instrumented TypeScript 6.0.3 derivative SHALL synchronously emit a closed compiler-options paths substitution event containing kind, specifier, effective baseDirectory, matched pattern, original substitution and compiler-normalized candidate immediately after candidate formation and before candidate IO. A callback exception SHALL propagate and prevent fallback; a callback return SHALL NOT affect resolution. Events SHALL follow compiler attempt order and stop when the compiler succeeds. Ordinary ancestor probes and package typesVersions substitutions SHALL NOT produce compiler-options events.
+
+The build SHALL verify the pinned upstream executable SHA-256, require every transformation section exactly once and verify a pinned output SHA-256. Its separate artifact SHALL carry a checked input/output manifest, upstream license and modification notice. It SHALL NOT mutate the installed compiler or perform transformation during extraction. This prerequisite SHALL remain unused by retained extraction and SHALL NOT establish runtimeTrust or complete resolution evidence.
+
+#### Scenario: Escaping attempt precedes safe fallback
+
+- **WHEN** a wildcard mapping first attempts an outside candidate followed by a valid inside candidate and the observer refuses the outside candidate
+- **THEN** resolution throws before candidate file or directory IO and before fallback
+
+#### Scenario: Extension fast path and compiler order
+
+- **WHEN** an explicit extension substitution succeeds or an earlier missing substitution precedes success
+- **THEN** observation precedes the fast file probe and preserves normalized candidate order without emitting later substitutions
+
+#### Scenario: Shared typesVersions helper
+
+- **WHEN** package typesVersions resolution uses the shared substitution implementation
+- **THEN** the package resolves without a compiler-options event
+
+#### Scenario: Compiler artifact integrity differs
+
+- **WHEN** upstream bytes, transformation occurrence counts, output bytes or manifest identities differ
+- **THEN** the derivative build or verification refuses the artifact

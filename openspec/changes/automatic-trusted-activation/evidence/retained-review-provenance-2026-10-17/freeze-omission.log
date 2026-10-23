@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+147 |     expect(Object.keys(binding)).toEqual(Object.keys(expected));
+148 |     expect(Object.isFrozen(binding)).toBe(true);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:148:38)
+(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [92.02ms]
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+147 |     expect(Object.keys(binding)).toEqual(Object.keys(expected));
+148 |     expect(Object.isFrozen(binding)).toBe(true);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:148:38)
+(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [83.99ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [93.55ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [73.92ms]
+(pass) request binding is detached before an owner callback mutates the caller request [87.10ms]
+(pass) failed wrong-raw history publishes no review binding [93.96ms]
+(pass) failed repinned-canonical history publishes no review binding [85.09ms]
+(pass) failed repinned-noncanonical history publishes no review binding [107.09ms]
+(pass) failed malformed history publishes no review binding [101.49ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [88.05ms]
+(pass) phase-one retained views never acquire public review bindings [95.29ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [99.73ms]
+(pass) one legacy snapshot opens distinct candidate request bindings [88.18ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [91.96ms]
+(pass) declared protected-revision subject remains coherent in the owned request snapshot [80.05ms]
+(pass) declared merge-group subject remains coherent in the owned request snapshot [97.57ms]
+
+ 14 pass
+ 2 fail
+ 50 expect() calls
+Ran 16 tests across 1 file. [2.40s]

@@ -1,0 +1,45 @@
+{
+  "scope": "Lightweight evidence reconstruction only; no evaluator or project test executed.",
+  "mutation": {
+    "location": "entries[0][1]",
+    "before": "artifact.tgz",
+    "after": "artifact-mutated.tgz",
+    "appliedTo": "temporary copy only; removed afterward"
+  },
+  "expectedFailure": "snapshot/source digest mismatch",
+  "compactSha256Before": "e63901ee8810119f4e54ecd7fa35bfcdc05bda5246b375cdb9b27f26f0418112",
+  "compactSha256After": "e63901ee8810119f4e54ecd7fa35bfcdc05bda5246b375cdb9b27f26f0418112",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/phase-collection-diagnostics/reconstruct-check.py.txt",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "PASS: all 32 source mappings; six snapshot inputs reconstruct to their original bytes/SHA-256\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/phase-collection-diagnostics/reconstruct-check.py.txt",
+        "--compact",
+        "/tmp/phase-snapshot-negative-zqs40ol4/altered.compact.json"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/phase-collection-diagnostics/reconstruct-check.py.txt\", line 58, in <module>\n    main()\n    ~~~~^^\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/phase-collection-diagnostics/reconstruct-check.py.txt\", line 47, in main\n    raise ValueError('snapshot/source digest mismatch: ' + entry['source'] + ' expected ' + entry['sha256'] + ' observed ' + digest)\nValueError: snapshot/source digest mismatch: /tmp/wbs100-mail-memory-diagnostic-20261020/original-after.json expected 0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff observed fd73de5ce6240df40b00e1d07e861cd00a00be440378286d9e1fb71f4eb757ee\n"
+    },
+    {
+      "command": [
+        "python3",
+        "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/phase-collection-diagnostics/reconstruct-check.py.txt",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "PASS: all 32 source mappings; six snapshot inputs reconstruct to their original bytes/SHA-256\n",
+      "stderr": ""
+    }
+  ]
+}

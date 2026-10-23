@@ -1,0 +1,5 @@
+{
+  "localReceipt": "/tmp/f9-connected-assertion-red.log",
+  "sha256": "e177b4149c33eca8f843efdd09cdf843c2b15a46dd45ba6873b23a3a661a5a68",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/connected.probe.ts:\n{\"scenarios\": 0}\n\n12 |     probe.exited,\n13 |   ]);\n14 |   console.log(stdout);\n15 |   expect(stderr).toBe('');\n16 |   expect(exitCode).toBe(0);\n17 |   expect(JSON.parse(stdout).scenarios).toBe(12);\n                                            ^\nerror: expect(received).toBe(expected)\n\nExpected: 12\nReceived: 0\n\n      at <anonymous> (/tmp/f9-cri-transport-sol/tools/tool-devsync/feasibility/source-memory-relay/connected.probe.ts:17:40)\n(fail) observes authenticated descriptor ownership and framed completion [34.91ms]\n\n 0 pass\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [40.00ms]\n"
+}

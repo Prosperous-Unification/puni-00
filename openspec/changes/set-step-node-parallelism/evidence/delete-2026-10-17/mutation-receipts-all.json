@@ -1,0 +1,322 @@
+[
+  {
+    "fault": "forward-omitted",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "refuses leaf"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "63d24f2d45cf4708c2457327f1e45883930a2670716d618effce8fa0c15df646",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-root-only",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "cascade descendant"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "1118a8aff5b6deeb9575c4eeaa7ecbe60940bdf42fbc7388921e65a47944ae2c",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-wrong-owner",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "refuses leaf"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "b3143e3732c295577081bc2e48bb2de9f7fbf992454e835df2e754fb34550f85",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-wrong-project",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "refuses leaf"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "600b842173cff7395cbdb74f81f8d65b2fc0c406bd3f267a6189c2348e2d613f",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-overbroad",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "cascade descendant"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "687c54a36947e4e6d4128f497a5ba1f7aa3d6dfd41d1765f52d651a0a827daa4",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-before-auth",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "required strategy precedence"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "73c3baa30114dfd2749dd299f265487de129bb404af02ad7da6cd9f4e4b71a5f",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-before-strategy",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "required strategy precedence"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "db880877f759ccfe817765b50fadd04faebbfc89a766c613570cc526d6e56620",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-late",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "refuses leaf"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "c6f8ff53f491b6f11c51b79592e69ca4d841036c2096e743ddda303bad9f15c7",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-swallowed",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "trusted|unavailable|absent|required strategy precedence"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "aa4feaf0192e99bdf2b53c93c34938cbec0ae277853906ea55db41381537807d",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-unconditional",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "cascade descendant|cleared"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "d284deec71ebf3e6d26f779bb903fef58132a230cef701f5821ed8550253b0f1",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-detail-loss",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "detached exact"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "194bc0a55666e01f90ae27d79c775dff3ad8cc9e59a6362940c98889a6256ef4",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "forward-aliased-nodes",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "detached exact"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "1fb00dd9fbd7ebaf28b49fde20adcb489c6047cbde0f3cb10f6932d95a5a4974",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "admitted-empty",
+    "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "--test-name-pattern",
+      "admitted sparse deletion"
+    ],
+    "exitCode": 1,
+    "originalSha256": "239085e8afabb1953330a0ff790bc8258ee2bd2eb6a6e193a6318f0079babc70",
+    "mutantSha256": "4affa74b2a83167a6be7726a04af8d97b880cc104ce73c02b3acbc64d40122fd",
+    "assertionObserved": true,
+    "restoredSha256": "239085e8afabb1953330a0ff790bc8258ee2bd2eb6a6e193a6318f0079babc70"
+  },
+  {
+    "fault": "http-detail-loss",
+    "path": "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "through single"
+    ],
+    "exitCode": 1,
+    "originalSha256": "b1876f812cdf9b2fd5b986014435acab857ed5ce83da3e9a0f590634b0e3351a",
+    "mutantSha256": "cda2d8da495332b3a4f56d850ebf3d7eeb55c5052059ed07ab5448814ccf53e1",
+    "assertionObserved": true,
+    "restoredSha256": "b1876f812cdf9b2fd5b986014435acab857ed5ce83da3e9a0f590634b0e3351a"
+  },
+  {
+    "fault": "replay-omitted",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "owned sparse"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "f7b6ba04817d5d7634ce7041ecc7ce003e413269df176d747ce0c324f3fb914f",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "replay-root-only",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "redo-cascade owned"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "1f96691f8dc27a4fe8caea85f9538f97ba3c00244659f219d6bb608b8d7e87ab",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "replay-operation-restricted",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "undo-create owned|undo-duplicate owned"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "38f0b295e6a7f69cbda43b26b4fe736eced13fd6e4dda063911d1b69cc044e1e",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "replay-overbroad",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "unrelated sparse|promote delete"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "cf7829a2ba237bc487e5c9382107b2879536399811933135b755cbab9f9b04e1",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "replay-swallowed",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "throw sparse|corrupt sparse"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "8135b655e0883b521378110ef09742053bb3022adc994e5bb3158052767f11cb",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  },
+  {
+    "fault": "replay-late",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "argv": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "owned sparse"
+    ],
+    "exitCode": 1,
+    "originalSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9",
+    "mutantSha256": "3dbaa9fc576853b6e57c2ef80803bc69b8736a6a81c73ec11246ee3ac366d71c",
+    "assertionObserved": true,
+    "restoredSha256": "fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9"
+  }
+]

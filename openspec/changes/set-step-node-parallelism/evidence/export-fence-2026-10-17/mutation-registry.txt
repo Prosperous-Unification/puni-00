@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/refusal.test.ts:
+183 |     ],
+184 |     cwd: new URL('../../../../../../', import.meta.url).pathname,
+185 |     stdout: 'pipe',
+186 |     stderr: 'pipe',
+187 |   });
+188 |   expect(new TextDecoder().decode(checked.stdout) + new TextDecoder().decode(checked.stderr)).toBe(
+                                                                                                    ^
+error: expect(received).toBe(expected)
+
+- ""
++ "libs/wbs/domain/contracts/src/http/refusal.test.ts(15,25): error TS2345: Argument of type '{ error: "unsupported_step_parallelism"; }' is not assignable to parameter of type '{ code: "stale-input-hash"; currentInputHash: string; } | { code: "not-retryable"; state: "corrupt" | "failed" | "idle" | "pending" | "plan-infeasible" | "ready" | "retrying"; } | { ...; } | ... 448 more ... | ({ ...; } & ... 2 more ... & Partial<...>)'.
++   Types of property 'error' are incompatible.
++     Type '"unsupported_step_parallelism"' is not assignable to type '"address_conflict" | "afterId_must_be_id_or_null" | "afterRef_must_be_an_id" | "alias_mismatch" | "allowancePercent_must_be_0_to_1000_with_two_decimals" | "already_claimed" | ... 240 more ... | undefined'.
++ "
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/domain/contracts/src/http/refusal.test.ts:188:95)
+(fail) the compiler enforces closed refusal codes, detail variants and command context [357.35ms]
+
+ 0 pass
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [373.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 227819520, "exitCode": 1}

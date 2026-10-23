@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-test-levels-level.test.ts:
+134 | 
+135 |   it('refuses a different report identity even when clear and write agree', async () => {
+136 |     const command = (await declaredCommand()).replaceAll('shared-test-levels.unit.xml', 'wrong.xml');
+137 |     expect(() => {
+138 |       assertBunReport(levelTargetNamed(QUALIFIED), command);
+139 |     }).toThrow('report differs from declaration');
+             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "report differs from declaration"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/shared-test-levels-level.test.ts:139:8)
+(fail) shared-test-levels isolated Unit level > refuses a different report identity even when clear and write agree [1.74ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [140.00ms]

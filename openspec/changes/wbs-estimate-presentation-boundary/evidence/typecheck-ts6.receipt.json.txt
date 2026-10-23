@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "node_modules/typescript/bin/tsc6",
+    "-p",
+    ".estimate-scope.tsconfig.json",
+    "--noEmit"
+  ],
+  "exitCode": -9,
+  "peakRssBytes": 853172224,
+  "seconds": 2.86
+}

@@ -1,0 +1,26 @@
+import json,sys
+from pathlib import Path
+root=Path('/tmp/wbs100-serial-compiler-20261019')
+label=sys.argv[1]
+receipt=json.loads((root/(label+'.receipt.json')).read_text())
+assert receipt['stopReason'] is None, 'production extraction exceeded resource boundary'
+assert receipt['exitCode']==0, 'production extraction did not complete'
+report=json.loads((root/(label+'.stdout')).read_text())
+assert set(report)=={'schemaVersion','selection','extractors','manifestInputs','typescript','nx','declarations'}
+assert report['schemaVersion']==1
+assert report['selection']=={'kind':'committed','revision':'afdb525fc13bc5e2b8147f2ab73edbf48a09035c','tree':'7249e1b6914cd3c8a0de3ff36216a8e0e0acc116'}
+assert report['nx']=={'projects':[],'dependencies':[],'targets':[]}
+assert report['declarations']=={'coverage':[],'facts':[],'edges':[],'unresolved':[]}
+ts=report['typescript']; assert set(ts)=={'imports','reverseEdges','publicDeclarations'}
+assert len(ts['imports'])==len(ts['reverseEdges'])==len(ts['publicDeclarations'])==1
+edge=ts['imports'][0]
+assert {key:edge[key] for key in ['source','specifier','target','importKind']}=={'source':'src/consumer.ts','specifier':'./index','target':'src/index.ts','importKind':'value'}
+assert ts['reverseEdges'][0]['provider']=='src/index.ts'
+assert ts['reverseEdges'][0]['importers']==[{'source':'src/consumer.ts','specifier':'./index','importKind':'value'}]
+surface=ts['publicDeclarations'][0]
+assert surface['configPath']=='config/provider.json' and surface['entrypoint']=='src/index.ts'
+assert surface['declarations']==[{'sourcePath':'src/index.ts','emittedPath':'src/index.d.ts','text':'export declare const value = 1;\n'}]
+assert surface['extractor']['version']=='v6.0.3'
+assert len(report['extractors'])==2 and report['manifestInputs']['extractors']==report['extractors']
+assert {entry['inputId'] for entry in report['manifestInputs']['relationshipInputs']}=={'nx.dependencies','nx.projects','nx.targets','typescript.imports','typescript.reverse-edges','typescript.public-declarations'}
+print('complete immutable workload report accepted')

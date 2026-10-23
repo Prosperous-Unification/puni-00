@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+447 |       'example',
+448 |       setup.ledgerPath,
+449 |       '--now',
+450 |       now,
+451 |     ]);
+452 |     expect(invocation.exitCode).toBe(1);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:452:33)
+(fail) [TEST-AXES-107] missing Manual report and foreign observation pin refuse without fallback [1128.45ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.05s]

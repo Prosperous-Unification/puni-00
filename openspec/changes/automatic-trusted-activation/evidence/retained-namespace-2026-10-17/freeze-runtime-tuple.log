@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+219 |       expect(Object.isFrozen(namespace.nodes)).toBe(true);
+220 |       expect(Object.isFrozen(proof)).toBe(true);
+221 |       for (const node of namespace.nodes) {
+222 |         expect(Object.isFrozen(node)).toBe(true);
+223 |         if ('source' in node) {
+224 |           expect(Object.isFrozen(node.source)).toBe(true);
+                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:224:48)
+(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [98.79ms]
+
+ 0 pass
+ 41 filtered out
+ 1 fail
+ 36 expect() calls
+Ran 1 test across 1 file. [1070.00ms]

@@ -2,6 +2,7 @@ import type { FailureReporting } from '@shared/failures';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observability';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
@@ -67,8 +68,8 @@ async function signedInProbe(): Promise<{
   const session = await auth.login('probe', PROBE_PASSWORD);
   if (!session.ok) throw new Error('the probe account could not sign in');
 
-  const authenticate = auth.authenticate.bind(auth);
-  auth.authenticate = (token) => {
+  const authenticate = auth.authenticateOrRefuse.bind(auth);
+  auth.authenticateOrRefuse = (token) => {
     counts.authenticated += 1;
     return authenticate(token);
   };
@@ -99,6 +100,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     auth,
     projects: testProjectService(),
@@ -161,7 +163,7 @@ it('reports one redacted unexpected production failure with its shared occurrenc
     };
   };
   const auth = testAuthService(inMemoryUsers());
-  auth.authenticate = () =>
+  auth.authenticateOrRefuse = () =>
     Promise.reject(new Error(`account lookup exposed ${internalAuthSecret}`));
   const app = buildApp(optionsFor(auth, internalAuthSecret), makeLogger);
   const response = await app.handle(

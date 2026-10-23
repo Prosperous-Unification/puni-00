@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+679 | function expectLibraries(
+680 |   extracted: ReturnType<typeof extractRetainedTypeScriptRelationships>,
+681 |   libraries: Record<string, string>,
+682 | ) {
+683 |   // Proof: library entry suppression/raw identity substitution/bypassed retained reads fail the exact library tuple assertion.
+684 |   expect(extracted.byteReads.entries.filter((entry) => entry.path.includes('/lib/'))).toEqual(
+                                                                                            ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "byteLength": 1287,
+-     "identity": "b3a048b3e9302ef9a34ef4ebb9aecfb28b66abb3bce577206a79fee559c230da",
+-     "namespace": "runtime",
+-     "path": "node_modules/typescript/lib/lib.decorators.legacy.d.ts",
+-     "revision": null,
+-   },
+-   {
+-     "byteLength": 13153,
+-     "identity": "1ce14b81c5cc821994aa8ec1d42b220dd41b27fcc06373bce3958af7421b77d4",
+-     "namespace": "runtime",
+-     "path": "node_modules/typescript/lib/lib.decorators.d.ts",
+-     "revision": null,
+-   },
+-   {
+-     "byteLength": 218972,
+-     "identity": "bcd24271a113971ba9eb71ff8cb01bc6b0f872a85c23fdbe5d93065b375933cd",
+-     "namespace": "runtime",
+-     "path": "node_modules/typescript/lib/lib.es5.d.ts",
+-     "revision": null,
+-   },
+- ]
++ []
+
+- Expected  - 23
++ Received  + 1
+
+      at expectLibraries (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:684:87)
+      at <anonymous> (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:707:5)
+(fail) retained ES5 compiler sha1 records exact pinned library bytes [360.32ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [1310.00ms]

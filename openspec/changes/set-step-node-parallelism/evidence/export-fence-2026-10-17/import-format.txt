@@ -1,0 +1,22 @@
+
+/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/calendar-marker.controller.db.test.ts
+  1031:5  error  Definition for rule '@typescript-eslint/no-misused-spread' was not found  @typescript-eslint/no-misused-spread
+
+/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts
+   834:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1079:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1308:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1488:7  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1633:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1731:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1833:7  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1888:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+
+/tmp/step-export-fence-20261017/libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+   921:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+   986:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+  1004:5  error  Definition for rule '@typescript-eslint/unbound-method' was not found  @typescript-eslint/unbound-method
+
+✖ 12 problems (12 errors, 0 warnings)
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 601673728, "exitCode": 1}

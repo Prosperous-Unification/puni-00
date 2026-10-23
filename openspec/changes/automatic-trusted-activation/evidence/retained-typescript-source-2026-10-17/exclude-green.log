@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) exclude coordinates cover lexical aliases and effective canonical prefixes [116.05ms]
+(pass) wildcard dot components and later outside patterns refuse before link reads [105.29ms]
+
+ 2 pass
+ 62 filtered out
+ 0 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [1208.00ms]

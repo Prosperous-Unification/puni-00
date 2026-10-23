@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+1184 |           externalSystems: [],
+1185 |         },
+1186 |         markers: [],
+1187 |         stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+1188 |       }),
+1189 |     ).toThrow(message);
+             ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /foreign work item/
+
+Received function did not throw
+Received value: {
+  ok: false,
+  error: "unsupported_step_parallelism",
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1189:7)
+(fail) v9 refuses sparse ownership corruption: foreign owner [1.30ms]
+(pass) v9 refuses sparse ownership corruption: foreign step [4.42ms]
+(pass) v9 refuses sparse ownership corruption: parent owner [0.21ms]
+
+ 2 pass
+ 70 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [1.78s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 505946112, "exitCode": 1}

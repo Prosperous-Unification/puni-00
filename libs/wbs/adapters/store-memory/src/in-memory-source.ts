@@ -1,23 +1,26 @@
-import type { TransactionalStores } from '@wbs/core';
+import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
+import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
-import { inMemoryDirectory } from './directory-fixture';
+import { inMemoryDirectory, memoryDirectoryTables } from './directory-fixture';
 import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
 import { inMemoryMeasures } from './measure-fixture';
 import { inMemoryWorkItems } from './memory-work-item-fixture';
 import { inMemoryPriorityBands } from './priority-band-fixture';
-import { inMemoryProgress } from './progress-fixture';
+import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
 import { inMemoryProjects } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
+import { inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import { inMemoryStepBlockages } from './step-blockage-fixture';
 import { inMemorySteps } from './step-fixture';
+import { inMemoryStepParallels, memoryStepParallelTable } from './step-parallel-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 import { inMemoryTypedDependencies } from './typed-dependency-fixture';
 
@@ -32,19 +35,25 @@ import { inMemoryTypedDependencies } from './typed-dependency-fixture';
  */
 export function inMemoryStores(): TransactionalStores {
   const users = inMemoryUsers();
-  const directory = inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
-    workItems.listByProject(projectId),
+  const directoryTables = memoryDirectoryTables();
+  const directory = inMemoryDirectory(
+    (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
+    directoryTables,
   );
   const workItems = inMemoryWorkItems(directory);
   const estimateTable = memoryEstimateTable();
-  const steps = inMemorySteps([], undefined, estimateTable);
+  const parallelTable = memoryStepParallelTable();
+  // Proof: a separate parallel table let legacy fixture removal erase the step; both cascade tests failed, 2026-10-17.
+  const steps = inMemorySteps([], undefined, estimateTable, { table: parallelTable, workItems });
   const estimates = inMemoryEstimates(workItems, estimateTable, steps);
   const actuals = inMemoryActuals(workItems, undefined, steps);
   const measures = inMemoryMeasures(workItems, undefined, steps);
-  const progress = inMemoryProgress(workItems, undefined, steps);
+  const progressTable = memoryProgressTable();
+  const progress = inMemoryProgress(workItems, progressTable, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
   const projects = inMemoryProjects(users);
   const dependencies = inMemoryDependencies([], undefined, workItems);
+  const demands = inMemoryDemands(directoryTables.resources, workItems);
   return {
     users,
     projects,
@@ -55,6 +64,14 @@ export function inMemoryStores(): TransactionalStores {
     measures,
     progress,
     attempts,
+    stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),
+    claims: inMemoryClaims(
+      workItems,
+      progressTable,
+      memoryClaimTable(),
+      claimIdentityOf(directory),
+      (resourceId) => directoryTables.resources.resources.has(resourceId),
+    ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {
         const step = await steps.findById(stepId);
@@ -71,6 +88,11 @@ export function inMemoryStores(): TransactionalStores {
     dependencies,
     typedDependencies: inMemoryTypedDependencies(),
     capacity: inMemoryCapacity(),
+    resourceCapacity: inMemoryResourceCapacity(
+      directoryTables.resources,
+      async (projectId) => (await projects.findById(projectId)) !== null,
+    ),
+    demands,
     priorityBands: inMemoryPriorityBands(),
     calendarMarkers: inMemoryCalendarMarkers(),
     steps,
@@ -85,6 +107,7 @@ export function inMemoryStores(): TransactionalStores {
       progress,
       dependencies,
       directory,
+      demands,
     }),
   };
 }

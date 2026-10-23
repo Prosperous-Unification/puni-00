@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+309 |   expect(
+310 |     await runner.run('p', 'owner', [
+311 |       { kind: 'patchWorkItem', workItemId: 'moving', patch: { name: 'Must roll back' } },
+312 |       { kind: 'duplicateWorkItem', workItemId: 'parent' },
+313 |     ]),
+314 |   ).toEqual({
+          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "at": 1,
+-   "detail": {
+-     "nodes": [
+-       {
+-         "stepId": "dev",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "kind": "duplicateWorkItem",
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "id": "new-1",
++       "index": 1,
++       "kind": "duplicateWorkItem",
++       "ref": undefined,
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 12
++ Received  + 15
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:314:5)
+(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [33.29ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 498307072, "exitCode": 1}

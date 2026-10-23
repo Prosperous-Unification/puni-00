@@ -30,7 +30,8 @@ context: |
 
   CI runs on GitHub Actions (`.github/workflows/ci.yml`) and is the merge gate:
   `bunx nx format:check --all`, then `bunx nx run-many -t test lint typecheck build`,
-  then `bunx @fission-ai/openspec@1.12.0 validate --all --json`. Locally, gate on h2puni with
+  then `./node_modules/.bin/openspec validate --all --json` using the locked dev dependency.
+  Locally, gate on h2puni with
   `bin/h2puni-gate.sh`, which takes the host-wide lock; AGENTS.md forbids the
   raw full Nx gate there. The earlier "there is no CI" line was stale and
   under-scoped every plan that inherited it: it omitted format and build.

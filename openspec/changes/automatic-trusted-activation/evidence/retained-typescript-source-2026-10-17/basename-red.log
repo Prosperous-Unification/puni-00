@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+88 | });
+89 |
+90 | test('compiler source preserves basename directory entries from installed sys contract', () => {
+91 |   const { source } = fixture();
+92 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });
+93 |   expect(system.getDirectories('/candidate')).toEqual(['src', 'node_modules']);
+                                                   ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "src",
+-   "node_modules",
++   "/candidate/src",
++   "/candidate/node_modules",
+  ]
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:93:47)
+(fail) compiler source preserves basename directory entries from installed sys contract [0.62ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [557.00ms]

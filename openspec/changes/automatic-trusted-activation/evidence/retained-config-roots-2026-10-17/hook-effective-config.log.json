@@ -1,0 +1,7 @@
+{
+  "command": ["bunx", "--no-install", "lefthook", "dump"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 656,
+  "ceilingKiB": 921600,
+  "observedArgv": [[], ["bunx", "--no-install", "lefthook", "dump"]]
+}

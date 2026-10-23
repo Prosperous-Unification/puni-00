@@ -7,6 +7,7 @@ import {
 } from '@wbs/auth';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import {
   type BrowserAuthLifecycle,
   OrganizationRepository,
@@ -166,6 +167,7 @@ const oidc = {
   random: () => 'unused-correlation',
   redirectUri: `${origin}/api/auth/okta/callback`,
   verifier,
+  issuer: () => Promise.resolve('https://idp.test'),
   browserLifecycle: lifecycle,
   tokens,
   transactions: new InMemoryOidcTransactionStore({ now: Date.now, ttlMs: 300_000 }),
@@ -221,6 +223,7 @@ const app = buildApp(
     capacity: testCapacityService(),
     directory: testDirectoryService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(),

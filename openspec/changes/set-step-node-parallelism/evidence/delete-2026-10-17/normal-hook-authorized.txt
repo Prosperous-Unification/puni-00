@@ -1,0 +1,33 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+┃  doc-caps ❯
+
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+┃  migration-lint ❯
+
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  website-migration-lint ❯
+
+  ────────────────────────────────────
+summary: (done in 14.52 seconds)
+✓ doc-caps (0.01 seconds)
+✓ format (2.02 seconds)
+✓ lint (12.34 seconds)
+✓ migration-lint (0.03 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ website-migration-lint (0.02 seconds)
+{"ceilingBytes": 1342177280, "sampledPeakBytes": 1075503104, "exitCode": 0}

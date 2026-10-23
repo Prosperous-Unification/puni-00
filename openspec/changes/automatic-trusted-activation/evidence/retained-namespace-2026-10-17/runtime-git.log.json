@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+    "-t",
+    "rejects visible runtime"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 349792,
+  "ceilingKiB": 921600
+}

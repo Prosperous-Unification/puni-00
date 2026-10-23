@@ -1,0 +1,82 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+944 |     const refusal = {
+945 |       ok: false,
+946 |       reason: 'referenced_by_step_parallel',
+947 |       nodes: [{ workItemId: 'a:b', stepId: 'st-1' }],
+948 |     };
+949 |     expect(await source.stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "st-1",
+-       "workItemId": "a:b",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "removal": {
++     "actuals": 0,
++     "assignments": 0,
++     "attempts": 0,
++     "blockages": 0,
++     "estimates": 0,
++     "measures": 0,
++     "progress": 0,
++     "workItemIds": [],
++   },
+  }
+
+- Expected  - 8
++ Received  + 11
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:949:76)
+(fail) source removal retains sparse facts across mixed rollback (cascade=false) [8.49ms]
+944 |     const refusal = {
+945 |       ok: false,
+946 |       reason: 'referenced_by_step_parallel',
+947 |       nodes: [{ workItemId: 'a:b', stepId: 'st-1' }],
+948 |     };
+949 |     expect(await source.stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "st-1",
+-       "workItemId": "a:b",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "removal": {
++     "actuals": 0,
++     "assignments": 0,
++     "attempts": 0,
++     "blockages": 0,
++     "estimates": 0,
++     "measures": 0,
++     "progress": 0,
++     "workItemIds": [],
++   },
+  }
+
+- Expected  - 8
++ Received  + 11
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:949:76)
+(fail) source removal retains sparse facts across mixed rollback (cascade=true) [0.49ms]
+
+ 0 pass
+ 17 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1.83s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 491831296, "exitCode": 1}

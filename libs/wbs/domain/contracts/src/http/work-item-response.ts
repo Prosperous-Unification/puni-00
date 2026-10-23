@@ -147,6 +147,10 @@ export const workItemSlice = scheduled.and({
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
+  // Present exactly when `boundBy` is `'capacity'` and a resource's pool bound
+  // the start, with `capacityTeamId` null (`wbs-resources` R5). Additive: an
+  // older be-01 never sends it.
+  'capacityResource?': type({ resourceId: 'string', units: 'number' }),
   // Present exactly when `boundBy` is `'elsewhere'` (`share-people-across-projects`).
   'elsewhereHolder?': type({ projectId: 'string', workItemId: 'string' }),
   // Proof: widening lateBy admitted text,200 instead of500 in the mounted tree case.
@@ -228,6 +232,9 @@ export const workItemTree = type({
     number: 'string',
     name: 'string',
   }).array(),
+  // Present exactly when a slice's `capacityResource` names a resource
+  // (`wbs-resources` R5): one label per resource named.
+  'resourceLabels?': type({ id: 'string', name: 'string', unitLabel: 'string' }).array(),
   slices: workItemSlice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),

@@ -1,0 +1,480 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services.db.test.ts:
+7631 |           ? services.optimizationLifecycle.finishDrain('A')
+7632 |           : services.optimizationLifecycle.releaseSlot(slot);
+7633 |         armed = true;
+7634 |         expect(await rejectedMessage(finish())).toContain(fault === 'after-capture' ? 'sparse drain after-capture fault' : 'project:C');
+7635 |         armed = false;
+7636 |         expect(lifecycleTables(db)).toEqual(before);
+                                           ^
+error: expect(received).toEqual(expected)
+
+@@ -24,27 +24,24 @@
+      ],
+    ],
+    [
+      "project",
+      [
+-       "{"id":"A","name":"A","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":2,"created_by":null,"optimization_delete_pending_at":2,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"B","name":"B","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"C","name":"C","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+      ],
+    ],
+    [
+      "project_organization",
+      [
+-       "{"resource_id":"A","organization_id":"org-a"}",
+        "{"resource_id":"B","organization_id":"org-a"}",
+        "{"resource_id":"C","organization_id":"org-a"}",
+      ],
+    ],
+    [
+      "project_rank",
+      [
+-       "{"project_id":"A","organization_id":"org-a","position":0,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"B","organization_id":"org-a","position":10,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"C","organization_id":"org-a","position":20,"created_at":1,"updated_at":null,"created_by":"ada"}",
+      ],
+    ],
+    [
+@@ -52,36 +49,31 @@
+      [],
+    ],
+    [
+      "step",
+      [
+-       "{"id":"A-policy-step","project_id":"A","name":"Second target policy","position":20,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+-       "{"id":"A-step","project_id":"A","name":"A-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"B-step","project_id":"B","name":"B-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"C-step","project_id":"C","name":"C-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+      ],
+    ],
+    [
+      "work_item",
+      [
+-       "{"id":"A","project_id":"A","parent_id":null,"position":10,"name":"A","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"B","project_id":"B","parent_id":null,"position":10,"name":"B","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"C","project_id":"C","parent_id":null,"position":10,"name":"C","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+      ],
+    ],
+    [
+      "estimate",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+      "assignment",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+@@ -104,13 +96,11 @@
+      "step_measure",
+      [],
+    ],
+    [
+      "command_journal",
+-     [
+-       "{"id":"sparse-history","project_id":"A","user_id":"ada","seq":1,"kind":"fixture","payload":"{}","inverse":"{}","preconditions":"{}","undone":0,"created_at":2}",
+-     ],
++     [],
+    ],
+    [
+      "plan_event",
+      [],
+    ],
+
+- Expected  - 11
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/apps/wbs/be-01/src/services.db.test.ts:7636:37)
+(fail) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after after-capture [271.94ms]
+7631 |           ? services.optimizationLifecycle.finishDrain('A')
+7632 |           : services.optimizationLifecycle.releaseSlot(slot);
+7633 |         armed = true;
+7634 |         expect(await rejectedMessage(finish())).toContain(fault === 'after-capture' ? 'sparse drain after-capture fault' : 'project:C');
+7635 |         armed = false;
+7636 |         expect(lifecycleTables(db)).toEqual(before);
+                                           ^
+error: expect(received).toEqual(expected)
+
+@@ -24,27 +24,24 @@
+      ],
+    ],
+    [
+      "project",
+      [
+-       "{"id":"A","name":"A","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":2,"created_by":null,"optimization_delete_pending_at":2,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"B","name":"B","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"C","name":"C","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+      ],
+    ],
+    [
+      "project_organization",
+      [
+-       "{"resource_id":"A","organization_id":"org-a"}",
+        "{"resource_id":"B","organization_id":"org-a"}",
+        "{"resource_id":"C","organization_id":"org-a"}",
+      ],
+    ],
+    [
+      "project_rank",
+      [
+-       "{"project_id":"A","organization_id":"org-a","position":0,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"B","organization_id":"org-a","position":10,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"C","organization_id":"org-a","position":20,"created_at":1,"updated_at":null,"created_by":"ada"}",
+      ],
+    ],
+    [
+@@ -52,36 +49,31 @@
+      [],
+    ],
+    [
+      "step",
+      [
+-       "{"id":"A-policy-step","project_id":"A","name":"Second target policy","position":20,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+-       "{"id":"A-step","project_id":"A","name":"A-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"B-step","project_id":"B","name":"B-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"C-step","project_id":"C","name":"C-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+      ],
+    ],
+    [
+      "work_item",
+      [
+-       "{"id":"A","project_id":"A","parent_id":null,"position":10,"name":"A","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"B","project_id":"B","parent_id":null,"position":10,"name":"B","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"C","project_id":"C","parent_id":null,"position":10,"name":"C","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+      ],
+    ],
+    [
+      "estimate",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+      "assignment",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+@@ -104,13 +96,11 @@
+      "step_measure",
+      [],
+    ],
+    [
+      "command_journal",
+-     [
+-       "{"id":"sparse-history","project_id":"A","user_id":"ada","seq":1,"kind":"fixture","payload":"{}","inverse":"{}","preconditions":"{}","undone":0,"created_at":2}",
+-     ],
++     [],
+    ],
+    [
+      "plan_event",
+      [],
+    ],
+@@ -146,12 +136,16 @@
+      "organization_audit",
+      [],
+    ],
+    [
+      "event_log",
+-     [],
++     [
++       "{"id":1,"subscription":"project:B","seq":0,"message":"{\"type\":\"elsewhere_changed\",\"projectId\":\"B\",\"causeProjectId\":\"A\"}","created_at":1792216553727}",
++     ],
+    ],
+    [
+      "event_sequencer",
+-     [],
++     [
++       "{"subscription":"project:B","next_seq":1}",
++     ],
+    ],
+  ]
+
+- Expected  - 13
++ Received  + 7
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/apps/wbs/be-01/src/services.db.test.ts:7636:37)
+(fail) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after event-insert [230.29ms]
+7631 |           ? services.optimizationLifecycle.finishDrain('A')
+7632 |           : services.optimizationLifecycle.releaseSlot(slot);
+7633 |         armed = true;
+7634 |         expect(await rejectedMessage(finish())).toContain(fault === 'after-capture' ? 'sparse drain after-capture fault' : 'project:C');
+7635 |         armed = false;
+7636 |         expect(lifecycleTables(db)).toEqual(before);
+                                           ^
+error: expect(received).toEqual(expected)
+
+@@ -24,27 +24,24 @@
+      ],
+    ],
+    [
+      "project",
+      [
+-       "{"id":"A","name":"A","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":2,"created_by":null,"optimization_delete_pending_at":2,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"B","name":"B","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"C","name":"C","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+      ],
+    ],
+    [
+      "project_organization",
+      [
+-       "{"resource_id":"A","organization_id":"org-a"}",
+        "{"resource_id":"B","organization_id":"org-a"}",
+        "{"resource_id":"C","organization_id":"org-a"}",
+      ],
+    ],
+    [
+      "project_rank",
+      [
+-       "{"project_id":"A","organization_id":"org-a","position":0,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"B","organization_id":"org-a","position":10,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"C","organization_id":"org-a","position":20,"created_at":1,"updated_at":null,"created_by":"ada"}",
+      ],
+    ],
+    [
+@@ -52,36 +49,31 @@
+      [],
+    ],
+    [
+      "step",
+      [
+-       "{"id":"A-policy-step","project_id":"A","name":"Second target policy","position":20,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+-       "{"id":"A-step","project_id":"A","name":"A-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"B-step","project_id":"B","name":"B-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"C-step","project_id":"C","name":"C-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+      ],
+    ],
+    [
+      "work_item",
+      [
+-       "{"id":"A","project_id":"A","parent_id":null,"position":10,"name":"A","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"B","project_id":"B","parent_id":null,"position":10,"name":"B","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"C","project_id":"C","parent_id":null,"position":10,"name":"C","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+      ],
+    ],
+    [
+      "estimate",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+      "assignment",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+@@ -104,13 +96,11 @@
+      "step_measure",
+      [],
+    ],
+    [
+      "command_journal",
+-     [
+-       "{"id":"sparse-history","project_id":"A","user_id":"ada","seq":1,"kind":"fixture","payload":"{}","inverse":"{}","preconditions":"{}","undone":0,"created_at":2}",
+-     ],
++     [],
+    ],
+    [
+      "plan_event",
+      [],
+    ],
+@@ -126,23 +116,19 @@
+      "calendar_marker",
+      [],
+    ],
+    [
+      "optimization_generation",
+-     [
+-       "{"project_id":"A","contract_version":"16+0.2.0","generation":1,"input_hash":"release-input","cancel_epoch":1,"admission_state":"draining","updated_at":2}",
+-     ],
++     [],
+    ],
+    [
+      "optimized_schedule_cache",
+      [],
+    ],
+    [
+      "solver_slot",
+-     [
+-       "{"project_id":"A","contract_version":"16+0.2.0","generation":1,"objective":"pri","budget_ms":1000,"owner_id":"own-1","attempt_token":"release-A","lifecycle":"running","pid":4242,"started_at":1,"heartbeat_at":1,"cancel_requested_at":2,"admitted_deadline_at":1001}",
+-     ],
++     [],
+    ],
+    [
+      "solver_queue",
+      [],
+    ],
+
+- Expected  - 17
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/apps/wbs/be-01/src/services.db.test.ts:7636:37)
+(fail) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after after-capture [215.96ms]
+7631 |           ? services.optimizationLifecycle.finishDrain('A')
+7632 |           : services.optimizationLifecycle.releaseSlot(slot);
+7633 |         armed = true;
+7634 |         expect(await rejectedMessage(finish())).toContain(fault === 'after-capture' ? 'sparse drain after-capture fault' : 'project:C');
+7635 |         armed = false;
+7636 |         expect(lifecycleTables(db)).toEqual(before);
+                                           ^
+error: expect(received).toEqual(expected)
+
+@@ -24,27 +24,24 @@
+      ],
+    ],
+    [
+      "project",
+      [
+-       "{"id":"A","name":"A","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":2,"created_by":null,"optimization_delete_pending_at":2,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"B","name":"B","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+        "{"id":"C","name":"C","owner_id":"ada","restricted":0,"created_at":1,"estimate_method":"pert","start_date":"2026-10-05","revision":0,"solution_slug":null,"solution_url":null,"dep_reach":"whole-item","pert_weight_optimistic":1,"pert_weight_realistic":4,"pert_weight_pessimistic":1,"estimate_rounding":"exact","updated_at":null,"created_by":null,"optimization_delete_pending_at":null,"optimization_enabled":0,"schedule_engine":"fast","schedule_objective":"pri","timezone":"UTC"}",
+      ],
+    ],
+    [
+      "project_organization",
+      [
+-       "{"resource_id":"A","organization_id":"org-a"}",
+        "{"resource_id":"B","organization_id":"org-a"}",
+        "{"resource_id":"C","organization_id":"org-a"}",
+      ],
+    ],
+    [
+      "project_rank",
+      [
+-       "{"project_id":"A","organization_id":"org-a","position":0,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"B","organization_id":"org-a","position":10,"created_at":1,"updated_at":null,"created_by":"ada"}",
+        "{"project_id":"C","organization_id":"org-a","position":20,"created_at":1,"updated_at":null,"created_by":"ada"}",
+      ],
+    ],
+    [
+@@ -52,36 +49,31 @@
+      [],
+    ],
+    [
+      "step",
+      [
+-       "{"id":"A-policy-step","project_id":"A","name":"Second target policy","position":20,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+-       "{"id":"A-step","project_id":"A","name":"A-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"B-step","project_id":"B","name":"B-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+        "{"id":"C-step","project_id":"C","name":"C-step","position":10,"created_at":null,"updated_at":null,"created_by":null,"code":null,"allowance_bps":0,"allowance_revision":0,"estimate_unit":"workdays"}",
+      ],
+    ],
+    [
+      "work_item",
+      [
+-       "{"id":"A","project_id":"A","parent_id":null,"position":10,"name":"A","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"B","project_id":"B","parent_id":null,"position":10,"name":"B","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+        "{"id":"C","project_id":"C","parent_id":null,"position":10,"name":"C","notes":"","frozen_number":null,"start_no_earlier_than":null,"service_team_id":null,"revision":0,"priority":null,"max_parallel":1,"start_no_earlier_than_reason":null,"service_id":null,"created_at":null,"updated_at":null,"created_by":null,"deadline":null,"fact_start":null,"fact_end":null,"readiness":null,"hold":null}",
+      ],
+    ],
+    [
+      "estimate",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","optimistic":1,"realistic":1,"pessimistic":1,"created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+      "assignment",
+      [
+-       "{"work_item_id":"A","step_id":"A-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"B","step_id":"B-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+        "{"work_item_id":"C","step_id":"C-step","person_id":"ana","created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    ],
+    [
+@@ -104,13 +96,11 @@
+      "step_measure",
+      [],
+    ],
+    [
+      "command_journal",
+-     [
+-       "{"id":"sparse-history","project_id":"A","user_id":"ada","seq":1,"kind":"fixture","payload":"{}","inverse":"{}","preconditions":"{}","undone":0,"created_at":2}",
+-     ],
++     [],
+    ],
+    [
+      "plan_event",
+      [],
+    ],
+@@ -126,23 +116,19 @@
+      "calendar_marker",
+      [],
+    ],
+    [
+      "optimization_generation",
+-     [
+-       "{"project_id":"A","contract_version":"16+0.2.0","generation":1,"input_hash":"release-input","cancel_epoch":1,"admission_state":"draining","updated_at":2}",
+-     ],
++     [],
+    ],
+    [
+      "optimized_schedule_cache",
+      [],
+    ],
+    [
+      "solver_slot",
+-     [
+-       "{"project_id":"A","contract_version":"16+0.2.0","generation":1,"objective":"pri","budget_ms":1000,"owner_id":"own-1","attempt_token":"release-A","lifecycle":"running","pid":4242,"started_at":1,"heartbeat_at":1,"cancel_requested_at":2,"admitted_deadline_at":1001}",
+-     ],
++     [],
+    ],
+    [
+      "solver_queue",
+      [],
+    ],
+@@ -150,12 +136,16 @@
+      "organization_audit",
+      [],
+    ],
+    [
+      "event_log",
+-     [],
++     [
++       "{"id":1,"subscription":"project:B","seq":0,"message":"{\"type\":\"elsewhere_changed\",\"projectId\":\"B\",\"causeProjectId\":\"A\"}","created_at":1792216554187}",
++     ],
+    ],
+    [
+      "event_sequencer",
+-     [],
++     [
++       "{"subscription":"project:B","next_seq":1}",
++     ],
+    ],
+  ]
+
+- Expected  - 19
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/apps/wbs/be-01/src/services.db.test.ts:7636:37)
+(fail) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after event-insert [242.68ms]
+
+ 0 pass
+ 134 filtered out
+ 4 fail
+ 12 expect() calls
+Ran 4 tests across 1 file. [3.22s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 604082176, "exitCode": 1}

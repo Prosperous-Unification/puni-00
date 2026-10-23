@@ -1,0 +1,30 @@
+{
+  "original": "070b286103362b42a30d5640e1f30de7f56644c3",
+  "recoveredSource": "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+  "unchangedPaths": {
+    "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx": "3882227f1fbb39f9588f200b6fbfd1fe9ecbe85e61dcb7c018ab591333974b52",
+    "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx": "6fb118bca92c327e58e37290b15a846e1769006bf89d8ef555c1fa6bd1b66d6b",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/check-source-preservation.ts.txt": "a682efce02a3a8b4242a4aa0a8ad4bf1210f96a6559c0d3269b2b54d90e9397b",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/commit.receipt.json.txt": "fe8e4c2a04ef7e6f37e54916f2fc313a290e4071b99d4f95003d706286cb20fd",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/fault-commit.receipt.json.txt": "ca2cab3bf735c0222d97c9c2e5d66f46cd9f1ba29f0e1a5408cea27b58ca1194",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/flat-green.log.txt": "4137cb16a24640f70d955ab5837182ac781700b8edbdef7b9b41f61d5fa1b6a0",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/flat-green.receipt.json.txt": "3cab26dd5fb9c6c50ad2e4f257926a9b8aaac539432650065c17a90b819dd621",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/hooks-original.json.txt": "c59243ab5273c0207f61ff3ea3b0e495ffccabf4332711d7c6514e34ff605285",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/hooks-serial.json.txt": "1a4e3b9e2575e4847a5fa334775254806148bccd3df398827c76acf318f6ce2c",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/measure-committed.mjs.txt": "9b79d2c7777def426db2000e8533d4ea04586c0e23c40a9ae02611b4d566bc8a",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/mounted-estimates.log.txt": "4137cb16a24640f70d955ab5837182ac781700b8edbdef7b9b41f61d5fa1b6a0",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/mounted-estimates.receipt.json.txt": "f5b2e95c102d7d48e942a2ef5f9c8f1dc84a9dde63dcef38387153433ac78bbe",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-fault.json.txt": "2216da25c08563a890153e1e790a7bb10d64b0463dbedd345ae4fd38b0fb6316",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-fault.log.txt": "653282ed12cdf658fe9708e19a41d8bbfb37a9295ade594b22ec885ffc02f8b5",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-fault.receipt.json.txt": "dd09232f7f9a255765a8e2a5b455b889b56341f9d8e84c1a4ef44be2d1cd9e65",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-restored.json.txt": "31e74212ea9cb9f19b809280cb04b02c9ba3c341490288ef1123e5ddf652118f",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-restored.receipt.json.txt": "5a957810bf94d9b397130544647bb1b20605917d4c23ecfe3fef281d8ac264fd",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes.json.txt": "31e74212ea9cb9f19b809280cb04b02c9ba3c341490288ef1123e5ddf652118f",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes.receipt.json.txt": "e5fa3e5ed7837cde87c9c722856e03d156688ef572fc870a20e43c2e2b27ea10",
+    "openspec/changes/wbs-estimate-presentation-boundary/evidence/typecheck-ts6.receipt.json.txt": "aa25ee15c66663c4c265cdfeee1cfe0a9b8a7a4dec2d9a7f4c4862b4c7b7693b",
+    "openspec/changes/wbs-estimate-presentation-boundary/proposal.md": "629b57073972b0837f5c03190f100ffc8def84163a3f3612c786fe2a7f5dad49",
+    "openspec/changes/wbs-estimate-presentation-boundary/specs/estimate-presentation-boundary/spec.md": "8d65b66d17ca8614af8adbed633058dabd424a11f5a2386e8d37a267ddb5ba7c",
+    "openspec/changes/wbs-estimate-presentation-boundary/tasks.md": "ba9bc445577fd0899ffed444b5ac370acef5eda949e5904af512e38d4226f313",
+    "openspec/changes/wbs-estimate-presentation-boundary/verify.md": "016d318c871ba4d18968ca5083100a06ca47df951892a4b651d71e239b0ef177"
+  }
+}

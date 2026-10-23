@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+54 |         const borrowed = openSqliteSource({ dbPath: h.sqlite.filename });
+55 |         try {
+56 |           await borrowed.uow.run(async (scope) => {
+57 |             const working = createWorkingPlan(scope, projectId);
+58 |             const sparse = working.stores.stepParallels;
+59 |             expect(await sparse.listByProject(projectId)).toHaveLength(steps.length);
+                                     ^
+TypeError: sparse.listByProject is not a function. (In 'sparse.listByProject(projectId)', 'sparse.listByProject' is undefined)
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:59:33)
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [490.26ms]
+54 |         const borrowed = openSqliteSource({ dbPath: h.sqlite.filename });
+55 |         try {
+56 |           await borrowed.uow.run(async (scope) => {
+57 |             const working = createWorkingPlan(scope, projectId);
+58 |             const sparse = working.stores.stepParallels;
+59 |             expect(await sparse.listByProject(projectId)).toHaveLength(steps.length);
+                                     ^
+TypeError: sparse.listByProject is not a function. (In 'sparse.listByProject(projectId)', 'sparse.listByProject' is undefined)
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:59:33)
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [426.43ms]
+
+ 0 pass
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.88s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 636583936, "exitCode": 1}

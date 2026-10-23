@@ -101,6 +101,11 @@ import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/rec
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
 import { storedSnapshotCommand } from './lib/sqlite-probe';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
+import {
+  activateBlockages,
+  type ActivationReceipt,
+  prepareActivation,
+} from './lib/step-blockage-activation';
 import { runStepCodeBackfill } from './lib/step-code-backfill';
 import {
   assertNoWriterBarrier,
@@ -496,7 +501,7 @@ export interface StartGreenDeps {
   readText: (path: string) => Promise<string>;
   writePhaseFile: (path: string, phase: 'preparing') => Promise<void>;
   writeAtomicFile: (path: string, text: string, mode?: number) => Promise<void>;
-  runDocker: (args: string[]) => Promise<string>;
+  runDocker: RunDocker;
 }
 
 const START_GREEN_DEPS: StartGreenDeps = {
@@ -567,7 +572,7 @@ export async function prepareGreen(
 export interface PreparedBackend {
   start: () => Promise<void>;
   startMaintenance: () => Promise<string>;
-  verifyMaintenance: (identity: string) => Promise<void>;
+  verifyMaintenance: (identity: string, signal?: AbortSignal) => Promise<void>;
   snapshots: { application: BackendSnapshot; maintenance: BackendSnapshot };
   imageId: string;
   databasePath: string;
@@ -685,9 +690,10 @@ export async function prepareBackend(
       throw new Error('backend private snapshot hash differs');
     await deps.runDocker(backendStartArgs(snapshot.path, serviceName, ROOT));
   };
-  const verifyMaintenance = async (identity: string): Promise<void> => {
+  const verifyMaintenance = async (identity: string, signal?: AbortSignal): Promise<void> => {
     assertMaintenanceContainer(
-      await deps.runDocker(['inspect', '--format', '{{json .}}', identity]),
+      // Proof: omitting signal forwarding let the prepared-maintenance aborted observation return success.
+      await deps.runDocker(['inspect', '--format', '{{json .}}', identity], signal),
       identity,
       imageId,
       maintenanceConfig(resolved, serviceName),
@@ -744,6 +750,8 @@ export interface SwapExecutionIo {
   /** Production uses validated, captured env configuration; tests inject host IO only. */
   prepareBackend?: typeof prepareBackend;
   preflightBackend?: (image: string) => Promise<void>;
+  /** Disposable-test budget override; production grants each activation phase 60 seconds total. */
+  activationBudgetMs?: number;
   healthGate?: (container: string) => Promise<void>;
   barrierStateDir?: string;
   resolveMount?: (path: string) => Promise<string>;
@@ -1436,8 +1444,12 @@ export async function execute(
   image: string,
   sha: string,
   io: SwapExecutionIo = PRODUCTION_SWAP_IO,
+  activateStepBlockage = false,
 ): Promise<void> {
   const { tier, from, to } = plan;
+  // Proof: omitted the tier guard; the non-backend activation plan reached preflight instead of its named refusal.
+  if (activateStepBlockage && tier !== 'be') throw new Error('activation requires only be');
+  let activationReceipt: ActivationReceipt | null = null;
   const phasePath = `${ROOT}/state/${tier}.phase`;
   const greenName = containerName(tier, to);
 
@@ -1758,6 +1770,34 @@ export async function execute(
             io.resolveMount,
             io.namespaceProof,
           );
+          // Proof: omitted activation branch; explicit activation success exposed the app without an attributed attempt.
+          if (activateStepBlockage) {
+            const databasePath = backendPrepared.databasePath;
+            activationReceipt = await prepareActivation(
+              writerIntent,
+              (pinned, command, signal) =>
+                io.sh(
+                  [
+                    'run',
+                    '--rm',
+                    '--pull',
+                    'never',
+                    '--network',
+                    'none',
+                    '--mount',
+                    `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
+                    '-e',
+                    `DB_PATH=${databasePath}`,
+                    '--entrypoint',
+                    'bun',
+                    pinned,
+                    ...storedSnapshotCommand(command).slice(1),
+                  ],
+                  signal,
+                ),
+              performance.now() + (io.activationBudgetMs ?? 60_000),
+            );
+          }
           break;
         case 'start-maintenance': {
           if (backendPrepared === null || writerIntent === null || !stopProven || possiblyExposed)
@@ -1777,6 +1817,49 @@ export async function execute(
         case 'stop-maintenance':
           if (maintenanceId === null || backendPrepared === null || !migrationCompleted)
             throw new Error('maintenance stop lacks completed migration identity');
+          if (activationReceipt !== null) {
+            if (writerIntent === null) throw new Error('activation lacks writer identity');
+            const prepared = backendPrepared;
+            const intent = writerIntent;
+            const identity = maintenanceId;
+            await activateBlockages(
+              barrierRoot,
+              intent,
+              activationReceipt,
+              identity,
+              async (runDocker, signal) => {
+                // Proof: omitted this verification; maintenance-drift attempted activation before the later stop refusal.
+                await prepared.verifyMaintenance(identity, signal);
+                if (intent.rollback === null) throw new Error('activation lacks rollback identity');
+                // Proof: omitted stopped/image/database/inventory checks separately; each named activation drift negative lost its refusal.
+                await assertContainerStopped(intent.rollback.containerId, runDocker);
+                const observed = await readWriterImage(intent.rollback.containerId, runDocker);
+                if (
+                  observed.image !== intent.rollback.image ||
+                  observed.imageId !== intent.rollback.imageId
+                )
+                  throw new Error('activation rollback image association changed');
+                const canonical = await (io.resolveMount ?? realpath)(
+                  `${ROOT}${prepared.databasePath}`,
+                );
+                if (canonical !== intent.databaseHostPath)
+                  throw new Error('activation database identity changed');
+                const writers = await inspectBackendWriters(
+                  runDocker,
+                  canonical,
+                  io.resolveMount,
+                  image,
+                  io.namespaceProof,
+                );
+                const expected = [intent.rollback.containerId, identity].sort();
+                if (JSON.stringify([...writers.values()].sort()) !== JSON.stringify(expected))
+                  throw new Error('activation writer inventory changed');
+              },
+              io.sh,
+              undefined,
+              performance.now() + (io.activationBudgetMs ?? 60_000),
+            );
+          }
           await backendPrepared.verifyMaintenance(maintenanceId);
           await io.sh(['stop', maintenanceId]);
           // Proof: running/replaced maintenance stop negatives refuse app exposure and startup.
@@ -2096,6 +2179,8 @@ export async function execute(
               barrierRoot,
               migrationCapture !== null,
               maintenanceId !== null,
+              // Proof: omitted activation cleanup; committed activation retained its retry barrier.
+              activationReceipt !== null,
             );
           break;
       }
@@ -2224,7 +2309,7 @@ function describePlan(tier: Tier, plan: SwapPlan): string {
 
 const USAGE =
   'usage: swap <tier[,tier...]> --image-<tier>=<registry/name@sha256:…> --sha=<git-sha> ' +
-  '[--execute|--preflight]';
+  '[--execute|--preflight] [--activate-step-blockage (be --execute only)]';
 
 /**
  * Per-tier images. One invocation carries the whole run (see runSwaps), so
@@ -2244,6 +2329,17 @@ function imagesFor(tiers: Tier[]): { tier: Tier; image: string }[] {
 
 async function main(): Promise<void> {
   const tiers = parseTierList(process.argv[2] ?? '');
+  const activateStepBlockage = process.argv.includes('--activate-step-blockage');
+  // Proof: omitted invocation admission; all five incompatible CLI combinations lost the named refusal.
+  if (
+    activateStepBlockage &&
+    (tiers.length !== 1 ||
+      tiers[0] !== 'be' ||
+      !process.argv.includes('--execute') ||
+      process.argv.includes('--preflight') ||
+      process.argv.includes('--check-backend-recovery'))
+  )
+    throw new Error('--activate-step-blockage requires only be with --execute');
 
   if (process.argv.includes('--check-backend-recovery')) {
     if (tiers.length !== 1 || tiers[0] !== 'be')
@@ -2301,7 +2397,12 @@ async function main(): Promise<void> {
   // otherwise execute a plan derived from state that is no longer current,
   // and its stale `commit` step would silently overwrite the sha the other
   // process actually deployed.
-  await runSwaps(tiers, images, sha, { withLock, observe, execute });
+  await runSwaps(tiers, images, sha, {
+    withLock,
+    observe,
+    execute: (plan, pinned, commit) =>
+      execute(plan, pinned, commit, PRODUCTION_SWAP_IO, activateStepBlockage),
+  });
 }
 
 if (import.meta.main) {

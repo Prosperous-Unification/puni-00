@@ -1,0 +1,21 @@
+
+/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts
+   98:24  error  Returning a void expression from an arrow function shorthand is forbidden. Please add braces to the arrow function                                                                                                                                                                                                                          @typescript-eslint/no-confusing-void-expression
+  162:11  error  Unnecessary conditional, the types have no overlap                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unnecessary-condition
+  220:37  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  249:22  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  257:9   error  Unnecessary conditional, the types have no overlap                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unnecessary-condition
+  275:37  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  277:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  283:36  error  Unnecessary conditional, the types have no overlap                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unnecessary-condition
+
+✖ 8 problems (8 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.

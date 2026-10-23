@@ -1,0 +1,666 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 22196224, "exitCode": 1}
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [1.59ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.08ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.22ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.69ms]
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [0.97ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.07ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.11ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.02ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+129 |     ['missing maximum', [{ workItemId: 'w2', stepId: 's1' }]],
+130 |   ] as const) {
+131 |     it(`refuses ${name} parallel facts at capture`, () => {
+132 |       expect(() =>
+133 |         canonicalisePlanInput({ ...planFixtureRows, stepParallels: facts } as never),
+134 |       ).toThrow(
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism"
+
+Received function did not throw
+Received value: {
+  schemaVersion: 8,
+  project: {
+    id: "p1",
+    name: "Rewire the shed",
+    restricted: false,
+    ownerId: "u1",
+    solutionSlug: "shed",
+    solutionUrl: null,
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    startDate: "2026-09-07",
+    pertWeightOptimistic: 1,
+    pertWeightRealistic: 4,
+    pertWeightPessimistic: 1,
+    timezone: "UTC",
+  },
+  workItems: [
+    {
+      id: "w1",
+      parentId: null,
+      position: 10,
+      name: "Electrics",
+      notes: "consented",
+      typeIds: [],
+      tagIds: [ "tag-a" ],
+      externalRefs: [],
+      priority: 10,
+      maxParallel: 2,
+      frozenNumber: "1",
+      serviceTeamId: null,
+      serviceId: "svc-1",
+      startNoEarlierThan: "2026-09-14",
+      startNoEarlierThanReason: "inspection booked",
+      readiness: "ready",
+      hold: "blocked",
+    }, {
+      id: "w2",
+      parentId: "w1",
+      position: 20,
+      name: "Pull cable",
+      notes: "",
+      typeIds: [ "t-spike", "t-task" ],
+      tagIds: [ "tag-a", "tag-b" ],
+      externalRefs: [
+        {
+          externalSystemId: "gh",
+          url: "https://gh/17",
+          position: 10,
+        }, {
+          externalSystemId: "jira",
+          url: "https://jira/SHED-2",
+          position: 20,
+        }
+      ],
+      priority: 30,
+      maxParallel: 1,
+      frozenNumber: null,
+      serviceTeamId: "team-1",
+      serviceId: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
+    }
+  ],
+  steps: [
+    {
+      id: "s1",
+      code: "build",
+      name: "Build",
+      position: 10,
+      allowancePercent: 0,
+      estimateUnit: "workdays",
+    }, {
+      id: "s2",
+      code: null,
+      name: "Test",
+      position: 20,
+      allowancePercent: 0,
+      estimateUnit: "workdays",
+    }
+  ],
+  stepValues: [
+    {
+      workItemId: "w1",
+      stepId: "s2",
+      optimistic: null,
+      realistic: null,
+      pessimistic: null,
+      derived: null,
+      actual: 3,
+      progress: "done",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 5,
+      derived: 2.5,
+      actual: null,
+      progress: "in_progress",
+    }
+  ],
+  stepBlockages: [],
+  stepParallels: [
+    {
+      workItemId: "w1",
+      stepId: "s1",
+      maxParallel: 1,
+    }
+  ],
+  measures: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "hours",
+      value: 8,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "tokens",
+      value: 1200,
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      metric: "tokens",
+      value: 300,
+    }
+  ],
+  dependencies: [
+    {
+      predecessorId: "w1",
+      successorId: "w2",
+    }, {
+      predecessorId: "w2",
+      successorId: "w1",
+    }
+  ],
+  typedDependencies: [
+    {
+      id: "typed-1",
+      predecessor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s1",
+      },
+      successor: {
+        scope: "whole",
+        workItemId: "w1",
+      },
+      type: "FS",
+    }, {
+      id: "typed-2",
+      predecessor: {
+        scope: "whole",
+        workItemId: "w2",
+      },
+      successor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s2",
+      },
+      type: "FS",
+    }
+  ],
+  assignments: [
+    {
+      workItemId: "w1",
+      stepId: "s1",
+      personId: "per-1",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      personId: "per-2",
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      personId: "per-1",
+    }
+  ],
+  people: [
+    {
+      id: "per-1",
+      name: "Ada",
+    }, {
+      id: "per-2",
+      name: "Bo",
+    }
+  ],
+  teams: [
+    {
+      id: "team-1",
+      name: "First fix",
+    }, {
+      id: "team-2",
+      name: "Second fix",
+    }
+  ],
+  services: [
+    {
+      id: "svc-1",
+      name: "Wiring",
+    }, {
+      id: "svc-2",
+      name: "Testing",
+    }
+  ],
+  personTeams: [
+    {
+      personId: "per-1",
+      teamId: "team-1",
+    }, {
+      personId: "per-2",
+      teamId: "team-2",
+    }
+  ],
+  teamServices: [
+    {
+      teamId: "team-1",
+      serviceId: "svc-1",
+    }, {
+      teamId: "team-2",
+      serviceId: "svc-2",
+    }
+  ],
+  workItemTeams: [
+    {
+      workItemId: "w1",
+      teamId: "team-1",
+    }, {
+      workItemId: "w2",
+      teamId: "team-2",
+    }
+  ],
+  workItemServices: [
+    {
+      workItemId: "w1",
+      serviceId: "svc-1",
+    }, {
+      workItemId: "w2",
+      serviceId: "svc-2",
+    }
+  ],
+  priorityBands: [
+    {
+      startsAt: 1,
+      label: "Critical",
+      defaultValue: 10,
+    }, {
+      startsAt: 21,
+      label: "High",
+      defaultValue: 30,
+    }
+  ],
+  capacity: [
+    {
+      teamId: "team-1",
+      people: 3,
+    }, {
+      teamId: "team-2",
+      people: 1,
+    }
+  ],
+  tags: [
+    {
+      id: "tag-a",
+      name: "agreed",
+    }, {
+      id: "tag-b",
+      name: "risky",
+    }
+  ],
+  workItemTypes: [
+    {
+      id: "t-epic",
+      name: "Epic",
+    }, {
+      id: "t-spike",
+      name: "Spike",
+    }, {
+      id: "t-task",
+      name: "Task",
+    }
+  ],
+  externalSystems: [
+    {
+      id: "gh",
+      name: "GitHub",
+    }, {
+      id: "jira",
+      name: "Jira",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:134:9)
+(fail) saved sparse step parallelism > refuses parent owner parallel facts at capture [0.27ms]
+141 |       expect(() =>
+142 |         normalisePlanInputForward(
+143 |           { ...planFixtureRows, schemaVersion: 8, stepParallels: facts },
+144 |           8,
+145 |         ),
+146 |       ).toThrow(
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism"
+
+Received function did not throw
+Received value: {
+  project: {
+    id: "p1",
+    name: "Rewire the shed",
+    restricted: false,
+    ownerId: "u1",
+    solutionSlug: "shed",
+    solutionUrl: null,
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    startDate: "2026-09-07",
+    pertWeightOptimistic: 1,
+    pertWeightRealistic: 4,
+    pertWeightPessimistic: 1,
+    timezone: "UTC",
+  },
+  workItems: [
+    {
+      id: "w2",
+      parentId: "w1",
+      position: 20,
+      name: "Pull cable",
+      notes: "",
+      typeIds: [ "t-spike", "t-task" ],
+      tagIds: [ "tag-b", "tag-a" ],
+      externalRefs: [
+        {
+          externalSystemId: "jira",
+          url: "https://jira/SHED-2",
+          position: 20,
+        }, {
+          externalSystemId: "gh",
+          url: "https://gh/17",
+          position: 10,
+        }
+      ],
+      priority: 30,
+      maxParallel: 1,
+      frozenNumber: null,
+      serviceTeamId: "team-1",
+      serviceId: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
+    }, {
+      id: "w1",
+      parentId: null,
+      position: 10,
+      name: "Electrics",
+      notes: "consented",
+      typeIds: [],
+      tagIds: [ "tag-a" ],
+      externalRefs: [],
+      priority: 10,
+      maxParallel: 2,
+      frozenNumber: "1",
+      serviceTeamId: null,
+      serviceId: "svc-1",
+      startNoEarlierThan: "2026-09-14",
+      startNoEarlierThanReason: "inspection booked",
+      readiness: "ready",
+      hold: "blocked",
+    }
+  ],
+  steps: [
+    {
+      id: "s2",
+      code: null,
+      name: "Test",
+      position: 20,
+      estimateUnit: "workdays",
+      allowancePercent: 0,
+    }, {
+      id: "s1",
+      code: "build",
+      name: "Build",
+      position: 10,
+      estimateUnit: "workdays",
+      allowancePercent: 0,
+    }
+  ],
+  stepBlockages: [],
+  stepParallels: [
+    {
+      workItemId: "w1",
+      stepId: "s1",
+      maxParallel: 1,
+    }
+  ],
+  stepValues: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 5,
+      derived: 2.5,
+      actual: null,
+      progress: "in_progress",
+    }, {
+      workItemId: "w1",
+      stepId: "s2",
+      optimistic: null,
+      realistic: null,
+      pessimistic: null,
+      derived: null,
+      actual: 3,
+      progress: "done",
+    }
+  ],
+  measures: [
+    {
+      workItemId: "w2",
+      stepId: "s2",
+      metric: "tokens",
+      value: 300,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "tokens",
+      value: 1200,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "hours",
+      value: 8,
+    }
+  ],
+  dependencies: [
+    {
+      predecessorId: "w2",
+      successorId: "w1",
+    }, {
+      predecessorId: "w1",
+      successorId: "w2",
+    }
+  ],
+  typedDependencies: [
+    {
+      id: "typed-2",
+      predecessor: {
+        scope: "whole",
+        workItemId: "w2",
+      },
+      successor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s2",
+      },
+      type: "FS",
+    }, {
+      id: "typed-1",
+      predecessor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s1",
+      },
+      successor: {
+        scope: "whole",
+        workItemId: "w1",
+      },
+      type: "FS",
+    }
+  ],
+  assignments: [
+    {
+      workItemId: "w2",
+      stepId: "s2",
+      personId: "per-1",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      personId: "per-2",
+    }, {
+      workItemId: "w1",
+      stepId: "s1",
+      personId: "per-1",
+    }
+  ],
+  people: [
+    {
+      id: "per-2",
+      name: "Bo",
+    }, {
+      id: "per-1",
+      name: "Ada",
+    }
+  ],
+  teams: [
+    {
+      id: "team-2",
+      name: "Second fix",
+    }, {
+      id: "team-1",
+      name: "First fix",
+    }
+  ],
+  services: [
+    {
+      id: "svc-2",
+      name: "Testing",
+    }, {
+      id: "svc-1",
+      name: "Wiring",
+    }
+  ],
+  personTeams: [
+    {
+      personId: "per-2",
+      teamId: "team-2",
+    }, {
+      personId: "per-1",
+      teamId: "team-1",
+    }
+  ],
+  teamServices: [
+    {
+      teamId: "team-2",
+      serviceId: "svc-2",
+    }, {
+      teamId: "team-1",
+      serviceId: "svc-1",
+    }
+  ],
+  workItemTeams: [
+    {
+      workItemId: "w2",
+      teamId: "team-2",
+    }, {
+      workItemId: "w1",
+      teamId: "team-1",
+    }
+  ],
+  workItemServices: [
+    {
+      workItemId: "w2",
+      serviceId: "svc-2",
+    }, {
+      workItemId: "w1",
+      serviceId: "svc-1",
+    }
+  ],
+  priorityBands: [
+    {
+      startsAt: 21,
+      label: "High",
+      defaultValue: 30,
+    }, {
+      startsAt: 1,
+      label: "Critical",
+      defaultValue: 10,
+    }
+  ],
+  capacity: [
+    {
+      teamId: "team-2",
+      people: 1,
+    }, {
+      teamId: "team-1",
+      people: 3,
+    }
+  ],
+  tags: [
+    {
+      id: "tag-b",
+      name: "risky",
+    }, {
+      id: "tag-a",
+      name: "agreed",
+    }
+  ],
+  workItemTypes: [
+    {
+      id: "t-epic",
+      name: "Epic",
+    }, {
+      id: "t-task",
+      name: "Task",
+    }, {
+      id: "t-spike",
+      name: "Spike",
+    }
+  ],
+  externalSystems: [
+    {
+      id: "jira",
+      name: "Jira",
+    }, {
+      id: "gh",
+      name: "GitHub",
+    }
+  ],
+  schemaVersion: 8,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:146:9)
+(fail) saved sparse step parallelism > refuses parent owner parallel facts at stored read [0.17ms]
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture [0.02ms]
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read [0.01ms]
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.05ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+2 tests failed:
+(fail) saved sparse step parallelism > refuses parent owner parallel facts at capture [0.27ms]
+(fail) saved sparse step parallelism > refuses parent owner parallel facts at stored read [0.17ms]
+
+ 31 pass
+ 2 fail
+ 47 expect() calls
+Ran 33 tests across 1 file. [29.00ms]

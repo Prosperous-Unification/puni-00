@@ -3272,8 +3272,11 @@ describe('a new project opens with its name ready to be typed', () => {
     // And it was selected and opened, which is what sorts the picker next
     // time — both are driven by the selection, so a create that failed to
     // select would record nothing.
-    expect(api.opened).toContain('p3');
-    expect(localStorage.getItem('wbs.project')).toBe('p3');
+    // Proof: removing markOpened from the selection effect failed this awaited assertion.
+    await waitFor(() => {
+      expect(api.opened).toContain('p3');
+      expect(localStorage.getItem('wbs.project')).toBe('p3');
+    });
   });
 
   itDom('does not put the whole draft back under the next keystroke', async () => {

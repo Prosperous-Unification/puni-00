@@ -1,0 +1,94 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:145:21)
+(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [96.87ms]
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:145:21)
+(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [92.62ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [88.01ms]
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:219:10)
+(fail) legacy review binding keeps null despite an irrelevant supplied history pin [100.96ms]
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:233:10)
+(fail) request binding is detached before an owner callback mutates the caller request [98.58ms]
+(pass) failed wrong-raw history publishes no review binding [89.46ms]
+(pass) failed repinned-canonical history publishes no review binding [99.57ms]
+(pass) failed repinned-noncanonical history publishes no review binding [102.93ms]
+(pass) failed malformed history publishes no review binding [101.80ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [83.01ms]
+(pass) phase-one retained views never acquire public review bindings [99.98ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [107.58ms]
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:353:10)
+(fail) one legacy snapshot opens distinct candidate request bindings [78.93ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [76.03ms]
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:379:10)
+(fail) declared protected-revision subject remains coherent in the owned request snapshot [90.06ms]
+153 |   const provenance =
+154 |     candidate !== null && typeof candidate === 'object'
+155 |       ? ReviewProvenance.get(candidate)
+156 |       : undefined;
+157 |   // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+158 |   if (provenance === undefined) throw new Error('owned retained review candidate required');
+                                                                                                ^
+error: owned retained review candidate required
+      at readRetainedReviewProvenance (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:158:91)
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:379:10)
+(fail) declared merge-group subject remains coherent in the owned request snapshot [98.73ms]
+
+ 9 pass
+ 7 fail
+ 37 expect() calls
+Ran 16 tests across 1 file. [2.48s]

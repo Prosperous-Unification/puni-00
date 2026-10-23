@@ -1,0 +1,80 @@
+[
+  {
+    "extractor": {
+      "extractorId": "typescript.compiler",
+      "version": "v6.0.3",
+      "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e"
+    },
+    "relationships": {
+      "imports": [
+        {
+          "source": "src/index.ts",
+          "specifier": "./value",
+          "target": "src/value.ts",
+          "importKind": "type",
+          "extractor": {
+            "extractorId": "typescript.compiler",
+            "version": "v6.0.3",
+            "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e"
+          },
+          "identity": "2a02e2b906f3e7703e84b44c1e1956fce0e97cf174c2008b8fff0d8ceb2c982f"
+        }
+      ],
+      "reverseEdges": [
+        {
+          "provider": "src/value.ts",
+          "importers": [
+            {
+              "source": "src/index.ts",
+              "specifier": "./value",
+              "importKind": "type"
+            }
+          ],
+          "extractor": {
+            "extractorId": "typescript.compiler",
+            "version": "v6.0.3",
+            "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e"
+          },
+          "identity": "6574d39e5367e3da96c02b3a107f1f3c82f8190dc7a74223a86b1a62e575a93e"
+        }
+      ],
+      "publicDeclarations": [
+        {
+          "configPath": "tsconfig.json",
+          "entrypoint": "src/index.ts",
+          "configurationIdentity": "4fed7305d69eb0ce076391dc7260f4ed79d926b48db682b1b5bd45c007fd420d",
+          "declarations": [
+            {
+              "sourcePath": "src/index.ts",
+              "emittedPath": "src/index.d.ts",
+              "text": "import type { Value } from './value';\nexport declare const value: Value;\n"
+            },
+            {
+              "sourcePath": "src/value.ts",
+              "emittedPath": "src/value.d.ts",
+              "text": "export interface Value {\n    label: string;\n}\n"
+            }
+          ],
+          "extractor": {
+            "extractorId": "typescript.compiler",
+            "version": "v6.0.3",
+            "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e"
+          },
+          "identity": "8a748dc23fd731dc6dd86edca433577fb011ba7e569791d8128fbc92d03f3cea"
+        }
+      ]
+    }
+  },
+  {
+    "extractor": {
+      "extractorId": "typescript.compiler",
+      "version": "v6.0.3",
+      "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e"
+    },
+    "relationships": {
+      "imports": [],
+      "reverseEdges": [],
+      "publicDeclarations": []
+    }
+  }
+]

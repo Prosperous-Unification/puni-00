@@ -28,6 +28,7 @@ const commands: PlanCommandWire[] = [
   { kind: 'setMeasure', stepId: 's', metric: 'future', value: -1 },
   { kind: 'clearMeasure', stepId: 's', metric: 'future' },
   { kind: 'setAssignee', stepId: 's' },
+  { kind: 'assignSubtree', stepId: 's', personId: null },
   { kind: 'addDependency' },
   { kind: 'removeDependency' },
   {
@@ -68,7 +69,7 @@ const commands: PlanCommandWire[] = [
 ];
 
 test('validates all structural wire arms without applying semantic defaults or a batch cap', async () => {
-  expect(commands).toHaveLength(45);
+  expect(commands).toHaveLength(46);
   for (const command of commands) {
     expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
   }
@@ -118,7 +119,14 @@ test('preserves optional fields, nulls and unresolved references without normali
     },
     { kind: 'setAssignee', stepId: 's', personId: null, personRef: 'unresolved' },
     { kind: 'patchTeam', teamRef: 'new', patch: { name: '', serviceIds: ['x'] } },
-    { kind: 'createPerson', ref: 'new', name: 'x', teamIds: [], teamRefs: ['new'] },
+    {
+      kind: 'createPerson',
+      ref: 'new',
+      name: 'x',
+      teamIds: [],
+      teamRefs: ['new'],
+      personKind: 'future',
+    },
   ] satisfies PlanCommandWire[])
     expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
 });
@@ -126,6 +134,7 @@ test('preserves optional fields, nulls and unresolved references without normali
 test('rejects malformed structures and nested extras including derived numbering', async () => {
   for (const command of [
     { kind: 'invented' },
+    { kind: 'createPerson', name: 'x', personKind: 1 },
     { kind: 'setActual', stepId: 's', days: '1' },
     { kind: 'setProgress', stepId: 's', state: 'not_started' },
     { kind: 'setStepBlocked', stepId: 's' },
@@ -166,8 +175,10 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   const descriptor = planCommandsBody.jsonSchema as Descriptor;
   expect(JSON.stringify(descriptor)).not.toContain('"$ref"');
   const branches = descriptor.properties?.['commands']?.items?.anyOf;
-  // Includes the public step blockage command.
-  expect(branches).toHaveLength(46);
+  // Includes the public step blockage command, claimWorkItem/releaseWorkItem
+  // and assignSubtree (49). 49 to 54 with `wbs-resources`: setResourceCapacity,
+  // setDemand and the resource trio.
+  expect(branches).toHaveLength(54);
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);
@@ -199,6 +210,8 @@ test('emits inline MCP-readable command branches with real nested patch and esti
     'realistic',
   ]);
   expect(find('setAssignee')?.required).not.toContain('personId');
+  expect(find('assignSubtree')?.required).toContain('stepId');
+  expect(find('claimWorkItem')?.properties?.['assign']).toEqual({ type: 'boolean' });
   expect(find('deleteService')?.properties?.['cascade']).toEqual({ type: 'boolean' });
 });
 

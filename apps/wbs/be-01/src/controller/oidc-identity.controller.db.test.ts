@@ -12,6 +12,7 @@ import {
 } from '@wbs/auth';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import {
   type BrowserAuthLifecycle,
   SqliteBrowserAuthLifecycle,
@@ -227,6 +228,7 @@ describe('the OIDC callback after activation', () => {
       now: () => now,
       random: () => 'session-1',
       redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
+      issuer: () => Promise.resolve('https://idp.test'),
       verifier: {
         verify: (token: string) => {
           const known = accessClaims.get(token);
@@ -287,6 +289,7 @@ describe('the OIDC callback after activation', () => {
         capacity: testCapacityService(),
         directory: testDirectoryService(),
         history: testHistoryService(),
+        stepParallels: testStepParallels(),
         calendarMarkers: testCalendarMarkerService(),
         internalAuthSecret: 'x'.repeat(32),
         writes: testWrites(),

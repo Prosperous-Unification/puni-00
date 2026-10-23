@@ -199,7 +199,15 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Project settings' }).click();
     const dialog = page.getByRole('dialog', { name: 'Project settings' });
     await expect(dialog).toBeVisible();
-    for (const tab of ['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization', 'Timezone']) {
+    for (const tab of [
+      'Teams',
+      'Priorities',
+      'Steps',
+      'Estimating',
+      'Optimization',
+      'Timezone',
+      'Resources',
+    ]) {
       await dialog.getByRole('tab', { name: tab, exact: true }).click();
       await expectNoStrayFrames(page, `Project settings › ${tab}`);
     }

@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts:
+(pass) walks nested dependency instances from their own manifests and preserves their topology [8.52ms]
+(pass) refuses a nested-only dependency missing from the installed closure despite ancestor decoys [3.60ms]
+(pass) refuses malformed trusted manifests: null [1.54ms]
+(pass) refuses malformed trusted manifests: [] [1.45ms]
+(pass) refuses malformed trusted manifests: {"dependencies":null} [1.41ms]
+(pass) refuses malformed trusted manifests: {"dependencies":[]} [1.43ms]
+(pass) refuses malformed trusted manifests: {"dependencies":{"../../escape":"1"}} [1.42ms]
+(pass) refuses malformed trusted manifests: {"dependencies":{"vendor":42}} [1.45ms]
+(pass) refuses an absent required dependency manifest [1.81ms]
+(pass) refuses an unreadable required dependency manifest [1.76ms]
+(pass) the release closure includes the reviewed supported declaration roots and nested Ark instances [11.11ms]
+(pass) canonical release copies omit metadata that Bun pack cannot transport [5.38ms]
+(pass) refuses an intermediate nested dependency directory symlink to ambient packages [3.20ms]
+(pass) refuses a scoped dependency directory symlink to ambient packages [2.94ms]
+
+ 14 pass
+ 0 fail
+ 29 expect() calls
+Ran 14 tests across 1 file. [411.00ms]

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "drive-rooted matcher"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 348148,
+  "ceilingKiB": 921600
+}

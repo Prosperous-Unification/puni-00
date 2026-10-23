@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+595 |       return captured;
+596 |     },
+597 |   );
+598 |   try {
+599 |     const envelope = extractRetainedTypeScriptRelationships(f);
+600 |     expect(envelope.byteReads.entries).toContainEqual({
+                          ^
+TypeError: undefined is not an object (evaluating 'envelope.byteReads.entries')
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:600:21)
+(fail) retained compiler byte census seals only after successful extraction [210.51ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1153.00ms]

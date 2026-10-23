@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+{"level":"error","time":1792205694278,"service":"be-01","err":{"occurrence_id":"AE_3RZ4J05VHX882HJW9ZRSCPF2QV","fingerprint":"fp1_99240622e042fea07540a66914a52744","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared refusal","    at renderReply (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/http/elysia/mount.ts:440:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+993 |       [owner.id, stepId],
+994 |     );
+995 |     const before = sqliteState();
+996 |     for (const actor of ['ada', 'vic']) {
+997 |       const answer = await h.call(actor, 'GET', `/api/projects/${projectId}/export?format=json`);
+998 |       expect(answer).toMatchObject({
+                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "body": {
+-     "error": "unsupported_step_parallelism",
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 4
++ Received  + 2
+
+      at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:998:22)
+(fail) v9 sparse export fence refuses authored equality without mutation (isolated) [684.16ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.66s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 578560000, "exitCode": 1}

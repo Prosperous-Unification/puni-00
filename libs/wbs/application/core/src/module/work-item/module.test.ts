@@ -28,6 +28,7 @@ async function seeded() {
     broadcast,
     requirements: {
       workItems: stores.workItems,
+      stepParallels: stores.stepParallels,
       projects: stores.projects,
       estimates: stores.estimates,
       actuals: stores.actuals,
@@ -35,6 +36,10 @@ async function seeded() {
       progress: stores.progress,
       attempts: stores.attempts,
       blockages: stores.blockages,
+      // Every plan read levels demands now (`wbs-resources` R5), so a write that
+      // announces and re-reads the plan needs both.
+      demands: stores.demands,
+      resourceCapacity: stores.resourceCapacity,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,
@@ -56,6 +61,9 @@ const hostRequirements = () => {
     workItemStore: DiBag.createProvider(() => stores.workItems, {
       factoryReturnKind: 'sync-value',
     }),
+    stepParallelStore: DiBag.createProvider(() => stores.stepParallels, {
+      factoryReturnKind: 'sync-value',
+    }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
     estimateStore: DiBag.createProvider(() => stores.estimates, {
@@ -66,6 +74,12 @@ const hostRequirements = () => {
     progressStore: DiBag.createProvider(() => stores.progress, { factoryReturnKind: 'sync-value' }),
     attemptStore: DiBag.createProvider(() => stores.attempts, { factoryReturnKind: 'sync-value' }),
     blockageStore: DiBag.createProvider(() => stores.blockages, {
+      factoryReturnKind: 'sync-value',
+    }),
+    claimStore: DiBag.createProvider(() => stores.claims, { factoryReturnKind: 'sync-value' }),
+    organizationLimits: DiBag.createProvider(() => null, { factoryReturnKind: 'sync-value' }),
+    demandStore: DiBag.createProvider(() => stores.demands, { factoryReturnKind: 'sync-value' }),
+    resourceCapacityStore: DiBag.createProvider(() => stores.resourceCapacity, {
       factoryReturnKind: 'sync-value',
     }),
     directoryStore: DiBag.createProvider(() => stores.directory, {

@@ -7,6 +7,7 @@ import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { automaticColor, MARKER_NAME_MAX } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -205,6 +206,7 @@ describe('the calendar-marker routes', () => {
       // than a stamp: every marker this file creates ties on `(date,
       // createdAt)`, which is the only state in which the third key decides
       // anything at all.
+      stepParallels: testStepParallels(),
       calendarMarkers: new CalendarMarkerService({
         projects,
         markers: new CalendarMarkerRepository(db, OPEN),
@@ -307,10 +309,12 @@ describe('the calendar-marker routes', () => {
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: 'invalid_origin' });
     expect(await list('owner')).toEqual([]);
-    const authenticate = auth.authenticate.bind(auth);
-    const scoped = spyOn(auth, 'authenticate').mockImplementation(async (token) => {
+    const authenticate = auth.authenticateOrRefuse.bind(auth);
+    const scoped = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (token) => {
       const account = await authenticate(token);
-      return account === null ? null : { ...account, scopes: ['read'] };
+      return account === null || typeof account === 'string'
+        ? account
+        : { ...account, scopes: ['read'] };
     });
     try {
       const denied = await as(tokens['owner'], path, { method: 'POST', body });

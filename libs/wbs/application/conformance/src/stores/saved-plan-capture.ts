@@ -13,11 +13,14 @@ type CaptureSeedStores = Pick<
   | 'actuals'
   | 'progress'
   | 'blockages'
+  | 'stepParallels'
   | 'measures'
   | 'dependencies'
   | 'typedDependencies'
   | 'directory'
   | 'capacity'
+  | 'demands'
+  | 'resourceCapacity'
   | 'priorityBands'
 >;
 
@@ -341,11 +344,15 @@ async function readSeededPlanInput(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     typedDependencies,
     assignmentRows,
     capacity,
+    demands,
+    resourceCapacities,
+    resourceCatalog,
     priorityBands,
     people,
     teams,
@@ -361,11 +368,15 @@ async function readSeededPlanInput(
     stores.actuals.listByProject(projectId),
     stores.progress.listByProject(projectId),
     stores.blockages.listByProject(projectId),
+    stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
+    stores.demands.listByProject(projectId),
+    stores.resourceCapacity.listFor(projectId),
+    stores.directory.listResources(),
     stores.priorityBands.listFor(projectId),
     stores.directory.listPeople(),
     stores.directory.listTeams(),
@@ -385,6 +396,7 @@ async function readSeededPlanInput(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
@@ -395,6 +407,9 @@ async function readSeededPlanInput(
     })),
     assignments: assignmentRows.assignments,
     capacity,
+    demands,
+    resourceCapacities,
+    resources: resourceCatalog,
     priorityBands,
     people,
     teams,
@@ -753,6 +768,7 @@ export function savedPlanCaptureRegistrations(
                   name: 'Unassigned member',
                   kind: 'person',
                   teamIds: ['team-a'] as readonly string[],
+                  accountId: null as string | null,
                 },
                 projectIds: [] as readonly string[],
               },

@@ -125,6 +125,12 @@ export interface ChartRead {
    */
   elsewhereHolders: ElsewhereHolderView[];
   /**
+   * The resources this plan's slices waited for, named, in the same payload as
+   * the slices that name them (`wbs-resources` R5). Empty where no bar waited
+   * for a resource, where be-01 sends none.
+   */
+  resourceLabels: NonNullable<PlanRead['resourceLabels']>;
+  /**
    * How far into a predecessor this plan's dependencies reach.
    *
    * Here rather than in a `useState` of its own for the reason `roles` is: the
@@ -176,6 +182,8 @@ export function chartReadOf(read: PlanRead, generation: number): ChartRead {
     // bar that waits for it` (`plan-chart-input.test.ts`) throw
     // `GanttDataError`; re-watched 2026-10-11.
     elsewhereHolders: read.elsewhereHolders ?? [],
+    // Absent exactly when no bar waited for a resource.
+    resourceLabels: read.resourceLabels ?? [],
     depReach: read.depReach,
     pertWeights: read.pertWeights,
     estimateRounding: read.estimateRounding,
@@ -198,6 +206,7 @@ export const NO_CHART_READ: ChartRead = {
   steps: [],
   people: [],
   elsewhereHolders: [],
+  resourceLabels: [],
   depReach: 'whole-item',
   // The column defaults, which are what a project has unless it asks
   // otherwise — 1/4/1 and `ceil`, the same figures `libs/wbs/domain/domain`'s

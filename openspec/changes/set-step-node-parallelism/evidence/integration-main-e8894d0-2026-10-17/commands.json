@@ -1,0 +1,329 @@
+[
+  {
+    "receipt": "integration-main-normal-commit-1400.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 1400,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false",
+      "NODE_OPTIONS": "unset"
+    },
+    "argv": ["git", "commit", "-m", "merge: compose reviewed histories with pinned main e8894d0145"]
+  },
+  {
+    "receipt": "integration-main-fe-saved-plan-canonical.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/modules/project/composition.test.ts",
+      "src/modules/saved-plans/saved-plans.feature.test.ts",
+      "src/lib/project-stream.test.ts",
+      "src/lib/saved-plan-save.test.ts",
+      "src/components/wbs/saved-plan-compare.test.tsx",
+      "src/components/wbs/saved-plan-list.test.tsx",
+      "src/components/wbs/saved-plans-panel.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-gantt-panel-1800.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 1800,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/components/wbs/gantt-panel.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-gantt-detail-labels.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/components/wbs/gantt-detail.test.tsx",
+      "src/components/wbs/gantt-bar-labels.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-settings.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 1400,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/components/wbs/project-settings-modal.test.tsx",
+      "src/components/wbs/optimization-settings.test.tsx",
+      "src/components/wbs/settings-busy.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-toolbar-1800.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 1800,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/components/wbs/plan-toolbar.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-step-priority.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 1400,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/components/wbs/steps-panel.test.tsx",
+      "src/components/wbs/priorities-panel.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-presence-keyboard-1400.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 1400,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "180s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/components/wbs/keyboard-cheat-sheet.test.tsx",
+      "src/components/presence/presence-panel.test.tsx",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-backend-saved.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts",
+      "libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts",
+      "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts",
+      "libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts",
+      "libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+      "libs/wbs/application/core/src/module/plan-document",
+      "libs/wbs/application/core/src/module/saved-plans",
+      "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+      "apps/wbs/be-01/src/http/elysia/plan-document-boundary.test.ts",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-main-fe-typecheck-fixed.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 1400,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {},
+    "argv": ["bun", "node_modules/.bin/tsc", "--project", "/tmp/integration-main-fe-tsconfig.json"]
+  },
+  {
+    "receipt": "integration-main-writer-typecheck.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 1400,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {},
+    "argv": [
+      "bun",
+      "node_modules/.bin/tsc",
+      "--project",
+      "apps/wbs/fe-01/src/modules/plan-writer/tsconfig.json",
+      "--noEmit"
+    ]
+  },
+  {
+    "receipt": "integration-main-refusal-restored-green.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17/apps/wbs/fe-01",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": [
+      "timeout",
+      "--signal=TERM",
+      "--kill-after=10s",
+      "120s",
+      "bunx",
+      "--no-install",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "src/modules/plan-writer/plan-writer.test.ts",
+      "--no-file-parallelism",
+      "--maxWorkers=1",
+      "--testTimeout=30000",
+      "--hookTimeout=30000"
+    ]
+  },
+  {
+    "receipt": "integration-main-refusal-proof-run.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {
+      "TZ": "UTC"
+    },
+    "argv": ["python3", ".git/integration-main-refusal-proofs.py"]
+  },
+  {
+    "receipt": "integration-main-openspec-fixed.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {},
+    "argv": [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "--all",
+      "--json"
+    ]
+  },
+  {
+    "receipt": "integration-main-openspec-strict.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {},
+    "argv": [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "set-step-node-parallelism",
+      "--strict",
+      "--json"
+    ]
+  },
+  {
+    "receipt": "integration-main-migration-lint.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "rssMiB": 900,
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "env": {},
+    "argv": [
+      "bun",
+      "run",
+      "tools/tool-git-hooks/src/hooks/migration-lint.ts",
+      "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+      "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/down.sql"
+    ]
+  }
+]

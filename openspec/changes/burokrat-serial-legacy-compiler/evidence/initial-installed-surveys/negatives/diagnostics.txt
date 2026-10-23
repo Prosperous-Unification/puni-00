@@ -1,0 +1,200 @@
+FAULT: candidate-identity
+SURVEY COMPARISON REFUSED: reference: candidate identity
+--- expected
++++ observed
+@@ -1 +1 @@
+-"b39ad452fd4a7fad018486fd67046bce04f36a2b2f8912cc1f7c31cdd42477f2"
++"41209f0f0de8e2a17976910ce32656802fcb054c3c9abc04d86ead3aaa311134"
+
+FAULT: invocation-revision
+SURVEY COMPARISON REFUSED: reference: invocation revision
+--- expected
++++ observed
+@@ -1 +1 @@
+-"40d40ff6219aae3d2115dd39eee6ca36f1cd9e61"
++"0000000000000000000000000000000000000000"
+
+FAULT: policy-bytes
+SURVEY COMPARISON REFUSED: policy byte digest
+--- expected
++++ observed
+@@ -1 +1 @@
+-"3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c"
++"76cacb77243d9f912b0ef77cf412ff7454ccdc617396039ae8ee716afd395193"
+
+FAULT: policy-id
+SURVEY COMPARISON REFUSED: reference: policy identity
+--- expected
++++ observed
+@@ -1 +1 @@
+-"wbs.plan-export.recovery.full.v1"
++"injected-policy"
+
+FAULT: selected-rule-omission
+SURVEY COMPARISON REFUSED: reference: incomplete or changed rule selection
+--- expected
++++ observed
+@@ -11,6 +11,5 @@
+   "MOD-INDEX",
+   "MOD-LAYOUT",
+   "PERF-THRESHOLD",
+-  "REL-EXTRACT",
+-  "SPEC-SCENARIOS"
++  "REL-EXTRACT"
+ ]
+
+FAULT: unevaluated-omission
+SURVEY COMPARISON REFUSED: reference: unevaluated outcomes changed
+--- expected
++++ observed
+@@ -34,9 +34,5 @@
+   {
+     "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'",
+     "ruleId": "REL-EXTRACT"
+-  },
+-  {
+-    "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors",
+-    "ruleId": "SPEC-SCENARIOS"
+   }
+ ]
+
+FAULT: unevaluated-reason
+SURVEY COMPARISON REFUSED: reference: unevaluated outcomes changed
+--- expected
++++ observed
+@@ -1,6 +1,6 @@
+ [
+   {
+-    "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'",
++    "reason": "injected changed reason",
+     "ruleId": "F1"
+   },
+   {
+
+FAULT: unrelated-finding
+SURVEY COMPARISON REFUSED: reference: findings must remove only the selected F7 record
+--- expected
++++ observed
+@@ -169,7 +169,7 @@
+   },
+   {
+     "effect": "debt",
+-    "message": "index declares 44 direct entries, limit 40",
++    "message": "index declares 44 direct entries, limit 40 [injected unrelated drift]",
+     "path": "libs/wbs/adapters/store-memory/src/README.md",
+     "ruleId": "MOD-DIRECT-ENTRIES"
+   },
+
+FAULT: reference-retained-f7
+SURVEY COMPARISON REFUSED: reference: findings must remove only the selected F7 record
+--- expected
++++ observed
+@@ -63,6 +63,12 @@
+     "effect": "debt",
+     "message": "1520 lines exceeds the ceiling 800",
+     "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx",
++    "ruleId": "F7"
++  },
++  {
++    "effect": "debt",
++    "message": "1125 lines exceeds the ceiling 800",
++    "path": "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx",
+     "ruleId": "F7"
+   },
+   {
+
+FAULT: reference-fault-missing-f7
+SURVEY COMPARISON REFUSED: reference-fault: must restore exact baseline F7 record with no unrelated changes
+--- expected
++++ observed
+@@ -63,12 +63,6 @@
+     "effect": "debt",
+     "message": "1520 lines exceeds the ceiling 800",
+     "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx",
+-    "ruleId": "F7"
+-  },
+-  {
+-    "effect": "debt",
+-    "message": "1125 lines exceeds the ceiling 800",
+-    "path": "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx",
+     "ruleId": "F7"
+   },
+   {
+
+FAULT: estimate-retained-f7
+SURVEY COMPARISON REFUSED: estimate: findings must remove only the selected F7 record
+--- expected
++++ observed
+@@ -45,6 +45,12 @@
+     "effect": "debt",
+     "message": "1291 lines exceeds the ceiling 800",
+     "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx",
++    "ruleId": "F7"
++  },
++  {
++    "effect": "debt",
++    "message": "1095 lines exceeds the ceiling 800",
++    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+     "ruleId": "F7"
+   },
+   {
+
+FAULT: estimate-fault-missing-f7
+SURVEY COMPARISON REFUSED: estimate-fault: must restore exact baseline F7 record with no unrelated changes
+--- expected
++++ observed
+@@ -45,12 +45,6 @@
+     "effect": "debt",
+     "message": "1291 lines exceeds the ceiling 800",
+     "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx",
+-    "ruleId": "F7"
+-  },
+-  {
+-    "effect": "debt",
+-    "message": "1095 lines exceeds the ceiling 800",
+-    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+     "ruleId": "F7"
+   },
+   {
+
+FAULT: executable-drift
+SURVEY COMPARISON REFUSED: reference/after: evaluator or runtime identity changed
+--- expected
++++ observed
+@@ -366,7 +366,7 @@
+     "trustedNodeModulesIdentity": "4bf3fbbca1b7cc5ed5154452b062850c8c6babca879125da74cd61816f12f2dd"
+   },
+   "descriptorSha256": "b9598fa37b1485b513f357525404495e26ec430b042c5f3f7ed4b39f33d769f1",
+-  "executableSha256": "de6591ce7b2c843738309b4d0bb50924866c8c32041e166f720dd6dd4b53cd4c",
++  "executableSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "manifest": {
+     "packageVersion": "0.1.0",
+     "schemaVersion": 1,
+
+FAULT: validator-drift
+SURVEY COMPARISON REFUSED: reference/after: observed validator bytes differ from descriptor
+--- expected
++++ observed
+@@ -1 +1 @@
+-"9714adf5f3aa52dc445b47da72e3363bf5755e195b5b726f99ec3ab217519f12"
++"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+FAULT: scenario-presence
+SURVEY COMPARISON REFUSED: reference: scenarios report accompanies unevaluated SPEC-SCENARIOS
+
+FAULT: resource-termination
+SURVEY COMPARISON REFUSED: reference: resource guard stopped invocation
+
+FAULT: cli-status
+SURVEY COMPARISON REFUSED: reference: CLI status disagrees with report
+--- expected
++++ observed
+@@ -1 +1 @@
+-1
++0
+
+FAULT: unsupported-certification
+SURVEY COMPARISON REFUSED: reference: unexpected certification
+
+FAULT: empty-report
+SURVEY COMPARISON REFUSED: Expecting value: line 1 column 1 (char 0)

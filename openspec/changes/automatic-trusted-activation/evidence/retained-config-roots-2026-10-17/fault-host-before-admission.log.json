@@ -1,0 +1,43 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "refuses absolute outside"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 351984,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-pxal5n/source'",
+      "git-upload-pack '/tmp/namespace-pxal5n/source'"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-pxal5n/store/.pending-xI0W2y/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-pxal5n/source",
+      "4b528c14e7afcbb43ef574bbbd69b1c9ddebfceb",
+      "4b528c14e7afcbb43ef574bbbd69b1c9ddebfceb"
+    ],
+    ["/usr/bin/git", "-C", "/tmp/namespace-pxal5n/source", "init", "-q", "--object-format=sha1"],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "refuses absolute outside"
+    ],
+    ["git-upload-pack", "/tmp/namespace-pxal5n/source"]
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "nx", "show", "projects", "--json"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 267668,
+  "ceilingKiB": 921600
+}

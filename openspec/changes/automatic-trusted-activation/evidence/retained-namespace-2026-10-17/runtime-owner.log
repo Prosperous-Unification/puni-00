@@ -1,0 +1,71 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+252 |     ...f.runtime,
+253 |     get closure() {
+254 |       throw new Error('runtime census accessed');
+255 |     },
+256 |   };
+257 |   expect(() => createRetainedNamespace(f.candidate, fakeRuntime, limits)).toThrow(
+                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned review runtime"
+Received message: "runtime census accessed"
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:257:75)
+(fail) rejects copied runtime before accessing either census [92.46ms]
+275 |     createRetainedNamespace(
+276 |       f.candidate,
+277 |       { ...f.runtime, closure: { ...f.runtime.closure, files: [] } },
+278 |       limits,
+279 |     ),
+280 |   ).toThrow('owned review runtime');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned review runtime"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a.ts",
+        mode: "100644",
+        blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+      },
+      path: "/__puni_review__/candidate/a.ts",
+    }, {
+      kind: "candidate-symlink",
+      source: {
+        path: "link",
+        mode: "120000",
+        blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+      },
+      path: "/__puni_review__/candidate/link",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:280:5)
+(fail) rejects false-empty runtime census [107.53ms]
+
+ 0 pass
+ 40 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1164.00ms]

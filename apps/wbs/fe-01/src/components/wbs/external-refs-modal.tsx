@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { type ExternalRefView, type ExternalSystemView, followableHref } from '@/lib/wbs-api';
 
-import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from '../ui/modal';
+import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from './modal';
 
 /** A ref as this editor states it — the shape the patch takes, with no minted id. */
 export interface ExternalRefDraft {

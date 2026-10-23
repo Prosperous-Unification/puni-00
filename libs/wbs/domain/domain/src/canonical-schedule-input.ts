@@ -75,6 +75,18 @@ export interface ScheduleInput {
    * read (slice 6) is its only writer and always states it.
    */
   readonly elsewhere?: Elsewhere;
+  /**
+   * The project's stated resource capacities by resource id (`wbs-resources`
+   * R5) — `schedule()`'s eleventh argument. The demands themselves ride the
+   * slices ({@link Slice.demands}).
+   *
+   * **Optional, and absent means empty**, `elsewhere`'s rule: the entry is left
+   * out of the string when no capacity is stated, and a slice's demands are
+   * left out when it has none, so every plan stating no resource keeps the hash
+   * it had before resources existed. A remembered capacity no demand reads is
+   * still hashed: it is one more miss, never a stale hit.
+   */
+  readonly resourceCapacities?: PoolSizes;
 }
 
 /**
@@ -150,6 +162,14 @@ function canonicalEndpoint(endpoint: DependencyEndpoint): Record<string, string>
  * **(e) `poolSizes`, sorted, and (f) `reach` verbatim.** Both are plain
  * scheduling inputs — a pool that grew and a reach that flipped each move
  * placements.
+ *
+ * **Demands and resource capacities (`wbs-resources` R5)** follow `typed` and
+ * `elsewhere`: a slice's `demands` vector is hashed as given (already in id
+ * order) and only when it is non-empty, and `resourceCapacities` is a sorted
+ * pair list present only when a capacity is stated. A plan stating neither
+ * therefore keeps the exact string it had before resources existed; the
+ * contract version bump is what evicts rows cached under the old engine. Each
+ * entry's own removal is watched red beside it.
  *
  * Refusals are the engine's own and are not re-implemented: {@link indexTree}
  * and {@link groupSlicesByLeaf} throw on a slice for something that is not a
@@ -244,6 +264,19 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
       personId: slice.personId,
       width: slice.width,
       poolIds: [...new Set(slice.poolIds)].sort(byBytes),
+      // Already in id order, each resource once: `groupSlicesByLeaf` refuses
+      // anything else, so the vector is hashed as given. Present only when the
+      // slice demands something, so a plan with no demand keeps its hash.
+      // Proof: this entry left out made `hashes a demand, its units and its
+      // resource` find 1 key for 5 plans, and `moves the key when a demand edit
+      // moves a placement` keep one key across two different schedules — the
+      // stale cache the header names (canonical-schedule-input.test.ts, 39 pass
+      // / 2 fail); watched 2026-10-20.
+      ...((slice.demands ?? []).length === 0
+        ? {}
+        : {
+            demands: (slice.demands ?? []).map(({ resourceId, units }) => ({ resourceId, units })),
+          }),
     })),
   }));
 
@@ -277,6 +310,10 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
   // as the engine does` and the unordered-bookings case hash what the engine
   // refuses; watched 2026-09-29.
   const elsewhere = canonicalElsewhereRows(input.elsewhere);
+  // Proof: this entry left out made `hashes a resource capacity`
+  // (canonical-schedule-input.test.ts) keep one key across a capacity edit
+  // that moved the schedule (40 pass / 1 fail); watched 2026-10-20.
+  const resourceCapacities = sortedPairs(input.resourceCapacities ?? new Map<string, number>());
 
   return JSON.stringify({
     rows,
@@ -288,6 +325,7 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
     deadlines: sortedPairs(input.deadlines),
     ...(typed.length === 0 ? {} : { typed }),
     ...(elsewhere.length === 0 ? {} : { elsewhere }),
+    ...(resourceCapacities.length === 0 ? {} : { resourceCapacities }),
   });
 }
 

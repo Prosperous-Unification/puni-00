@@ -1,7 +1,6 @@
+import { Input, Label } from '@ui/saas-01';
 import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react';
 
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { type RefusalWords } from '@/lib/refusal';
 import {
   ESTIMATE_ROUNDINGS,

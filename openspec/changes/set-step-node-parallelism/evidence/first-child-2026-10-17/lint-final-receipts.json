@@ -1,0 +1,410 @@
+[
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts",
+      "apps/wbs/be-01/src/controller/capacity-body.db.test.ts",
+      "apps/wbs/be-01/src/controller/directory.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/undo.controller.db.test.ts",
+      "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts",
+      "apps/wbs/be-01/src/service/plan-commands.db.test.ts",
+      "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts",
+      "apps/wbs/be-01/src/service/revision.db.test.ts",
+      "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts",
+      "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts",
+      "apps/wbs/be-01/src/service/step.service.db.test.ts",
+      "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts",
+      "apps/wbs/be-01/src/service/undo.db.test.ts",
+      "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "--fix"
+    ],
+    "paths": [
+      "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts",
+      "apps/wbs/be-01/src/controller/capacity-body.db.test.ts",
+      "apps/wbs/be-01/src/controller/directory.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/undo.controller.db.test.ts",
+      "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts",
+      "apps/wbs/be-01/src/service/plan-commands.db.test.ts",
+      "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts",
+      "apps/wbs/be-01/src/service/revision.db.test.ts",
+      "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts",
+      "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts",
+      "apps/wbs/be-01/src/service/step.service.db.test.ts",
+      "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts",
+      "apps/wbs/be-01/src/service/undo.db.test.ts",
+      "apps/wbs/be-01/src/testing/organization-harness.ts"
+    ],
+    "exitCode": 137,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-0.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/capacity-body.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/capacity-body.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-1.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/directory.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/directory.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-2.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-3.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/step.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-4.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-5.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-6.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-7.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-8.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/undo.controller.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/controller/undo.controller.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-9.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-10.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/plan-commands.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/plan-commands.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-11.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/priority-band-identity.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-12.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/revision.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/revision.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-13.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-14.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/service-empty-diff.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-15.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/step.service.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/step.service.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-16.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-17.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/service/undo.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/service/undo.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-18.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "--fix"
+    ],
+    "paths": ["apps/wbs/be-01/src/testing/organization-harness.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-0-19.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts",
+      "--fix"
+    ],
+    "paths": ["libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts"],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-1.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "libs/wbs/application/core/src/compose.ts",
+      "libs/wbs/application/core/src/http/work-item.routes.ts",
+      "libs/wbs/application/core/src/testing/harness.ts",
+      "--fix"
+    ],
+    "paths": [
+      "libs/wbs/application/core/src/compose.ts",
+      "libs/wbs/application/core/src/http/work-item.routes.ts",
+      "libs/wbs/application/core/src/testing/harness.ts"
+    ],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-2.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+      "--fix"
+    ],
+    "paths": [
+      "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts"
+    ],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-3.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "libs/wbs/application/core/src/module/work-item/check.ts",
+      "libs/wbs/application/core/src/module/work-item/contract.ts",
+      "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.ts",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "--fix"
+    ],
+    "paths": [
+      "libs/wbs/application/core/src/module/work-item/check.ts",
+      "libs/wbs/application/core/src/module/work-item/contract.ts",
+      "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.ts",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+    ],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-4.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+      "bunx",
+      "eslint",
+      "libs/wbs/domain/contracts/src/http/refusal.test.ts",
+      "libs/wbs/domain/contracts/src/http/refusal.ts",
+      "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "--fix"
+    ],
+    "paths": [
+      "libs/wbs/domain/contracts/src/http/refusal.test.ts",
+      "libs/wbs/domain/contracts/src/http/refusal.ts",
+      "libs/wbs/domain/contracts/src/http/work-item-shapes.ts"
+    ],
+    "exitCode": 0,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-5.txt"
+  }
+]

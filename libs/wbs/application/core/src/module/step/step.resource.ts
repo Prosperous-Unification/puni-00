@@ -8,6 +8,7 @@ import {
   isReservedStepCode,
   isStepCode,
   stepIsInUse,
+  type StepNodeRef,
 } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
@@ -118,6 +119,8 @@ export interface StepInUse {
   measures: number;
   /** Attempts at this step's nodes — {@link StepUsageRows.attempts}. */
   attempts: number;
+  /** Claims holding this step (`wbs-team-claims`). */
+  claims: number;
   /** Explicit assignments on this step. The assumed ones are in `assumedAssignees`. */
   assignments: number;
   /**
@@ -132,6 +135,8 @@ export type RemoveStepOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_found' | 'forbidden' }
   | { ok: false; reason: 'in_use'; inUse: StepInUse }
+  /** An authored sparse policy must be explicitly cleared before either cascade value. */
+  | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
   /**
    * A typed dependency names this step through a node or descendant-step
    * endpoint. Refused whatever `cascade` says: the relationship has to be
@@ -158,6 +163,7 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
     blockages: usage.blockages,
     measures: usage.measures,
     attempts: usage.attempts,
+    claims: usage.claims,
     assignments: usage.assignments.filter((each) => each.stepId === stepId).length,
     assumedAssignees: assumedAssigneeFlips(usage.assignments, stepId),
   };
@@ -355,6 +361,7 @@ export class StepService {
     access: ResourceAccess,
   ): Promise<RemoveStepOutcome> {
     const gate = await this.gate(projectId, stepId, actorId, access);
+    // Proof: skipping this gate disclosed the sparse policy to a forbidden actor, 2026-10-17.
     if (!gate.ok)
       return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
 
@@ -391,6 +398,8 @@ export class StepService {
     );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      // Proof: omitted mapping broke both retained sparse service refusals, 2026-10-17.
+      if (removed.reason === 'referenced_by_step_parallel') return removed;
       // The transaction's own count, not the fast path's: it is the only one
       // that was still true at the moment the deletes would have run.
       return { ok: false, reason: 'in_use', inUse: inUseFrom(removed.usage, stepId) };

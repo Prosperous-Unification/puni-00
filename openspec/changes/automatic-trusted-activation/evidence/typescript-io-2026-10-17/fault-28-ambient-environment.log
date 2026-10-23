@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+ 7 | import { extractTypeScriptRelationshipsFromSource, type TypeScriptLimits } from './typescript-core';
+ 8 | import { fixture, globals, limits, request, workspace } from './typescript.test.fixture';
+ 9 |
+10 | function forbidAmbient<T>(extract: () => T): T {
+11 |   const forbidden = (): never => {
+12 |     throw new Error('forbidden ambient IO or execution');
+                                                            ^
+error: forbidden ambient IO or execution
+      at forbidden (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:12:56)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:109:11)
+      at forbidAmbient (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:48:12)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:314:22)
+(fail) source parsing does not execute candidate preload, package scripts or compiler plugins [0.91ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+Ran 1 test across 1 file. [612.00ms]

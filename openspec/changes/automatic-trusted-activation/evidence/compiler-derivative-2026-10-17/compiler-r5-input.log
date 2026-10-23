@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+188 |   );
+189 | });
+190 | 
+191 | test('build refuses altered upstream executable', async () => {
+192 |   const upstream = await readFile(require.resolve('@typescript/old/lib/typescript.js'), 'utf8');
+193 |   expect(() => buildCompilerDerivative(`${upstream}\n`)).toThrow('input digest');
+                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "input digest"
+Received message: "compiler output digest differs"
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:193:58)
+(fail) build refuses altered upstream executable [61.29ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [95.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 87117824, "exitCode": 1}

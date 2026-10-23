@@ -35,6 +35,7 @@ import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
@@ -149,11 +150,14 @@ beforeEach(async () => {
     blockages: new StepBlockageRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: bandStore,
     dependencies: new DependencyRepository(db, OPEN),
     typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
+    stepParallels: buildStores(db, OPEN).stepParallels,
     broadcast,
   };
   // The batch's own stores, over an open gate: `sqliteUnitOfWork` holds the
@@ -176,6 +180,7 @@ beforeEach(async () => {
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({

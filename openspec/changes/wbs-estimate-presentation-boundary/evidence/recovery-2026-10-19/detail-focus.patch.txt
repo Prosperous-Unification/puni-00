@@ -1,0 +1,13 @@
+diff --git a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+index 13b128160..b5f07cf19 100644
+--- a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+@@ -336,7 +336,7 @@ export function EstimatePresentation({
+             if (cell === null || cell === undefined) {
+               throw new Error(`Missing focused step cell ${finalCell}`);
+             }
+-            cell.focus();
++
+           }}
+           pushToast={live.current.pushToast}
+           number={row.original.number}

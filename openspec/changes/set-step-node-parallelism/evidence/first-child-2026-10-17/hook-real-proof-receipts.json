@@ -1,0 +1,16 @@
+[
+  {
+    "case": "hook-real-staged-lint-fault",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/step-first-child-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint",
+      "--file",
+      "libs/wbs/domain/contracts/src/http/refusal.ts"
+    ],
+    "selectedLintArgv": []
+  }
+]

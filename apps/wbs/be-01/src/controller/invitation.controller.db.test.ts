@@ -49,6 +49,7 @@ describe('organization invitations', () => {
       ).status,
     ).toBe(201);
     const token = harness.deliveredEmailToken('recipient@example.org');
+    expect(harness.deliveredEmailPurpose('recipient@example.org')).toBe('invitation');
     expect(
       harness.sqlite
         .query('SELECT recipient_email, token_digest FROM organization_invitation')

@@ -120,6 +120,12 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       stepId,
       blockedAt,
     })),
+    // Proof: fold replaced with empty; authored sparse policy capture failed (fold.txt), 2026-10-17.
+    stepParallels: reads.stepParallels.map(({ workItemId, stepId, maxParallel }) => ({
+      workItemId,
+      stepId,
+      maxParallel,
+    })),
     measures: reads.measures.map((row) => ({
       workItemId: row.workItemId,
       stepId: row.stepId,

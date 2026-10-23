@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) owned file identity authenticates tuple without consuming candidate reads [94.19ms]
+(pass) source owners precede census and provenance joins candidate and runtime [203.32ms]
+(pass) reserves raw candidate and runtime bytes before any copy [309.35ms]
+
+ 3 pass
+ 0 fail
+ 21 expect() calls
+Ran 3 tests across 1 file. [1.60s]

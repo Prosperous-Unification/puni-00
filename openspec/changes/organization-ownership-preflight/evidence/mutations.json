@@ -1,0 +1,183 @@
+[
+  {
+    "fault": "omit-marker",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "refuses"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 113369088, \"exitCode\": 1}"
+  },
+  {
+    "fault": "omit-unmapped",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "reports all three"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 107536384, \"exitCode\": 1}"
+  },
+  {
+    "fault": "omit-drift",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "reports all three"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 107929600, \"exitCode\": 1}"
+  },
+  {
+    "fault": "omit-conflicts",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "reports all three"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 108023808, \"exitCode\": 1}"
+  },
+  {
+    "fault": "omit-snapshot",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "pins marker"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 107622400, \"exitCode\": 1}"
+  },
+  {
+    "fault": "omit-rollback",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "rolls back"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 108273664, \"exitCode\": 1}"
+  },
+  {
+    "fault": "writable-cli",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts",
+      "-t",
+      "actual connection"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 140439552, \"exitCode\": 1}",
+    "observation": "Corrected shared interception of both openers observed actual CLI connection accepted injected write; prior ENOENT-only log retained as disqualified."
+  },
+  {
+    "fault": "omit-argv",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts",
+      "-t",
+      "unexpected arguments"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 139677696, \"exitCode\": 1}"
+  },
+  {
+    "fault": "omit-env",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts",
+      "-t",
+      "absent and empty"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 139567104, \"exitCode\": 1}"
+  },
+  {
+    "fault": "commit-after-marker",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "pins marker"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 107184128, \"exitCode\": 1}"
+  },
+  {
+    "fault": "commit-after-unmapped",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "pins marker"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 106999808, \"exitCode\": 1}"
+  },
+  {
+    "fault": "commit-after-drift",
+    "command": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "-t",
+      "pins marker"
+    ],
+    "exitCode": 1,
+    "observedFailure": true,
+    "measurement": "{\"ceilingBytes\": 943718400, \"sampledPeakBytes\": 108154880, \"exitCode\": 1}"
+  }
+]

@@ -414,7 +414,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen();
     const owner = await scope.stores.workItems.findById(workItemId);
     if (owner?.projectId !== projectId) {
-      throw new Error(`step blockage owner ${workItemId} is outside project ${projectId}`);
+      throw new Error(`work item ${workItemId} is outside project ${projectId}`);
     }
   };
   /** Scope-bound facts preserve the transactional read and row revision after writes. */
@@ -485,9 +485,29 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return retainedDirectory;
     },
+    // A claim, a directory command and a capacity statement in a project batch
+    // read the organization's cap in this same transaction
+    // (`wbs-organization-limits` L10); the gauge keeps no rows to retain.
+    // Proof, each watched 2026-10-22 with this getter left out: every activated
+    // claim of claim-limit.controller.db.test.ts threw "a bound claim was added
+    // under scoped access without organization limits" (1 pass, 11 fail); `promotes
+    // inside a project batch under the cap and refuses it at the cap`
+    // (agent-person-limit.controller.db.test.ts) answered 500 "an agent person
+    // was added under scoped access without organization limits" (13 pass, 1 fail);
+    // every activated statement case of capacity-limit.controller.db.test.ts
+    // answered 500 "a resource capacity was stated under scoped access without
+    // organization limits" (2 pass, 10 fail).
+    get organizationLimits() {
+      assertOpen();
+      return scope.stores.organizationLimits;
+    },
     get capacity() {
       assertOpen();
       return scope.stores.capacity;
+    },
+    get resourceCapacity() {
+      assertOpen();
+      return scope.stores.resourceCapacity;
     },
     get priorityBands() {
       assertOpen();
@@ -516,6 +536,116 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     progress: retainedProgress,
     attempts,
     blockages,
+    claims: {
+      listByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.listByProject(requestedProjectId);
+      },
+      listStampedByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.listStampedByProject(requestedProjectId);
+      },
+      findById: (requestedProjectId, claimId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.findById(requestedProjectId, claimId);
+      },
+      occupancyOf: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.occupancyOf(requestedProjectId);
+      },
+      boundAccountOf: (personId) => {
+        assertOpen();
+        return scope.stores.claims.boundAccountOf(personId);
+      },
+      pinnedPersonOf: (credential) => {
+        assertOpen();
+        return scope.stores.claims.pinnedPersonOf(credential);
+      },
+      add: async (claims, stated, stamp, occupancy, leases) => {
+        const owners = [...new Set([...claims, ...stated].map(({ workItemId }) => workItemId))];
+        for (const owner of owners) await assertOwner(owner);
+        const written = await scope.stores.claims.add(claims, stated, stamp, occupancy, leases);
+        // Proof: with this refresh removed, `shows the batch the progress its
+        // claim stated` (claim-command.test.ts) let a later setStatus ready
+        // through on stale retained progress; watched 2026-10-19.
+        if (written === 'written') await refreshRows(owners);
+        return written;
+      },
+      remove: async (claims, cleared, stamp) => {
+        const owners = [...new Set([...claims, ...cleared].map(({ workItemId }) => workItemId))];
+        for (const owner of owners) await assertOwner(owner);
+        await scope.stores.claims.remove(claims, cleared, stamp);
+        await refreshRows(owners);
+      },
+      moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
+        await assertOwner(fromWorkItemId);
+        await assertOwner(toWorkItemId);
+        await scope.stores.claims.moveAll(fromWorkItemId, toWorkItemId, stamp);
+        await refreshRows([fromWorkItemId, toWorkItemId]);
+      },
+      // A renewal is the person's, across projects, and moves no revision or
+      // retained row: a lease is not a plan fact (`wbs-claim-leases` L4).
+      renewLeases: (personId, now) => {
+        assertOpen();
+        return scope.stores.claims.renewLeases(personId, now);
+      },
+      expiredLeasesOf: (requestedProjectId, at) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.expiredLeasesOf(requestedProjectId, at);
+      },
+      projectsWithExpiredLeases: (at, limit) => {
+        assertOpen();
+        return scope.stores.claims.projectsWithExpiredLeases(at, limit);
+      },
+    },
+    demands: {
+      listByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.demands.listByProject(requestedProjectId);
+      },
+      set: async (workItemId, resourceId, units, stamp) => {
+        await assertOwner(workItemId);
+        const written = await scope.stores.demands.set(workItemId, resourceId, units, stamp);
+        // The write moved the row's revision; a later command of the batch must
+        // read it, or its own precondition is pinned to a revision that is gone.
+        if (written === 'written') await refreshRows([workItemId]);
+        return written;
+      },
+    },
+    stepParallels: {
+      // Proof: spreading the real SQLite class dropped prototype methods;
+      // mounted borrowed-scope regression failed on listByProject (prototype-red.txt).
+      listByProject: (requestedProjectId) => {
+        // Proof: independently omitting project or lifetime checks resolved the
+        // mounted foreign/closed read negatives (mutation-list-*-guard.txt).
+        assertProject(requestedProjectId);
+        return scope.stores.stepParallels.listByProject(requestedProjectId);
+      },
+      listByWorkItems: (requestedProjectId, ids) => {
+        // Proof: omitted scope guard resolved foreign/closed reads; stale empty
+        // evidence committed the preceding batch patch (first-child mutation logs).
+        assertProject(requestedProjectId);
+        return scope.stores.stepParallels.listByWorkItems(requestedProjectId, ids);
+      },
+      set: async (parallel, stamp) => {
+        // Proof: omitted owner check accepted the mounted foreign-scope write
+        // (mutation-set-owner-guard.txt); the closed call also refuses here.
+        await assertOwner(parallel.workItemId);
+        await scope.stores.stepParallels.set(parallel, stamp);
+        // Proof: omitted refresh left the warmed listByProject revision stale
+        // against SQLite (mutation-set-refresh.txt); findById is not this cache.
+        await refreshRows([parallel.workItemId]);
+      },
+      remove: async (workItemId, stepId, stamp) => {
+        // Proof: omitted owner check accepted foreign/missing-owner removal
+        // (mutation-remove-owner-guard.txt); the mounted regression failed.
+        await assertOwner(workItemId);
+        await scope.stores.stepParallels.remove(workItemId, stepId, stamp);
+        // Proof: omitted refresh left the warmed listByProject revision stale
+        // against SQLite (mutation-remove-refresh.txt).
+        await refreshRows([workItemId]);
+      },
+    },
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

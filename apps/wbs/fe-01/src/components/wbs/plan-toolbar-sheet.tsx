@@ -1,7 +1,7 @@
+import { Button } from '@ui/saas-01';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/wbs/modal';
 
 /**
  * The control on the toolbar sheet a click was on, if that click closes it.

@@ -1,0 +1,58 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+175 |           expect(snapshot()).toEqual(before);
+176 |           expect(
+177 |             h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+178 |           ).toEqual(journalBefore);
+179 |         } else {
+180 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:180:26)
+(fail) redo-create destination sparse policy preserves replay atomicity and history policy [530.88ms]
+175 |           expect(snapshot()).toEqual(before);
+176 |           expect(
+177 |             h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+178 |           ).toEqual(journalBefore);
+179 |         } else {
+180 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:180:26)
+(fail) undo-delete destination sparse policy preserves replay atomicity and history policy [354.10ms]
+
+ 0 pass
+ 18 filtered out
+ 2 fail
+ 13 expect() calls
+Ran 2 tests across 1 file. [2.85s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 583757824, "exitCode": 1}

@@ -69,7 +69,7 @@ describe('review finding: a frozen number must survive its parent moving', () =>
     // Child is frozen at 020.1. Now unfreeze the parent alone and move it first.
     await service.unfreeze(parent, OWNER);
 
-    await service.move(parent, OWNER, { parentId: null, afterId: null });
+    await service.move(parent, OWNER, { parentId: null, afterId: null }, { kind: 'legacy' });
 
     expect((await numbersByName())['Child']).toBe('020.1');
   });
@@ -85,7 +85,7 @@ describe('review finding: promote must not duplicate a frozen number', () => {
     await service.freeze(projectId, OWNER);
     await service.unfreeze(mid, OWNER);
 
-    await service.remove(mid, OWNER, 'promote');
+    await service.remove(mid, OWNER, 'promote', { kind: 'legacy' });
 
     const numbers = Object.values(await numbersByName());
     expect(new Set(numbers).size).toBe(numbers.length);
@@ -103,7 +103,7 @@ describe('review finding: a last child carries its descendants’ estimates up',
       pessimistic: 3,
     });
 
-    await service.remove(onlyChild, OWNER, 'cascade');
+    await service.remove(onlyChild, OWNER, 'cascade', { kind: 'legacy' });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.name === 'Parent')?.estimates['step-dev']).toEqual({

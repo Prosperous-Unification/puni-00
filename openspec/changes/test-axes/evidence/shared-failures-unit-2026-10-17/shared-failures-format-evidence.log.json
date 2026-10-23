@@ -1,0 +1,28 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "prettier",
+    "--write",
+    "openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/manifest.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 85084,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bunx",
+      "--no-install",
+      "prettier",
+      "--write",
+      "openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/manifest.json"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/prettier",
+      "--write",
+      "openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/manifest.json"
+    ]
+  ]
+}

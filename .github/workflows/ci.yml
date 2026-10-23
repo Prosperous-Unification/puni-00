@@ -239,6 +239,7 @@ jobs:
       mode: ${{ steps.gate_mode.outputs.mode }}
       base: ${{ steps.gate_mode.outputs.base }}
       twilight: ${{ steps.gate_mode.outputs.twilight }}
+      projects: ${{ steps.gate_mode.outputs.projects }}
     steps:
       # Full history: `Gate mode` resolves a validated PR synthetic merge base against this
       # clone, which a depth-1 checkout does not contain. Pinned by `toolchain-pins.test.ts`,
@@ -254,35 +255,9 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      # The scope, chosen from the event and never inferred from whether a base ref
-      # happens to resolve — the same shape `Corpus version lint` below already uses,
-      # for the same reason. Payload values arrive as environment variables rather than
-      # interpolated into the shell; unprovable PR identity or topology is a refusal.
-      # The `*)` arm means subscribing this workflow to a new event fails loudly instead of picking a scope by accident.
-      #
-      # `nx show projects` prints a ONE-LINE JSON array on a non-TTY runner whatever
-      # `--sep` asks for — measured on Nx 23.2.0, 2026-09-16 — so membership is read
-      # with `jq` and not with `grep`. A `grep -qx twilight-burokrat` over that array can never
-      # match, which would have dropped Tool Wiki from every pull request while exiting
-      # 0: a check that cannot fail, wearing the exclusion's hat.
-      #
-      # The Twilight suite (`twilight-burokrat` and, since 2026-10-12, `twilight-dash`) needs
-      # its own arm at all because the workspace run excludes both and `gate_twilight` runs
-      # their targets separately; `nx affected` would otherwise exclude them and nothing would
-      # put them back. Either project affected puts the Twilight shard in scope.
-      #
-      # Proof (2026-09-16), re-observed after the nested `case "$tool_wiki_status"` (now
-      # `"$twilight_status"`) landed —
-      # the first version of this note claimed a failure that had stopped reproducing. In
-      # `tools/tool-devsync/src/toolchain-pins.test.ts`, `the CI gate scope > maps every
-      # subscribed event and refuses one it has no rule for`:
-      #   whole `*)` arm deleted    -> `Expected: ["*"] · Received: []`, 16 passed / 1 failed
-      #   only its `exit 1` deleted -> `Expected to contain: "printf 'no gate mode for event
-      #                                %s\n' "$EVENT_NAME" >&2 exit 1"`, 16 passed / 1 failed
-      # The second fault is the one worth the two lines: an arm that says what happened and
-      # then falls through is log-and-continue, and until that pin was tightened it left the
-      # whole suite green, because the `type == "array"` guard below supplies a second
-      # `exit 1` for a bare `toContain('exit 1')` to find.
+      # Proof: in gate-workflow.test.ts, removing each selection clause separately
+      # failed `refuses malformed, inconsistent and polluted plans before publishing scope`.
+      # Resolver/planner dependencies that print a valid answer then fail publish no scope.
       - name: Gate mode
         id: gate_mode
         env:
@@ -293,48 +268,31 @@ jobs:
           set -euo pipefail
           case "$EVENT_NAME" in
             pull_request)
-              # Proof: stale payload substitution or swallowed resolution failure made
-              # this production-step test accept the wrong boundary (29 pass / 1 fail).
               base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
-              printf 'mode=affected\n' >> "$GITHUB_OUTPUT"
-              printf 'base=%s\n' "$base" >> "$GITHUB_OUTPUT"
-              affected="$(bunx nx show projects --affected --base="$base" --head=HEAD --json)"
-              # jq answers THREE things, not two: 0 for true, 1 for false, and 2 or more for
-              # an error. An `if/else` reads the last of those as `false` and quietly drops
-              # the Twilight shard from the gate while exiting 0. Watched in a real shell on
-              # 2026-09-16 with `affected='Nx read error: could not find project graph'`: the
-              # if/else printed `tool_wiki=skip` (the output now named `twilight`), rc 0; this
-              # shape refuses, rc 1. The `*)` arm below guards jq ITSELF failing — with the
-              # output already a validated array the membership filter returns true or false
-              # and never errors — and it was watched firing against a `jq` stub that breaks
-              # on the second call. The filter is true when EITHER Twilight project is
-              # affected; `toolchain-pins.test.ts` runs this script with an `nx` stub.
-              #
-              # `-s` and `length == 1` are the form `bin/h2puni-gate-steps.sh` already uses,
-              # and they are not decoration: without `-s`, jq judges only the LAST document
-              # in its input, so a warning line printed ahead of the array is skipped. Watched
-              # 2026-09-16 — `"warning"` then `["wbs-fe-01"]` passed `type == "array"` rc 0,
-              # and the membership filter then read only the second document. The slurped
-              # form refuses the pair, rc 1.
-              jq -s -e 'length == 1 and (.[0] | type == "array")' <<< "$affected" > /dev/null || {
-                printf 'nx show projects did not return one JSON array: %s\n' "$affected" >&2
-                exit 1
-              }
-              twilight_status=0
-              jq -s -e '.[0] | index("twilight-burokrat") != null or index("twilight-dash") != null' <<< "$affected" > /dev/null || twilight_status=$?
-              case "$twilight_status" in
-                0) printf 'twilight=run\n' >> "$GITHUB_OUTPUT" ;;
-                1) printf 'twilight=skip\n' >> "$GITHUB_OUTPUT" ;;
-                *)
-                  printf 'jq failed reading the affected project list (status %s)\n' \
-                    "$twilight_status" >&2
-                  exit "$twilight_status"
-                  ;;
-              esac
+              bun run tools/tool-git-hooks/src/hooks/ci-plan.ts "$base" "$GITHUB_SHA" . > ci-selection.json
+              # A single versioned plan must explain both job membership and immutable revisions.
+              jq -s -e --arg base "$base" --arg head "$GITHUB_SHA" '
+                length == 1 and (.[0] |
+                  .schemaVersion == 1 and .base == $base and .head == $head and
+                  (.mode == "docs" or .mode == "affected") and
+                  ([.projects, .workspaceProjects, .twilightProjects, .reasons] |
+                    all(.[]; type == "array" and all(.[]; type == "string" and length > 0))) and
+                  (.reasons | length > 0) and
+                  (.projects == (.projects | unique)) and
+                  (.projects == ((.workspaceProjects + .twilightProjects) | sort)) and
+                  (.workspaceProjects | all(.[]; . != "twilight-burokrat" and . != "twilight-dash")) and
+                  (.twilightProjects | all(.[]; . == "twilight-burokrat" or . == "twilight-dash")) and
+                  (.twilight == (if (.twilightProjects | length) > 0 then "run" else "skip" end)) and
+                  (.mode != "docs" or (.projects | length) == 0)
+                )' ci-selection.json > /dev/null
+              jq -r '"mode=\(.mode)\nbase=\(.base)\ntwilight=\(.twilight)\nprojects=\(.projects | tojson)"' \
+                ci-selection.json >> "$GITHUB_OUTPUT"
+              cat ci-selection.json
               ;;
             push | merge_group | workflow_dispatch)
               printf 'mode=full\n' >> "$GITHUB_OUTPUT"
               printf 'twilight=run\n' >> "$GITHUB_OUTPUT"
+              printf 'full CI scope: %s\n' "$EVENT_NAME"
               ;;
             *)
               printf 'no gate mode for event %s\n' "$EVENT_NAME" >&2
@@ -342,9 +300,18 @@ jobs:
               ;;
           esac
 
+      - name: Upload CI selection
+        if: ${{ github.event_name == 'pull_request' && steps.gate_mode.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-selection-${{ github.run_attempt }}
+          path: ci-selection.json
+          if-no-files-found: error
+
   gate_workspace:
     name: gate workspace
     needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
@@ -581,11 +548,15 @@ jobs:
               printf 'GATE_BASE does not match validated PR merge base\n' >&2
               exit 1
             fi
+          # Proof: removing this refusal failed pr-merge-base.test.ts's runtime-mode
+          # negative for this shard; an unknown mode otherwise took the full branch.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
           fi
           set +e
           if [ "$GATE_MODE" = affected ]; then
-            bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD \
-              --parallel=2 --output-style=stream --exclude=twilight-burokrat,twilight-dash \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . \
               > nx-gate.log 2>&1
           else
             bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
@@ -722,11 +693,9 @@ jobs:
           base="$(bun run tools/tool-git-hooks/src/hooks/corpus-version-base.ts)"
           bun run tools/tool-git-hooks/src/hooks/corpus-version-lint.ts "$base" HEAD
 
-      # The scope and version are both explicit on purpose. `bunx openspec`
-      # resolves an unrelated package on npm that has no bin, so the step died
-      # with "could not determine executable" rather than validating anything;
-      # it only worked locally because volta has the real CLI on PATH. Pinning
-      # the version stops a CLI release from changing what this gate means.
+      # package.json pins @fission-ai/openspec; the frozen install above provides
+      # its executable and locked dependencies. Use that path directly so an
+      # absent local installation cannot resolve a different package or CLI.
       #
       # `--json` used to only *emit* JSON. Nothing read it, so what actually
       # gated was the process exit status — an inference from the command's own
@@ -755,20 +724,14 @@ jobs:
       - name: OpenSpec
         run: |
           set -euo pipefail
-          bunx @fission-ai/openspec@1.12.0 validate --all --json \
+          ./node_modules/.bin/openspec validate --all --json \
             | tee "$RUNNER_TEMP/openspec-validate.json"
           jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
             "$RUNNER_TEMP/openspec-validate.json" > /dev/null
 
-      # `tool-workflows:integration` is the only check that runs the real CLI
-      # against the twilight-v1 schema graph, and it refuses to start without
-      # OPENSPEC_CLI naming an installed 1.12.0 `bin/openspec.js`. That kept it
-      # out of `run-many`, so the edge it proves — planning stays blocked until
-      # design.md exists — was outside the merge gate while its Proof comment sat
-      # in schema.yaml. The package is installed into a scratch directory rather
-      # than resolved out of bunx's cache, so the path is a fact of this step
-      # rather than a guess about Bun's internals; the test then asserts
-      # `--version` is 1.12.0 before probing anything.
+      # The integration target probes twilight-v1 against the same locked CLI
+      # as validation. Its version assertion rejects a stale installation before
+      # checking that planning stays blocked until design.md exists.
       #
       # Proof: with `design` removed from twilight-v1's `tasks.requires`, this
       # target failed on `Expected: "blocked" / Received: "ready"`, observed
@@ -779,12 +742,61 @@ jobs:
       - name: OpenSpec schema graph (pinned CLI)
         run: |
           set -euo pipefail
-          pin="$(mktemp -d)"
-          echo '{"name":"openspec-pin","private":true}' > "$pin/package.json"
-          (cd "$pin" && bun add @fission-ai/openspec@1.12.0)
-          cli="$pin/node_modules/@fission-ai/openspec/bin/openspec.js"
-          test -f "$cli" || { echo "pinned CLI not installed at $cli"; exit 1; }
-          OPENSPEC_CLI="$cli" bunx nx run tool-workflows:integration
+          OPENSPEC_CLI="$PWD/node_modules/@fission-ai/openspec/bin/openspec.js" \
+            bunx nx run tool-workflows:integration
+
+  gate_docs:
+    name: gate docs
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode == 'docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Format
+        run: bunx nx format:check --all
+
+      - name: Current documents
+        run: |
+          set -euo pipefail
+          started=$SECONDS
+          bunx nx run tool-devsync:check:docs --skip-nx-cache
+          printf 'documentation validation elapsed_seconds=%s\n' "$((SECONDS - started))"
+
+      - name: Secrets scan
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts
+
+      - name: Private nesting
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/private-nesting.ts
+
+      - name: Doc caps
+        run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+
+      - name: OpenSpec
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/openspec validate --all --json \
+            | tee "$RUNNER_TEMP/openspec-validate.json"
+          jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
+            "$RUNNER_TEMP/openspec-validate.json" > /dev/null
 
   # The Twilight shard: Twilight Burokrat's own targets, its explicit source lint and the packed
   # package suite — 28 minutes of the single job's 62 on main 262d006c, almost all of it one
@@ -797,9 +809,9 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.twilight == 'run' }}
     runs-on: ubuntu-latest
-    # This job took 29m16s in the full-mode run 36473105834 (Nx step with source lint 26m37s,
-    # packed suite 2m8s); fifty leaves over two thirds above it.
-    timeout-minutes: 50
+    # Run 39330836237 spent 49m25s in Nx; the packed suite separately took 4m45s in
+    # run 39330011791. Seventy-five minutes accommodates both phases and runner variation.
+    timeout-minutes: 75
     steps:
       # Full history for parity with the workspace shard: the suites read git state and ran
       # against a depth-0 clone in the single job these came from.
@@ -819,14 +831,40 @@ jobs:
       # runs here, uncached like Burokrat's source lint.
       - name: Twilight — test, typecheck, build, lint
         id: nx_twilight
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: pr-merge-base.test.ts's valid-output/failing-resolver negative
+            # failed when this command's failure was swallowed; no runtime work may start.
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison failed the stale GATE_BASE negative.
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed this shard's unknown-mode negative.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
           set +e
-          {
-            bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash \
-              --parallel=2 --output-style=stream &&
-            bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream &&
-            bunx nx run twilight-dash:lint --skip-nx-cache --output-style=stream
-          } > nx-gate.log 2>&1
+          if [ "$GATE_MODE" = affected ]; then
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts twilight "$GATE_BASE" "$GITHUB_SHA" . \
+              > nx-gate.log 2>&1
+          else
+            {
+              bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash \
+                --parallel=2 --output-style=stream &&
+              bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream &&
+              bunx nx run twilight-dash:lint --skip-nx-cache --output-style=stream
+            } > nx-gate.log 2>&1
+          fi
           gate_status=$?
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
@@ -845,10 +883,11 @@ jobs:
 
       # The packed suite holds the end-to-end package admission and malicious-candidate matrix. It
       # needs only the tarball it packs, a loopback registry and bubblewrap: no credentials and no
-      # registry beyond 127.0.0.1. It runs whenever the Twilight shard is in scope, which Nx
-      # derives from the twilight-burokrat and twilight-dash inputs (for Burokrat:
-      # trusted-wiki.yml, infra/ci/burokrat, bin wrappers).
+      # registry beyond 127.0.0.1. A Dash-only selection does not run Burokrat packaging.
+      # Proof: toolchain-pins.test.ts pins exact JSON membership on both package steps;
+      # removing either condition fails its packaging-scope test.
       - name: Provision bubblewrap for the packed package suite
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-burokrat') }}
         run: |
           set -euo pipefail
           sudo apt-get update
@@ -864,43 +903,56 @@ jobs:
           bwrap --die-with-parent --new-session --ro-bind / / --dev /dev --proc /proc true
 
       - name: Twilight Burokrat packed package suite
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-burokrat') }}
         run: bunx nx run twilight-burokrat:test:package --skip-nx-cache --output-style=stream
 
   # The one check the integrator and the deploy descriptor read by name (`tool-deploy`'s
-  # descriptor requires a `gate` job concluding `success`). It reduces the three jobs above
-  # the way `pixels` reduces its shards: `if: always()` so it reports on a failed or cancelled
-  # shard instead of being skipped with it, the scope job's own verdict asserted first, and a
-  # skipped `gate_twilight` accepted only when `gate_mode` said the Twilight shard is out of
-  # scope.
+  # descriptor requires a `gate` job concluding `success`). It reports even after a
+  # failed/cancelled shard, requiring the scope job first and explaining every skipped job.
   # Proof: `gate-workflow.test.ts` runs this production script with each shard result; with
   # the workspace assertion deleted, `refuses a workspace shard that did not succeed` failed on
   # `failure` exiting 0; with the then Tool Wiki arm weakened to `!= failure`, its twin failed
   # on `cancelled` exiting 0 (2026-09-28).
   gate:
     if: ${{ always() }}
-    needs: [gate_mode, gate_workspace, gate_twilight]
+    needs: [gate_mode, gate_docs, gate_workspace, gate_twilight]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
       - name: Require every gate shard
         env:
           MODE_RESULT: ${{ needs.gate_mode.result }}
+          MODE: ${{ needs.gate_mode.outputs.mode }}
+          DOCS_RESULT: ${{ needs.gate_docs.result }}
           TWILIGHT: ${{ needs.gate_mode.outputs.twilight }}
           WORKSPACE_RESULT: ${{ needs.gate_workspace.result }}
           TWILIGHT_RESULT: ${{ needs.gate_twilight.result }}
         run: |
           set -euo pipefail
           test "$MODE_RESULT" = success
-          test "$WORKSPACE_RESULT" = success
-          case "$TWILIGHT" in
-            run)
-              test "$TWILIGHT_RESULT" = success
-              ;;
-            skip)
+          # Proof: gate-workflow.test.ts runs failed/cancelled/absent/unexplained
+          # skipped jobs through this reducer; removing each assertion admits its fault.
+          case "$MODE" in
+            docs)
+              test "$DOCS_RESULT" = success
+              test "$WORKSPACE_RESULT" = skipped
               test "$TWILIGHT_RESULT" = skipped
+              test "$TWILIGHT" = skip
+              ;;
+            affected | full)
+              test "$DOCS_RESULT" = skipped
+              test "$WORKSPACE_RESULT" = success
+              case "$TWILIGHT" in
+                run) test "$TWILIGHT_RESULT" = success ;;
+                skip) test "$TWILIGHT_RESULT" = skipped ;;
+                *)
+                  printf 'gate mode reported no Twilight verdict: %s\n' "$TWILIGHT" >&2
+                  exit 1
+                  ;;
+              esac
               ;;
             *)
-              printf 'gate mode reported no Twilight verdict: %s\n' "$TWILIGHT" >&2
+              printf 'gate mode reported no supported mode: %s\n' "$MODE" >&2
               exit 1
               ;;
           esac
@@ -922,12 +974,11 @@ jobs:
   # and it cannot itself skip: `pixels` below reads its result, so a scope job that
   # failed is never mistaken for a deliberate skip.
   #
-  # It runs unconditionally, including on `push`, `merge_group` and `workflow_dispatch`
-  # where it only prints `stack=affected`. An `if:` skipping it on those events would be
-  # cheaper and wrong: a skipped job's `result` is `skipped`, so the `pixels` aggregate's
-  # `needs.pixels_mode.result == success` would be false on exactly the events whose
-  # browser gate matters most. The checkout and install are the price of one honest verdict.
+  # It follows successful `gate_mode`, including on full events where it prints
+  # `stack=affected`. A failed scope leaves this job skipped and the pixels reducer fails.
+  # A docs plan omits browsers explicitly after revalidating the immutable PR boundary.
   pixels_mode:
+    needs: gate_mode
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -963,6 +1014,8 @@ jobs:
       - name: Browser stack scope
         id: stack
         env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
           EVENT_NAME: ${{ github.event_name }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -973,9 +1026,23 @@ jobs:
               # Proof: stale payload substitution or swallowed resolution failure made
               # this production-step test accept the wrong boundary (29 pass / 1 fail).
               base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+              # Proof: pixels-workflow.test.ts drives stale bases and unknown modes;
+              # skipping either validation admits an unproved browser exemption.
+              if [ "$GATE_BASE" != "$base" ]; then
+                printf 'GATE_BASE does not match validated PR merge base\n' >&2
+                exit 1
+              fi
+              if [ "$GATE_MODE" = docs ]; then
+                printf 'stack=unaffected\n' >> "$GITHUB_OUTPUT"
+                printf 'browser scope: docs plan explicitly omits browser checks\n'
+                exit 0
+              elif [ "$GATE_MODE" != affected ]; then
+                printf 'invalid PR browser gate mode: %s\n' "$GATE_MODE" >&2
+                exit 1
+              fi
               affected="$(bunx nx show projects --affected --base="$base" --head=HEAD --json)"
               # Three answers, not two, and `-s` so a stray document ahead of the array
-              # cannot hide it — see the same guard in `Gate mode` for both measurements.
+              # cannot hide it. The plan step separately validates one complete selection object.
               # Here the stakes are higher: reading a jq ERROR, or a leading warning line, as
               # `false` sets `stack=unaffected`, skips all four shards, and turns the
               # REQUIRED `pixels` check green having booted no browser at all.

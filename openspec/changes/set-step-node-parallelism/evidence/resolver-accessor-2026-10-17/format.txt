@@ -1,0 +1,6 @@
+libs/wbs/domain/domain/src/step-parallel.ts 93ms (unchanged)
+libs/wbs/domain/domain/src/step-parallel.test.ts 31ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 33ms (unchanged)
+openspec/changes/set-step-node-parallelism/design.md 18ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 25ms (unchanged)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 152342528, "exitCode": 0}

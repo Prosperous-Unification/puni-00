@@ -1,3 +1,5 @@
+import type { LimitCrossed } from '@wbs/domain';
+
 /**
  * Why a directory write was refused. Every one is a state of the directory or
  * of the request, never a fault: the controller turns each into a 4xx.
@@ -11,12 +13,23 @@
  * hold — `unknown_team`'s twin, one dimension over.
  */
 export type DirectoryRefusal =
+  /**
+   * `patchPerson` with `accountId` from a caller who is not an organization
+   * admin or super-admin, or under legacy access, which has no organization.
+   */
+  | 'forbidden'
   | 'invalid_kind'
   | 'name_required'
   | 'not_found'
   | 'nothing_to_change'
   | 'unknown_service'
-  | 'unknown_team';
+  | 'unknown_team'
+  /** `accountId` naming no account, or one that is not a member of the person's organization. */
+  | 'unknown_account'
+  /** `patchResource.providerId` naming no provider instance (`compute-providers` P3). */
+  | 'unknown_provider'
+  /** `patchResource.providerId` naming another organization's provider instance. */
+  | 'provider_not_in_organization';
 
 /**
  * What a directory write answered.
@@ -28,4 +41,10 @@ export type DirectoryRefusal =
 export type DirectoryOutcome<T> =
   | { ok: true; value: T }
   | { ok: false; reason: DirectoryRefusal }
-  | { ok: false; reason: 'taken'; name: string };
+  | { ok: false; reason: 'taken'; name: string }
+  /**
+   * One more agent person than the organization's cap allows
+   * (`wbs-organization-limits` L9): the cap, what it held and what the write
+   * would have added, read inside the write's transaction.
+   */
+  | ({ ok: false; reason: 'agent_person_limit' } & LimitCrossed);

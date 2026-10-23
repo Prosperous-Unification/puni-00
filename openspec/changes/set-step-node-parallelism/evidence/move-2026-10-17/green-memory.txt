@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+(pass) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [13.66ms]
+(pass) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [2.20ms]
+(pass) move sparse step parallel preservation > checks authorization and parent membership and cycles before a poisoned reader [1.22ms]
+(pass) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact [13.43ms]
+(pass) reads the admitted sparse store and rolls a preceding patch back with its journal/events [9.66ms]
+(pass) throws on trusted maximum corruption without moving or clearing statements [1.32ms]
+(pass) throws on trusted step corruption without moving or clearing statements [1.11ms]
+(pass) throws on trusted project corruption without moving or clearing statements [1.00ms]
+(pass) throws on trusted parent corruption without moving or clearing statements [1.08ms]
+(pass) throws on trusted duplicate corruption without moving or clearing statements [1.03ms]
+(pass) copies exact node references and allows move after clearing the final fact [1.86ms]
+(pass) throws when the required sparse reader is absent before any writes [1.18ms]
+(pass) does not consult sparse evidence for root moves [1.51ms]
+(pass) validates selected facts for same-parent moves and existing parents [1.39ms]
+(pass) retains moving subtree and sibling policy while moving under an empty destination [2.33ms]
+
+ 15 pass
+ 0 fail
+ 50 expect() calls
+Ran 15 tests across 1 file. [1.87s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 500310016, "exitCode": 0}

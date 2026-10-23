@@ -41,12 +41,14 @@ import {
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
 import { StepBlockageRepository } from './step-blockage';
 import { StepNodeAttemptRepository } from './step-node-attempt';
+import { StepParallelRepository } from './step-parallel';
 import { WorkItemRepository } from './work-item';
 
 export interface ChainSnapshotOptions {
@@ -323,7 +325,19 @@ export function createLivePlanStore(
         if (captured.kind !== 'shared') return captured;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
-        const [teams, people, tags, services, types, externalSystems, markers] = await Promise.all([
+        const [
+          teams,
+          people,
+          tags,
+          services,
+          types,
+          externalSystems,
+          markers,
+          stepParallels,
+          resources,
+          capacities,
+          demands,
+        ] = await Promise.all([
           directory.listInOrganization('teams', captured.organizationId),
           directory.listInOrganization('people', captured.organizationId),
           directory.listInOrganization('tags', captured.organizationId),
@@ -331,12 +345,26 @@ export function createLivePlanStore(
           directory.listInOrganization('workItemTypes', captured.organizationId),
           directory.listInOrganization('externalSystems', captured.organizationId),
           new CalendarMarkerRepository(db, OPEN).listFor(projectId),
+          // Proof: empty/omitted capture failed mounted shared exports; post-snapshot reread failed both concurrent races (mutation-capture-{empty,missing}.txt and mutation-post-snapshot-reread.txt).
+          new StepParallelRepository(db, OPEN).listByProject(projectId),
+          // Read in the same snapshot as the tree, so the document's demands
+          // and capacities name the rows and resources it carries.
+          directory.listInOrganization('resources', captured.organizationId),
+          new ResourceCapacityRepository(db, OPEN).listFor(projectId),
+          new DemandRepository(db, OPEN).listByProject(projectId),
         ]);
         return {
           ...captured,
           document: {
             directory: { teams, people, tags, services, types, externalSystems },
             markers,
+            // Proof: aliasing adapter rows failed copies-sparse-adapter after retained-row mutation (mutation-capture-alias.txt, 2026-10-17).
+            stepParallels: stepParallels.map(({ workItemId, stepId, maxParallel }) => ({
+              workItemId,
+              stepId,
+              maxParallel,
+            })),
+            resources: { resources, capacities, demands },
           },
         };
       }),

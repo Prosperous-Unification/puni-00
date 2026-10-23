@@ -11,6 +11,7 @@ import {
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { AppOptions } from './app';
@@ -70,6 +71,7 @@ function options(): AppOptions {
     clock: testClock,
     directory: testDirectoryService(),
     capacity: testCapacityService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
@@ -130,6 +132,7 @@ function oidcOptions(): NonNullable<AppOptions['oidc']> {
     redirectUri: 'https://app.test/api/auth/okta/callback',
     tokens: new InMemoryTokenStore(),
     transactions: new InMemoryOidcTransactionStore({ ttlMs: 300_000 }),
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: {
       verify: () => Promise.reject(new Error('OIDC verifier fixture was not expected')),
     },
@@ -181,13 +184,17 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
+  'getApiOrganizationLimits',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
   'getApiOrganizationActive',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
+  'getApiOrganizationMachine-credentials',
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
+  'getApiOrganizationTrusted-issuers',
+  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -195,8 +202,11 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdHistory',
+  'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
@@ -215,17 +225,21 @@ const SIGNED_IN_OPERATIONS = [
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
+  'deleteApiOrganizationMachine-credentialsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiOrganizationProvisioningTokensById',
   'deleteApiOrganizationSso-connectionsById',
+  'deleteApiOrganizationTrusted-issuersById',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
   'deleteApiSpacesById',
   'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
@@ -233,23 +247,28 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'patchApiSpacesById',
+  'postApiClaimsRenew',
   'postApiDirectoryCommands',
   'postApiOnboardingEmailChallenges',
   'postApiOnboardingEmailChallengesConfirm',
   'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
   'postApiOrganizationInvitations',
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
+  'postApiOrganizationMachine-credentials',
+  'postApiOrganizationMachine-credentialsByIdRotate',
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
+  'postApiOrganizationTrusted-issuers',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -263,9 +282,24 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationSession-policy',
 ] as const;
-const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
+const INTERNAL_OPERATIONS = [
+  'postInternalForward',
+  'postInternalMcpAuthority',
+  'postInternalMcpCredentials',
+  'postInternalMcpCredentialsEnded',
+  'postInternalMcpDelegation',
+  'postInternalMcpOrganizations',
+] as const;
+/** Internal routes whose own handler then needs the user's upstream Bearer, absent here. */
+const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
+  'postInternalGatewayProjectAccess',
+  'postInternalMcpOrganizations',
+  'postInternalMcpCredentials',
+  'postInternalMcpDelegation',
+]);
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
 const GATEWAY_BROWSER_OPERATIONS = [
   'postInternalGatewayProjectBrowserAccess',
@@ -286,10 +320,13 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
+  'deleteApiOrganizationMachine-credentialsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiOrganizationProvisioningTokensById',
   'deleteApiOrganizationSso-connectionsById',
+  'deleteApiOrganizationTrusted-issuersById',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
@@ -297,6 +334,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiSpacesByIdProjectsByProjectId',
   'getApiProjectsByIdHistory',
   'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
@@ -308,15 +346,20 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
+  'postApiClaimsRenew',
   'postApiDirectoryCommands',
+  'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationMachine-credentials',
+  'postApiOrganizationMachine-credentialsByIdRotate',
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
+  'postApiOrganizationTrusted-issuers',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -331,6 +374,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationSession-policy',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
@@ -348,10 +392,14 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
+  'getApiOrganizationLimits',
   'getApiOrganizationMembers',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
+  'getApiOrganizationMachine-credentials',
   'getApiOrganizationSession-policy',
+  'getApiOrganizationTrusted-issuers',
+  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -359,8 +407,11 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdExport',
+  'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
@@ -379,6 +430,11 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalMcpAuthority',
+  'postInternalMcpCredentials',
+  'postInternalMcpCredentialsEnded',
+  'postInternalMcpDelegation',
+  'postInternalMcpOrganizations',
   'postInternalGatewayProjectAccess',
   'postInternalResume',
   'getApiOrganizationSso-connections',
@@ -458,6 +514,7 @@ function reachabilityOidcOptions(): NonNullable<AppOptions['oidc']> {
     redirectUri: `${ORIGIN}/api/auth/okta/callback`,
     tokens,
     transactions: new InMemoryOidcTransactionStore({ ttlMs: 300_000 }),
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: {
       verify: () => Promise.reject(new Error('route probe verifier refusal')),
     },
@@ -752,8 +809,9 @@ describe('shared HTTP shape reachability through the production app', () => {
             refusal !== undefined && REQUEST_BOUNDARY_ERRORS.has(refusal) ? refusal : null,
         }).toEqual({
           operationId: shape.operationId,
-          boundaryError:
-            shape.operationId === 'postInternalGatewayProjectAccess' ? 'unauthenticated' : null,
+          boundaryError: UPSTREAM_BEARER_OPERATIONS.has(shape.operationId)
+            ? 'unauthenticated'
+            : null,
         });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,

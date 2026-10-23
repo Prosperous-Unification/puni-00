@@ -1,3 +1,4 @@
+import { Button, buttonVariants } from '@ui/saas-01';
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import { automaticColor, labelInk, PALETTE, validateCustomColor } from '@wbs/domain/marker-color';
 import {
@@ -24,7 +25,6 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type {
   CalendarMarkerView,

@@ -245,6 +245,7 @@ export function completeSubtreeCopy(seed: SeededPlan): SubtreeCopy {
         recordedAt: 215,
       },
     ],
+    demands: [],
     assignments: [
       { workItemId: SUBTREE_COPY_IDS.child, stepId: qaStepId, personId: seed.personIds[1] },
     ],

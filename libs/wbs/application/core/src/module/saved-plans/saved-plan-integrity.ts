@@ -168,7 +168,8 @@ export function verifyScheduleLink(
  * about records that already exist (design.md, "Cross-version diffs normalise
  * forward only").
  */
-export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7];
+// Proof: omitting schema8 refused the real save/read module regression (regression-first.txt), 2026-10-17.
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
 export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1];
 
 /**

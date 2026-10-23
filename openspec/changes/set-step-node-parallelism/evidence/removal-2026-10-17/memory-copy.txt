@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+113 |   const steps = inMemorySteps([stepRow({ id: 'dev', projectId: 'p' })], undefined, undefined, {
+114 |     table: facts,
+115 |     workItems: stores.workItems,
+116 |   });
+117 |   const refused = await steps.remove('p', 'dev', true, stamp);
+118 |   expect(refused).toEqual({
+                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
++       "maxParallel": 1,
+        "stepId": "dev",
+        "workItemId": "a",
+      },
+      {
++       "maxParallel": 1,
+        "stepId": "dev",
+        "workItemId": "a:b",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:118:19)
+(fail) returns sorted detached memory references for the exact target [7.45ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.78s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 513617920, "exitCode": 1}

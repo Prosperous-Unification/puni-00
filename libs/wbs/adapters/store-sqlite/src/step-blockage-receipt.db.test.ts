@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { openConnection } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { type AppliedMigration, rollbackTo } from './migrate-down';
 import {
   activateStepBlockages,
   inspectStepBlockageReceipt,
@@ -16,6 +16,25 @@ import {
 
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const previous = '20261014140000_add_step_blockage_activation';
+const parallelMigration = '20261015110000_add_step_node_parallelism';
+/** Every migration newer than the receipt's, each reversed before its refusal. */
+const newerMigrations = [
+  parallelMigration,
+  '20261019120000_add_claim',
+  '20261019130000_add_person_account',
+  '20261019130100_add_external_identity_person',
+  '20261020120000_add_resources',
+  '20261020130000_add_claim_occupancy',
+  '20261022100000_add_machine_credential',
+  '20261022110000_widen_organization_audit_machine_credentials',
+  '20261022110100_check_machine_credential_id',
+  '20261022120000_scope_trusted_issuer_audience',
+  '20261022130000_add_organization_limits',
+  '20261022130100_widen_organization_audit_organization_limits',
+  '20261022140000_add_resource_provider',
+  '20261022140100_widen_organization_audit_compute_providers',
+  '20261023100000_add_claim_lease',
+];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',
   version: 1,
@@ -146,7 +165,7 @@ for (const retained of [
   'missing-marker',
   'duplicate-marker',
 ] as const) {
-  it(`refuses receipt down over ${retained} and preserves ledger`, () => {
+  it(`refuses receipt down over ${retained} and preserves its migration boundary on retry`, () => {
     const connection = openConnection(path);
     try {
       if (retained === 'enabled-empty') activateStepBlockages(connection.db, receipt);
@@ -164,16 +183,31 @@ for (const retained of [
           "INSERT INTO step_blockage_activation VALUES (1,'DISABLED'),(1,'DISABLED')",
         );
       }
-      const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
-      expect(() => rollbackTo(path, migrations, previous)).toThrow(
-        'step blockage activation receipt retained or authority invalid',
+      const ledger = connection.db.all<AppliedMigration>('SELECT * FROM __drizzle_migrations');
+      expect(ledger.some(({ name }) => name === parallelMigration)).toBe(true);
+      // Proof: omitting the newer migration's ledger deletion failed the exact post-refusal ledger (2026-10-17).
+      const refusedLedger = ledger.filter(
+        ({ name }) => name === null || !newerMigrations.includes(name),
       );
-      expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
-      expect(
-        connection.db.all(
-          "SELECT name FROM sqlite_master WHERE name='step_blockage_activation_receipt'",
+      const receiptState = () => ({
+        schema: connection.db.all(
+          "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name IN ('step_blockage_activation', 'step_blockage_activation_receipt') ORDER BY name",
         ),
-      ).toHaveLength(1);
+        marker: connection.db.all('SELECT * FROM step_blockage_activation'),
+        receipts: connection.db.all('SELECT * FROM step_blockage_activation_receipt'),
+      });
+      const retainedState = receiptState();
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        expect(() => rollbackTo(path, migrations, previous)).toThrow(
+          'step blockage activation receipt retained or authority invalid',
+        );
+        expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(refusedLedger);
+        expect(receiptState()).toEqual(retainedState);
+        // Proof: omitting the newer down's table drop failed this composed refusal case (2026-10-17).
+        expect(
+          connection.db.all("SELECT name FROM sqlite_master WHERE name='step_parallel'"),
+        ).toEqual([]);
+      }
     } finally {
       connection.close();
     }

@@ -37,7 +37,7 @@ function mounted(
   outcome: ImportOutcome = summary,
 ) {
   const auth = testAuthService();
-  spyOn(auth, 'authenticate').mockResolvedValue({ id: 'actor', username: 'actor', scopes });
+  spyOn(auth, 'authenticateOrRefuse').mockResolvedValue({ id: 'actor', username: 'actor', scopes });
   const imports = mock(() => Promise.resolve(outcome));
   const writes = testWrites();
   writes.imports = { import: imports };

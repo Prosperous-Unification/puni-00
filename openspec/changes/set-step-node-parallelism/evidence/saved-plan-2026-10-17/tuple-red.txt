@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+91 |     };
+92 |     const side = (stepParallels: typeof facts) => ({
+93 |       input: canonicalisePlanInput({ ...source, stepParallels }),
+94 |       schedule: { present: false as const, absentReason: 'pending' },
+95 |     });
+96 |     expect(diffPlans(side(facts), side(facts.map((fact, at) => at === 0 ? { ...fact, maxParallel: 4 } : fact))).input).toEqual([
+                                                                                                                            ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "category": "capacity",
+-     "left": 1,
+-     "path": "stepParallels[a:b%3Ac].maxParallel",
+-     "right": 4,
+-   },
+- ]
++ []
+
+- Expected  - 8
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:96:120)
+(fail) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.98ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 23015424, "exitCode": 1}

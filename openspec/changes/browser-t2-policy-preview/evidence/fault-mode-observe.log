@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+309 |   ['ratchet', ['apps/example', 'apps/example/src', 'future/path'], 'refusal'],
+310 | ] as const)
+311 |   test(`[BROWSER-T2-POLICY-PREVIEW-006] same citation produces ${effect} under ${mode} ${prefixes.join(',')}`, async () => {
+312 |     const setup = fixture(mode, [...prefixes]);
+313 |     const call = await invokeCli(setup.argv);
+314 |     expect(call.exitCode, call.stderr).toBe(effect === 'refusal' ? 1 : 0);
+                                             ^
+error: undefined is not an object (evaluating 'adoptedSet.adoptedPrefixes.some')
+
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:314:40)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1392.80ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.35s]

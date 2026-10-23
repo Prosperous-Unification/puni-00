@@ -7,7 +7,7 @@ import {
   treeOrder,
 } from '@wbs/domain';
 
-import type { Assignment, DirectoryUsageRows } from '../ports/directory-store';
+import type { Assignment, DirectoryUsageRows, ResourceUsageRows } from '../ports/directory-store';
 import type { LabelledWorkItem } from '../ports/work-item-store';
 
 /**
@@ -20,6 +20,8 @@ import type { LabelledWorkItem } from '../ports/work-item-store';
  */
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; step: { id: string; name: string } }
+  /** The person's claim on a step, or on the row's subtree when `step` is null, is released. */
+  | { kind: 'claim_released'; step: { id: string; name: string } | null }
   | { kind: 'label_nulled' }
   /**
    * The row carries the tag being removed, and will stop carrying it.
@@ -59,6 +61,12 @@ export type DirectoryEffect =
        */
       fromId: string;
     }
+  /**
+   * The row's demand on the resource being removed goes, and `units` is what it
+   * stated (`wbs-resources` R8). A demand is never inherited, so only the rows
+   * that state one are named.
+   */
+  | { kind: 'demand_removed'; units: number }
   | {
       kind: 'assumed_assignee_changed';
       /**
@@ -96,6 +104,17 @@ export interface UsedProject {
 export interface DirectoryUsage {
   projects: UsedProject[];
   members: { id: string; name: string }[];
+  /**
+   * The linked credentials pinned to the person being removed, which a
+   * confirmed removal revokes ({@link DirectoryUsageRows.pinnedCredentials});
+   * 0 for every other entry.
+   */
+  pinnedCredentials: number;
+  /**
+   * The unrevoked machine credentials of the person being removed or rebound
+   * ({@link DirectoryUsageRows.machineCredentials}); 0 for every other entry.
+   */
+  machineCredentials: number;
 }
 
 /** Who a work item's assignments name, keyed by step. */
@@ -161,7 +180,12 @@ function usageFrom(
       workItems: (byProject.get(each.id) ?? []).sort(byTreeOrder(places)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { projects, members: rows.members.map((each) => ({ id: each.id, name: each.name })) };
+  return {
+    projects,
+    members: rows.members.map((each) => ({ id: each.id, name: each.name })),
+    pinnedCredentials: rows.pinnedCredentials,
+    machineCredentials: rows.machineCredentials,
+  };
 }
 
 /**
@@ -179,7 +203,20 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
   return usageFrom(rows, (row) => {
     const held = byStepOn(rows.assignments, row.id);
     const dropped = Object.entries(held).filter(([, personOf]) => personOf === personId);
-    if (dropped.length === 0) return [];
+    // Every claim the removal takes, the person's and those delegated under
+    // them (the rows' `claims` are exactly those), so a worker's delegated
+    // claim shows on its own row.
+    // Proof: with this filter answering nothing, `names each claim the removal
+    // releases…` (directory-usage.test.ts) named no work item; watched 2026-10-19.
+    const released: DirectoryEffect[] = rows.claims
+      .filter((each) => each.workItemId === row.id)
+      .map((each) => each.stepId)
+      .sort((a, b) => (a ?? '').localeCompare(b ?? ''))
+      .map((stepId) => ({
+        kind: 'claim_released' as const,
+        step: stepId === null ? null : { id: stepId, name: stepOf.get(stepId) ?? '' },
+      }));
+    if (dropped.length === 0) return released;
     const effects: DirectoryEffect[] = dropped
       .map(([stepId]) => stepId)
       .sort()
@@ -199,7 +236,7 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
         assumedAfter: after === null ? null : (nameOf.get(after) ?? null),
       });
     }
-    return effects;
+    return [...effects, ...released];
   });
 }
 
@@ -418,4 +455,42 @@ export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): 
     }
     return effects;
   });
+}
+
+/** What a resource removal would take, counted (`wbs-resources` R8). */
+export interface ResourceUsageCounts {
+  demands: number;
+  capacities: number;
+  occupancies: number;
+  /** The provider instance the resource names, or null (`compute-providers` P3). */
+  providerId: string | null;
+}
+
+/**
+ * What removing one resource would take with it: every row's demand on it,
+ * named by number, and the counts of demands, capacities and occupancies the
+ * refusal states. No inherited arm: a demand does not inherit down the tree.
+ *
+ * Proof: with the demand lookup answering nothing, `refuses removing a demanded
+ * resource, naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)
+ * named no work item; watched 2026-10-20.
+ */
+export function directoryUsageOfResource(rows: ResourceUsageRows): {
+  usage: DirectoryUsage;
+  counts: ResourceUsageCounts;
+} {
+  const unitsOf = new Map(rows.demands.map((each) => [each.workItemId, each.units]));
+  const usage = usageFrom(rows.rows, (row) => {
+    const units = unitsOf.get(row.id);
+    return units === undefined ? [] : [{ kind: 'demand_removed', units }];
+  });
+  return {
+    usage,
+    counts: {
+      demands: rows.demands.length,
+      capacities: rows.capacities.length,
+      occupancies: rows.occupancies,
+      providerId: rows.providerId,
+    },
+  };
 }

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+69 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });
+70 |   expect(system.pathKind('/outside/file.ts')).toBe('absent');
+71 |   expect(system.readFile('/outside/file.ts')).toBeUndefined();
+72 |   expect(system.readDirectory('/outside', [], undefined, [])).toEqual([]);
+73 |   expect(system.getDirectories('/outside')).toEqual([]);
+74 |   expect(() => system.realpath('/outside/file.ts')).toThrow(
+                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "compiler path outside trusted closure"
+Received message: "outside source port invoked"
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:74:53)
+(fail) compiler namespace misses never delegate outside paths to any source port [0.83ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [531.00ms]

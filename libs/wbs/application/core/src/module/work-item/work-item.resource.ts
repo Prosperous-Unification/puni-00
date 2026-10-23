@@ -5,16 +5,23 @@ import {
   assumedAssignee,
   type Attempt,
   type AttemptOutcome,
+  type AuthoredDependencyGraph,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
   canReparent,
+  chargedDemandsOf,
   type ChargedEstimate,
   chargedWorkdays,
   chargedWorkdaysOf,
+  type Claim,
+  CLAIM_LEASE_MS,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  decideClaim,
+  decideRelease,
+  type Demand,
   type DependencyEndpoint,
   deriveNumbers,
   effectiveTeamsOf,
@@ -25,6 +32,7 @@ import {
   formatStepNodeId,
   formatStepReference,
   formatTypedDependencyKey,
+  freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
   type IsoDate,
@@ -32,6 +40,9 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  leaseOf,
+  type LeaseReleaseReason,
+  type LimitCrossed,
   MAX_ESTIMATE_DAYS,
   MEASURE_METRICS,
   type MeasureMetric,
@@ -39,6 +50,8 @@ import {
   nextWorkday,
   type NodeReading,
   nodeResourcesOf,
+  occupancyByResource,
+  type OccupancyRow,
   orderSteps,
   ORDINARY_BAND_RANK,
   parentIndexOf,
@@ -46,7 +59,15 @@ import {
   POSITION_STEP,
   type PriorityBand,
   type Readiness,
+  refuseDemand,
+  refuseLimit,
+  refuseOccupancy,
   resolveStepResources,
+  type Resource,
+  type ResourceCapacity,
+  type ResourceDemand,
+  type ResourceOccupancy,
+  type ResourceUnits,
   rollUp,
   rollUpActuals,
   rollUpCharged,
@@ -66,6 +87,7 @@ import {
   spanOfAttempts,
   type StepAllowances,
   type StepNodeCycle,
+  type StepNodeRef,
   type StepPolicy,
   type StepState,
   treeOrder,
@@ -82,12 +104,22 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import {
+  type ClaimIdentity,
+  type ClaimLease,
+  type ClaimOccupancy,
+  type ClaimStore,
+  type CredentialPin,
+  type LeaseStanding,
+  unstampClaim,
+} from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
   JournalEntry,
   UndoState,
 } from '../../ports/command-journal-store';
+import type { DemandStore } from '../../ports/demand-store';
 import type { DependencyStore, StoredDependency } from '../../ports/dependency-store';
 import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
@@ -98,6 +130,7 @@ import {
   LEGACY_ACCESS,
   type ResourceAccess,
 } from '../../ports/organization-access';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type {
   IdentifiedSlice,
   PlanOptimization,
@@ -108,6 +141,7 @@ import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
+import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
 import type {
   EngineUnavailable,
   OptimizedScheduleRead,
@@ -126,6 +160,7 @@ import type {
   StepNodeAttemptStore,
   StoredAttempt,
 } from '../../ports/step-node-attempt-store';
+import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -164,6 +199,19 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import {
+  type Claimed,
+  type ClaimInput,
+  type ClaimRefusalOutcome,
+  claimsAround,
+  isClaimAdmin,
+  lineageOf,
+  type NamedClaimHolder,
+  refusalOf,
+  type ReleaseInput,
+} from './claims';
+import { findPersonWork, type PersonWork } from './person-work';
+import { findStartableWork, type StartableWork } from './startable';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -299,6 +347,13 @@ export function slicesOf(
    * has sized is simply absent, and its work draws from no pool.
    */
   teamSizes: ReadonlyMap<string, number>,
+  /**
+   * Each leaf's charged demand vector, from `chargedDemandsOf`: its own
+   * demands on resources the project states a capacity for, clamped to it.
+   * Charged on **every** step's slice of the leaf (`wbs-resources` R2), as the
+   * team pools are; a leaf absent from the map demands nothing.
+   */
+  demandsOf: ReadonlyMap<string, readonly ResourceDemand[]>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
   const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
@@ -337,6 +392,13 @@ export function slicesOf(
         teamOf.get(row.id)?.teamIds ?? [],
         teamSizes,
       );
+    // Present only on a leaf that demands something, so a plan with no
+    // demand hands the engines the slices it always did.
+    // Proof: `{}` in place of the vector made `serialises two leaves on the
+    // one staging environment and names it` (resource-schedule.test.ts) place
+    // demanding blocks on top of each other; watched 2026-10-20.
+    const vector = demandsOf.get(row.id) ?? [];
+    const demands = vector.length === 0 ? {} : { demands: vector };
     if (order.length === 0) {
       const { personId, width, poolIds } = resourcesFor(null);
       slices.push({
@@ -346,6 +408,7 @@ export function slicesOf(
         personId,
         width,
         poolIds,
+        ...demands,
       });
       continue;
     }
@@ -358,6 +421,7 @@ export function slicesOf(
         personId,
         width,
         poolIds,
+        ...demands,
       });
     }
   }
@@ -424,8 +488,15 @@ function canonicalScheduleParts(
   assignments: readonly Assignment[],
   steps: readonly Step[],
   poolSizes: ReadonlyMap<string, number>,
+  /** Every demand on a work item of the project; a parent's charges nothing. */
+  demands: readonly Demand[],
+  /** The project's stated resource capacities. */
+  resourceCapacities: readonly ResourceCapacity[],
 ): CanonicalScheduleParts {
   const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const capacityByResource = new Map(
+    resourceCapacities.map(({ resourceId, units }) => [resourceId, units] as const),
+  );
   const assigneesOf = new Map<string, Record<string, string>>();
   for (const assignment of assignments) {
     assigneesOf.set(assignment.workItemId, {
@@ -447,6 +518,7 @@ function canonicalScheduleParts(
     assigneesOf,
     effectiveTeamsOf(rows),
     poolSizes,
+    chargedDemandsOf(demands, capacityByResource),
   );
   const notBefore = new Map<string, number>();
   if (project.startDate !== null) {
@@ -486,6 +558,11 @@ function canonicalScheduleParts(
         reach: project.depReach,
         deadlines,
         typed,
+        // Stated only when the project states one, so every plan with no
+        // resource keeps the input, and the hash, it had before.
+        // Proof: left out, both levelling cases of resource-schedule.test.ts
+        // threw `no capacity for resource …`; watched 2026-10-20.
+        ...(capacityByResource.size === 0 ? {} : { resourceCapacities: capacityByResource }),
       },
       heldLeafIds,
     ),
@@ -493,6 +570,13 @@ function canonicalScheduleParts(
     assigneesOf,
     rule,
   };
+}
+
+/** One compensating command, or a `batch` of them when there are several. */
+function oneCommandOf(commands: readonly CompensatingCommand[]): CompensatingCommand {
+  const [only] = commands;
+  if (commands.length === 0) throw new Error('a journal entry needs at least one command');
+  return commands.length === 1 ? only : { do: 'batch', steps: [...commands] };
 }
 
 /**
@@ -782,6 +866,14 @@ export type WorkItemRefusal =
    */
   | 'unknown_system'
   /**
+   * A resource the directory no longer holds, decided inside the write's own
+   * transaction (`wbs-resources`). Its own reason for `unknown_tag`'s argument:
+   * a reader has to know which picker to reopen.
+   */
+  | 'unknown_resource'
+  /** `setDemand` of other than 1 unit on an `exclusive` resource. */
+  | 'exclusive_demand_is_one'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.
@@ -880,6 +972,42 @@ function withRemovedTyped(
 }
 
 /**
+ * The claims a delete took, as the step that puts them back after `restore`:
+ * an `add_claims` stating nothing (the restore puts the statements back with
+ * the rows) and carrying the occupancy, so the replay re-acquires the units as
+ * the undo of a release does. `restore` alone when the delete took none.
+ *
+ * Proof: answering `restore` alone, `undo of a delete puts the claims and their
+ * occupancy back`, `… resources_exhausted once another leaf took the units`
+ * and `undo of a promoting delete puts back the subtree claim …`
+ * (resource-occupancy.db.test.ts) failed on both stores; watched 2026-10-20.
+ */
+function withClaimsRestored(restore: CompensatingCommand, taken: ClaimsTaken): CompensatingCommand {
+  if (taken.claims.length === 0) return restore;
+  return {
+    do: 'batch',
+    steps: [
+      restore,
+      { do: 'add_claims', claims: taken.claims, stated: [], occupancy: taken.occupancy },
+    ],
+  };
+}
+
+/**
+ * The `leased` field of an `add_claims` naming `ids`, or nothing when none is
+ * leased, so an entry of human claims is written as it was before leases.
+ */
+function leasedOf(ids: readonly string[]): { leased?: string[] } {
+  return ids.length === 0 ? {} : { leased: [...ids] };
+}
+
+/** The claims a delete takes, parents before the claims delegated under them, and their occupancy. */
+interface ClaimsTaken {
+  claims: Claim[];
+  occupancy: ClaimOccupancy[];
+}
+
+/**
  * Whether this release keeps figures in the unit a caller named.
  *
  * A function rather than an inline `includes`, because both write methods ask
@@ -936,6 +1064,8 @@ export interface MoveWorkItem {
 export interface WorkItemServiceOptions {
   livePlans?: LivePlanStore;
   workItems: WorkItemStore;
+  /** Required scope-bound evidence; create refuses retained facts before any writes. */
+  stepParallels: Pick<StepParallelStore, 'listByWorkItems'>;
   projects: ProjectStore;
   estimates: EstimateStore;
   /**
@@ -975,6 +1105,29 @@ export interface WorkItemServiceOptions {
   attempts: StepNodeAttemptStore;
   /** Direct node blockage facts used only by the live tree projection. */
   blockages: StepBlockageStore;
+  /**
+   * Who occupies a step or reserves a subtree now (`wbs-team-claims`).
+   * Optional only for fixtures that predate claims: without it a claim, a
+   * release, or the replay of either throws rather than answering.
+   */
+  claims?: ClaimStore;
+  /**
+   * The organization limits a claim consults (`wbs-organization-limits` L9),
+   * read in the batch's own transaction. Absent from the public graph and
+   * from legacy fixture graphs; a claim adding a bound claim under scoped
+   * access without it throws rather than admitting uncapped.
+   */
+  organizationLimits?: OrganizationLimitGauge;
+  /**
+   * What each work item needs of each resource (`wbs-resources`). Required
+   * since both engines level demands (R5): every plan read reads them.
+   */
+  demands: DemandStore;
+  /**
+   * The project's stated resource capacities, read by {@link WorkItemService.resourcesWithin}
+   * and by every plan read, which levels demands against them.
+   */
+  resourceCapacity: ResourceCapacityStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -1098,6 +1251,16 @@ function withPatchStep(
 ): CompensatingCommand {
   if (step === undefined) return command;
   return { do: 'batch', steps: order === 'after' ? [command, step] : [step, command] };
+}
+
+/** `command` with `steps` run after or before it in one batch; `command` alone when there are none. */
+function withSteps(
+  command: CompensatingCommand,
+  steps: readonly CompensatingCommand[],
+  order: 'after' | 'before',
+): CompensatingCommand {
+  if (steps.length === 0) return command;
+  return { do: 'batch', steps: order === 'after' ? [command, ...steps] : [...steps, command] };
 }
 
 /** The readiness or hold every leaf agreed on, or null where any disagreed. */
@@ -1700,6 +1863,126 @@ export class WorkItemService {
     return this.opts.workItems.listUpdateInstants(projectId);
   }
 
+  /**
+   * The **Startable** steps of a project through the caller's access, filtered
+   * to one team's allotment when `teamId` is given ({@link findStartableWork}).
+   * Statuses come from {@link statusReadsOf}, the fold the claim command uses.
+   *
+   * Names are the organization's own under scoped access, as {@link treeWithin}
+   * names assignees. Under legacy access no directory-wide list is read: the
+   * assignees' names come with the project's assignments and every other
+   * person or team is read by id (`DirectoryStore.namesOf`).
+   *
+   * Fit (`wbs-resources` R6) reads the project's capacities, demands and
+   * occupancy once each, whatever the number of leaves, and the resource
+   * catalog only when a capacity is stated: the organization's under scoped
+   * access, the root list under legacy access.
+   *
+   * Null for a project the caller cannot read, refused alike with an absent one;
+   * `unknown_team` for a team the caller's directory does not hold.
+   */
+  async startableWithin(
+    projectId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    const { directory } = this.opts;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const claims = await this.claiming().claims.listStampedByProject(projectId);
+    const { assignments, people: assigned } = await directory.assignmentsInProject(projectId);
+    const unassigned = claims
+      .map((each) => each.personId)
+      .filter((id) => !assigned.some((person) => person.id === id));
+    const labelled = [...rows.flatMap((row) => row.teamIds), ...(teamId === null ? [] : [teamId])];
+    // Proof: reading the root catalogs under scoped access too made `answers a
+    // member and a viewer alike, with the organization's own names` and
+    // `refuses a team the caller's organization does not hold`
+    // (startable-organization.controller.db.test.ts) fail; watched 2026-10-19.
+    // Proof: `listPeople()` in place of the legacy `namesOf` made `materializes
+    // only the assignee and the claim holder during a tiny startable read`
+    // (startable-scope.db.test.ts) fail on a `SCAN person`; watched 2026-10-20.
+    const [people, teams] =
+      access.kind === 'scoped'
+        ? await Promise.all([
+            directory.listInOrganization('people', access.scope.organizationId),
+            directory.listInOrganization('teams', access.scope.organizationId),
+          ])
+        : await Promise.all([
+            directory.namesOf('people', unassigned).then((found) => [...assigned, ...found]),
+            directory.namesOf('teams', labelled),
+          ]);
+    const teamNames = new Map(teams.map((team) => [team.id, team.name] as const));
+    if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
+    const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
+    const capacities = await this.resourceCapacitiesOf(projectId);
+    const resources =
+      capacities.length === 0
+        ? []
+        : access.kind === 'scoped'
+          ? await directory.listInOrganization('resources', access.scope.organizationId)
+          : await directory.listResources();
+    return findStartableWork({
+      rows,
+      statuses,
+      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      stated,
+      claims,
+      assignments,
+      dependencies,
+      personNames: new Map(people.map((person) => [person.id, person.name] as const)),
+      teamNames,
+      teamId,
+      capacities,
+      demands: await this.opts.demands.listByProject(projectId),
+      occupancy: await this.claiming().claims.occupancyOf(projectId),
+      resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
+    });
+  }
+
+  /**
+   * One person's assignments and claims in one project
+   * (`wbs-resources` R7, {@link findPersonWork}), admitted as the tree read is:
+   * `null` for a project the caller may not read, `unknown_person` for a
+   * person the caller's organization does not hold.
+   *
+   * Bounded (spec `project-assignment-reads`): the project's own assignments
+   * and claims, and the one person's name — by primary key under legacy
+   * access, from the caller's organization under scoped access, as
+   * {@link startableWithin} reads its names.
+   */
+  async personWorkWithin(
+    projectId: string,
+    access: ResourceAccess,
+    personId: string,
+  ): Promise<PersonWork | { readonly kind: 'unknown_person' } | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (person-work-organization.controller.db.test.ts) answered
+    // 200 with the foreign project's empty lists instead of 404; watched 2026-10-20.
+    if (!(await this.admits(projectId, access))) return null;
+    const { directory } = this.opts;
+    // Proof: with `namesOf` replaced by `listPeople()`, `materializes only the
+    // person read during a tiny by-person read` (person-work-scope.db.test.ts)
+    // failed on a `SCAN person`; watched 2026-10-20.
+    const named =
+      access.kind === 'scoped'
+        ? await directory.listInOrganization('people', access.scope.organizationId)
+        : await directory.namesOf('people', [personId]);
+    const found = named.find((each) => each.id === personId);
+    // Proof: with this refusal removed, `refuses a person the caller's
+    // organization does not hold` (person-work-organization.controller.db.test.ts)
+    // answered 500 instead of 404; watched 2026-10-20.
+    if (found === undefined) return { kind: 'unknown_person' };
+    const { assignments } = await directory.assignmentsInProject(projectId);
+    return findPersonWork({
+      person: { personId, name: found.name },
+      rows: await this.opts.workItems.listByProject(projectId),
+      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      assignments,
+      claims: await this.claiming().claims.listStampedByProject(projectId),
+    });
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(
     projectId: string,
@@ -1755,6 +2038,22 @@ export class WorkItemService {
         if (name === undefined) throw new Error(`assignee "${person.id}" has no local name`);
         return { ...person, name };
       }),
+      // The resources a bar waited for, under the organization's own names as
+      // its directory shows them; the isolated read knows only the root rows.
+      // Proof: returning the root labels made `levels a demanded resource
+      // (isolated)` (resource-schedule.controller.db.test.ts) read the opaque
+      // root name in place of `staging`; watched 2026-10-20.
+      ...(tree.resourceLabels === undefined
+        ? {}
+        : {
+            resourceLabels: withResourceLabels(
+              tree,
+              await this.opts.directory.listInOrganization(
+                'resources',
+                access.scope.organizationId,
+              ),
+            ).resourceLabels,
+          }),
     };
   }
 
@@ -1857,6 +2156,7 @@ export class WorkItemService {
       ['tags', references.tags],
       ['workItemTypes', references.types],
       ['externalSystems', references.systems],
+      ['resources', references.resources],
     ];
     for (const [catalog, ids] of catalogs) {
       if (ids.length === 0) continue;
@@ -1964,6 +2264,8 @@ export class WorkItemService {
       assignments,
       steps,
       poolSizes,
+      await this.opts.demands.listByProject(projectId),
+      await this.opts.resourceCapacity.listFor(projectId),
     ).input;
   }
 
@@ -2021,6 +2323,13 @@ export class WorkItemService {
       await this.opts.directory.assignmentsInProject(projectId);
     const steps = await this.opts.projects.stepsOf(projectId);
     const slotsOf = await this.opts.capacity.slotsFor(projectId);
+    // Plan data both engines level (`wbs-resources` R5). Never a claim and never
+    // an occupancy: a schedule reads what the plan states, not who holds what.
+    // Proof: `[]` for both at the canonical call made `levels a demanded
+    // resource (isolated)` (resource-schedule.controller.db.test.ts) schedule
+    // overlapping blocks; watched 2026-10-20.
+    const demands = await this.opts.demands.listByProject(projectId);
+    const resourceCapacities = await this.opts.resourceCapacity.listFor(projectId);
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
     const canonical = canonicalScheduleParts(
       project,
@@ -2033,6 +2342,8 @@ export class WorkItemService {
       assigned,
       steps,
       slotsOf,
+      demands,
+      resourceCapacities,
     );
     let scheduling: TreeSchedule;
     try {
@@ -2051,7 +2362,7 @@ export class WorkItemService {
         scheduling = { kind: 'unavailable', reason: 'calendar_range' };
       else throw failure;
     }
-    return projectTree(
+    const tree = projectTree(
       {
         project,
         rows,
@@ -2071,12 +2382,18 @@ export class WorkItemService {
         seq,
         steps,
         slotsOf,
+        demands,
+        resourceCapacities,
         priorityBands,
         // An isolated input carries no bookings elsewhere, so no slice names a holder.
         elsewhereHolders: [],
       },
       scheduling,
     );
+    // The resource labels are read only for a schedule that names a resource,
+    // so a plan stating none reads no catalog and keeps its payload shape.
+    if ('kind' in tree || !namesAResource(tree)) return tree;
+    return withResourceLabels(tree, await this.opts.directory.listResources());
   }
 
   /**
@@ -2084,6 +2401,10 @@ export class WorkItemService {
    * and assignments to that child and returns the node mapping in project step order.
    * Blockage keeps its original time through create, undo and redo; conditional
    * replacements refuse newer facts inside the structural command transaction.
+   * Retained step parallel facts refuse a nonnull parent before stamping or
+   * mutation until hand-down and history ownership exist (ADR 0031). The reader
+   * validates selected existing-parent facts too; corrupt trusted state throws.
+   * Command scopes own rollback; standalone calls gain no cross-call isolation.
    * The mapping is internal to the application; command responses still return
    * the created work item ID alone.
    */
@@ -2091,7 +2412,12 @@ export class WorkItemService {
     projectId: string,
     actorId: string,
     input: CreateWorkItem,
-  ): Promise<WorkItemOutcome<WorkItem> & { stepNodeMapping?: { from: string; to: string }[] }> {
+  ): Promise<
+    (
+      | WorkItemOutcome<WorkItem>
+      | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    ) & { stepNodeMapping?: { from: string; to: string }[] }
+  > {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
@@ -2104,6 +2430,23 @@ export class WorkItemService {
     // project throws instead of rendering.
     if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
       return { ok: false, reason: 'not_found' };
+    }
+    if (input.parentId !== null) {
+      // Proof: omitting this read/refusal let both retained-pair negatives create
+      // a child and clear parent statements; observed 2026-10-17.
+      // Moving this below the first apply changed parent readiness/hold in the
+      // snapshot (mutation-late-guard.txt); unconditional refusal blocked empty policy.
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [input.parentId]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          // Proof: aliasing the supplied facts failed exact detached-node assertions
+          // (mutation-aliased-nodes.txt); wrong parent/project and project-wide reads
+          // separately failed selected-policy tests, 2026-10-17.
+          nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
+      }
     }
     const placed = placeAfter(this.groupUnder(rows, input.parentId), input.afterId);
     // Read here, per create, against **this** project's ladder — not hoisted to
@@ -2311,6 +2654,26 @@ export class WorkItemService {
         : await this.opts.attempts.listIssued(projectId, [gainsFirstChild]);
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
+    // And the claims: left on a row that is no longer a leaf, a step claim is
+    // one no release reaches, no claim on the child is fenced by and the
+    // startable read never lists. Moved in place, ids kept, so a delegated
+    // claim or any later satellite naming one moves with it. A fixture built
+    // without a claim store holds no claims to move.
+    const claimedHandedDown =
+      gainsFirstChild === null || this.opts.claims === undefined
+        ? []
+        : (await this.opts.claims.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
+    // The leaf's resource demands go down with its step facts (`wbs-resources`):
+    // a demand charges leaves' work, and the child now holds the work. The
+    // occupancy stays on the claims, which move in place.
+    const demandedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.demands.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     const stepNodeMapping =
       gainsFirstChild === null
         ? []
@@ -2359,6 +2722,24 @@ export class WorkItemService {
       // Proof: skipped, `hands a leaf’s attempts down to its first child,
       // numbers kept` read none on the child; watched 2026-10-12.
       await this.opts.attempts.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `releases the handed-down claim on the child`
+      // (claim-command.test.ts) answered `not_claimed_by`; watched 2026-10-20.
+      if (claimedHandedDown.length > 0)
+        await this.claiming().claims.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `hands a leaf’s demand down to its first child, keeping
+      // the occupancy, and back on undo` (resource-occupancy.db.test.ts) read
+      // the demand on the parent, on both stores; watched 2026-10-20.
+      for (const { resourceId, units } of demandedHandedDown) {
+        for (const [owner, value] of [
+          [workItem.id, units],
+          [gainsFirstChild, null],
+        ] as const) {
+          const written = await this.opts.demands.set(owner, resourceId, value, stamp);
+          // Both rows and the resource were read in this unit of work a moment ago.
+          if (written !== 'written')
+            throw new Error(`cannot hand demand on ${resourceId} to first child: ${written}`);
+        }
+      }
       // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
       // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
       for (const assignment of assignedHandedDown) {
@@ -2472,6 +2853,24 @@ export class WorkItemService {
       forward,
       // Proof: omitting these replay writes failed both exact blockage redo tests; watched 2026-10-14.
       ...setChildBlockages,
+      // Proof: omitted, `hands a claimed leaf's claims to its first child and
+      // back on undo` read the claim on the parent after the redo; watched 2026-10-20.
+      ...(gainsFirstChild === null || claimedHandedDown.length === 0
+        ? []
+        : [
+            {
+              do: 'move_claims' as const,
+              fromWorkItemId: gainsFirstChild,
+              toWorkItemId: workItem.id,
+              claims: claimedHandedDown,
+            },
+          ]),
+      // Proof: omitted, the same test read the demand back on the parent after
+      // the redo, on both stores; watched 2026-10-20.
+      ...demandedHandedDown.flatMap(({ workItemId, resourceId, units }) => [
+        { do: 'set_demand' as const, workItemId: workItem.id, resourceId, units },
+        { do: 'set_demand' as const, workItemId, resourceId, units: null },
+      ]),
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2489,6 +2888,28 @@ export class WorkItemService {
         dependency: remapped,
       })),
       ...clearChildBlockages,
+      // Before the child's delete, which would cascade them away.
+      // Proof: omitted, `hands a claimed leaf's claims to its first child and
+      // back on undo` read no claim on the parent after the undo; watched 2026-10-20.
+      ...(gainsFirstChild === null || claimedHandedDown.length === 0
+        ? []
+        : [
+            {
+              do: 'move_claims' as const,
+              fromWorkItemId: workItem.id,
+              toWorkItemId: gainsFirstChild,
+              claims: claimedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+            },
+          ]),
+      // Back on the parent; the child's own row goes with its delete.
+      // Proof: omitted, `hands a leaf’s demand down to its first child, keeping
+      // the occupancy, and back on undo` read no demand after the undo; watched 2026-10-20.
+      ...demandedHandedDown.map(({ workItemId, resourceId, units }) => ({
+        do: 'set_demand' as const,
+        workItemId,
+        resourceId,
+        units,
+      })),
       inverse,
       // Proof: omitting these replay writes failed both exact blockage undo tests; watched 2026-10-14.
       ...restoreParentBlockages,
@@ -2684,8 +3105,868 @@ export class WorkItemService {
   }
 
   /**
-   * Reparents the subtree, clearing unrelated destination leaf statements before
-   * the store move. Incoming facts stay with their owners. A last-child departure
+   * {@link assign} for one step on every leaf under `id` — `id` itself when it
+   * is a leaf — journalled as one entry whose undo puts back exactly the
+   * assignee each leaf had, `null` where it had none (`wbs-resources` R7).
+   *
+   * Like {@link assign} it reads neither team labels nor claims: labelling is
+   * not assigning (Dany, 2026-08-06), and a claim is beside an assignment (D1).
+   * `unknown_step` answers before any write; `unknown_person` comes from the
+   * first write, inside its transaction, so nothing is written when it fires.
+   */
+  async assignSubtree(
+    id: string,
+    actorId: string,
+    stepId: string,
+    personId: string | null,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    // The batch refuses a foreign step first (command-references.ts), so this is
+    // the direct caller's guard. Proof: removed, `answers unknown_step from the
+    // service itself` (assignee-commands.db.test.ts) answered ok on the memory
+    // store, which keeps no step check of its own; watched 2026-10-20.
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const below = new Set(lineage.descendantIds);
+    const leafIds = lineage.isLeaf
+      ? [id]
+      : rows
+          .filter((row) => below.has(row.id) && !rows.some((each) => each.parentId === row.id))
+          .map((row) => row.id);
+    const previous = new Map(
+      (await this.opts.directory.assignmentsOf(leafIds))
+        .filter((each) => each.stepId === stepId)
+        .map((each) => [each.workItemId, each.personId] as const),
+    );
+    const stamp = this.clock.stampFor(actorId);
+    for (const leafId of leafIds) {
+      const assigned = await this.opts.directory.assign(leafId, stepId, personId, stamp);
+      // Every leaf names the same person and step, so only the first write can
+      // refuse; the batch's unit of work rolls back anything before a refusal.
+      if (!assigned.ok) return { ok: false, reason: assigned.reason };
+    }
+    await this.announceTree(workItem.projectId);
+    const forward: CompensatingCommand[] = leafIds.map((leafId) => ({
+      do: 'assign',
+      workItemId: leafId,
+      stepId,
+      personId,
+    }));
+    const inverse: CompensatingCommand[] = leafIds.map((leafId) => ({
+      do: 'assign',
+      workItemId: leafId,
+      stepId,
+      // Proof: with `null` in place of the captured assignee, the three undo
+      // cases of assignee-commands.db.test.ts failed on both stores: undo
+      // cleared the leaves that had an assignee; watched 2026-10-20.
+      personId: previous.get(leafId) ?? null,
+    }));
+    await this.record(
+      workItem.projectId,
+      stamp,
+      personId === null ? 'unassign' : 'assign',
+      personId === null
+        ? `clear who does every leaf of ${quoteName(workItem.name)}`
+        : `assign every leaf of ${quoteName(workItem.name)}`,
+      {
+        forward: oneCommandOf(forward),
+        inverse: oneCommandOf(inverse),
+        touched: leafIds,
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
+   * States one work item's demand on one resource, or removes it on `null`
+   * (`wbs-resources` R1): a satellite write that moves the item's revision and
+   * journals one undoable entry pinned to it. Any work item may carry one; a
+   * parent's charges nothing, because a demand is never inherited. Units are
+   * bounded at the boundary; the kind's rule is {@link refuseDemand}'s, read off
+   * the resource here because a kind never changes.
+   *
+   * Proof: with the kind check removed, `refuses 2 units on an exclusive resource,
+   * writing nothing` (resource-command.test.ts) stored the demand; watched 2026-10-20.
+   */
+  async setDemand(
+    id: string,
+    actorId: string,
+    resourceId: string,
+    units: number | null,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    const { demands } = this.opts;
+    const resource = (await this.opts.directory.listResources()).find(
+      (each) => each.id === resourceId,
+    );
+    if (resource === undefined) return { ok: false, reason: 'unknown_resource' };
+    if (units !== null) {
+      const refusal = refuseDemand(resource.kind, units);
+      if (refusal !== null) return { ok: false, reason: refusal };
+    }
+    const before =
+      (await demands.listByProject(workItem.projectId)).find(
+        (each) => each.workItemId === id && each.resourceId === resourceId,
+      )?.units ?? null;
+    const stamp = this.clock.stampFor(actorId);
+    const written = await demands.set(id, resourceId, units, stamp);
+    if (written === 'unknown_resource') return { ok: false, reason: 'unknown_resource' };
+    if (written === 'unknown_work_item') return { ok: false, reason: 'not_found' };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      units === null ? 'clear_demand' : 'set_demand',
+      units === null
+        ? `clear what ${quoteName(workItem.name)} needs`
+        : `state what ${quoteName(workItem.name)} needs`,
+      {
+        forward: { do: 'set_demand', workItemId: id, resourceId, units },
+        inverse: { do: 'set_demand', workItemId: id, resourceId, units: before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /** Every demand stated on a work item of the project, by work item then resource. */
+  demandsOf(projectId: string): Promise<Demand[]> {
+    return this.opts.demands.listByProject(projectId);
+  }
+
+  /**
+   * The project's **Occupancy** (`wbs-resources` R3), per resource: the units
+   * its leaves' claims hold with their holders, and the free units of every
+   * resource it states a capacity for. Nothing that schedules reads it (R5).
+   */
+  async occupancyOf(
+    projectId: string,
+  ): Promise<{ occupied: ResourceOccupancy[]; free: ResourceUnits[] }> {
+    const rows = await this.claiming().claims.occupancyOf(projectId);
+    return {
+      occupied: occupancyByResource(rows),
+      free: freeUnitsOf(await this.resourceCapacitiesOf(projectId), rows),
+    };
+  }
+
+  /** The project's stated resource capacities, in resource-id order. */
+  resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]> {
+    const { resourceCapacity } = this.opts;
+    return resourceCapacity.listFor(projectId);
+  }
+
+  /**
+   * The project's resource read (`wbs-resources`): the resources the caller's
+   * directory holds, the project's stated capacities and every demand on its
+   * work items. Refused as the tree read refuses: null for a project the
+   * caller cannot read, alike foreign and absent.
+   *
+   * Proof: with the scoped branch reading the root catalog, `creates the same
+   * name in two organizations, each finding only its own`
+   * (resource-organization.controller.db.test.ts) listed both organizations'
+   * roots under their opaque names; watched 2026-10-20.
+   */
+  async resourcesWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<{
+    resources: Resource[];
+    capacities: ResourceCapacity[];
+    demands: Demand[];
+  } | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    const { resourceCapacity } = this.opts;
+    const resources =
+      access.kind === 'scoped'
+        ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
+        : await this.opts.directory.listResources();
+    return {
+      resources,
+      capacities: await resourceCapacity.listFor(projectId),
+      demands: await this.opts.demands.listByProject(projectId),
+    };
+  }
+
+  /**
+   * Claims a leaf's steps, or a non-leaf's subtree, for one person under one
+   * run: the pure decision is {@link decideClaim}; this reads its inputs, writes
+   * the claims and the `in_progress` statements it asks for in one store call,
+   * and journals one undoable entry whose undo removes exactly those. A claim
+   * neither reads nor writes assignments (D1) unless `assign` asks it to
+   * (`wbs-resources` R7): then the claimant becomes the assignee of every step
+   * it writes, in the same entry, and undo puts the previous assignees back.
+   *
+   * `unknown_step` and `unknown_person` answer before the decision; everything
+   * else is the decision's one refusal, holders named.
+   */
+  async claim(
+    id: string,
+    actorId: string,
+    input: ClaimInput,
+    access: ResourceAccess,
+    credential: CredentialPin | null,
+  ): Promise<WorkItemOutcome<Claimed> | ClaimRefusalOutcome> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    const { claims, identity } = this.claiming();
+    const projectId = workItem.projectId;
+    const steps = await this.opts.projects.stepsOf(projectId);
+    if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
+      return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    // Read inside the batch's transaction: the write coordinator admits one
+    // batch at a time, so a concurrent claim's units are already here or not
+    // yet written (claim-occupancy-race.db.test.ts).
+    const occupancy = await claims.occupancyOf(projectId);
+    // The holders a `resources_exhausted` names sit on other leaves, beyond `near`.
+    const nameOf = await this.personNamesWithin(access, [
+      input.personId,
+      ...near.map(({ personId }) => personId),
+      ...occupancy.map(({ personId }) => personId),
+    ]);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    if (input.resources !== null) {
+      const kindOf = new Map(
+        (await this.opts.directory.listResources()).map((each) => [each.id, each.kind]),
+      );
+      for (const asked of input.resources) {
+        const kind = kindOf.get(asked.resourceId);
+        // The batch refuses a foreign resource first (command-references.ts);
+        // this is the legacy and direct caller's guard and the kind's rule, as
+        // setDemand's. Proof: with both skipped, `refuses resources naming an
+        // absent resource, or more than one unit of an exclusive one`
+        // (resource-occupancy.db.test.ts) failed on both stores; watched 2026-10-20.
+        if (kind === undefined) return { ok: false, reason: 'unknown_resource' };
+        const refusal = refuseDemand(kind, asked.units);
+        if (refusal !== null) return { ok: false, reason: refusal };
+      }
+    }
+    const stated = new Map(
+      (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
+        each.stepId,
+        each.state,
+      ]),
+    );
+    const status = (await this.statusesOf(projectId, rows)).get(id);
+    if (status === undefined) throw new Error(`work item ${id} has no derived status`);
+    const pinnedPersonId = await identity.pinnedPersonOf(credential);
+    const decided = decideClaim({
+      target: {
+        workItemId: id,
+        isLeaf: lineage.isLeaf,
+        status,
+        ancestorIds: lineage.ancestorIds,
+        descendantIds: lineage.descendantIds,
+        steps: lineage.isLeaf
+          ? steps.map((step) => ({ stepId: step.id, progress: stated.get(step.id) ?? 'unknown' }))
+          : [],
+      },
+      caller: {
+        accountId: actorId,
+        isAdmin: isClaimAdmin(access),
+        pinnedPersonId,
+      },
+      claimant: {
+        personId: input.personId,
+        boundAccountId: await identity.boundAccountOf(input.personId),
+      },
+      stepIds: input.stepIds,
+      runId: input.runId,
+      parentClaimId: input.parentClaimId,
+      assign: input.assign,
+      parentClaim:
+        input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
+      claims: near,
+      demand: lineage.isLeaf
+        ? (await this.opts.demands.listByProject(projectId))
+            .filter((each) => each.workItemId === id)
+            .map(({ resourceId, units }) => ({ resourceId, units }))
+        : [],
+      resources: input.resources,
+      capacities: await this.resourceCapacitiesOf(projectId),
+      occupancy,
+    });
+    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    if (decided.kind === 'alreadyHeld') {
+      const held = near.filter(
+        (each) =>
+          each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+      );
+      return {
+        ok: true,
+        value: {
+          alreadyHeld: true,
+          claimIds: held.map((each) => each.id),
+          assignedStepIds: [],
+          acquired: [],
+        },
+      };
+    }
+    // Last of the refusal order (L9): every plan reason and every occupancy
+    // refusal has cleared. Only a triple the item does not hold yet adds a
+    // bound claim, so a second step under the same person and run adds none.
+    // Proof, each watched 2026-10-22 in claim-limit.controller.db.test.ts:
+    // with this check moved above `decideClaim`, `answers the plan’s reasons
+    // before the cap` and `refuses inside another’s subtree first…` answered
+    // claim_limit (10 pass, 3 fail); with every claim counted as adding one,
+    // `claims a second step of a held leaf at the cap` was refused (12 pass,
+    // 1 fail); with the check removed, `refuses the forty-first bound claim`
+    // and five more were applied, the second run of one person among them
+    // (7 pass, 6 fail).
+    const addsBoundClaim = !near.some(
+      (each) =>
+        each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+    );
+    if (addsBoundClaim) {
+      const crossed = await this.refuseBoundClaims(access, 1);
+      if (crossed !== null)
+        return { ok: false, reason: 'claim_limit', cap: crossed.cap, current: crossed.current };
+    }
+    const stamp = this.clock.stampFor(actorId);
+    const written: Claim[] = decided.drafts.map((draft) => ({
+      ...draft,
+      id: this.clock.newId(),
+      accountId: actorId,
+    }));
+    const statements = decided.stateInProgress.map((stepId) => ({ workItemId: id, stepId }));
+    const copies = written.flatMap((each) =>
+      decided.occupancy.map(({ resourceId, units }) => ({ claimId: each.id, resourceId, units })),
+    );
+    // An agent's claim for itself is leased; anybody else's is not (L1).
+    // Proof: with `leaseOf` answering null, `leases an agent's claim for
+    // itself and nobody else's` and eight more cases of claim-lease.db.test.ts
+    // failed (1 pass, 9 fail); watched 2026-10-23.
+    const expiresAt = leaseOf(pinnedPersonId, input.personId, stamp.at);
+    const leases: ClaimLease[] =
+      expiresAt === null ? [] : written.map((each) => ({ claimId: each.id, expiresAt }));
+    const outcome = await claims.add(written, statements, stamp, copies, leases);
+    // Read in this same unit of work a moment ago: a refusal here is the
+    // write coordinator failing to serialize, not an outcome to model.
+    if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
+    const previous = new Map(
+      decided.assignStepIds.length === 0
+        ? []
+        : (await this.opts.directory.assignmentsFor(id)).map(
+            (each) => [each.stepId, each.personId] as const,
+          ),
+    );
+    for (const stepId of decided.assignStepIds) {
+      const assigned = await this.opts.directory.assign(id, stepId, input.personId, stamp);
+      // The person and the steps were read in this unit of work above.
+      if (!assigned.ok)
+        throw new Error(`claim of ${id} could not assign ${stepId}: ${assigned.reason}`);
+    }
+    await this.announceTree(projectId);
+    const assigning: CompensatingCommand[] = decided.assignStepIds.map((stepId) => ({
+      do: 'assign',
+      workItemId: id,
+      stepId,
+      personId: input.personId,
+    }));
+    const unassigning: CompensatingCommand[] = decided.assignStepIds.map((stepId) => ({
+      do: 'assign',
+      workItemId: id,
+      stepId,
+      personId: previous.get(stepId) ?? null,
+    }));
+    await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
+      forward: oneCommandOf([
+        {
+          do: 'add_claims',
+          claims: written,
+          stated: statements,
+          occupancy: copies,
+          // Proof: with this field left out, `refuses the holder’s undo after a
+          // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+          // redid it leaseless (9 pass, 1 fail); watched 2026-10-23.
+          ...leasedOf(leases.map(({ claimId }) => claimId)),
+        },
+        ...assigning,
+      ]),
+      // Proof: with `unassigning` left out, `undo clears both the claim and the
+      // assignment` (claim-command.test.ts) kept the claimant assigned; watched 2026-10-20.
+      inverse: oneCommandOf([
+        ...unassigning,
+        { do: 'remove_claims', claims: written, cleared: statements },
+      ]),
+      touched: [id],
+      before: rows,
+    });
+    return {
+      ok: true,
+      value: {
+        alreadyHeld: false,
+        claimIds: written.map((each) => each.id),
+        assignedStepIds: [...decided.assignStepIds],
+        acquired: [...decided.acquired],
+      },
+    };
+  }
+
+  /**
+   * Releases one person's claims on a leaf's steps, or their subtree claim on
+   * a non-leaf with every delegated claim under it, transitively
+   * ({@link decideRelease}). Progress stays as it is; one undoable entry
+   * puts every removed claim back verbatim.
+   */
+  async release(
+    id: string,
+    actorId: string,
+    input: ReleaseInput,
+    access: ResourceAccess,
+    credential: CredentialPin | null,
+  ): Promise<WorkItemOutcome<null> | ClaimRefusalOutcome> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    const { claims, identity } = this.claiming();
+    const projectId = workItem.projectId;
+    const steps = await this.opts.projects.stepsOf(projectId);
+    if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
+      return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const nameOf = await this.claimantNamesWithin(access, input.personId, near);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    const decided = decideRelease({
+      target: { workItemId: id, isLeaf: lineage.isLeaf },
+      caller: {
+        accountId: actorId,
+        isAdmin: isClaimAdmin(access),
+        pinnedPersonId: await identity.pinnedPersonOf(credential),
+      },
+      claimant: {
+        personId: input.personId,
+        boundAccountId: await identity.boundAccountOf(input.personId),
+      },
+      stepIds: input.stepIds,
+      claims: near,
+    });
+    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    const stamp = this.clock.stampFor(actorId);
+    const removed = [...decided.claims];
+    const ids = new Set(removed.map((each) => each.id));
+    // What the removed claims held, so the undo puts it back with them; the
+    // rows themselves go with their claims.
+    // Proof: with `[]` in place of these rows, `undo of a release re-acquires
+    // the units` (resource-occupancy.db.test.ts) put the claims back holding
+    // nothing, on both stores; watched 2026-10-20.
+    const occupancy = (await claims.occupancyOf(projectId))
+      .filter((row) => ids.has(row.claimId))
+      .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
+    const leased = await this.leasedAmong(projectId, ids);
+    await claims.remove(removed, [], stamp);
+    await this.announceTree(projectId);
+    await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
+      forward: { do: 'remove_claims', claims: removed, cleared: [] },
+      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy, ...leasedOf(leased) },
+      touched: [...new Set(removed.map((each) => each.workItemId))],
+      before: rows,
+    });
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Renews every lease of `personId` due at this instant, in every project
+   * (`wbs-claim-leases` L4), and answers the person's standing after it. The
+   * store writes only when one is due, so a call within the resolution of the
+   * last one writes nothing.
+   */
+  renewLeases(personId: string): Promise<LeaseStanding> {
+    return this.claiming().claims.renewLeases(personId, () => this.clock.now());
+  }
+
+  /**
+   * Releases every claim of the project whose lease has run out now
+   * (`wbs-claim-leases` L5–L10, L15), with every claim delegated under one,
+   * and answers how many claims went. Expiry is read here, so a caller that
+   * holds the write turn decides against the state its turn commits: a renewal
+   * admitted before it has moved the lease, one admitted after finds the
+   * claim gone. Each writing account's claims of one reason go in one store
+   * call, stamped by that account, and one history event (kind `release`, the
+   * reason in its label and its `after`) that no account's undo reaches.
+   */
+  async releaseExpiredLeases(projectId: string): Promise<number> {
+    const { claims } = this.claiming();
+    const at = this.clock.now();
+    const expired = await claims.expiredLeasesOf(projectId, at);
+    if (expired.length === 0) return 0;
+    const stored = await claims.listStampedByProject(projectId);
+    const byId = new Map(stored.map((each) => [each.id, each]));
+    const taken = new Set<string>();
+    const groups = new Map<
+      string,
+      { accountId: string; reason: LeaseReleaseReason; ids: string[] }
+    >();
+    for (const { claimId, reason } of expired) {
+      if (taken.has(claimId)) continue;
+      const root = byId.get(claimId);
+      if (root === undefined)
+        throw new Error(`expired claim ${claimId} is not a claim of ${projectId}`);
+      const key = JSON.stringify([root.accountId, reason]);
+      const group = groups.get(key) ?? { accountId: root.accountId, reason, ids: [] };
+      groups.set(key, group);
+      // A subtree claim takes every claim delegated under it, transitively (L15).
+      // Proof: with the cascade loop skipped, `releases the claims delegated
+      // under an expired subtree claim` (claim-lease.db.test.ts) counted one:
+      // the foreign key took the delegated claim unrecorded (9 pass, 1 fail);
+      // watched 2026-10-23.
+      const frontier = [claimId];
+      for (let next = frontier.pop(); next !== undefined; next = frontier.pop()) {
+        if (taken.has(next)) continue;
+        taken.add(next);
+        group.ids.push(next);
+        for (const each of stored) if (each.parentClaimId === next) frontier.push(each.id);
+      }
+    }
+    const occupancy = await claims.occupancyOf(projectId);
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const nameOf = new Map(rows.map((row) => [row.id, row.name]));
+    for (const { accountId, reason, ids } of groups.values()) {
+      const going = new Set(ids);
+      const removed = stored.filter((each) => going.has(each.id)).map(unstampClaim);
+      const leased = removed.flatMap((each) =>
+        byId.get(each.id)?.leaseExpiresAt === null ? [] : [each.id],
+      );
+      const stamp: WriteStamp = { at, by: accountId };
+      await claims.remove(removed, [], stamp);
+      const items = [...new Set(removed.map((each) => each.workItemId))];
+      const [only] = items;
+      const what =
+        items.length === 1
+          ? quoteName(nameOf.get(only) ?? only)
+          : `${String(removed.length)} claims`;
+      const why = reason === 'lease_expired' ? 'lease expired' : 'credential revoked';
+      const inverse: CompensatingCommand = {
+        do: 'add_claims',
+        claims: removed,
+        stated: [],
+        occupancy: occupancy
+          .filter((row) => going.has(row.claimId))
+          .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units })),
+        ...leasedOf(leased),
+      };
+      await this.opts.journal.appendEvent({
+        id: this.clock.newId(),
+        projectId,
+        userId: accountId,
+        kind: 'release',
+        label: `release ${what} (${why})`,
+        workItemId: items.length === 1 ? only : null,
+        stepId: null,
+        before: inverse,
+        after: { do: 'remove_claims', claims: removed, cleared: [], reason },
+        createdAt: at,
+      });
+    }
+    await this.announceTree(projectId);
+    return taken.size;
+  }
+
+  /** The ids among `ids` of the project's claims that carry a lease (L11). */
+  private async leasedAmong(projectId: string, ids: ReadonlySet<string>): Promise<string[]> {
+    return (await this.claiming().claims.listStampedByProject(projectId))
+      .filter((each) => ids.has(each.id) && each.leaseExpiresAt !== null)
+      .map(({ id }) => id);
+  }
+
+  /**
+   * The display names a claim or release may answer with: the claimant's and
+   * every holder's among `near`. Under scoped access they are the
+   * organization's own names, from its person list, so a person outside the
+   * organization reads as unknown; under legacy access they are the root
+   * names, read by id. Neither scans the whole directory.
+   */
+  private claimantNamesWithin(
+    access: ResourceAccess,
+    claimantId: string,
+    near: readonly Claim[],
+  ): Promise<Map<string, string>> {
+    return this.personNamesWithin(access, [claimantId, ...near.map(({ personId }) => personId)]);
+  }
+
+  /** {@link claimantNamesWithin} for any set of person ids. */
+  private async personNamesWithin(
+    access: ResourceAccess,
+    personIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(personIds)];
+    const { directory } = this.opts;
+    // Proof: with the root `listPeople()` read back in place of both branches,
+    // `names the holder by the organization's name` (claim-identity.controller.db.test.ts)
+    // read `root-claire`, and `reads only the people a refused claim names`
+    // (startable-scope.db.test.ts) saw a `SCAN person`; watched 2026-10-20.
+    const people =
+      access.kind === 'scoped'
+        ? (await directory.listInOrganization('people', access.scope.organizationId)).filter(
+            (person) => ids.includes(person.id),
+          )
+        : await directory.namesOf('people', ids);
+    return new Map(people.map((person) => [person.id, person.name]));
+  }
+
+  /**
+   * Whether `added` more bound claims would cross the organization's cap
+   * (`wbs-organization-limits` L9): null when they fit, the cap and count when
+   * they do not. Legacy access has no organization to own a cap, so nothing is
+   * read and nothing is capped; that is the modeled optional case.
+   *
+   * The count is read through the gauge of the stores this graph was built
+   * over, which for a batch is its own `BEGIN IMMEDIATE` under its write turn
+   * (L10), so it includes a claim written earlier in the same batch and the
+   * claim of any batch admitted before this one.
+   *
+   * Proof, each watched 2026-10-22: with legacy access answered as a cap of 0,
+   * `claims past any cap with no organization to own one`
+   * (claim-limit.controller.db.test.ts) was refused (12 pass, 1 fail); with the gauge answering
+   * the count it read first for every later batch (a count read outside the
+   * turn), `lands exactly one of two claims racing for the last place`
+   * (claim-limit-race.db.test.ts) landed both, 41 of 40.
+   *
+   * @throws when this graph was composed without organization limits.
+   */
+  private async refuseBoundClaims(
+    access: ResourceAccess,
+    added: number,
+  ): Promise<LimitCrossed | null> {
+    if (access.kind === 'legacy') return null;
+    const gauge = this.opts.organizationLimits;
+    if (gauge === undefined)
+      throw new Error('a bound claim was added under scoped access without organization limits');
+    const reading = await gauge.readConcurrentClaimCap(access.scope.organizationId);
+    return refuseLimit({ cap: reading.cap, current: reading.current, added });
+  }
+
+  /**
+   * The bound claims putting `claims` back would add: distinct
+   * `(work item, person, run)` triples among them that the project holds no
+   * claim of now (L5).
+   */
+  private async boundClaimsAdded(projectId: string, claims: readonly Claim[]): Promise<number> {
+    const tripleOf = (each: Pick<Claim, 'workItemId' | 'personId' | 'runId'>) =>
+      JSON.stringify([each.workItemId, each.personId, each.runId]);
+    const held = new Set((await this.claiming().claims.listByProject(projectId)).map(tripleOf));
+    return new Set(claims.map(tripleOf).filter((triple) => !held.has(triple))).size;
+  }
+
+  /**
+   * The claim store and the identity reads the claim rules take, or a loud
+   * failure in a fixture built without them. Until `person.account_id` lands
+   * (task 2.1) the claim store itself answers those reads, so both come from it.
+   */
+  /**
+   * Why putting `command`'s claims back would take units the project no longer
+   * has free, as a sentence, or null when it would not: the redo of a claim and
+   * the undo of a release re-acquire, so they pass {@link refuseOccupancy} as a
+   * fresh claim does (`wbs-resources` R3), leaf by leaf. A refusal reads as
+   * `resources_exhausted` would, inside the replay's `stale_undo`.
+   *
+   * Proof: with this answering null, `redo of a claim is refused
+   * resources_exhausted once another leaf took the units`
+   * (resource-occupancy.db.test.ts) redid the claim over capacity, on both
+   * stores; watched 2026-10-20.
+   */
+  private async refuseReacquiring(
+    projectId: string,
+    command: { claims: readonly Claim[]; occupancy?: readonly ClaimOccupancy[] },
+    access: ResourceAccess,
+  ): Promise<string | null> {
+    const asked = command.occupancy ?? [];
+    if (asked.length === 0) return null;
+    const byId = new Map(command.claims.map((each) => [each.id, each]));
+    const askedBy = new Map<string, Map<string, number>>();
+    for (const { claimId, resourceId, units } of asked) {
+      const leaf = byId.get(claimId)?.workItemId;
+      // `readCommand` refused an occupancy naming a claim the entry lacks.
+      if (leaf === undefined) throw new Error(`occupancy names claim ${claimId} not replayed`);
+      const vector = askedBy.get(leaf) ?? new Map<string, number>();
+      vector.set(resourceId, Math.max(vector.get(resourceId) ?? 0, units));
+      askedBy.set(leaf, vector);
+    }
+    const capacities = await this.resourceCapacitiesOf(projectId);
+    // Leaf by leaf, each admitted leaf's rows joining the snapshot before the
+    // next is checked: one entry may put back several leaves (a cascading
+    // release), and units the first re-takes are not free for the second.
+    // Proof: with the admitted rows left out of the snapshot, `undo of a
+    // cascading release re-acquires leaf by leaf, refused once the second leaf
+    // no longer fits` (resource-occupancy.db.test.ts) answered the undo ok, over 8 GB
+    // capacity, on both stores; watched 2026-10-20.
+    const occupancy: OccupancyRow[] = [...(await this.claiming().claims.occupancyOf(projectId))];
+    for (const [workItemId, units] of askedBy) {
+      const exhausted = refuseOccupancy({
+        workItemId,
+        asked: [...units].map(([resourceId, each]) => ({ resourceId, units: each })),
+        capacities,
+        occupancy,
+      });
+      if (exhausted === null) {
+        for (const row of asked) {
+          const claim = byId.get(row.claimId);
+          if (claim?.workItemId !== workItemId) continue;
+          const { personId, runId } = claim;
+          occupancy.push({ ...row, workItemId, personId, runId });
+        }
+        continue;
+      }
+      // Named as the caller's directory names it, as {@link resourcesWithin}
+      // does: under scoped access the root catalog holds the opaque id.
+      // Proof: with the root catalog read here, `names the organization's
+      // resource in a refused undo's detail` (resource-organization.controller.db.test.ts)
+      // read the opaque id; watched 2026-10-20.
+      const catalog =
+        access.kind === 'scoped'
+          ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
+          : await this.opts.directory.listResources();
+      const resource = catalog.find((each) => each.id === exhausted.resourceId);
+      if (resource === undefined)
+        throw new Error(`a stated capacity names absent resource ${exhausted.resourceId}`);
+      const label = resource.unitLabel === '' ? '' : ` ${resource.unitLabel}`;
+      return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now.`;
+    }
+    return null;
+  }
+
+  /**
+   * The claims removing `removed` takes with it: every claim on one of those
+   * work items, and every claim delegated under one of those, transitively
+   * (the parent reference cascades). Ordered parents first, the order
+   * {@link ClaimStore.add} must write them in. A service built without a claim
+   * store holds no claims to take.
+   */
+  private async claimsGoingWith(
+    projectId: string,
+    removed: readonly string[],
+  ): Promise<ClaimsTaken> {
+    const { claims } = this.opts;
+    if (claims === undefined) return { claims: [], occupancy: [] };
+    const stored = await claims.listByProject(projectId);
+    const owners = new Set(removed);
+    const going = new Set(
+      stored.filter(({ workItemId }) => owners.has(workItemId)).map(({ id }) => id),
+    );
+    // Proof: with this closure skipped, `undo of a promoting delete puts back
+    // the subtree claim and the claims delegated under it`
+    // (resource-occupancy.db.test.ts) lost the delegated claim on both stores;
+    // watched 2026-10-20.
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const each of stored) {
+        if (going.has(each.id) || each.parentClaimId === null || !going.has(each.parentClaimId))
+          continue;
+        going.add(each.id);
+        grew = true;
+      }
+    }
+    const ordered: Claim[] = [];
+    const placed = new Set<string>();
+    const pending = stored.filter(({ id }) => going.has(id));
+    while (pending.length > 0) {
+      const ready = pending.findIndex(
+        ({ parentClaimId }) =>
+          parentClaimId === null || !going.has(parentClaimId) || placed.has(parentClaimId),
+      );
+      if (ready === -1) throw new Error('the stored claims delegate in a cycle');
+      const [next] = pending.splice(ready, 1);
+      ordered.push(next);
+      placed.add(next.id);
+    }
+    const occupancy = (await claims.occupancyOf(projectId))
+      .filter(({ claimId }) => going.has(claimId))
+      .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
+    return { claims: ordered, occupancy };
+  }
+
+  /**
+   * Refuses a replay naming a step the project no longer holds: every step
+   * {@link referencesOf} reads off `command` (progress, assignments, attempts,
+   * blockages, claims). Removing a step with `cascade` takes only the rows it
+   * can see; the ones an undo is about to put back are in the journal.
+   */
+  private async stepRemovedSince(
+    projectId: string,
+    command: CompensatingCommand,
+  ): Promise<ApplyOutcome | null> {
+    const named = referencesOf(command).steps;
+    if (named.length === 0) return null;
+    const held = new Set((await this.opts.projects.stepsOf(projectId)).map(({ id }) => id));
+    const gone = named.find((stepId) => !held.has(stepId));
+    return gone === undefined
+      ? null
+      : { ok: false, detail: `step ${gone} has been removed from this project since.` };
+  }
+
+  private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
+    const { claims } = this.opts;
+    if (claims === undefined)
+      throw new Error('this work-item service was built without a claim store');
+    return { claims, identity: claims };
+  }
+
+  /**
+   * Every work item's derived status, by the folds the plan read uses: progress
+   * rolled up over worked steps and running attempts, then
+   * {@link workItemStatusesOf} over the project's own dependency edges.
+   */
+  private async statusesOf(
+    projectId: string,
+    rows: readonly LabelledWorkItem[],
+  ): Promise<Map<string, WorkItemStatus>> {
+    return (await this.statusReadsOf(projectId, rows)).statuses;
+  }
+
+  /**
+   * {@link statusesOf} with the reads it folded, so a caller that needs the
+   * same progress statements and dependency edges reads them once.
+   */
+  private async statusReadsOf(
+    projectId: string,
+    rows: readonly LabelledWorkItem[],
+  ): Promise<{
+    statuses: Map<string, WorkItemStatus>;
+    stated: StoredProgress[];
+    dependencies: AuthoredDependencyGraph;
+  }> {
+    const stated = await this.opts.progress.listByProject(projectId);
+    const attempted = await this.opts.attempts.listByProject(projectId);
+    const progress = rollUpWorkItemStatuses(
+      rows,
+      rollUpProgress(
+        rows,
+        stated,
+        workedStepsOf(
+          await this.opts.estimates.listByProject(projectId),
+          await this.opts.actuals.listByProject(projectId),
+          stated,
+          attempted,
+        ),
+        attempted.filter((attempt) => attempt.endedAt === null),
+      ),
+    );
+    const rowIds = new Set(rows.map((row) => row.id));
+    const dependencies = {
+      edges: (await this.opts.dependencies.listByProject(projectId)).filter(
+        (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
+      ),
+      typed: await this.opts.typedDependencies.listByProject(projectId),
+    };
+    return { statuses: workItemStatusesOf(rows, progress, dependencies), stated, dependencies };
+  }
+
+  /**
+   * Reparents the subtree. Retained destination step parallel facts refuse before
+   * stamping or mutation; selected corrupt facts throw even on existing parents.
+   * Clears unrelated destination leaf statements and resource demands before
+   * the store move; the moved row keeps its own demands. Incoming facts stay with their owners. A last-child departure
    * hands up direct blockage only when every former leaf has that step fact,
    * using the latest blocked time even when negative or retained beneath done.
    * Progress is never handed up. Exact preexisting old-parent progress remains
@@ -2693,7 +3974,16 @@ export class WorkItemService {
    * Undo restores destination progress through
    * the existing statement replay and restores blockage timestamps exactly.
    */
-  async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
+  async move(
+    id: string,
+    actorId: string,
+    input: MoveWorkItem,
+    access: ResourceAccess,
+  ): Promise<
+    | WorkItemOutcome<null>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    | { ok: false; reason: 'destination_claimed'; holders: readonly NamedClaimHolder[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -2763,6 +4053,59 @@ export class WorkItemService {
       // answer 500 instead of 409 with its relationship id; watched 2026-09-27.
       if (pinned.length > 0) {
         return { ok: false, reason: 'node_on_parent', dependencyIds: pinned.map((row) => row.id) };
+      }
+    }
+
+    // Proof: omitted guard/wrong moving owner accepted retained pairs; project-wide
+    // selection refused incoming-subtree policy. Lookup before actor/membership
+    // leaked the poisoned reader; swallowing it resolved the required failure.
+    // Skipping existing parents missed selected corruption; lost nodes failed exact
+    // mounted 409. Empty admitted reads committed the preceding patch. Moving this
+    // below stamp allocation spent a stamp on refusal (all watched 2026-10-17).
+    if (input.parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, [
+        input.parentId,
+      ]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
+      }
+    }
+
+    // A leaf whose steps are claimed is somebody's work in progress; the moved
+    // row is other work, so it does not take those claims over (they would be
+    // stranded on a parent, where nothing reaches them) and the move is refused
+    // until they are released (`wbs-team-claims` D3: a blocker is resolved, not
+    // worked around). A fixture built without a claim store holds no claims.
+    // Proof: with this refusal disabled, `refuses a move under a claimed leaf,
+    // naming its holders, until they are released` (claim-command.test.ts)
+    // answered ok: the move went through over the claim; watched 2026-10-20.
+    if (
+      input.parentId !== null &&
+      this.opts.claims !== undefined &&
+      !rows.some((row) => row.parentId === input.parentId)
+    ) {
+      const destinationId = input.parentId;
+      const held = (await this.opts.claims.listByProject(workItem.projectId)).filter(
+        (each) => each.workItemId === destinationId && each.stepId !== null,
+      );
+      if (held.length > 0) {
+        const nameOf = await this.personNamesWithin(
+          access,
+          held.map(({ personId }) => personId),
+        );
+        return {
+          ok: false,
+          reason: 'destination_claimed',
+          holders: held.map(({ id: claimId, personId, runId }) => {
+            const name = nameOf.get(personId);
+            if (name === undefined) throw new Error(`claim ${claimId} names an absent person`);
+            return { claimId, personId, name, runId };
+          }),
+        };
       }
     }
 
@@ -2847,6 +4190,22 @@ export class WorkItemService {
       becomesParent === undefined
         ? []
         : await this.opts.blockages.listByWorkItems(workItem.projectId, [becomesParent.id]);
+    // And its resource demands (`wbs-resources`): a parent's demand charges
+    // nothing, and the moved row is other work that keeps its own demand and
+    // never inherits this one. Cleared with the statements, put back on undo.
+    // A claimed destination was refused above, so no occupancy rides on it.
+    const destinationDemands =
+      becomesParent === undefined
+        ? []
+        : (await this.opts.demands.listByProject(workItem.projectId)).filter(
+            ({ workItemId }) => workItemId === becomesParent.id,
+          );
+    const clearDestinationDemands: CompensatingCommand[] = destinationDemands.map(
+      ({ workItemId, resourceId }) => ({ do: 'set_demand', workItemId, resourceId, units: null }),
+    );
+    const restoreDestinationDemands: CompensatingCommand[] = destinationDemands.map(
+      ({ workItemId, resourceId, units }) => ({ do: 'set_demand', workItemId, resourceId, units }),
+    );
     const movedBlockages =
       leftParentId === null
         ? []
@@ -2901,7 +4260,14 @@ export class WorkItemService {
       if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
     // Proof: skipping clears failed the pre-store-move destination ownership assertions; watched 2026-10-14.
-    for (const command of [...clearDestinationProgress, ...clearDestinationBlockages]) {
+    // Proof: the demand clears skipped, `clears the demand of an unclaimed leaf
+    // another row moves under…` (resource-occupancy.db.test.ts) read the demand
+    // still on the new parent, on both stores; watched 2026-10-20.
+    for (const command of [
+      ...clearDestinationProgress,
+      ...clearDestinationBlockages,
+      ...clearDestinationDemands,
+    ]) {
       const cleared = await this.apply(workItem.projectId, command, stamp);
       // Proof: removing this refusal failed `reports a refused move destination clear before reparenting`; watched 2026-10-14.
       if (!cleared.ok) throw new Error(`cannot clear move destination: ${cleared.detail}`);
@@ -2925,6 +4291,9 @@ export class WorkItemService {
       ...clearDestinationProgress,
       // Proof: omitting replay clears failed mounted exact move redo; watched 2026-10-14.
       ...clearDestinationBlockages,
+      // Proof: omitted, the same test's read after the redo found a demand on
+      // the parent again, on both stores; watched 2026-10-20.
+      ...clearDestinationDemands,
       { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
       ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward]),
       ...setHandedBlockages,
@@ -2945,6 +4314,9 @@ export class WorkItemService {
       ...restoreDestinationProgress,
       // Proof: omitting restoration failed mounted exact move undo; watched 2026-10-14.
       ...restoreDestinationBlockages,
+      // Proof: omitted, the same test's undo read no demand on the leaf again,
+      // on both stores; watched 2026-10-20.
+      ...restoreDestinationDemands,
       ...(statementsCleared === undefined ? [] : [statementsCleared.inverse]),
     ];
     await this.announceTree(workItem.projectId);
@@ -2989,10 +4361,18 @@ export class WorkItemService {
    * Proof: injecting copied facts failed the blocked leaf/descendant regression;
    * watched 2026-10-14.
    *
-   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
-   * nothing.
+   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}. Then reads all original
+   * subtree owners through the required admitted sparse reader; retained policy
+   * refuses with detached ordered nodes before IDs, stamps or writes. Malformed
+   * or unreadable selected evidence throws; unrelated policy keeps its owners.
    */
-  async duplicate(id: string, actorId: string): Promise<WorkItemOutcome<{ id: string }>> {
+  async duplicate(
+    id: string,
+    actorId: string,
+  ): Promise<
+    | WorkItemOutcome<{ id: string }>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3001,6 +4381,21 @@ export class WorkItemService {
     // `parent_id` references a row that must already be there.
     const originals = subtreeOf(rows, id);
     if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
+
+    // Proof: omitted/root-only/wrong-project/broad/leaves-only reads failed retained,
+    // nested, parent-corruption and unrelated-policy production cases. Early reads
+    // failed auth/size precedence; catch/optional defaults accepted required failures.
+    // Late IDs/stamps/writes failed zero-allocation snapshots; reversed/lost nodes
+    // and aliased facts failed exact detached refusal tests. Public graph selection
+    // committed the admitted-policy mixed batch (all watched 2026-10-17).
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, originals);
+    if (parallels.length > 0) {
+      return {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+      };
+    }
 
     const newIds = new Map(originals.map((originalId) => [originalId, this.clock.newId()]));
     /**
@@ -3085,6 +4480,15 @@ export class WorkItemService {
       ...each,
       workItemId: copyOf(each.workItemId),
     }));
+    // A demand describes the work, so it copies for the estimates' reason: same
+    // resources, same units. A claim and its occupancy do not: they are who is
+    // doing the original, and nobody is doing the copy yet.
+    // Proof: with the copy's list emptied, `duplicate copies the demands with
+    // the subtree` (resource-occupancy.db.test.ts) read no copied demand on
+    // both stores; watched 2026-10-20.
+    const copiedDemands = (await this.opts.demands.listByProject(workItem.projectId))
+      .filter((each) => inside.has(each.workItemId))
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedEdges = edges
       .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
       .map((edge) => ({
@@ -3140,6 +4544,7 @@ export class WorkItemService {
         // The token plan and neither record — see {@link copiedMeasures} above.
         measures: copiedMeasures,
         assignments: copiedAssignments,
+        demands: copiedDemands,
         dependencies: copiedEdges,
         removedEstimates: [],
         removedActuals: [],
@@ -3166,6 +4571,7 @@ export class WorkItemService {
       progress: [],
       measures: copiedMeasures,
       assignments: copiedAssignments,
+      demands: copiedDemands,
       internalDependencies: copiedEdges,
       externalDependencies: [],
       removedEstimates: [],
@@ -3225,11 +4631,30 @@ export class WorkItemService {
     return { ok: true, value: { id: copyOf(id) } };
   }
 
+  /**
+   * Refuses retained sparse facts on the exact removed owners before stamping or
+   * writes; promote retains child owners. Corrupt or unreadable facts throw.
+   * Command scopes own atomic rollback until sparse snapshot/history support exists.
+   *
+   * A delete that promotes the parent back to a leaf hands the deleted leaf's
+   * claims up with its other step facts (`wbs-team-claims`), ids, parents and
+   * occupancy kept, and the undo hands them back down. It is refused
+   * `children_claimed`, naming every holder, when claims sit on more than one
+   * deleted row or on the parent itself: two leaves' step claims would clash on
+   * the parent's (work item, step) key, a claim delegated under a deleted
+   * subtree claim would go with it, and the undo could not tell a parent's own
+   * subtree claim from the claims it was handed. `access` names the holders.
+   */
   async remove(
     id: string,
     actorId: string,
     strategy: DeleteStrategy | null,
-  ): Promise<WorkItemOutcome<null>> {
+    access: ResourceAccess,
+  ): Promise<
+    | WorkItemOutcome<null>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    | { ok: false; reason: 'children_claimed'; holders: readonly NamedClaimHolder[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3240,6 +4665,21 @@ export class WorkItemService {
     // A parent carries work below it that the caller may not have on screen, so
     // which of the two things they meant is theirs to say.
     if (children.length > 0 && strategy === null) return { ok: false, reason: 'strategy_required' };
+
+    // Proof: omission/root-only/wrong-owner/project and broad selection each failed
+    // exact leaf/cascade or promote-policy tests; early lookup broke missing/auth/
+    // strategy precedence, and late lookup changed the statement snapshot, 2026-10-17.
+    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, doomed);
+    if (parallels.length > 0) {
+      return {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        // Proof: empty details and getter aliases independently failed detached
+        // exact-node assertions; swallowed/absent readers failed before stamps, 2026-10-17.
+        nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+      };
+    }
 
     // Before the branch rather than inside each of them: whichever of the two a
     // delete takes, it is one act, and the hand-ups it writes on the surviving
@@ -3267,10 +4707,18 @@ export class WorkItemService {
     // `step_node_attempt.work_item_id` cascades, and an undo must put the
     // branch back with the history of every attempt at it.
     const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade:
+    // `work_item_resource_demand.work_item_id` cascades, and an undo must put
+    // the branch back with the units it states it needs.
+    const storedDemands = await this.opts.demands.listByProject(workItem.projectId);
+    // And the claims the delete takes, with their occupancy: those on the
+    // removed rows and every claim delegated under one of them, which the
+    // parent reference cascades (a promotion's children keep their rows and
+    // lose theirs).
+    const removedClaims = await this.claimsGoingWith(workItem.projectId, doomed);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
-    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
     const deletedBlockages = storedBlockages.filter((fact) => inside.has(fact.workItemId));
     const previousParentProgress = storedProgress.filter((fact) => fact.workItemId === survivor);
@@ -3309,6 +4757,58 @@ export class WorkItemService {
           dependencyIds: stranded.map((row) => row.id),
         };
       }
+    }
+    // The claims a promoting delete hands up: those of the one deleted row
+    // holding any, when that row is a former leaf. Claims on more than one
+    // deleted row, or on a parent that would receive some, are refused below;
+    // a lone subtree claim on a deleted parent goes with it, as before.
+    const promotes =
+      survivor !== null &&
+      (children.length === 0 || strategy === 'cascade') &&
+      rows.filter((row) => row.parentId === survivor).length === 1;
+    const claimedRows = promotes
+      ? [
+          ...new Set(
+            removedClaims.claims
+              .filter(({ workItemId }) => inside.has(workItemId))
+              .map(({ workItemId }) => workItemId),
+          ),
+        ]
+      : [];
+    const claimedHandedUp = removedClaims.claims.filter(
+      ({ workItemId }) =>
+        claimedRows.includes(workItemId) && !rows.some((row) => row.parentId === workItemId),
+    );
+    const parentClaims =
+      claimedHandedUp.length === 0 || this.opts.claims === undefined
+        ? []
+        : (await this.opts.claims.listByProject(workItem.projectId)).filter(
+            ({ workItemId }) => workItemId === survivor,
+          );
+    // Proof: with this refusal disabled, `refuses a promoting delete whose
+    // claims sit on two former leaves, naming every holder`
+    // (resource-occupancy.db.test.ts) threw `already holds a claim` on memory
+    // and a DrizzleQueryError on the `claim` update on SQLite (the unique
+    // index), and `refuses a promoting delete handing claims up to a parent
+    // that holds its own subtree claim` answered ok on both; watched 2026-10-20.
+    if (claimedRows.length > 1 || parentClaims.length > 0) {
+      const held = [
+        ...parentClaims,
+        ...removedClaims.claims.filter(({ workItemId }) => inside.has(workItemId)),
+      ];
+      const nameOf = await this.personNamesWithin(
+        access,
+        held.map(({ personId }) => personId),
+      );
+      return {
+        ok: false,
+        reason: 'children_claimed',
+        holders: held.map(({ id: claimId, personId, runId }) => {
+          const name = nameOf.get(personId);
+          if (name === undefined) throw new Error(`claim ${claimId} names an absent person`);
+          return { claimId, personId, name, runId };
+        }),
+      };
     }
 
     if (children.length === 0 || strategy === 'cascade') {
@@ -3361,7 +4861,33 @@ export class WorkItemService {
       // written nowhere: absence is per metric, and the hand-up is not the place
       // that rule stops holding.
       const measuredHandedUp: StoredMeasure[] = [];
+      // And the demands, the mirror of the split's hand-down (`wbs-resources`):
+      // the parent becomes the leaf that holds the work, so it states what the
+      // work needs. Per resource the **largest** units any former leaf
+      // demanded, not the sum: a leaf's demand is held while one of its steps
+      // runs, the branch's leaves need not run at once, and an `exclusive`
+      // resource stays at its one unit. It overwrites whatever the parent
+      // stated while it was a parent (that charged nothing); `previous` is
+      // what the undo writes back.
+      // Proof: summed instead, `hands up the largest units any former leaf of a
+      // deleted last branch demanded` read 10 GB where 6 was owed; `previous`
+      // written as null, the same test's undo read no demand on the parent where
+      // its own 2 was owed; both stores, watched 2026-10-20.
+      const demandedHandedUp: { resourceId: string; units: number; previous: number | null }[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
+        const leafIds = new Set(formerLeaves.map((row) => row.id));
+        const largest = new Map<string, number>();
+        for (const { workItemId, resourceId, units } of storedDemands) {
+          if (leafIds.has(workItemId))
+            largest.set(resourceId, Math.max(units, largest.get(resourceId) ?? 0));
+        }
+        for (const [resourceId, units] of [...largest].sort(([a], [b]) => a.localeCompare(b))) {
+          const previous =
+            storedDemands.find(
+              (each) => each.workItemId === parentId && each.resourceId === resourceId,
+            )?.units ?? null;
+          demandedHandedUp.push({ resourceId, units, previous });
+        }
         for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
           const facts = deletedBlockages.filter((fact) => fact.stepId === step.id);
           // Proof: changing every to some handed up partial QA agreement; mounted deletion fold failed, watched 2026-10-14.
@@ -3428,6 +4954,26 @@ export class WorkItemService {
       for (const each of recordedHandedUp) await this.opts.actuals.set(each, stamp);
       for (const each of statedHandedUp) await this.opts.progress.set(each, stamp);
       for (const each of measuredHandedUp) await this.opts.measures.set(each, stamp);
+      // Proof: skipped, `hands the last child’s demand back up when its delete
+      // promotes the parent, and back on undo` (resource-occupancy.db.test.ts)
+      // read no demand on the parent, on both stores; watched 2026-10-20.
+      for (const { resourceId, units } of demandedHandedUp) {
+        // `parentId` is non-null whenever anything was handed up.
+        if (parentId === null) throw new Error('a demand was handed up to no parent');
+        const written = await this.opts.demands.set(parentId, resourceId, units, stamp);
+        // The parent and the resource were read in this unit of work a moment ago.
+        if (written !== 'written')
+          throw new Error(`cannot hand demand on ${resourceId} up to the parent: ${written}`);
+      }
+      const demandHandUp = (pick: 'units' | 'previous'): CompensatingCommand[] =>
+        parentId === null
+          ? []
+          : demandedHandedUp.map((each) => ({
+              do: 'set_demand' as const,
+              workItemId: parentId,
+              resourceId: each.resourceId,
+              units: each[pick],
+            }));
       const cut = allEdges.filter(
         (edge) => inside.has(edge.predecessorId) || inside.has(edge.successorId),
       );
@@ -3435,6 +4981,31 @@ export class WorkItemService {
       // so a moment later there is nothing left to read and the restore would
       // put the branch back with nobody on it.
       const doomedAssignments = await this.opts.directory.assignmentsOf(doomed);
+      // The claims up before the rows go, which would cascade them away; moved
+      // in place, so their occupancy rows and the claims delegated under them
+      // follow by id. What the delete then takes is read afresh.
+      // Proof: skipped, `hands the only child’s claims and occupancy back up
+      // when its delete promotes the parent, and back on undo` read no claim
+      // and no occupancy after the delete, and `hands a delegated claim up with
+      // its parent claim id …` lost the delegated claim (both in
+      // resource-occupancy.db.test.ts, both stores), and the swarm rehearsal's
+      // step 5b read `[]` on the parent; watched 2026-10-20.
+      const claimsMovedUp: Extract<CompensatingCommand, { do: 'move_claims' }>[] = [];
+      for (const fromWorkItemId of new Set(claimedHandedUp.map(({ workItemId }) => workItemId))) {
+        // `promotes` holds whenever anything is handed up.
+        if (parentId === null) throw new Error('a claim was handed up to no parent');
+        await this.claiming().claims.moveAll(fromWorkItemId, parentId, stamp);
+        claimsMovedUp.push({
+          do: 'move_claims',
+          fromWorkItemId,
+          toWorkItemId: parentId,
+          claims: claimedHandedUp.filter(({ workItemId }) => workItemId === fromWorkItemId),
+        });
+      }
+      const claimsTaken =
+        claimsMovedUp.length === 0
+          ? removedClaims
+          : await this.claimsGoingWith(workItem.projectId, doomed);
       // Edges first, and every one touching anything in the subtree. The
       // foreign keys refuse a delete that would orphan one, so this is not
       // tidiness: without it, deleting a work item anything depends on fails
@@ -3482,86 +5053,127 @@ export class WorkItemService {
       }
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
-        forward: withPatchStep(
-          withRemovedTyped(
-            {
-              do: 'delete_subtree',
-              deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
-              rootId: id,
-              expectedSubtree: doomed,
-              remove: doomed,
-              reparented: [],
-              setEstimates: handedUp,
-              setActuals: recordedHandedUp,
-              setProgress: statedHandedUp,
-              setMeasures: measuredHandedUp,
-            },
-            removedTyped,
-            false,
-          ),
-          handUpStep?.forward,
-          'after',
-        ),
-        inverse: withPatchStep(
-          withRemovedTyped(
-            {
-              do: 'restore_subtree',
-              deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
-              rows: doomed.map((each) => rowOf(rows, each)),
-              rootPosition: workItem.position,
-              reparented: [],
-              estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-              // Every day recorded anywhere in the branch, put back where it was
-              // recorded. Without this an undo of a delete answers `ok` and returns
-              // the branch with its estimates and none of its actuals — the plan
-              // looks whole and a week of somebody's record is gone.
-              actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-              // Every statement made anywhere in the branch, put back where it was
-              // made. Without this an undo of a delete answers `ok` and returns the
-              // branch reading as work nobody has started — the plan looks whole and
-              // a fortnight of finished work is unfinished again.
-              progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-              // Every token and hour recorded anywhere in the branch, put back where
-              // it was recorded. Without this an undo of a delete answers `ok` and
-              // returns the branch with its days and none of its tokens — the plan
-              // looks whole and the record of what the work cost to run is gone.
-              measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-              // Every attempt at the branch's nodes, verbatim with its number.
-              attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
-              // Proof: left out, `puts a deleted leaf back still skipping its removed
-              // highest number` in `step-node-attempt.controller.db.test.ts` numbered
-              // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
-              issuedAttemptNumbers: storedIssued,
-              assignments: doomedAssignments,
-              internalDependencies: cut.filter(
-                (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+        // Proof: the demand hand-up left out of the forward, `hands the last
+        // child’s demand back up when its delete promotes the parent` read no
+        // demand after the redo; left out of the inverse, its undo read the
+        // demand on both rows; both stores, watched 2026-10-20.
+        // Proof: the hand-up of claims left out of the forward, `hands the only
+        // child’s claims …` and `hands a delegated claim up …` read them on the
+        // restored child after the redo; left out of the inverse, their undo
+        // read them on the parent; both stores, watched 2026-10-20.
+        forward: withSteps(
+          withSteps(
+            withPatchStep(
+              withRemovedTyped(
+                {
+                  do: 'delete_subtree',
+                  deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
+                  rootId: id,
+                  expectedSubtree: doomed,
+                  remove: doomed,
+                  reparented: [],
+                  setEstimates: handedUp,
+                  setActuals: recordedHandedUp,
+                  setProgress: statedHandedUp,
+                  setMeasures: measuredHandedUp,
+                },
+                removedTyped,
+                false,
               ),
-              externalDependencies: cut.filter(
-                (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
-              ),
-              removedEstimates: handedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-              })),
-              removedActuals: recordedHandedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-              })),
-              removedProgress: statedHandedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-              })),
-              removedMeasures: measuredHandedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-                metric: each.metric,
-              })),
-            },
-            removedTyped,
-            true,
+              handUpStep?.forward,
+              'after',
+            ),
+            demandHandUp('units'),
+            'after',
           ),
-          handUpStep?.inverse,
+          claimsMovedUp,
           'before',
+        ),
+        inverse: withSteps(
+          withSteps(
+            withPatchStep(
+              withRemovedTyped(
+                withClaimsRestored(
+                  {
+                    do: 'restore_subtree',
+                    deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
+                    rows: doomed.map((each) => rowOf(rows, each)),
+                    rootPosition: workItem.position,
+                    reparented: [],
+                    estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+                    // Every day recorded anywhere in the branch, put back where it was
+                    // recorded. Without this an undo of a delete answers `ok` and returns
+                    // the branch with its estimates and none of its actuals — the plan
+                    // looks whole and a week of somebody's record is gone.
+                    actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+                    // Every statement made anywhere in the branch, put back where it was
+                    // made. Without this an undo of a delete answers `ok` and returns the
+                    // branch reading as work nobody has started — the plan looks whole and
+                    // a fortnight of finished work is unfinished again.
+                    progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+                    // Every token and hour recorded anywhere in the branch, put back where
+                    // it was recorded. Without this an undo of a delete answers `ok` and
+                    // returns the branch with its days and none of its tokens — the plan
+                    // looks whole and the record of what the work cost to run is gone.
+                    measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+                    // Every attempt at the branch's nodes, verbatim with its number.
+                    attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
+                    // Proof: left out, `puts a deleted leaf back still skipping its removed
+                    // highest number` in `step-node-attempt.controller.db.test.ts` numbered
+                    // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+                    issuedAttemptNumbers: storedIssued,
+                    assignments: doomedAssignments,
+                    // Every demand stated anywhere in the branch, put back where it was
+                    // stated. Without this an undo of a delete answers `ok` and returns
+                    // the branch needing nothing, and the engines level it as free.
+                    // Proof: with this list emptied, `undo of a delete puts the demands
+                    // back exactly` and `undo of a cascading delete puts every row’s
+                    // demands back` (resource-occupancy.db.test.ts) read [] on both
+                    // stores; watched 2026-10-20.
+                    demands: storedDemands.filter((each) => inside.has(each.workItemId)),
+                    internalDependencies: cut.filter(
+                      (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+                    ),
+                    externalDependencies: cut.filter(
+                      (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+                    ),
+                    removedEstimates: handedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                    })),
+                    removedActuals: recordedHandedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                    })),
+                    removedProgress: statedHandedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                    })),
+                    removedMeasures: measuredHandedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                      metric: each.metric,
+                    })),
+                  },
+                  claimsTaken,
+                ),
+                removedTyped,
+                true,
+              ),
+              handUpStep?.inverse,
+              'before',
+            ),
+            demandHandUp('previous'),
+            'before',
+          ),
+          // After the restore, which puts back the rows they return to.
+          claimsMovedUp.map(({ fromWorkItemId, toWorkItemId, claims }) => ({
+            do: 'move_claims' as const,
+            fromWorkItemId: toWorkItemId,
+            toWorkItemId: fromWorkItemId,
+            claims: claims.map((each) => ({ ...each, workItemId: toWorkItemId })),
+          })),
+          'after',
         ),
         // Two deliberate absences. The deleted rows are not here — nothing can
         // hold a revision of a row that is gone, and the restore's refusal to
@@ -3627,48 +5239,53 @@ export class WorkItemService {
         false,
       ),
       inverse: withRemovedTyped(
-        {
-          do: 'restore_subtree',
-          deletionState,
-          rows: [workItem],
-          rootPosition: workItem.position,
-          // Everyone the promotion rewrote, back where they were: the children
-          // under the row coming back, and the former siblings at the positions
-          // the promotion took from them. Restoring only the children would
-          // leave the group respaced around a gap that is no longer there.
-          reparented: promoted.map((each) => {
-            const was = rowOf(rows, each.id);
-            return { id: was.id, parentId: was.parentId, position: was.position };
-          }),
-          estimates: storedEstimates.filter((each) => each.workItemId === id),
-          // The promoted row's own recorded days — it had children, so it holds
-          // none, and this is the empty list every time until a promotion of a
-          // leaf becomes representable. Written from the same source as the
-          // estimates beside it rather than hard-coded, so it stays true if that
-          // ever changes.
-          actuals: storedActuals.filter((each) => each.workItemId === id),
-          // The promoted row's own statements — it had children, so it holds none,
-          // and this is the empty list every time until a promotion of a leaf
-          // becomes representable. Written from the same source as the two figures
-          // beside it rather than hard-coded, so it stays true if that ever changes.
-          progress: storedProgress.filter((each) => each.workItemId === id),
-          // The promoted row's own tokens and hours — it had children, so it holds
-          // none, and this is the empty list every time until a promotion of a
-          // leaf becomes representable. Written from the same source as the three
-          // beside it rather than hard-coded, so it stays true if that changes.
-          measures: storedMeasures.filter((each) => each.workItemId === id),
-          // The promoted row's own attempts: none on a row with children, read
-          // from the same source for the figures' reason.
-          attempts: storedAttempts.filter((each) => each.workItemId === id),
-          issuedAttemptNumbers: storedIssued.filter((each) => each.workItemId === id),
-          assignments: deletedAssignments,
-          internalDependencies: [],
-          externalDependencies: cut,
-          removedEstimates: [],
-          removedActuals: [],
-          removedProgress: [],
-          removedMeasures: [],
-        },
+        withClaimsRestored(
+          {
+            do: 'restore_subtree',
+            deletionState,
+            rows: [workItem],
+            rootPosition: workItem.position,
+            // Everyone the promotion rewrote, back where they were: the children
+            // under the row coming back, and the former siblings at the positions
+            // the promotion took from them. Restoring only the children would
+            // leave the group respaced around a gap that is no longer there.
+            reparented: promoted.map((each) => {
+              const was = rowOf(rows, each.id);
+              return { id: was.id, parentId: was.parentId, position: was.position };
+            }),
+            estimates: storedEstimates.filter((each) => each.workItemId === id),
+            // The promoted row's own recorded days — it had children, so it holds
+            // none, and this is the empty list every time until a promotion of a
+            // leaf becomes representable. Written from the same source as the
+            // estimates beside it rather than hard-coded, so it stays true if that
+            // ever changes.
+            actuals: storedActuals.filter((each) => each.workItemId === id),
+            // The promoted row's own statements — it had children, so it holds none,
+            // and this is the empty list every time until a promotion of a leaf
+            // becomes representable. Written from the same source as the two figures
+            // beside it rather than hard-coded, so it stays true if that ever changes.
+            progress: storedProgress.filter((each) => each.workItemId === id),
+            // The promoted row's own tokens and hours — it had children, so it holds
+            // none, and this is the empty list every time until a promotion of a
+            // leaf becomes representable. Written from the same source as the three
+            // beside it rather than hard-coded, so it stays true if that changes.
+            measures: storedMeasures.filter((each) => each.workItemId === id),
+            // The promoted row's own attempts: none on a row with children, read
+            // from the same source for the figures' reason.
+            attempts: storedAttempts.filter((each) => each.workItemId === id),
+            issuedAttemptNumbers: storedIssued.filter((each) => each.workItemId === id),
+            assignments: deletedAssignments,
+            // The promoted row's own demands, for the cascade's reason above.
+            demands: storedDemands.filter((each) => each.workItemId === id),
+            internalDependencies: [],
+            externalDependencies: cut,
+            removedEstimates: [],
+            removedActuals: [],
+            removedProgress: [],
+            removedMeasures: [],
+          },
+          removedClaims,
+        ),
         removedTyped,
         true,
       ),
@@ -3720,6 +5337,8 @@ export class WorkItemService {
       assigned,
       steps,
       slotsOf,
+      await this.opts.demands.listByProject(projectId),
+      await this.opts.resourceCapacity.listFor(projectId),
     );
 
     const captured =
@@ -5439,7 +7058,7 @@ export class WorkItemService {
     // undo is not itself journalled — so this stamp is spent only on the rows
     // {@link apply} rewrites.
     const stamp = this.clock.stampFor(actorId);
-    const applied = await this.apply(projectId, command, stamp);
+    const applied = await this.apply(projectId, command, stamp, access);
     if (!applied.ok) {
       await this.opts.journal.discard(entry.id);
       return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
@@ -5699,6 +7318,9 @@ export class WorkItemService {
     projectId: string,
     command: CompensatingCommand,
     stamp: WriteStamp,
+    // The replay's access, which names what a refusal detail shows; absent on
+    // a forward write, which never puts claims back.
+    access?: ResourceAccess,
   ): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
@@ -5873,6 +7495,146 @@ export class WorkItemService {
       case 'clear_progress':
         await this.opts.progress.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
+      case 'set_demand': {
+        // A demand is a fact about one work item and one resource: the item's
+        // revision precondition already refused a row that moved, so what is
+        // left to refuse is a resource the directory no longer holds.
+        const written = await this.opts.demands.set(
+          command.workItemId,
+          command.resourceId,
+          command.units,
+          stamp,
+        );
+        if (written === 'unknown_resource')
+          return { ok: false, detail: 'that resource is no longer in the directory.' };
+        if (written === 'unknown_work_item')
+          return { ok: false, detail: 'that work item is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
+      case 'add_claims': {
+        const { claims } = this.claiming();
+        // A delegated claim goes back only under a parent that is still held:
+        // the parent reference would otherwise name nothing.
+        // Proof: with this refusal removed, `refuses an undo of a delete once the
+        // claim it was delegated under was released` (resource-occupancy.db.test.ts)
+        // threw a foreign key failure on SQLite and answered ok on memory;
+        // watched 2026-10-20.
+        // Proof: with this refusal and the restore's both removed, the same case
+        // threw a FOREIGN KEY failure on SQLite and `progress for unknown step` on
+        // memory; with the restore's alone removed, memory was refused here.
+        // Watched 2026-10-20.
+        const stepGone = await this.stepRemovedSince(projectId, command);
+        if (stepGone !== null) return stepGone;
+        const replayed = new Set(command.claims.map(({ id }) => id));
+        const held = new Set((await claims.listByProject(projectId)).map(({ id }) => id));
+        if (
+          command.claims.some(
+            ({ parentClaimId }) =>
+              parentClaimId !== null && !replayed.has(parentClaimId) && !held.has(parentClaimId),
+          )
+        )
+          return { ok: false, detail: 'the claim it was delegated under has been released since.' };
+        // Proof: with this refusal removed, `refuses an undo of a delete once the
+        // claimant was removed from the directory` (resource-occupancy.db.test.ts)
+        // threw a foreign key failure on SQLite and answered ok on memory;
+        // watched 2026-10-20.
+        for (const personId of new Set(command.claims.map((each) => each.personId)))
+          if (!(await this.holdsPerson(personId)))
+            return { ok: false, detail: 'a person who held it is no longer in the directory.' };
+        if (access === undefined)
+          throw new Error('claims are put back only by a replay, which names its access');
+        const exhausted = await this.refuseReacquiring(projectId, command, access);
+        if (exhausted !== null) return { ok: false, detail: exhausted };
+        // A redo of a claim, an undo of a release or of a delete puts bound
+        // claims back, so it passes the organization's cap as a fresh claim
+        // does (L9); a split's `move_claims` keeps its triples and is not here.
+        // Proof, each watched 2026-10-22 in claim-limit.controller.db.test.ts:
+        // with this re-check skipped, `refuses a redo of a claim once another
+        // took the last place`, `refuses an undo of a release once another
+        // took the freed place` and `refuses an undo of a delete once another
+        // took the freed place` put the claim back over the cap (10 pass, 3 fail).
+        const adding = await this.boundClaimsAdded(projectId, command.claims);
+        if (adding > 0) {
+          const crossed = await this.refuseBoundClaims(access, adding);
+          if (crossed !== null)
+            return {
+              ok: false,
+              detail: `claim_limit: cap ${String(crossed.cap)}, current ${String(crossed.current)}.`,
+            };
+        }
+        // A leased claim comes back with a lease from this replay's instant (L11).
+        // Proof: with these leases left out, `refuses the holder’s undo after a
+        // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+        // put it back leaseless (9 pass, 1 fail); watched 2026-10-23.
+        const leases = (command.leased ?? []).map((claimId) => ({
+          claimId,
+          expiresAt: stamp.at + CLAIM_LEASE_MS,
+        }));
+        const added = await claims.add(
+          command.claims,
+          command.stated,
+          stamp,
+          // Absent on an entry written before claim occupancy: its claims held nothing.
+          command.occupancy ?? [],
+          leases,
+        );
+        // Proof: answering ok here made `refuses a redo of a claim once another
+        // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.
+        if (added === 'taken')
+          return { ok: false, detail: 'that step or subtree has been claimed since.' };
+        if (added === 'progress_stated')
+          return { ok: false, detail: 'that step has been spoken about since.' };
+        if (added === 'unknown_resource')
+          return { ok: false, detail: 'a resource it held is no longer in the directory.' };
+        return { ok: true, detail: null };
+      }
+      case 'remove_claims': {
+        const { claims } = this.claiming();
+        const stored = await claims.listByProject(projectId);
+        const held = new Set(stored.map(({ id }) => id));
+        if (command.claims.some(({ id }) => !held.has(id)))
+          return { ok: false, detail: 'that claim has been released since.' };
+        // A claim handed down to a first child since (`move_claims`) is the
+        // child's now; taking it back here would leave the child's statement.
+        // Proof: with this refusal removed, `refuses an undo of a claim once
+        // another actor split the leaf` (claim-command.test.ts, memory, which
+        // keeps no revisions) answered the undo ok; watched 2026-10-20.
+        const placedOn = new Map(stored.map(({ id, workItemId }) => [id, workItemId]));
+        if (command.claims.some(({ id, workItemId }) => placedOn.get(id) !== workItemId))
+          return { ok: false, detail: 'that claim has moved to another work item since.' };
+        // A removed claim takes its delegated claims with it (the parent
+        // reference cascades), so a delegated claim this entry did not write
+        // would go with an undo that cannot put it back.
+        // Proof: with this refusal removed, `refuses an undo of a subtree claim
+        // that would take a delegated claim it never wrote` (claim-race.db.test.ts)
+        // answered the second undo ok, taking the worker's delegated claim with
+        // the subtree claim; watched 2026-10-19.
+        const listed = new Set(command.claims.map(({ id }) => id));
+        const delegatedSince = stored.some(
+          ({ id, parentClaimId }) =>
+            !listed.has(id) && parentClaimId !== null && listed.has(parentClaimId),
+        );
+        if (delegatedSince)
+          return { ok: false, detail: 'a claim has been delegated under it since.' };
+        await claims.remove(command.claims, command.cleared, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'move_claims': {
+        const { claims } = this.claiming();
+        const stored = await claims.listByProject(projectId);
+        const onFrom = stored
+          .filter(({ workItemId }) => workItemId === command.fromWorkItemId)
+          .map(({ id }) => id)
+          .sort();
+        const listed = command.claims.map(({ id }) => id).sort();
+        // Proof: with this refusal removed, `refuses an undo of a split once
+        // the child's claims changed` (claim-command.test.ts, memory, which
+        // keeps no revisions) answered the undo ok; watched 2026-10-20.
+        if (onFrom.length !== listed.length || onFrom.some((id, at) => id !== listed[at]))
+          return { ok: false, detail: 'the claims on that work item have changed since.' };
+        await claims.moveAll(command.fromWorkItemId, command.toWorkItemId, stamp);
+        return { ok: true, detail: null };
+      }
       case 'replace_blockage': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (
@@ -6057,7 +7819,7 @@ export class WorkItemService {
         // The batch's own stamp, passed down rather than one per step: undoing a
         // batch is one act, exactly as running it was one request.
         for (const step of command.steps) {
-          const applied = await this.apply(projectId, step, stamp);
+          const applied = await this.apply(projectId, step, stamp, access);
           if (!applied.ok) return applied;
         }
         return { ok: true, detail: null };
@@ -6080,6 +7842,19 @@ export class WorkItemService {
     if (moving === undefined) return { ok: false, detail: 'the work item is no longer there.' };
     if (parentId !== null && !rows.some((row) => row.id === parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
+    }
+    // Proof: omitted guard accepted newly retained policy on undo/redo; project-wide
+    // selection refused unrelated policy. Catching read/corruption as stale returned
+    // 409 instead of 500 and discarded history. Real preceding replay patches roll
+    // back before stale discard; thrown reads preserve history (watched 2026-10-17).
+    if (parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [parentId]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          detail: 'the destination has step parallelism stated since this move.',
+        };
+      }
     }
     const group = this.groupUnder(rows, parentId).filter((sibling) => sibling.id !== id);
     // `placeAfter` throws on a sibling that is not in the group, which is the
@@ -6188,6 +7963,11 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * Refuses deletion of retained sparse owners on every compensating path.
+   * Trusted sparse read failures throw, preserving the journal on rollback;
+   * valid retained policy follows the existing stale-history discard outcome.
+   */
   private async applyDelete(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
@@ -6244,6 +8024,16 @@ export class WorkItemService {
       return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    // Proof: omission, root-only and operation-restricted reads erased retained
+    // owners on redo-delete/undo-create/undo-duplicate; broad reads blocked unrelated
+    // and promoted facts. Catch-to-stale returned 409 rather than 500 and late lookup
+    // failed owned-policy replay; observed preceding patches rolled back, 2026-10-17.
+    const parallels = await this.opts.stepParallels.listByWorkItems(projectId, command.remove);
+    if (parallels.length > 0)
+      return {
+        ok: false,
+        detail: 'a removed work item has step parallelism stated since this command.',
+      };
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)
@@ -6324,6 +8114,11 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * Replays historical rows under their surviving destination after existing refusals.
+   * Retained destination policy refuses as stale history; trusted sparse failures throw
+   * before any restore writes so the runner preserves the original journal.
+   */
   private async applyRestore(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'restore_subtree' }>,
@@ -6378,12 +8173,44 @@ export class WorkItemService {
       .sort((a, b) => a.position - b.position)
       .at(-1);
     const placed = placeAfter(projected, wasAfter?.id ?? null);
+    // Proof: with this refusal removed, `refuses an undo of a delete once a step
+    // its claims and progress name was removed` (resource-occupancy.db.test.ts)
+    // threw a FOREIGN KEY failure on SQLite (memory was still refused by the
+    // `add_claims` guard below); watched 2026-10-20.
+    const stepGone = await this.stepRemovedSince(projectId, command);
+    if (stepGone !== null) return stepGone;
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    const demands = command.demands ?? [];
+    if (demands.length > 0) {
+      const held = new Set((await this.opts.directory.listResources()).map(({ id }) => id));
+      // Proof: with this refusal removed, `refuses an undo of a delete whose
+      // demanded resource was deleted since` (resource-occupancy.db.test.ts)
+      // threw a foreign key failure on SQLite and `unknown_resource` from the
+      // memory subtree write; watched 2026-10-20.
+      if (demands.some(({ resourceId }) => !held.has(resourceId)))
+        return { ok: false, detail: 'a resource it demanded is no longer in the directory.' };
+    }
 
     if (command.deletionState !== undefined) {
       const refused = await this.deletionRefusal(projectId, command.deletionState);
       if (refused !== null) return refused;
+    }
+    // Proof: omitted guard accepted redo-create/undo-delete and nested duplicate
+    // destinations; overbroad reads refused unrelated policy. Swallowed failures
+    // returned 409 instead of 500; parent-skip accepted corrupt parent ownership.
+    // Early reads displaced deletion refusal; late reads cleared captured blockage
+    // or inserted rows before refusal. Root reads and source rereads broke controls
+    // (mounted restore-step-parallel cases, independently watched 2026-10-17).
+    if (root.parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [root.parentId]);
+      if (parallels.length > 0)
+        return {
+          ok: false,
+          detail: 'the destination has step parallelism stated since this restore.',
+        };
+    }
+    if (command.deletionState !== undefined) {
       await this.replaceDeletionBlockages(
         projectId,
         command.deletionState.parentBlockages,
@@ -6410,6 +8237,10 @@ export class WorkItemService {
         progress: command.progress,
         measures: command.measures,
         assignments: command.assignments,
+        // Proof: with `[]` here, `undo of a delete puts the demands back exactly`
+        // and the duplicate's redo (resource-occupancy.db.test.ts) read no
+        // demands on both stores; watched 2026-10-20.
+        demands,
         dependencies: command.internalDependencies,
         removedEstimates: command.removedEstimates,
         removedActuals: command.removedActuals,
@@ -6914,6 +8745,9 @@ interface TreeReads {
   seq: number;
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
+  /** The demands and resource capacities both engines level (`wbs-resources` R5). */
+  demands: readonly Demand[];
+  resourceCapacities: readonly ResourceCapacity[];
   priorityBands: PriorityBand[];
   /** The shared chain's holder labels; empty for an isolated read. */
   elsewhereHolders: readonly ElsewhereHolderLabel[];
@@ -6938,7 +8772,7 @@ function projectSharedTree(
   if (chain.kind === 'engine_unavailable') return chain;
   const reads = chain.reads;
   const people = new Set(reads.assignments.map((assignment) => assignment.personId));
-  return projectTree(
+  const tree = projectTree(
     {
       project,
       rows,
@@ -6962,11 +8796,55 @@ function projectSharedTree(
       // downstream root (shared)`; watched 2026-10-13.
       blockages: captured.blockages,
       slotsOf: reads.capacity,
+      // The schedule itself was computed on the snapshot (`chain.scheduled`);
+      // these reach the one canonical seam so it reads the snapshot's facts and
+      // not a second, empty answer. Not a check: `[]` here schedules the same.
+      demands: reads.demands,
+      resourceCapacities: reads.resourceCapacities,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
     },
     chain.kind === 'scheduled' ? chain.scheduled : { kind: 'unavailable', reason: chain.reason },
   );
+  // Labelled from the snapshot's own catalog, already under the organization's
+  // names, so the label and the bar are one observation.
+  // Proof: returning the tree unlabelled made `levels a demanded resource
+  // (shared)` find no `resourceLabels`; watched 2026-10-20.
+  return 'kind' in tree || !namesAResource(tree) ? tree : withResourceLabels(tree, reads.resources);
+}
+
+/** Whether any bar of the displayed schedule waited for a resource's pool. */
+function namesAResource(tree: PlanTree): boolean {
+  return tree.slices.some((slice) => slice.capacityResource !== undefined);
+}
+
+/**
+ * The tree with one label per resource a bar's `capacityResource` names
+ * (`wbs-resources` R5), so the chart says what a bar waited for in the same
+ * read it draws the bar from — `elsewhereHolders`' shape.
+ *
+ * @throws when a named resource is absent from `catalog`: the schedule was
+ * levelled against a resource this read cannot name, which is two trusted
+ * reads disagreeing.
+ */
+function withResourceLabels(tree: PlanTree, catalog: readonly Resource[]): PlanTree {
+  const byId = new Map(catalog.map((resource) => [resource.id, resource] as const));
+  const named = [
+    ...new Set(
+      tree.slices.flatMap((slice) =>
+        slice.capacityResource === undefined ? [] : [slice.capacityResource.resourceId],
+      ),
+    ),
+  ].sort();
+  return {
+    ...tree,
+    resourceLabels: named.map((resourceId) => {
+      const resource = byId.get(resourceId);
+      if (resource === undefined)
+        throw new Error(`a bar waited for resource "${resourceId}", which this read cannot name`);
+      return { id: resource.id, name: resource.name, unitLabel: resource.unitLabel };
+    }),
+  };
 }
 
 /** Pure live projection shared by isolated reads and coherent shared observations. */
@@ -6990,6 +8868,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     seq,
     steps,
     slotsOf,
+    demands,
+    resourceCapacities,
     priorityBands,
   } = reads;
   const numbers = deriveNumbers(rows);
@@ -7088,6 +8968,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     assigned,
     steps,
     slotsOf,
+    demands,
+    resourceCapacities,
   );
   const { assigneesOf, hasChildren, rule } = canonical;
   // Proof: passing canonical.input.rows dropped held leaf resources and

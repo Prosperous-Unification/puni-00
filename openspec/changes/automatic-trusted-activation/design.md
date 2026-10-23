@@ -1023,6 +1023,30 @@ core; do not replace extraction with caller-supplied relationship labels. Cleanu
 private workspace, preserves primary plus cleanup failures and never supplies a successful
 manifest after incomplete work.
 
+The bounded static Nx prerequisite shares `NxSource` and the unchanged `nx.project-json`
+extractor identity between the legacy filesystem wrapper and the retained adapter. The latter
+requires exact installed ownership, enumerates the frozen selected metadata and reads exact
+path/blob tuples, with explicit entry/read/byte/output ceilings. An installed pre-selector
+callback charges serialized selector bytes before hashing/appending, bounding shared-default
+amplification; a final exact envelope-byte check includes the extractor and array wrappers.
+The additive `extractRetainedNxDeclarations` composition derives target authority itself and
+then calls the existing declaration core. It does not supply TypeScript selectors or establish
+compiler/runtime closure, all eleven documents, preparation V4 or external authority.
+
+The bounded TypeScript prerequisite shares `extractTypeScriptRelationshipsFromSource` with
+its preserved filesystem wrapper. `TypeScriptSource` provides narrow path-kind, text-read,
+file/directory enumeration, realpath, current-directory, case-sensitivity and compiler-library
+ports. A complete compiler host is constructed explicitly; no default host or `ts.sys` route
+backs its project-reference/config/compiler/resolution reads. Missing namespace probes return
+modeled absence before delegation. This compatibility fence is not retained namespace authority.
+The source entrypoint snapshots and validates all five finite nonnegative safe-integer limits
+before IO. It counts repeated probes, UTF-8 read bytes, enumerated entries and declaration/selector
+observations before compiler accumulation, then checks the complete canonical returned envelope
+against its exact final byte ceiling. A separately discriminated internal legacy policy preserves
+the prior filesystem wrapper's unbounded contract and is absent from the judge facade. Source
+implementations still own bounded return allocation. No retained adapter, running compiler/runtime
+pin, compiler read manifest or bounded parser-process settlement is established by this seam.
+
 Strict `ReviewRuntimeClosureV1` contains exactly `{ schemaVersion: 1,
 kind: 'review-runtime-closure', parserProgramIdentity, compilerHostIdentity,
 resolutionPolicyIdentity, files }`. Each file is `{ path, role, identity, byteLength }`, with
@@ -1035,6 +1059,84 @@ to verify this complete closure; candidate parsers receive its owned bytes, neve
 `TOOL_WIKI_TRUSTED_NODE_MODULES` value. Refuse absent/mutated/unreadable/foreign dependency files,
 symlink substitution or candidate overlap. Candidate code, package scripts and Nx plugins do not
 execute. A package version string is not a dependency-closure pin.
+
+**Retained namespace prerequisite (2.1d.1.3e1).** `createRetainedNamespace` consumes only
+an exact owned `RetainedCandidate` and `ReviewRuntime`. The candidate provenance lookup and
+new `readReviewRuntimeProvenance` WeakMap lookup both precede census inspection. Runtime
+provenance retains its admitted closure identity, the opaque closure `resolutionPolicyIdentity`
+and `runtimeTrust: 'unverified'`. `readRetainedNamespaceProvenance` requires the exact frozen
+published index. Spread copies, copied methods and false-empty metadata confer no authority.
+
+V1 maps candidate `p` to `/__puni_review__/candidate/p`. Only runtime role `dependency` paths
+beginning `node_modules/` map to that same prefix; programs and other declared runtime files
+remain outside compiler visibility. The working directory is `/__puni_review__/candidate`;
+the configured library directory is `/__puni_review__/candidate/node_modules/typescript/lib`,
+without a claim that it exists. Paths are case-sensitive POSIX. The immutable canonical recipe
+in `review-namespace.ts` is hashed as `namespacePolicyIdentity`; it is independent of and never
+joined to the closure's opaque resolution-policy identity. The recipe and its arrays remain
+private and frozen; hashing occurs once per constructor after ownership and limit validation,
+rather than at module load. An independent literal canonical UTF-8 vector (with terminal LF)
+and externally computed SHA-256 assert the exact hash operand and emitted pin. See
+[the recipe vector](evidence/retained-namespace-review-2026-10-17/namespace-policy.canonical.txt).
+
+Nodes contain only directory paths or copied exact candidate path/mode/blob and runtime
+path/role/identity/byteLength tuples. Directory prefixes, including root and the fixed working
+directory ancestors, are derived without content reads. UTF-8 byte sorting is deterministic;
+symlinks remain opaque nodes and cannot be ancestors. Reject malformed Unicode, NUL,
+backslash, empty/dot/traversal/noncanonical paths, candidate `.git`/`node_modules` components,
+unsupported modes/Gitlinks, visible runtime `.git` components, duplicate mounts and
+file/symlink ancestors, including nonadjacent prefixes. No Unicode normalization creates aliases.
+
+Capture all four positive safe-integer limits once with no defaults. `maximumEntries` counts
+candidate plus every declared runtime entry before filtering; `maximumNodes` counts every
+emitted node including root. `maximumPathBytes` checks each source and virtual path before
+concatenation or UTF-8 buffer allocation, first bounding source code units then UTF-8 bytes.
+`maximumTotalPathBytes` charges every retained node path and every source tuple path using
+subtraction checks before accumulation. Hidden runtime source paths still undergo grammar and
+individual path bounds. Nodes, tuples, arrays, index and provenance are frozen; no mutable map
+is exposed. The constructor has no content, compiler, parsing, symlink-resolution, glob,
+history, read-manifest, physical-root, environment or caller-mount API. Compiler mounting and
+runtime trust/completeness require subsequent specified work.
+
+**Declared runtime admission prerequisite (2.1d.1.3d).** Dash's `readReviewRuntime`
+accepts raw canonical closure bytes (the existing canonical serializer includes a terminal LF)
+and an independently installed exact SHA-256 pin. It validates the closed schema, requires a
+nonempty program inventory, and captures every declared file by raw byte identity and exact
+length. Relative virtual paths are well-formed Unicode, unique and UTF-8-byte sorted, with
+no empty/dot/traversal components, NUL, backslash, leading slash or file-ancestor conflicts.
+No Unicode normalization supplies aliases. The bootstrap snapshots each top-level root, raw-byte reference, expected pin and limits object
+once before checks, copies the limits, checks/copies the captured byte reference, and publishes
+only the captured pin. Absolute physical roots must be well-formed UTF-8 round trips and lexically canonical;
+resolved candidate and runtime roots cannot overlap in either component-boundary direction.
+Physical root byte ceilings precede UTF-8 round-trip allocation and filesystem probes.
+The Linux bootstrap reader traverses each ancestor through pinned directory descriptors with
+`O_NOFOLLOW`, opens each leaf with `O_NOFOLLOW|O_NONBLOCK`, checks regular-file status and
+length before content allocation, reads at most declared length plus one byte, and reconciles
+raw digest, length and stable metadata. OS read denial is unreadability; no UID, private mode
+or single-link installation policy is inferred for installed dependency files. All descriptors
+close before publication; read and cleanup failures remain together and publish no capability.
+
+Installed positive safe-integer limits separately bound raw manifest bytes (before copy/decode),
+entry count (before schema array copying), UTF-8 physical-root/virtual-path bytes, filesystem
+probes, content reads, read bytes, retained content allocation and lifetime content allocation.
+JSON decoding itself is bounded by the raw manifest cap. Probe accounting includes candidate
+realpath, directory/leaf opens and fstats; read accounting includes each syscall and each owned
+copy. Each content read reserves its entire requested byte count against remaining read bytes
+before IO, then charges returned bytes; EOF probes count as reads. Retained allocation includes
+one overflow-detection byte per file. Lifetime content allocation charges each capture buffer
+and copy returned to callers; manifest decoding and metadata are covered separately by manifest,
+path and entry caps. Bounds are snapshotted before IO, arithmetic uses remaining allowance,
+and allocation is refused before a buffer is created. Failed operations may consume allowance.
+
+The frozen capability has exact-object ownership and returns fresh bytes only for complete
+`{ path, role, identity, byteLength }` tuples. Copied methods or spread objects grant no authority.
+Extra installed files are permitted but unauthenticated and inaccessible: no discovery,
+enumeration, fallback, resolution or read operation can reach them. Unknown tuples refuse before
+filesystem IO; post-capture reads never revisit the root. Here a foreign dependency means a
+substituted declared file or an unauthorized tuple. This prerequisite does not establish that a
+manifest names every transitive executable dependency, protect installation ownership, load the
+compiler, authenticate executing code or emit a compiler-read manifest. Those obligations and
+the full retained TypeScript adapter remain open under 2.1d.1.3.
 
 Provide a closed TypeScript `ParseConfigHost`, `CompilerHost` and module/type resolution host
 covering `fileExists`, `readFile`, `readDirectory`, `directoryExists`, `getDirectories`,
@@ -1099,6 +1201,45 @@ caps before traversal and use existing finite validation. Generate `validationId
 from snapshot and rule identities. Independently recompute descriptors, edges and roots from
 retained records and installed rules before accepting the generated graph; merely validating a
 caller graph cannot detect a false-empty reference list. No candidate-provided list is authority.
+
+**Graph V1 mechanical choices (2.1d.1.4).** The pure Burokrat graph source is the complete
+installed-policy classification and an exact retained blob reader; Dash reclassifies the branded
+`RetainedCandidate` snapshot through that reader. A module-private WeakMap joins graph access
+to the exact owner-created frozen candidate plus its authenticated snapshot and owned
+classification-policy identities; spreading the Symbol-branded object grants no graph authority. No graph operation opens Git or a path.
+`validationId` is `artifact-graph.v1.` followed by SHA-256 canonical JSON of
+`{ schemaVersion: 1, snapshotIdentity, artifactGraphRuleIdentity }`. Snapshot identity is an
+explicit retained manifest pin, never derived from a candidate-supplied graph. Rule identity
+hashes its complete canonical closed V1 document. Decoder identity hashes canonical
+`{ algorithm: 'evidence-record-decoder.v1', files }`, where `files` binds exact installed
+`contracts/records.ts` and `contracts/decode-record.ts` byte hashes. Supplied decoder bytes
+must reconcile this pin; this does not independently authenticate the running compiler or
+transitive runtime closure. Graph output explicitly reports `runtimeTrust: 'unverified'`;
+2.1d.1.3 remains open. Full-runtime installation is the later authority boundary.
+
+Installed positive safe-integer ceilings additionally bound raw recipe bytes before UTF-8/JSON
+decode or hashing, rule count, selector count and UTF-8 selector length before edge expansion.
+A concrete conservative installation may use 1 MiB recipe bytes, 256 rules, 512 selectors and
+1024 bytes per selector; limits are explicit installed inputs, with no implicit defaults.
+Recipe input is exact bytes rather than an already parsed unknown object so the boundary can
+refuse an oversized recipe before parsing it. Canonical rule identity remains independent of
+whitespace in those bytes. Independent verification also accepts raw serialized graph-document
+bytes, with an explicit installed verification-byte cap before UTF-8/JSON/schema parsing; a
+conservative installation may use 2 MiB. Its envelope includes the graph, exact graph bytes,
+identity, rule pin and unverified runtime-trust claim. Counts and selector lengths are checked after strict decoding; the
+raw recipe cap bounds the decoder and uniqueness hashing themselves.
+
+Installed positive safe-integer ceilings cover candidate entries scanned, blob reads,
+aggregate read bytes, artifacts, selector comparisons, edges and canonical output bytes.
+The wrapper charges classification reads and record reads to one shared read budget.
+Count and work ceilings are checked before loops/reads/edge insertion; byte ceilings are
+checked immediately after each retained read. Additional selectors use the existing strict
+classification grammar, including component-aware prefixes. Cartesian work is charged even
+for duplicate edges. Duplicate artifact byte IDs refuse because ArtifactGraph V1 requires
+unique identities. Graph roots follow incoming edges (receipt is root, response is dependency).
+The independent verifier rebuilds the decoded evidence census and expected relations, then
+compares each descriptor, each complete adjacency list, exact zero-indegree root set, and exact
+canonical graph bytes/identity; it does not invoke the producer or trust caller roots.
 
 **Freeze/replay parity.** Generate all eleven documents listed above, with existing exact byte
 bindings and canonical-LF rules. The new core consumes retained snapshot/read capabilities,
@@ -2076,3 +2217,280 @@ Available access to provision these has not been established by this packet. The
 authorized resolving the blocker without per-PR operator steps; this is not evidence that
 external credentials exist. Deployment acceptance must record the chosen provider, exact
 permissions and authentic invocation proof before any real activation.
+
+### Direct retained TypeScript source (2.1d.1.3e2)
+
+`createRetainedTypeScriptSource` admits the exact namespace, candidate and runtime owners before
+reading a census, then joins snapshot/classification and closure/resolution identities. Its
+frozen source retains the namespace provenance and `runtimeTrust: unverified`; this admits no
+compiler execution, config parsing, read manifest or freeze input. `boundSource` is unchanged.
+
+Candidate current-file identity is a private owner lookup over exact path/Git-blob metadata,
+returning raw digest and byte length without copying content or consulting storage. Both raw
+candidate and runtime read lengths reserve lifetime source reads/bytes before the owned capability
+makes its copy. Fatal UTF-8 strips file BOMs and preserves symlink target BOMs.
+
+The source and existing current declaration reader share a component walk. Files must never
+serve as directory ancestors before `..` normalization. Candidate links resolve through retained
+candidate entries only, including ancestor aliases; they cannot route to dependency mounts.
+Runtime dependency entries remain direct declared files. Within the fixed candidate namespace,
+misses use the source interface's absent/undefined/empty semantics; malformed or outside requests
+throw before content access. Symlink expansion has finite target/expanded-path bytes, expansions
+and directory depth, with lifetime probes/steps/reads additionally limiting repeated work.
+
+Enumeration uses the pure `matchFiles` implementation exported by installed `typescript`, whose
+lockfile-pinned implementation is `@typescript/old` 6.0.3. A narrow version/function/arity boundary
+refuses drift. The production route never delegates to `ts.sys`. Immediate directory entries are
+basenames, matching installed `ts.sys`, including selected directory aliases. Extension/include/
+exclude/depth and ordering parity is characterized on small physical fixtures before removal;
+a separate removed-root test intercepts ambient filesystem/Git/`ts.sys` routes. Every visited child
+path reserves output bytes before the matcher can accumulate its filtered output. Pattern counts/
+bytes, enumerated entries and returned path bytes are lifetime budgets, explicitly supplied along
+with nodes and all query/target/expanded path and work ceilings. No limit has a default.
+
+This bounded adapter leaves compiler mounting, config/resolution escape policy, complete executing
+runtime authentication, compiler read manifests and parent 2.1d.1.3 open.
+
+The e2 pattern boundary admits ordinary literal and wildcard patterns with no `.`/`..` path
+components. It validates every supplied pattern before any literal-prefix link read. Literal
+prefixes walk the owned component namespace; absent prefixes cannot widen includes to the
+matcher's unrestricted empty-include behavior. Query roots retain component-wise `.`/`..`
+semantics and any candidate-link provenance after canonical spelling, so a root alias cannot
+expose dependency mounts. Immediate listing accepts a trailing separator. Cwd shares the
+lifetime returned-path budget. Full tsconfig-pattern compatibility is not asserted here.
+
+### Retained TypeScript compiler mount (2.1d.1.3e3)
+
+`extractRetainedTypeScriptRelationships` accepts owned namespace/candidate/runtime capabilities,
+a TypeScript request and three explicit budget groups. It snapshots groups and finite limits,
+then captures bounded nonempty unique config/public path arrays before constructing the source.
+Candidate request paths use RelativePath plus local drive/surrogate/reserved-component admission;
+config-generated paths continue through the unchanged shared core. The fixed V1 workspace is
+internal. Provenance comes from the exact newly constructed source's owner map, and the returned
+envelope contains explicit unverified trust, provenance, extractor and relationships. An independent
+canonical whole-envelope byte cap includes the provenance omitted from the core's own cap.
+
+The mount is additive: Nx, historical producers and the legacy filesystem compiler wrapper retain
+their behavior. Small noLib fixtures use retained global declarations, compiler package metadata
+and one declared package. They compare every legacy selector/config/extractor identity before
+physical capture roots are deleted; replay poisons filesystem/Git/cwd/environment/ts.sys routes.
+Legacy @typescript/old/lib and namespace typescript/lib still differ. No default-library parity,
+compiler read manifest, freeze, runtime authentication, general config-generated escape policy or
+synchronous compiler CPU/heap containment follows. The test process RSS guard is operational
+proof protection, not a product cancellation mechanism.
+
+### Retained source byte-read census (2.1d.1.3e4a)
+
+The exact owned source records successful raw byte acquisitions in `readNode`, including link
+bytes acquired during path probes and enumeration. Each tuple is `{namespace, path, revision,
+identity, byteLength}`. Candidate tuples use the retained source path and private raw identity;
+runtime tuples use the exact closure path and identity. Every revision is null. Metadata-only
+access, misses and unused declared runtime entries do not enter the census. Raw BOM bytes count
+before file decoding. Aliases deduplicate their final file tuple while retaining each distinct
+link path, even when two link blobs have identical bytes.
+
+The wrapper is `{schemaVersion:1, kind:"retained-typescript-byte-reads", entries:[...]}`. Entries
+are deduplicated by complete canonical tuple encoding and ordered by UTF-8 bytes of that encoding.
+The canonical serializer sorts object keys and appends one final LF. `maximumReadEntries` and
+`maximumReadLedgerBytes` are explicit positive safe integers captured with the other source limits.
+The byte ceiling includes the empty wrapper and LF, each entry's canonical bytes without its
+standalone LF, and one comma after the first entry. New tuples reserve this exact contribution
+before the owner copies bytes; insertion follows successful acquisition. Repeated acquisitions
+consume the existing execution read/byte budgets without ledger growth.
+
+`sealRetainedTypeScriptReads` looks up the exact source owner without reading caller properties.
+It caches a deeply frozen census and permanently bars subsequent source callbacks. Provenance
+remains readable. The compiler mount seals after successful core extraction and includes the
+census in the existing complete-envelope output ceiling. Failed core extraction does not seal.
+This is a narrow byte-read census, not CompilerReadManifestV1, runtime authentication, closure
+completeness, default-library parity or freeze integration. Namespace V1 and unverified trust
+remain the existing contracts.
+
+### Explicit ES5 retained compiler parity (2.1d.1.3e4b1)
+
+The existing noLib regression remains a control. A separate fixture mode selects
+`compilerOptions: { lib: ['es5'], types: [] }`, omits noLib in the inherited base config and
+omits handwritten global declarations and their include. It captures the installed pinned
+`@typescript/old/lib/{lib.es5,lib.decorators,lib.decorators.legacy}.d.ts` bytes at namespace V1
+`node_modules/typescript/lib/<basename>`. Legacy extraction receives byte-identical files at its
+existing `@typescript/old/lib` path. Compiler package metadata is preserved. UTF-8 transport is
+accepted only after a fatal decode and byte-for-byte re-encoding assertion. The measured raw
+library lengths are 218972, 13153 and 1287 bytes (233412 total). ES5's only lib directives select
+`decorators` and `decorators.legacy`; those files reference no further libraries.
+
+The fixture's runtime cap is explicitly raised to 1000000 bytes for capture and bounded replay;
+shared fixture defaults remain 10000. Source/compiler execution caps remain 1000000. Exact-fit
+and one-byte-short checks measure source raw acquisitions, compiler text reads, census entry
+count/canonical bytes and the whole output envelope. A declared unreferenced library must stay
+absent from the exact three-library census subset. `ReadonlyArray<string>` and `Date` public
+exports exercise installed declarations. Missing any required library refuses. Physical library
+mutation after capture cannot change retained extraction; valid changed captured bytes change
+the census identity while relationships remain equal.
+
+Both Git hash formats compare complete legacy extractor/relationship identities after source,
+object-store and runtime deletion with filesystem, ts.sys, Git, environment and cwd traps. This
+is explicit ES5 parity, with no namespace V1 recipe change and no claim about implicit default
+library breadth, runtime parser/loader authentication, CompilerReadManifestV1 or freeze.
+
+### Implicit-default retained compiler parity (2.1d.1.3e4b2)
+
+The implicit fixture omits target, lib, noLib and handwritten globals in captured candidate
+configs. Installed TypeScript 6.0.3 chooses `lib.es2025.full.d.ts` when target is absent.
+The initially proposed 18-file `lib.d.ts` closure was falsified by the unchanged legacy
+producer requesting the ES2025 default. The actual fixed recursive closure has 82 files and
+2936611 raw bytes. A separate traversal of parsed reference directives must equal the fixed
+sorted list; fatal UTF-8 decode followed by exact re-encoding preserves every captured byte.
+Legacy receives identical files at its existing @typescript/old/lib location, and retained
+replay receives namespace V1 typescript/lib paths. This changes only fixtures and tests.
+
+The implicit runtime fixture admits a 64 KiB manifest, 128 entries, 512 reads, 2000 probes
+and 8 MiB allocation/read/owned byte ceilings. The original 128-read proposal refused during
+capture because descriptor reads include EOF verification; that failed receipt remains.
+Namespace limits are 128 entries, 256 nodes and 64 KiB total path bytes. Source limits are
+256 nodes, 20000 probes, 100000 steps, 2000 reads, 8 MiB read bytes and census bounds of
+128 entries / 256 KiB. Compiler probes/read bytes are 20000 / 8 MiB. Existing finite path,
+pattern and 1 MiB output ceilings remain. Shared fixture defaults and production contracts
+are unchanged.
+
+Each implicit test is selected into its own fresh serial process under the 900 MiB process
+tree guard. SHA-1 and SHA-256 parity are separate phases; legacy programs are collected before
+retained replay. This is an operational proof boundary, with no combined-suite heap/RSS or
+product cancellation claim. Exact closure/census/public declaration observations establish
+pinned implicit-default parity only; executing parser/loader authentication, full compiler
+read manifests, freeze integration and parent .3 remain open.
+
+### Exact-owner successful TypeScript extraction (2.1d.1.3e5a)
+
+The extraction module privately maps the exact successful envelope to a cached, deeply frozen
+binding containing copied validated request paths and a copied retained namespace provenance.
+The accessor accepts unknown and performs only a WeakMap lookup after an object/null check;
+proxies, inherited shapes and serialized copies receive no authority. A declare-only private
+unique symbol brands the recursively readonly TypeScript type without changing runtime bytes.
+
+Copied request arrays and their wrapper freeze before source creation or compiler callbacks.
+After source admission, core success, census sealing and the existing whole-envelope canonical
+cap, an iterative WeakSet traversal freezes all envelope objects. Only then may registration
+publish ownership. Caller objects and capabilities are never traversed. Failed compilation,
+short output bounds and freeze exceptions publish no owned envelope. The binding retains
+unverified runtime trust and confers no protected freeze or runtime authentication authority.
+
+### Retained candidate review provenance prerequisite (2.1d.1.3e5b)
+
+Only the public `openRetainedCandidate` success path registers a review binding in a private
+WeakMap. Its readonly record contains exactly the validated detached activation request identity,
+the opened snapshot identity and the verified history manifest pin. The private history reader
+returns the exact pin whose raw bytes and canonical document passed validation; callers continue
+to verify the complete historical object closure before publication. A complete empty history
+has a nonnull pin. Legacy head-only capture has null, even if its caller supplies an unused pin.
+
+The raw request first passes its closed schema. Only declared scalar and subject/member fields
+are copied, and a second canonical request validation checks that exact owned snapshot. Generic
+cloning before admission is forbidden because it traverses rejected extras. The final held-owner
+callback cannot change the admitted identity through the caller's mutable object. Registration follows request/binding,
+snapshot, Git-object/classification, history and final held-owner checks. Internal phase-one
+retained views never register. Failure publishes no review capability. The accessor accepts
+unknown, checks only object/null and performs a private WeakMap lookup: primitive, copied,
+inherited, getter-poisoned and proxy values refuse without property reads. Exact-owner repeats
+return the same frozen three-scalar record without IO, hashing or parser-budget consumption.
+
+This prerequisite preserves existing graph provenance, candidate shape, namespace V1 and
+TypeScript envelope bytes. It supplies no CompilerReadManifestV1, protected freeze integration,
+runtime authentication or parent .3 completion.
+
+### Effective retained typeRoots admission prerequisite (2.1d.1.3e6a)
+
+`TypeScriptConfigurationMode` selects compatible behavior by default. Retained activation
+internally selects `retained-type-roots`; callers do not control that choice. The shared runner
+validates the closed mode before source callbacks and passes it to every requested root project.
+After `parseJsonConfigFileContent` succeeds and before creating its compiler host or program,
+`parseProject` admits every effective normalized `options.typeRoots` entry. An omitted option
+means no explicit admission. Parser inheritance and override semantics determine the roots;
+there is no second interpretation of raw config spelling or discarded inherited values.
+
+`TypeScriptSystem.admitTypeRoot` charges the existing compiler probe budget then calls
+`TypeScriptSource.pathKind` directly. It deliberately bypasses the generic outside-probe mask,
+so the retained source owns candidate containment, ancestor symlink traversal and its existing
+path/probe/step bounds. An admitted absent path is valid: admission does not require existence.
+Repeated equivalent roots remain repeated work. Ordinary compiler default-root, module,
+package-metadata and ancestor probes still use the existing absent namespace behavior.
+
+The scope is effective root-project typeRoots only, including `types:[]`. Nested project-reference
+configs, general imports/extends/references admission and original spelling provenance remain
+open. No TypeScriptPolicy, legacy limits/bytes, namespace V1, runtime trust or extraction owner
+publication semantics change. Successful envelopes continue to report unverified runtime trust.
+
+Pinned TypeScript 6.0.3 does not automatically discover visible @types when `types` is omitted:
+`getAutomaticTypeDirectiveNames` returns `options.types ?? []` unless `usesWildcardTypes`
+finds a literal '*'. Compatibility therefore has two distinct controls: both options omitted
+preserve no discovery, while omitted typeRoots with `types:['*']` exercises visible packages and
+ordinary default-root ancestor probes. This is observed compiler behavior, not a changed default.
+
+### Effective retained rootDirs admission prerequisite (2.1d.1.3e6b)
+
+**Intent.** Unused explicit rootDirs can currently escape the retained candidate without source
+admission. Retained activation must refuse every effective outside root before constructing that
+project's compiler host, while preserving parser inheritance and overrides, valid absent roots,
+ordinary namespace misses, retained bytes and unverified runtime trust. This scope covers only
+root projects requested by the caller; nested reference configurations, raw spelling provenance,
+general configuration admission, a complete manifest and runtime authentication remain open.
+
+The internal admission operation is renamed `TypeScriptSystem.admitConfigurationRoot`, retaining
+one compiler probe followed by direct source `pathKind` admission. The closed configuration modes
+are `compatible`, `retained-type-roots` and `retained-config-roots`; generic callers retain the
+compatible default and retained activation selects the new mode. The shared runner validates the
+mode before accessing any source callback. Both retained modes admit effective typeRoots; only
+the new mode then admits effective rootDirs. Each sequential loop runs after successful parser
+normalization and before that project's compiler host. Neither loop deduplicates within or across
+options, so both consume the same existing compiler and source budgets. Admission ignores the
+path-kind outcome, preserving admissible absence.
+
+TypeScript alone determines inheritance bases, normalized path spelling and effective override
+values. Discarded inherited values never reach admission. Actual rootDirs fallback remains the
+compiler's resolution behavior; a `src/index.ts` import can resolve `generated/provider.ts` from
+retained bytes and contributes the exact declaration closure and raw-byte census. The deliberate
+cost is conservative refusal of an unused explicit outside rootDirs value even when the compiler
+would never probe it. Ordinary default-root/module/package/ancestor probes retain absent
+namespace behavior, and the old retained-type-roots mode does not acquire rootDirs admission.
+
+No TypeScriptPolicy, legacy limits, namespace schema, owner publication or envelope format changes.
+Failure on a later config can follow earlier host construction, but never constructs the rejected
+project's host or publishes a successful extraction owner. Parent 2.1d.1.3 remains open.
+
+### Effective retained baseUrl admission prerequisite (2.1d.1.3e6c)
+
+**Intent.** An unused effective baseUrl can currently escape retained candidate ownership because
+ordinary compiler namespace probes mask outside paths as absent. Admit that explicit root before
+its project host, including when no import uses it. Keep the existing retained source owner,
+compiler and traversal budgets, unverified trust and canonical byte census.
+
+The pinned parser computes inheritance, declaring-config bases and effective overrides. In
+retained-config-roots mode, after successful parsing, pass defined parsed.options.baseUrl to
+system.admitConfigurationRoot after effective typeRoots and rootDirs. Use a definedness check;
+an empty raw string normalizes to its declaring directory. Do not inspect discarded raw options,
+require existence, rewrite compiler options or change candidate classification. Earlier modes
+retain ordinary namespace probes. The existing source traversal checks link ancestors, including
+missing descendants, and records raw link bytes. The existing compiler and source counters remain
+shared with ordinary parsing and extraction.
+
+Scope is baseUrl alone. Wildcard paths with an admitted base and paths without baseUrl receive
+compatibility controls; general paths-root admission, project references, full manifest,
+authentication and freeze remain separate work.
+
+### Effective literal paths admission prerequisite (2.1d.1.3e6d)
+
+**Intent.** Unused literal paths substitutions can escape retained candidate ownership because
+ordinary compiler misses mask outside paths. Admit each effective fixed substitution before the
+project host, including substitutions under wildcard keys. Preserve compiler fallback behavior,
+shared traversal budgets, unverified trust and byte census. Wildcard expansion, project-reference
+policy, complete manifest, runtime authentication and protected freeze remain separate work.
+
+After effective baseUrl admission in retained-config-roots, validate effective paths as mapping
+arrays of strings. Traverse the existing key and array order without deduplication. Skip targets
+containing `*`. For each literal require a string effective baseUrl when defined, otherwise the
+parser-owned pathsBasePath; never infer origin from cwd or the root config. The parser owns
+inheritance, replacement and `${configDir}` expansion. The pinned @typescript/old 6.0.3 pure
+resolvePath helper normalizes combinePaths(base, substitution), including backslashes and drive
+roots. Validate its runtime version, callable signature and returned string at the private API
+boundary. Admit through system.admitConfigurationRoot without changing options or requiring
+existence. Existing source traversal checks lexical and symlink ancestors, charges repeated
+work, and records link bytes. Earlier modes retain their current compiler probe behavior.

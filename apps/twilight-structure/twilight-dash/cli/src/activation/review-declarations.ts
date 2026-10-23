@@ -12,6 +12,7 @@ import {
   serializeCanonical,
 } from '@twilight-burokrat/judge';
 
+import { extractRetainedNxRelationships, type RetainedNxLimits } from './review-nx';
 import {
   deriveHistoricalSelections,
   hashGitObject,
@@ -141,4 +142,12 @@ export function extractRetainedDeclarations(
   if (Buffer.byteLength(serializeCanonical(extracted)) > limits.maximumOutputBytes)
     throw new Error('retained declaration output byte ceiling exceeded');
   return extracted;
+}
+
+/** Installed composition derives Nx target authority before evaluating retained declaration facts. */
+export function extractRetainedNxDeclarations(
+  input: Omit<RetainedDeclarationInput, 'nx'> & { readonly nxLimits: RetainedNxLimits },
+): ReturnType<typeof extractDeclaredRelationshipsFromSource> {
+  const nx = extractRetainedNxRelationships(input.candidate, input.nxLimits).relationships;
+  return extractRetainedDeclarations({ ...input, nx });
 }

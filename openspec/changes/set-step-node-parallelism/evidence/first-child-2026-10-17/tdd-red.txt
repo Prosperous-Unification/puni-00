@@ -1,0 +1,124 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:
+44 |       }
+45 |       await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+46 |       await stores.stepParallels.set({ workItemId: 'sibling', stepId: 'qa', maxParallel: 2 }, stamp);
+47 |       const before = await stores.workItems.listByProject('p');
+48 |       const { workItems } = installWorkItem(requirements);
+49 |       expect(await workItems.create('p', 'owner', create)).toEqual({
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "stepNodeMapping": [],
++   "value": {
++     "deadline": null,
++     "factEnd": null,
++     "factStart": null,
++     "frozenNumber": null,
++     "hold": "on_hold",
++     "id": "new-1",
++     "maxParallel": 1,
++     "name": "Child",
++     "notes": "",
++     "parentId": "parent",
++     "position": 10,
++     "priority": 50,
++     "projectId": "p",
++     "readiness": "ready",
++     "revision": 0,
++     "serviceId": null,
++     "serviceTeamId": null,
++     "startNoEarlierThan": null,
++     "startNoEarlierThanReason": null,
++   },
+  }
+
+- Expected  - 8
++ Received  + 23
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:49:60)
+(fail) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [20.88ms]
+44 |       }
+45 |       await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+46 |       await stores.stepParallels.set({ workItemId: 'sibling', stepId: 'qa', maxParallel: 2 }, stamp);
+47 |       const before = await stores.workItems.listByProject('p');
+48 |       const { workItems } = installWorkItem(requirements);
+49 |       expect(await workItems.create('p', 'owner', create)).toEqual({
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "stepNodeMapping": [],
++   "value": {
++     "deadline": null,
++     "factEnd": null,
++     "factStart": null,
++     "frozenNumber": null,
++     "hold": "on_hold",
++     "id": "new-1",
++     "maxParallel": 1,
++     "name": "Child",
++     "notes": "",
++     "parentId": "parent",
++     "position": 10,
++     "priority": 50,
++     "projectId": "p",
++     "readiness": "ready",
++     "revision": 0,
++     "serviceId": null,
++     "serviceTeamId": null,
++     "startNoEarlierThan": null,
++     "startNoEarlierThanReason": null,
++   },
+  }
+
+- Expected  - 12
++ Received  + 23
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:49:60)
+(fail) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [2.81ms]
+63 |       stepParallels: { listByWorkItems: () => { throw new Error('poisoned sparse read'); } },
+64 |     });
+65 |     expect(await workItems.create('missing', 'owner', create)).toEqual({ ok: false, reason: 'not_found' });
+66 |     expect(await workItems.create('p', 'stranger', create)).toEqual({ ok: false, reason: 'forbidden' });
+67 |     expect(await workItems.create('p', 'owner', { ...create, parentId: 'missing' })).toEqual({ ok: false, reason: 'not_found' });
+68 |     await expect(workItems.create('p', 'owner', create)).rejects.toThrow('poisoned sparse read');
+                                                                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:68:66)
+(fail) first-child sparse step parallel preservation > checks authorization and parent membership before a poisoned reader [2.54ms]
+(pass) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [5.30ms]
+
+ 1 pass
+ 3 fail
+ 9 expect() calls
+Ran 4 tests across 1 file. [1.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 502980608, "exitCode": 1}

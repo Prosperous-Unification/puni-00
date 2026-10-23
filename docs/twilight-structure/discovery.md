@@ -41,24 +41,20 @@ history. Current checks and unrun runtime experiments are recorded in
 Accepted in the infrastructure interview on 2026-09-06: client installations use
 client-owned infrastructure, with Dany responsible for operation and recovery
 under an explicit maintenance agreement. Support access is revocable and support
-hours must be defined before offering the service; no hours or recovery targets
-have been selected yet. Dany is the main user of the first iteration.
-
-This establishes ownership and responsibility. Recovery targets remain an
-interview decision. The proposed Terragrunt-based cloud infrastructure tool is a
-later scope.
+hours must be defined before offering the service; support hours and recovery targets
+remain an interview decision. Dany is the main user of the first iteration. The
+proposed Terragrunt-based cloud infrastructure tool is a later scope.
 
 Existing hosts reported by Dany in the same interview: `h3mon` provides monitoring;
 `h4claw` provides OpenClaw and serves as the deployment server for applications.
 Their live configuration, capacity, and application availability requirements have
-not been inspected. These facts establish the starting inventory; the placement
-decision below remains conditional on Task 6's host preflight.
+not been inspected; the placement below remains conditional on Task 6's host preflight.
 
-Accepted in the same interview: K3s schedules the expandable worker pool. The M1
-plan proves one dedicated, unscheduled K3s server and two K3s agent nodes, with
-manual node join and drain. `h3mon` remains the external monitoring host;
-`h4claw` carries OpenClaw, Twilight's user-facing control services and application
-deployment, and runs no untrusted worker activity. Direct Kubernetes Jobs are the
-first provisioner; OpenSandbox is a measured follow-on candidate. ADR 0028 records
-the choice and alternatives, and the
-[worker-pool research](research/worker-pools.md) records upstream evidence.
+Accepted in the same interview: K3s schedules the expandable worker pool.
+[ADR 0028](../adr/0028-k3s-schedules-the-expandable-worker-pool.md) records the M1
+topology (one dedicated, unscheduled server, two agent nodes, manual join and drain),
+direct Kubernetes Jobs as first provisioner, OpenSandbox as follow-on candidate and the
+alternatives; the [worker-pool research](research/worker-pools.md) records upstream
+evidence. `h3mon` remains the external monitoring host; `h4claw` carries OpenClaw,
+Twilight's user-facing control services and application deployment, and runs no
+untrusted worker activity.

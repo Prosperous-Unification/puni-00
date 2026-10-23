@@ -45,12 +45,65 @@ export interface AuthenticatedUser {
 /**
  * How a credential was authenticated, from its verifier and never from a
  * caller: an upstream pair (a verified provider token, or the pair a
- * delegation carries), or a first-party password session and when it was
- * issued, in epoch milliseconds.
+ * delegation carries), a first-party password session and when it was
+ * issued, in epoch milliseconds, a WBS machine credential
+ * (`wbs-machine-credentials` A10, A13) and the person it is pinned to, or an
+ * MCP consent delegation (A8, A20): the human sign-in's upstream pair that
+ * opened the family, which the credential rules keep judging (A10), and the
+ * `mcp_consent` credential and agent person it acts as.
  */
 export type CredentialAuthentication =
   | { readonly kind: 'upstream'; readonly issuer: string; readonly subject: string }
-  | { readonly kind: 'first_party'; readonly issuedAt: number };
+  | { readonly kind: 'first_party'; readonly issuedAt: number }
+  | { readonly kind: 'machine'; readonly credentialId: string; readonly personId: string }
+  | {
+      readonly kind: 'consent';
+      readonly issuer: string;
+      readonly subject: string;
+      readonly credentialId: string;
+      readonly personId: string;
+    };
+
+/**
+ * The verified `(issuer, subject)` a request's credential carries: an upstream
+ * token's, or the pair a delegation carries. Absent for a first-party session.
+ * What a claim reads a credential pin by (`wbs-team-claims` D6).
+ */
+export interface CredentialPair {
+  readonly issuer: string;
+  readonly subject: string;
+}
+
+/**
+ * What a claim reads a request's pin from: an upstream pair, whose pin is the
+ * operator link's `external_identity.person_id` (`wbs-team-claims` D6), or a
+ * machine or consent credential's own person (`wbs-machine-credentials` A12,
+ * A20).
+ */
+export type CredentialPin = CredentialPair | { readonly personId: string };
+
+/**
+ * The pin source of `authentication`: the pair of an upstream one, the person
+ * of a machine or consent credential, else null (unpinned). A consent
+ * delegation is pinned by its credential's person, never by the human's pair.
+ *
+ * Proof: answering null for a machine credential made `claims as its person
+ * and is refused as any other of its account's persons` in
+ * `machine-credential.controller.db.test.ts` accept the claim as `codex`;
+ * watched 2026-10-22. Answering null for a consent made `a consent session's
+ * tool call claims as its agent, never with the human's reach` (mcp-01
+ * `organization-delegation.boot.test.ts`) accept the claim as `codex`;
+ * watched 2026-10-22.
+ */
+export function credentialPinOf(
+  authentication: CredentialAuthentication | undefined,
+): CredentialPin | null {
+  if (authentication?.kind === 'upstream')
+    return { issuer: authentication.issuer, subject: authentication.subject };
+  if (authentication?.kind === 'machine' || authentication?.kind === 'consent')
+    return { personId: authentication.personId };
+  return null;
+}
 
 /** Evidence from the credential verifier, never from caller-declared kind or expiry. */
 export interface VerifiedOrganizationCredential {

@@ -8,9 +8,11 @@ import {
   type CaseFixture,
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
+  CLAIM_IN_USE,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
+  DELEGATED_CLAIMS,
   DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
   type ExecutionReport,
@@ -22,7 +24,10 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  LIMITS_FIXTURE,
   observePlanInput,
+  OWNED_BINDING,
+  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -30,6 +35,8 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedOrganizationLimits,
+  seedResourceCase,
   seedSavedPlanCapture,
   sourceConformanceRegistrations,
   type SourceDeclaration,
@@ -87,6 +94,8 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
+  ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
+  pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
@@ -150,6 +159,16 @@ function conformanceMemorySource(
       fixture.routeJournalEventToIndependent(eventId),
     storeDependencyById: (dependency: StoredDependency) => {
       fixture.storeDependencyById(dependency);
+    },
+    ownPersonInOrganization: (
+      personId: string,
+      organizationId: string,
+      memberIds: readonly string[],
+    ) => {
+      fixture.ownPersonInOrganization(personId, organizationId, memberIds);
+    },
+    pinCredential: (issuer: string, subject: string, personId: string) => {
+      fixture.pinCredential(issuer, subject, personId);
     },
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
@@ -355,6 +374,32 @@ async function openMemoryCase<Family extends ExistingFamily>(
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
+    if (caseId === 'directory.patchPerson:owned-binding') {
+      const added = await seeded.stores.directory.addPerson(
+        { id: OWNED_BINDING.personId, name: 'Owned person' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the owned person was refused');
+      seeded.ownPersonInOrganization(OWNED_BINDING.personId, OWNED_BINDING.organizationId, [
+        DETERMINISTIC_SEED.ownerIds[0],
+      ]);
+    }
+    if (caseId === 'directory.removePerson:claims-in-use')
+      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
+    if (caseId === 'directory.removePerson:delegated-claims')
+      await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
+    if (caseId === 'directory.removePerson:pinned-credential') {
+      const { personId, issuer, subject } = PINNED_CREDENTIAL;
+      const added = await seeded.stores.directory.addPerson(
+        { id: personId, name: 'Pinned person', kind: 'agent' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the pinned person was refused');
+      seeded.pinCredential(issuer, subject, personId);
+    }
+    await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
   });
   if (family === 'subtrees') {
     return {
@@ -706,6 +751,7 @@ async function changeMemoryCaptureDirectory(source: MemorySource): Promise<Captu
           name: 'Unassigned member',
           kind: 'person',
           teamIds: ['team-a'],
+          accountId: null,
         },
         projectIds: [],
       },
@@ -720,9 +766,10 @@ async function changeMemoryCaptureDirectory(source: MemorySource): Promise<Captu
         name: 'Unassigned member',
         kind: 'person',
         teamIds: ['team-a'],
+        accountId: null,
       },
-      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
-      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'], accountId: null },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'], accountId: null },
     ],
   });
   return change;
@@ -799,6 +846,7 @@ function transactionalJournal(source: MemorySource): CommandJournalStore {
     });
   return {
     append: (entry, event) => commit((journal) => journal.append(entry, event)),
+    appendEvent: (event) => commit((journal) => journal.appendEvent(event)),
     entriesFor: (projectId, userId) => source.stores.journal.entriesFor(projectId, userId),
     flip: (id, undone, preconditions) =>
       commit((journal) => journal.flip(id, undone, preconditions)),
@@ -828,10 +876,50 @@ function memoryLateSource(
   return conformanceMemorySource(fixture);
 }
 
+/**
+ * The limits gauge over a seeded memory source: the one the scopes its unit
+ * of work admits carry, read here over the committed state (L10).
+ */
+async function openMemoryLimitsCase(
+  caseId: CaseId,
+): Promise<CaseFixture<TransactionalStores['organizationLimits']>> {
+  const fixture = openMemorySourceFixture();
+  const source = await seedMemorySource(
+    () => conformanceMemorySource(fixture),
+    (seeded) =>
+      seedOrganizationLimits(seeded.stores, {
+        organization: () => undefined,
+        ownPerson: (personId, organizationId) => {
+          fixture.ownPersonInOrganization(personId, organizationId, []);
+        },
+        ownProject: (projectId, organizationId) => {
+          fixture.ownProjectInOrganization(projectId, organizationId);
+        },
+        ownResource: (resourceId, organizationId) => {
+          fixture.ownResourceInOrganization(resourceId, organizationId);
+        },
+        setCaps: (organizationId, caps) => {
+          fixture.setOrganizationLimits(organizationId, caps);
+        },
+      }),
+  );
+  return {
+    fixtureId: `memory:${caseId}`,
+    port: fixture.organizationLimitGauge(LIMITS_FIXTURE.defaults),
+    journalAppender: source.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: { kind: 'ordinary' },
+    close: () => source.close(),
+  };
+}
+
 const openers: ExistingStoreOpeners = {
+  organizationLimits: openMemoryLimitsCase,
   projects: (caseId) => openMemoryCase('projects', caseId),
   users: (caseId) => openMemoryCase('users', caseId),
   capacity: (caseId) => openMemoryCase('capacity', caseId),
+  resourceCapacity: (caseId) => openMemoryCase('resourceCapacity', caseId),
   priorityBands: (caseId) => openMemoryCase('priorityBands', caseId),
   calendarMarkers: (caseId) => openMemoryCase('calendarMarkers', caseId),
   workItems: (caseId) => openMemoryCase('workItems', caseId),
@@ -842,6 +930,9 @@ const openers: ExistingStoreOpeners = {
   progress: (caseId) => openMemoryCase('progress', caseId),
   attempts: (caseId) => openMemoryCase('attempts', caseId),
   blockages: (caseId) => openMemoryCase('blockages', caseId),
+  stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
+  claims: (caseId) => openMemoryCase('claims', caseId),
+  demands: (caseId) => openMemoryCase('demands', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -962,6 +1053,7 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures do not install the SQLite organization rank writer.',
     },
+    organizationLimits: { kind: 'offered', gaps: [], open: openMemoryLimitsCase },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {
@@ -969,6 +1061,7 @@ const declaration: SourceDeclaration = {
       gaps: [capacityMissingReferenceGap],
       open: openers.capacity,
     },
+    resourceCapacity: { kind: 'offered', gaps: [], open: openers.resourceCapacity },
     priorityBands: {
       kind: 'offered',
       gaps: [priorityMissingProjectGap],
@@ -983,6 +1076,9 @@ const declaration: SourceDeclaration = {
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
+    stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    claims: { kind: 'offered', gaps: [], open: openers.claims },
+    demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -1070,11 +1166,15 @@ function emptyMissingCapture(): PlanInputReads {
     actuals: [],
     progress: [],
     stepBlockages: [],
+    stepParallels: [],
     measures: [],
     dependencies: [],
     typedDependencies: [],
     assignments: [],
     capacity: new Map(),
+    demands: [],
+    resourceCapacities: [],
+    resources: [],
     priorityBands: [],
     people: [],
     teams: [],
@@ -4266,6 +4366,7 @@ async function proveFault(
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
+        resourceCapacity: (caseId) => takeFixture('resourceCapacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         workItems: (caseId) => takeFixture('workItems', caseId),
@@ -4276,6 +4377,9 @@ async function proveFault(
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
+        stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        claims: (caseId) => takeFixture('claims', caseId),
+        demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -5689,6 +5793,13 @@ describe('memory existing source conformance', () => {
     expect(Bun.stripANSI(priorityBands.failure)).toContain(
       priorityMissingProjectGap.evidence.observedFailure,
     );
+  });
+
+  it('certifies the sparse step parallelism source inventory', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['stepParallels.set:sparse-replace-remove'],
+    });
+    expect(report.cases.map(({ status }) => status)).toEqual(['passed']);
   });
 
   it('certifies the persisted blockage port', async () => {

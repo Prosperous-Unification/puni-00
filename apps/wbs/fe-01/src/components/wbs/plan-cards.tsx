@@ -1,7 +1,7 @@
+import { Button } from '@ui/saas-01';
 import type { SettableStatus } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
-import { Button } from '@/components/ui/button';
 import {
   Modal,
   ModalContent,
@@ -9,7 +9,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalTrigger,
-} from '@/components/ui/modal';
+} from '@/components/wbs/modal';
 import type {
   Days,
   PlanRead,

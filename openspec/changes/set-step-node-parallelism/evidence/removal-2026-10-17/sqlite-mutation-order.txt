@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+228 |   expect(await stores.steps.remove('p', 'dev', true, stamp)).toEqual({
+229 |     ok: false,
+230 |     reason: 'referenced_by_step_parallel',
+231 |     nodes: [{ workItemId: 'a', stepId: 'dev' }],
+232 |   });
+233 |   expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
+                                                                                   ^
+error: expect(received).toEqual(expected)
+
+@@ -172,22 +172,11 @@
+        "step_id": "dev",
+        "updated_at": 10,
+        "work_item_id": "a",
+      },
+    ],
+-   [
+-     {
+-       "created_at": 10,
+-       "created_by": "u",
+-       "optimistic": 1,
+-       "pessimistic": 3,
+-       "realistic": 2,
+-       "step_id": "dev",
+-       "updated_at": 10,
+-       "work_item_id": "a",
+-     },
+-   ],
++   [],
+    [
+      {
+        "created_at": 10,
+        "created_by": "u",
+        "days": 1,
+
+- Expected  - 12
++ Received  + 1
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:233:78)
+(fail) preserves retained cascade families before refusing sparse parallelism [127.60ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [1.97s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 543002624, "exitCode": 1}

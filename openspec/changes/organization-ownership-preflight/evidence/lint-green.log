@@ -1,0 +1,7 @@
+
+/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts
+  99:37  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+✖ 1 problem (1 error, 0 warnings)
+
+{"ceilingBytes": 1468006400, "sampledPeakBytes": 1463406592, "exitCode": 1}

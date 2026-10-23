@@ -1,6 +1,12 @@
 import {
   type DocumentAttempt,
   documentAttempt,
+  type DocumentDemand,
+  documentDemand,
+  type DocumentResource,
+  documentResource,
+  type DocumentResourceCapacity,
+  documentResourceCapacity,
   type DocumentTypedDependency,
   documentTypedDependencyRequest,
   documentV4TypedDependencyRequest,
@@ -15,12 +21,14 @@ import {
   type WorkItemTree,
 } from '@wbs/contracts';
 import {
+  assertStepParallel,
   formatStepNodeId,
   formatStepReference,
   isEstimateUnit,
   isHold,
   isReadiness,
   isTimezone,
+  MOST_RESOURCE_UNITS,
   NO_ALLOWANCE,
   orderSteps,
 } from '@wbs/domain';
@@ -76,7 +84,17 @@ const STEP_CODE_BACKFILL_COMMAND = 'bun run src/backfill-step-codes-cli.ts';
  * would make the exported document impossible to restore faithfully.
  */
 export class PlanDocumentService {
-  constructor(private readonly options: PlanDocumentServiceOptions) {}
+  constructor(private readonly options: PlanDocumentServiceOptions) {
+    // Proof: removing required-reader guard failed the construction negative (mutation-required-reader-final.txt, 2026-10-17).
+    // Untyped composition hosts must fail at construction when this required port is absent.
+    const reader: unknown = Reflect.get(options, 'stepParallels');
+    if (
+      typeof reader !== 'object' ||
+      reader === null ||
+      typeof Reflect.get(reader, 'listByProject') !== 'function'
+    )
+      throw new Error('plan export requires a step parallelism reader');
+  }
 
   /**
    * Exports `tree` as the current plan document, or refuses while any step is
@@ -104,18 +122,17 @@ export class PlanDocumentService {
   ): Promise<PlanDocumentExport> {
     const coded = codedTree(tree);
     if (!coded.ok) return coded;
-    return {
-      ok: true,
-      value: buildDocument(
-        project,
-        coded.value,
-        await this.readDocumentReads(project, access),
-        this.options.clock.now(),
-      ),
-    };
+    return this.exportCaptured(project, coded.value, await this.readDocumentReads(project, access));
   }
 
-  /** Builds from detached export evidence and performs no store reads. */
+  /**
+   * Builds from detached export evidence and performs no store reads. Valid
+   * nonempty sparse policy refuses because version 9 cannot preserve it.
+   * Uncoded steps precede modeled sparse refusals; trusted shared store failures
+   * may already have thrown while the observation was captured.
+   * @throws when required sparse evidence is absent or malformed, or its exact
+   * pair does not name a leaf and step belonging to the exported project.
+   */
   exportCaptured(
     project: ExportedProject,
     tree: WorkItemTree,
@@ -123,6 +140,9 @@ export class PlanDocumentService {
   ): PlanDocumentExport {
     const coded = codedTree(tree);
     if (!coded.ok) return coded;
+    validateStepParallels(project, tree, reads.stepParallels);
+    // Proof: omitting refusal made both mounted sparse JSON cases succeed (mutation-refusal.txt, 2026-10-17).
+    if (reads.stepParallels.length > 0) return { ok: false, error: 'unsupported_step_parallelism' };
     return {
       ok: true,
       value: buildDocument(project, coded.value, reads, this.options.clock.now()),
@@ -141,20 +161,71 @@ export class PlanDocumentService {
       access.kind === 'scoped'
         ? directory.listInOrganization(catalog, access.scope.organizationId)
         : legacy();
-    const [teams, people, tags, services, types, externalSystems, markerRead] = await Promise.all([
-      read('teams', () => directory.listTeams()),
-      read('people', () => directory.listPeople()),
-      read('tags', () => directory.listTags()),
-      read('services', () => directory.listServices()),
-      read('workItemTypes', () => directory.listWorkItemTypes()),
-      read('externalSystems', () => directory.listExternalSystems()),
-      this.options.markers.list(project.id),
-    ]);
+    const [teams, people, tags, services, types, externalSystems, markerRead, stepParallels] =
+      await Promise.all([
+        read('teams', () => directory.listTeams()),
+        read('people', () => directory.listPeople()),
+        read('tags', () => directory.listTags()),
+        read('services', () => directory.listServices()),
+        read('workItemTypes', () => directory.listWorkItemTypes()),
+        read('externalSystems', () => directory.listExternalSystems()),
+        this.options.markers.list(project.id),
+        // Proof: empty injection and wrong project independently failed mounted isolated export (mutation-legacy-{read-empty,wrong-project}.txt).
+        this.options.stepParallels.listByProject(project.id),
+      ]);
     if (!markerRead.ok) throw new Error(`project "${project.id}" disappeared during export`);
+    const [resources, capacities, demands] = await Promise.all([
+      read('resources', () => directory.listResources()),
+      this.options.resourceFacts.resourceCapacitiesOf(project.id),
+      this.options.resourceFacts.demandsOf(project.id),
+    ]);
     return {
       directory: { teams, people, tags, services, types, externalSystems },
       markers: markerRead.value,
+      stepParallels,
+      resources: { resources, capacities, demands },
     };
+  }
+}
+
+/** Refuses corrupt trusted sparse evidence before the version 9 preservation fence. */
+function validateStepParallels(project: Project, tree: WorkItemTree, held: unknown): void {
+  // Proof: removing this check failed the missing/null/object collection negative (mutation-collection.txt, 2026-10-17).
+  if (!Array.isArray(held)) throw new Error('export was read without step parallelism');
+  const owners = new Map(tree.workItems.map((row) => [row.id, row]));
+  const steps = new Map(tree.steps.map((step) => [step.id, step]));
+  const parents = new Set(tree.workItems.map((row) => row.parentId));
+  const pairs = new Map<string, Set<string>>();
+  for (const fact of held) {
+    // Proof: removing this check failed the null row negative (mutation-row.txt, 2026-10-17).
+    if (typeof fact !== 'object' || fact === null || Array.isArray(fact))
+      throw new Error('malformed step parallelism');
+    const workItemId: unknown = Reflect.get(fact, 'workItemId');
+    const stepId: unknown = Reflect.get(fact, 'stepId');
+    const maximum: unknown = Reflect.get(fact, 'maxParallel');
+    // Proof: removing this check failed the malformed ID/maximum negative (mutation-ids.txt, 2026-10-17).
+    if (typeof workItemId !== 'string' || typeof stepId !== 'string' || typeof maximum !== 'number')
+      throw new Error('malformed step parallelism');
+    // Proof: removing this check failed the fraction/zero/1001 negative (mutation-maximum.txt, 2026-10-17).
+    assertStepParallel(maximum);
+    const owner = owners.get(workItemId);
+    // Proof: removing this check failed the missing owner negative (mutation-owner-existence.txt, 2026-10-17).
+    if (owner === undefined) throw new Error('step parallelism names an unknown work item');
+    // Proof: removing this check failed the foreign owner negative (mutation-owner-project.txt, 2026-10-17).
+    if (owner.projectId !== project.id)
+      throw new Error('step parallelism names a foreign work item');
+    const step = steps.get(stepId);
+    // Proof: removing this check failed the missing step negative (mutation-step-existence.txt, 2026-10-17).
+    if (step === undefined) throw new Error('step parallelism names an unknown step');
+    // Proof: removing this check failed the foreign step negative (mutation-step-project.txt, 2026-10-17).
+    if (step.projectId !== project.id) throw new Error('step parallelism names a foreign step');
+    // Proof: removing this check failed the parent owner negative (mutation-leaf.txt, 2026-10-17).
+    if (parents.has(workItemId)) throw new Error('step parallelism names a parent work item');
+    const seen = pairs.get(workItemId);
+    // Proof: removing this check failed the duplicate exact pair negative (mutation-duplicate.txt, 2026-10-17).
+    if (seen?.has(stepId)) throw new Error('duplicate step parallelism');
+    if (seen === undefined) pairs.set(workItemId, new Set([stepId]));
+    else seen.add(stepId);
   }
 }
 
@@ -248,14 +319,87 @@ function buildDocument(
       teamId: serviceTeamId,
       size,
     })),
+    // Proof: with either list written empty, `exports only the resources its
+    // capacities and demands name (wbs-resources)` (plan-document.resource.test.ts)
+    // failed; watched 2026-10-20.
+    resourceCapacities: [...reads.resources.capacities]
+      .sort((left, right) => left.resourceId.localeCompare(right.resourceId))
+      .map(({ resourceId, units }) => ({ resourceId, units })),
+    demands: documentDemands(tree, reads.resources.demands),
     calendarMarkers: reads.markers.map(({ id, date, name, color }) => ({
       id,
       date,
       name,
       color,
     })),
-    directory: closure,
+    // Proof: `closure` written whole put `accountId` into the document and
+    // failed `capacity-only team is named …` and `v9 zero-fact export retains
+    // canonical bytes` in `plan-document.resource.test.ts`, and `exports the
+    // referenced directory closure …` in `project.controller.test.ts` (watched 2026-10-19).
+    directory: {
+      ...closure,
+      people: closure.people.map(exportedPerson),
+      resources: referencedResources(reads.resources),
+    },
   };
+}
+
+/**
+ * A person as the plan document carries them: never `accountId`. Which account
+ * may act as a person is this deployment's fact about its accounts, not part
+ * of the plan, and an import elsewhere has no such account (`wbs-team-claims`
+ * spec `fleet-credentials`).
+ */
+function exportedPerson({ id, name, kind, teamIds }: PersonWithTeams) {
+  return { id, name, kind, teamIds };
+}
+
+/**
+ * The project's demands as the document writes them, by work item then
+ * resource.
+ *
+ * @throws on a demand naming a work item the tree does not hold: trusted reads
+ * that disagree.
+ */
+function documentDemands(
+  tree: WorkItemTree,
+  demands: readonly { workItemId: string; resourceId: string; units: number }[],
+): PlanDocument['demands'] {
+  const rows = new Set(tree.workItems.map(({ id }) => id));
+  return [...demands]
+    .map(({ workItemId, resourceId, units }) => {
+      if (!rows.has(workItemId))
+        throw new Error(`demand names work item "${workItemId}" the tree does not hold`);
+      return { workItemId, resourceId, units };
+    })
+    .sort(
+      (left, right) =>
+        left.workItemId.localeCompare(right.workItemId) ||
+        left.resourceId.localeCompare(right.resourceId),
+    );
+}
+
+/**
+ * The resources the document's capacities and demands name, and no other,
+ * as every other catalog's closure is.
+ *
+ * Proof: returning the unfiltered list made `exports only the resources its
+ * capacities and demands name (wbs-resources)` (plan-document.resource.test.ts)
+ * carry the unused resource, and every zero-fact export carry all three; watched
+ * 2026-10-20.
+ *
+ * @throws when a capacity or demand names a resource the directory read lacks.
+ */
+function referencedResources(
+  read: PlanDocumentReads['resources'],
+): PlanDocument['directory']['resources'] {
+  const named = new Set([
+    ...read.capacities.map(({ resourceId }) => resourceId),
+    ...read.demands.map(({ resourceId }) => resourceId),
+  ]);
+  return requireRows('resource', named, [...read.resources]).map(
+    ({ id, name, kind, unitLabel }) => ({ id, name, kind, unitLabel }),
+  );
 }
 
 /**
@@ -413,6 +557,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 6 &&
     version !== 7 &&
     version !== 8 &&
+    version !== 9 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -455,6 +600,8 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       stepBlockages.push({ workItemId, stepId, blockedAt });
     }
   }
+  const resourceFacts = resourceFactsOf(version, checked.value);
+  if (!resourceFacts.ok) return resourceFacts;
   for (const [at, row] of checked.value.workItems.entries()) {
     // Proof: bypassing row alias refusal failed `legacy row blockage aliases are refused` (2026-10-14).
     if (
@@ -554,6 +701,9 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     ok: true,
     value: {
       ...checked.value,
+      directory: { ...checked.value.directory, resources: resourceFacts.resources },
+      resourceCapacities: resourceFacts.resourceCapacities,
+      demands: resourceFacts.demands,
       settings: { ...settings, timezone },
       steps,
       typedDependencies,
@@ -561,6 +711,97 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       workItems,
     },
   };
+}
+
+/**
+ * The resources, capacities and demands a file states (`wbs-resources`): from
+ * version 10 all three lists are required and every entry well formed — units
+ * whole numbers, a capacity from 0 and a demand from 1, both at most
+ * {@link MOST_RESOURCE_UNITS}; before version 10 a file carries none, and one
+ * that names any is refused rather than half-read. References between them and
+ * to the file's rows are `prepareImport`'s to check.
+ *
+ * Proof: with the version-10 shape checks bypassed, `refuses a version-10 file
+ * with a malformed resource, capacity or demand` (plan-document.resource.test.ts)
+ * classified a demand of 0 units ok; with the legacy refusal bypassed, `refuses
+ * resources in a file older than version 10` classified a v9 file naming a
+ * resource ok; both watched 2026-10-20.
+ */
+function resourceFactsOf(
+  version: number,
+  document: PlanDocumentRequest,
+):
+  | {
+      ok: true;
+      resources: DocumentResource[];
+      resourceCapacities: DocumentResourceCapacity[];
+      demands: DocumentDemand[];
+    }
+  | Extract<PlanDocumentClassification, { ok: false }> {
+  const listed = {
+    'directory.resources': document.directory.resources,
+    resourceCapacities: document.resourceCapacities,
+    demands: document.demands,
+  };
+  if (version < 10) {
+    for (const [path, held] of Object.entries(listed))
+      if (held !== undefined && (!Array.isArray(held) || held.length > 0))
+        return { ok: false, code: 'invalid_body', path };
+    return { ok: true, resources: [], resourceCapacities: [], demands: [] };
+  }
+  const resources: DocumentResource[] = [];
+  const resourceCapacities: DocumentResourceCapacity[] = [];
+  const demands: DocumentDemand[] = [];
+  const parse = <T>(
+    path: string,
+    held: unknown,
+    check: (entry: unknown) => T | null,
+    into: T[],
+  ): Extract<PlanDocumentClassification, { ok: false }> | null => {
+    if (!Array.isArray(held)) return { ok: false, code: 'invalid_body', path };
+    for (const [at, entry] of held.entries()) {
+      const parsed = check(entry);
+      if (parsed === null)
+        return { ok: false, code: 'invalid_body', path: `${path}[${String(at)}]` };
+      into.push(parsed);
+    }
+    return null;
+  };
+  const units = (value: unknown, floor: number): value is number =>
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= floor &&
+    value <= MOST_RESOURCE_UNITS;
+  const refused =
+    parse(
+      'directory.resources',
+      listed['directory.resources'],
+      (entry) => {
+        const parsed = documentResource(entry);
+        return parsed instanceof type.errors ? null : parsed;
+      },
+      resources,
+    ) ??
+    parse(
+      'resourceCapacities',
+      listed.resourceCapacities,
+      (entry) => {
+        const parsed = documentResourceCapacity(entry);
+        return parsed instanceof type.errors || !units(parsed.units, 0) ? null : parsed;
+      },
+      resourceCapacities,
+    ) ??
+    parse(
+      'demands',
+      listed.demands,
+      (entry) => {
+        const parsed = documentDemand(entry);
+        return parsed instanceof type.errors || !units(parsed.units, 1) ? null : parsed;
+      },
+      demands,
+    );
+  if (refused !== null) return refused;
+  return { ok: true, resources, resourceCapacities, demands };
 }
 
 type ClassifiedRow = Omit<PlanDocumentImport['workItems'][number], 'attempts'> & {

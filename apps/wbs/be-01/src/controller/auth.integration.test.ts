@@ -1,5 +1,6 @@
 import { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 import { jwtVerify, SignJWT } from 'jose';
 
@@ -67,6 +68,7 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
     auth,
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     projects: testProjectService(),
     workItems: testWorkItemService(),
@@ -192,6 +194,7 @@ describe('GET /api/auth/me', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: local,
       projects: testProjectService(),

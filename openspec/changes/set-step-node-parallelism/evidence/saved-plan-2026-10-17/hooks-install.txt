@@ -1,0 +1,4 @@
+[tool-git-hooks] installing lefthook in /tmp/puni-step-parallel-saved-plan-20261017
+sync hooks: ✔️(pre-commit, prepare-commit-msg, commit-msg)
+[tool-git-hooks] hooks installed — pre-commit + commit-msg are active.
+{"ceilingBytes": 805306368, "sampledPeakBytes": 84176896, "exitCode": 0}

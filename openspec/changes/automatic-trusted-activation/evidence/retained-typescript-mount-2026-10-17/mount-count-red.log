@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+447 |   const f = setup();
+448 |   const trap = spyOn(sources, 'createRetainedTypeScriptSource').mockImplementation(() => { throw new Error('source admission reached'); });
+449 |   try {
+450 |     for (const key of ['configPaths', 'publicEntrypoints'] as const) for (const count of [NaN, undefined, 1.5]) {
+451 |       const paths = new Proxy(f.request[key], { get(target, name, receiver) { if (name === 'length') return count; if (name === '0') throw new Error('path copied before count validation'); const selected: unknown = Reflect.get(target, name, receiver); return selected; } });
+452 |       expect(() => extractRetainedTypeScriptRelationships({ ...f, request: { ...f.request, [key]: paths } })).toThrow('request count');
+                                                                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request count"
+Received message: "source admission reached"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:452:111)
+(fail) retained compiler validates captured proxy array lengths before indexed reads [156.14ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1114.00ms]

@@ -1,0 +1,62 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+320 |         caseId: row.case.caseId,
+321 |         path: row.case.file,
+322 |         kind: row.citation.kind,
+323 |         effect,
+324 |       }));
+325 |     expect(observed.findings).toEqual(expected);
+                                    ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "caseId": "28598def9b7944718e2e2dfad6b96ea268b4b0130ab397b3247127798499834e",
++     "caseId": "ca3c8afbaffe49a45ca4a63e8a2dbeac0df0835bf7b8e9706a3bb480d7269868",
+      "effect": "debt",
+      "kind": "missing",
+      "path": "apps/example/src/browser.test.ts",
+    },
+    {
+-     "caseId": "628b56ff1e4a1935b72947aa4ff811fc1f5a05310911a5c061c91b7e6fedc10f",
++     "caseId": "c3770bcffe92140314bc629633814b0e3ef4cc3ae3dd64dd23742922d789037a",
+      "effect": "debt",
+-     "kind": "inactive",
++     "kind": "malformed",
+      "path": "apps/example/src/browser.test.ts",
+    },
+    {
+      "caseId": "9025d926b42b55c5ecbfe747cab8af97b4d9f52a7abd1bc41b3643a9095956db",
+      "effect": "debt",
+      "kind": "missing",
+      "path": "apps/example/src/browser.test.ts",
+    },
+    {
+-     "caseId": "c3770bcffe92140314bc629633814b0e3ef4cc3ae3dd64dd23742922d789037a",
++     "caseId": "628b56ff1e4a1935b72947aa4ff811fc1f5a05310911a5c061c91b7e6fedc10f",
+      "effect": "debt",
+-     "kind": "malformed",
++     "kind": "inactive",
+      "path": "apps/example/src/browser.test.ts",
+    },
+    {
+-     "caseId": "ca3c8afbaffe49a45ca4a63e8a2dbeac0df0835bf7b8e9706a3bb480d7269868",
++     "caseId": "28598def9b7944718e2e2dfad6b96ea268b4b0130ab397b3247127798499834e",
+      "effect": "debt",
+      "kind": "missing",
+      "path": "apps/example/src/browser.test.ts",
+    },
+  ]
+
+- Expected  - 6
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:325:31)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1416.22ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.40s]

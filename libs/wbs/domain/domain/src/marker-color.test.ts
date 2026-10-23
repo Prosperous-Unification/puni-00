@@ -24,16 +24,20 @@ import {
 } from './marker-color';
 
 /**
- * The theme file the backdrops come from. Read rather than transcribed: three
- * of the four body fills are custom properties in it, so a theme change that
- * darkened a band has to break this test rather than the chart.
+ * The SaaS kit theme the backdrops' colours come from; WBS `@import`s it from
+ * `styles.css`. Read rather than transcribed: three of the four body fills are
+ * custom properties in it, so a theme change that darkened a band has to break
+ * this test rather than the chart.
  */
+const THEME = new URL('../../../../shared/adapters/ui-saas-01/src/theme.css', import.meta.url);
+
+/** The WBS stylesheet, read only for the `--grid-dep-lit` dose it still owns. */
 const STYLES = new URL('../../../../../apps/wbs/fe-01/src/styles.css', import.meta.url);
 
 /**
- * `sky-500` is the fourth fill and it is **not** in `styles.css` — it is a
+ * `sky-500` is the fourth fill and it is **not** in the theme — it is a
  * built-in Tailwind palette colour, used directly by `fill-sky-500/15`
- * (`gantt-panel.tsx:2955`) and appearing zero times in the theme file. So it is
+ * (`gantt-panel.tsx:2955`) and appearing zero times in the theme files. So it is
  * pinned here as a literal and recorded in `verify.md`, and the other three are
  * read.
  */
@@ -44,10 +48,10 @@ const WEEKEND_ALPHA = 0.1; // fill-muted-foreground/10, :2888
 const ZEBRA_ALPHA = 0.4; // fill-muted/40, :2908
 const TODAY_ALPHA = 0.15; // fill-sky-500/15, :2955
 
-/** The text of one top-level block of `styles.css`, marker to its closing brace. */
+/** The text of one top-level block of the kit theme, marker to its closing brace. */
 function block(css: string, opener: string): string {
   const at = css.indexOf(opener);
-  if (at < 0) throw new Error(`styles.css has no ${opener} block`);
+  if (at < 0) throw new Error(`theme.css has no ${opener} block`);
   const end = css.indexOf('\n}', at);
   if (end < 0) throw new Error(`${opener} block is unterminated`);
   return css.slice(at, end);
@@ -70,14 +74,16 @@ function oklchVar(section: string, name: string): [number, number, number] {
  * against.
  */
 function deriveBackdrops(): { name: string; color: string }[] {
-  const css = readFileSync(STYLES, 'utf8');
-  const light = block(css, ':root {');
-  const dark = block(css, '.dark {');
+  const theme = readFileSync(THEME, 'utf8');
+  const light = block(theme, ':root {');
+  const dark = block(theme, '.dark {');
 
   // --grid-dep-lit is the fourth fill and the one that is not a tint: an opaque
   // color-mix over two opaque inputs. Its dose is read too, so moving the 20%
   // moves this test.
-  const dose = /--grid-dep-lit:\s*color-mix\(in oklab,\s*var\(--ring\)\s*(\d+)%/.exec(css);
+  const dose = /--grid-dep-lit:\s*color-mix\(in oklab,\s*var\(--ring\)\s*(\d+)%/.exec(
+    readFileSync(STYLES, 'utf8'),
+  );
   if (!dose) throw new Error('styles.css no longer defines --grid-dep-lit as a ring mix');
   const ringShare = Number(dose[1]) / 100;
 
@@ -141,7 +147,7 @@ function byName<T extends { name: string }>(rows: readonly T[]): T[] {
 }
 
 describe('the backdrop set', () => {
-  it('is the twenty surfaces §6 derives from styles.css, and MARKER_BACKDROPS is that set', () => {
+  it('is the twenty surfaces §6 derives from the kit theme, and MARKER_BACKDROPS is that set', () => {
     // The table case, and it is what makes "the same 20 backdrops" executable
     // rather than a sentence maintained by prose: `validateCustomColor` and the
     // palette measurement both read MARKER_BACKDROPS, and this asserts that
@@ -156,11 +162,16 @@ describe('the backdrop set', () => {
     // Not decoration: if `oklchToRgb` were wrong the deep-equal above would
     // fail without saying where, and these three are the values every row is
     // built out of. They are Tailwind's slate ramp, which is the independent
-    // check — `styles.css` writes them in oklch and never in hex.
-    const css = readFileSync(STYLES, 'utf8');
-    expect(formatHex(oklchToRgb(...oklchVar(block(css, ':root {'), 'background')))).toBe('#ffffff');
-    expect(formatHex(oklchToRgb(...oklchVar(block(css, '.dark {'), 'background')))).toBe('#020618');
-    expect(formatHex(oklchToRgb(...oklchVar(block(css, '.dark {'), 'muted')))).toBe('#1d293d');
+    // check — the kit theme writes them in oklch and never in hex, and these
+    // values coming out proves the kit kept WBS's slate surfaces.
+    const theme = readFileSync(THEME, 'utf8');
+    expect(formatHex(oklchToRgb(...oklchVar(block(theme, ':root {'), 'background')))).toBe(
+      '#ffffff',
+    );
+    expect(formatHex(oklchToRgb(...oklchVar(block(theme, '.dark {'), 'background')))).toBe(
+      '#020618',
+    );
+    expect(formatHex(oklchToRgb(...oklchVar(block(theme, '.dark {'), 'muted')))).toBe('#1d293d');
   });
 });
 

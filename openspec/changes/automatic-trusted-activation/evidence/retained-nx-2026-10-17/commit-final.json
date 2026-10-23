@@ -1,0 +1,13 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "Extract retained static Nx selectors and declaration composition"
+  ],
+  "exitCode": 1,
+  "peakTreeRssBytes": 809889792,
+  "seconds": 22.367,
+  "rssCeilingBytes": 943718400,
+  "deadlineSeconds": 60
+}

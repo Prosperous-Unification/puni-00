@@ -3,20 +3,25 @@ import { DiBag } from 'di-bag';
 import type { ActualStore } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import type { ClaimStore } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type { CommandJournalStore } from '../../ports/command-journal-store';
+import type { DemandStore } from '../../ports/demand-store';
 import type { DependencyStore } from '../../ports/dependency-store';
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
+import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
 import type { Scheduler } from '../../ports/scheduler';
 import type { StepBlockageStore } from '../../ports/step-blockage-store';
 import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
+import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { WorkItemStore } from '../../ports/work-item-store';
@@ -45,6 +50,7 @@ export const workItemModule = DiBag.createBuilder()
       ({
         livePlans,
         workItemStore,
+        stepParallelStore,
         projectStore,
         estimateStore,
         actualStore,
@@ -52,6 +58,10 @@ export const workItemModule = DiBag.createBuilder()
         progressStore,
         attemptStore,
         blockageStore,
+        claimStore,
+        organizationLimits,
+        demandStore,
+        resourceCapacityStore,
         directoryStore,
         capacityStore,
         priorityBandStore,
@@ -67,6 +77,7 @@ export const workItemModule = DiBag.createBuilder()
       }: {
         livePlans: LivePlanStore | undefined;
         workItemStore: WorkItemStore;
+        stepParallelStore: Pick<StepParallelStore, 'listByWorkItems'>;
         projectStore: ProjectStore;
         estimateStore: EstimateStore;
         actualStore: ActualStore;
@@ -74,6 +85,11 @@ export const workItemModule = DiBag.createBuilder()
         progressStore: StepProgressStore;
         attemptStore: StepNodeAttemptStore;
         blockageStore: StepBlockageStore;
+        claimStore: ClaimStore | undefined;
+        /** Null where the graph's stores carry no organization limits (public graph, legacy fixtures). */
+        organizationLimits: OrganizationLimitGauge | null;
+        demandStore: DemandStore;
+        resourceCapacityStore: ResourceCapacityStore;
         directoryStore: DirectoryStore;
         capacityStore: CapacityStore;
         priorityBandStore: PriorityBandStore;
@@ -89,6 +105,7 @@ export const workItemModule = DiBag.createBuilder()
       }): WorkItemServiceOptions => ({
         ...(livePlans === undefined ? {} : { livePlans }),
         workItems: workItemStore,
+        stepParallels: stepParallelStore,
         projects: projectStore,
         estimates: estimateStore,
         actuals: actualStore,
@@ -96,6 +113,10 @@ export const workItemModule = DiBag.createBuilder()
         progress: progressStore,
         attempts: attemptStore,
         blockages: blockageStore,
+        ...(claimStore === undefined ? {} : { claims: claimStore }),
+        ...(organizationLimits === null ? {} : { organizationLimits }),
+        demands: demandStore,
+        resourceCapacity: resourceCapacityStore,
         directory: directoryStore,
         capacity: capacityStore,
         priorityBands: priorityBandStore,

@@ -1,0 +1,56 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 23564288, "exitCode": 1}
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [1.39ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.07ms]
+722 |     typeof body !== 'object' ||
+723 |     body === null ||
+724 |     !('stepParallels' in body) ||
+725 |     !Array.isArray(body.stepParallels)
+726 |   )
+727 |     throw new Error('step parallelism collection is missing or malformed');
+                                                                               ^
+error: step parallelism collection is missing or malformed
+      at readStepParallels (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts:727:74)
+      at normalisePlanInputForward (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.ts:213:27)
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:55:22)
+(fail) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.30ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.66ms]
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.23ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.09ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.04ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.15ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.02ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.04ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+1 tests failed:
+(fail) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.30ms]
+
+ 32 pass
+ 1 fail
+ 44 expect() calls
+Ran 33 tests across 1 file. [27.00ms]

@@ -733,6 +733,24 @@
           "kind": "source",
           "path": "apps/website/fe-01/src/assets/fonts/README.md"
         }
+      },
+      {
+        "path": "libs/shared/adapters/ui-core-01/src/fonts/Geist-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "libs/shared/adapters/ui-core-01/src/brand.css",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "libs/shared/adapters/ui-core-01/src/fonts/README.md"
+        }
+      },
+      {
+        "path": "libs/shared/adapters/ui-core-01/src/fonts/InterTight-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "libs/shared/adapters/ui-core-01/src/brand.css",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "libs/shared/adapters/ui-core-01/src/fonts/README.md"
+        }
       }
     ],
     "gitlinkBoundaries": [],

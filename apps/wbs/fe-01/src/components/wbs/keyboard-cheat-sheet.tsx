@@ -1,7 +1,7 @@
+import { Button } from '@ui/saas-01';
 import { Fragment, useEffect, useRef } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
+import { usePageShortcutsSuspended } from '@/components/wbs/page-shortcuts';
 
 import {
   type AltStyle,

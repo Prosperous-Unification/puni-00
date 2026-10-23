@@ -623,6 +623,54 @@ describe('the Ansible host and k3s contract', () => {
     );
   });
 
+  it('configures a gate host whose lock and toolchain match the gate scripts', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const defaults = parse(
+      await readFile(join(root, 'infra/ansible/roles/gate_host/defaults/main.yml'), 'utf8'),
+    ) as Record<string, string>;
+    const tasks = await readFile(
+      join(root, 'infra/ansible/roles/gate_host/tasks/main.yml'),
+      'utf8',
+    );
+    const bashrc = await readFile(
+      join(root, 'infra/ansible/roles/gate_host/templates/bashrc.j2'),
+      'utf8',
+    );
+    const lockLibrary = await readFile(join(root, 'bin/heavy-lock-lib.sh'), 'utf8');
+    const inventory = parse(
+      await readFile(join(root, 'infra/ansible/inventory/production-existing-hosts.yml'), 'utf8'),
+    ) as { all: { children: Partial<Record<string, { hosts: Record<string, unknown> }>> } };
+    const linuxLock = /Linux\) printf '%s\\n' (\S+) ;;/.exec(lockLibrary)?.[1];
+    // Proof: setting puni_gate_home to /home/puni-gate failed this expectation (the library's
+    // Linux path stayed /home/puni1/...); it takes no override, so the home is the only route.
+    expect(linuxLock).toBe(`${defaults['puni_gate_home']}/.cache/wbs-heavy-work.lock`);
+    expect(defaults['puni_gate_user']).toBe('puni1');
+    expect(Object.keys(inventory.all.children['gate_hosts']?.hosts ?? {})).toEqual(['h4claw']);
+    expect(Object.keys(inventory.all.children['k3s_bootstrap_servers']?.hosts ?? {})).toEqual([
+      'h4claw',
+    ]);
+    // The non-interactive SSH shell a remote gate runs in stops at the guard, so the pinned PATH
+    // has to precede it. Proof: moving the PATH line below the guard failed (351 not < 309).
+    expect(bashrc.indexOf('export PATH=')).toBeGreaterThan(-1);
+    expect(bashrc.indexOf('export PATH=')).toBeLessThan(bashrc.indexOf('case $- in'));
+    // The gate owns the tree's head after the first clone; Ansible must never move it.
+    expect(tasks).toContain('update: false');
+    expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_bun_lock.sha256 }}'");
+    // Nx's bin is `#!/usr/bin/env node`: a gate host without a pinned Node on the gate PATH exits
+    // 127 at the first Nx script (h4claw's first live gate, 2026-10-21). Proof: dropping the
+    // `.node-` segment from the template's PATH failed the second expectation locally.
+    expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_node_lock.sha256 }}'");
+    expect(bashrc).toContain('{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin');
+    // twilight-dash's activation tests hash and run /usr/bin/gh; a gate host without it fails 60
+    // cases with ENOENT (h4claw live gate, 2026-10-21). Proof: dropping the checksum line from
+    // the gh fetch task failed this expectation.
+    expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_gh_lock.sha256 }}'");
+    expect(tasks).toContain("deb: '/var/cache/puni-gate-gh-{{ puni_gate_gh_lock.sha256 }}.deb'");
+    expect(tasks).toContain('extra_args: --require-hashes');
+    // Proof: `groups: [docker, sudo]` and the string form `groups: docker,sudo` both failed this.
+    expect(tasks).not.toMatch(/groups:.*sudo/);
+  });
+
   it('ships no role defaults for required security or identity state', async () => {
     const root = join(import.meta.dir, '../../..');
     for (const role of ['base', 'network', 'storage', 'k3s_server', 'k3s_agent']) {

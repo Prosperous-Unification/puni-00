@@ -1,0 +1,4 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+{"ceilingBytes": 1342177280, "sampledPeakBytes": 785506304, "exitCode": 0}

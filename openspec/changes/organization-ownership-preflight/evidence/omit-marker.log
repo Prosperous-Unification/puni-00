@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+92 |   ['unreadable', 'ALTER TABLE organization_activation RENAME COLUMN state TO lost_state'],
+93 |   ['malformed', 'DELETE FROM organization_activation'],
+94 | ]) {
+95 |   test(`refuses ${state} marker rather than returning findings`, async () => {
+96 |     write('DROP TRIGGER organization_activation_no_delete', statement);
+97 |     await expect(inspect()).rejects.toThrow(`marker is ${state}`);
+                                         ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:97:37)
+(fail) refuses absent marker rather than returning findings [128.43ms]
+92 |   ['unreadable', 'ALTER TABLE organization_activation RENAME COLUMN state TO lost_state'],
+93 |   ['malformed', 'DELETE FROM organization_activation'],
+94 | ]) {
+95 |   test(`refuses ${state} marker rather than returning findings`, async () => {
+96 |     write('DROP TRIGGER organization_activation_no_delete', statement);
+97 |     await expect(inspect()).rejects.toThrow(`marker is ${state}`);
+                                         ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:97:37)
+(fail) refuses unreadable marker rather than returning findings [86.98ms]
+92 |   ['unreadable', 'ALTER TABLE organization_activation RENAME COLUMN state TO lost_state'],
+93 |   ['malformed', 'DELETE FROM organization_activation'],
+94 | ]) {
+95 |   test(`refuses ${state} marker rather than returning findings`, async () => {
+96 |     write('DROP TRIGGER organization_activation_no_delete', statement);
+97 |     await expect(inspect()).rejects.toThrow(`marker is ${state}`);
+                                         ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:97:37)
+(fail) refuses malformed marker rather than returning findings [81.40ms]
+
+ 0 pass
+ 5 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [464.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 113369088, "exitCode": 1}

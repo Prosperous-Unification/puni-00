@@ -53,12 +53,35 @@ async function seeded() {
           : { ok: false, reason: 'not_found', about: 'project' },
       ),
   };
-  return { project, tree, requirements: { directory: source.stores.directory, markers, clock } };
+  return {
+    project,
+    tree,
+    requirements: {
+      directory: source.stores.directory,
+      markers,
+      clock,
+      stepParallels: source.stores.stepParallels,
+      resourceFacts: {
+        resourceCapacitiesOf: (id: string) => source.stores.resourceCapacity.listFor(id),
+        demandsOf: (id: string) => source.stores.demands.listByProject(id),
+      },
+    },
+  };
 }
 
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
+    stepParallels: DiBag.createProvider(() => source.stores.stepParallels, {
+      factoryReturnKind: 'sync-value',
+    }),
+    resourceFacts: DiBag.createProvider(
+      () => ({
+        resourceCapacitiesOf: (id: string) => source.stores.resourceCapacity.listFor(id),
+        demandsOf: (id: string) => source.stores.demands.listByProject(id),
+      }),
+      { factoryReturnKind: 'sync-value' },
+    ),
     directory: DiBag.createProvider(() => source.stores.directory, {
       factoryReturnKind: 'sync-value',
     }),
@@ -102,7 +125,7 @@ describe('the Plan document module', () => {
     if (!exported.ok) throw new Error('export refused');
     expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 9,
+      version: 10,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.value.calendarMarkers).toEqual([

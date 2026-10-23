@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
 
 interface WorkflowStep {
@@ -185,6 +186,8 @@ describe('the CI pixels scope', () => {
     const step = jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope');
 
     expect(step.env).toEqual({
+      GATE_MODE: '${{ needs.gate_mode.outputs.mode }}',
+      GATE_BASE: '${{ needs.gate_mode.outputs.base }}',
       EVENT_NAME: '${{ github.event_name }}',
       PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
       PR_NUMBER: '${{ github.event.pull_request.number }}',
@@ -273,5 +276,96 @@ describe('the CI pixels scope', () => {
     expect(aggregate).toContain('test "$SHARD_RESULT" = success');
     expect(aggregate).toContain('test "$SHARD_RESULT" = skipped');
     expect(caseArmEvents(summary.run ?? '')).toContain('*');
+  });
+});
+
+const scopeBase = '1'.repeat(40);
+
+/** Runs the production browser scope with controlled PR resolution and Nx output. */
+const selectBrowser = (overrides: Record<string, string | undefined> = {}) => {
+  const root = scratchSync('ci-browser-scope-');
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(
+    join(bin, 'bun'),
+    '#!/bin/bash\nprintf \'%s\\n\' "$STUB_BASE"\nexit "${RESOLVER_STATUS:-0}"\n',
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(bin, 'bunx'),
+    '#!/bin/bash\nprintf \'%s\\n\' "$*" >> "$NX_CALLS"\nprintf \'%s\\n\' "$STUB_AFFECTED"\nexit "${NX_STATUS:-0}"\n',
+    { mode: 0o755 },
+  );
+  const output = join(root, 'output');
+  const calls = join(root, 'calls');
+  writeFileSync(output, '');
+  writeFileSync(calls, '');
+  const script = jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope').run;
+  if (script === undefined) throw new Error('missing Browser stack scope script');
+  const execution = Bun.spawnSync(['bash', '-c', script], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+      GITHUB_OUTPUT: output,
+      NX_CALLS: calls,
+      STUB_BASE: scopeBase,
+      STUB_AFFECTED: '["wbs-fe-01"]',
+      EVENT_NAME: 'pull_request',
+      GATE_MODE: 'affected',
+      GATE_BASE: scopeBase,
+      ...overrides,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  return { execution, output: readFileSync(output, 'utf8'), calls: readFileSync(calls, 'utf8') };
+};
+
+describe('the CI browser plan boundary', () => {
+  test('depends on successful gate selection and explicitly omits docs browsers', () => {
+    expect(readWorkflow().jobs?.['pixels_mode']?.needs).toBe('gate_mode');
+    const selection = selectBrowser({ GATE_MODE: 'docs', NX_STATUS: '9' });
+    expect(selection.execution.exitCode).toBe(0);
+    expect(selection.output).toBe('stack=unaffected\n');
+    expect(selection.calls).toBe('');
+    expect(selection.execution.stdout.toString()).toContain(
+      'docs plan explicitly omits browser checks',
+    );
+  });
+
+  test('refuses a docs exemption with unproved identity or an unknown PR mode', () => {
+    for (const fault of [
+      { GATE_MODE: 'docs', GATE_BASE: '2'.repeat(40) },
+      { GATE_MODE: 'docs', RESOLVER_STATUS: '7' },
+      { GATE_MODE: 'unknown' },
+      { GATE_MODE: '' },
+    ]) {
+      const selection = selectBrowser(fault);
+      expect(selection.execution.exitCode, JSON.stringify(fault)).not.toBe(0);
+      expect(selection.output).toBe('');
+      expect(selection.calls).toBe('');
+    }
+  });
+
+  test('retains affected project membership and rejects broken Nx evidence', () => {
+    for (const project of ['wbs-fe-01', 'wbs-be-01', 'wbs-gw-01', 'tool-devsync']) {
+      const selection = selectBrowser({ STUB_AFFECTED: JSON.stringify([project]) });
+      expect(selection.execution.exitCode).toBe(0);
+      expect(selection.output).toBe(
+        `stack=${project === 'tool-devsync' ? 'unaffected' : 'affected'}\n`,
+      );
+      expect(selection.calls).toContain(`--base=${scopeBase}`);
+    }
+    for (const fault of [
+      { NX_STATUS: '7' },
+      { STUB_AFFECTED: 'not json' },
+      { STUB_AFFECTED: '"warning"\n["tool-devsync"]' },
+      { STUB_AFFECTED: '{}' },
+    ]) {
+      const selection = selectBrowser(fault);
+      expect(selection.execution.exitCode, JSON.stringify(fault)).not.toBe(0);
+      expect(selection.output).toBe('');
+    }
   });
 });

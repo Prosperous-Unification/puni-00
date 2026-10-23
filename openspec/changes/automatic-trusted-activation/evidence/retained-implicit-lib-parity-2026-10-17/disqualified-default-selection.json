@@ -1,0 +1,21 @@
+{
+  "reason": "Shared selector mutation failed legacy oracle before retained mount, so it is not a retained-default proof.",
+  "receipt": {
+    "fault": "wrong-default-selection",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "expectedTest": "retained compiler implicit sha1 matches legacy after all capture roots disappear",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 400484,
+    "ceilingKiB": 921600
+  }
+}

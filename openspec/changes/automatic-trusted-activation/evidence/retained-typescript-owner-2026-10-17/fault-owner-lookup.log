@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+124 |     JSON.parse(JSON.stringify(owned)),
+125 |     Object.create(owned),
+126 |     poison,
+127 |     getter,
+128 |   ])
+129 |     expect(() => extraction.readRetainedTypeScriptExtractionProvenance(foreign)).toThrow(
+                                                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained TypeScript extraction required"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:129:82)
+(fail) exact extraction owner rejects impostors without reading their properties [214.60ms]
+(pass) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [104.95ms]
+(pass) exact extraction deeply freezes envelope without changing enumerable canonical bytes [92.69ms]
+(pass) exact extraction registers only after compiler cap and freeze succeed [103.91ms]
+
+ 3 pass
+ 1 fail
+ 60 expect() calls
+Ran 4 tests across 1 file. [1456.00ms]

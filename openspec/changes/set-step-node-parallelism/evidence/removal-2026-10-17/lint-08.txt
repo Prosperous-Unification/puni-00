@@ -1,0 +1,3 @@
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts
+heap640
+{"ceilingBytes": 943718400, "sampledPeakBytes": 854593536, "exitCode": 0}

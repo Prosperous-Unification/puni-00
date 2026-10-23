@@ -1,9 +1,11 @@
+import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
 import type { DependencyEndpoint } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
+import type { ClaimRefusalOutcome } from '../work-item/claims';
 import type {
   AppliedBase,
   AppliedCommand,
@@ -56,6 +58,11 @@ export class CommandContext {
     private readonly refs: Map<string, string>,
     /** The caller's organization access; directory commands write through it. */
     readonly access: ResourceAccess,
+    /**
+     * The request credential's upstream pair, or null for a first-party
+     * session: what `claimWorkItem` reads the credential pin of (D6).
+     */
+    readonly credential: CredentialPin | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.
@@ -116,6 +123,87 @@ export class CommandContext {
     return outcome.ok ? outcome.value : this.refuseOutcome(outcome);
   }
 
+  /** {@link value} for a claim or release, whose refusals carry their own detail. */
+  claimValue<T>(outcome: { ok: true; value: T } | ServiceRefusal | ClaimRefusalOutcome): T {
+    if (outcome.ok) return outcome.value;
+    switch (outcome.reason) {
+      case 'not_startable':
+        return this.refuse({ reason: outcome.reason, detail: { status: outcome.status } });
+      case 'step_done':
+        return this.refuse({ reason: outcome.reason, detail: { stepIds: [...outcome.stepIds] } });
+      case 'already_claimed':
+        // Proof: with holders replaced by [], both orders of claim-race.db.test.ts
+        // failed: the loser did not name the winner; watched 2026-10-19.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
+        });
+      case 'inside_subtree_claim':
+      case 'overlaps_subtree_claim':
+        return this.refuse({ reason: outcome.reason, detail: { holder: { ...outcome.holder } } });
+      case 'below_declared_demand':
+        return this.refuse({
+          reason: outcome.reason,
+          detail: {
+            resourceId: outcome.resourceId,
+            asked: outcome.asked,
+            declared: outcome.declared,
+          },
+        });
+      case 'below_held_occupancy':
+        // Proof: with `held` replaced by 0, `refuses a later claim asking for
+        // less than its leaf holds` (resource-occupancy.db.test.ts) failed on
+        // both stores; watched 2026-10-20.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { resourceId: outcome.resourceId, asked: outcome.asked, held: outcome.held },
+        });
+      case 'resources_exhausted':
+        // Proof: with holders replaced by [], `refuses the ninth claim on 32 GB
+        // naming the eight holders` (resource-occupancy.db.test.ts) named
+        // nobody; watched 2026-10-20.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: {
+            resourceId: outcome.resourceId,
+            asked: outcome.asked,
+            free: outcome.free,
+            holders: outcome.holders.map((holder) => ({ ...holder })),
+            // Proof: with this list cut to its first entry, `names both
+            // resources a claim is short of` (resource-occupancy.db.test.ts)
+            // failed on both stores (0 pass, 2 fail); watched 2026-10-23.
+            resources: outcome.resources.map((short) => ({
+              resourceId: short.resourceId,
+              asked: short.asked,
+              free: short.free,
+              holders: short.holders.map((holder) => ({ ...holder })),
+            })),
+          },
+        });
+      case 'claim_limit':
+        // Proof: with both numbers replaced by 0 here, `refuses the forty-first
+        // bound claim` and five more cases of claim-limit.controller.db.test.ts
+        // named cap 0, current 0 (7 pass, 6 fail); watched 2026-10-22.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { cap: outcome.cap, current: outcome.current },
+        });
+      case 'resources_on_subtree':
+      case 'person_not_bound':
+      case 'credential_not_for_person':
+      case 'parent_claim_unknown':
+      case 'parent_claim_foreign':
+      case 'parent_claim_not_ancestor':
+      case 'item_done':
+      case 'no_steps':
+      case 'steps_on_subtree':
+      case 'not_claimed_by':
+        return this.refuse({ reason: outcome.reason });
+      default:
+        return this.refuseOutcome(outcome);
+    }
+  }
+
   requireValue<T>(value: T | null, refusal: Refusal): T {
     if (value === null) this.refuse(refusal);
     return value;
@@ -132,11 +220,52 @@ export class CommandContext {
         detail: { dependencyIds: outcome.dependencyIds },
       });
     }
+    if (outcome.reason === 'referenced_by_step_parallel') {
+      // Proof: replacing nodes with [] failed the mounted exact 409 assertion, 2026-10-17.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { nodes: outcome.nodes.map(({ workItemId, stepId }) => ({ workItemId, stepId })) },
+      });
+    }
+    if (outcome.reason === 'destination_claimed' || outcome.reason === 'children_claimed') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
+      });
+    }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
+    if (outcome.reason === 'agent_person_limit') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { cap: outcome.cap, current: outcome.current, added: outcome.added },
+      });
+    }
+    if (outcome.reason === 'capacity_limit') {
+      // Proof: with `declared` replaced by 0 here, `refuses a statement past
+      // the cap, naming the four numbers and writing nothing`
+      // (capacity-limit.controller.db.test.ts) and three more named declared 0
+      // (8 pass, 4 fail); watched 2026-10-22.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: {
+          resourceId: outcome.resourceId,
+          cap: outcome.cap,
+          declared: outcome.declared,
+          asked: outcome.asked,
+        },
+      });
+    }
     if (outcome.reason === 'in_use') {
-      return this.refuse({ reason: 'in_use', detail: { usage: outcome.usage } });
+      // Proof: with the counts dropped here, `refuses removing a demanded resource,
+      // naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)
+      // received no counts; watched 2026-10-20.
+      return this.refuse(
+        'counts' in outcome
+          ? { reason: 'in_use', detail: { usage: outcome.usage, counts: outcome.counts } }
+          : { reason: 'in_use', detail: { usage: outcome.usage } },
+      );
     }
     if (outcome.reason === 'deadline_before_project_start') {
       // Proof: deleting this guard threw Malformed deadline refusal resolved in the runner negative.
@@ -249,6 +378,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             parentId: context.id(command.parentId, command.parentRef),
             afterId: context.id(command.afterId, command.afterRef),
           },
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -269,6 +399,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           command.strategy ?? null,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -438,6 +569,58 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    assignSubtree: async (command, context) => {
+      context.value(
+        await workItems.assignSubtree(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          context.id(command.personId, command.personRef),
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    claimWorkItem: async (command, context) => {
+      const claimed = context.claimValue(
+        await workItems.claim(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          {
+            personId: context.required(command.personId, command.personRef),
+            stepIds: command.steps ?? null,
+            runId: command.runId ?? null,
+            parentClaimId: command.parentClaim ?? null,
+            assign: command.assign ?? false,
+            resources: command.resources ?? null,
+          },
+          context.access,
+          context.credential,
+        ),
+      );
+      return {
+        ...context.plain(),
+        kind: command.kind,
+        alreadyHeld: claimed.alreadyHeld,
+        claimIds: [...claimed.claimIds],
+        assignedStepIds: [...claimed.assignedStepIds],
+        acquired: claimed.acquired.map((each) => ({ ...each })),
+      };
+    },
+    releaseWorkItem: async (command, context) => {
+      context.claimValue(
+        await workItems.release(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          {
+            personId: context.required(command.personId, command.personRef),
+            stepIds: command.steps ?? null,
+          },
+          context.access,
+          context.credential,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     addDependency: async (command, context) => {
       // Proof: routing this legacy command to addTypedDependency made `keeps legacy
       // addDependency semantics and stores no typed row` receive 404 instead of 200; watched 2026-09-27.
@@ -527,6 +710,29 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setResourceCapacity: async (command, context) => {
+      context.value(
+        await capacity.setForResource(
+          context.requireProjectId(),
+          context.actorId,
+          context.required(command.resourceId, command.resourceRef),
+          command.units,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setDemand: async (command, context) => {
+      context.value(
+        await workItems.setDemand(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          context.required(command.resourceId, command.resourceRef),
+          command.units,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setStepAllowance: async (command, context) => {
       context.value(
         await workItems.setStepAllowance(
@@ -587,6 +793,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           command.name,
           context.ids(command.teamIds, command.teamRefs),
           context.access,
+          command.personKind,
         ),
       );
       return {
@@ -674,6 +881,39 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         (id, actorId, cascade) =>
           directory.removeWithin('services', id, actorId, cascade, context.access),
       ),
+    createResource: async (command, context) => {
+      context.assertRefAvailable(command.ref);
+      const resource = context.value(
+        await directory.addResourceWithin(
+          context.actorId,
+          { name: command.name, kind: command.resourceKind, unitLabel: command.unitLabel },
+          context.access,
+        ),
+      );
+      return { ...context.mint(command.ref, resource.id), kind: command.kind, entity: resource };
+    },
+    patchResource: async (command, context) => {
+      const resource = context.value(
+        await directory.patchResourceWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.patch,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind, entity: resource };
+    },
+    deleteResource: async (command, context) => {
+      context.accept(
+        await directory.removeResourceWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.cascade ?? false,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
   };
 }
 

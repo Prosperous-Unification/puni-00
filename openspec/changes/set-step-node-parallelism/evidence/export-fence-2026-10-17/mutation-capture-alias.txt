@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:
+930 |     );
+931 |     try {
+932 |       const observed = await livePlans().readExport('a2', access);
+933 |       if (observed.kind !== 'shared') throw new Error('shared export observation unavailable');
+934 |       for (const rows of retained) for (const fact of rows) fact.maxParallel = 1000;
+935 |       expect(observed.document.stepParallels).toEqual([
+                                                    ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "maxParallel": 1,
++     "maxParallel": 1000,
+      "stepId": "a2-s0",
+      "workItemId": "a2",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:935:47)
+(fail) detached live snapshot guards > copies sparse adapter rows into private export evidence [197.07ms]
+
+ 0 pass
+ 34 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.03s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 531320832, "exitCode": 1}

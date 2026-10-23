@@ -1,0 +1,15 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts
+  35:41  error  Invalid type "number" of template literal expression  @typescript-eslint/restrict-template-expressions
+  38:31  error  Invalid type "number" of template literal expression  @typescript-eslint/restrict-template-expressions
+  41:36  error  Invalid type "number" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+✖ 3 problems (3 errors, 0 warnings)
+
+{"ceilingBytes": 805306368, "sampledPeakBytes": 687419392, "exitCode": 1}

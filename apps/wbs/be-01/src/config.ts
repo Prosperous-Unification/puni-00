@@ -1,6 +1,41 @@
 import { authModeOf } from '@wbs/auth';
 import { defineConfig } from '@wbs/config';
+import type { OrganizationLimitValues } from '@wbs/domain';
 import { type } from '@wbs/validation';
+
+import { parseResolvers } from './runtime/authoritative-dns/addresses';
+import { type EmailDeliveryConfig, readEmailDelivery } from './runtime/email-delivery-config';
+
+/**
+ * One deployment default organization limit (`wbs-organization-limits` L7): a
+ * whole number within `ORGANIZATION_LIMIT_BOUNDS`, required with no default.
+ */
+const organizationDefaultLimit = type('string.integer.parse').to('0 <= number <= 1000000');
+
+/** The three deployment default limits on their own, for a process that needs no more. */
+const OrganizationDefaultLimitsConfig = type({
+  ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: organizationDefaultLimit,
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: organizationDefaultLimit,
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: organizationDefaultLimit,
+});
+
+/**
+ * The deployment default limits (`wbs-organization-limits` L7) from the same
+ * three variables be-01 boots with, for the operator CLI run beside it.
+ *
+ * @throws naming the variable when any is absent or not a whole number from
+ * 0 to 1,000,000; there is no default in code.
+ */
+export function loadOrganizationDefaultLimits(
+  envSource: Record<string, string | undefined> = process.env,
+): OrganizationLimitValues {
+  const config = defineConfig(OrganizationDefaultLimitsConfig, envSource);
+  return {
+    maxAgentPersons: config.ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS,
+    maxConcurrentClaims: config.ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS,
+    maxCapacityUnitsPerResource: config.ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE,
+  };
+}
 
 export const BeConfig = type({
   PORT: 'string.integer.parse',
@@ -18,8 +53,20 @@ export const BeConfig = type({
   // through the shared durable browser lifecycle, and whether the browser
   // organization cookie is read, is an operator decision; see `bootBe01`.
   BROWSER_SESSION_AUTHORITY: "'enabled'|'disabled'",
+  // Required with no default: the caps every organization without its own row
+  // holds are one deployment decision, and a default in code would set a
+  // tenant's plan by omission (`wbs-organization-limits` L7).
+  // Proof: making ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS optional made
+  // `refuses an absent, fractional, negative or over-bound … CONCURRENT_CLAIMS`
+  // in config.test.ts load the absent case (30 pass, 1 fail); watched 2026-10-22.
+  ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: organizationDefaultLimit,
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: organizationDefaultLimit,
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: organizationDefaultLimit,
   'WBS_DELEGATION_SIGNING_KEY?': 'string',
   'WBS_DELEGATION_VERIFY_KEY?': 'string',
+  'ORGANIZATION_DNS_RESOLVERS?': 'string',
+  // Proof: widening this to string accepted invalid values in `proof scheduling overrides`.
+  'ORGANIZATION_DOMAIN_PROOF_SCHEDULING?': "'enabled'|'disabled'",
   'SOLVER_BUDGET_MS?': 'string.integer.parse',
   'SOLVER_SEARCH_WORKERS?': 'string.integer.parse',
   'SOLVER_MEMORY_LIMIT_MB?': 'string.integer.parse',
@@ -41,7 +88,13 @@ export interface DelegationKeys {
 
 export const loadConfig = (
   envSource: Record<string, string | undefined> = process.env,
-): BeConfig & { appOrigin: string; delegationKeys?: DelegationKeys } => {
+): BeConfig & {
+  appOrigin: string;
+  delegationKeys?: DelegationKeys;
+  organizationDnsResolvers?: readonly string[];
+  emailDelivery: EmailDeliveryConfig;
+  organizationDefaultLimits: OrganizationLimitValues;
+} => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
   const signingKey = envSource['WBS_DELEGATION_SIGNING_KEY'];
@@ -73,6 +126,10 @@ export const loadConfig = (
     ...config,
     delegationKeys,
     appOrigin,
+    organizationDnsResolvers: parseResolvers(config.ORGANIZATION_DNS_RESOLVERS),
+    // Proof: removing this binding failed the production config disabled-mode assertion.
+    emailDelivery: readEmailDelivery(envSource),
+    organizationDefaultLimits: loadOrganizationDefaultLimits(envSource),
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,
     SOLVER_MEMORY_LIMIT_MB: solverMemoryLimitMb,

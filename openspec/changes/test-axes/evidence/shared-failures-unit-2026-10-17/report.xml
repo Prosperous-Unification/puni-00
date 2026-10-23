@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="20" assertions="57" failures="0" skipped="0" time="0.145086765">
+  <testsuite name="src/report-failure.test.ts" file="src/report-failure.test.ts" tests="20" assertions="57" failures="0" skipped="0" time="0.141218988" hostname="pop-os">
+    <testcase name="bounds the whole report and refuses to run the caught value" classname="" time="0.000051" file="src/report-failure.test.ts" line="15" assertions="2" />
+    <testcase name="names every property both reports skip" classname="" time="0.000019" file="src/report-failure.test.ts" line="24" assertions="1" />
+    <testcase name="skips a sensitive property whatever its capitalisation" classname="" time="0.005062" file="src/report-failure.test.ts" line="39" assertions="1" />
+    <testcase name="scrubs a caller-owned secret from message and stack, not only from its property" classname="" time="0.000752" file="src/report-failure.test.ts" line="51" assertions="2" />
+    <testcase name="treats a secret as literal text, not as a pattern" classname="" time="0.000523" file="src/report-failure.test.ts" line="67" assertions="1" />
+    <testcase name="an empty secret list leaves the key rules in force" classname="" time="0.000464" file="src/report-failure.test.ts" line="78" assertions="1" />
+    <testcase name="correlates a primitive failure without publishing its contents" classname="" time="0.000421" file="src/report-failure.test.ts" line="104" assertions="4" />
+    <testcase name="a cause that cannot be inspected is reported as reporting loss, not as a throw" classname="" time="0.000176" file="src/report-failure.test.ts" line="116" assertions="1" />
+    <testcase name="two losses in one process do not share a handle" classname="" time="0.000176" file="src/report-failure.test.ts" line="126" assertions="4" />
+    <testcase name="redacts a secret the disclosure policy selected into the public report" classname="" time="0.001054" file="src/report-failure.test.ts" line="140" assertions="3" />
+    <testcase name="reports a cause chain by path and redacts a key nested inside it" classname="" time="0.000907" file="src/report-failure.test.ts" line="151" assertions="3" />
+    <testcase name="keeps the order of an aggregate failure and reports a circular value" classname="" time="0.001067" file="src/report-failure.test.ts" line="166" assertions="3" />
+    <testcase name="stops the cause walk at the depth limit and says so on the deepest child" classname="" time="0.001173" file="src/report-failure.test.ts" line="181" assertions="4" />
+    <testcase name="stops at the child limit and says so on the root" classname="" time="0.00246" file="src/report-failure.test.ts" line="196" assertions="3" />
+    <testcase name="reports a thrown undefined, null and BigInt rather than losing them" classname="" time="0.000788" file="src/report-failure.test.ts" line="209" assertions="4" />
+    <testcase name="does not run a throwing getter while reporting" classname="" time="0.000444" file="src/report-failure.test.ts" line="223" assertions="3" />
+    <testcase name="bounds a very long Unicode message and marks it truncated" classname="" time="0.022692" file="src/report-failure.test.ts" line="239" assertions="3" />
+    <testcase name="drops the context whole when the report is over budget" classname="" time="0.001053" file="src/report-failure.test.ts" line="251" assertions="3" />
+    <testcase name="drops the reporting errors after the context when both cannot fit" classname="" time="0.01079" file="src/report-failure.test.ts" line="263" assertions="3" />
+    <testcase name="both reports validate against the installed schemas after redaction and truncation" classname="" time="0.014233" file="src/report-failure.test.ts" line="283" assertions="8" />
+  </testsuite>
+</testsuites>

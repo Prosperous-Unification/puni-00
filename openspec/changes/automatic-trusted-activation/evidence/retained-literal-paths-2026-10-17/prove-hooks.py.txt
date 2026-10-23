@@ -1,0 +1,43 @@
+from pathlib import Path
+import subprocess,os,json,hashlib,sys
+root=Path('/tmp/puni-literal-paths-sol-20261017')
+evidence=root/'openspec/changes/automatic-trusted-activation/evidence/retained-literal-paths-2026-10-17'
+relative='apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts'
+path=root/relative
+original=path.read_bytes()
+env=dict(os.environ,RUNTIME_CLOSURE_RSS_MIB=os.environ.get('RUNTIME_CLOSURE_RSS_MIB','900'),NX_DAEMON='false',NX_ISOLATE_PLUGINS='false',NODE_OPTIONS='--max-old-space-size=640')
+def git(*args):
+ invocation=subprocess.run(['git',*args],cwd=root,capture_output=True,text=True)
+ if invocation.returncode: raise RuntimeError(invocation.stderr)
+ return invocation.stdout.strip()
+def hook(label):
+ command=['git','hook','run','pre-commit']
+ invocation=subprocess.run(['python3','/tmp/runtime-rss-guard.py',*command],cwd=root,capture_output=True,text=True,env=env)
+ transcript=invocation.stdout+invocation.stderr
+ (evidence/(label+'.log')).write_text(transcript)
+ receipt=json.loads(next(line for line in transcript.splitlines() if line.startswith('{"ceilingBytes"')))
+ (evidence/(label+'.receipt.json')).write_text(json.dumps({'command':command,**receipt},indent=2)+'\n')
+ return invocation.returncode,transcript,receipt
+if sys.argv[1:] == ['negative']:
+ tree=git('write-tree')
+ paths=git('diff','--cached','--name-only').splitlines()
+ try:
+  path.write_bytes(original+b'\nconst = broken hook syntax;\n')
+  git('add',relative)
+  negative=git('write-tree')
+  status,transcript,receipt=hook('hook-negative')
+  if status==137: raise RuntimeError('hook cap reached; request root one-shot only after measured cap and fresh free -m')
+  if status!=1 or 'Parsing error' not in transcript or 'SyntaxError' not in transcript:
+   raise RuntimeError('negative hook did not reach syntax refusals\n'+transcript)
+ finally:
+  path.write_bytes(original)
+  git('add',relative)
+ restored=git('write-tree')
+ if restored!=tree: raise RuntimeError('staged tree not restored')
+ (evidence/'hook-negative-proof.json').write_text(json.dumps({'sourceIdentity':hashlib.sha256(original).hexdigest(),'restoredIdentity':hashlib.sha256(path.read_bytes()).hexdigest(),'sourceTree':tree,'negativeTree':negative,'restoredTree':restored,'stagedPaths':paths,'fault':'append invalid const declaration to production compiler module','exitCode':receipt['exitCode'],'sampledPeakBytes':receipt['sampledPeakBytes']},indent=2)+'\n')
+ print('negative passed',receipt)
+elif sys.argv[1:] == ['restored']:
+ status,transcript,receipt=hook('hook-restored')
+ print('restored',receipt)
+ if status!=0: raise RuntimeError('restored hooks failed\n'+transcript)
+else: raise RuntimeError('expected negative or restored')

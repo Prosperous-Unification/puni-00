@@ -1,0 +1,32 @@
+[
+  {
+    "fault": "late-forward",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "retained pairs"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true,
+    "log": "fault-late-forward.txt"
+  },
+  {
+    "fault": "replay-catch-stale",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "preserves history on"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true,
+    "log": "fault-replay-catch-stale.txt"
+  }
+]

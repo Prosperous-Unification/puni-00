@@ -291,6 +291,13 @@ export function stepRoutes(
               status: 409,
               body: { error: outcome.reason, inUse: outcome.inUse },
             };
+          // Proof: empty reference mapping broke both mounted retained sparse HTTP assertions, 2026-10-17.
+          case 'referenced_by_step_parallel':
+            return {
+              ok: false,
+              status: 409,
+              body: { error: outcome.reason, nodes: [...outcome.nodes] },
+            };
           case 'referenced_by_dependency':
             return {
               ok: false,

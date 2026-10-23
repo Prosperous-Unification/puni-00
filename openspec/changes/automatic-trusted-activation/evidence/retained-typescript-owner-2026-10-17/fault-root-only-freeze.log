@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [185.01ms]
+138 |   const runtimeFrozen = Object.isFrozen(f.runtime);
+139 |   const compile = judge.extractTypeScriptRelationshipsFromSource;
+140 |   const compiler = spyOn(judge, 'extractTypeScriptRelationshipsFromSource').mockImplementation(
+141 |     (...args) => {
+142 |       expect(Object.isFrozen(args[1])).toBe(true);
+143 |       expect(Object.isFrozen(args[1].configPaths)).toBe(true);
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:143:52)
+      at extractRetainedTypeScriptRelationships (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:238:21)
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:158:30)
+(fail) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [109.78ms]
+190 |   ]);
+191 |   const pending: unknown[] = [owned];
+192 |   while (pending.length > 0) {
+193 |     const value = pending.pop();
+194 |     if (typeof value !== 'object' || value === null) continue;
+195 |     expect(Object.isFrozen(value)).toBe(true);
+                                         ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:195:36)
+(fail) exact extraction deeply freezes envelope without changing enumerable canonical bytes [115.94ms]
+(pass) exact extraction registers only after compiler cap and freeze succeed [118.64ms]
+
+ 2 pass
+ 2 fail
+ 25 expect() calls
+Ran 4 tests across 1 file. [1498.00ms]

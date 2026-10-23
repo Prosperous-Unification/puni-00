@@ -1,0 +1,14 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 662564,
+  "ceilingKiB": 921600
+}

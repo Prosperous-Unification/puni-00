@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1398.29ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under enforce  [1283.62ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet  [1279.42ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example/src [1277.44ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example/src/browser.test.ts [1350.41ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet apps/example/sr [1270.35ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet apps/example/src/browser [1272.77ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example,apps/example/src,future/path [1213.49ms]
+
+ 8 pass
+ 82 filtered out
+ 0 fail
+ 40 expect() calls
+Ran 8 tests across 1 file. [11.33s]

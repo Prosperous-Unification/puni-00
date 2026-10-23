@@ -1,0 +1,36 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "-p",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/focused-tests.tsconfig.json",
+    "--noEmit"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 438364,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/home/df/wd/puni/puni-00/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+      "-p",
+      "openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/focused-tests.tsconfig.json",
+      "--noEmit"
+    ],
+    [
+      "bunx",
+      "--no-install",
+      "tsc",
+      "-p",
+      "openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/focused-tests.tsconfig.json",
+      "--noEmit"
+    ],
+    [
+      "node",
+      "/tmp/retained-config-roots-sol-oct17/node_modules/.bin/tsc",
+      "-p",
+      "openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/focused-tests.tsconfig.json",
+      "--noEmit"
+    ]
+  ]
+}

@@ -2,16 +2,26 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@wbs/auth';
+import {
+  buildOidcVerifier,
+  type IssuerFetch,
+  type KeySetFailureReport,
+  oidcCredentialEvidence,
+  type TokenVerifier,
+  trustedIssuerDiscovery,
+  TrustedIssuerKeySets,
+} from '@wbs/auth';
 import {
   type CapacityModeSwitch,
   CREATOR_ADMISSION,
   type DomainResolver,
+  type EmailMessage,
   type PasswordHasher,
   type ProjectRankStore,
 } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
@@ -23,6 +33,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
+  computeProvidersOver,
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
@@ -30,8 +41,12 @@ import {
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialAdministrationRepository,
+  MachineCredentialRepository,
   OnboardingRepository,
   openSqliteSource,
+  OrganizationLimitGaugeRepository,
+  OrganizationLimitsRepository,
   OrganizationRepository,
   ProjectRankRepository,
   ProvisioningTokenRepository,
@@ -46,12 +61,16 @@ import {
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
   type SqliteSource,
+  TrustedIssuerAdministrationRepository,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
+import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { buildApp } from '../app';
@@ -90,6 +109,7 @@ import { sqliteDependencyGraph } from './dependency-graph-fixture';
 import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
@@ -139,6 +159,7 @@ export interface OrganizationHarnessOptions {
 }
 
 interface TestMail {
+  purposes: Map<string, EmailMessage['purpose']>;
   tokens: Map<string, string>;
   fail: boolean;
   beforeDelivery?: () => void | Promise<void>;
@@ -188,10 +209,21 @@ export class OrganizationHarness {
     private readonly optimizerCoordinator?: OptimizationCoordinator,
     private readonly savedPlanCapture?: SavedPlanCaptureStore,
     private readonly composedSource?: SqliteSource,
+    private readonly composedClaimLeases?: ClaimLeaseSweep,
   ) {}
+
+  /**
+   * The composed claim lease sweep (`wbs-claim-leases` L7), unstarted: boot
+   * starts it in production; a test starts it to watch a revoke's tick.
+   */
+  claimLeaseSweep(): ClaimLeaseSweep {
+    if (this.composedClaimLeases === undefined) throw new Error('composed claim leases are absent');
+    return this.composedClaimLeases;
+  }
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
   async closeComposed(): Promise<void> {
+    await this.composedClaimLeases?.stop();
     await this.optimizerCoordinator?.stop();
     await this.composedSource?.close();
     this.close();
@@ -272,7 +304,7 @@ export class OrganizationHarness {
     this.startOptimizer();
   }
 
-  /** Runs one injected dormant worker pass against this harness's SQLite claim store. */
+  /** Runs one injected worker pass against this harness's SQLite claim store. */
   checkDomains(
     at: number,
     now: () => number = () => at,
@@ -348,6 +380,7 @@ export class OrganizationHarness {
       users,
       identities: users,
       enterprise: new EnterpriseConnectionRepository(db, gate),
+      machineKeys: { credentials: new MachineCredentialRepository(db, gate), now },
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
       ...(upstreamCredential === undefined
@@ -369,10 +402,15 @@ export class OrganizationHarness {
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
     const writing = {
+      stepParallels: new StepParallelRepository(db, OPEN),
       directory: new DirectoryService({
         clock: testClock,
         directory: directoryStore,
         broadcast: recordingBroadcaster(),
+        organizationLimits: new OrganizationLimitGaugeRepository(
+          db,
+          TEST_ORGANIZATION_DEFAULT_LIMITS,
+        ),
       }),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -406,6 +444,10 @@ export class OrganizationHarness {
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
+        claims: new ClaimRepository(db, OPEN),
+        demands: new DemandRepository(db, OPEN),
+        resourceCapacity: new ResourceCapacityRepository(db, OPEN),
+        stepParallels: new StepParallelRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: directoryStore,
@@ -416,7 +458,7 @@ export class OrganizationHarness {
         broadcast: recordingBroadcaster(),
       }),
     };
-    const mail: TestMail = { tokens: new Map<string, string>(), fail: false };
+    const mail: TestMail = { tokens: new Map<string, string>(), purposes: new Map(), fail: false };
     const app = buildApp({
       loginThrottle: testLoginThrottle(),
       clock: testClock,
@@ -441,6 +483,7 @@ export class OrganizationHarness {
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
+      organizationLimits: new OrganizationLimitsRepository(db, TEST_ORGANIZATION_DEFAULT_LIMITS),
       pendingMemberships: new ScimUserRepository(db, gate),
       enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       provisioning: {
@@ -449,6 +492,8 @@ export class OrganizationHarness {
         clock: { now },
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
+      machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
+      computeProviders: computeProvidersOver(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -456,10 +501,11 @@ export class OrganizationHarness {
       spaces: new SpaceRepository(db, OPEN),
       projectRanks: uncomposedRanks(new ProjectRankRepository(db, OPEN)),
       emailDelivery: {
-        deliver: async (address, token) => {
+        deliver: async (message) => {
           await mail.beforeDelivery?.();
           if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
-          mail.tokens.set(address, token);
+          mail.tokens.set(message.recipient, message.token);
+          mail.purposes.set(message.recipient, message.purpose);
           return Promise.resolve();
         },
       },
@@ -556,12 +602,21 @@ export class OrganizationHarness {
     supportedCapacityModes,
     sessionBinding,
     provider,
+    upstreamCredential,
+    now,
+    trustedIssuers,
+    migrate = (path) => {
+      runMigrations(path, FOLDER);
+    },
   }: ComposedHarnessOptions): OrganizationHarness {
+    if (provider !== undefined && upstreamCredential !== undefined)
+      throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrate(path);
     const source = openSqliteSource({
       dbPath: path,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       openReadOnlyConnection,
       onFanoutCapture,
       onCapturedFanout,
@@ -575,6 +630,21 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch,
+      ...(now === undefined ? {} : { now }),
+      ...(trustedIssuers === undefined
+        ? {}
+        : {
+            trustedIssuers: {
+              tokens: new TrustedIssuerKeySets({
+                fetch: trustedIssuers.fetch,
+                report: trustedIssuers.report ?? (() => undefined),
+                ...(trustedIssuers.cooldownMs === undefined
+                  ? {}
+                  : { cooldownMs: trustedIssuers.cooldownMs }),
+              }),
+              configuredIssuer: () => Promise.resolve(trustedIssuers.configuredIssuer),
+            },
+          }),
       ...(provider === undefined
         ? {}
         : {
@@ -582,6 +652,12 @@ export class OrganizationHarness {
               groupPrefix: 'dev',
               groupsClaim: 'wbs_groups',
             }),
+            passwordSessions: true,
+          }),
+      ...(upstreamCredential === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
             passwordSessions: true,
           }),
       ...(withOptimizer
@@ -624,11 +700,19 @@ export class OrganizationHarness {
           return access;
         },
       },
-      ...(selection === undefined
+      ...(selection === undefined ? {} : { organizationSelection: selection.endpoints }),
+      // As `boot.ts` wires it: an upstream Bearer is judged as evidence on
+      // every request, so a machine token reaches that path here too.
+      ...(selection === undefined && upstreamCredential === undefined
         ? {}
         : {
-            organizationSelection: selection.endpoints,
-            credentialEvidence: organizationCredentialEvidence(services.auth, TEST_JWT_KEY),
+            credentialEvidence: organizationCredentialEvidence(
+              services.auth,
+              TEST_JWT_KEY,
+              upstreamCredential === undefined
+                ? undefined
+                : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
+            ),
           }),
       memberships: new OrganizationRepository(source.db, services.gate),
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
@@ -637,6 +721,25 @@ export class OrganizationHarness {
       ),
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
+      machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      claimLeases: services.claimLeases,
+      computeProviders: computeProvidersOver(source.db, services.gate),
+      // As `boot.ts` wires it, so the composed boundary serves the limits read too.
+      // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
+      // no_active_organization on an activated organization; watched 2026-10-23.
+      organizationLimits: new OrganizationLimitsRepository(
+        source.db,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+      ),
+      ...(trustedIssuers === undefined
+        ? {}
+        : {
+            trustedIssuers: {
+              administration: new TrustedIssuerAdministrationRepository(source.db, services.gate),
+              discovery: trustedIssuerDiscovery({ fetch: trustedIssuers.fetch }),
+              configuredIssuer: () => Promise.resolve(trustedIssuers.configuredIssuer),
+            },
+          }),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
@@ -649,6 +752,7 @@ export class OrganizationHarness {
       },
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
+      stepParallels: source.stores.stepParallels,
       workItems: services.workItems,
       optimizer: services.optimizer,
       savedPlans: services.savedPlans,
@@ -707,6 +811,7 @@ export class OrganizationHarness {
       services.optimizer,
       source.history.savedPlanCapture,
       source,
+      services.claimLeases,
     );
     harness.federated = provider !== undefined;
     return harness;
@@ -717,6 +822,13 @@ export class OrganizationHarness {
     const token = this.mail?.tokens.get(address);
     if (token === undefined) throw new Error(`no challenge delivered to ${address}`);
     return token;
+  }
+
+  /** Captured purpose, so the production caller cannot silently swap message semantics. */
+  deliveredEmailPurpose(address: string): EmailMessage['purpose'] {
+    const purpose = this.mail?.purposes.get(address);
+    if (purpose === undefined) throw new Error('no message purpose was captured');
+    return purpose;
   }
 
   /** Makes the injected test sink reject delivery. */
@@ -882,6 +994,8 @@ export class OrganizationHarness {
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
   readonly sessionBinding?: boolean;
+  /** The services clock's time source; real time unless a test fixes it. */
+  readonly now?: () => number;
   withOptimizer?: boolean;
   /** Runs after organization access resolves, before the route acts. */
   afterResolve?: () => void;
@@ -896,6 +1010,30 @@ export interface ComposedHarnessOptions {
   supportedCapacityModes?: readonly CapacityMode[];
   /** Mounts the browser OIDC routes over this fake provider; see {@link OrganizationHarnessOptions}. */
   provider?: FakeOidcProvider;
+  /** Verifies upstream Bearer tokens; see {@link OrganizationHarnessOptions}. */
+  upstreamCredential?: OrganizationHarnessOptions['upstreamCredential'];
+  /**
+   * Migrates the fresh, empty file at `dbPath` before anything opens it; in-process
+   * `runMigrations` when absent. A rehearsal passes the operator's `migrate-cli.ts`.
+   */
+  migrate?: (dbPath: string) => void;
+  /**
+   * Turns the OIDC machine source on (`wbs-machine-credentials` slice 5), as
+   * `boot.ts` does: trusted issuer administration and the trusted-issuer
+   * verification path, both fetching through `fetch` (a test routes it to a
+   * local issuer). `configuredIssuer` is the sign-in issuer they refuse.
+   */
+  trustedIssuers?: HarnessTrustedIssuers;
+}
+
+/** What {@link ComposedHarnessOptions.trustedIssuers} wires. */
+export interface HarnessTrustedIssuers {
+  readonly fetch: IssuerFetch;
+  readonly configuredIssuer: string | null;
+  /** The key sets' unknown-`kid` refetch cooldown; production's 30 s when absent. */
+  readonly cooldownMs?: number;
+  /** Where an unfetchable key set is reported; nowhere when absent. */
+  readonly report?: KeySetFailureReport;
 }
 
 /**

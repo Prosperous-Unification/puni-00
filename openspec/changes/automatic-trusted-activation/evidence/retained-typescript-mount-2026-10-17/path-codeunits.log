@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+494 |       extractRetainedTypeScriptRelationships({
+495 |         ...f,
+496 |         request: { ...f.request, configPaths: ['a'.repeat(16)] },
+497 |         requestLimits: { ...requestLimits, maximumPathBytes: 15 },
+498 |       }),
+499 |     ).toThrow('request path ceiling');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request path ceiling"
+Received message: "encoding reached"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:499:7)
+(fail) retained compiler bounds path codeunits before UTF8 encoding [140.58ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1300.00ms]

@@ -79,11 +79,25 @@ export function createWorkingPlanDirectory(
     listPeople: () => source().listPeople(),
     addPerson: afterWrite((...parameters) => source().addPerson(...parameters), ok),
     patchPerson: afterWrite((...parameters) => source().patchPerson(...parameters), ok),
+    boundAccountOf: (personId) => source().boundAccountOf(personId),
+    credentialPinOf: (issuer, subject) => source().credentialPinOf(issuer, subject),
     usageOfPerson: (personId) => source().usageOfPerson(personId),
     usageOfTeam: (teamId) => source().usageOfTeam(teamId),
     removePerson: afterWrite((...parameters) => source().removePerson(...parameters), ok),
     removeTeam: afterWrite((...parameters) => source().removeTeam(...parameters), ok),
+    listResources: () => source().listResources(),
+    addResource: afterWrite((...parameters) => source().addResource(...parameters), ok),
+    patchResource: afterWrite((...parameters) => source().patchResource(...parameters), ok),
+    setResourceProvider: afterWrite(
+      (...parameters) => source().setResourceProvider(...parameters),
+      ok,
+    ),
+    usageOfResource: (resourceId) => source().usageOfResource(resourceId),
+    // A cascaded removal takes demands and moves their rows' revisions, so the
+    // retained plan reloads as after every other successful directory write.
+    removeResource: afterWrite((...parameters) => source().removeResource(...parameters), ok),
     assignmentsInProject: (projectId) => source().assignmentsInProject(projectId),
+    namesOf: (catalog, ids) => source().namesOf(catalog, ids),
     assignmentsFor: (workItemId) => source().assignmentsFor(workItemId),
     assignmentsOf: (workItemIds) => source().assignmentsOf(workItemIds),
     assign: async (...parameters) => {

@@ -171,6 +171,8 @@ export const removeStep = defineEndpointShape({
             measures: 'number',
             // Optional: an outgoing be-01 mid-swap counts no attempts.
             'attempts?': 'number',
+            // Optional: an outgoing be-01 mid-swap counts no claims.
+            'claims?': 'number',
             assignments: 'number',
             assumedAssignees: type({
               workItemId: 'string',
@@ -186,6 +188,16 @@ export const removeStep = defineEndpointShape({
       // A typed dependency names the step; it must be removed or reassigned first.
       schema: responseSchema(
         type({ error: "'referenced_by_dependency'", dependencyIds: 'string[]' }),
+      ),
+    },
+    {
+      status: 409,
+      schema: responseSchema(
+        type({
+          // Proof: undeclared sparse refusal produced HTTP 500 in both mounted cases, 2026-10-17.
+          error: "'referenced_by_step_parallel'",
+          nodes: type({ workItemId: 'string', stepId: 'string' }).array(),
+        }),
       ),
     },
     // Removing the step would move a legacy anchor into a step-node cycle.

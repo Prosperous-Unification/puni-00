@@ -1,0 +1,68 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+104 |   expect(observation.evaluatedAt).toBe(now);
+105 |   const { observationDigest, ...payload } = observation;
+106 |   expect(observationDigest).toBe(hashCanonical(payload));
+107 |   setup.authority.obligations.reverse();
+108 |   writeFileSync(setup.ledgerPath, JSON.stringify(setup.authority));
+109 |   expect(JSON.parse((await inspect(setup)).stdout)).toEqual(observation);
+                                                          ^
+error: expect(received).toEqual(expected)
+
+@@ -6,35 +6,35 @@
+      "candidate": "cafe28af2a56fc13ff8f37ac5ce0a7bc4ee64496b1d082c9de01d645e3a3b6a6",
+      "capability": "example",
+      "obligations": [
+        {
+          "disposition": {
+-           "kind": "automated",
+-           "lowestSufficientLevel": "performance",
++           "kind": "inapplicable",
++           "reason": "No second physical control.",
+          },
+-         "scenarioId": "EXAMPLE-001",
++         "scenarioId": "EXAMPLE-002",
+        },
+        {
+          "disposition": {
+-           "kind": "inapplicable",
+-           "reason": "No second physical control.",
++           "kind": "automated",
++           "lowestSufficientLevel": "performance",
+          },
+-         "scenarioId": "EXAMPLE-002",
++         "scenarioId": "EXAMPLE-001",
+        },
+      ],
+      "performanceObservationDigest": "5cbb319fd1ad9599e012a6eccae58536a725c2c53b6c06a2a073e0797a96ccc6",
+      "revision": "596bd625c1c85478d0bb765ebecd056a521ab673",
+      "schemaVersion": 1,
+    },
+-   "authorityDigest": "9e3c5590b6a68a6c01478031f1a0117d37c4d086f8faf4e8769b4752f970ccef",
++   "authorityDigest": "6e581610a1b851999402ef61aa3dd131e2e7ca29ff2d375a20ebb10b60cd2599",
+    "candidate": "cafe28af2a56fc13ff8f37ac5ce0a7bc4ee64496b1d082c9de01d645e3a3b6a6",
+    "capability": "example",
+    "certifies": false,
+    "debt": [],
+    "evaluatedAt": "2026-10-15T00:00:00.000Z",
+    "kind": "scenario-ledger",
+-   "observationDigest": "4263ccc3f0ac0ebb908e99eedc142c7b5c9c5aa860a3634ff001ba695e92d12d",
++   "observationDigest": "ec62af0eba8de4804f304069bd09465b048ac1ebe6e7d745d7974ac0c134f1e7",
+    "performance": {
+      "authentication": {
+        "kind": "absent",
+      },
+      "candidate": "cafe28af2a56fc13ff8f37ac5ce0a7bc4ee64496b1d082c9de01d645e3a3b6a6",
+
+- Expected  - 8
++ Received  + 8
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:109:53)
+(fail) [TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [439.81ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [1347.00ms]

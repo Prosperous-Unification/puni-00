@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+198 | });
+199 | 
+200 | test('manifest verifier refuses output tampering and digest rebinding', async () => {
+201 |   const upstream = await readFile(require.resolve('@typescript/old/lib/typescript.js'), 'utf8');
+202 |   const artifact = buildCompilerDerivative(upstream);
+203 |   expect(() => { verifyCompilerDerivative(`${artifact.source}\n`, artifact.manifest); }).toThrow(
+                                                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "output digest"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:203:90)
+(fail) manifest verifier refuses output tampering and digest rebinding [72.02ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [110.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 89739264, "exitCode": 1}

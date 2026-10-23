@@ -1,0 +1,4 @@
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts 195ms (unchanged)
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts 128ms
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts 46ms (unchanged)
+openspec/changes/automatic-trusted-activation/verify.md 760ms

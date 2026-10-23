@@ -1,4 +1,5 @@
 import type { ActualKey, StoredActual } from './actual-store';
+import type { Demand } from './demand-store';
 import type { StoredDependency } from './dependency-store';
 import type { Assignment } from './directory-store';
 import type { StoredEstimate } from './estimate-store';
@@ -94,6 +95,20 @@ export interface SubtreeCopy {
    */
   measures: readonly StoredMeasure[];
   assignments: readonly Assignment[];
+  /**
+   * The units of each resource the rows being written state they need
+   * (`wbs-resources` R1), each on a row of `rows`.
+   *
+   * **Copied whole by a duplication**, for {@link SubtreeCopy.estimates}'
+   * reason: a demand describes the work, so a copy that dropped it would be
+   * planned as if it needed nothing. **Put back whole by a restore**: the
+   * demands went with the rows through the cascade, and an undo of a delete
+   * that returned the rows without them would level the branch as free.
+   *
+   * Every resource named here is one the directory holds; the caller checks
+   * that before writing, so a missing one throws.
+   */
+  demands: readonly Demand[];
   /** Only the edges with both ends inside the subtree, remapped to the copies. */
   dependencies: readonly StoredDependency[];
   /**
