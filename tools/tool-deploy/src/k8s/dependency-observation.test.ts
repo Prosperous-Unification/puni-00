@@ -503,7 +503,12 @@ test('exact capability command ignores inherited DB_PATH and never creates stora
   const request = buildDependencyObservationJob(options);
   expect(
     JSON.parse(executeCommand(request.manifest.spec.template.spec.containers[0].command, path)),
-  ).toMatchObject({ semantics: [] });
+  ).toEqual({
+    protocol: 'wbs-dependency-runtime',
+    version: 1,
+    role: 'backend',
+    semantics: ['cross-project-dependencies-v1'],
+  });
   expect(readdirSync(root)).toEqual([]);
 });
 
