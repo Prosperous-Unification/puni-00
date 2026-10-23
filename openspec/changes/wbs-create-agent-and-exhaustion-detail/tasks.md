@@ -33,3 +33,8 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
       (both stores); the 409 arm in `work-item-shapes.test.ts`.
       Negatives: the binding cut to the first entry; the arm without `resources`.
 - [x] 2.3 The `claimWorkItem` description says `resources` lists every short resource.
+
+## 3. Archive
+
+- [ ] 3.1 Archive after `wbs-resources` and then `wbs-organization-limits`: both deltas
+      modify capabilities those changes add.

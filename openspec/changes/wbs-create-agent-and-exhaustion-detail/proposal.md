@@ -42,3 +42,6 @@ added }`), inside the batch's write turn; legacy access has no cap. A name
 
 - No migration: `person.kind` and the claim tables are unchanged.
 - The refusal stays parseable by every client built before it (additive field).
+- Archive order: `wbs-resources`, then `wbs-organization-limits`, then this change. Both
+  deltas modify capabilities those changes add, so until then openspec reports each as
+  "Archive would refuse … target spec does not exist".

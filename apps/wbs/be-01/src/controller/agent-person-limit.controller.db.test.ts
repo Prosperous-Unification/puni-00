@@ -383,6 +383,31 @@ describe('the agent person cap, activated', () => {
     expect(rowCount('person')).toBe(people);
   });
 
+  // Proof: without the parser refusal's `personKind_must_be_text` arm
+  // (command-parser-refusal.ts), this answered 500 "Invalid command producer";
+  // watched 2026-10-23.
+  it('refuses a personKind that is not text as a parser refusal, writing nothing', async () => {
+    const people = rowCount('person');
+    for (const personKind of [null, 1, ['agent']])
+      expect(await directory('ada', [{ kind: 'createPerson', name: 'Odd', personKind }])).toEqual({
+        status: 400,
+        body: { error: 'personKind_must_be_text', at: 0, kind: 'createPerson' },
+      });
+    // A project batch carries directory commands through the same parser refusal.
+    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Fleet' });
+    if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+    const projectId = (created.body as { project: { id: string } }).project.id;
+    expect(
+      await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+        commands: [{ kind: 'createPerson', name: 'Odd', personKind: 1 }],
+      }),
+    ).toEqual({
+      status: 400,
+      body: { error: 'personKind_must_be_text', at: 0, kind: 'createPerson' },
+    });
+    expect(rowCount('person')).toBe(people);
+  });
+
   it('joins a held name and keeps its kind, adding no agent at the cap', async () => {
     capAgents('org-a', 1);
     agentsIn('org-a', 'bot', 1);

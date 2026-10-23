@@ -65,3 +65,10 @@ The count SHALL be read inside the transaction that writes.
 
 - **WHEN** an admin applies `createPerson { name: 'Odd', personKind: 'robot' }`
 - **THEN** the batch is refused `invalid_kind` and no person is written
+
+#### Scenario: A held name keeps its kind
+
+- **WHEN** A's cap is 1, A holds 1 agent and a person named `kat`, and an admin applies
+  `createPerson { name: 'kat', personKind: 'agent' }`
+- **THEN** the batch is applied, `kat` stays of kind `person`, the answer's entity names kind
+  `person`, and A still holds 1 agent

@@ -165,6 +165,15 @@ const parserArms = {
   name_must_be_text: type({ error: "'name_must_be_text'", at: 'number', kind: commandKindsType }),
   notes_must_be_text: type({ error: "'notes_must_be_text'", at: 'number', kind: commandKindsType }),
   kind_must_be_text: type({ error: "'kind_must_be_text'", at: 'number', kind: commandKindsType }),
+  // `createPerson.personKind` that is not text.
+  // Proof: with this arm removed, `refuses a personKind that is not text…`
+  // (agent-person-limit.controller.db.test.ts) answered 500 "Invalid command
+  // producer" instead of 400; watched 2026-10-23.
+  personKind_must_be_text: type({
+    error: "'personKind_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   startNoEarlierThanReason_must_be_text: type({
     error: "'startNoEarlierThanReason_must_be_text'",
     at: 'number',
