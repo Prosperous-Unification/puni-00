@@ -364,6 +364,24 @@ Deploy slices 2–4 of `wbs-measure-budgets` together, in one swap: the migratio
 trios in money measures without a rate card, which would read as a basis of their own beside
 every priced figure and split those sums (design D44).
 
+### Plan documents and saved plans after measures
+
+Slice 7 adds no migration. A plan holding a fact in a defined measure, a three-point trio, a
+stated budget or a budget factor other than 1 exports as plan document version 11; every other
+plan still exports version 10 (design D53). The older image refuses a version-11 file with
+`400 unsupported_version`, so after a rollback re-export such a plan from the older image (it
+leaves the measures out) or clear them first. Saved plans written by this release carry plan
+input schema 9 (design D56); the older image answers `501 unsupported_body_version` when it
+reads or compares one, and reads its own schema-8 saves as before. Nothing rewrites stored
+bodies, so rolling forward again reads both.
+
+### mcp-01 boot memory
+
+mcp-01 compiles every HTTP shape at boot inside a 512 Mi pod. Refusal codes join the
+enumerated lists rather than adding union arms (design D47), and
+`libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts` bounds the cost of loading
+every shape; run it before shipping a change to the contracts and record its printed figure.
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at

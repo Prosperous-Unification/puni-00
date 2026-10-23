@@ -1,5 +1,5 @@
 import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
-import { suggestStepCode } from '@wbs/domain';
+import { SEEDED_MEASURE_DEFINITIONS, suggestStepCode } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
@@ -266,6 +266,12 @@ async function exportDocument(
     resourceFacts: {
       resourceCapacitiesOf: (id) => source.stores.resourceCapacity.listFor(id),
       demandsOf: (id) => source.stores.demands.listByProject(id),
+    },
+    measureFacts: {
+      measureDefinitionsOf: (id) => source.stores.measures.definitionsFor(id),
+      measuresOf: (id) => source.stores.measures.listByProject(id),
+      measureEstimatesOf: (id) => source.stores.measureEstimates.listByProject(id),
+      budgetsOf: (id) => source.stores.budgets.listByProject(id),
     },
   }).export({ ...project, timezone }, tree, LEGACY_ACCESS);
   if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
@@ -1914,6 +1920,151 @@ export function importServiceSourceContract(
           path: 'directory.resources[0].kind',
           detail: 'kind_is_immutable',
         });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    /** The file at version 11 with a tokens trio, two budgets and a factor of 2.5. */
+    function measuredFixture(): PlanDocumentImport {
+      const file = roundTripFixture();
+      file.document.version = 11;
+      file.settings.budgetFactor = 2.5;
+      file.measureDefinitions = SEEDED_MEASURE_DEFINITIONS.filter(({ key }) =>
+        ['tokens', 'agent_minutes'].includes(key),
+      ).map((each) => ({ ...each }));
+      // On the leaf without the legacy token estimate, which `row-build` holds
+      // and which travels as its single-point trio (design D28).
+      file.measureEstimates = [
+        {
+          workItemId: 'row-verify',
+          stepId: 'step-verify',
+          measure: 'tokens',
+          optimistic: 100,
+          realistic: 200,
+          pessimistic: 600,
+          basis: null,
+        },
+      ];
+      file.budgets = [
+        {
+          workItemId: 'row-1',
+          measure: 'tokens',
+          cap: 5000,
+          policy: 'strict',
+          holdPerAttempt: 300,
+        },
+        {
+          workItemId: 'row-build',
+          measure: 'agent_minutes',
+          cap: 120,
+          policy: 'advisory',
+          holdPerAttempt: null,
+        },
+      ];
+      return file;
+    }
+
+    it('round-trips a version-11 plan’s trios, budgets and factor byte for byte (wbs-measure-budgets)', async () => {
+      const source = await ownedSource();
+      try {
+        const service = importService(source);
+        const imported = await service.import(measuredFixture(), ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
+        const first = await exportProject(source, imported.projectId);
+        const again = await service.import(first, ACTOR, LEGACY_ACCESS);
+        if (!again.ok) throw new Error(`re-import refused: ${JSON.stringify(again)}`);
+        const second = await exportProject(source, again.projectId);
+        const rowName = new Map(first.workItems.map(({ id, name }) => [id, name]));
+        expect({
+          version: first.document.version,
+          factor: first.settings.budgetFactor,
+          definitions: first.measureDefinitions.map(({ key }) => key),
+          trios: first.measureEstimates.map(({ workItemId, measure, pessimistic }) => ({
+            row: rowName.get(workItemId),
+            measure,
+            pessimistic,
+          })),
+          budgets: first.budgets.map(({ workItemId, measure, cap, policy, holdPerAttempt }) => ({
+            row: rowName.get(workItemId),
+            measure,
+            cap,
+            policy,
+            holdPerAttempt,
+          })),
+        }).toEqual({
+          version: 11,
+          factor: 2.5,
+          definitions: ['tokens', 'agent_minutes'],
+          // The single-point trio stays `row-build`'s legacy token estimate.
+          trios: [{ row: 'Verify release', measure: 'tokens', pessimistic: 600 }],
+          budgets: [
+            { row: 'Release', measure: 'tokens', cap: 5000, policy: 'strict', holdPerAttempt: 300 },
+            {
+              row: 'Build release',
+              measure: 'agent_minutes',
+              cap: 120,
+              policy: 'advisory',
+              holdPerAttempt: null,
+            },
+          ],
+        });
+        expect(JSON.stringify(authoredSnapshot(second))).toBe(
+          JSON.stringify(authoredSnapshot(first)),
+        );
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a defined measure under legacy access, writing no project', async () => {
+      const source = await ownedSource();
+      try {
+        const before = await source.stores.projects.list();
+        const defined = measuredFixture();
+        defined.measureDefinitions.push({
+          key: 'gpu_minutes',
+          name: 'GPU minutes',
+          unit: 'minutes',
+          kind: 'duration',
+          scale: 'integer',
+          threePoint: true,
+          showByDefault: false,
+          schedulesWork: false,
+          derived: false,
+          order: 6,
+          currency: null,
+        });
+        defined.budgets.push({
+          workItemId: 'row-1',
+          measure: 'gpu_minutes',
+          cap: 10,
+          policy: 'advisory',
+          holdPerAttempt: null,
+        });
+        const reshaped = measuredFixture();
+        const tokens = reshaped.measureDefinitions.at(0);
+        if (tokens === undefined) throw new Error('measured fixture lost its tokens definition');
+        tokens.unit = 'kilotokens';
+
+        expect([
+          await importService(source).import(defined, ACTOR, LEGACY_ACCESS),
+          await importService(source).import(reshaped, ACTOR, LEGACY_ACCESS),
+        ]).toEqual([
+          {
+            ok: false,
+            code: 'source_refused',
+            path: 'measureDefinitions[2].key',
+            detail: 'unknown_measure',
+          },
+          {
+            ok: false,
+            code: 'source_refused',
+            path: 'measureDefinitions[0].unit',
+            detail: 'measure_shape_mismatch',
+          },
+        ]);
         expect(await source.stores.projects.list()).toEqual(before);
       } finally {
         await source.close();

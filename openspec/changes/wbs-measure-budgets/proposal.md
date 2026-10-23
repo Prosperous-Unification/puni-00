@@ -69,5 +69,7 @@ none; D1 to D8 in design.md await Dany's confirmation by id.
 
 ## Impact
 
-`libs/wbs/*`, `@wbs/contracts`, be-01 routes and MCP tools, fe-01 table and panel, export
-version. Consumers: S7a.06 in the agentic workflows project, the Dash ledger.
+`libs/wbs/*`, `@wbs/contracts`, be-01 routes and MCP tools, fe-01 table and panel, plan
+document version 11 (written only for plans holding measures) and saved plan input schema 9.
+Consumers: S7a.06 in the agentic workflows project, the Dash ledger; Twilight Navigator,
+Burokrat and Dash read plan documents up to version 10 until they admit 11.

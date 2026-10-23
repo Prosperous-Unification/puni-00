@@ -40,7 +40,7 @@ import {
   workItemType,
   workItemWorkItemType,
 } from './schema';
-import { factCondition, storedColumnsOf } from './step-measure';
+import { basisColumns, factCondition, storedColumnsOf } from './step-measure';
 
 /**
  * The not-before pair as the row will stand: what the patch names, and what the
@@ -1148,13 +1148,20 @@ export class SubtreeRepository implements SubtreeStore {
         // around it, because the metric is in the key. See
         // {@link SubtreeCopy.measures}.
         // A defined measure's fact is written as its definition's id, a legacy
-        // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does.
+        // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does,
+        // and a priced fact with its basis (`wbs-measure-budgets` design D55).
+        // Proof: with the basis columns left out, `round-trips a version-11 plan
+        // byte for byte into an organization lacking a measure` and `undo of a
+        // delete puts a priced fact back with its basis`
+        // (measure-export.controller.db.test.ts) read the cost fact unpriced;
+        // watched 2026-10-23.
         if (copy.measures.length > 0)
           tx.insert(stepMeasure)
             .values(
-              copy.measures.map((each) => ({
+              copy.measures.map(({ basis, ...each }) => ({
                 ...each,
                 ...storedColumnsOf(tx, each),
+                ...basisColumns(basis),
                 ...auditOnCreate(stamp),
               })),
             )

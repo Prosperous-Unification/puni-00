@@ -16,6 +16,24 @@ import {
 import { planFixtureRows } from './plan-fixture';
 
 const bytes = serialiseCanonicalPlanInput(canonicalisePlanInput(planFixtureRows));
+
+/**
+ * {@link planFixtureRows} as any body saved before schema 9 reads once
+ * upgraded: no trios, no budgets, every fact unpriced and a factor of 1
+ * (`wbs-measure-budgets` design D56). The earlier upgrades' cases compare
+ * against it, since a body that old cannot have held any of those.
+ */
+const beforeMeasures: typeof planFixtureRows = {
+  ...planFixtureRows,
+  project: { ...planFixtureRows.project, budgetFactor: 1 },
+  measures: planFixtureRows.measures.map((row) => ({
+    ...row,
+    currency: null,
+    rateCardDigest: null,
+  })),
+  measureEstimates: [],
+  budgets: [],
+};
 const sha256 = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');
 
 const absent: PlanSideSchedule = { present: false, absentReason: 'pending' };
@@ -166,7 +184,7 @@ describe('the version-1 to version-2 upgrade — step allowances', () => {
   });
 
   it('writes version 2 with each step’s allowance', () => {
-    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(8);
+    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(9);
     const body = JSON.parse(bytes) as { steps: { allowancePercent: unknown }[] };
     for (const step of body.steps) expect(typeof step.allowancePercent).toBe('number');
   });
@@ -183,11 +201,11 @@ describe('the version-2 to version-3 upgrade — typed dependencies', () => {
   });
   it('compares an upgraded version-2 body with the equivalent version-3 body without changing stored bytes', () => {
     const current = canonicalisePlanInput({
-      ...planFixtureRows,
-      steps: planFixtureRows.steps.map((step) => ({ ...step, code: null })),
+      ...beforeMeasures,
+      steps: beforeMeasures.steps.map((step) => ({ ...step, code: null })),
       typedDependencies: [],
       // A version-2 body predates readiness and holds, which read as unsaid.
-      workItems: planFixtureRows.workItems.map((row) => ({ ...row, readiness: null, hold: null })),
+      workItems: beforeMeasures.workItems.map((row) => ({ ...row, readiness: null, hold: null })),
     });
     const { typedDependencies: _absent, ...versionThree } = current;
     const versionTwo = {
@@ -215,8 +233,8 @@ describe('the version-2 to version-3 upgrade — typed dependencies', () => {
 describe('the version-3 to version-4 upgrade — readiness and holds', () => {
   it('reads a version-3 body with nothing said about readiness or holds, and compares clean', () => {
     const current = canonicalisePlanInput({
-      ...planFixtureRows,
-      workItems: planFixtureRows.workItems.map((row) => ({ ...row, readiness: null, hold: null })),
+      ...beforeMeasures,
+      workItems: beforeMeasures.workItems.map((row) => ({ ...row, readiness: null, hold: null })),
     });
     const versionThree = {
       ...current,
@@ -246,8 +264,8 @@ describe('the version-3 to version-4 upgrade — readiness and holds', () => {
 describe('the version-4 to version-5 upgrade — the project timezone', () => {
   it('reads a version-4 body as UTC and compares clean, leaving the stored bytes alone', () => {
     const current = canonicalisePlanInput({
-      ...planFixtureRows,
-      project: { ...planFixtureRows.project, timezone: 'UTC' },
+      ...beforeMeasures,
+      project: { ...beforeMeasures.project, timezone: 'UTC' },
     });
     const { timezone: _timezone, ...project } = current.project;
     const versionFour = { ...current, schemaVersion: 4, project };
@@ -278,10 +296,46 @@ it('upgrades version-5 steps to historical workdays without changing the source 
   };
   const source = JSON.stringify(previous);
   const current = normalisePlanInputForward(previous, 5);
-  expect(current.schemaVersion).toBe(8);
+  expect(current.schemaVersion).toBe(9);
   expect(current.steps.every((step) => step.estimateUnit === 'workdays')).toBe(true);
   expect(JSON.stringify(previous)).toBe(source);
   for (const steps of [null, [null], [2], [{}]]) {
     expect(() => normalisePlanInputForward({ ...previous, steps }, 5)).toThrow('version-5');
   }
+});
+
+describe('the version-8 to version-9 upgrade — measure estimates, budgets and bases', () => {
+  it('reads a version-8 body with no trios, budgets or bases and a factor of 1', () => {
+    const current = canonicalisePlanInput(beforeMeasures);
+    const {
+      measureEstimates: _trios,
+      budgets: _budgets,
+      project: { budgetFactor: _factor, ...project },
+      ...rest
+    } = current;
+    const versionEight = {
+      ...rest,
+      schemaVersion: 8,
+      project,
+      measures: current.measures.map(
+        ({ currency: _currency, rateCardDigest: _digest, ...row }) => row,
+      ),
+    };
+    const storedBytes = JSON.stringify(versionEight);
+    const parsed = JSON.parse(storedBytes) as Record<string, unknown>;
+    expect(normalisePlanInputForward(parsed, 8)).toEqual(current);
+    expect(JSON.stringify(parsed)).toBe(storedBytes);
+  });
+
+  it('refuses a version-8 body without a project object or a measures list', () => {
+    expect(() =>
+      normalisePlanInputForward({ schemaVersion: 8, project: null, measures: [] }, 8),
+    ).toThrow('a version-8 plan input body holds no project object');
+    expect(() => normalisePlanInputForward({ schemaVersion: 8, project: {} }, 8)).toThrow(
+      'a version-8 plan input body holds no measures list',
+    );
+    expect(() =>
+      normalisePlanInputForward({ schemaVersion: 8, project: {}, measures: [7] }, 8),
+    ).toThrow('a version-8 plan input body holds a measure that is not an object');
+  });
 });

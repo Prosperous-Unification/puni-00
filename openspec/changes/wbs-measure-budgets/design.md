@@ -237,7 +237,7 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   against every leaf's spend, and the budget is absent. `budgetFactor` is a project column
   (default 1, additive), patched like the other settings, refused `422 bad_budget_factor`
   unless finite, above 0 and at most 1000. It moves no date, so saved plan captures and the
-  export leave it out (D22).
+  export leave it out (D22) until slice 7 carries it (D53, D56).
 - **D39 Reading.** `spent` is the subtree's facts in the key summed over every step
   (`agent_minutes` derived, D20; nothing recorded reads 0). `held` is the budget's
   `holdPerAttempt` times the RUNNING attempts in the subtree whose usage is unknown. In a typed
@@ -292,8 +292,8 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
 - **D45 Known lags.** The headroom read has no route or MCP tool (slice 5); the row read shows
   a basis only when mixed (slice 5 reads, slice 6 panel); the export carries neither budgets
   nor bases (D22, slice 7); `findCrossReferences` does not follow `work_item_budget` (D34).
-  Slice 5 closed the route, the read's basis and the cross references (D48–D50); the export
-  and the panel remain.
+  Slice 5 closed the route, the read's basis and the cross references (D48–D50); slice 7 closed
+  the export (D53); the panel remains.
 - **D46 Strict and advisory headroom apart (review S2-1).** Per key the headroom read answers
   `{strict?, advisory?, mixedRateCards?, mixedAt?}` (the two mixed fields superseded by D52): the tightest strict budget of the chain,
   which the coordinator refuses on, and apart the tightest advisory or derived one, which it
@@ -356,6 +356,55 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   descriptions: refuse when `strict.remaining <= 0` or `blocked.strict` is present; advisory
   budgets, read or blocked, never refuse. A readable and a blocked budget of one policy are
   both reported; the coordinator needs both (the blocked one's remainder is unknown).
+
+Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading closest to D1–D8:
+
+- **D53 Version 11, written only when it carries something.** The plan document gains version
+  11: `settings.budgetFactor`, `measureDefinitions` (every field but the id, for the keys its
+  figures name, in list order), `measureFacts` (facts in defined measures with their `basis`),
+  `measureEstimates` (every trio but the single-point tokens trios, with `basis`) and `budgets`
+  (stated only: `cap`, `policy`, `holdPerAttempt`). Legacy facts and the legacy token estimate
+  stay in the row's `measures` under their legacy names (D18, D28), so the single-point flag
+  travels as the legacy figure itself; `agent_minutes` comes back from the attempts. Entries
+  follow the tree's row order, then step order, then key, so a re-import's fresh ids keep the
+  order. The export writes version 11 only when a plan holds a fact in a defined measure, a
+  trio that is not single-point, a stated budget or a factor other than 1; any other plan
+  exports version 10 byte for byte as before (`LEGACY_PLAN_DOCUMENT_VERSION`), so the outgoing
+  release, Twilight Navigator (which reads 7–10) and saved files keep reading it and the v9/v10
+  golden hashes stand. Known lag: Navigator, Burokrat's `planDocumentVersion` and Dash refuse a
+  version-11 file loudly until they admit it; nothing silently drops measures any more (D22
+  closed).
+- **D54 Row readings never enter the document.** The row read's `measureEstimates`, `budgets`,
+  `mixedRateCards` and `moneyBases` are readings (summed, expected, remaining) and are stripped
+  from every exported row, as spans are; slices 3–5 had let them ride along on the plan branch
+  (never on `main`), which also leaked derived budgets computed from the factor into version 10.
+- **D55 Import matches definitions by key and never remaps.** A file definition the importing
+  organization holds must agree on `kind`, `scale`, `unit`, `currency`, `threePoint`, `derived`
+  and `schedulesWork`; the first field that differs refuses the import `409 source_refused`
+  with `path: measureDefinitions[i].<field>` and `detail: measure_shape_mismatch`, writing
+  nothing. Name, order and default visibility stay the organization's. A definition it lacks is
+  created there (decided by `decideMeasureCreate`; projects are told the directory changed).
+  Under legacy access the created project is owned by no organization, so only the four it
+  answers match and any other definition refuses `source_refused` / `unknown_measure` (D19).
+  `prepareImport` checks every fact, trio and budget against the file's own definitions as the
+  commands would (keys, scale, three-point, scheduling, derived, money basis, leaves, one per
+  place); a matched definition has the same shape, so nothing is decided twice. Files older than
+  version 11 that name any of the four lists, or a factor other than 1, are refused
+  `400 invalid_body`; a factor of 1 is what they read as and passes. No refusal code is new, so
+  D47's enumerations are untouched. Found while round-tripping: SQLite's `insertSubtree` wrote
+  facts without their basis, so an import and an undo of a delete put priced facts back
+  unpriced; it now writes the basis columns.
+- **D56 Saved plans capture measures (plan input schema 9).** `CanonicalPlanInput` gains
+  `measureEstimates` (single-point tokens trios excluded, as in D53), `budgets` and
+  `project.budgetFactor`, and each measure its `currency` and `rateCardDigest`; a schema-8 body
+  upgrades with none of them, a factor of 1 and unpriced facts, and stored bytes are never
+  rewritten. Compare reports trios and budgets under `measures` and the factor under
+  `settings`. Definitions are not captured: the key is the name a capture shows. A schema-9 body
+  is new bytes, so new captures hash differently from schema-8 ones by design.
+- **D57 Golden fixtures state the default factor.** The core export fixture's project had
+  `budgetFactor: 1.5` to prove slice 4's strip; under D53 that factor is version-11 data, so the
+  legacy-shape fixtures state 1 and the version-11 cases state 1.5. The v9 and v10 golden
+  hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`).
 
 ## Risks / Trade-offs
 

@@ -3454,6 +3454,30 @@ export class WorkItemService {
   }
 
   /**
+   * The measure definitions of the organization owning the project, null when
+   * none owns it (`wbs-measure-budgets` D19): what the export names its
+   * measures by.
+   */
+  measureDefinitionsOf(projectId: string): Promise<MeasureDefinition[] | null> {
+    return this.opts.measures.definitionsFor(projectId);
+  }
+
+  /** Every stored fact of the project with its basis; derived `agent_minutes` are not stored. */
+  measuresOf(projectId: string): Promise<StoredMeasure[]> {
+    return this.opts.measures.listByProject(projectId);
+  }
+
+  /** Every trio of the project in measures other than time, single-point tokens trios included. */
+  measureEstimatesOf(projectId: string): Promise<StoredMeasureEstimate[]> {
+    return this.opts.measureEstimates.listByProject(projectId);
+  }
+
+  /** Every stated budget of the project; derived budgets are computed on read. */
+  budgetsOf(projectId: string): Promise<StoredBudget[]> {
+    return this.opts.budgets.listByProject(projectId);
+  }
+
+  /**
    * The project's **Occupancy** (`wbs-resources` R3), per resource: the units
    * its leaves' claims hold with their holders, and the free units of every
    * resource it states a capacity for. Nothing that schedules reads it (R5).

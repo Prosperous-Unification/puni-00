@@ -163,6 +163,16 @@ export interface PreparedImport {
   resourceByFileId: ReadonlyMap<string, PreparedResource>;
   resourceCapacities: { resourceFileId: string; units: number }[];
   demands: { workItemFileId: string; resourceFileId: string; units: number }[];
+  /**
+   * The measures a version-11 file states (`wbs-measure-budgets` design D53),
+   * checked against the file's own definitions and still by file ids; none
+   * before version 11. The definitions are matched or created by key at
+   * admission, where the organization's own are read.
+   */
+  measureDefinitions: PlanDocumentImport['measureDefinitions'];
+  measureFacts: PlanDocumentImport['measureFacts'];
+  measureEstimates: PlanDocumentImport['measureEstimates'];
+  budgets: PlanDocumentImport['budgets'];
 }
 
 export type ImportRefusalCode =

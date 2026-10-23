@@ -740,6 +740,8 @@ async function capturePlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     typedDependencies,
     assignmentRows,
@@ -765,6 +767,11 @@ async function capturePlanInput(
     // Proof: snapshot read replaced with empty; detached sparse capture failed (memory-read.txt), 2026-10-17.
     stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
+    // Proof: either read replaced with `[]` made the memory run of the
+    // conformance case `savedPlanCapture.readPlanInput:complete` capture none;
+    // watched 2026-10-23.
+    stores.measureEstimates.listByProject(projectId),
+    stores.budgets.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
@@ -790,6 +797,8 @@ async function capturePlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
       id,

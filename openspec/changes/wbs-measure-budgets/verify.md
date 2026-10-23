@@ -507,3 +507,84 @@ were not rerun (a slice-6 worker shares the laptop).
 | S3-4 not a snapshot                          | said in the operation description, the shape's JSDoc, `findBudgetHeadroom` and D50                                                   | documentation                                                                                                                                                                                                                         |
 | S3-5 stale "twenty-one queries"              | twenty-four, with the dates of each addition                                                                                         | documentation                                                                                                                                                                                                                         |
 | boot memory not quotable                     | `contracts-boot-memory.test.ts` prints `contracts shape load: <n> MB (bound 500 MB)`                                                 | printed 328 MB                                                                                                                                                                                                                        |
+
+## Slice 7 — tasks 4.4 and 4.5 (2026-10-23)
+
+Plan document version 11 (D53), row readings out of the document (D54), import matching
+definitions by key (D55), saved plan input schema 9 (D56), golden fixtures (D57); CONTEXT.md,
+`docs/wbs/measures-and-budgets.md` (indexed in `LLM_README.md`), the prod runbook and the
+proposal's Impact updated. Branch `feat/wbs-measure-export` from slice 5's head 376e7d1c2.
+
+**Golden hashes.** The v9 (`016181aa…`) and v10 (`f2308a55…`) export hashes in
+`plan-document.resource.test.ts` are unchanged; their fixture now states `budgetFactor: 1`
+(slice 4 had set 1.5 to prove the strip; under D53 a factor other than 1 is version-11 data,
+D57). Version 11 adds `62708699…`. Saved-plan bodies are schema 9, so new captures hash
+differently from schema-8 ones; no stored-body golden exists, and every stored body upgrades in
+memory. The SQLite capture conformance seed gained a tokens trio and budget, so the
+sqlite-bumped revision of A's first row moved from 7 to 9 (two more writes).
+
+**Found while round-tripping (D55).** SQLite's `insertSubtree` wrote facts without their
+basis: an import and an undo of a delete put a priced `cost` fact back unpriced (memory kept
+it). It now writes `currency` and `rate_card_digest`; `undo of a delete puts a priced fact back
+with its basis` (be-01) covers the undo path.
+
+### Commands and results
+
+| Command                                                                                                                                                                                                                     | Result                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` (new files staged)                                                                                                              | exit 0; review debt only the pre-existing store-memory README (51 of 40)                                                                                                                                                                |
+| `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-auth,wbs-gw-01,wbs-mcp-01,wbs-realtime,wbs-runtime-portable,wbs-conformance,wbs-be-01,wbs-fe-01` | 13 projects, both targets, success                                                                                                                                                                                                      |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (full)                                                                                                                                                                      | 918 pass, 2 fail: both in `poller.test.ts`, `No space left on device` (the shared laptop's root disk at 100%); `bun test src/poller.test.ts` rerun alone 26 pass, 0 fail                                                                |
+| `bunx nx run-many -t test -p wbs-domain,wbs-contracts,wbs-core --skip-nx-cache`                                                                                                                                             | domain 1284, contracts 499, core 1277 + 1 fail (`module-boundaries`: the feature named the repository type `MeasureAdded`; fixed with `MeasureDefined`), then core 1278 pass, 0 fail                                                    |
+| `bunx nx run-many -t test -p wbs-core,wbs-store-memory,wbs-conformance --skip-nx-cache`                                                                                                                                     | core 1278, store-memory 195, conformance 35 pass, 0 fail                                                                                                                                                                                |
+| store-sqlite `bun test` (full)                                                                                                                                                                                              | 1866 pass, 0 fail                                                                                                                                                                                                                       |
+| `bunx nx run wbs-be-01:test --skip-nx-cache` (full)                                                                                                                                                                         | 3325 pass, 2 fail: the version-12 future-file boundary case (was 11, now a real version) and the 501 `supported` list (now ends 9); both expectations updated, then those suites with import-export and measure-export 104 pass, 0 fail |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache` (full)                                                                                                                                                                        | 515 pass, 0 fail                                                                                                                                                                                                                        |
+| contracts `bun test src/http/contracts-boot-memory.test.ts`                                                                                                                                                                 | 2 pass; `contracts shape load: 331 MB (bound 500 MB)` (slice 5: 328 MB)                                                                                                                                                                 |
+| fe-01 `bunx vitest run src/lib/wbs-api.test.ts`                                                                                                                                                                             | 65 pass (the generated client still validates a version-10 export)                                                                                                                                                                      |
+| `bunx nx run-many -t lint -p wbs-domain,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-conformance,wbs-core,wbs-be-01 --skip-nx-cache`                                                                                 | first run: import order in four files; after `eslint --fix`, 7 projects success                                                                                                                                                         |
+| `bunx nx format:check --all`                                                                                                                                                                                                | exit 0                                                                                                                                                                                                                                  |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                    | 270 of 270 passed                                                                                                                                                                                                                       |
+
+No SQL changed (no migration lint). fe-01 code, `kinds.json`, `vitest.node-suites.json` and
+the conformance inventory are untouched (a test file was added in be-01 only). No refusal code
+was added: import refusals reuse `400 invalid_body`/`unknown_ref` and `409 source_refused`
+with a `detail`, so D47's enumerations are unchanged.
+
+### Failure proofs
+
+Each fault was injected into production code, the named test watched failing, and the code
+restored; the adjacent `Proof:` comments carry the same.
+
+| Guard                                                | Fault injected                                | Test that observed it                                                                                                                                                      |
+| ---------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| version 11 only when it carries something            | test made `true`                              | core v9 and v10 golden hashes and 16 legacy-shape cases (70 pass, 18 fail)                                                                                                 |
+| the same                                             | test made `false`                             | core `exports version 11 with every measure the plan holds` and 5 more v11 cases                                                                                           |
+| legacy metrics stay out of `measureFacts`            | filter removed                                | core `exports version 11 …`, `a plan whose measures are all legacy exports version 10 …`                                                                                   |
+| single-point trios stay out of `measureEstimates`    | filter removed                                | the same two cases and the v11 golden                                                                                                                                      |
+| row readings stripped (D54)                          | the four omissions removed                    | core `leaves the row’s measure readings out of the document`                                                                                                               |
+| older versions refuse measure lists and a factor ≠ 1 | refusal bypassed                              | core `refuses measures in a file older than version 11`                                                                                                                    |
+| version-11 factor bound                              | `isBudgetFactor` removed                      | core `refuses a version-11 file with a malformed measure entry or factor`                                                                                                  |
+| version-11 entry shapes                              | refusal removed                               | the same                                                                                                                                                                   |
+| every refusal in `prepareMeasures` (28)              | each bypassed alone                           | its case of `refuses a version-11 file whose measures do not hold together` (one gap, the trio's placement, closed with a case)                                            |
+| shape mismatch refused, not remapped                 | comparison's refusal removed                  | memory contract `refuses a defined measure under legacy access, writing no project`; be-01 `refuses a definition the organization holds in another shape, writing nothing` |
+| legacy access defines nothing                        | `held === null` refusal removed               | memory contract `refuses a defined measure under legacy access …`                                                                                                          |
+| factor, trios and budgets written on import          | each left out                                 | memory contract `round-trips a version-11 plan’s trios, budgets and factor byte for byte`                                                                                  |
+| isolated export reads the measures                   | reads made empty                              | be-01 isolated `round-trips a version-11 plan byte for byte into an organization lacking a measure` (and the shape refusal)                                                |
+| shared export reads the measures on the snapshot     | reads made empty                              | be-01 shared `round-trips …`                                                                                                                                               |
+| SQLite subtree insert writes the basis               | basis columns left out                        | be-01 both `round-trips …` and `undo of a delete puts a priced fact back with its basis`                                                                                   |
+| capture folds trios (minus single-point) and budgets | filter removed; either collection made empty  | core `captures every measure estimate, budget, basis and the factor, and compares a change in each`                                                                        |
+| schema 8 → 9 upgrade                                 | upgrade made the identity                     | domain `reads a version-8 body with no trios, budgets or bases and a factor of 1` (+5 earlier-upgrade cases)                                                               |
+| the upgrade's three guards                           | each removed alone                            | domain `refuses a version-8 body without a project object or a measures list`                                                                                              |
+| schema 9 admitted on read                            | 9 left out of `SUPPORTED_INPUT_BODY_VERSIONS` | be-01 `saved plan compare names a change in a trio, a budget, a basis and the factor` (501)                                                                                |
+
+The memory and SQLite capture reads (`savedPlanCapture.readPlanInput:complete`) failed when the
+seeded trio and budget were first added (the SQLite revision moved by two), which is how the
+conformance case covers them; reads replaced by `[]` were not separately injected.
+
+### Skipped or unverified
+
+- The h2puni gate was not run (shared laptop; a slice-6 worker runs beside it).
+- Twilight Navigator, Burokrat and Dash still read plan documents up to version 10 (D53 lag);
+  they were not changed and not rerun, since no legacy-shape export changed a byte.
+- fe-01's full suites were not run: no fe-01 file changed; its contract-facing `wbs-api.test.ts` was.

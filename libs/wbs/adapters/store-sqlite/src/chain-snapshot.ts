@@ -33,6 +33,7 @@ import {
 import { DirectoryRepository } from './directory';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import {
   type ActiveOrganizationOf,
   currentMembershipAccess,
@@ -47,9 +48,11 @@ import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
 import { StepBlockageRepository } from './step-blockage';
+import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepParallelRepository } from './step-parallel';
 import { WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 export interface ChainSnapshotOptions {
   /** A dedicated openReadOnlyConnection, closed on every outcome. */
@@ -337,6 +340,10 @@ export function createLivePlanStore(
           resources,
           capacities,
           demands,
+          definitions,
+          facts,
+          estimates,
+          budgets,
         ] = await Promise.all([
           directory.listInOrganization('teams', captured.organizationId),
           directory.listInOrganization('people', captured.organizationId),
@@ -352,6 +359,16 @@ export function createLivePlanStore(
           directory.listInOrganization('resources', captured.organizationId),
           new ResourceCapacityRepository(db, OPEN).listFor(projectId),
           new DemandRepository(db, OPEN).listByProject(projectId),
+          // The measures version 11 carries, on the tree's snapshot
+          // (`wbs-measure-budgets` design D53).
+          // Proof: with these four read as empty, the shared `round-trips a
+          // version-11 plan byte for byte into an organization lacking a
+          // measure` (measure-export.controller.db.test.ts) failed; watched
+          // 2026-10-23.
+          new StepMeasureRepository(db, OPEN).definitionsFor(projectId),
+          new StepMeasureRepository(db, OPEN).listByProject(projectId),
+          new MeasureEstimateRepository(db, OPEN).listByProject(projectId),
+          new WorkItemBudgetRepository(db, OPEN).listByProject(projectId),
         ]);
         return {
           ...captured,
@@ -365,6 +382,7 @@ export function createLivePlanStore(
               maxParallel,
             })),
             resources: { resources, capacities, demands },
+            measures: { definitions, facts, estimates, budgets },
           },
         };
       }),

@@ -15,6 +15,8 @@ type CaptureSeedStores = Pick<
   | 'blockages'
   | 'stepParallels'
   | 'measures'
+  | 'measureEstimates'
+  | 'budgets'
   | 'dependencies'
   | 'typedDependencies'
   | 'directory'
@@ -75,6 +77,7 @@ export function observePlanInput(reads: PlanInputReads) {
       scheduleObjective: reads.project.scheduleObjective,
       optimizationEnabled: reads.project.optimizationEnabled,
       solutionRef: reads.project.solutionRef === null ? null : { ...reads.project.solutionRef },
+      budgetFactor: reads.project.budgetFactor,
     },
     steps: reads.steps.map(({ id, name, position }) => ({ id, name, position })),
     workItems: reads.workItems
@@ -111,6 +114,15 @@ export function observePlanInput(reads: PlanInputReads) {
     measures: reads.measures
       .map((row) => ({ ...row }))
       .sort((left, right) => byPair(left, right) || left.metric.localeCompare(right.metric)),
+    measureEstimates: reads.measureEstimates
+      .map((row) => ({ ...row }))
+      .sort((left, right) => byPair(left, right) || left.key.localeCompare(right.key)),
+    budgets: reads.budgets
+      .map((row) => ({ ...row }))
+      .sort(
+        (left, right) =>
+          left.workItemId.localeCompare(right.workItemId) || left.key.localeCompare(right.key),
+      ),
     dependencies: reads.dependencies
       .map(({ predecessorId, successorId }) => ({ predecessorId, successorId }))
       .sort(
@@ -197,6 +209,7 @@ export function savedPlanCaptureExpected(
           scheduleObjective: 'time',
           optimizationEnabled: true,
           solutionRef: { slug: 'capture-a', url: 'https://example.test/capture-a' },
+          budgetFactor: 1.5,
         }
       : {
           id: projectId,
@@ -212,6 +225,7 @@ export function savedPlanCaptureExpected(
           scheduleObjective: 'pri',
           optimizationEnabled: false,
           solutionRef: null,
+          budgetFactor: 1,
         },
     steps: [
       { id: firstStepId, name: 'Dev', position: 10 },
@@ -222,7 +236,8 @@ export function savedPlanCaptureExpected(
         projectId,
         firstWorkItemId,
         'Work 1',
-        revisionPolicy === 'sqlite-bumped' ? (isA ? 7 : 5) : 0,
+        // A's first row also takes the tokens trio and budget, two writes more.
+        revisionPolicy === 'sqlite-bumped' ? (isA ? 9 : 5) : 0,
         isA,
       ),
       expectedWorkItem(
@@ -266,6 +281,32 @@ export function savedPlanCaptureExpected(
         recordedAt: isA ? 303 : 403,
       },
     ],
+    // A three-point tokens trio and a tokens budget, the measures an unowned
+    // project may hold beyond its legacy facts (`wbs-measure-budgets` D56).
+    measureEstimates: isA
+      ? [
+          {
+            workItemId: firstWorkItemId,
+            stepId: firstStepId,
+            key: 'tokens',
+            optimistic: 100,
+            realistic: 200,
+            pessimistic: 600,
+            singlePoint: false,
+          },
+        ]
+      : [],
+    budgets: isA
+      ? [
+          {
+            workItemId: firstWorkItemId,
+            key: 'tokens',
+            cap: 5000,
+            policy: 'strict' as const,
+            holdPerAttempt: 300,
+          },
+        ]
+      : [],
     dependencies: [
       {
         predecessorId: isA ? firstWorkItemId : secondWorkItemId,
@@ -346,6 +387,8 @@ async function readSeededPlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     typedDependencies,
     assignmentRows,
@@ -370,6 +413,8 @@ async function readSeededPlanInput(
     stores.blockages.listByProject(projectId),
     stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
+    stores.measureEstimates.listByProject(projectId),
+    stores.budgets.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
@@ -398,6 +443,8 @@ async function readSeededPlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
       id,
@@ -500,10 +547,29 @@ export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: Seed
         optimizationEnabled: true,
         scheduleEngine: 'optimized',
         scheduleObjective: 'time',
+        budgetFactor: 1.5,
       },
       stamp,
     ),
   ).toMatchObject({ id: 'project-a', name: 'Captured project A' });
+  await expectWritten(
+    stores.measureEstimates.set(
+      {
+        workItemId: 'work-a-one',
+        stepId: 'step-a-dev',
+        key: 'tokens',
+        optimistic: 100,
+        realistic: 200,
+        pessimistic: 600,
+        singlePoint: false,
+      },
+      stamp,
+    ),
+  );
+  await stores.budgets.set(
+    { workItemId: 'work-a-one', key: 'tokens', cap: 5000, policy: 'strict', holdPerAttempt: 300 },
+    stamp,
+  );
   await expectWritten(
     stores.estimates.set(
       {

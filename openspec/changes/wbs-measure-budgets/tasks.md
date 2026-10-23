@@ -47,6 +47,6 @@
       measure shows.
 - [ ] 4.3 fe-01 measure panel per work item — test: fixture with strict and advisory budgets;
       negative: swap the renderings and the test fails.
-- [ ] 4.4 Export version, import of older versions, saved plan compare — test: byte round-trip
+- [x] 4.4 Export version, import of older versions, saved plan compare — test: byte round-trip
       and legacy import; negative: drop the version bump and compare misses a measure change.
-- [ ] 4.5 CONTEXT.md terms and the WBS docs; `check-indexes` green — test: docs check.
+- [x] 4.5 CONTEXT.md terms and the WBS docs; `check-indexes` green — test: docs check.
