@@ -1,0 +1,31 @@
+{
+  "format": "solver-drain-physical-acceptance-summary",
+  "version": 1,
+  "sourceSha": "1d72ba511bfb2b08aa3b8ddf8906746ea35546cc",
+  "target": "tool-remote-scripts:test:solver-drain",
+  "exit": 0,
+  "receiptSha256": "65cd4aa53f14a5e25e6d86fb3043885d4d83ef26121f07846af59968c8ebbfc2",
+  "observed": [
+    "ordinary-policy-runtime-admission",
+    "native-empty-hook-proof",
+    "creator-stop-child-survival",
+    "process-and-cgroup-drain",
+    "complete-owned-attempt-terminal-observation",
+    "manual-and-systemd-restart-refusal",
+    "retained-controlled-terminal-state"
+  ],
+  "independentCleanup": {
+    "ownedContainersAbsent": true,
+    "unitLinkAbsent": true,
+    "reportedComplete": true,
+    "cleanupFailures": []
+  },
+  "scope": "uniquely owned disposable solver fixture",
+  "unverified": [
+    "complete-source-composition",
+    "live-installed-authority-adoption",
+    "application-semantics",
+    "compatible-restoration",
+    "final-integrated-gate"
+  ]
+}

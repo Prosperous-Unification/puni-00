@@ -1,8 +1,9 @@
 # Disposable solver drain acceptance
 
-Status: source independently reviewed; the first actual-host attempt refused
-before unit startup. A matching positive physical receipt is still required.
-S1/S2/O4 and parent 10.2 remain open.
+Status: independently reviewed solver-only host acceptance passed at exact
+`1d72ba511bfb2b08aa3b8ddf8906746ea35546cc`. Earlier failed attempts remain
+recorded below. Complete source composition, adoption, restoration and the final
+integrated gate remain separate; S1/S2/O4 and parent 10.2 stay open.
 
 The opt-in `tool-remote-scripts:test:solver-drain` target requires
 `SOLVER_DRAIN_SHA`, `SOLVER_DRAIN_IMAGE` and `SOLVER_DRAIN_RECEIPT`. The SHA must
@@ -188,3 +189,42 @@ against `infra/versions/toolchain.json`; the global runtime was not changed.
 Rechecking the complete installer-operation file with that runtime passed
 **47 tests, 0 failures, 355 assertions**, 8.10 seconds. The merged full check must
 be rerun after the terminal-contract packet is integrated.
+
+## Positive solver-only host acceptance
+
+Exact `1d72ba511bfb2b08aa3b8ddf8906746ea35546cc` passed the real
+`tool-remote-scripts:test:solver-drain` target under the canonical h2 heavy lock,
+exit 0, 17.5 seconds. It used a new clean detached worktree and the preinstalled
+dependency tree only after exact `bun.lock` and `package.json` comparison; this
+was dependency reuse, not a claimed fresh frozen install.
+
+The owned fixture exercised real ordinary-policy initialization/admission,
+native typed-empty hook observation, systemd stop and controlled-78 restart
+refusal, process/cgroup extinction, creator-stop Docker-child survival, complete
+attempt inventory and terminal cleanup. The private receipt records
+`drain-completed`, `cleanup.complete=true`, no failure and no cleanup failures.
+Independent queries then found no invocation-owned containers and no exact unit
+link. No production service, store, image tag or configuration was changed.
+
+The raw receipt and host log are preserved privately in
+`/tmp/puni-solver-host-1d72ba511/`. Its SHA-256 is
+`65cd4aa53f14a5e25e6d86fb3043885d4d83ef26121f07846af59968c8ebbfc2`.
+[Redacted physical summary](evidence/solver-drain-acceptance/host-1d72ba511.json)
+contains only the source identity, receipt hash, bounded observations and cleanup
+facts. Private operational fields and the separate live-authority audit are not
+published with that summary.
+
+This positive does not prove the full source/backend/gateway/Caddy composition,
+production installed-authority adoption, actual application semantics, compatible
+restoration or the final exact-SHA gate.
+
+## Complete configured local unit command after integration
+
+At `c2bb10d574a159aa38d76ebcd56e829a846fe16f`, the exact local unit
+command from `tool-remote-scripts` project configuration passed with pinned Bun
+1.4.2 and permitted local socket primitives: **1868 pass, 2 skip, 0 fail, 11262
+assertions across 83 files**, 339.76 seconds. Both skips are the existing real-Docker
+exceptional-cleanup cases. Output is retained in
+`/tmp/puni-integrated-configured-unit-c2bb10d57.log`; exit file is 0.
+The separate real-Caddy prerequisite and full canonical gate are not included in
+that unit invocation and are not claimed passed by it.
