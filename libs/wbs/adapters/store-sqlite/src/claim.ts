@@ -285,7 +285,10 @@ export class ClaimRepository implements ClaimStore {
         at = now();
         const renewed = renewalAt(at).expiresAt;
         this.db.transaction((tx) => {
-          tx.update(claim).set({ leaseExpiresAt: renewed }).where(dueAt(at)).run();
+          tx.update(claim)
+            .set({ leaseExpiresAt: renewed, ...auditOnUpdate({ at }) })
+            .where(dueAt(at))
+            .run();
         });
       });
     }
@@ -379,6 +382,7 @@ export function endLeasesOfUncredentialed(
     .set({
       leaseExpiresAt: sql`min(${claim.leaseExpiresAt}, ${at})`,
       leaseRevokedAt: at,
+      ...auditOnUpdate({ at }),
     })
     .where(
       and(
