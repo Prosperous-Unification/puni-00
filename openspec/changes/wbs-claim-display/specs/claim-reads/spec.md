@@ -11,7 +11,7 @@ engine.
 #### Scenario: A claim on a blocked leaf is listed
 
 - **WHEN** `codex` holds `Impl` of leaf `080.25` and the leaf is later held `blocked`
-- **THEN** the claims read lists that claim, although the startable read lists it nowhere
+- **THEN** the claims read lists that claim, with no team filter to pass
 
 #### Scenario: The read is a viewer's read
 
