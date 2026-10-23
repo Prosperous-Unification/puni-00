@@ -1,0 +1,127 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+307 |       const reading = answer.body as StartableWork;
+308 |       expect(
+309 |         reading.prerequisites.find(
+310 |           (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+311 |         ),
+312 |       ).toMatchObject({
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "canFinish": true,
+-   "canStart": false,
++   "canStart": true,
++   "finishBlockers": [],
++   "startBlockers": [],
++   "started": false,
++   "stepId": "bd9cafb0-3e43-40c1-b386-a97f4f378b1e",
++   "workItemId": "target-leaf",
+  }
+
+- Expected  - 1
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-execution-predicates-63/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:312:9)
+(fail) isolated local FS advertised permission matches governed claim [414.14ms]
+339 |       const reading = before.body as StartableWork;
+340 |       expect(
+341 |         reading.prerequisites.find(
+342 |           (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+343 |         ),
+344 |       ).toEqual({
+              ^
+error: expect(received).toEqual(expected)
+
+  {
+    "canFinish": true,
+-   "canStart": false,
++   "canStart": true,
+    "finishBlockers": [],
+-   "startBlockers": [
+-     {
+-       "provenance": "authored",
+-       "relationshipId": "prerequisite",
+-       "stepId": "2ec9a4d8-fbaf-4b78-b876-e9ac1e1e0303",
+-       "type": "FS",
+-       "workItemId": "predecessor-leaf",
+-     },
+-   ],
++   "startBlockers": [],
+    "started": false,
+    "stepId": "19b8f579-94d5-4a43-b3cc-e481b338136c",
+    "workItemId": "target-leaf",
+  }
+
+- Expected  - 10
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-execution-predicates-63/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:344:9)
+(fail) isolated remote FS advertised permission matches governed claim [324.57ms]
+307 |       const reading = answer.body as StartableWork;
+308 |       expect(
+309 |         reading.prerequisites.find(
+310 |           (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+311 |         ),
+312 |       ).toMatchObject({
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "canFinish": true,
+-   "canStart": false,
++   "canStart": true,
++   "finishBlockers": [],
++   "startBlockers": [],
++   "started": false,
++   "stepId": "1cb7d3bb-39f4-4d17-b0c3-b06bff8c6577",
++   "workItemId": "target-leaf",
+  }
+
+- Expected  - 1
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-execution-predicates-63/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:312:9)
+(fail) shared local FS advertised permission matches governed claim [373.19ms]
+339 |       const reading = before.body as StartableWork;
+340 |       expect(
+341 |         reading.prerequisites.find(
+342 |           (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+343 |         ),
+344 |       ).toEqual({
+              ^
+error: expect(received).toEqual(expected)
+
+  {
+    "canFinish": true,
+-   "canStart": false,
++   "canStart": true,
+    "finishBlockers": [],
+-   "startBlockers": [
+-     {
+-       "provenance": "authored",
+-       "relationshipId": "prerequisite",
+-       "stepId": "d0a603fe-b338-4cef-a9e7-fa169c64361c",
+-       "type": "FS",
+-       "workItemId": "predecessor-leaf",
+-     },
+-   ],
++   "startBlockers": [],
+    "started": false,
+    "stepId": "2048d58c-fa40-44cf-8465-8c2c15beddd5",
+    "workItemId": "target-leaf",
+  }
+
+- Expected  - 10
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-execution-predicates-63/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:344:9)
+(fail) shared remote FS advertised permission matches governed claim [410.65ms]
+
+ 0 pass
+ 33 filtered out
+ 4 fail
+ 20 expect() calls
+Ran 4 tests across 1 file. [4.50s]

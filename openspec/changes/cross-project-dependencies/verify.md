@@ -5855,6 +5855,16 @@ Independent Astra High review found no actionable finding. Parent 6.3 remains
 unchecked pending MCP/skip-policy reconciliation and integrated gates. No
 production behavior or activation changed.
 
+The [bounded execution predicate proof](evidence/task-6-3-execution-predicates/report.md)
+independently replaced the production FS completion and SS actual-start/done
+branches with `false`. Each fault failed all four selected mounted local/remote
+isolated/shared advertised-permission cases (`canStart: true` instead of `false`);
+restoration passed the full mounted file, 37 tests and 447 assertions. Raw fault
+and restored logs are linked in the report. The faults stop at the advertised
+permission assertion, so governed claim refusal is established by the restored
+matrix and the existing separate admission-consumer proofs. Parent 6.3 stays open
+for MCP/skip-policy reconciliation and integrated gates.
+
 ### Task 5.2 bounded mounted and real Chromium reconciliation (2026-10-23)
 
 [The browser-refresh packet](evidence/browser-refresh/report.md) proves the

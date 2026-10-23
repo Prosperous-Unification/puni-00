@@ -293,6 +293,10 @@ async function assertAcceptedClaim() {
   ).toEqual([{ step_id: targetStep, state: 'in_progress' }]);
 }
 
+// Proof: replacing the production FS done predicate with false made all four local/remote
+// FS advertised-permission cases report canStart=true (task-6-3-execution-predicates/fs-fault.log).
+// Proof: replacing the production SS started-or-done predicate with false made all four
+// local/remote SS cases report canStart=true (task-6-3-execution-predicates/ss-fault.log).
 for (const mode of ['isolated', 'shared'] as const) {
   for (const type of ['FS', 'SS', 'FF'] as const) {
     test(`${mode} local ${type} advertised permission matches governed claim`, async () => {
