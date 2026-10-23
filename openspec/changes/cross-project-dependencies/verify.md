@@ -6314,6 +6314,10 @@ persisted tables and gateway publications unchanged. The isolated focused suite
 passed 16 tests / 301 assertions. Removing only the production forbidden
 branch made all three cases return unsafe 200 and fail; restored runs passed.
 Configured uncached `wbs-be-01:lint` passed on integrated `de89f662d` in 50.8
-seconds with a 4 GiB Node heap. Integrated backend typecheck, exact-head host
-gate and CI remain pending.
+seconds with a 4 GiB Node heap. The first uncached backend typecheck found a
+test-fixture-only `string | undefined` expected relationship ID at the positive
+update assertion (`TS2769`). An explicit fixture guard corrected that type
+boundary; the uncached backend typecheck and its module prerequisite then passed
+in 14.5 seconds. The exact three mounted revocation cases passed 3/3 with 100
+assertions after the correction. Exact-head host gate and CI remain pending.
 Production authoring remains dormant and parent 4.2 is open.

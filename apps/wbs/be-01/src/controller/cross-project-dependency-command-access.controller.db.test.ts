@@ -144,6 +144,7 @@ for (const operation of ['add', 'update', 'remove'] as const)
             .status,
         ).toBe(200);
       } else if (operation === 'update') {
+        if (dependencyId === undefined) throw new Error('positive update relationship missing');
         expect(readLinks(fixture)).toEqual([{ id: dependencyId, type: 'SS' }]);
       } else {
         expect(readLinks(fixture)).toEqual([]);
