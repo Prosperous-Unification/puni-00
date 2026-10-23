@@ -8,6 +8,7 @@ import { projectSourceOver } from '@/modules/project/composition';
 import { createProjectCatalog } from '@/modules/project/project-catalog.feature';
 import { acquireApplicationRuntime, applicationSlot } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import { createProjectOwner } from '@/runtime/project-runtime';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 
@@ -52,6 +53,18 @@ const root = document.getElementById('root');
 if (root === null) throw new Error('browser fixture root missing');
 createRoot(root).render(
   <ApplicationServicesProvider>
-    <ProjectPage {...wiring} />
+    <OrganizationResourcesProvider
+      scope={
+        scope ?? {
+          organization: { kind: 'legacy' },
+          isCurrent: () => true,
+          refuse: () => {
+            throw new Error('Browser fixture organization refused');
+          },
+        }
+      }
+    >
+      <ProjectPage {...wiring} />
+    </OrganizationResourcesProvider>
   </ApplicationServicesProvider>,
 );

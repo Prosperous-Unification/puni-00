@@ -687,3 +687,142 @@ test('alphabetical discovery creates a qualified dependency that persists and re
     await context.close();
   }
 });
+
+test('abbreviation edit preserves a captured predecessor link and focuses its stable destination', async ({
+  browser,
+  request,
+}, testInfo) => {
+  const identities = await request.get('http://localhost:7500/__fixture/identities');
+  expect(identities.status()).toBe(200);
+  const fixture = (await identities.json()) as {
+    projects: Record<string, Identity | undefined>;
+    token: string;
+  };
+  const source = fixture.projects['RenameSource'];
+  const target = fixture.projects['RenameTarget'];
+  if (source === undefined || target === undefined) throw new Error('missing rename fixture');
+  const relationships = async () => {
+    const response = await request.get('http://localhost:7500/__fixture/relationships');
+    expect(response.status()).toBe(200);
+    return (await response.json()) as { id: string }[];
+  };
+  const before = (await relationships()).filter((row) => row.id === 'RenameSource-RenameTarget');
+  expect(before).toEqual([
+    {
+      id: 'RenameSource-RenameTarget',
+      organization_id: 'org-a',
+      predecessor_project_id: source.id,
+      predecessor_work_item_id: source.row,
+      predecessor_scope: 'whole',
+      predecessor_step_id: null,
+      successor_project_id: target.id,
+      successor_work_item_id: target.row,
+      successor_scope: 'node',
+      successor_step_id: target.step,
+      type: 'FS',
+    },
+  ]);
+  const context = await browser.newContext();
+  try {
+    await authenticate(context, fixture.token);
+    // This document-only host substitution preserves the real anchor navigation URL.
+    // Production root auth/onboarding composition is outside this dedicated fixture.
+    await context.route('http://localhost:7600/?**', async (route) => {
+      if (route.request().resourceType() !== 'document')
+        throw new Error('unexpected root resource');
+      const response = await route.fetch({
+        url: 'http://localhost:7600/e2e/cross-project-refresh.html',
+      });
+      await route.fulfill({ response });
+    });
+    const targetPage = await context.newPage();
+    const address = (projectId: string) =>
+      `http://localhost:7600/e2e/cross-project-refresh.html?project=${projectId}&organization=org-a`;
+    await targetPage.goto(address(target.id));
+    await expect(targetPage.getByLabel('Name of 010')).toHaveValue('RenameTarget row');
+    const open = async () => {
+      const picker = targetPage.getByLabel('Add a dependency to 010');
+      await picker.click();
+      await picker.press('Home');
+      await targetPage.keyboard.press('Enter');
+      return targetPage.getByRole('dialog', { name: 'Captured dependency' });
+    };
+    const initial = await open();
+    const predecessor = initial.getByRole('link', { name: /^Open NAV_OLD\.010/ });
+    const href = await predecessor.getAttribute('href');
+    if (href === null) throw new Error('missing captured predecessor href');
+    // Proof: substituting abbreviation for projectId yielded NAV_OLD in this real href.
+    expect(href).toBe(`/?${new URLSearchParams({ project: source.id, workItem: source.row })}`);
+    await initial.getByRole('button', { name: 'Back to dependency picker', exact: true }).click();
+    const sourcePage = await context.newPage();
+    await sourcePage.goto(address(source.id));
+    await expect(sourcePage.getByLabel('Name of 010')).toHaveValue('RenameSource row');
+    await sourcePage.getByRole('button', { name: 'Project settings', exact: true }).click();
+    const settings = sourcePage.getByRole('dialog', { name: 'Project settings', exact: true });
+    await settings.getByRole('tab', { name: 'General', exact: true }).click();
+    const abbreviation = settings.getByLabel('Project abbreviation', { exact: true });
+    await expect(abbreviation).toHaveValue('NAV_OLD');
+    const patch = sourcePage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/projects/${source.id}` &&
+        response.request().method() === 'PATCH',
+    );
+    await abbreviation.fill('nav_new2');
+    await abbreviation.press('Enter');
+    const response = await patch;
+    expect(response.status(), await response.text()).toBe(200);
+    expect(response.request().postDataJSON()).toEqual({ abbreviation: 'nav_new2' });
+    const accepted: unknown = await response.json();
+    // Proof: omitting SQLite abbreviation persistence returned NAV_OLD here (Task11 receipt).
+    expect(accepted).toEqual({
+      project: expect.objectContaining({ id: source.id, abbreviation: 'NAV_NEW2' }),
+    });
+    await expect(abbreviation).toHaveValue('NAV_NEW2');
+    await sourcePage.reload();
+    await expect(sourcePage.getByLabel('Name of 010')).toHaveValue('RenameSource row');
+    await sourcePage.getByRole('button', { name: 'Project settings', exact: true }).click();
+    await sourcePage.getByRole('tab', { name: 'General', exact: true }).click();
+    await expect(sourcePage.getByLabel('Project abbreviation', { exact: true })).toHaveValue(
+      'NAV_NEW2',
+    );
+    await targetPage.reload();
+    await expect(targetPage.getByLabel('Name of 010')).toHaveValue('RenameTarget row');
+    const reopened = await open();
+    const renamed = reopened.getByRole('link', { name: /^Open NAV_NEW2\.010/ });
+    // The renamed label retains the exact anchor captured before editing.
+    await expect(renamed).toHaveAttribute('href', href);
+    expect((await relationships()).filter((row) => row.id === 'RenameSource-RenameTarget')).toEqual(
+      before,
+    );
+    const landing = targetPage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/projects/${source.id}/work-items` &&
+        response.request().method() === 'GET',
+    );
+    const navigation = targetPage.waitForRequest(
+      (request) =>
+        request.isNavigationRequest() && request.url() === `http://localhost:7600${href}`,
+    );
+    await renamed.click();
+    expect((await navigation).url()).toBe(`http://localhost:7600${href}`);
+    const tree = await landing;
+    expect(tree.status(), await tree.text()).toBe(200);
+    await expect(targetPage.getByLabel('Name of 010')).toHaveValue('RenameSource row');
+    // Proof: omitting the work-item branch left Name of 010 unfocused (Task11 receipt).
+    await expect(targetPage.getByLabel('Name of 010')).toBeFocused();
+    const installed: unknown = await tree.json();
+    await testInfo.attach('abbreviation-stable-navigation', {
+      body: JSON.stringify({
+        source,
+        target,
+        href,
+        accepted,
+        relationships: before,
+        tree: installed,
+      }),
+      contentType: 'application/json',
+    });
+  } finally {
+    await context.close();
+  }
+});

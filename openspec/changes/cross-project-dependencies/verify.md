@@ -7035,3 +7035,14 @@ retention, forged/independent descriptor refusal and watched path/marker/descrip
 faults. The existing remote installer and devsync install caller remain unchanged.
 Independent Astra rereview approved the corrected path admission. The shared
 admitted install operation and parent Task 10.2 remain open.
+
+## Task 11.1 bounded abbreviation edit and stable navigation acceptance — 2026-10-23
+
+The [bounded browser packet](verify-task11-abbrev-navigation.md) adds independent
+rename fixtures, actual settings PATCH and canonical reload, exact relationship
+identity retention, changed captured label and unchanged real anchor, then actual
+click, destination-specific tree read and work-item focus. Three independent
+production faults fail the intended browser assertions and restore exactly.
+The root document is served by the dedicated fixture while preserving the real
+navigation URL; production root/login composition is explicitly unproved.
+Parent 11.1, independent review and the integrated exact-SHA host gate remain open.

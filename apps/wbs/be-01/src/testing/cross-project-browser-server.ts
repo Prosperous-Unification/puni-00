@@ -98,6 +98,8 @@ for (const name of [
   'SuccessorDesktop',
   'SuccessorPhone',
   'Author',
+  'RenameSource',
+  'RenameTarget',
   'DatedA',
   'DatedB',
   'DatedC',
@@ -123,6 +125,7 @@ for (const name of [
 for (const [left, right] of [
   ['DatedA', 'DatedB'],
   ['DatedB', 'DatedC'],
+  ['RenameSource', 'RenameTarget'],
   ['A', 'B'],
   ['B', 'C'],
   ['A', 'Desktop'],
@@ -155,6 +158,15 @@ harness.sqlite.run(
 );
 harness.sqlite.run(
   "UPDATE external_dependency SET successor_scope='whole', successor_step_id=NULL WHERE id='A-SuccessorPhone'",
+);
+const renameSource = projects['RenameSource'];
+if (renameSource === undefined) throw new Error('missing rename source');
+harness.sqlite.run('UPDATE project_abbreviation SET abbreviation = ? WHERE project_id = ?', [
+  'NAV_OLD',
+  renameSource.id,
+]);
+harness.sqlite.run(
+  "UPDATE external_dependency SET predecessor_scope='whole', predecessor_step_id=NULL WHERE id='RenameSource-RenameTarget'",
 );
 for (const name of ['DatedA', 'DatedB', 'DatedC']) {
   const project = projects[name];
