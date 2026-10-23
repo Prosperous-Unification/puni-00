@@ -40,6 +40,7 @@ if [ -n "$supplied_image" ]; then caller_name="wbs-solver-smoke-caller-$attempt_
 socket_directory=''
 socket_path=''
 supervisor_pid=''
+composed_inventory=''
 created_images=()
 
 # Returns 0 when image $1 exists, 1 when Docker reports it absent and 2 when Docker cannot
@@ -129,12 +130,49 @@ remove_created_images() {
   return "$removal_failed"
 }
 
+# Collect only UUID tokens recorded before the composed client's real host requests.
+# Partial failures still release every recorded child; a successful run requires both objectives.
+collect_composed_attempts() {
+  local status="$1" token inventory_bytes count=0 invalid=0
+  local seen=' '
+  # Proof: removing read-failure refusal lost the missing/unreadable diagnoses in four negatives.
+  if ! inventory_bytes="$(cat "$composed_inventory")"; then
+    echo '[solver-image-smoke] composed attempt inventory is unreadable' >&2
+    return 1
+  fi
+  if [ -n "$inventory_bytes" ]; then
+    while IFS= read -r token || [ -n "$token" ]; do
+      # Proof: bypassing UUID/uniqueness validation failed four malformed/duplicate negatives.
+      if [[ ! "$token" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || [[ "$seen" == *" $token "* ]]; then
+        echo '[solver-image-smoke] composed attempt inventory is malformed or duplicated' >&2
+        invalid=1
+        continue
+      fi
+      seen+="$token "
+      attempt_tokens+=("$token")
+      count=$((count + 1))
+    done <<< "$inventory_bytes"
+  fi
+  # Proof: removing the count guard let incomplete/overflow inventories pass in both modes.
+  if [ "$count" -gt 2 ] || { [ "$status" -eq 0 ] && [ "$count" -ne 2 ]; }; then
+    echo '[solver-image-smoke] composed attempt inventory must contain Pri and Time exactly once' >&2
+    invalid=1
+  fi
+  return "$invalid"
+}
+
 # Runs every cleanup step even when one fails, and turns a passing smoke into a failure when
 # any step failed, so a leaked container or image never hides behind the original status.
 cleanup() {
   local status=$?
   local cleanup_failed=0
   local token
+  if ! collect_composed_attempts "$status"; then cleanup_failed=1; fi
+  # Proof: ignoring removal failure lost the required diagnosis in both inventory-rm-fails cases.
+  if ! rm "$composed_inventory"; then
+    echo '[solver-image-smoke] could not remove composed attempt inventory' >&2
+    cleanup_failed=1
+  fi
   if [ -n "$supervisor_pid" ]; then
     if [ -n "$supplied_image" ]; then
       if kill -0 "$supervisor_pid" 2>/dev/null && ! kill "$supervisor_pid"; then
@@ -167,14 +205,11 @@ cleanup() {
   docker stop "$registry_name" >/dev/null 2>&1 || true
   # Proof: with this removal failing under `set -e`, solver-image-smoke.test.ts observed the
   # trap exit before any image removal and all three tags left in the fake Docker store.
+  if ! remove_owned_container "$caller_name"; then cleanup_failed=1; fi
   for token in "${attempt_tokens[@]}"; do
-    if docker container inspect "wbs-solver-$token" >/dev/null 2>&1 &&
-      ! docker rm --force "wbs-solver-$token" >/dev/null; then
-      echo "[solver-image-smoke] could not remove container wbs-solver-$token" >&2
-      cleanup_failed=1
-    fi
+    if ! remove_owned_container "wbs-solver-$token"; then cleanup_failed=1; fi
   done
-  rmdir "$socket_directory" 2>/dev/null || true
+  if ! rmdir "$socket_directory"; then cleanup_failed=1; fi
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
   # observed the build and registry tags left in the fake Docker store.
   if ! remove_created_images; then
@@ -198,6 +233,8 @@ if [ -n "$supplied_image" ]; then
 fi
 socket_directory="$(mktemp -d "/run/user/$(id -u)/wbs-solver-smoke.XXXXXX")"
 socket_path="$socket_directory/supervisor.sock"
+composed_inventory="$socket_directory/composed-attempts"
+: > "$composed_inventory"
 trap cleanup EXIT
 
 if [ -n "$supplied_image" ]; then
@@ -298,6 +335,16 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
   /run/wbs-solver/supervisor.sock \
   connected-fractional \
   "$connected_fractional_token"
+
+# This fifth client joins real SQLite/service admission, installed Python and durable publication.
+# Proof: omitting this invocation fails both image inventories and composed-client fault tests.
+docker run --rm "${client_pull[@]}" --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  connected-composed \
+  /run/wbs-solver/composed-attempts
 
 # CI runs the portable launcher half above. The canonical h2puni gate sets this
 # flag because its puni1 user session owns the persistent systemd timer used by

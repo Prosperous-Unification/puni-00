@@ -66,6 +66,18 @@ case "$1" in
     if [ "\${WBS_FAKE_FAULT:-}" = solver-run ] && [[ "$*" == *'--entrypoint wbs-solver'* ]]; then exit 86; fi
     if [ "\${WBS_FAKE_FAULT:-}" = connected-feasible-run ] && [[ "$*" == *'connected-feasible'* ]]; then exit 88; fi
     if [ "\${WBS_FAKE_FAULT:-}" = connected-fractional-run ] && [[ "$*" == *'connected-fractional'* ]]; then exit 89; fi
+    if [[ "$*" == *'connected-composed'* ]]; then
+      cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts"
+      cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts"
+      case "\${WBS_FAKE_FAULT:-}" in
+        connected-composed-run) exit 90 ;;
+        inventory-missing) rm "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
+        inventory-incomplete) head -n 1 "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" > "$WBS_FAKE_SOCKET_DIRECTORY/first"; mv "$WBS_FAKE_SOCKET_DIRECTORY/first" "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
+        inventory-duplicate) head -n 1 "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
+        inventory-malformed) echo invalid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
+        inventory-overflow) cat /proc/sys/kernel/random/uuid >> "$WBS_FAKE_SOCKET_DIRECTORY/composed-attempts" ;;
+      esac
+    fi
     if [ "\${WBS_FAKE_FAULT:-}" = shared-client-run ] && [[ "$*" == *'shared-person'* ]]; then exit 87; fi
     ;;
   container)
@@ -92,6 +104,14 @@ esac
 type SmokeFault =
   | 'solver-run'
   | 'shared-client-run'
+  | 'connected-composed-run'
+  | 'inventory-rm-fails'
+  | 'inventory-missing'
+  | 'inventory-unreadable'
+  | 'inventory-incomplete'
+  | 'inventory-duplicate'
+  | 'inventory-malformed'
+  | 'inventory-overflow'
   | 'connected-feasible-run'
   | 'connected-fractional-run'
   | 'rm-ignored'
@@ -155,7 +175,17 @@ function runSmoke(
     'rmdir',
     '#!/usr/bin/env bash\nif [ "${WBS_FAKE_FAULT:-}" = socket-rmdir-fails ]; then exit 1; fi\nexec /usr/bin/rmdir "$@"\n',
   );
+  writeCommand(
+    commands,
+    'rm',
+    '#!/usr/bin/env bash\nif [ "${WBS_FAKE_FAULT:-}" = inventory-rm-fails ] && [[ "$*" == *composed-attempts* ]]; then exit 1; fi\nexec /usr/bin/rm "$@"\n',
+  );
   writeCommand(commands, 'curl', '#!/usr/bin/env bash\n');
+  writeCommand(
+    commands,
+    'cat',
+    '#!/usr/bin/env bash\nif [ "${WBS_FAKE_FAULT:-}" = inventory-unreadable ] && [[ "$*" == *composed-attempts* ]]; then exit 1; fi\nexec /usr/bin/cat "$@"\n',
+  );
   writeCommand(
     commands,
     'mktemp',
@@ -199,11 +229,12 @@ describe('solver-image-smoke image lifecycle', () => {
     const clients = smoke.dockerCalls.filter((call) =>
       call.includes('solver-supervisor-image-client.ts'),
     );
-    expect(clients).toHaveLength(4);
+    expect(clients).toHaveLength(5);
     expect(clients[1]).toContain(' shared-person ');
     expect(clients[2]).toContain(' connected-feasible ');
     expect(clients[3]).toContain(' connected-fractional ');
-    expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(4);
+    expect(clients[4]).toContain(' connected-composed ');
+    expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(5);
     const removed = smoke.dockerCalls.filter((call) => call.startsWith('image rm '));
     expect(removed).toHaveLength(3);
     expect(removed[0]).toMatch(
@@ -288,7 +319,7 @@ describe('solver-image-smoke image lifecycle', () => {
 });
 
 describe('solver-image-smoke supplied immutable image', () => {
-  it('inspects the exact local digest, runs all four authenticated clients with it and preserves it', () => {
+  it('inspects the exact local digest, runs all five authenticated clients with it and preserves it', () => {
     const smoke = runSmoke(undefined, { supplied: true });
     expect(smoke.exitCode).toBe(0);
     expect(smoke.stderr).toBe('');
@@ -296,7 +327,7 @@ describe('solver-image-smoke supplied immutable image', () => {
     expect(smoke.hostCalls).toHaveLength(1);
     expect(smoke.hostCalls[0]).toContain(`solver-supervisor-image-host.ts ${SUPPLIED_IMAGE} `);
     const inspected = smoke.dockerCalls.filter((call) => call.startsWith('container inspect '));
-    expect(inspected).toHaveLength(5);
+    expect(inspected).toHaveLength(7);
     expect(
       smoke.dockerCalls.filter((call) => call.startsWith('rm ') || call.startsWith('stop ')),
     ).toEqual([]);
@@ -308,7 +339,7 @@ describe('solver-image-smoke supplied immutable image', () => {
     const clients = smoke.dockerCalls.filter((call) =>
       call.includes('solver-supervisor-image-client.ts'),
     );
-    expect(clients).toHaveLength(4);
+    expect(clients).toHaveLength(5);
     for (const client of clients) {
       expect(client).toContain(`--entrypoint bun ${SUPPLIED_IMAGE} `);
       expect(client).toContain('--pull=never');
@@ -316,7 +347,8 @@ describe('solver-image-smoke supplied immutable image', () => {
     expect(clients[1]).toContain(' shared-person ');
     expect(clients[2]).toContain(' connected-feasible ');
     expect(clients[3]).toContain(' connected-fractional ');
-    expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(4);
+    expect(clients[4]).toContain(' connected-composed ');
+    expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(5);
     expect(smoke.dockerCalls.some((call) => /^(build|tag|push|pull|image rm) /.test(call))).toBe(
       false,
     );
@@ -421,6 +453,7 @@ for (const supplied of [false, true]) {
   it.each([
     ['connected-feasible-run', 88],
     ['connected-fractional-run', 89],
+    ['connected-composed-run', 90],
   ] as const)(
     `fails and cleans up %s in ${supplied ? 'supplied' : 'built'} image mode`,
     (fault, code) => {
@@ -432,4 +465,29 @@ for (const supplied of [false, true]) {
       ).toBe(true);
     },
   );
+}
+
+for (const supplied of [false, true]) {
+  it.each([
+    'inventory-rm-fails',
+    'inventory-missing',
+    'inventory-unreadable',
+    'inventory-incomplete',
+    'inventory-duplicate',
+    'inventory-malformed',
+    'inventory-overflow',
+  ] as const)(`refuses %s in ${supplied ? 'supplied' : 'built'} image mode`, (fault) => {
+    const smoke = runSmoke(fault, { supplied });
+    expect(smoke.exitCode).not.toBe(0);
+    const reason =
+      fault === 'inventory-rm-fails'
+        ? 'could not remove composed attempt inventory'
+        : fault === 'inventory-missing' || fault === 'inventory-unreadable'
+          ? 'inventory is unreadable'
+          : fault === 'inventory-duplicate' || fault === 'inventory-malformed'
+            ? 'inventory is malformed or duplicated'
+            : 'inventory must contain Pri and Time exactly once';
+    expect(smoke.stderr).toContain(reason);
+    expect(smoke.survivingTags).toEqual(supplied ? [SUPPLIED_IMAGE] : []);
+  });
 }

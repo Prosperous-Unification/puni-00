@@ -7085,3 +7085,13 @@ partial-state diagnostics have disposable production-path tests and independent
 watched faults. No live installation or activation was performed. Independent
 Astra rereview approved the corrected source packet; the integrated exact-SHA
 host gate remains open, as does parent Task 10.2.
+
+## Task 7.3/7.4 bounded composed installed-image source packet — 2026-10-23
+
+The [composed image packet](verify-task-7-composed-installed-solver-image.md) adds
+an actual services/SQLite/coordinator/public-tree client to both image smoke modes.
+Installed source binding already exists. Local capture and fake-Docker tests,
+watched entrypoint/inventory fault proofs, configured lint and source typechecking
+are recorded there. Actual installed-Python publication/reopen acceptance and its
+four independent production-source faults remain pending the canonical host lock;
+parent 7.3/7.4 and production activation remain open.
