@@ -53,6 +53,12 @@ export const nodeResourcesShape = type({
   maxParallel: 'number',
   width: 'number',
 });
+/** A money figure's basis on the wire: currency and rate card digest (design D43). */
+export const moneyBasis = type({ currency: 'string', rateCardDigest: 'string' });
+
+/** The two bases a mix is named by, null for an unpriced figure (design D44). */
+export const mixedBases = type([moneyBasis.or('null'), moneyBasis.or('null')]);
+
 export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -107,6 +113,28 @@ export const numberedWorkItem = type({
         'variance?': 'number',
       }),
     }),
+  }),
+  // Budgets by definition key (`wbs-measure-budgets` D5, design D39): stated
+  // or derived from the pessimistic points, with what remains after the
+  // subtree's facts and holds (negative past the cap) and whether the facts
+  // crossed it; `held` only where the budget states a hold. Absent when the
+  // row has none, and from an older be-01 mid-swap.
+  'budgets?': type({
+    '[string]': type({
+      cap: 'number',
+      policy: "'strict' | 'advisory'",
+      source: "'stated' | 'derived'",
+      remaining: 'number',
+      exceeded: 'boolean',
+      'held?': 'number',
+    }),
+  }),
+  // Money keys whose figures in the subtree are priced under two bases, per
+  // kind, with the first two (null: unpriced). Facts and trios fold apart: a
+  // key mixing facts is left out of `measures` and `budgets`, one mixing trios
+  // out of `measureEstimates` (design D44).
+  'mixedRateCards?': type({
+    '[string]': type({ 'facts?': mixedBases, 'estimates?': mixedBases }),
   }),
   dependsOn: 'string[]',
   finalDays: numbers,

@@ -104,6 +104,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'forbidden':
     case 'bad_start_date':
     case 'bad_pert_weights':
+    case 'bad_budget_factor':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
     case 'solution_taken':
@@ -334,6 +335,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'invalid_progress':
     case 'invalid_status':
     case 'invalid_estimate':
+    case 'invalid_budget':
+    case 'rateCardDigest_must_be_1_to_128_characters':
     case 'conflicting_step_address':
     case 'invalid_step_node_id':
     case 'unknown_step_node_encoding':
@@ -447,6 +450,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'scale_mismatch':
     case 'scheduling_measure_estimate':
     case 'three_point_forbidden':
+    case 'scheduling_measure_budget':
+    case 'rate_card_required':
+    case 'rate_card_forbidden':
+    case 'mixed_rate_cards':
     case 'ancestor':
     case 'self_node':
     case 'not_a_parent':

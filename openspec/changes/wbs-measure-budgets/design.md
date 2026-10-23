@@ -56,7 +56,7 @@ optimistic, realistic, pessimistic)` in the measure's unit and scale, with the t
   project-scoped read of remaining budget per measure with holds for unknown spend.
 - **D6 Money carries its basis.** A `cost` fact and estimate record the currency and the rate
   card digest they were priced with; a roll-up that would add figures under different
-  digests refuses `mixed_rate_cards` without a stated conversion.
+  bases refuses `mixed_rate_cards`; WBS converts nothing.
 - **D7 Columns follow the definition.** The plan table offers estimate, fact and variance per
   definition, visible by default only where `showByDefault`; toggles persist per user and
   project through the existing remembered layout; a measure panel per work item lists every
@@ -205,6 +205,104 @@ token_estimate` keeps working and journals as before. The row read's `measures` 
   owns reads; the memory step fixture neither counts nor deletes
   trios on a step removal, as it does not for facts; the Dash replay inventory
   (`tools/tool-deploy`) is unchanged and names no measure-estimate kind.
+
+Assumptions added while implementing slice 4 (tasks 3.1–3.3), each the reading closest to D1–D8:
+
+- **D35 No budget in the scheduling measure.** `setBudget` and `clearBudget` on the
+  `schedulesWork` definition (`time`) answer `409 scheduling_measure_budget`, and no budget
+  is derived for it. Its fact is the actual days (D27) and its trio lives in `estimate` (D2),
+  so a time budget would be a second deadline the solver never reads; additive agent time is
+  budgeted in `agent_minutes`, which may hold a budget although nobody types its facts.
+- **D36 One row per work item and key, stated only.** `work_item_budget (work_item_id,
+measure_key, measure_id, cap, policy, hold_per_attempt, audit)` keys by `measure_key` and
+  references by `measure_id` (D30), keyed for an unowned project by
+  `project_organization_keys_work_item_budgets`. D5's `source` is not a column: a stored row
+  is `stated`, and a derived budget is computed on every read and never stored. Cap and hold
+  are in the measure's unit and scale: a fraction on an integer measure is `409
+scale_mismatch`; a negative or non-finite figure is refused at the command boundary,
+  `400 invalid_budget` (review S3-3: the domain no longer decides it, and a replay is checked
+  by `isBudgetRecord`); an undefined key or a legacy name is `404 unknown_measure`. Refusals
+  in the order unknown, scheduling, scale.
+- **D37 Commands.** `setBudget {measure, cap, policy, holdPerAttempt?}` and `clearBudget
+{measure}` address a work item (id or ref) and take no step: a budget bounds the whole
+  subtree on every step. Parents and leaves alike; undoable (`set_budget`, `clear_budget`),
+  one journal entry each; clearing an absent budget writes and journals nothing. Neither is
+  calendar- or graph-affecting. Undo putting a budget back in a measure deleted since answers
+  409 "a measure it budgeted is no longer defined" (D24 for budgets).
+- **D38 Derived budget.** A row and key with no stated budget, whose subtree holds a trio in
+  that key, reads a derived budget: the subtree's pessimistic points summed over every step,
+  times the project's `budgetFactor`, rounded half up once on an integer measure; policy
+  `advisory`, no holds. It exists only where every leaf of the subtree that holds facts in the
+  key also holds a trio in it (review S3-4): otherwise the cap would be some leaves' estimates
+  against every leaf's spend, and the budget is absent. `budgetFactor` is a project column
+  (default 1, additive), patched like the other settings, refused `422 bad_budget_factor`
+  unless finite, above 0 and at most 1000. It moves no date, so saved plan captures and the
+  export leave it out (D22).
+- **D39 Reading.** `spent` is the subtree's facts in the key summed over every step
+  (`agent_minutes` derived, D20; nothing recorded reads 0). `held` is the budget's
+  `holdPerAttempt` times the RUNNING attempts in the subtree whose usage is unknown. In a typed
+  measure that means no fact in that key on the attempt's step node recorded at or after its
+  start; in a derived measure (`agent_minutes`) every running attempt holds, since its facts
+  come from ended spans only (review S3-2). `remaining` is the cap less `spent` and `held`,
+  negative past the cap; `exceeded` is `spent > cap`, facts alone, so a spend hold never makes
+  a budget exceeded. Known limits of the typed rule, accepted: two attempts running at once on
+  one node are both released by one fact; an attempt whose start is backdated before a fact
+  reads as known; a partial report releases the hold although spend continues. The row read
+  adds `budgets: {key: {cap, policy, source, remaining, exceeded, held?}}`, `held` only where
+  the budget states a hold; absent when the row has no budget, so plans without trios or
+  budgets answer the same bytes.
+- **D40 The hold is a budget field.** `holdPerAttempt` belongs with the cap it reduces, in the
+  same unit; a project setting would need one figure per measure. Each budget holds its own
+  allowance for every unknown attempt in its subtree, so a leaf's and its parent's budgets
+  both shrink; derived budgets hold nothing.
+- **D41 Headroom read in core.** `WorkItemService.budgetHeadroomWithin(projectId, access)`
+  answers, for every startable step (fitting or not, `findStartableWork`) and every claimed
+  step, per key the tightest budgets among its work item and its ancestors (D46), naming the
+  bounding work item. It is never refused as a whole: a budget a rate-card mix keeps from
+  being read is named on that step and key (D44). A plan-command batch writes and cannot carry
+  a read, and dedicated read routes and MCP tools are slice 5's, so no route is added here.
+- **D42 Budgets stay on their work item.** A first child takes none (the parent's budget
+  bounds the child now), a deleted last child's budget is not handed up (the parent keeps its
+  own) and comes back on undo with every budget of a deleted branch, a duplicate copies the
+  branch's budgets with its trios (D31), and step removal touches none. `deleteMeasure`
+  answers `measure_in_use` while a budget references the definition. The restore's journal
+  field `budgets` is optional, present only when non-empty; nothing is ever taken off a
+  surviving parent, so there is no removed list.
+- **D43 Money basis.** `step_measure` and `measure_estimate` gain nullable `currency` and
+  `rate_card_digest`, set together on money definitions only. A basis is the pair currency
+  and digest: one digest in two currencies is two bases (review S3-1). `setMeasure` and
+  `setMeasureEstimate` take `rateCardDigest` (non-empty, at most 128 characters): required
+  on a write in a money measure (`409 rate_card_required`), refused on any other
+  (`409 rate_card_forbidden`), not needed by a clear; the currency is the definition's at the
+  write. Journals and hand-ups carry the `basis`; a money `set_measure` or
+  `set_measure_estimate` replay without one refuses (`rate_card_required`) instead of writing
+  an unpriced figure (review S2-2b). Figures written before carry none, which counts as one
+  more basis (null).
+- **D44 One basis per money key per subtree, per kind.** Facts and trios fold apart (review
+  S2-2): a row whose subtree holds money facts in a key under two or more bases loses that key
+  from `measures` (and its budgets), one whose trios do loses it from `measureEstimates` (and a
+  derived budget), and each reads `mixedRateCards: {key: {facts?, estimates?}}` naming the
+  first two bases (null first, then currency, then digest). A leaf whose trio is on one card
+  and fact on another is not mixed. The headroom read names a blocked budget on its step and
+  key only, so a mix in `cost` never touches `tokens` or `agent_minutes`; a last-child delete
+  refuses `409 mixed_rate_cards` with `bases` only when the hand-up would add two bases within
+  facts or within trios. WBS converts nothing (design non-goals), so these refusals have no
+  override, and a card rotation splits a key's sums across every ancestor spanning both cards:
+  by design. Operations should ship slices 2–4 in one deploy (runbook _Budget rollback_).
+- **D45 Known lags.** The headroom read has no route or MCP tool (slice 5); the row read shows
+  a basis only when mixed (slice 5 reads, slice 6 panel); the export carries neither budgets
+  nor bases (D22, slice 7); `findCrossReferences` does not follow `work_item_budget` (D34).
+- **D46 Strict and advisory headroom apart (review S2-1).** Per key the headroom read answers
+  `{strict?, advisory?, mixedRateCards?, mixedAt?}`: the tightest strict budget of the chain,
+  which the coordinator refuses on, and apart the tightest advisory or derived one, which it
+  only reports. An advisory budget with less remaining never hides an exhausted strict one.
+- **D47 Refusal schemas compile once per status, not once per code.** mcp-01 compiles every HTTP
+  shape at boot inside a 512 Mi pod; `commandParserRefusal`'s 132 arms and the batch's 78 plain
+  arms each carried the whole command-kind enumeration, and slice 4's two kinds and codes pushed
+  the boot from about 521 MB (slice 3, already at the limit) past it (OOMKilled in the k3s
+  rehearsal). Each is now one object over the enumerated codes, typed as the per-code union it
+  validates; the wire shape and the validation are unchanged, the OpenAPI document lists the
+  codes as one enum. `contracts-boot-memory.test.ts` bounds the cost of loading every shape.
 
 ## Risks / Trade-offs
 

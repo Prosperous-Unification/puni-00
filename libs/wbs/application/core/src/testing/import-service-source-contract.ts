@@ -661,6 +661,8 @@ export function importServiceSourceContract(
           optimizationEnabled: false,
           scheduleEngine: 'optimized',
           scheduleObjective: 'time',
+          // The export carries no budget factor (`wbs-measure-budgets` D38).
+          budgetFactor: 1,
         });
         expect(await source.stores.priorityBands.listFor(imported.projectId)).toEqual([
           { startsAt: 1, defaultValue: 10, label: 'Critical' },

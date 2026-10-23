@@ -1,6 +1,6 @@
 import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { MeasureDefinition, ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type { MeasureDefinition, MixedRateCards, ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -120,6 +120,8 @@ export type Refusal =
       detail: { nodes: { workItemId: string; stepId: string }[] };
     }
   | { reason: 'taken'; detail: { name: string } }
+  /** A sum across two rate cards (`wbs-measure-budgets` D44), both named, null unpriced. */
+  | { reason: 'mixed_rate_cards'; detail: { bases: MixedRateCards } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
   /** A resource removal's refusal also counts what names it (`wbs-resources` R8). */
   | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }

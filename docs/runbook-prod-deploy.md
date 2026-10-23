@@ -346,6 +346,24 @@ loses three-point trios in these ways, with no error:
 
 Clear or record three-point trios before such a restart.
 
+### Budget rollback
+
+`20261023130000_add_work_item_budget` (slice 4) adds `work_item_budget`, `project.budget_factor`
+and the money basis columns `currency` and `rate_card_digest` on `step_measure` and
+`measure_estimate`. The older image reads none of them: an attended restart of it ignores
+budgets and bases (its writes leave a fact or trio unpriced, which reads as a basis of its own
+afterwards); no older-image restart over this schema was exercised. `down.sql` refuses with `budgets, budget factors or priced
+figures exist` until every stated budget is cleared with `clearBudget`, every project's factor
+is patched back to `budgetFactor: 1`, and every priced fact or trio is cleared with
+`clearMeasure` or `clearMeasureEstimate` (or by SQL); then run
+`migrate-down-cli.ts --to=20261023120000_add_measure_estimate`.
+
+Deploy slices 2–4 of `wbs-measure-budgets` together, in one swap: the migrations
+`20261023110000_key_step_measure`, `20261023120000_add_measure_estimate` and
+`20261023130000_add_work_item_budget` then land at once, and no release ever writes facts or
+trios in money measures without a rate card, which would read as a basis of their own beside
+every priced figure and split those sums (design D44).
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at

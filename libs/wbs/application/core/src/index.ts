@@ -55,6 +55,7 @@ export * from './module/work-item/module';
 export * from './ports/actual-store';
 export * from './ports/announcement-collector';
 // The owner-neutral marker read: `CalendarMarkerReader` and the list outcome it answers with.
+export * from './ports/budget-store';
 export * from './ports/calendar-marker-read';
 export * from './ports/calendar-marker-store';
 export * from './ports/capacity-store';

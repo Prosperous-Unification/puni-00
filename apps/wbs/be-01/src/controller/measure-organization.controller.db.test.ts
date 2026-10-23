@@ -179,6 +179,137 @@ describe('measure definitions in an organization', () => {
   });
 });
 
+describe('budgets and money bases in an organization', () => {
+  beforeEach(async () => {
+    h = OrganizationHarness.openComposed();
+    await h.register('ada');
+    h.organization('org-a');
+    h.member('org-a', 'ada', 'member');
+    h.bind('ada', 'org-a');
+    h.activate();
+  });
+
+  /** A project of org-a with parent P over leaves L and R, and the first step's id. */
+  async function plan() {
+    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Budgets' });
+    if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+    const projectId = (created.body as { project: { id: string } }).project.id;
+    const dev = h.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
+      .all(projectId)
+      .map(({ id }) => id)
+      .at(0);
+    if (dev === undefined) throw new Error('the project has no step');
+    const run = (commands: readonly unknown[]) =>
+      h.call('ada', 'POST', `/api/projects/${projectId}/commands`, { commands });
+    const built = await run([
+      { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
+      {
+        kind: 'createWorkItem',
+        ref: 'L',
+        name: 'L',
+        parentRef: 'P',
+        parentId: null,
+        afterId: null,
+      },
+      {
+        kind: 'createWorkItem',
+        ref: 'R',
+        name: 'R',
+        parentRef: 'P',
+        parentId: null,
+        afterId: null,
+        afterRef: 'L',
+      },
+    ]);
+    if (built.status !== 200) throw new Error(`the tree was refused: ${JSON.stringify(built)}`);
+    const ids = (built.body as { results: { ref?: string; id?: string }[] }).results;
+    const idOf = (ref: string): string => {
+      const id = ids.find((each) => each.ref === ref)?.id;
+      if (id === undefined) throw new Error(`no ${ref}`);
+      return id;
+    };
+    return { projectId, dev, run, idOf };
+  }
+
+  const cost = (workItemId: string, stepId: string, rateCardDigest?: string) => ({
+    kind: 'setMeasure',
+    workItemId,
+    stepId,
+    metric: 'cost',
+    value: 10,
+    ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+  });
+
+  // Proof: with the `rate_card_required` arm removed from work-item-shapes.ts,
+  // this case answered 500 for the unpriced cost fact; watched 2026-10-23.
+  it('answers 409 for an unpriced cost fact and reads a parent mixing two cards, naming both', async () => {
+    const { projectId, dev, run, idOf } = await plan();
+    const [P, L, R] = ['P', 'L', 'R'].map(idOf);
+    const unpriced = await run([cost(L, dev)]);
+    expect(unpriced).toMatchObject({
+      status: 409,
+      body: { error: 'rate_card_required', at: 0, kind: 'setMeasure' },
+    });
+    expect(
+      (
+        await run([
+          cost(L, dev, 'card-b'),
+          cost(R, dev, 'card-a'),
+          { kind: 'setBudget', workItemId: P, measure: 'cost', cap: 100, policy: 'strict' },
+          { kind: 'setBudget', workItemId: L, measure: 'cost', cap: 15, policy: 'advisory' },
+        ])
+      ).status,
+    ).toBe(200);
+    const read = await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
+    const rows = (read.body as { workItems: { id: string; [field: string]: unknown }[] }).workItems;
+    const parent = rows.find((each) => each.id === P);
+    expect(parent?.['mixedRateCards']).toEqual({
+      cost: {
+        facts: [
+          { currency: 'USD', rateCardDigest: 'card-a' },
+          { currency: 'USD', rateCardDigest: 'card-b' },
+        ],
+      },
+    });
+    expect(parent?.['budgets']).toBeUndefined();
+    expect(rows.find((each) => each.id === L)?.['budgets']).toEqual({
+      cost: { cap: 15, policy: 'advisory', source: 'stated', remaining: 5, exceeded: false },
+    });
+  });
+
+  // Proof: with the `mixed_rate_cards` arm removed from work-item-shapes.ts,
+  // this case answered 500; watched 2026-10-23.
+  it('refuses a last-child delete whose hand-up would add two cards with 409 naming both', async () => {
+    const { dev, run, idOf } = await plan();
+    const R = idOf('R');
+    expect((await run([{ kind: 'deleteWorkItem', workItemId: R }])).status).toBe(200);
+    const L = idOf('L');
+    const made = await run([
+      { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: L, afterId: null },
+      { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: L, afterId: null, afterRef: 'A' },
+    ]);
+    const kids = (made.body as { results: { ref?: string; id?: string }[] }).results;
+    const [A, B] = ['A', 'B'].map((ref) => kids.find((each) => each.ref === ref)?.id ?? '');
+    expect((await run([cost(A, dev, 'card-a'), cost(B, dev, 'card-b')])).status).toBe(200);
+    // L is P's only child now: deleting it hands its branch up to P.
+    expect(
+      await run([{ kind: 'deleteWorkItem', workItemId: L, strategy: 'cascade' }]),
+    ).toMatchObject({
+      status: 409,
+      body: {
+        error: 'mixed_rate_cards',
+        at: 0,
+        kind: 'deleteWorkItem',
+        bases: [
+          { currency: 'USD', rateCardDigest: 'card-a' },
+          { currency: 'USD', rateCardDigest: 'card-b' },
+        ],
+      },
+    });
+  });
+});
+
 describe('measure definitions before activation', () => {
   beforeEach(async () => {
     h = OrganizationHarness.openComposed();

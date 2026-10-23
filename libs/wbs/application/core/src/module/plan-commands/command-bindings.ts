@@ -227,6 +227,15 @@ export class CommandContext {
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
+    if (outcome.reason === 'mixed_rate_cards') {
+      // Proof: with this guard bypassed (the plain refusal below), `refuses a
+      // last-child delete whose hand-up would add two rate cards, naming both`
+      // (budget-command.test.ts) named no digests; watched 2026-10-23.
+      if (!('bases' in outcome) || outcome.bases === undefined)
+        throw new Error('A rate card refusal requires both bases');
+      const [first, second] = outcome.bases;
+      return this.refuse({ reason: outcome.reason, detail: { bases: [first, second] } });
+    }
     if (outcome.reason === 'agent_person_limit') {
       return this.refuse({
         reason: outcome.reason,
@@ -534,6 +543,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           command.stepId,
           command.metric,
           command.value,
+          command.rateCardDigest,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -557,6 +567,28 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           command.stepId,
           command.measure,
           command.estimate,
+          command.rateCardDigest,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setBudget: async (command, context) => {
+      context.value(
+        await workItems.setBudget(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.measure,
+          { cap: command.cap, policy: command.policy, holdPerAttempt: command.holdPerAttempt },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    clearBudget: async (command, context) => {
+      context.value(
+        await workItems.clearBudget(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.measure,
         ),
       );
       return { ...context.plain(), kind: command.kind };

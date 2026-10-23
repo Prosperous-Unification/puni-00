@@ -17,6 +17,7 @@ const MEASURE = '20261023100000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
 const MEASURE_FACTS = '20261023110000_key_step_measure';
 const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const SUBJECT = 'repo:acme/wbs:ref:refs/heads/main';
@@ -115,7 +116,7 @@ describe(AUDIENCE_SCOPE, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
+      `rolled back: ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
     );
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);

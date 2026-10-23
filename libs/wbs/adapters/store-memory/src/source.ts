@@ -127,6 +127,7 @@ function coordinatedStores(
       ['set', 'remove', 'moveAll'],
       coordinator,
     ),
+    budgets: coordinatedStore(stores.budgets, ['set', 'remove'], coordinator),
     progress: coordinatedStore(stores.progress, ['set', 'remove', 'moveAll'], coordinator),
     attempts: coordinatedStore(
       stores.attempts,

@@ -1,6 +1,7 @@
 import { expectedDays, type PertWeights } from './estimate';
 import type { MeasureDefinition } from './measure-definition';
 import { definitionsOrUnowned } from './measure-fact';
+import type { MoneyBasis } from './money-basis';
 import type { MeasureScale } from './stored-vocabularies';
 
 /**
@@ -30,6 +31,12 @@ export interface StoredMeasureEstimate extends MeasureTrio {
   readonly stepId: string;
   readonly key: string;
   readonly singlePoint: boolean;
+  /**
+   * The currency and rate card a money trio was priced with (design D43);
+   * absent on every other measure, and on a money trio written before bases
+   * were recorded.
+   */
+  readonly basis?: MoneyBasis;
 }
 
 /** One measure estimate's whole identity: its step node and its definition key. */
@@ -192,6 +199,26 @@ export function expectedMeasure(
       : weighted;
   // Proof: with `Math.floor` here, `rounds a legacy fractional token estimate
   // half up` (measure-estimate.test.ts) failed; watched 2026-10-23.
+  return Math.round(snapped);
+}
+
+/**
+ * A computed figure in a measure's scale that is not a weighted trio: the
+ * derived budget's cap (`wbs-measure-budgets` design D38). Unchanged on a real
+ * measure; on an integer one rounded half up after snapping a figure within
+ * {@link HALF_DRIFT} (relative) of a half to it, the floating-point leg of
+ * {@link expectedMeasure}'s rounding.
+ */
+export function roundToScale(figure: number, scale: MeasureScale): number {
+  if (scale === 'real') return figure;
+  const halves = Math.round(figure * 2);
+  const snapped =
+    Math.abs(figure * 2 - halves) < HALF_DRIFT * Math.max(1, Math.abs(figure * 2))
+      ? halves / 2
+      : figure;
+  // Proof: with `Math.floor` here, `derives a budget from the pessimistic
+  // points times the project factor …` (budget.test.ts) capped B at 601;
+  // watched 2026-10-23.
   return Math.round(snapped);
 }
 

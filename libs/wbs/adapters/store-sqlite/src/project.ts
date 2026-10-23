@@ -419,6 +419,9 @@ export class ProjectRepository implements ProjectStore {
         optimizationEnabled: toCreate.optimizationEnabled ?? DEFAULT_PROJECT_SETTINGS.enabled,
         scheduleEngine: toCreate.scheduleEngine ?? DEFAULT_PROJECT_SETTINGS.engine,
         scheduleObjective: toCreate.scheduleObjective ?? DEFAULT_PROJECT_SETTINGS.objective,
+        // The column's default (`wbs-measure-budgets` D38), stated for the
+        // same reason as the three above.
+        budgetFactor: toCreate.budgetFactor ?? 1,
       };
       const written: Project = { ...toCreate, ...settings };
       this.db.transaction((tx) => {
@@ -806,6 +809,7 @@ export class ProjectRepository implements ProjectStore {
         optimizationEnabled: project.optimizationEnabled,
         scheduleEngine: project.scheduleEngine,
         scheduleObjective: project.scheduleObjective,
+        budgetFactor: project.budgetFactor,
         revision: project.revision,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,

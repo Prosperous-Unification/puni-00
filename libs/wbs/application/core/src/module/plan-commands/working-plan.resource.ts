@@ -1,4 +1,5 @@
 import type { ActualStore } from '../../ports/actual-store';
+import type { BudgetStore } from '../../ports/budget-store';
 import type { DependencyStore } from '../../ports/dependency-store';
 import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
@@ -275,6 +276,24 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       await scope.stores.measureEstimates.moveAll(fromWorkItemId, toWorkItemId, stamp);
       await refreshRows([fromWorkItemId, toWorkItemId]);
+    },
+  };
+  // Read through, never retained: a budget write moves its work item's
+  // revision (as every satellite write does), so the row is refreshed.
+  const retainedBudgets: BudgetStore = {
+    listByProject: async (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return await scope.stores.budgets.listByProject(requestedProjectId);
+    },
+    set: async (budget, stamp) => {
+      assertOpen();
+      await scope.stores.budgets.set(budget, stamp);
+      await refreshRows([budget.workItemId]);
+    },
+    remove: async (workItemId, key, stamp) => {
+      assertOpen();
+      await scope.stores.budgets.remove(workItemId, key, stamp);
+      await refreshRows([workItemId]);
     },
   };
   const retainedProgress: StepProgressStore = createWorkingPlanValues(
@@ -570,6 +589,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     actuals: retainedActuals,
     measures: retainedMeasures,
     measureEstimates: retainedMeasureEstimates,
+    budgets: retainedBudgets,
     progress: retainedProgress,
     attempts,
     blockages,

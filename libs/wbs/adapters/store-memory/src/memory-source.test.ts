@@ -15,6 +15,7 @@ const STORE_BINDINGS = [
   'actuals',
   'attempts',
   'blockages',
+  'budgets',
   'calendarMarkers',
   'capacity',
   'claims',

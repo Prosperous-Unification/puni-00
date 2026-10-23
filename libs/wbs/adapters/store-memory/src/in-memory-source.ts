@@ -3,6 +3,7 @@ import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
+import { inMemoryBudgets } from './budget-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
 import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
@@ -78,6 +79,7 @@ export function inMemoryStores(): TransactionalStores {
     actuals,
     measures,
     measureEstimates,
+    budgets: inMemoryBudgets(workItems),
     progress,
     attempts,
     stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),

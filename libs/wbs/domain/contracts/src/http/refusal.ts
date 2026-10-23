@@ -26,6 +26,10 @@ export type ParserRefusalCode =
   | 'externalRefs_entry_name_is_too_long'
   | 'invalid_actual'
   | 'invalid_measure'
+  /** A `setBudget` cap or hold that is not a number at or above 0, or a policy outside the two. */
+  | 'invalid_budget'
+  /** A `rateCardDigest` that is not text of 1 to 128 characters. */
+  | 'rateCardDigest_must_be_1_to_128_characters'
   | 'invalid_progress'
   /** An `endAttempt` outcome outside `ATTEMPT_OUTCOMES`. */
   | 'invalid_outcome'
@@ -159,6 +163,14 @@ export type CommandRefusalCode =
   | 'scheduling_measure_estimate'
   /** `setMeasureEstimate` on a definition whose `threePoint` is false (`hours`, `agent_minutes`). */
   | 'three_point_forbidden'
+  /** `setBudget` or `clearBudget` in the scheduling measure (`wbs-measure-budgets` D35). */
+  | 'scheduling_measure_budget'
+  /** A money fact or trio written without a rate card digest. */
+  | 'rate_card_required'
+  /** A rate card digest on a measure that is not money. */
+  | 'rate_card_forbidden'
+  /** A sum that would add money figures priced under two bases; `bases` names both. */
+  | 'mixed_rate_cards'
   | 'has_children'
   | 'ancestor'
   /** A typed dependency resolving a step node onto itself. */
@@ -515,6 +527,8 @@ type BareRefusalCode =
   | 'unsupported_format'
   | 'bad_start_date'
   | 'bad_pert_weights'
+  /** A project budget factor that is not finite, above 0 and at most 1000. */
+  | 'bad_budget_factor'
   | 'optimizer_unavailable'
   /** Another of the organization's projects holds the requested solution slug. */
   | 'solution_taken'

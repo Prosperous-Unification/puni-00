@@ -88,8 +88,8 @@ remainder until they end.
 ### Requirement: Money facts carry their pricing basis and mixed bases never add
 
 A `cost` estimate or fact SHALL record the currency and the rate card digest it was priced
-with. A roll-up that would add figures priced under different digests SHALL be refused
-`409 mixed_rate_cards` naming both digests, unless the caller states a conversion.
+with. A roll-up that would add figures priced under different bases (currency and digest)
+SHALL be refused `409 mixed_rate_cards` naming both; WBS converts nothing.
 
 #### Scenario: Two cards in one subtree
 

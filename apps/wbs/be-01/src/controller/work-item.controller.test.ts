@@ -3384,6 +3384,48 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
   });
 
+  // Proof: with the `scheduling_measure_budget`/`rate_card_forbidden` arms
+  // removed from work-item-shapes.ts, this case answered 500 for both;
+  // watched 2026-10-23.
+  it('answers 409 for a budget in time and a rate card on tokens, 400 for a negative cap, and reads a budget back', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const run = (body: Record<string, unknown>) => command(send, token, projectId, body);
+    const budget = (measure: string, cap: number) =>
+      run({ kind: 'setBudget', workItemId: parent, measure, cap, policy: 'strict' });
+
+    const scheduling = await budget('time', 5);
+    const forbidden = await run({
+      kind: 'setMeasure',
+      workItemId: parent,
+      stepId: devId,
+      metric: 'tokens',
+      value: 10,
+      rateCardDigest: 'card-a',
+    });
+    const negative = await budget('tokens', -1);
+    expect([scheduling.status, forbidden.status, negative.status]).toEqual([409, 409, 400]);
+    expect(await scheduling.json()).toEqual({
+      error: 'scheduling_measure_budget',
+      at: 0,
+      kind: 'setBudget',
+    });
+    expect(await forbidden.json()).toEqual({
+      error: 'rate_card_forbidden',
+      at: 0,
+      kind: 'setMeasure',
+    });
+    expect(await negative.json()).toEqual({ error: 'invalid_budget', at: 0, kind: 'setBudget' });
+
+    expect((await budget('tokens', 1000)).status).toBe(200);
+    const read = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      workItems: { id: string; budgets?: unknown }[];
+    };
+    expect(read.workItems.find((row) => row.id === parent)?.budgets).toEqual({
+      tokens: { cap: 1000, policy: 'strict', source: 'stated', remaining: 1000, exceeded: false },
+    });
+  });
+
   it('answers 404 for a unit it does not keep, on both verbs, and stores nothing', async () => {
     // The refusal this command pair has and the actuals' does not. 404 rather
     // than 400 — the step names a unit, and this release keeps no such unit;

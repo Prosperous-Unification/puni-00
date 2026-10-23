@@ -151,7 +151,10 @@ describe('measure estimates as plan commands', () => {
       expect(
         await run([
           setTrio(A, dev, 'tokens'),
-          setTrio(A, dev, 'cost', { optimistic: 5, realistic: 5, pessimistic: 9 }),
+          {
+            ...setTrio(A, dev, 'cost', { optimistic: 5, realistic: 5, pessimistic: 9 }),
+            rateCardDigest: 'card-a',
+          },
           setTrio(A, dev, 'kwh', { optimistic: 0.5, realistic: 1.25, pessimistic: 2 }),
         ]),
       ).toMatchObject({ ok: true });

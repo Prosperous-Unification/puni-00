@@ -3,7 +3,9 @@ import {
   type AllowancePercent,
   allowancePercentOf,
   type AttemptOutcome,
+  type BudgetPolicy,
   isAttemptOutcome,
+  isBudgetPolicy,
   isCurrencyCode,
   isDependencyEndpointScope,
   isIsoDate,
@@ -15,6 +17,7 @@ import {
   isSettableStatus,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
+  LONGEST_RATE_CARD_DIGEST,
   type MeasureKind,
   type MeasureScale,
   MOST_MEASURE_ORDER,
@@ -784,6 +787,38 @@ export function resourceUnitsOf(raw: object, floor: 0 | 1): number | null {
 }
 
 /** A unit label, trimmed, of at most {@link MOST_CHARACTERS_IN_A_UNIT_LABEL} characters; empty is allowed. */
+/**
+ * A `setBudget`'s figures (`wbs-measure-budgets` design D36): a cap and an
+ * optional hold that are numbers at or above zero, finite, and one of the two
+ * policies; `invalid_budget` otherwise, for `parseMeasure`'s reason. The
+ * domain checks the same again (`decideBudget`) for every other caller.
+ */
+export function parseBudget(raw: CommandInput<'setBudget'>): {
+  cap: number;
+  policy: BudgetPolicy;
+  holdPerAttempt: number | null;
+} {
+  const figure = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  const hold: unknown = raw.holdPerAttempt ?? null;
+  // Proof: with the cap test made true, `refuses a negative cap or hold, or
+  // an unknown policy, before anything runs` (budget-command.test.ts) reached
+  // the service; watched 2026-10-23.
+  if (!figure(raw.cap) || !(hold === null || figure(hold)) || !isBudgetPolicy(raw.policy))
+    throw new CommandNormalizationError('invalid_budget');
+  return { cap: raw.cap, policy: raw.policy, holdPerAttempt: hold };
+}
+
+/** A rate card digest: absent, or text of 1 to {@link LONGEST_RATE_CARD_DIGEST} characters. */
+export function asRateCardDigest(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  // Proof: with the length test removed, `refuses an empty rate card digest`
+  // (budget-command.test.ts) stored one; watched 2026-10-23.
+  if (typeof value !== 'string' || value.length === 0 || value.length > LONGEST_RATE_CARD_DIGEST)
+    throw new CommandNormalizationError('rateCardDigest_must_be_1_to_128_characters');
+  return value;
+}
+
 export function asUnitLabel(value: unknown): string {
   const label = asText(value, 'unitLabel').trim();
   if (label.length > MOST_CHARACTERS_IN_A_UNIT_LABEL) {

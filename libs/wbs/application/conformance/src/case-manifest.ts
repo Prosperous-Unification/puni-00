@@ -20,6 +20,7 @@ export const PORT_NAMES = [
   'actuals',
   'measures',
   'measureEstimates',
+  'budgets',
   'progress',
   'attempts',
   'blockages',
@@ -65,6 +66,7 @@ export const CASE_MANIFEST = {
     'directory.removeMeasure:scoped',
     'directory.usageOfMeasure:facts',
     'directory.usageOfMeasure:estimates',
+    'directory.usageOfMeasure:budgets',
   ],
   organizationLimits: [
     'organizationLimits.readAgentPersonCap:organization-scope',
@@ -130,12 +132,15 @@ export const CASE_MANIFEST = {
     'measures.set:alias-one-row',
     'measures.set:defined-key',
     'measures.set:legacy-estimate-replaces-trio',
+    'measures.set:basis',
   ],
   measureEstimates: [
     'measureEstimates.set:defined-key',
     'measureEstimates.set:three-point-clears-flag',
     'measureEstimates.moveAll:every-key',
+    'measureEstimates.set:basis',
   ],
+  budgets: ['budgets.set:defined-key', 'budgets.set:replace-remove'],
   progress: [
     'progress.listPlacements:source-order',
     'progress.listByWorkItems:scope-order',

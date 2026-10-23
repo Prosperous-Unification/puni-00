@@ -34,6 +34,7 @@ const newerMigrations = [
   '20261023100000_add_measure',
   '20261023110000_key_step_measure',
   '20261023120000_add_measure_estimate',
+  '20261023130000_add_work_item_budget',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',

@@ -5,7 +5,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
-import { measure, measureEstimate, organization, stepMeasure } from './schema';
+import { measure, measureEstimate, organization, stepMeasure, workItemBudget } from './schema';
 
 /** The columns a {@link MeasureDefinition} is read from, in its own field names. */
 const MEASURE_COLUMNS = {
@@ -144,8 +144,9 @@ export function deleteMeasure(
 /**
  * What references one of the organization's definitions: the facts keyed by
  * it (`step_measure.measure_id`, `wbs-measure-budgets` slice 2) and the trios
- * in it (`measure_estimate.measure_id`, slice 3). Another organization's
- * definition counts nothing.
+ * in it (`measure_estimate.measure_id`, slice 3) and the budgets in it
+ * (`work_item_budget.measure_id`, slice 4). Another organization's definition
+ * counts nothing.
  *
  * Proof: with this answering zero, the SQLite certification's
  * `directory.usageOfMeasure:facts` failed (case named); watched 2026-10-23.
@@ -173,5 +174,15 @@ export function usageOfMeasureIn(
     .where(and(eq(measure.id, measureId), eq(measure.organizationId, organizationId)))
     .get();
   if (estimates === undefined) throw new Error('count of measure estimates answered no row');
-  return { references: facts.n + estimates.n };
+  // And the budgets in it (`work_item_budget.measure_id`, slice 4).
+  // Proof: with this count left out, the SQLite certification's
+  // `directory.usageOfMeasure:budgets` read zero; watched 2026-10-23.
+  const budgets = db
+    .select({ n: count() })
+    .from(workItemBudget)
+    .innerJoin(measure, eq(workItemBudget.measureId, measure.id))
+    .where(and(eq(measure.id, measureId), eq(measure.organizationId, organizationId)))
+    .get();
+  if (budgets === undefined) throw new Error('count of budgets answered no row');
+  return { references: facts.n + estimates.n + budgets.n };
 }
