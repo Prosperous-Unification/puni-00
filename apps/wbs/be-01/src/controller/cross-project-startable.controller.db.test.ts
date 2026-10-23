@@ -1,3 +1,6 @@
+import { readdirSync, readlinkSync } from 'node:fs';
+
+import type { StartableWork } from '@wbs/core/module/work-item/startable';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
@@ -8,8 +11,15 @@ let target: string;
 let predecessor: string;
 let targetStep: string;
 let predecessorStep: string;
+let publications: string[];
 beforeEach(async () => {
-  harness = OrganizationHarness.openComposed();
+  publications = [];
+  harness = OrganizationHarness.openComposedWith({
+    pushFetch: (url) => {
+      publications.push(url);
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
+  });
   await harness.register('ada');
   harness.organization('execution-org');
   harness.member('execution-org', 'ada', 'admin');
@@ -44,18 +54,21 @@ beforeEach(async () => {
     [predecessor, target, predecessorStep, targetStep],
   );
 });
-afterEach(() => {
-  harness.close();
+afterEach(async () => {
+  const path = harness.databasePath();
+  // Proof: the old close() left six deleted DB/WAL/SHM descriptors (task-6-3-admission/teardown-red.log).
+  await harness.closeComposed();
+  if (process.platform === 'linux') expect(readDatabaseDescriptors(path)).toEqual([]);
 });
 const startable = () => harness.call('ada', 'GET', `/api/projects/${target}/startable`);
-const claim = () =>
+const claim = (steps: string[] = [targetStep]) =>
   harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
     commands: [
       {
         kind: 'claimWorkItem',
         workItemId: 'target-leaf',
         personId: 'executor',
-        steps: [targetStep],
+        steps,
       },
     ],
   });
@@ -156,16 +169,15 @@ test('SS observes ended unsuccessful attempts while unknown prerequisites refuse
 
 function captureState() {
   return Object.fromEntries(
-    [
-      'claim',
-      'claim_occupancy',
-      'step_progress',
-      'assignment',
-      'command_journal',
-      'project',
-      'event_log',
-      'event_sequencer',
-    ].map((table) => [table, harness.sqlite.query(`SELECT * FROM ${table}`).all()]),
+    harness.sqlite
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all()
+      .map(({ name }) => [
+        name,
+        harness.sqlite.query(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all(),
+      ]),
   );
 }
 
@@ -211,3 +223,310 @@ test('manual progress and historical attempts remain observations with unmet loc
     claimed: [{ workItemId: 'target-leaf', stepId: targetStep }],
   });
 });
+
+/** Linux witness for live and deleted SQLite descriptors retained after fixture shutdown. */
+function readDatabaseDescriptors(path: string): string[] {
+  return readdirSync('/proc/self/fd').flatMap((descriptor) => {
+    let target: string;
+    try {
+      target = readlinkSync(`/proc/self/fd/${descriptor}`);
+    } catch (failure) {
+      // Enumerating /proc opens a directory descriptor that can close before readlink.
+      if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT') return [];
+      throw failure;
+    }
+    return target.startsWith(path) ? [target] : [];
+  });
+}
+
+function setMode(mode: 'isolated' | 'shared') {
+  harness.sqlite.run('UPDATE organization SET shared_people=? WHERE id=?', [
+    mode === 'shared' ? 1 : 0,
+    'execution-org',
+  ]);
+}
+
+function recordCompletion() {
+  harness.sqlite.run(
+    "INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('predecessor-leaf',?,'done',1)",
+    [predecessorStep],
+  );
+}
+
+async function assertRefusal(act: () => Promise<{ status: number; body: unknown }>) {
+  const before = captureState();
+  publications.length = 0;
+  const answer = await act();
+  expect(answer.status).toBe(409);
+  expect(captureState()).toEqual(before);
+  expect(publications).toEqual([]);
+  return answer;
+}
+
+async function assertAcceptedClaim() {
+  publications.length = 0;
+  expect((await claim()).status).toBe(200);
+  expect(publications.length).toBeGreaterThan(0);
+  expect(harness.sqlite.query('SELECT work_item_id,step_id,person_id FROM claim').all()).toEqual([
+    { work_item_id: 'target-leaf', step_id: targetStep, person_id: 'executor' },
+  ]);
+  expect(
+    harness.sqlite
+      .query("SELECT step_id,state FROM step_progress WHERE work_item_id='target-leaf'")
+      .all(),
+  ).toEqual([{ step_id: targetStep, state: 'in_progress' }]);
+}
+
+for (const mode of ['isolated', 'shared'] as const) {
+  for (const type of ['FS', 'SS', 'FF'] as const) {
+    test(`${mode} local ${type} advertised permission matches governed claim`, async () => {
+      setMode(mode);
+      makeLocal();
+      predecessorStep = targetStep;
+      harness.sqlite.run("UPDATE typed_dependency SET type=? WHERE id='local-prerequisite'", [
+        type,
+      ]);
+      const answer = await startable();
+      expect(answer.status).toBe(200);
+      const reading = answer.body as StartableWork;
+      expect(
+        reading.prerequisites.find(
+          (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+        ),
+      ).toMatchObject({
+        canStart: type === 'FF',
+        canFinish: type !== 'FF',
+      });
+      const leaf = reading.leaves.find((leaf) => leaf.workItemId === 'target-leaf');
+      if (type === 'FF') expect(leaf?.stepIds).toEqual([targetStep]);
+      else expect(leaf).toBeUndefined();
+      if (type !== 'FF') {
+        await assertRefusal(() => claim());
+        if (type === 'FS') recordCompletion();
+        else
+          harness.sqlite.run(
+            "INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('predecessor-leaf',?,1,1,2,'failed')",
+            [predecessorStep],
+          );
+      }
+      await assertAcceptedClaim();
+    });
+  }
+
+  // Proof: bypassing the startable filter or new-start admission independently fails this mounted matrix (task-6-3-admission/*-fault.log).
+  for (const type of ['FS', 'SS', 'FF'] as const) {
+    test(`${mode} remote ${type} advertised permission matches governed claim`, async () => {
+      setMode(mode);
+      harness.sqlite.run("UPDATE external_dependency SET type=? WHERE id='prerequisite'", [type]);
+      const before = await startable();
+      expect(before.status).toBe(200);
+      const reading = before.body as StartableWork;
+      expect(
+        reading.prerequisites.find(
+          (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+        ),
+      ).toEqual({
+        workItemId: 'target-leaf',
+        stepId: targetStep,
+        started: false,
+        canStart: type === 'FF',
+        canFinish: type !== 'FF',
+        startBlockers:
+          type === 'FF'
+            ? []
+            : [
+                {
+                  workItemId: 'predecessor-leaf',
+                  stepId: predecessorStep,
+                  type,
+                  provenance: 'authored',
+                  relationshipId: 'prerequisite',
+                },
+              ],
+        finishBlockers:
+          type === 'FF'
+            ? [
+                {
+                  workItemId: 'predecessor-leaf',
+                  stepId: predecessorStep,
+                  type,
+                  provenance: 'authored',
+                  relationshipId: 'prerequisite',
+                },
+              ]
+            : [],
+      });
+      expect(reading.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual(
+        type === 'FF' ? [{ workItemId: 'target-leaf', stepIds: [targetStep] }] : [],
+      );
+      if (type !== 'FF') {
+        expect(await assertRefusal(() => claim())).toMatchObject({
+          body: { error: 'prerequisites_unmet', stepIds: [targetStep] },
+        });
+        if (type === 'FS') recordCompletion();
+        else
+          harness.sqlite.run(
+            "INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('predecessor-leaf',?,1,1,2,'failed')",
+            [predecessorStep],
+          );
+        expect((await startable()).body).toMatchObject({
+          leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep] }],
+        });
+      }
+      await assertAcceptedClaim();
+    });
+  }
+
+  test(`${mode} mixed permitted and blocked steps refuse omitted and explicit selection atomically`, async () => {
+    setMode(mode);
+    recordCompletion();
+    const second = harness.sqlite
+      .query<{ id: string }, [string]>(
+        'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1 OFFSET 1',
+      )
+      .get(target);
+    if (second === null) throw new Error('fixture second step missing');
+    expect((await startable()).body).toMatchObject({
+      leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep] }],
+    });
+    for (const steps of [undefined, [targetStep, second.id]]) {
+      const answer = await assertRefusal(() =>
+        harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+          commands: [
+            { kind: 'patchWorkItem', workItemId: 'target-leaf', patch: { name: 'Must roll back' } },
+            {
+              kind: 'claimWorkItem',
+              workItemId: 'target-leaf',
+              personId: 'executor',
+              ...(steps === undefined ? {} : { steps }),
+            },
+          ],
+        }),
+      );
+      expect(answer.body).toMatchObject({
+        error: 'prerequisites_unmet',
+        at: 1,
+        kind: 'claimWorkItem',
+      });
+    }
+    await assertAcceptedClaim();
+  });
+
+  // Proof: bypassing the replay predicate admits the remote redo after upstream completion removal (task-6-3-admission/replay-fault.log).
+  test(`${mode} remote redo revalidates upstream evidence while continuation and release undo retain history`, async () => {
+    setMode(mode);
+    recordCompletion();
+    await assertAcceptedClaim();
+    expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+    harness.sqlite.run("DELETE FROM step_progress WHERE work_item_id='predecessor-leaf'");
+    const before = captureState();
+    expect(harness.sqlite.query('SELECT id FROM command_journal').all()).toHaveLength(1);
+    publications.length = 0;
+    expect(await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).toMatchObject({
+      status: 409,
+      body: { error: 'stale_undo' },
+    });
+    // Stale history is explicitly discarded by the existing afterRollback repair.
+    expect(captureState()).toEqual({ ...before, command_journal: [] });
+    expect(publications).toEqual([]);
+    recordCompletion();
+    await assertAcceptedClaim();
+    harness.sqlite.run("DELETE FROM step_progress WHERE work_item_id='predecessor-leaf'");
+    expect((await startable()).body).toMatchObject({
+      claimed: [{ workItemId: 'target-leaf', stepId: targetStep }],
+    });
+    const identity = harness.sqlite
+      .query(
+        'SELECT id,work_item_id,step_id,person_id,run_id,parent_claim_id,created_by FROM claim',
+      )
+      .all();
+    expect(
+      (
+        await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+          commands: [{ kind: 'releaseWorkItem', workItemId: 'target-leaf', personId: 'executor' }],
+        })
+      ).status,
+    ).toBe(200);
+    expect((await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).status).toBe(200);
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT id,work_item_id,step_id,person_id,run_id,parent_claim_id,created_by FROM claim',
+        )
+        .all(),
+    ).toEqual(identity);
+    // A manual actual statement establishes continuation despite the now-unsatisfied remote prerequisite.
+    expect(
+      (
+        await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+          commands: [
+            { kind: 'releaseWorkItem', workItemId: 'target-leaf', personId: 'executor' },
+            {
+              kind: 'setProgress',
+              workItemId: 'target-leaf',
+              stepId: targetStep,
+              state: 'in_progress',
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    await assertAcceptedClaim();
+  });
+
+  // Proof: omitting one expanded external predecessor pair falsely advertises and admits the target (task-6-3-admission/expanded-pair-fault.log).
+  test(`${mode} whole remote predecessor requires every expanded leaf pair`, async () => {
+    setMode(mode);
+    harness.sqlite.run(
+      "INSERT INTO work_item (id,project_id,position,name,readiness) VALUES ('remote-branch',?,0,'Branch',NULL)",
+      [predecessor],
+    );
+    harness.sqlite.run(
+      "UPDATE work_item SET parent_id='remote-branch' WHERE id='predecessor-leaf'",
+    );
+    harness.sqlite.run(
+      "INSERT INTO work_item (id,project_id,parent_id,position,name,readiness) VALUES ('remote-second',?,'remote-branch',1,'Second','ready')",
+      [predecessor],
+    );
+    // Keep one step in the predecessor project so this relationship expands to exactly two leaf pairs.
+    harness.sqlite.run('DELETE FROM step WHERE project_id=? AND id<>?', [
+      predecessor,
+      predecessorStep,
+    ]);
+    harness.sqlite.run(
+      "UPDATE external_dependency SET predecessor_work_item_id='remote-branch',predecessor_scope='whole',predecessor_step_id=NULL WHERE id='prerequisite'",
+    );
+    recordCompletion();
+    const answer = await startable();
+    expect(answer.status).toBe(200);
+    const reading = answer.body as StartableWork;
+    expect(reading.leaves).toEqual([]);
+    expect(
+      reading.prerequisites.find(
+        (step) => step.workItemId === 'target-leaf' && step.stepId === targetStep,
+      ),
+    ).toMatchObject({
+      workItemId: 'target-leaf',
+      stepId: targetStep,
+      canStart: false,
+      startBlockers: [
+        {
+          workItemId: 'remote-second',
+          stepId: predecessorStep,
+          type: 'FS',
+          provenance: 'authored',
+          relationshipId: 'prerequisite',
+        },
+      ],
+    });
+    await assertRefusal(() => claim());
+    harness.sqlite.run(
+      "INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('remote-second',?,'done',2)",
+      [predecessorStep],
+    );
+    expect((await startable()).body).toMatchObject({
+      leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep] }],
+    });
+    await assertAcceptedClaim();
+  });
+}

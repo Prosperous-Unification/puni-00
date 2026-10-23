@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+(pass) isolated remote FS advertised permission matches governed claim [509.57ms]
+(pass) shared remote FS advertised permission matches governed claim [337.54ms]
+
+ 2 pass
+ 22 filtered out
+ 0 fail
+ 30 expect() calls
+Ran 2 tests across 1 file. [4.07s]

@@ -1,0 +1,77 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+498 |     );
+499 |     recordCompletion();
+500 |     const answer = await startable();
+501 |     expect(answer.status).toBe(200);
+502 |     const reading = answer.body as StartableWork;
+503 |     expect(reading.leaves).toEqual([]);
+                                 ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "assignees": [],
++     "fits": true,
++     "name": "target-leaf",
++     "number": "010",
++     "numberIsFrozen": false,
++     "stepIds": [
++       "30dcdc95-4c63-40ce-9dcc-93ef721030d7",
++     ],
++     "subtreeClaim": null,
++     "teams": [],
++     "unfinishedPredecessorIds": [
++       "remote-second",
++     ],
++     "workItemId": "target-leaf",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:503:28)
+(fail) isolated whole remote predecessor requires every expanded leaf pair [338.96ms]
+498 |     );
+499 |     recordCompletion();
+500 |     const answer = await startable();
+501 |     expect(answer.status).toBe(200);
+502 |     const reading = answer.body as StartableWork;
+503 |     expect(reading.leaves).toEqual([]);
+                                 ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "assignees": [],
++     "fits": true,
++     "name": "target-leaf",
++     "number": "010",
++     "numberIsFrozen": false,
++     "stepIds": [
++       "89dffc98-d259-4a9a-baf0-404fce062611",
++     ],
++     "subtreeClaim": null,
++     "teams": [],
++     "unfinishedPredecessorIds": [
++       "remote-second",
++     ],
++     "workItemId": "target-leaf",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-63-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:503:28)
+(fail) shared whole remote predecessor requires every expanded leaf pair [272.52ms]
+
+ 0 pass
+ 22 filtered out
+ 2 fail
+ 10 expect() calls
+Ran 2 tests across 1 file. [3.77s]
