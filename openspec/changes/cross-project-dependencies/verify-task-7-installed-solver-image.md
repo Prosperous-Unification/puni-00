@@ -48,7 +48,7 @@ comparison and wire revalidation. Forged foreign placement still refuses.
   that comparison made the actual-child fractional regression fail (0 pass /
   1 fail), admitting the forged request instead of internal-error. It was restored.
 
-## Remaining acceptance
+## Local packet limit before host acceptance
 
 No Docker image was built or run in this bounded local packet. No image digest is
 claimed. The actual authenticated installed-image run and a disposable image whose
@@ -81,8 +81,41 @@ passed 3 tests / 15 assertions. The script removed its owned image tags and
 containers before success. This proves the installed Python child and launcher
 for that exact source revision, not merely the fake-Docker shell suite.
 
-The separate disposable image with a relabeled installed Python
-boundary-infeasible result has not yet run. The first queued exact-SHA full
-gate was canceled during OpenSpec validation so this negative could take the
-host lock next; it reported 272/272 valid changes/specs before cancellation,
-but no host-gate verdict is claimed.
+The first queued exact-SHA full gate was canceled during OpenSpec validation
+so the installed-Python negative could take the host lock next; it reported
+272/272 valid changes/specs before cancellation, but no host-gate verdict is
+claimed.
+
+## Actual installed-Python fault image (same pinned source)
+
+Under a second canonical heavy-lock holder
+`pr630-installed-image-negative:08b2fe31` (PID 3469757, no queue wait), a
+disposable baseline image built from the exact host worktree and was pushed
+only to an owned loopback registry. Its digest
+`sha256:345f8cb0e34eaf6add282422155b0a250fb5a897087db227904fc215c0a16f16`
+passed supplied-image smoke: all four authenticated child binds. The
+installed module was proven to be
+`/usr/local/lib/python3.14/site-packages/wbs_solver/solve.py` with the
+expected source SHA-256
+`c0445fffd95761160b2dfd30669cd411cfd42b067157146e87268f8b4893b347`.
+
+A derivative image changed exactly the installed branch that emits
+`boundary-infeasible` to ordinary `infeasible`, after validating that original
+hash and path. Its separate loopback digest
+`sha256:51fd02ebcf63b014854c1c1fcb81a9648616af95fe621f843b03a87aabcfbda5`
+passed baseline, shared-person and connected-feasible binds, then the supplied
+smoke exited 1 at the intended connected-fractional assertion:
+`connected image expected solver-proven boundary-infeasible: failed`. No
+fractional acceptance, launcher internal error or cleanup error was present.
+The installed mutated module SHA-256 was
+`71460fe0b353313c21a1691ca17b28b6e6b8d8d32411ff113ccae182661d350b`.
+
+The owned registry container and volume, both digest references, all four
+owned tags and probe containers were individually inspected absent after the
+run. The wrapper exited 0 only after those cleanup checks. Full command/log
+evidence remains under `/tmp/pr630-installed-negative-08b2fe31` on h2puni;
+the parent independently read both smoke logs, module hashes, exact failure and
+cleanup inventory. Build cache is not claimed erased. This proves the
+production-path negative for image acceptance. It does not close optimizer
+publication, cache/retry or the full exact-head host gate obligations under
+tasks 7.3/7.4.

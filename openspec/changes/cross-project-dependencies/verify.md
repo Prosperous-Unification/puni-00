@@ -6341,11 +6341,14 @@ The [installed solver-image source packet](verify-task-7-installed-solver-image.
 adds two connected authenticated child questions to both smoke modes and a
 canonical contradiction revalidation correction. Focused scenarios passed
 70 tests / 184 assertions; fake-Docker smoke passed 42 tests / 143 assertions.
-The actual installed image/digest and disposable Python relabel negatives are
-pending. Parent 7.3/7.4 remain open.
+The actual installed image/digest and disposable Python relabel negative were
+subsequently proved on h2puni as recorded below. Parent 7.3/7.4 remain open.
 
 The later exact `08b2fe31d` h2puni built-image smoke passed under the canonical
 heavy lock: four authenticated child binds including connected-feasible and
 connected-fractional, then 3 real-Docker orphan subprocess tests. The
-disposable installed-Python relabel negative and whole exact-head gate remain
-pending; see the packet above for the pinned checkout and command.
+disposable installed-Python relabel image passed baseline, shared-person and
+connected-feasible binds, then failed precisely at the fractional child
+response (`expected solver-proven boundary-infeasible: failed`); all owned
+Docker resources were inspected absent afterward. The whole exact-head gate
+remains pending; see the packet above for pinned digests and module hashes.
