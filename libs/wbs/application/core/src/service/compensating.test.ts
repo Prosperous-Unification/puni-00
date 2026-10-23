@@ -419,6 +419,20 @@ describe('claim replay vocabulary', () => {
     ])
       expect(() => readCommand(malformed)).toThrow(/claim replay/);
   });
+
+  it('reads a claim replay naming its leased claims back', () => {
+    const leased: CompensatingCommand = { ...add, leased: ['c1'] };
+    expect(readCommand(leased)).toEqual(leased);
+  });
+
+  it('refuses a claim replay whose leased list is malformed or names a claim it does not carry', () => {
+    for (const malformed of [
+      { ...add, leased: null },
+      { ...add, leased: 'c1' },
+      { ...add, leased: ['other'] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
 });
 
 describe('demand replay vocabulary', () => {

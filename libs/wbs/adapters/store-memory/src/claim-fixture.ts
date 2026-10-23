@@ -7,6 +7,7 @@ import {
   unstampClaim,
   type WorkItemStore,
 } from '@wbs/core';
+import { renewalAt } from '@wbs/domain';
 
 import type { MemoryProgressTable } from './progress-fixture';
 
@@ -90,11 +91,15 @@ export function inMemoryClaims(
     },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
     pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),
-    add(claims, stated, stamp, occupancy) {
+    add(claims, stated, stamp, occupancy, leases = []) {
       const ids = new Set(claims.map(({ id }) => id));
       const stray = occupancy.find(({ claimId }) => !ids.has(claimId));
       if (stray !== undefined)
         return Promise.reject(new Error(`occupancy names claim ${stray.claimId} not added`));
+      const strayLease = leases.find(({ claimId }) => !ids.has(claimId));
+      if (strayLease !== undefined)
+        return Promise.reject(new Error(`a lease names claim ${strayLease.claimId} not added`));
+      const expiryOf = new Map(leases.map(({ claimId, expiresAt }) => [claimId, expiresAt]));
       const held = (claim: Claim): boolean =>
         table.rows.some(
           (row) =>
@@ -117,7 +122,13 @@ export function inMemoryClaims(
       // The instant stored is this write's, as SQLite's `created_at` is.
       // Proof: storing 0 here failed the memory certification's
       // `claims.listStampedByProject:write-instant` case; watched 2026-10-19.
-      table.rows.push(...claims.map((claim) => ({ ...claim, claimedAt: stamp.at })));
+      table.rows.push(
+        ...claims.map((claim) => ({
+          ...claim,
+          claimedAt: stamp.at,
+          leaseExpiresAt: expiryOf.get(claim.id) ?? null,
+        })),
+      );
       progress.rows.push(
         ...stated.map(({ workItemId, stepId }) => ({
           workItemId,
@@ -156,6 +167,56 @@ export function inMemoryClaims(
         ),
       );
       return Promise.resolve();
+    },
+    renewLeases(personId, now) {
+      // One instant: the memory source has no write turn to wait behind.
+      const at = now();
+      const renewal = renewalAt(at);
+      // The memory source has no machine credentials, so no lease of it is
+      // ever revoked: in force is unexpired.
+      const isInForce = (row: StampedClaim): boolean =>
+        row.personId === personId && row.leaseExpiresAt !== null && at < row.leaseExpiresAt;
+      // Proof: with the in-force test dropped (an expired lease renewed), the
+      // memory certification's `claims.lease:write-renew-expire` case revived
+      // it (74 pass, 1 fail); watched 2026-10-23.
+      table.rows.splice(
+        0,
+        table.rows.length,
+        ...table.rows.map((row) =>
+          isInForce(row) && row.leaseExpiresAt !== null && row.leaseExpiresAt < renewal.dueBefore
+            ? { ...row, leaseExpiresAt: renewal.expiresAt }
+            : row,
+        ),
+      );
+      const expiries = table.rows
+        .filter(isInForce)
+        .flatMap(({ leaseExpiresAt }) => (leaseExpiresAt === null ? [] : [leaseExpiresAt]));
+      return Promise.resolve({
+        leases: expiries.length,
+        leaseExpiresAt: expiries.length === 0 ? null : Math.min(...expiries),
+      });
+    },
+    async expiredLeasesOf(projectId, at) {
+      return (await inProject(projectId))
+        .filter(({ leaseExpiresAt }) => leaseExpiresAt !== null && leaseExpiresAt <= at)
+        .sort((left, right) => compare(left.id, right.id))
+        .map(({ id }) => ({ claimId: id, reason: 'lease_expired' as const }));
+    },
+    async projectsWithExpiredLeases(at, limit) {
+      const oldest = new Map<string, number>();
+      for (const row of table.rows) {
+        if (row.leaseExpiresAt === null || row.leaseExpiresAt > at) continue;
+        const item = await workItems.findById(row.workItemId);
+        if (item === null) throw new Error(`claim ${row.id} names an absent work item`);
+        oldest.set(
+          item.projectId,
+          Math.min(oldest.get(item.projectId) ?? row.leaseExpiresAt, row.leaseExpiresAt),
+        );
+      }
+      return [...oldest]
+        .sort(([left, a], [right, b]) => a - b || compare(left, right))
+        .slice(0, limit)
+        .map(([projectId]) => projectId);
     },
     moveAll(fromWorkItemId, toWorkItemId, _stamp) {
       const moving = table.rows.filter(({ workItemId }) => workItemId === fromWorkItemId);

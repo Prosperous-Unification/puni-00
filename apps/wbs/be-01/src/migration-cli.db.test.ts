@@ -305,9 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe(
-      '20261022140100_widen_organization_audit_compute_providers',
-    );
+    expect(baselineLedger.at(-1)?.name).toBe('20261023100000_add_claim_lease');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1156,7 +1154,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&
-          name !== '20261022140100_widen_organization_audit_compute_providers',
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
+          name !== '20261023100000_add_claim_lease',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1220,7 +1219,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&
-          name !== '20261022140100_widen_organization_audit_compute_providers',
+          name !== '20261022140100_widen_organization_audit_compute_providers' &&
+          name !== '20261023100000_add_claim_lease',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1256,9 +1256,7 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
-      '20261022140100_widen_organization_audit_compute_providers',
-    );
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261023100000_add_claim_lease');
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

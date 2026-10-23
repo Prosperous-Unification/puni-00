@@ -142,6 +142,7 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20261023100000_add_claim_lease',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',

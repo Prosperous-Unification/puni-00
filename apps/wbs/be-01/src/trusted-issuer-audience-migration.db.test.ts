@@ -17,6 +17,7 @@ const COMPUTE_PROVIDERS =
 /** The organization limits migrations, which reverse after the compute providers. */
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const SUBJECT = 'repo:acme/wbs:ref:refs/heads/main';
 const roots: string[] = [];
@@ -114,7 +115,7 @@ describe(AUDIENCE_SCOPE, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
+      `rolled back: ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
     );
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);
