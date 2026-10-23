@@ -101,16 +101,33 @@ export interface DeliveryReader {
   read(url: string, signal?: AbortSignal): Promise<DeliveryReading>;
 }
 
+/**
+ * Modeled wire-shape or semantic refusal; unexpected validator faults keep their original error type.
+ * Proof: branding modeled refusals as generic Error failed schema and semantic refusals expose a typed delivery validation boundary.
+ */
+export class DeliveryValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DeliveryValidationError';
+  }
+}
+
 /** Validates provider observations once, including relationships the wire schema cannot express. */
 export function validateDeliveryObservation(input: unknown): DeliveryObservation {
-  const observation = DeliveryObservationSchema.assert(input);
+  // Proof: replacing the schema dependency with unvalidated input failed schema and semantic refusals expose a typed delivery validation boundary.
+  const observation = DeliveryObservationSchema(input);
+  if (observation instanceof type.errors)
+    throw new DeliveryValidationError('Delivery observation has invalid shape');
   assertObservation(observation);
   return observation;
 }
 
 /** Validates a reading, applying semantic observation checks only to the observed branch. */
 export function validateDeliveryReading(input: unknown): DeliveryReading {
-  const reading = DeliveryReadingSchema.assert(input);
+  const reading = DeliveryReadingSchema(input);
+  // Proof: removing this refusal produced an untyped fault in schema and semantic refusals expose a typed delivery validation boundary.
+  if (reading instanceof type.errors)
+    throw new DeliveryValidationError('Delivery reading has invalid shape');
   // Proof: removing observed-envelope validation admitted stale checks in validates observed, unsupported and unavailable readings.
   if (reading.kind === 'observed') assertObservation(reading.observation);
   // Proof: removing unavailable timestamp validation admitted February 30 in validates observed, unsupported and unavailable readings.
@@ -124,12 +141,14 @@ function assertObservation(observation: DeliveryObservation): void {
   assertTimestamp(observation.change.source.observedAt);
   // Proof: removing this guard admitted a merge revision on an open change in requires merged revision.
   if (observation.change.state !== 'merged' && observation.change.mergedRevision !== null)
-    throw new Error('Only merged changes may name a merged revision');
+    throw new DeliveryValidationError('Only merged changes may name a merged revision');
   const executions = new Set<string>();
   for (const check of observation.checks) {
     // Proof: removing this guard admitted an older revision in rejects stale checks.
     if (check.revision !== observation.change.revision)
-      throw new Error('Current check revision must match observed change revision');
+      throw new DeliveryValidationError(
+        'Current check revision must match observed change revision',
+      );
     assertTimestamp(check.source.observedAt);
     assertTiming(check);
   }
@@ -145,7 +164,7 @@ function assertObservation(observation: DeliveryObservation): void {
         const identity = JSON.stringify([execution.source.provider, execution.executionId]);
         // Proof: removing this guard admitted duplicate work in rejects duplicate performed execution identity.
         if (executions.has(identity))
-          throw new Error('Observed duplicate performed execution identity');
+          throw new DeliveryValidationError('Observed duplicate performed execution identity');
         executions.add(identity);
       }
     }
@@ -160,7 +179,7 @@ function assertTimestamp(instant: string): void {
     !Number.isFinite(epoch) ||
     new Date(epoch).toISOString() !== instant.replace(/Z$/, instant.includes('.') ? 'Z' : '.000Z')
   )
-    throw new Error('Delivery timestamp must be a real UTC ISO instant');
+    throw new DeliveryValidationError('Delivery timestamp must be a real UTC ISO instant');
 }
 
 /** Missing endpoints are unknown; known endpoints must retain chronological ordering. */
@@ -173,5 +192,5 @@ function assertTiming(interval: { startedAt: string | null; completedAt: string 
     interval.completedAt !== null &&
     Date.parse(interval.completedAt) < Date.parse(interval.startedAt)
   )
-    throw new Error('Completion cannot precede start');
+    throw new DeliveryValidationError('Completion cannot precede start');
 }

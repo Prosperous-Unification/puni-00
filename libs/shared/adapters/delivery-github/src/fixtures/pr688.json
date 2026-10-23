@@ -5,7 +5,6 @@
     "title": "docs: record enforced main merge checks",
     "state": "closed",
     "merged": true,
-    "merge_commit_sha": "e70166d28f64d0ebb81069a57ef169edd182c8f5",
     "head": {
       "sha": "36846dbbeb53d271c5456fe2271d1378997c1f71"
     },
@@ -537,5 +536,36 @@
         }
       ]
     }
-  ]
+  ],
+  "events": [
+    {
+      "id": 34063268816,
+      "event": "merged",
+      "url": "https://api.github.com/repos/Prosperous-Unification/puni-00/issues/events/34063268816",
+      "commit_id": "e70166d28f64d0ebb81069a57ef169edd182c8f5",
+      "commit_url": "https://api.github.com/repos/Prosperous-Unification/puni-00/commits/e70166d28f64d0ebb81069a57ef169edd182c8f5"
+    },
+    {
+      "id": 34063269073,
+      "event": "closed",
+      "url": "https://api.github.com/repos/Prosperous-Unification/puni-00/issues/events/34063269073",
+      "commit_id": null,
+      "commit_url": null
+    },
+    {
+      "id": 34063342769,
+      "event": "head_ref_deleted",
+      "url": "https://api.github.com/repos/Prosperous-Unification/puni-00/issues/events/34063342769",
+      "commit_id": null,
+      "commit_url": null
+    }
+  ],
+  "capture": {
+    "pullAndEventsApiVersion": "2026-03-10",
+    "authentication": "anonymous",
+    "accept": "application/vnd.github+json",
+    "pullSource": "pr-688-anonymous.json",
+    "eventSource": "events-688.json",
+    "actionsHistory": "Historical controller capture; only consumed stable Actions fields retained"
+  }
 }

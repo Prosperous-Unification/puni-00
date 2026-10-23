@@ -111,3 +111,27 @@ test('wire schema rejects invalid UTC timestamp syntax without relying on semant
   for (const observedAt of ['tomorrow', '2026-10-23', '2026-10-23T10:00:00+01:00'])
     expect(() => DeliveryObservationSchema.assert({ ...observation(), observedAt })).toThrow();
 });
+
+test('schema and semantic refusals expose a typed delivery validation boundary', () => {
+  const stale = observation();
+  stale.checks[0].revision = 'older';
+  for (const validate of [
+    () => validateDeliveryObservation({ ...observation(), version: 2 }),
+    () => validateDeliveryObservation(stale),
+    () => validateDeliveryReading({ kind: 'observed' }),
+    () =>
+      validateDeliveryReading({
+        kind: 'unavailable',
+        reason: 'missing',
+        message: 'Gone',
+        observedAt: '2026-02-30T10:00:00Z',
+      }),
+  ]) {
+    try {
+      validate();
+      throw new Error('Expected rejection');
+    } catch (failure) {
+      expect(failure).toMatchObject({ name: 'DeliveryValidationError' });
+    }
+  }
+});

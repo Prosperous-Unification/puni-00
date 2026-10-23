@@ -6,12 +6,14 @@ import {
   type DeliveryReading,
   type DeliveryRun,
   type DeliverySource,
+  DeliveryValidationError,
   validateDeliveryObservation,
 } from '@shared/delivery';
 
 import {
   type Check,
   ChecksSchema,
+  EventsSchema,
   type Job,
   JobsSchema,
   parseRecord,
@@ -165,6 +167,78 @@ async function readPages<Record extends { id: number }>(
   return { records, complete: false };
 }
 
+/** Resolves the removed PR merge field from a complete, issue-scoped public event scan. */
+async function readMergedRevision(
+  identity: PullIdentity,
+  repository: string,
+  read: Transport,
+): Promise<{ revision: string; eventId: number; url: string }> {
+  const identities = new Set<number>();
+  let merge:
+    | { kind: 'none' | 'ambiguous' }
+    | { kind: 'one'; revision: string; eventId: number; url: string } = { kind: 'none' };
+  const origin = `https://api.github.com/repos/${repository}`;
+  // Proof: permitting event page 6 failed bounded-out issue events never establish a unique merged revision.
+  for (let page = 1; page <= 5; page++) {
+    const events = parseRecord(
+      EventsSchema,
+      await read(
+        `${identity.path}/issues/${String(identity.number)}/events?per_page=100&page=${String(page)}`,
+      ),
+    );
+    // Proof: removing this bound failed rejects oversized issue event pages before any continuation request.
+    if (events.length > 100)
+      throw new ProviderFailure(
+        'invalid-response',
+        'GitHub issue event page exceeded its page size',
+      );
+    for (const event of events) {
+      // Proof: removing duplicate/event URL checks independently failed duplicate issue event identities and event association negatives.
+      if (identities.has(event.id) || event.url !== `${origin}/issues/events/${String(event.id)}`)
+        throw new ProviderFailure(
+          'invalid-response',
+          'GitHub issue event identity did not match the requested repository',
+        );
+      identities.add(event.id);
+      // Proof: treating non-merge events as merge candidates failed merge event pagination preserves canonical provenance.
+      if (event.event !== 'merged') continue;
+      // Proof: removing commit presence/URL joins independently failed missing/foreign/different merge commit association negatives.
+      if (
+        typeof event.commit_id !== 'string' ||
+        event.commit_url !== `${origin}/commits/${event.commit_id}`
+      )
+        throw new ProviderFailure(
+          'invalid-response',
+          'GitHub merge event did not identify its repository commit',
+        );
+      // Proof: retaining the last of multiple merge events failed refuses ambiguous merged revision before reading execution history.
+      merge =
+        merge.kind === 'none'
+          ? {
+              kind: 'one',
+              revision: event.commit_id,
+              eventId: event.id,
+              url: `${origin}/issues/events/${String(event.id)}`,
+            }
+          : { kind: 'ambiguous' };
+    }
+    // Proof: accepting a full page as complete failed bounded-out issue events even with one observed candidate.
+    if (events.length < 100) {
+      // Proof: removing the exact-one refusal failed refuses missing merged revision before reading execution history.
+      if (merge.kind !== 'one')
+        throw new ProviderFailure(
+          'invalid-response',
+          'GitHub merged PR needs exactly one attributed merge event',
+        );
+      return merge;
+    }
+  }
+  throw new ProviderFailure(
+    'budget-exceeded',
+    'GitHub merge event history exceeded the five-page scan',
+  );
+}
+
 function assertPull(pull: Pull, identity: PullIdentity): void {
   // Proof: removing each PR number, repository or public check failed its wrong-association reader negative.
   if (
@@ -177,7 +251,7 @@ function assertPull(pull: Pull, identity: PullIdentity): void {
       'GitHub PR identity did not match the requested public repository',
     );
   // Proof: removing merged-state validation admitted an open merged PR in malformed merged state.
-  if (pull.merged && (pull.state !== 'closed' || pull.merge_commit_sha === null))
+  if (pull.merged && pull.state !== 'closed')
     throw new ProviderFailure('invalid-response', 'GitHub merged PR state was incomplete');
 }
 
@@ -203,6 +277,9 @@ async function observePull(
   const pullPath = `${identity.path}/pulls/${String(identity.number)}`;
   const pull = parseRecord(PullSchema, await read(pullPath));
   assertPull(pull, identity);
+  const merged = pull.merged
+    ? await readMergedRevision(identity, pull.base.repo.full_name, read)
+    : null;
   const checks = await readPages<Check>(
     read,
     `${identity.path}/commits/${pull.head.sha}/check-runs?filter=latest`,
@@ -224,6 +301,10 @@ async function observePull(
     'Runner queue eligibility and enqueue timestamps are unavailable; waiting uses attempt start to performed execution start.',
     'Attempt completion timestamps are unavailable; updated_at is not an execution endpoint.',
   ]);
+  if (merged !== null)
+    notes.add(
+      `Merged revision attributed to GitHub issue event ${String(merged.eventId)}: ${merged.url}`,
+    );
   const createSource = (id: string, url: string, nativeState: string): DeliverySource => ({
     provider: 'github',
     id: `${identity.repository}:${id}`,
@@ -274,6 +355,7 @@ async function observePull(
     const attempts: DeliveryAttempt[] = [];
     const prior = new Map<string, string | null>();
     let previousStart: number | null = null;
+    let originalsComplete = true;
     // Proof: allowing attempt 11 failed attempt truncation keeps chronological history and explicit partial total.
     for (let ordinal = 1; ordinal <= Math.min(run.run_attempt, 10); ordinal++) {
       const attempt = parseRecord(
@@ -333,8 +415,9 @@ async function observePull(
           attribution = { kind: 'unknown', executionId: null };
         // Proof: treating copied timestamps as performed failed unique copied execution resolves original identity without counting twice.
         else if (Date.parse(job.started_at) < Date.parse(startedAt)) {
+          // Proof: ignoring original-history completeness failed truncated original history cannot establish unique copied execution attribution.
           attribution =
-            typeof originalId === 'string'
+            originalsComplete && typeof originalId === 'string'
               ? { kind: 'carried', executionId: originalId }
               : { kind: 'unknown', executionId: null };
         } else {
@@ -364,6 +447,7 @@ async function observePull(
         };
         return { ...fields, ...attribution };
       });
+      originalsComplete = originalsComplete && jobs.complete;
       attempts.push({
         source: createSource(
           `run:${String(run.id)}:attempt:${String(ordinal)}`,
@@ -401,8 +485,7 @@ async function observePull(
     latest.id !== pull.id ||
     latest.head.sha !== pull.head.sha ||
     latest.state !== pull.state ||
-    latest.merged !== pull.merged ||
-    (latest.merged && latest.merge_commit_sha !== pull.merge_commit_sha)
+    latest.merged !== pull.merged
   )
     throw new ProviderFailure(
       'revision-changed',
@@ -420,7 +503,7 @@ async function observePull(
       title: pull.title,
       revision: pull.head.sha,
       state: pull.merged ? 'merged' : pull.state,
-      mergedRevision: pull.merged ? pull.merge_commit_sha : null,
+      mergedRevision: merged === null ? null : merged.revision,
     },
     checks: mappedChecks,
     runs,
@@ -433,7 +516,9 @@ async function observePull(
   try {
     // Proof: bypassing semantic validation admitted negative job duration in rejects wrong negative duration.
     return { kind: 'observed', observation: validateDeliveryObservation(observation) };
-  } catch {
+  } catch (failure) {
+    // Proof: removing this typed-error rethrow failed unexpected observation validator dependency faults reject the production reader.
+    if (!(failure instanceof DeliveryValidationError)) throw failure;
     throw new ProviderFailure(
       'invalid-response',
       'GitHub delivery records had invalid timing or identities',

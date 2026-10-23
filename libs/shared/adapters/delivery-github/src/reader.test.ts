@@ -14,7 +14,6 @@ const pull = {
   title: 'Delivery',
   state: 'open',
   merged: false,
-  merge_commit_sha: null,
   head: { sha: revision },
   base: { repo: { full_name: 'Prosperous-Unification/puni-00', private: false } },
 };
@@ -52,10 +51,19 @@ const job = {
   runner_name: 'runner',
 };
 
+const mergedEvent = {
+  id: 90,
+  event: 'merged',
+  url: `${api}/issues/events/90`,
+  commit_id: 'c'.repeat(40),
+  commit_url: `${api}/commits/${'c'.repeat(40)}`,
+};
+
 function fixture(overrides: Record<string, unknown> = {}) {
   const calls: { url: string; init: RequestInit }[] = [];
   const routes: Record<string, unknown> = {
     [`${api}/pulls/688`]: pull,
+    [`${api}/issues/688/events?per_page=100&page=1`]: [mergedEvent],
     [`${api}/commits/${revision}/check-runs?filter=latest&per_page=100&page=1`]: {
       total_count: 1,
       check_runs: [check],
@@ -372,11 +380,13 @@ test('captured PR688 three-attempt partial rerun counts 240s performed and 305s 
     checks: unknown;
     attempts: (typeof run)[];
     jobs: unknown[];
+    events: unknown;
   };
   const sha = sample.pull.head.sha;
   const latest = sample.attempts[2];
   const routes: Record<string, unknown> = {
     [`${api}/pulls/688`]: sample.pull,
+    [`${api}/issues/688/events?per_page=100&page=1`]: sample.events,
     [`${api}/commits/${sha}/check-runs?filter=latest&per_page=100&page=1`]: sample.checks,
     [`${api}/actions/runs?head_sha=${sha}&per_page=100&page=1`]: {
       total_count: 1,
@@ -974,4 +984,222 @@ test('failed reads abort outstanding provider response work', async () => {
     reason: 'budget-exceeded',
   });
   expect(calls[0]?.init.signal?.aborted).toBe(true);
+});
+
+test('pinned API merged PR omits legacy merge field and resolves its issue merge event', async () => {
+  const pinned = { ...pull, state: 'closed', merged: true };
+  const mergedEvent = {
+    id: 90,
+    event: 'merged',
+    url: `${api}/issues/events/90`,
+    commit_id: 'c'.repeat(40),
+    commit_url: `${api}/commits/${'c'.repeat(40)}`,
+  };
+  const { reader, calls } = fixture({
+    [`${api}/pulls/688`]: pinned,
+    [`${api}/issues/688/events?per_page=100&page=1`]: [mergedEvent],
+  });
+  const reading = await reader.read(`${web}/pull/688`);
+  expect(reading.kind).toBe('observed');
+  if (reading.kind !== 'observed') throw new Error('Expected observed');
+  expect(reading.observation.change.mergedRevision).toBe('c'.repeat(40));
+  expect(
+    calls.filter((call) => call.url.includes('/issues/688/events')).map((call) => call.url),
+  ).toEqual([`${api}/issues/688/events?per_page=100&page=1`]);
+});
+
+test('truncated original history cannot establish unique copied execution attribution', async () => {
+  const base = rerunFixture();
+  let pages = 0;
+  const reader = createGitHubDeliveryReader({
+    fetcher: (url, init) => {
+      if (url.includes('/attempts/1/jobs?')) {
+        pages++;
+        return Promise.resolve(
+          Response.json({
+            total_count: 501,
+            jobs: Array.from({ length: 100 }, (_unused, index) => ({
+              ...job,
+              id: 1000 * pages + index,
+              name:
+                pages === 1 && index === 0 ? 'build' : `other-${String(pages)}-${String(index)}`,
+            })),
+          }),
+        );
+      }
+      return base.fetcher(url, init);
+    },
+  });
+  const reading = await reader.read(`${web}/pull/688`);
+  if (reading.kind !== 'observed') throw new Error('Expected observed');
+  expect(reading.observation.runs[0]?.attempts[1]).toMatchObject({
+    executionsComplete: false,
+    executions: [{ kind: 'unknown', executionId: null }],
+  });
+});
+
+test('unexpected observation validator dependency faults reject the production reader', async () => {
+  const script = `
+ import {mock} from 'bun:test';
+ const shared=await import(${JSON.stringify(new URL('../../../domain/delivery/src/index.ts', import.meta.url).pathname)});
+ mock.module('@shared/delivery',()=>({...shared,validateDeliveryObservation(){throw new TypeError('Validator dependency defect')}}));
+ const {createGitHubDeliveryReader}=await import(${JSON.stringify(new URL('./reader.ts', import.meta.url).pathname)});
+ const reader=createGitHubDeliveryReader({fetcher:(url)=>Promise.resolve(Response.json(url.includes('/pulls/')?${JSON.stringify(pull)}:url.includes('/check-runs?')?{total_count:0,check_runs:[]}:{total_count:0,workflow_runs:[]}))});
+ try {await reader.read(${JSON.stringify(`${web}/pull/688`)});throw new Error('Validator fault was swallowed')}catch(failure){if(!(failure instanceof TypeError)||failure.message!=='Validator dependency defect')throw failure}
+ console.log('validator fault propagated');
+ `;
+  const child = Bun.spawn([process.execPath, '--eval', script], {
+    cwd: new URL('../../../../../', import.meta.url).pathname,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [exit, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ exit, stderr }).toEqual({ exit: 0, stderr: '' });
+  expect(stdout).toContain('validator fault propagated');
+});
+
+test.each([
+  [
+    'foreign event repository',
+    { ...mergedEvent, url: 'https://api.github.com/repos/other/repo/issues/events/90' },
+  ],
+  ['wrong event identity', { ...mergedEvent, url: `${api}/issues/events/91` }],
+  [
+    'foreign merge commit',
+    {
+      ...mergedEvent,
+      commit_url: `https://api.github.com/repos/other/repo/commits/${'c'.repeat(40)}`,
+    },
+  ],
+  ['different merge commit', { ...mergedEvent, commit_url: `${api}/commits/${'d'.repeat(40)}` }],
+  ['missing merge commit', { ...mergedEvent, commit_id: null, commit_url: `${api}/commits/null` }],
+  ['malformed merge commit', { ...mergedEvent, commit_id: 'invalid' }],
+] as const)(
+  'refuses %s event association without following supplied URLs',
+  async (_name, event) => {
+    const { reader, calls } = fixture({
+      [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: true },
+      [`${api}/issues/688/events?per_page=100&page=1`]: [event],
+    });
+    expect(await reader.read(`${web}/pull/688`)).toMatchObject({
+      kind: 'unavailable',
+      reason: 'invalid-response',
+    });
+    expect(calls.map((call) => call.url)).toEqual([
+      `${api}/pulls/688`,
+      `${api}/issues/688/events?per_page=100&page=1`,
+    ]);
+  },
+);
+
+test.each([
+  ['missing', []],
+  ['ambiguous', [mergedEvent, { ...mergedEvent, id: 91, url: `${api}/issues/events/91` }]],
+] as const)(
+  'refuses %s merged revision before reading execution history',
+  async (_name, events) => {
+    const { reader, calls } = fixture({
+      [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: true },
+      [`${api}/issues/688/events?per_page=100&page=1`]: events,
+    });
+    expect(await reader.read(`${web}/pull/688`)).toMatchObject({
+      kind: 'unavailable',
+      reason: 'invalid-response',
+    });
+    expect(calls).toHaveLength(2);
+  },
+);
+
+function issueEvent(id: number) {
+  return {
+    id,
+    event: 'closed',
+    url: `${api}/issues/events/${String(id)}`,
+    commit_id: null,
+    commit_url: null,
+  };
+}
+
+test('rejects duplicate issue event identities before attributing the merge', async () => {
+  const event = issueEvent(101);
+  const { reader } = fixture({
+    [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: true },
+    [`${api}/issues/688/events?per_page=100&page=1`]: [event, event, mergedEvent],
+  });
+  expect(await reader.read(`${web}/pull/688`)).toMatchObject({
+    kind: 'unavailable',
+    reason: 'invalid-response',
+  });
+});
+
+test('rejects oversized issue event pages', async () => {
+  const { reader } = fixture({
+    [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: true },
+    [`${api}/issues/688/events?per_page=100&page=1`]: [
+      mergedEvent,
+      ...Array.from({ length: 100 }, (_unused, index) => issueEvent(index + 101)),
+    ],
+  });
+  expect(await reader.read(`${web}/pull/688`)).toMatchObject({
+    kind: 'unavailable',
+    reason: 'invalid-response',
+  });
+});
+
+test('bounded-out issue events never establish a unique merged revision', async () => {
+  const base = fixture({ [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: true } });
+  let pages = 0;
+  const reader = createGitHubDeliveryReader({
+    fetcher: (url, init) => {
+      if (url.includes('/issues/688/events?')) {
+        pages++;
+        return Promise.resolve(
+          Response.json(
+            Array.from({ length: 100 }, (_unused, index) =>
+              pages === 1 && index === 0 ? mergedEvent : issueEvent(pages * 1000 + index),
+            ),
+          ),
+        );
+      }
+      return base.fetcher(url, init);
+    },
+  });
+  expect(await reader.read(`${web}/pull/688`)).toMatchObject({
+    kind: 'unavailable',
+    reason: 'budget-exceeded',
+  });
+  expect(pages).toBe(5);
+});
+
+test('merge event pagination preserves canonical provenance', async () => {
+  const { reader, calls } = fixture({
+    [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: true },
+    [`${api}/issues/688/events?per_page=100&page=1`]: Array.from(
+      { length: 100 },
+      (_unused, index) => issueEvent(index + 101),
+    ),
+    [`${api}/issues/688/events?per_page=100&page=2`]: [mergedEvent],
+  });
+  const reading = await reader.read(`${web}/pull/688`);
+  if (reading.kind !== 'observed') throw new Error('Expected observed');
+  expect(reading.observation.change.mergedRevision).toBe('c'.repeat(40));
+  expect(reading.observation.coverage.notes).toContain(
+    `Merged revision attributed to GitHub issue event 90: ${api}/issues/events/90`,
+  );
+  expect(calls.filter((call) => call.url.includes('/events?')).map((call) => call.url)).toEqual([
+    `${api}/issues/688/events?per_page=100&page=1`,
+    `${api}/issues/688/events?per_page=100&page=2`,
+  ]);
+});
+
+test('ordinary closed changes do not request merge events', async () => {
+  const { reader, calls } = fixture({
+    [`${api}/pulls/688`]: { ...pull, state: 'closed', merged: false },
+  });
+  expect((await reader.read(`${web}/pull/688`)).kind).toBe('observed');
+  expect(calls.some((call) => call.url.includes('/events?'))).toBe(false);
 });
