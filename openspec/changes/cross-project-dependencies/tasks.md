@@ -479,3 +479,11 @@ those names on scheduled and unavailable reads. Producer and mounted HTTP tests
 cover direct/step/stepless-hold roots, transitive roots, missing calendars, remote
 renames, clearing and malformed metadata. Parent 9.2 remains unchecked; authoring,
 activation and optimizer behavior are outside this packet. See verify.md.
+
+Task 9.2 bounded remote navigation audit (2026-10-23): the assigned base already
+contains persisted captured labels, stable remote project/work-item/step links
+and foreign-endpoint exclusion from local chart input. No duplicate production
+implementation was added. Fresh selected mounted/adapter checks and independently
+rewatched navigation, label and chart regressions are recorded in
+[the audit](evidence/task-9-2-remote-navigation-audit.md). This audit leaves parent
+9.2 unchecked and grants no authoring activation or release acceptance.

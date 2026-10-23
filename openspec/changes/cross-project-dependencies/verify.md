@@ -5257,3 +5257,12 @@ private-nesting and tool-wiki commands. Tool-wiki explicitly returned
 not provisioned; this is not certification evidence. Doc-caps and both migration
 lint hooks skipped because no matching files are staged. The normal review
 commit also runs its installed hooks; no hook bypass is used.
+
+## Task 9.2 bounded remote navigation evidence audit — 2026-10-23
+
+The assigned base already implements this display/navigation/chart slice.
+[The fresh audit](evidence/task-9-2-remote-navigation-audit.md) traces the actual
+consumer paths and records selected configured frontend checks plus independent
+watched navigation-by-abbreviation, address-only-label and foreign-chart-input
+regressions. Production sources and tests remain unchanged. Parent 9.2, semantic
+activation and full integration/release gates remain open.
