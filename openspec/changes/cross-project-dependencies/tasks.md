@@ -737,3 +737,7 @@ Ordinary application source retains watcher delivery. Parent tasks stay open.
 - [ ] Complete installed-byte adoption, prior-holder drain audit and integrated exact-SHA host gate. Independent Astra rereview approved the corrected bounded packet; parent 10.1/10.2 remain open. Evidence: [verify-installed-executor-admission.md](verify-installed-executor-admission.md).
 
 - [x] Correct reviewed canonical-path kind bypasses: standalone regular-file lock predicates, real state-root directory admission, directory/FIFO/symlink/unreadable lock and symlink-root marker negatives through installer and exact recovery recipe; watch omitted guards fail.
+
+### Task 9.2 bounded local successor scope browser acceptance (2026-10-23)
+
+- [x] Separate desktop node-to-whole and phone whole-to-node fixtures prove accepted HTTP save, authoritative tree installation, reload/reopen and exact SQLite persistence. Independent desktop/phone persisted-successor serializer faults fail the reopened selector. Independent Astra review approved this bounded packet. See [bounded browser evidence](verify-9-2-successor-scope-browser.md). Parent 9.2 and production authoring activation remain open.

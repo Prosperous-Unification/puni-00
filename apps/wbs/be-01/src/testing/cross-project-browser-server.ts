@@ -87,7 +87,17 @@ const startup = await reader.read();
 reader.releaseLock();
 const address = JSON.parse(new TextDecoder().decode(startup.value)) as { port: number };
 if (address.port <= 0) throw new Error('gateway did not announce a port');
-for (const name of ['A', 'B', 'C', 'Unrelated', 'Foreign', 'Desktop', 'Phone']) {
+for (const name of [
+  'A',
+  'B',
+  'C',
+  'Unrelated',
+  'Foreign',
+  'Desktop',
+  'Phone',
+  'SuccessorDesktop',
+  'SuccessorPhone',
+]) {
   const answer = await harness.call(name === 'Foreign' ? 'grace' : 'ada', 'POST', '/api/projects', {
     name,
   });
@@ -111,6 +121,8 @@ for (const [left, right] of [
   ['B', 'C'],
   ['A', 'Desktop'],
   ['A', 'Phone'],
+  ['A', 'SuccessorDesktop'],
+  ['A', 'SuccessorPhone'],
 ] as const) {
   const predecessor = projects[left];
   const successor = projects[right];
@@ -130,6 +142,9 @@ for (const [left, right] of [
 }
 harness.sqlite.run(
   "UPDATE external_dependency SET predecessor_scope='whole', predecessor_step_id=NULL WHERE id='A-Phone'",
+);
+harness.sqlite.run(
+  "UPDATE external_dependency SET successor_scope='whole', successor_step_id=NULL WHERE id='A-SuccessorPhone'",
 );
 ready = true;
 async function stop() {

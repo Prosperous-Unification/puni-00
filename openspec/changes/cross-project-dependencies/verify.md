@@ -6961,3 +6961,12 @@ checks, partial-publication reporting, and watched correction of nonregular
 lock and symlinked-state bypasses. Independent Astra rereview approved the
 bounded packet. Live installation, installed-writer adoption, prior-holder
 drain, activation and the integrated exact-SHA host gate remain open.
+
+## Task 9.2 bounded local successor scope browser acceptance (2026-10-23)
+
+The [browser evidence](verify-9-2-successor-scope-browser.md) records separate
+desktop node-to-whole and phone whole-to-node fixtures proving accepted HTTP
+save, authoritative tree installation, reload/reopen and exact SQLite
+persistence. Independent desktop/phone persisted-successor serializer faults
+fail the reopened selector. Independent Astra review approved the bounded
+packet. Parent 9.2 and production authoring activation remain open.
