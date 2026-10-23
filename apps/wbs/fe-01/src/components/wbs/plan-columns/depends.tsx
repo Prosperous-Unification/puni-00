@@ -10,6 +10,7 @@ import {
   encodeDependencyEndpoint,
   type EndpointOption,
   serializeDependencyEndpoint,
+  serializePersistedDependencyEndpoint,
 } from '../dependency-selection';
 import type { DependencyDraftCapture } from '../dependency-token-bindings';
 import { DependsCard, dependsLine } from '../depends-card';
@@ -1104,7 +1105,36 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 dependency?.predecessor.captured !== undefined ||
                 dependency?.successor.captured !== undefined
               )
-                return <CapturedDependencyDetails dependency={dependency} onClose={close} />;
+                return (
+                  <CapturedDependencyDetails
+                    // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted desktop, 2026-10-23).
+                    key={`${dependency.id}:${String(editorSession.current.generation)}`}
+                    dependency={dependency}
+                    onClose={close}
+                    onSave={
+                      // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted desktop, 2026-10-23).
+                      dependency.successor.projectId === live.current.projectId
+                        ? (type) =>
+                            live.current.run((write) =>
+                              write.perform(['tree'], () =>
+                                live.current.commands.updateTypedDependency(
+                                  dependency.id,
+                                  serializePersistedDependencyEndpoint(
+                                    dependency.predecessor,
+                                    live.current.projectId,
+                                  ),
+                                  serializePersistedDependencyEndpoint(
+                                    dependency.successor,
+                                    live.current.projectId,
+                                  ),
+                                  type,
+                                ),
+                              ),
+                            )
+                        : undefined
+                    }
+                  />
+                );
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
               );

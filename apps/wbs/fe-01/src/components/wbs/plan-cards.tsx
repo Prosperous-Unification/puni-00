@@ -39,6 +39,7 @@ import {
   type DependencySelection,
   type EndpointOption,
   serializeDependencyEndpoint,
+  serializePersistedDependencyEndpoint,
 } from './dependency-selection';
 import type { DependencyDraftCapture } from './dependency-token-bindings';
 import { currentDependencyToken, replaceDependencyToken } from './depends-input';
@@ -2427,7 +2428,30 @@ function CardDependsField({
                 dependency?.predecessor.captured !== undefined ||
                 dependency?.successor.captured !== undefined
               )
-                return <CapturedDependencyDetails dependency={dependency} onClose={closeEditor} />;
+                return (
+                  <CapturedDependencyDetails
+                    // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted phone, 2026-10-23).
+                    key={`${dependency.id}:${String(editorSession.current.generation)}`}
+                    dependency={dependency}
+                    onClose={closeEditor}
+                    onSave={
+                      // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted phone, 2026-10-23).
+                      dependency.successor.projectId === projectId &&
+                      saveTypedDependency !== undefined
+                        ? (type) =>
+                            saveTypedDependency(
+                              dependency.id,
+                              serializePersistedDependencyEndpoint(
+                                dependency.predecessor,
+                                projectId,
+                              ),
+                              serializePersistedDependencyEndpoint(dependency.successor, projectId),
+                              type,
+                            )
+                        : undefined
+                    }
+                  />
+                );
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
               );

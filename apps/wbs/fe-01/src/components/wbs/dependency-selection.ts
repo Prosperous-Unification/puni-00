@@ -1,6 +1,6 @@
 import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
 
-import type { TypedDependencyEndpoint } from '@/lib/wbs-api';
+import type { TypedDependencyEndpoint, TypedDependencyView } from '@/lib/wbs-api';
 import type { AddressCandidate, AddressProject } from '@/modules/dependency-lookup/contract';
 
 import type { PickerEntry } from './dep-picker';
@@ -71,4 +71,34 @@ export function serializeDependencyEndpoint(
     case 'descendant-step':
       return { scope: 'descendant-step', workItemId: endpoint.workItemId, stepId: endpoint.stepId };
   }
+}
+
+/**
+ * Serializes a persisted endpoint without discovering or widening its scope.
+ * Older local reads may omit projectId; captured foreign coordinates stay explicit.
+ */
+export function serializePersistedDependencyEndpoint(
+  endpoint: TypedDependencyView['predecessor'],
+  ownerProjectId: string,
+): TypedDependencyEndpoint {
+  const coordinate = endpoint.captured?.endpoint ?? endpoint;
+  // Proof: substituting the owner project failed the mounted remote node SS exact-payload case (2026-10-23).
+  const projectId = coordinate.projectId ?? ownerProjectId;
+  if (coordinate.scope === 'whole')
+    return serializeDependencyEndpoint(
+      { projectId, scope: 'whole', workItemId: coordinate.workItemId },
+      ownerProjectId,
+    );
+  // Proof: removing this guard made the missing persisted step identity test produce a write instead of throwing (2026-10-23).
+  if (coordinate.stepId === undefined)
+    throw new Error('Missing persisted dependency step identity');
+  return serializeDependencyEndpoint(
+    {
+      projectId,
+      scope: coordinate.scope,
+      workItemId: coordinate.workItemId,
+      stepId: coordinate.stepId,
+    },
+    ownerProjectId,
+  );
 }

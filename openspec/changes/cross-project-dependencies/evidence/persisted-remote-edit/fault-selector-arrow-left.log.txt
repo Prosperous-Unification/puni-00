@@ -1,0 +1,114 @@
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/685b/puni-00/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (69 tests | 2 failed | 67 skipped) 623ms
+   × keeps ArrowLeft in the captured relationship selector on desktop 465ms
+   × keeps ArrowLeft in the captured relationship selector on phone 156ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 67 skipped (69)
+   Start at  00:48:04
+   Duration  6.91s (import 59%, transform 25%, tests 9%, environment 6%, setup 1%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps ArrowLeft in the captured relationship selector on desktop
+Error: expect(element).toHaveFocus()
+
+Expected element with focus:
+  <select>
+  <option
+    value="FS"
+  >
+    FS
+     ··
+    Finish-to-start
+  </option>
+  <option
+    value="SS"
+  >
+    SS
+     ··
+    Start-to-start
+  </option>
+  <option
+    value="FF"
+  >
+    FF
+     ··
+    Finish-to-finish
+  </option>
+</select>
+Received element with focus:
+  <input
+  aria-autocomplete="list"
+  aria-controls="dep-options-w1"
+  aria-expanded="true"
+  aria-label="Add a dependency to 010"
+  data-cell="w1::depends"
+  data-depends-input="w1"
+  placeholder="search"
+  role="combobox"
+  style="width: 100%; min-width: 0px; box-sizing: border-box;"
+  value=""
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:686:22
+    684|     selector.focus();
+    685|     fireEvent.keyDown(selector, { key: 'ArrowLeft' });
+    686|     expect(selector).toHaveFocus();
+       |                      ^
+    687|     expect(screen.getByRole('dialog', { name: 'Captured dependency' })…
+    688|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps ArrowLeft in the captured relationship selector on phone
+Error: expect(element).toHaveFocus()
+
+Expected element with focus:
+  <select>
+  <option
+    value="FS"
+  >
+    FS
+     ··
+    Finish-to-start
+  </option>
+  <option
+    value="SS"
+  >
+    SS
+     ··
+    Start-to-start
+  </option>
+  <option
+    value="FF"
+  >
+    FF
+     ··
+    Finish-to-finish
+  </option>
+</select>
+Received element with focus:
+  <input
+  aria-label="Add a dependency to 010"
+  class="min-h-11 border-input bg-background box-border w-full rounded-md border p-2 text-base"
+  data-card-depends-input="true"
+  data-cell="w1::depends"
+  placeholder="search by number or name"
+  type="text"
+  value=""
+/>
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:686:22
+    684|     selector.focus();
+    685|     fireEvent.keyDown(selector, { key: 'ArrowLeft' });
+    686|     expect(selector).toHaveFocus();
+       |                      ^
+    687|     expect(screen.getByRole('dialog', { name: 'Captured dependency' })…
+    688|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯

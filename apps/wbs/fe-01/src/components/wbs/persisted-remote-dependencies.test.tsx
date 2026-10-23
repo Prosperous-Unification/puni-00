@@ -1,16 +1,22 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { dependencyViewsOf, type ProjectApi } from '@/lib/wbs-api';
+import { dependencyViewsOf, httpProjectApi, type ProjectApi } from '@/lib/wbs-api';
+import { projectServicesOver } from '@/modules/project/composition';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { projectServicesOf } from '@/testing/project-services-of';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
+import { CapturedDependencyDetails } from './dependency-navigation';
+import { serializePersistedDependencyEndpoint } from './dependency-selection';
 import { chartTypedDependencies } from './plan-chart-input';
 import type { SubscriptionHandlers } from './wbs-table';
 publishApplicationRuntimeForEachTest();
 afterEach(() => {
+  vi.unstubAllGlobals();
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
   window.history.replaceState(null, '', '/');
 });
@@ -18,7 +24,9 @@ async function mount(
   phone = false,
   reference: string | null = 'REMOTE.080.s2-dev',
   calendarMissing = false,
-  scope: 'node' | 'descendant-step' = 'node',
+  scope: 'whole' | 'node' | 'descendant-step' = 'node',
+  owned = true,
+  successorScope: 'whole' | 'node' = 'whole',
 ) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 });
   const api = fakeProjectApi();
@@ -28,7 +36,12 @@ async function mount(
     name: 'Local successor',
   });
   const local = {
-    endpoint: { projectId: 'p1', scope: 'whole' as const, workItemId: row.id },
+    endpoint: {
+      projectId: 'p1',
+      scope: successorScope,
+      workItemId: row.id,
+      ...(successorScope === 'whole' ? {} : { stepId: 'step-dev' }),
+    },
     isLeaf: true,
     revision: 2,
     name: 'Local successor',
@@ -45,18 +58,22 @@ async function mount(
       projectId: 'remote-stable',
       scope,
       workItemId: 'remote-row',
-      stepId: 'remote-dev',
+      ...(scope === 'whole' ? {} : { stepId: 'remote-dev' }),
     },
     isLeaf: scope !== 'descendant-step',
     name: 'Captured remote build',
     projectAbbreviation: 'REMOTE',
     workItemNumber: '080',
-    step: { id: 'remote-dev', name: 'Remote development', code: 'DEV', position: 1 },
+    step:
+      scope === 'whole'
+        ? null
+        : { id: 'remote-dev', name: 'Remote development', code: 'DEV', position: 1 },
     qualifiedReference: reference,
     stepReference: scope === 'descendant-step' ? null : '080.s2-dev',
     stepNodeId: scope === 'descendant-step' ? null : 'sn1.remote-row.remote-dev',
   };
   let capture = remote;
+  let present = true;
   let notify: (() => void) | undefined;
   const tree: ProjectApi['tree'] = async (projectId) => ({
     ...(await api.tree(projectId)),
@@ -74,19 +91,45 @@ async function mount(
           },
         }
       : {}),
-    connectedDependencies: [
-      { id: 'external', projectId: 'p1', type: 'FS', predecessor: capture, successor: local },
-    ],
+    connectedDependencies: present
+      ? [
+          {
+            id: 'external',
+            projectId: owned ? 'p1' : 'remote-stable',
+            type: 'FS',
+            predecessor: owned ? capture : local,
+            successor: owned
+              ? local
+              : { ...capture, endpoint: { ...capture.endpoint, workItemId: row.id } },
+          },
+        ]
+      : [],
   });
   const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
     notify = handlers.onChange;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
   const update = vi.fn<ProjectApi['updateTypedDependency']>().mockResolvedValue(undefined);
+  const remove = vi.fn<ProjectApi['removeTypedDependency']>().mockResolvedValue(undefined);
+  const add = vi.fn<ProjectApi['addTypedDependency']>();
+  const addresses = createRefusingAddressApi();
+  const discover = vi.spyOn(addresses, 'projects');
+  const search = vi.spyOn(addresses, 'candidates');
+  const resolve = vi.spyOn(addresses, 'resolve');
   render(
     <WbsTableOverClient
       projectId="p1"
-      projectServices={projectServicesOf({ ...api, tree, updateTypedDependency: update })}
+      projectServices={projectServicesOver(
+        {
+          ...api,
+          tree,
+          updateTypedDependency: update,
+          addTypedDependency: add,
+          removeTypedDependency: remove,
+        },
+        NO_SAVED_PLANS,
+        addresses,
+      )}
       subscribe={subscribe}
     />,
   );
@@ -94,6 +137,17 @@ async function mount(
   if (phone) fireEvent.click(await screen.findByRole('button', { name: 'Depends on for 010' }));
   return {
     update,
+    remove,
+    add,
+    discover,
+    search,
+    resolve,
+    row,
+    withdraw: () => {
+      present = false;
+      if (notify === undefined) throw new Error('No subscription');
+      notify();
+    },
     rename: () => {
       capture = {
         ...remote,
@@ -463,3 +517,200 @@ for (const phone of [false, true])
       '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
     );
   });
+
+for (const phone of [false, true]) {
+  const editor = () => within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+  const openEdit = () => {
+    const control = screen.getByRole('button', {
+      name: phone ? /^Edit REMOTE/ : /^(Edit dependency: REMOTE|Stop 010 waiting for REMOTE)/,
+    });
+    if (phone) fireEvent.click(control);
+    else fireEvent.keyDown(control, { key: 'Enter' });
+  };
+  for (const scope of ['whole', 'node', 'descendant-step'] as const)
+    for (const type of ['FS', 'SS', 'FF'] as const)
+      it(`updates persisted remote ${scope} to ${type} with fixed endpoints on ${phone ? 'phone' : 'desktop'}`, async () => {
+        const fixture = await mount(phone, undefined, false, scope);
+        openEdit();
+        const dialog = screen.getByRole('dialog', { name: 'Captured dependency' });
+        fireEvent.change(within(dialog).getByLabelText('Relationship'), {
+          target: { value: type },
+        });
+        expect(within(dialog).queryByLabelText('Predecessor')).toBeNull();
+        expect(within(dialog).queryByRole('button', { name: 'Add' })).toBeNull();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+        await waitFor(() => {
+          expect(fixture.update).toHaveBeenCalledExactlyOnceWith(
+            'p1',
+            'external',
+            {
+              projectId: 'remote-stable',
+              scope,
+              workItemId: 'remote-row',
+              ...(scope === 'whole' ? {} : { stepId: 'remote-dev' }),
+            },
+            { scope: 'whole', workItemId: fixture.row.id },
+            type,
+          );
+        });
+        await waitFor(() => {
+          expect(screen.queryByRole('dialog', { name: 'Captured dependency' })).toBeNull();
+        });
+        expect(fixture.add).not.toHaveBeenCalled();
+        expect(fixture.discover).not.toHaveBeenCalled();
+        expect(fixture.search).not.toHaveBeenCalled();
+        expect(fixture.resolve).not.toHaveBeenCalled();
+      });
+
+  it(`retains the relationship draft after inactive refusal on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { update } = await mount(phone);
+    const fetcher = vi.fn(() =>
+      Promise.resolve(
+        Response.json(
+          { error: 'external_dependencies_inactive', at: 0, kind: 'updateTypedDependency' },
+          { status: 409 },
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    update.mockImplementation((...args) => httpProjectApi('token').updateTypedDependency(...args));
+    openEdit();
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'FF' } });
+    fireEvent.click(editor().getByRole('button', { name: 'Save' }));
+    await screen.findByText(/Dependency refused/);
+    expect(screen.getByLabelText('Relationship')).toHaveValue('FF');
+    expect(editor().getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(
+      await screen.findByText('Dependencies between projects are not enabled on this server.'),
+    ).toBeVisible();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it(`retires a pending captured edit before reopening on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { update } = await mount(phone);
+    let finish: (() => void) | undefined;
+    update.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    openEdit();
+    fireEvent.click(editor().getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+    expect(editor().getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(editor().getByRole('button', { name: 'Save' }));
+    expect(update).toHaveBeenCalledTimes(1);
+    openEdit();
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'SS' } });
+    await act(async () => {
+      if (finish === undefined) throw new Error('No pending edit');
+      finish();
+      await Promise.resolve();
+    });
+    expect(screen.getByLabelText('Relationship')).toHaveValue('SS');
+    expect(editor().getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it(`refuses a withdrawn captured edit without recreating it on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { withdraw, update, add } = await mount(phone);
+    openEdit();
+    act(withdraw);
+    await screen.findByText(/This dependency was removed/);
+    expect(screen.queryByRole('dialog', { name: 'Captured dependency' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+    expect(update).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it(`removes the existing captured relationship on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { remove } = await mount(phone);
+    if (!phone)
+      fireEvent.mouseEnter(screen.getByLabelText('Add a dependency to 010').closest('td')!);
+    fireEvent.click(await screen.findByRole('button', { name: /^Remove .*REMOTE/ }));
+    await waitFor(() => {
+      expect(remove).toHaveBeenCalledExactlyOnceWith('p1', 'external');
+    });
+  });
+}
+
+for (const phone of [false, true])
+  it(`keeps a foreign-owned relationship details-only even when work-item ids collide on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { update, add } = await mount(phone, undefined, false, 'node', false);
+    fireEvent.click(
+      screen.getByRole('button', { name: phone ? /^Edit .*REMOTE/ : /^Edit dependency: .*REMOTE/ }),
+    );
+    const dialog = within(screen.getByRole('dialog', { name: 'Captured dependency' }));
+    expect(dialog.queryByLabelText('Relationship')).toBeNull();
+    expect(dialog.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(update).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
+  });
+
+for (const phone of [false, true]) {
+  it(`preserves the local successor node when saving a remote type on ${phone ? 'phone' : 'desktop'}`, async () => {
+    const { update, row } = await mount(phone, undefined, false, 'node', true, 'node');
+    fireEvent.click(
+      screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+    );
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'SS' } });
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Captured dependency' })).getByRole('button', {
+        name: 'Save',
+      }),
+    );
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith(
+        'p1',
+        'external',
+        {
+          projectId: 'remote-stable',
+          scope: 'node',
+          workItemId: 'remote-row',
+          stepId: 'remote-dev',
+        },
+        { scope: 'node', stepNodeId: `sn1.${row.id}.step-dev` },
+        'SS',
+      );
+    });
+  });
+
+  it(`keeps ArrowLeft in the captured relationship selector on ${phone ? 'phone' : 'desktop'}`, async () => {
+    await mount(phone);
+    fireEvent.click(
+      screen.getByRole('button', { name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/ }),
+    );
+    const selector = screen.getByLabelText('Relationship');
+    selector.focus();
+    fireEvent.keyDown(selector, { key: 'ArrowLeft' });
+    expect(selector).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Captured dependency' })).toBeVisible();
+  });
+}
+
+it('rejects a persisted scoped endpoint without its step identity before producing a write', () => {
+  expect(() =>
+    serializePersistedDependencyEndpoint(
+      { projectId: 'p1', scope: 'node', workItemId: 'row' },
+      'p1',
+    ),
+  ).toThrow('Missing persisted dependency step identity');
+});
+
+it('rejects an unknown captured relationship instead of offering a writable default', () => {
+  expect(() =>
+    render(
+      <CapturedDependencyDetails
+        dependency={{
+          id: 'external',
+          type: 'SF',
+          predecessor: { scope: 'whole', workItemId: 'remote' },
+          successor: { scope: 'whole', workItemId: 'local' },
+        }}
+        onClose={() => undefined}
+      />,
+    ),
+  ).toThrow('Unknown dependency relationship SF');
+});
