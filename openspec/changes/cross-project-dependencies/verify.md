@@ -5439,3 +5439,32 @@ fault; the final receipt is `/tmp/puni-descendant-mcp-flag-restored.log`.
 Changed-file ESLint and Prettier passed, and OpenSpec validation remained
 271/271 (`/tmp/puni-openspec-desc-integrated.json`). Parent 3.2/4.2 remain
 open.
+
+## Bounded copy replay integration (2026-10-23)
+
+The independently reviewed bounded copy proof is recorded in
+[verify-8-2-copy-slice.md](verify-8-2-copy-slice.md). Astra High initially
+required immediate post-undo foreign snapshots and exact owner journal
+identity/flag transitions; the amended test supplies both. Its independent
+single-case rereview passed 1/1 with 36 assertions. After integration, the
+four-file mounted/domain copy packet passed 42/42 with 487 assertions
+(`/tmp/puni-integrated-copy-82-tests.log`). Task 8.2 remains open.
+
+## Obsolete exact-SHA host gate triage (2026-10-23)
+
+`bin/h2puni-gate.sh 2ddea72eede2ea6ea5a843077bfaa3955cd031d3` ran from
+the isolated `/home/puni1/puni-00-gate-codex-cross-project-2ddea72ee` tree.
+Its log printed `h2puni gate: running on 2ddea72eede2ea6ea5a843077bfaa3955cd031d3`.
+The full Nx phase reported failures in six targets: frontend unit (2),
+contracts (1), core (19), SQLite store (86), remote scripts (1) and devsync
+(7). The deadline-copy failure is fixed in later feature commit `1cc02aa66`;
+the other failures remain unverified at a new exact head. Representative
+causes are stale test fixtures/inventories, migration expectation sets and two
+host-load-sensitive subprocess timeouts; the old log is
+`/tmp/puni-h2-gate-2ddea72ee.log`.
+
+The obsolete gate was already red and one coverage test remained
+uninterruptibly blocked after 35 minutes. Its own Nx coordinator and hung test
+were terminated, yielding exit 130; the wrapper released the canonical lock
+(`heavy lock: holder none`). This is **not** a passing gate and does not satisfy
+task 11.2. Focused repairs and a fresh exact-SHA gate are required.
