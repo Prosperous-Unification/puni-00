@@ -5840,3 +5840,17 @@ were independently watched red and restored; selector sort omission is proved
 by the existing adversarial selector test because mounted derivation pre-sorts
 members, with a separate inverted-sort mounted fault. No production behavior
 changed. Parent 7.3, persistence/retry 7.4, historical 8.4 and activation stay open.
+
+## Task 6.3 bounded required execution evidence matrix — 2026-10-23
+
+The mounted startable/tree/claim matrix now covers absent/unreadable remote
+attempts/progress, own-project foreign-step evidence, required-project absence,
+remote holds, calendar-independent readiness and exact project-local resource
+occupancy through a real shared-person peer bridge. Six independent production
+faults fail precise assertions; omitting the missing-project capture guard still
+refuses downstream and is diagnostic only. Complete table/publication invariance,
+commands, raw logs, restoration and limits are in
+[the evidence report](evidence/task-6-3-evidence/report.md).
+Independent Astra High review found no actionable finding. Parent 6.3 remains
+unchecked pending MCP/skip-policy reconciliation and integrated gates. No
+production behavior or activation changed.

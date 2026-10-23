@@ -2,8 +2,11 @@ import { readdirSync, readlinkSync } from 'node:fs';
 
 import type { StartableWork } from '@wbs/core/module/work-item/startable';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { ProjectRepository } from '@wbs/store-sqlite/project';
+import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepProgressRepository } from '@wbs/store-sqlite/step-progress';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -84,6 +87,7 @@ const claim = (steps: string[] = [targetStep]) =>
     ],
   });
 
+// Proof: removing execution-read external edges advertised the unfinished successor (task-6-3-evidence/external-edge-fault.log).
 test('remote unfinished FS is excluded from startable and refused by claim until completion', async () => {
   const before = await startable();
   expect(before.status).toBe(200);
@@ -164,6 +168,7 @@ test('local claim redo reevaluates prerequisites after undo instead of replaying
   ).toEqual([]);
 });
 
+// Proof: removing actual-attempt evidence kept the ended failed SS predecessor blocked (task-6-3-evidence/attempt-fault.log).
 test('SS observes ended unsuccessful attempts while unknown prerequisites refuse atomically', async () => {
   harness.sqlite.run("UPDATE external_dependency SET type='SS' WHERE id='prerequisite'");
   const before = captureState();
@@ -609,3 +614,221 @@ for (const type of ['FS', 'SS', 'FF'] as const) {
     await assertAcceptedClaim();
   });
 }
+
+const tree = () => harness.call('ada', 'GET', `/api/projects/${target}/work-items?full=true`);
+
+async function assertEvidenceFailure() {
+  expect((await startable()).status).toBe(500);
+  expect((await tree()).status).toBe(500);
+  const before = captureState();
+  publications.length = 0;
+  expect(
+    (
+      await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+        commands: [
+          { kind: 'patchWorkItem', workItemId: 'target-leaf', patch: { name: 'Must roll back' } },
+          {
+            kind: 'claimWorkItem',
+            workItemId: 'target-leaf',
+            personId: 'executor',
+            steps: [targetStep],
+          },
+        ],
+      })
+    ).status,
+  ).toBe(500);
+  expect(captureState()).toEqual(before);
+  expect(publications).toEqual([]);
+}
+
+/** Rewrite the real repository read after its complete SQL observation. */
+function interceptEvidence<Fact extends { stepId: string }>(
+  prototype: { listByProject(projectId: string): Promise<Fact[]> },
+  rewrite: (projectId: string, facts: Fact[]) => Fact[],
+) {
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'listByProject');
+  if (descriptor === undefined) throw new Error('execution evidence reader missing');
+  const read = descriptor.value as typeof prototype.listByProject;
+  return spyOn(prototype, 'listByProject').mockImplementation(async function (
+    this: typeof prototype,
+    projectId: string,
+  ) {
+    const facts = await read.call(this, projectId);
+    return rewrite(projectId, facts);
+  });
+}
+
+for (const evidence of ['attempts', 'progress'] as const) {
+  for (const fault of ['absent', 'unreadable'] as const) {
+    test(`remote ${evidence} ${fault} refuses mounted execution evidence atomically`, async () => {
+      const rewrite = <Fact>(projectId: string, facts: Fact[]) => {
+        if (projectId !== predecessor) return facts;
+        if (fault === 'unreadable') throw new Error(`injected unreadable remote ${evidence}`);
+        // Deliberate missing collection at the trusted store boundary.
+        return undefined as never;
+      };
+      const interception =
+        evidence === 'attempts'
+          ? interceptEvidence(StepNodeAttemptRepository.prototype, rewrite)
+          : interceptEvidence(StepProgressRepository.prototype, rewrite);
+      try {
+        await assertEvidenceFailure();
+      } finally {
+        interception.mockRestore();
+      }
+      expect((await startable()).status).toBe(200);
+    });
+  }
+}
+
+// Proof: union-wide step validation returned 200 for both corrupt mounted reads (task-6-3-evidence/union-steps-fault.log).
+for (const evidence of ['progress', 'attempts'] as const) {
+  test(`foreign step in own-project ${evidence} refuses mounted evidence`, async () => {
+    if (evidence === 'progress') recordCompletion();
+    else
+      harness.sqlite.run(
+        "INSERT INTO step_node_attempt(work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('predecessor-leaf',?,1,1,2,'failed')",
+        [predecessorStep],
+      );
+    const rewrite = <Fact extends { stepId: string }>(projectId: string, facts: Fact[]) =>
+      projectId === predecessor ? facts.map((fact) => ({ ...fact, stepId: targetStep })) : facts;
+    const interception =
+      evidence === 'attempts'
+        ? interceptEvidence(StepNodeAttemptRepository.prototype, rewrite)
+        : interceptEvidence(StepProgressRepository.prototype, rewrite);
+    try {
+      await assertEvidenceFailure();
+    } finally {
+      interception.mockRestore();
+    }
+  });
+}
+
+test('required remote project absence refuses mounted evidence without writes', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    ProjectRepository.prototype,
+    'findInOrganization',
+  );
+  if (descriptor === undefined) throw new Error('project reader missing');
+  const read = descriptor.value as ProjectRepository['findInOrganization'];
+  const interception = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
+    function (this: ProjectRepository, projectId: string, organizationId: string) {
+      return projectId === predecessor
+        ? Promise.resolve(null)
+        : read.call(this, projectId, organizationId);
+    },
+  );
+  try {
+    await assertEvidenceFailure();
+  } finally {
+    interception.mockRestore();
+  }
+  expect((await startable()).status).toBe(200);
+});
+
+// Proof: omitting remote holds changed mounted tree blocked_by_proxy to ready (task-6-3-evidence/hold-fault.log).
+test('remote holds remain visible in mounted tree and prevent governed claims', async () => {
+  harness.sqlite.run("UPDATE work_item SET hold='on_hold' WHERE id='predecessor-leaf'");
+  expect(await tree()).toMatchObject({
+    status: 200,
+    body: {
+      workItems: [
+        {
+          id: 'target-leaf',
+          status: 'blocked_by_proxy',
+          nodeReadings: { [targetStep]: 'blocked_by_proxy' },
+        },
+      ],
+    },
+  });
+  expect((await startable()).body).toMatchObject({ leaves: [] });
+  await assertRefusal(() => claim());
+});
+
+// Proof: removing progress evidence kept the completed remote FS blocked (task-6-3-evidence/progress-fault.log).
+test('missing remote calendar preserves mounted readiness and governed execution', async () => {
+  harness.sqlite.run("UPDATE project SET start_date='2026-10-19' WHERE id=?", [target]);
+  harness.sqlite.run('UPDATE project SET start_date=NULL WHERE id=?', [predecessor]);
+  expect(await tree()).toMatchObject({
+    status: 200,
+    body: {
+      scheduleError: { kind: 'dependency_calendar_missing' },
+      workItems: [
+        { id: 'target-leaf', status: 'ready', nodeReadings: { [targetStep]: 'unknown' } },
+      ],
+      connectedDependencies: [{ id: 'prerequisite' }],
+    },
+  });
+  expect((await startable()).body).toMatchObject({ leaves: [] });
+  await assertRefusal(() => claim());
+  recordCompletion();
+  expect((await startable()).body).toMatchObject({
+    leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep] }],
+  });
+  await assertAcceptedClaim();
+});
+
+// Proof: dropping occupancy project scope counted the peer's seven units against target capacity two (task-6-3-evidence/resource-scope-fault.log).
+test('shared-person peer discovery retains exact project-local resource occupancy', async () => {
+  setMode('shared');
+  recordCompletion();
+  const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Resource peer' });
+  expect(created.status).toBe(200);
+  const peer = created.body as { project: { id: string }; steps: { id: string }[] };
+  const peerStep = peer.steps.at(0);
+  if (peerStep === undefined) throw new Error('resource peer step missing');
+  harness.sqlite.run(
+    "INSERT INTO work_item(id,project_id,position,name,readiness) VALUES ('resource-peer',?,0,'Resource peer','ready')",
+    [peer.project.id],
+  );
+  harness.sqlite.run(
+    "INSERT INTO assignment(work_item_id,step_id,person_id) VALUES ('target-leaf',?,'executor'),('resource-peer',?,'executor')",
+    [targetStep, peerStep.id],
+  );
+  harness.sqlite.run(
+    "INSERT INTO resource(id,name,kind,unit_label) VALUES ('machine','Machine','divisible','slots')",
+  );
+  harness.sqlite.run(
+    "INSERT INTO resource_organization(resource_id,organization_id,name) VALUES ('machine','execution-org','Machine')",
+  );
+  harness.sqlite.run(
+    "INSERT INTO project_resource_capacity(project_id,resource_id,units) VALUES (?,'machine',2),(?,'machine',7)",
+    [target, peer.project.id],
+  );
+  harness.sqlite.run(
+    "INSERT INTO work_item_resource_demand(work_item_id,resource_id,units) VALUES ('target-leaf','machine',2),('resource-peer','machine',7)",
+  );
+  harness.sqlite.run(
+    "INSERT INTO claim(id,work_item_id,step_id,person_id,run_id,created_at,created_by) VALUES ('remote-claim','resource-peer',?,'executor','remote-run',1,?)",
+    [peerStep.id, harness.userId('ada')],
+  );
+  harness.sqlite.run(
+    "INSERT INTO claim_occupancy(claim_id,resource_id,units) VALUES ('remote-claim','machine',7)",
+  );
+  observedAttemptProjects.clear();
+  expect(await startable()).toMatchObject({
+    status: 200,
+    body: {
+      occupancyScope: 'project',
+      resources: [{ resourceId: 'machine', capacity: 2, occupied: 0, free: 2 }],
+      leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep], fits: true }],
+    },
+  });
+  expect([...observedAttemptProjects].sort()).toEqual(
+    [target, predecessor, peer.project.id].sort(),
+  );
+  expect((await claim()).status).toBe(200);
+  expect((await startable()).body).toMatchObject({
+    occupancyScope: 'project',
+    resources: [{ resourceId: 'machine', capacity: 2, occupied: 2, free: 0 }],
+    claimed: [{ workItemId: 'target-leaf', stepId: targetStep }],
+  });
+  expect(
+    harness.sqlite
+      .query('SELECT claim_id,resource_id,units FROM claim_occupancy ORDER BY units')
+      .all(),
+  ).toMatchObject([
+    { resource_id: 'machine', units: 2 },
+    { claim_id: 'remote-claim', resource_id: 'machine', units: 7 },
+  ]);
+});
